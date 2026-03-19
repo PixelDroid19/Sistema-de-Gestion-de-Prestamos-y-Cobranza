@@ -1,6 +1,6 @@
 const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('../../../utils/errorHandler');
 
-const PRIVILEGED_ROLES = new Set(['admin', 'agent']);
+const PRIVILEGED_ROLES = new Set(['admin', 'agent', 'socio']);
 
 const buildRoleValidationError = () => {
   const error = new ValidationError('Please correct the following errors');
@@ -46,14 +46,22 @@ const createRegisterUser = ({
   userRepository,
   customerProfileRepository,
   agentProfileRepository,
+  associateProfileRepository,
   passwordHasher,
   tokenService,
 }) => async (input) => {
   const {
     actor,
     registrationSource,
-    payload: { name, email, password, role, phone },
+    payload,
   } = normalizeRegisterInput(input);
+  const {
+    name,
+    email,
+    password,
+    role,
+    phone,
+  } = payload;
 
   const isPrivilegedRole = PRIVILEGED_ROLES.has(role);
   const isPublicRegistration = registrationSource === 'public';
@@ -101,6 +109,29 @@ const createRegisterUser = ({
         email,
         phone,
       });
+    }
+
+    if (role === 'socio') {
+      if (!phone) {
+        throw new ValidationError('Phone number is required for socio registration');
+      }
+
+      if (!payload.associateId) {
+        throw new ValidationError('Associate link is required for socio registration');
+      }
+
+      const linkedAssociate = await associateProfileRepository.update(payload.associateId, {
+        name,
+        email,
+        ...(phone !== undefined ? { phone } : {}),
+      });
+
+      if (!linkedAssociate) {
+        throw new NotFoundError('Associate');
+      }
+
+      await userRepository.update(user.id, { associateId: payload.associateId });
+      user.associateId = payload.associateId;
     }
   } catch (error) {
     await userRepository.remove(user.id);
@@ -158,6 +189,7 @@ const createUpdateProfile = ({
   userRepository,
   customerProfileRepository,
   agentProfileRepository,
+  associateProfileRepository,
 }) => async (userId, { name, email, phone }) => {
   const user = await userRepository.findById(userId);
   if (!user) {
@@ -186,6 +218,14 @@ const createUpdateProfile = ({
 
   if (user.role === 'agent') {
     await agentProfileRepository.update(userId, {
+      name: name || user.name,
+      email: email || user.email,
+      ...(phone !== undefined ? { phone } : {}),
+    });
+  }
+
+  if (user.role === 'socio' && user.associateId) {
+    await associateProfileRepository.update(user.associateId, {
       name: name || user.name,
       email: email || user.email,
       ...(phone !== undefined ? { phone } : {}),

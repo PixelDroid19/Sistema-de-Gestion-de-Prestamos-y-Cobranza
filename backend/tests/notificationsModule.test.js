@@ -8,6 +8,8 @@ const {
   createMarkAllAsRead,
   createGetUnreadCount,
   createClearNotifications,
+  createRegisterPushSubscription,
+  createDeletePushSubscription,
 } = require('../src/modules/notifications/application/useCases');
 
 test('createGetNotifications aggregates unread and total counts', async () => {
@@ -98,4 +100,89 @@ test('notification use cases preserve count-based contracts', async () => {
   assert.equal(marked.data.count, 2);
   assert.equal(unread.data.unreadCount, 4);
   assert.deepEqual(cleared, { success: true, message: 'All notifications cleared' });
+});
+
+test('createGetNotifications preserves persisted payload fields for frontend compatibility', async () => {
+  const getNotifications = createGetNotifications({
+    notificationRepository: {
+      async getNotifications() {
+        return [{ id: 4, payload: { loanId: 12 }, data: { loanId: 12 }, isRead: false }];
+      },
+      async getUnreadCount() {
+        return 1;
+      },
+    },
+  });
+
+  const result = await getNotifications({ actor: { id: 8, role: 'agent' } });
+
+  assert.equal(result.data.notifications[0].data.loanId, 12);
+  assert.equal(result.data.notifications[0].payload.loanId, 12);
+});
+
+test('createRegisterPushSubscription upserts an actor-owned subscription', async () => {
+  const registerPushSubscription = createRegisterPushSubscription({
+    pushSubscriptionRepository: {
+      async upsert(payload) {
+        return { id: 4, ...payload, status: 'active' };
+      },
+    },
+  });
+
+  const result = await registerPushSubscription({
+    actor: { id: 8, role: 'agent' },
+    payload: {
+      providerKey: 'webpush',
+      channel: 'web',
+      endpoint: 'https://push.example/sub',
+      subscription: { endpoint: 'https://push.example/sub' },
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.subscription.userId, 8);
+  assert.equal(result.data.subscription.providerKey, 'webpush');
+});
+
+test('createDeletePushSubscription is idempotent when a subscription is already gone', async () => {
+  const deletePushSubscription = createDeletePushSubscription({
+    pushSubscriptionRepository: {
+      async deactivate(payload) {
+        assert.equal(payload.userId, 8);
+        return false;
+      },
+    },
+  });
+
+  const result = await deletePushSubscription({
+    actor: { id: 8, role: 'agent' },
+    payload: {
+      providerKey: 'webpush',
+      endpoint: 'https://push.example/sub',
+    },
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    message: 'Push subscription removed',
+    data: { removed: false },
+  });
+});
+
+test('push subscription use cases reject payloads without endpoint or device token', async () => {
+  const registerPushSubscription = createRegisterPushSubscription({
+    pushSubscriptionRepository: {
+      async upsert() {
+        throw new Error('upsert should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => registerPushSubscription({
+    actor: { id: 8, role: 'agent' },
+    payload: {
+      providerKey: 'fcm',
+      channel: 'mobile',
+    },
+  }), /Subscription endpoint or device token is required/);
 });

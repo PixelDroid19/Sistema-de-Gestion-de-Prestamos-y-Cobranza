@@ -24,7 +24,23 @@ const isLoanVisibleToActor = ({ actor, loan }) => {
     return normalizeId(actor.id) === normalizeId(loan.agentId);
   }
 
+  if (actor.role === 'socio') {
+    return normalizeId(actor.associateId) === normalizeId(loan.associateId);
+  }
+
   return false;
+};
+
+const canActorViewAttachment = ({ actor, loan, attachment }) => {
+  if (!actor || !loan || !attachment) {
+    return false;
+  }
+
+  if (actor.role === 'customer') {
+    return isLoanVisibleToActor({ actor, loan }) && Boolean(attachment.customerVisible);
+  }
+
+  return isLoanVisibleToActor({ actor, loan });
 };
 
 /**
@@ -118,6 +134,7 @@ const createLoanAccessPolicy = ({ loanRepository }) => {
     filterVisibleLoans,
     assertLoanMutationAccess,
     findAuthorizedMutationLoan,
+    canActorViewAttachment,
   };
 };
 
@@ -125,4 +142,5 @@ module.exports = {
   createLoanAccessPolicy,
   isLoanVisibleToActor,
   isLoanMutableByActor,
+  canActorViewAttachment,
 };

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Printer, Download, CreditCard, Users, Briefcase } from "lucide-react";
 import { api, handleApiError } from "../utils/api";
 import "./Dashboard.css"; 
@@ -12,17 +12,46 @@ const Dashboard = ({ user }) => {
     paidAmount: 0,
     pendingAmount: 0
   });
+  const [partnerSummary, setPartnerSummary] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [loansRes, paymentsRes] = await Promise.all([
-          api.getLoans(),
-          api.getPayments()
-        ]);
+        if (user.role === "socio") {
+          const profitabilityRes = await api.getAssociateProfitability();
+          const report = profitabilityRes?.data?.report || null;
+          setPartnerSummary(report);
+          const loansData = Array.isArray(report?.data?.loans) ? report.data.loans : [];
+          setLoans(loansData.slice(0, 5));
+          setPayments([]);
+          setSummary({
+            totalAmount: Number(report?.summary?.totalContributed || 0),
+            paidAmount: Number(report?.summary?.totalDistributed || 0),
+            pendingAmount: Math.max(0, Number(report?.summary?.totalContributed || 0) - Number(report?.summary?.totalDistributed || 0)),
+          });
+          return;
+        }
+
+        const loansRes = user.role === 'customer'
+          ? await api.getLoansByCustomer(user.id)
+          : user.role === 'agent'
+            ? await api.getLoansByAgent(user.id)
+            : await api.getLoans();
+
+        const paymentsRes = user.role === 'admin'
+          ? await api.getPayments()
+          : null;
         
-        const loansData = loansRes.data || [];
-        const paymentsData = paymentsRes.data || [];
+        const loansData = Array.isArray(loansRes?.data?.loans)
+          ? loansRes.data.loans
+          : Array.isArray(loansRes?.data)
+            ? loansRes.data
+            : [];
+        let paymentsData = Array.isArray(paymentsRes?.data)
+          ? paymentsRes.data
+          : Array.isArray(paymentsRes?.data?.payments)
+            ? paymentsRes.data.payments
+            : [];
         
         let filteredLoans = loansData;
         let filteredPayments = paymentsData;
@@ -30,9 +59,25 @@ const Dashboard = ({ user }) => {
         // Filter based on role
         if (user.role === "customer") {
           filteredLoans = loansData.filter(l => l.customerId === user.id);
-          filteredPayments = paymentsData.filter(p => p.Loan?.customerId === user.id);
         } else if (user.role === "agent") {
           filteredLoans = loansData.filter(l => l.agentId === user.id);
+        }
+
+        if (user.role !== 'admin') {
+          const paymentsByLoan = await Promise.all(
+            filteredLoans.map(async (loan) => {
+              try {
+                const response = await api.getPaymentsByLoan(loan.id);
+                return Array.isArray(response?.data) ? response.data : [];
+              } catch (error) {
+                return [];
+              }
+            }),
+          );
+          paymentsData = paymentsByLoan.flat();
+          filteredPayments = paymentsData;
+        } else {
+          filteredPayments = paymentsData;
         }
 
         setLoans(filteredLoans.slice(0, 5)); // Keep only recent 5
@@ -53,6 +98,22 @@ const Dashboard = ({ user }) => {
     };
     fetchData();
   }, [user]);
+
+  const heroCopy = useMemo(() => {
+    if (user.role === 'socio') {
+      return {
+        title: 'Welcome to the partner portal',
+        subtitle: 'Review your linked contributions, distributions, and loan exposure from one workspace.',
+        action: 'Open Partner Portal',
+      };
+    }
+
+    return {
+      title: 'Welcome to LendFlow',
+      subtitle: 'Your centralized loan recovery and management system',
+      action: 'View Reports',
+    };
+  }, [user.role]);
 
   // Format currency
   const formatCurrency = (amt) => {
@@ -79,9 +140,9 @@ const Dashboard = ({ user }) => {
           {/* Hero Banner */}
           <div className="hero-banner lendflow-banner">
             <div className="hero-content">
-              <h1>Welcome to LendFlow</h1>
-              <p>Your centralized loan recovery and management system</p>
-              <button className="btn-learn-more">View Reports</button>
+              <h1>{heroCopy.title}</h1>
+              <p>{heroCopy.subtitle}</p>
+              <button className="btn-learn-more">{heroCopy.action}</button>
             </div>
             <div className="hero-illustration">
               <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Jocelyn&backgroundColor=transparent" alt="Illustration" />
@@ -116,10 +177,10 @@ const Dashboard = ({ user }) => {
             </div>
 
             <div className="card">
-              <h3 className="card-title">Recent Loans</h3>
+              <h3 className="card-title">{user.role === 'socio' ? 'Linked Loans' : 'Recent Loans'}</h3>
               <div className="beneficiary-list">
                 {loans.length === 0 ? (
-                  <p className="text-muted text-sm mt-4">No recent loans found.</p>
+                  <p className="text-muted text-sm mt-4">{user.role === 'socio' ? 'No linked loans found.' : 'No recent loans found.'}</p>
                 ) : (
                   loans.slice(0,2).map((loan) => (
                     <div className="beneficiary-item mt-2" key={loan.id}>
@@ -140,7 +201,7 @@ const Dashboard = ({ user }) => {
           <div className="tables-grid">
             <div className="card table-card-full" style={{ gridColumn: "1 / -1" }}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="card-title">Recent Payments</h3>
+                <h3 className="card-title">{user.role === 'socio' ? 'Partner Snapshot' : 'Recent Payments'}</h3>
                 <span className="text-link cursor-pointer">See All</span>
               </div>
               <div className="table-responsive">
@@ -155,7 +216,17 @@ const Dashboard = ({ user }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.length === 0 ? (
+                    {user.role === 'socio' ? (
+                      <>
+                        <tr>
+                          <td>#-</td>
+                          <td>{new Date().toLocaleDateString()}</td>
+                          <td>Associate</td>
+                          <td><span className="status-text completed">distributed</span></td>
+                          <td className="text-right font-semibold">{formatCurrency(partnerSummary?.summary?.totalDistributed || 0)}</td>
+                        </tr>
+                      </>
+                    ) : payments.length === 0 ? (
                       <tr><td colSpan="5" className="text-center text-muted">No payments found.</td></tr>
                     ) : (
                       payments.map((p) => (
@@ -214,4 +285,3 @@ const Dashboard = ({ user }) => {
 };
 
 export default Dashboard;
-

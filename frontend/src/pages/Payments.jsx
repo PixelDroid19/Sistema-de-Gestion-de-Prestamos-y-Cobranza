@@ -5,6 +5,8 @@ import { api, handleApiError, handleTokenExpiration } from '../utils/api';
 function Payments({ user }) {
   const [payments, setPayments] = useState([]);
   const [loans, setLoans] = useState([]);
+  const [calendar, setCalendar] = useState([]);
+  const [attachments, setAttachments] = useState([]);
   const [form, setForm] = useState({ loanId: '', amount: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -12,6 +14,25 @@ function Payments({ user }) {
   const [submitting, setSubmitting] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [resolvedAlertMessage, setResolvedAlertMessage] = useState('');
+
+  const handleDownloadAttachment = async (attachmentId, fileName) => {
+    try {
+      const blob = await api.downloadLoanAttachment(form.loanId, attachmentId);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName || `attachment-${attachmentId}`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      if (err.status === 401) {
+        handleTokenExpiration();
+      } else {
+        handleApiError(err, setError);
+      }
+    }
+  };
 
   const getLoanDetails = useCallback((loanId) => {
     const loan = loans.find((item) => item.id === parseInt(loanId, 10));
@@ -66,6 +87,8 @@ function Payments({ user }) {
   const loadPayments = async (loanId) => {
     if (!loanId) {
       setPayments([]);
+      setCalendar([]);
+      setAttachments([]);
       return;
     }
 
@@ -73,8 +96,14 @@ function Payments({ user }) {
     setError('');
 
     try {
-      const data = await api.getPaymentsByLoan(loanId);
-      setPayments(Array.isArray(data.data) ? data.data : []);
+      const [paymentData, calendarData, attachmentData] = await Promise.all([
+        api.getPaymentsByLoan(loanId),
+        api.getLoanCalendar(loanId),
+        api.getLoanAttachments(loanId),
+      ]);
+      setPayments(Array.isArray(paymentData.data) ? paymentData.data : []);
+      setCalendar(Array.isArray(calendarData?.data?.calendar?.entries) ? calendarData.data.calendar.entries : []);
+      setAttachments(Array.isArray(attachmentData?.data?.attachments) ? attachmentData.data.attachments : []);
     } catch (err) {
       if (err.status === 401) {
         handleTokenExpiration();
@@ -82,6 +111,8 @@ function Payments({ user }) {
         handleApiError(err, setError);
       }
       setPayments([]);
+      setCalendar([]);
+      setAttachments([]);
     } finally {
       setHistoryLoading(false);
     }
@@ -110,9 +141,23 @@ function Payments({ user }) {
 
     try {
       await api.createPayment({ loanId: form.loanId, amount: form.amount });
+      const previousOverdueCount = calendar.filter((entry) => entry.status === 'overdue').length;
       setShowSuccessAnimation(true);
       setSuccess('Payment successful!');
       await loadPayments(form.loanId);
+      setTimeout(() => {
+        setResolvedAlertMessage((current) => current);
+      }, 0);
+
+      const refreshedCalendar = await api.getLoanCalendar(form.loanId);
+      const refreshedEntries = Array.isArray(refreshedCalendar?.data?.calendar?.entries) ? refreshedCalendar.data.calendar.entries : [];
+      setCalendar(refreshedEntries);
+      const refreshedOverdueCount = refreshedEntries.filter((entry) => entry.status === 'overdue').length;
+      if (refreshedOverdueCount < previousOverdueCount) {
+        setResolvedAlertMessage('Overdue alerts were refreshed after this payment.');
+      } else {
+        setResolvedAlertMessage('');
+      }
 
       setTimeout(() => {
         setShowSuccessAnimation(false);
@@ -217,38 +262,101 @@ function Payments({ user }) {
     }
 
     return (
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Payment ID</th>
-              <th>Loan ID</th>
-              <th className="table-cell-right">Amount</th>
-              <th className="table-cell-center">Payment date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments
-              .slice()
-              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-              .map((payment) => (
-                <tr key={payment.id}>
-                  <td>
-                    <span className="table-id-pill">#{payment.id}</span>
-                  </td>
-                  <td>Loan #{payment.loanId}</td>
-                  <td className="table-cell-right">₹{payment.amount}</td>
-                  <td className="table-cell-center">
-                    {new Date(payment.createdAt).toLocaleDateString('en-IN', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="dashboard-page-stack" style={{ gap: '1rem' }}>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Payment ID</th>
+                <th>Loan ID</th>
+                <th className="table-cell-right">Amount</th>
+                <th className="table-cell-center">Payment date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments
+                .slice()
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .map((payment) => (
+                  <tr key={payment.id}>
+                    <td>
+                      <span className="table-id-pill">#{payment.id}</span>
+                    </td>
+                    <td>Loan #{payment.loanId}</td>
+                    <td className="table-cell-right">₹{payment.amount}</td>
+                    <td className="table-cell-center">
+                      {new Date(payment.createdAt).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Installment</th>
+                <th>Due date</th>
+                <th className="table-cell-right">Outstanding</th>
+                <th className="table-cell-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calendar.length === 0 ? (
+                <tr><td colSpan="4" className="table-cell-center">No calendar entries available</td></tr>
+              ) : (
+                calendar.map((entry) => (
+                  <tr key={entry.installmentNumber}>
+                    <td>#{entry.installmentNumber}</td>
+                    <td>{new Date(entry.dueDate).toLocaleDateString('en-IN')}</td>
+                    <td className="table-cell-right">₹{Number(entry.outstandingAmount || 0).toFixed(2)}</td>
+                    <td className="table-cell-center">{entry.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Attachment</th>
+                <th>Category</th>
+                <th>Visibility</th>
+                <th className="table-cell-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attachments.length === 0 ? (
+                <tr><td colSpan="4" className="table-cell-center">No customer-visible attachments available</td></tr>
+              ) : (
+                attachments.map((attachment) => (
+                  <tr key={attachment.id}>
+                    <td>{attachment.originalName}</td>
+                    <td>{attachment.category || '-'}</td>
+                    <td>{attachment.customerVisible ? 'Customer' : 'Internal'}</td>
+                    <td className="table-cell-center">
+                      <button
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => handleDownloadAttachment(attachment.id, attachment.originalName)}
+                      >
+                        Download
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -342,12 +450,13 @@ function Payments({ user }) {
                     className="btn btn-success"
                     type="submit"
                     disabled={
-                      (form.loanId && loanDetails.balance === '0.00') ||
-                      submitting ||
-                      user.role === 'admin' ||
-                      user.role === 'agent'
-                    }
-                  >
+                       (form.loanId && loanDetails.balance === '0.00') ||
+                       submitting ||
+                       user.role === 'admin' ||
+                       user.role === 'agent' ||
+                       user.role === 'socio'
+                     }
+                   >
                     {submitting ? 'Processing…' : 'Pay EMI'}
                   </button>
                 </div>
@@ -372,13 +481,15 @@ function Payments({ user }) {
 
               {user.role !== 'customer' && (
                 <div className="inline-message inline-message--error">
-                  ℹ️ Payments are customer-only in the current workflow. Admins and agents can still inspect balances and history here.
+                  ℹ️ Payments are customer-only in the current workflow. Admins, agents, and socios can still inspect balances and history here.
                 </div>
               )}
 
               {form.loanId && loanDetails.balance === '0.00' && (
                 <div className="inline-message inline-message--success">✅ This loan is fully paid.</div>
               )}
+
+              {resolvedAlertMessage && <div className="inline-message inline-message--success">✅ {resolvedAlertMessage}</div>}
 
               {error && form.loanId && <div className="inline-message inline-message--error">⚠️ {error}</div>}
               {success && <div className="inline-message inline-message--success">✅ {success}</div>}

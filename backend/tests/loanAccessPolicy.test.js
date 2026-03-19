@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { AuthorizationError, NotFoundError } = require('../src/utils/errorHandler');
-const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor } = require('../src/modules/shared/loanAccessPolicy');
+const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor, canActorViewAttachment } = require('../src/modules/shared/loanAccessPolicy');
 
 test('isLoanVisibleToActor supports admin, customer, and assigned agent visibility', () => {
   const loan = { id: 18, customerId: 7, agentId: 14 };
@@ -87,6 +87,21 @@ test('isLoanMutableByActor only allows admins and assigned agents', () => {
   assert.equal(isLoanMutableByActor({ actor: { id: 14, role: 'agent' }, loan }), true);
   assert.equal(isLoanMutableByActor({ actor: { id: 9, role: 'agent' }, loan }), false);
   assert.equal(isLoanMutableByActor({ actor: { id: 7, role: 'customer' }, loan }), false);
+});
+
+test('isLoanVisibleToActor supports socio visibility through associate ownership', () => {
+  const loan = { id: 18, customerId: 7, agentId: 14, associateId: 22 };
+
+  assert.equal(isLoanVisibleToActor({ actor: { id: 40, role: 'socio', associateId: 22 }, loan }), true);
+  assert.equal(isLoanVisibleToActor({ actor: { id: 41, role: 'socio', associateId: 99 }, loan }), false);
+});
+
+test('canActorViewAttachment blocks customers from internal-only files and allows socio-linked loans', () => {
+  const loan = { id: 18, customerId: 7, agentId: 14, associateId: 22 };
+
+  assert.equal(canActorViewAttachment({ actor: { id: 7, role: 'customer' }, loan, attachment: { customerVisible: true } }), true);
+  assert.equal(canActorViewAttachment({ actor: { id: 7, role: 'customer' }, loan, attachment: { customerVisible: false } }), false);
+  assert.equal(canActorViewAttachment({ actor: { id: 40, role: 'socio', associateId: 22 }, loan, attachment: { customerVisible: false } }), true);
 });
 
 test('createLoanAccessPolicy rejects loan mutation for unassigned agents', async () => {

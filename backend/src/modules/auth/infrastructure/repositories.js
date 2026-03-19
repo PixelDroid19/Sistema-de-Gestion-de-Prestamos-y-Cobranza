@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../../../models/User');
 const Customer = require('../../../models/Customer');
 const Agent = require('../../../models/Agent');
+const Associate = require('../../../models/Associate');
 
 /**
  * Persistence ports for user identities and role-specific profile records.
@@ -69,6 +70,21 @@ const agentProfileRepository = {
   },
 };
 
+const associateProfileRepository = {
+  create(payload) {
+    return Associate.create(payload);
+  },
+  async update(id, payload) {
+    const associate = await Associate.findByPk(id);
+    if (!associate) {
+      return null;
+    }
+
+    await associate.update(payload);
+    return associate;
+  },
+};
+
 /**
  * Password hashing contract used by the auth use cases.
  */
@@ -85,5 +101,6 @@ module.exports = {
   userRepository,
   customerProfileRepository,
   agentProfileRepository,
+  associateProfileRepository,
   passwordHasher,
 };

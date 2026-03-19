@@ -8,6 +8,9 @@ const {
   createGetAssociateById,
   createUpdateAssociate,
   createDeleteAssociate,
+  createListAssociatePortalSummary,
+  createCreateAssociateContribution,
+  createCreateProfitDistribution,
 } = require('./application/useCases');
 const { associateRepository } = require('./infrastructure/repositories');
 const { createAssociatesRouter } = require('./presentation/router');
@@ -24,6 +27,9 @@ const createAssociatesModule = () => {
     getAssociateById: createGetAssociateById({ associateRepository }),
     updateAssociate: createUpdateAssociate({ associateRepository }),
     deleteAssociate: createDeleteAssociate({ associateRepository }),
+    listAssociatePortalSummary: createListAssociatePortalSummary({ associateRepository }),
+    createAssociateContribution: createCreateAssociateContribution({ associateRepository }),
+    createProfitDistribution: createCreateProfitDistribution({ associateRepository }),
   };
 
   return createModule({

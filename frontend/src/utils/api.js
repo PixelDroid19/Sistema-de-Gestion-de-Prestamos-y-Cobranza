@@ -29,6 +29,26 @@ export const api = {
     return response.json();
   },
 
+  async download(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const error = new Error(`HTTP error! status: ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    return response.blob();
+  },
+
   // Auth endpoints
   async login(credentials) {
     return this.request('/api/auth/login', {
@@ -122,6 +142,53 @@ export const api = {
     });
   },
 
+  async getLoanAlerts(loanId) {
+    return this.request(`/api/loans/${loanId}/alerts`);
+  },
+
+  async getLoanPromises(loanId) {
+    return this.request(`/api/loans/${loanId}/promises`);
+  },
+
+  async createLoanPromise(loanId, promiseData) {
+    return this.request(`/api/loans/${loanId}/promises`, {
+      method: 'POST',
+      body: JSON.stringify(promiseData),
+    });
+  },
+
+  async getLoanCalendar(loanId) {
+    return this.request(`/api/loans/${loanId}/calendar`);
+  },
+
+  async getLoanAttachments(loanId) {
+    return this.request(`/api/loans/${loanId}/attachments`);
+  },
+
+  async downloadLoanAttachment(loanId, attachmentId) {
+    return this.download(`/api/loans/${loanId}/attachments/${attachmentId}/download`);
+  },
+
+  async createLoanAttachment(loanId, attachmentData) {
+    const url = `${this.baseURL}/api/loans/${loanId}/attachments`;
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      method: 'POST',
+      body: attachmentData,
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = new Error(`HTTP error! status: ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    return response.json();
+  },
+
   async deleteLoan(id) {
     return this.request(`/api/loans/${id}`, {
       method: 'DELETE',
@@ -194,6 +261,36 @@ export const api = {
 
   async getRecoveryReport() {
     return this.request('/api/reports/recovery');
+  },
+
+  async exportRecoveryReport(format = 'csv') {
+    return this.download(`/api/reports/recovery/export?format=${encodeURIComponent(format)}`);
+  },
+
+  async getLoanCreditHistory(loanId) {
+    return this.request(`/api/reports/credit-history/loan/${loanId}`);
+  },
+
+  async getAssociateProfitability(associateId = null) {
+    return this.request(associateId ? `/api/reports/associates/profitability/${associateId}` : '/api/reports/associates/profitability');
+  },
+
+  async getAssociatePortal(associateId = null) {
+    return this.request(associateId ? `/api/associates/${associateId}/portal` : '/api/associates/portal/me');
+  },
+
+  async createAssociateContribution(associateId, contributionData) {
+    return this.request(`/api/associates/${associateId}/contributions`, {
+      method: 'POST',
+      body: JSON.stringify(contributionData),
+    });
+  },
+
+  async createAssociateDistribution(associateId, distributionData) {
+    return this.request(`/api/associates/${associateId}/distributions`, {
+      method: 'POST',
+      body: JSON.stringify(distributionData),
+    });
   },
 
   async getRecoveredLoans() {

@@ -1,3 +1,4 @@
+const { notificationValidation } = require('../../middleware/validation');
 const { createAuthMiddleware } = require('../shared/auth');
 const { createJwtTokenService } = require('../shared/auth/tokenService');
 const { createModule } = require('../shared');
@@ -7,8 +8,10 @@ const {
   createMarkAllAsRead,
   createGetUnreadCount,
   createClearNotifications,
+  createRegisterPushSubscription,
+  createDeletePushSubscription,
 } = require('./application/useCases');
-const { notificationRepository } = require('./infrastructure/repositories');
+const { notificationRepository, pushSubscriptionRepository } = require('./infrastructure/repositories');
 const { createNotificationsRouter } = require('./presentation/router');
 
 /**
@@ -23,12 +26,14 @@ const createNotificationsModule = () => {
     markAllAsRead: createMarkAllAsRead({ notificationRepository }),
     getUnreadCount: createGetUnreadCount({ notificationRepository }),
     clearNotifications: createClearNotifications({ notificationRepository }),
+    registerPushSubscription: createRegisterPushSubscription({ pushSubscriptionRepository }),
+    deletePushSubscription: createDeletePushSubscription({ pushSubscriptionRepository }),
   };
 
   return createModule({
     name: 'notifications',
     basePath: '/api/notifications',
-    router: createNotificationsRouter({ authMiddleware, useCases }),
+    router: createNotificationsRouter({ authMiddleware, notificationValidation, useCases }),
   });
 };
 

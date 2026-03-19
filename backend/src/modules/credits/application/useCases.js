@@ -1,4 +1,58 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
+const { roundCurrency } = require('../../../services/creditFormulaHelpers');
+
+const normalizeAttachmentVisibility = (value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+  }
+
+  return false;
+};
+
+const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
+  if (outstandingAmount <= 0.01) {
+    return 'paid';
+  }
+
+  if (isOverdue) {
+    return 'overdue';
+  }
+
+  if ((row.paidTotal || 0) > 0) {
+    return 'partial';
+  }
+
+  return 'pending';
+};
+
+const buildCalendarEntries = ({ schedule, alerts }) => {
+  const alertByInstallment = new Map(
+    alerts
+      .filter((alert) => alert.status === 'active')
+      .map((alert) => [Number(alert.installmentNumber), alert]),
+  );
+
+  return schedule.map((row) => {
+    const outstandingAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+    const alert = alertByInstallment.get(Number(row.installmentNumber)) || null;
+    const isOverdue = Boolean(alert);
+
+    return {
+      installmentNumber: row.installmentNumber,
+      dueDate: row.dueDate,
+      scheduledPayment: roundCurrency(row.scheduledPayment || 0),
+      remainingPrincipal: roundCurrency(row.remainingPrincipal || 0),
+      remainingInterest: roundCurrency(row.remainingInterest || 0),
+      outstandingAmount,
+      status: formatCalendarEntryStatus({ row, isOverdue, outstandingAmount }),
+      alertId: alert?.id || null,
+    };
+  });
+};
 
 /**
  * Create the use case that lists loans, optionally filtered through the shared access policy.
@@ -228,6 +282,10 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
  * @returns {Function}
  */
 const createDeleteLoan = ({ loanRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
+  if (actor.role === 'socio') {
+    throw new AuthorizationError('Socio users cannot delete loans');
+  }
+
   const loan = loanAccessPolicy
     ? await loanAccessPolicy.findAuthorizedLoan({ actor, loanId })
     : await loanRepository.findById(loanId);
@@ -243,6 +301,158 @@ const createDeleteLoan = ({ loanRepository, loanAccessPolicy }) => async ({ acto
   await loanRepository.destroy(loan);
 };
 
+/**
+ * Create the use case that lists authorized loan attachments, filtering customer-visible rows when needed.
+ * @param {{ attachmentRepository: object, loanAccessPolicy: object }} dependencies
+ * @returns {Function}
+ */
+const createListLoanAttachments = ({ attachmentRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const attachments = await attachmentRepository.listByLoan(loan.id);
+
+  if (actor.role === 'customer') {
+    return attachments.filter((attachment) => attachment.customerVisible);
+  }
+
+  return attachments;
+};
+
+/**
+ * Create the use case that persists metadata for a newly uploaded loan attachment.
+ * @param {{ attachmentRepository: object, attachmentStorage: object, loanAccessPolicy: object }} dependencies
+ * @returns {Function}
+ */
+const createCreateLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy }) => async ({ actor, loanId, file, metadata = {} }) => {
+  if (!file) {
+    throw new ValidationError('Attachment file is required');
+  }
+
+  try {
+    const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+
+    return await attachmentRepository.create({
+      loanId: loan.id,
+      uploadedByUserId: actor.id,
+      storageDisk: 'local',
+      storagePath: attachmentStorage.toRelativePath(file.path),
+      storedName: file.filename,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+      category: metadata.category ? String(metadata.category).trim() : null,
+      description: metadata.description ? String(metadata.description).trim() : null,
+    });
+  } catch (error) {
+    await attachmentStorage.deleteByAbsolutePath(file.path);
+    throw error;
+  }
+};
+
+/**
+ * Create the use case that resolves a readable loan attachment for download.
+ * @param {{ attachmentRepository: object, attachmentStorage: object, loanAccessPolicy: object }} dependencies
+ * @returns {Function}
+ */
+const createDownloadLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy }) => async ({ actor, loanId, attachmentId }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const attachment = await attachmentRepository.findByIdForLoan({ loanId: loan.id, attachmentId });
+
+  if (!attachment) {
+    throw new NotFoundError('Attachment');
+  }
+
+  if (actor.role === 'customer' && !attachment.customerVisible) {
+    throw new AuthorizationError('You do not have access to this attachment');
+  }
+
+  await attachmentStorage.assertExists(attachment.storagePath);
+
+  return {
+    attachment,
+    absolutePath: attachmentStorage.resolveAbsolutePath(attachment.storagePath),
+  };
+};
+
+const createListLoanAlerts = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  return alertRepository.listByLoan(loan.id);
+};
+
+const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
+  const alerts = await alertRepository.listByLoan(loan.id);
+
+  return {
+    loanId: loan.id,
+    entries: buildCalendarEntries({ schedule, alerts }),
+    snapshot,
+    alerts,
+  };
+};
+
+const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+
+  return loanViewService.getPayoffQuote(loan, asOfDate);
+};
+
+const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, clock = () => new Date() }) => async ({ actor, loanId, asOfDate, quotedTotal }) => {
+  if (actor?.role !== 'customer') {
+    throw new AuthorizationError('Only customers can execute payoff payments');
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+
+  return paymentApplicationService.applyPayoff({
+    loanId: loan.id,
+    asOfDate,
+    quotedTotal,
+    paymentDate: clock(),
+  });
+};
+
+const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  return promiseRepository.expireBrokenPromises({ loanId: loan.id });
+};
+
+const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, payload }) => {
+  if (!['admin', 'agent'].includes(actor.role)) {
+    throw new AuthorizationError('Only admins and agents can create promises to pay');
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+  const promisedDate = new Date(payload.promisedDate);
+  if (Number.isNaN(promisedDate.getTime())) {
+    throw new ValidationError('Promised date is required');
+  }
+
+  const amount = Number(payload.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ValidationError('Promise amount must be greater than 0');
+  }
+
+  const now = new Date();
+  const statusHistory = [{
+    status: 'pending',
+    changedAt: now.toISOString(),
+    actorId: actor.id,
+  }];
+
+  return promiseRepository.create({
+    loanId: loan.id,
+    createdByUserId: actor.id,
+    promisedDate,
+    amount,
+    status: 'pending',
+    notes: payload.notes ? String(payload.notes).trim() : null,
+    statusHistory,
+    lastStatusChangedAt: now,
+  });
+};
+
 module.exports = {
   createListLoans,
   createCreateSimulation,
@@ -254,4 +464,13 @@ module.exports = {
   createAssignAgent,
   createUpdateRecoveryStatus,
   createDeleteLoan,
+  createListLoanAttachments,
+  createCreateLoanAttachment,
+  createDownloadLoanAttachment,
+  createListLoanAlerts,
+  createGetPaymentCalendar,
+  createGetPayoffQuote,
+  createExecutePayoff,
+  createListPromisesToPay,
+  createCreatePromiseToPay,
 };

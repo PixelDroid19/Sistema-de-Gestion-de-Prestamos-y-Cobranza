@@ -215,6 +215,62 @@ test('createRegisterUser blocks non-admin actors from creating privileged accoun
   }), AuthorizationError);
 });
 
+test('createRegisterUser links socio accounts to an associate record', async () => {
+  let updatedAssociate;
+  let updatedUser;
+
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create(payload) {
+        return { id: 31, ...payload };
+      },
+      async update(id, payload) {
+        updatedUser = { id, payload };
+        return { id, ...payload };
+      },
+      async remove() {},
+    },
+    customerProfileRepository: { async create() {} },
+    agentProfileRepository: { async create() {} },
+    associateProfileRepository: {
+      async update(id, payload) {
+        updatedAssociate = { id, payload };
+        return { id, ...payload };
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'trusted',
+    payload: {
+      name: 'Ana Socio',
+      email: 'socio@example.com',
+      password: 'secret1',
+      role: 'socio',
+      phone: '+573001112233',
+      associateId: 14,
+    },
+  });
+
+  assert.equal(result.user.role, 'socio');
+  assert.equal(updatedAssociate.id, 14);
+  assert.deepEqual(updatedUser, { id: 31, payload: { associateId: 14 } });
+});
+
 test('createLoginUser rejects an invalid password', async () => {
   const loginUser = createLoginUser({
     userRepository: {

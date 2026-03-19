@@ -75,6 +75,14 @@ function App() {
 
   // Define menu based on user role
   const getMenuItems = () => {
+    if (user.role === "socio") {
+      return [
+        { id: "Dashboard", label: "Dashboard" },
+        { id: "Loans", label: "Loans" },
+        { id: "Reports", label: "Partner Portal" },
+      ];
+    }
+
     const items = [
       { id: "Dashboard", label: "Dashboard" },
       { id: "Loans", label: "Loans" },
@@ -84,6 +92,10 @@ function App() {
     if (user.role === "admin") {
       items.push({ id: "Agents", label: "Agents" });
       items.push({ id: "Reports", label: "Reports" });
+    }
+
+    if (user.role === "socio") {
+      items.push({ id: "Reports", label: "Partner Portal" });
     }
     
     return items;

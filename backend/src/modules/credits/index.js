@@ -13,7 +13,17 @@ const {
   createAssignAgent,
   createUpdateRecoveryStatus,
   createDeleteLoan,
+  createListLoanAttachments,
+  createCreateLoanAttachment,
+  createDownloadLoanAttachment,
+  createListLoanAlerts,
+  createGetPaymentCalendar,
+  createGetPayoffQuote,
+  createExecutePayoff,
+  createListPromisesToPay,
+  createCreatePromiseToPay,
 } = require('./application/useCases');
+const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
 const { createCreditsRouter } = require('./presentation/router');
 
@@ -28,12 +38,19 @@ const createCreditsModule = () => {
     customerRepository,
     agentRepository,
     userRepository,
+    attachmentRepository,
+    alertRepository,
+    promiseRepository,
     creditDomainService,
     loanCreationService,
     notificationPort,
+    attachmentStorage,
     loanAccessPolicy,
     recoveryStatusGuard,
+    loanViewService,
+    paymentApplicationService,
   } = createCreditsComposition();
+  const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),
     createSimulation: createCreateSimulation({ creditDomainService }),
@@ -45,12 +62,21 @@ const createCreditsModule = () => {
     assignAgent: createAssignAgent({ loanRepository, agentRepository, userRepository, notificationPort }),
     updateRecoveryStatus: createUpdateRecoveryStatus({ loanRepository, loanAccessPolicy, recoveryStatusGuard }),
     deleteLoan: createDeleteLoan({ loanRepository, loanAccessPolicy }),
+    listLoanAttachments: createListLoanAttachments({ attachmentRepository, loanAccessPolicy }),
+    createLoanAttachment: createCreateLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy }),
+    downloadLoanAttachment: createDownloadLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy }),
+    listLoanAlerts: createListLoanAlerts({ alertRepository, loanAccessPolicy, loanViewService }),
+    getPaymentCalendar: createGetPaymentCalendar({ alertRepository, loanAccessPolicy, loanViewService }),
+    getPayoffQuote: createGetPayoffQuote({ loanAccessPolicy, loanViewService }),
+    executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService }),
+    listPromisesToPay: createListPromisesToPay({ promiseRepository, loanAccessPolicy }),
+    createPromiseToPay: createCreatePromiseToPay({ promiseRepository, loanAccessPolicy }),
   };
 
   return createModule({
     name: 'credits',
     basePath: '/api/loans',
-    router: createCreditsRouter({ authMiddleware, loanValidation, useCases }),
+    router: createCreditsRouter({ authMiddleware, attachmentUpload, loanValidation, useCases }),
   });
 };
 

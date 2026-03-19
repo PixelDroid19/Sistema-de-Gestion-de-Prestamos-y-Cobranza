@@ -1,143 +1,166 @@
+const { Notification } = require('../models');
+const { createPushProviderRegistry } = require('./push/providerRegistry');
+
 /**
  * Contract for notification providers used by backend infrastructure seams.
  */
 class NotificationService {
-  /**
-   * Send a notification to a user.
-   * @param {number} userId
-   * @param {string} message
-   * @param {string} type
-   * @param {object} [data={}]
-   */
-  async sendNotification(userId, message, type, data = {}) {
+  async sendNotification(userId, message, type, data = {}, options = {}) {
     throw new Error('sendNotification method must be implemented');
   }
 
-  /**
-   * Retrieve all notifications for a user.
-   * @param {number} userId
-   */
   async getNotifications(userId) {
     throw new Error('getNotifications method must be implemented');
   }
 
-  /**
-   * Mark a single notification as read.
-   * @param {number} notificationId
-   */
   async markAsRead(notificationId) {
     throw new Error('markAsRead method must be implemented');
   }
 
-  /**
-   * Mark all notifications for a user as read.
-   * @param {number} userId
-   */
   async markAllAsRead(userId) {
     throw new Error('markAllAsRead method must be implemented');
   }
+
+  async getUnreadCount(userId) {
+    throw new Error('getUnreadCount method must be implemented');
+  }
+
+  async clearNotifications(userId) {
+    throw new Error('clearNotifications method must be implemented');
+  }
 }
 
-/**
- * In-memory notification provider used by the current backend infrastructure.
- */
-class MockNotificationService extends NotificationService {
-  constructor() {
+class SequelizeNotificationService extends NotificationService {
+  constructor({
+    notificationModel = Notification,
+    pushSubscriptionRepository = null,
+    providerRegistry = createPushProviderRegistry(),
+  } = {}) {
     super();
-    this.notifications = new Map();
-    this.notificationId = 1;
+    this.notificationModel = notificationModel;
+    this.pushSubscriptionRepository = pushSubscriptionRepository;
+    this.providerRegistry = providerRegistry;
   }
 
-  /** @inheritdoc */
-  async sendNotification(userId, message, type, data = {}) {
-    const notification = {
-      id: this.notificationId++,
-      userId,
-      message,
-      type,
-      data,
-      isRead: false,
-      createdAt: new Date(),
-      timestamp: Date.now()
-    };
-
-    if (!this.notifications.has(userId)) {
-      this.notifications.set(userId, []);
+  setPushDeliveryDependencies({ pushSubscriptionRepository, providerRegistry } = {}) {
+    if (pushSubscriptionRepository) {
+      this.pushSubscriptionRepository = pushSubscriptionRepository;
     }
-    this.notifications.get(userId).unshift(notification);
 
-    console.log('🔔 NOTIFICATION SENT:', {
-      userId,
-      message,
-      type,
-      timestamp: new Date().toISOString(),
-      data
-    });
-
-    return notification;
+    if (providerRegistry) {
+      this.providerRegistry = providerRegistry;
+    }
   }
 
-  /** @inheritdoc */
-  async getNotifications(userId) {
-    const userNotifications = this.notifications.get(userId) || [];
-    return userNotifications.sort((a, b) => b.timestamp - a.timestamp);
+  serialize(notification) {
+    const record = typeof notification?.toJSON === 'function' ? notification.toJSON() : notification;
+
+    if (!record) {
+      return record;
+    }
+
+    return {
+      ...record,
+      data: record.payload || {},
+      timestamp: new Date(record.createdAt || Date.now()).getTime(),
+    };
   }
 
-  /** @inheritdoc */
-  async markAsRead(notificationId) {
-    for (const [userId, notifications] of this.notifications.entries()) {
-      const notification = notifications.find(n => n.id === notificationId);
-      if (notification) {
-        notification.isRead = true;
-        console.log('✅ NOTIFICATION MARKED AS READ:', {
-          notificationId,
+  async sendNotification(userId, message, type, data = {}, options = {}) {
+    const dedupeKey = options?.dedupeKey || null;
+
+    if (dedupeKey) {
+      const existing = await this.notificationModel.findOne({
+        where: {
           userId,
-          message: notification.message
-        });
-        return notification;
+          dedupeKey,
+          isRead: false,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+
+      if (existing) {
+        return this.serialize(existing);
       }
     }
-    throw new Error('Notification not found');
-  }
 
-  /** @inheritdoc */
-  async markAllAsRead(userId) {
-    const userNotifications = this.notifications.get(userId) || [];
-    userNotifications.forEach(notification => {
-      notification.isRead = true;
-    });
-    
-    console.log('✅ ALL NOTIFICATIONS MARKED AS READ:', {
+    const notification = await this.notificationModel.create({
       userId,
-      count: userNotifications.length
+      message,
+      type,
+      payload: data || {},
+      isRead: false,
+      dedupeKey,
     });
-    
-    return userNotifications;
+
+    await this.dispatchPushFanout(this.serialize(notification));
+
+    return this.serialize(notification);
   }
 
-  /**
-   * Return the unread notification count for a user.
-   * @param {number} userId
-   */
+  async dispatchPushFanout(notification) {
+    if (!this.pushSubscriptionRepository) {
+      return;
+    }
+
+    const subscriptions = await this.pushSubscriptionRepository.listActiveByUser(notification.userId);
+
+    for (const subscription of subscriptions) {
+      try {
+        const provider = this.providerRegistry.resolve(subscription);
+
+        if (!provider) {
+          continue;
+        }
+
+        const result = await provider.send({ notification, subscription });
+        await this.pushSubscriptionRepository.recordDeliveryResult(subscription.id, result);
+      } catch (error) {
+        await this.pushSubscriptionRepository.recordDeliveryResult(subscription.id, {
+          status: 'transient_failure',
+          detail: error.message || 'push_delivery_failed',
+        });
+      }
+    }
+  }
+
+  async getNotifications(userId) {
+    const notifications = await this.notificationModel.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+    });
+
+    return notifications.map((notification) => this.serialize(notification));
+  }
+
+  async markAsRead(notificationId) {
+    const notification = await this.notificationModel.findByPk(notificationId);
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+
+    await notification.update({ isRead: true });
+    return this.serialize(notification);
+  }
+
+  async markAllAsRead(userId) {
+    await this.notificationModel.update({ isRead: true }, { where: { userId, isRead: false } });
+    return this.getNotifications(userId);
+  }
+
   async getUnreadCount(userId) {
-    const userNotifications = this.notifications.get(userId) || [];
-    return userNotifications.filter(n => !n.isRead).length;
+    return this.notificationModel.count({ where: { userId, isRead: false } });
   }
 
-  /**
-   * Clear notifications for a user, mainly to support tests and local resets.
-   * @param {number} userId
-   */
   async clearNotifications(userId) {
-    this.notifications.delete(userId);
-    console.log('🗑️ NOTIFICATIONS CLEARED:', { userId });
+    await this.notificationModel.destroy({ where: { userId } });
   }
 }
 
-const notificationService = new MockNotificationService();
+const notificationService = new SequelizeNotificationService();
 
 module.exports = {
   NotificationService,
-  MockNotificationService,
+  SequelizeNotificationService,
   notificationService,
 };

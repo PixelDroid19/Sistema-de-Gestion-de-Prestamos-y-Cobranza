@@ -12,6 +12,7 @@ const {
   userRepository,
   customerProfileRepository,
   agentProfileRepository,
+  associateProfileRepository,
   passwordHasher,
 } = require('./infrastructure/repositories');
 const { createAuthRouter } = require('./presentation/router');
@@ -28,12 +29,18 @@ const createAuthModule = () => {
       userRepository,
       customerProfileRepository,
       agentProfileRepository,
+      associateProfileRepository,
       passwordHasher,
       tokenService,
     }),
     loginUser: createLoginUser({ userRepository, passwordHasher, tokenService }),
     getProfile: createGetProfile({ userRepository }),
-    updateProfile: createUpdateProfile({ userRepository, customerProfileRepository, agentProfileRepository }),
+    updateProfile: createUpdateProfile({
+      userRepository,
+      customerProfileRepository,
+      agentProfileRepository,
+      associateProfileRepository,
+    }),
   };
 
   return createModule({

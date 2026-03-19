@@ -235,6 +235,52 @@ const loanValidation = {
     }
 
     next();
+  },
+
+  /** @type {import('express').RequestHandler} */
+  payoffQuote: (req, res, next) => {
+    const errors = [];
+    const { asOfDate } = req.query;
+
+    if (!validateIntegerId(req.params.id)) {
+      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    }
+
+    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
+    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+
+  /** @type {import('express').RequestHandler} */
+  payoffExecute: (req, res, next) => {
+    const errors = [];
+    const { asOfDate, quotedTotal } = req.body;
+
+    if (!validateIntegerId(req.params.id)) {
+      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    }
+
+    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
+    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    }
+
+    if (!validateAmount(Number(quotedTotal))) {
+      errors.push({ field: 'quotedTotal', message: 'quotedTotal must be a positive number' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
   }
 };
 
@@ -315,6 +361,52 @@ const agentValidation = {
     }
 
     next();
+  },
+
+  /** @type {import('express').RequestHandler} */
+  payoffQuote: (req, res, next) => {
+    const errors = [];
+    const { asOfDate } = req.query;
+
+    if (!validateIntegerId(req.params.id)) {
+      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    }
+
+    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
+    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+
+  /** @type {import('express').RequestHandler} */
+  payoffExecute: (req, res, next) => {
+    const errors = [];
+    const { asOfDate, quotedTotal } = req.body;
+
+    if (!validateIntegerId(req.params.id)) {
+      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    }
+
+    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
+    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    }
+
+    if (!validateAmount(Number(quotedTotal))) {
+      errors.push({ field: 'quotedTotal', message: 'quotedTotal must be a positive number' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
   }
 };
 
@@ -378,6 +470,98 @@ const associateValidation = {
   },
 };
 
+const PUSH_PROVIDER_CHANNELS = {
+  webpush: 'web',
+  fcm: 'mobile',
+  apns: 'mobile',
+};
+
+const PUSH_PROVIDER_KEYS = new Set(Object.keys(PUSH_PROVIDER_CHANNELS));
+const PUSH_CHANNELS = new Set(['web', 'mobile']);
+
+const notificationValidation = {
+  /** @type {import('express').RequestHandler} */
+  registerSubscription: (req, res, next) => {
+    const {
+      providerKey,
+      channel,
+      endpoint,
+      deviceToken,
+      subscription,
+    } = req.body;
+    const errors = [];
+
+    if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
+      errors.push({ field: 'providerKey', message: 'Provider key must be one of: webpush, fcm, apns' });
+    }
+
+    if (!PUSH_CHANNELS.has(channel)) {
+      errors.push({ field: 'channel', message: 'Channel must be one of: web, mobile' });
+    }
+
+    if (PUSH_PROVIDER_KEYS.has(providerKey) && PUSH_CHANNELS.has(channel)) {
+      const expectedChannel = PUSH_PROVIDER_CHANNELS[providerKey];
+      if (expectedChannel !== channel) {
+        errors.push({
+          field: 'channel',
+          message: `${providerKey} subscriptions must use the ${expectedChannel} channel`,
+        });
+      }
+    }
+
+    if (!endpoint && !deviceToken) {
+      errors.push({ field: 'endpoint', message: 'Endpoint or deviceToken is required' });
+    }
+
+    if (channel === 'web') {
+      if (!endpoint) {
+        errors.push({ field: 'endpoint', message: 'Web subscriptions require an endpoint' });
+      }
+
+      if (!subscription || typeof subscription !== 'object' || Array.isArray(subscription)) {
+        errors.push({ field: 'subscription', message: 'Web subscriptions require a subscription object' });
+      }
+    }
+
+    if (channel === 'mobile' && !deviceToken) {
+      errors.push({ field: 'deviceToken', message: 'Mobile subscriptions require a deviceToken' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+  /** @type {import('express').RequestHandler} */
+  deleteSubscription: (req, res, next) => {
+    const { providerKey, endpoint, deviceToken } = req.body;
+    const errors = [];
+
+    if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
+      errors.push({ field: 'providerKey', message: 'Provider key must be one of: webpush, fcm, apns' });
+    }
+
+    if (!endpoint && !deviceToken) {
+      errors.push({ field: 'endpoint', message: 'Endpoint or deviceToken is required' });
+    }
+
+    if (providerKey === 'webpush' && !endpoint) {
+      errors.push({ field: 'endpoint', message: 'webpush subscriptions require an endpoint identifier' });
+    }
+
+    if ((providerKey === 'fcm' || providerKey === 'apns') && !deviceToken) {
+      errors.push({ field: 'deviceToken', message: `${providerKey} subscriptions require a deviceToken identifier` });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+};
+
 module.exports = {
   validate,
   validateEmail,
@@ -391,4 +575,5 @@ module.exports = {
   customerValidation,
   agentValidation,
   associateValidation,
+  notificationValidation,
 };

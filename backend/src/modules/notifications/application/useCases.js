@@ -1,4 +1,10 @@
-const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
+const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
+
+const ensureSubscriptionIdentifier = ({ endpoint, deviceToken }) => {
+  if (!endpoint && !deviceToken) {
+    throw new ValidationError('Subscription endpoint or device token is required');
+  }
+};
 
 /**
  * Create the use case that returns notifications with unread and total counts.
@@ -84,10 +90,54 @@ const createClearNotifications = ({ notificationRepository }) => async ({ actor 
   };
 };
 
+/**
+ * Create the use case that registers or reactivates a push subscription for the actor.
+ * @param {{ pushSubscriptionRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createRegisterPushSubscription = ({ pushSubscriptionRepository }) => async ({ actor, payload }) => {
+  ensureSubscriptionIdentifier(payload);
+
+  const subscription = await pushSubscriptionRepository.upsert({
+    userId: actor.id,
+    ...payload,
+  });
+
+  return {
+    success: true,
+    message: 'Push subscription registered',
+    data: { subscription },
+  };
+};
+
+/**
+ * Create the use case that idempotently deactivates a push subscription for the actor.
+ * @param {{ pushSubscriptionRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createDeletePushSubscription = ({ pushSubscriptionRepository }) => async ({ actor, payload }) => {
+  ensureSubscriptionIdentifier(payload);
+
+  const removed = await pushSubscriptionRepository.deactivate({
+    userId: actor.id,
+    providerKey: payload.providerKey,
+    endpoint: payload.endpoint || null,
+    deviceToken: payload.deviceToken || null,
+  });
+
+  return {
+    success: true,
+    message: 'Push subscription removed',
+    data: { removed },
+  };
+};
+
 module.exports = {
   createGetNotifications,
   createMarkAsRead,
   createMarkAllAsRead,
   createGetUnreadCount,
   createClearNotifications,
+  createRegisterPushSubscription,
+  createDeletePushSubscription,
 };

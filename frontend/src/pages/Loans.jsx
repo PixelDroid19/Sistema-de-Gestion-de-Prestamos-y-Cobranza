@@ -23,6 +23,11 @@ const RECOVERY_STATUS_TONE_MAP = {
 function Loans({ user }) {
   const [loans, setLoans] = useState([]);
   const [paymentsByLoan, setPaymentsByLoan] = useState({});
+  const [alertsByLoan, setAlertsByLoan] = useState({});
+  const [promisesByLoan, setPromisesByLoan] = useState({});
+  const [attachmentsByLoan, setAttachmentsByLoan] = useState({});
+  const [newPromiseByLoan, setNewPromiseByLoan] = useState({});
+  const [newAttachmentByLoan, setNewAttachmentByLoan] = useState({});
   const [editingRecovery, setEditingRecovery] = useState({});
   const [selectedRecovery, setSelectedRecovery] = useState({});
   const [error, setError] = useState('');
@@ -99,6 +104,9 @@ function Loans({ user }) {
   useEffect(() => {
     if (!loans.length) {
       setPaymentsByLoan({});
+      setAlertsByLoan({});
+      setPromisesByLoan({});
+      setAttachmentsByLoan({});
       return;
     }
 
@@ -106,6 +114,9 @@ function Loans({ user }) {
 
     const fetchPayments = async () => {
       const paymentsMap = {};
+      const alertsMap = {};
+      const promisesMap = {};
+      const attachmentsMap = {};
 
       for (const loan of loans) {
         try {
@@ -118,10 +129,34 @@ function Loans({ user }) {
           }
           paymentsMap[loan.id] = [];
         }
+
+        try {
+          const calendarData = user.role === 'customer' ? null : await api.getLoanAlerts(loan.id);
+          alertsMap[loan.id] = Array.isArray(calendarData?.data?.alerts) ? calendarData.data.alerts : [];
+        } catch {
+          alertsMap[loan.id] = [];
+        }
+
+        try {
+          const promiseData = user.role === 'customer' ? null : await api.getLoanPromises(loan.id);
+          promisesMap[loan.id] = Array.isArray(promiseData?.data?.promises) ? promiseData.data.promises : [];
+        } catch {
+          promisesMap[loan.id] = [];
+        }
+
+        try {
+          const attachmentData = await api.getLoanAttachments(loan.id);
+          attachmentsMap[loan.id] = Array.isArray(attachmentData?.data?.attachments) ? attachmentData.data.attachments : [];
+        } catch {
+          attachmentsMap[loan.id] = [];
+        }
       }
 
       if (isMounted) {
         setPaymentsByLoan(paymentsMap);
+        setAlertsByLoan(alertsMap);
+        setPromisesByLoan(promisesMap);
+        setAttachmentsByLoan(attachmentsMap);
       }
     };
 
@@ -131,6 +166,90 @@ function Loans({ user }) {
       isMounted = false;
     };
   }, [loans]);
+
+  const handlePromiseFormChange = (loanId, field, value) => {
+    setNewPromiseByLoan((prev) => ({
+      ...prev,
+      [loanId]: {
+        ...(prev[loanId] || { promisedDate: '', amount: '', notes: '' }),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleAttachmentFormChange = (loanId, field, value) => {
+    setNewAttachmentByLoan((prev) => ({
+      ...prev,
+      [loanId]: {
+        ...(prev[loanId] || { category: '', description: '', customerVisible: false, file: null }),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleCreatePromise = async (loanId) => {
+    const promiseDraft = newPromiseByLoan[loanId] || {};
+    try {
+      await api.createLoanPromise(loanId, promiseDraft);
+      handleApiSuccess('Promise to pay created successfully', setSuccess);
+      setNewPromiseByLoan((prev) => ({ ...prev, [loanId]: { promisedDate: '', amount: '', notes: '' } }));
+      fetchLoans();
+    } catch (err) {
+      if (err.status === 401) {
+        handleTokenExpiration();
+      } else {
+        handleApiError(err, setError);
+      }
+    }
+  };
+
+  const handleDownloadAttachment = async (loanId, attachmentId, fileName) => {
+    try {
+      const blob = await api.downloadLoanAttachment(loanId, attachmentId);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName || `attachment-${attachmentId}`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      handleApiError(err, setError);
+    }
+  };
+
+  const handleCreateAttachment = async (loanId) => {
+    const attachmentDraft = newAttachmentByLoan[loanId] || {};
+    if (!attachmentDraft.file) {
+      setError('Please choose a file before uploading an attachment.');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', attachmentDraft.file);
+      if (attachmentDraft.category) {
+        formData.append('category', attachmentDraft.category);
+      }
+      if (attachmentDraft.description) {
+        formData.append('description', attachmentDraft.description);
+      }
+      formData.append('customerVisible', String(Boolean(attachmentDraft.customerVisible)));
+
+      await api.createLoanAttachment(loanId, formData);
+      handleApiSuccess('Attachment uploaded successfully', setSuccess);
+      setNewAttachmentByLoan((prev) => ({
+        ...prev,
+        [loanId]: { category: '', description: '', customerVisible: false, file: null },
+      }));
+      fetchLoans();
+    } catch (err) {
+      if (err.status === 401) {
+        handleTokenExpiration();
+      } else {
+        handleApiError(err, setError);
+      }
+    }
+  };
 
   const handleApply = async (event) => {
     event.preventDefault();
@@ -282,6 +401,8 @@ function Loans({ user }) {
       return sum + parseFloat(balance || 0);
     }, 0);
 
+    const activeAlertCount = Object.values(alertsByLoan).reduce((sum, alerts) => sum + alerts.filter((alert) => alert.status === 'active').length, 0);
+
     return [
       {
         label: user.role === 'agent' ? 'Assigned loans' : 'Loan records',
@@ -302,13 +423,13 @@ function Loans({ user }) {
         tone: 'warning',
       },
       {
-        label: 'Outstanding balance',
-        value: `₹${totalBalance.toFixed(2)}`,
-        caption: 'Calculated from current payment history',
+        label: user.role === 'customer' ? 'Outstanding balance' : 'Active alerts',
+        value: user.role === 'customer' ? `₹${totalBalance.toFixed(2)}` : activeAlertCount,
+        caption: user.role === 'customer' ? 'Calculated from current payment history' : 'Overdue installments requiring attention',
         tone: 'info',
       },
     ];
-  }, [loans, paymentsByLoan, user.role]);
+  }, [loans, paymentsByLoan, alertsByLoan, user.role]);
 
   const renderStatePanel = ({ icon, title, message, action }) => (
     <div className={`state-panel${icon === '⏳' ? ' state-panel--loading' : ''}`}>
@@ -442,6 +563,7 @@ function Loans({ user }) {
               <th className="table-cell-center">Recovery</th>
               <th className="table-cell-center">Progress</th>
               <th className="table-cell-right">Balance</th>
+              <th className="table-cell-center">Servicing</th>
               <th className="table-cell-center">Actions</th>
             </tr>
           </thead>
@@ -488,8 +610,23 @@ function Loans({ user }) {
                       )}
                     </td>
                     <td className="table-cell-center">
+                      <div className="table-inline-stack" style={{ alignItems: 'stretch' }}>
+                        {(user.role === 'admin' || user.role === 'agent') && (
+                          <>
+                            <span className="status-note">
+                              Alerts: {alertsByLoan[loan.id]?.filter((alert) => alert.status === 'active').length || 0}
+                            </span>
+                            <span className="status-note">
+                              Promises: {promisesByLoan[loan.id]?.length || 0}
+                            </span>
+                          </>
+                        )}
+                        <span className="status-note">Attachments: {attachmentsByLoan[loan.id]?.length || 0}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell-center">
                       <div className="action-stack">
-                        {loan.status === 'pending' && user.role !== 'agent' && (
+                        {loan.status === 'pending' && (user.role === 'admin' || user.role === 'customer') && (
                           <>
                             <button className="btn btn-success btn-sm" onClick={() => handleStatus(loan.id, 'approved')}>
                               Approve
@@ -500,7 +637,7 @@ function Loans({ user }) {
                           </>
                         )}
                         {(user.role === 'admin' || user.role === 'agent') && renderRecoveryEditor(loan)}
-                        {(loan.status === 'rejected' || (user.role === 'customer' && loan.status === 'rejected')) && (
+                        {user.role !== 'socio' && (loan.status === 'rejected' || (user.role === 'customer' && loan.status === 'rejected')) && (
                           <button className="btn btn-danger btn-sm" onClick={() => handleDeleteLoan(loan.id)}>
                             Delete
                           </button>
@@ -615,6 +752,218 @@ function Loans({ user }) {
         </div>
         <div className="surface-card__body">{renderTable()}</div>
       </section>
+
+      {loans.length > 0 && (
+        <section className="surface-card">
+          <div className="surface-card__header surface-card__header--compact">
+            <div>
+              <div className="section-eyebrow">Servicing details</div>
+              <div className="section-title">Alerts, promises, and attachments by loan</div>
+              <div className="section-subtitle">
+                Internal users can track overdue signals and promise-to-pay follow-up, while customers only see customer-visible attachments.
+              </div>
+            </div>
+          </div>
+          <div className="surface-card__body">
+            <div className="dashboard-page-stack" style={{ gap: '1rem' }}>
+              {loans.map((loan) => (
+                <div key={`servicing-${loan.id}`} className="surface-card surface-card--compact">
+                  <div className="surface-card__header surface-card__header--compact">
+                    <div>
+                      <div className="section-eyebrow">Loan #{loan.id}</div>
+                      <div className="section-title" style={{ fontSize: '1rem' }}>
+                        {loan.Customer?.name || 'Customer'} · ₹{loan.amount}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="surface-card__body">
+                    {(user.role === 'admin' || user.role === 'agent') && (
+                      <div className="summary-grid" style={{ marginBottom: '1rem' }}>
+                        <div className="detail-card">
+                          <div className="detail-card__label">Active alerts</div>
+                          <div className="detail-card__value detail-card__value--warning">
+                            {alertsByLoan[loan.id]?.filter((alert) => alert.status === 'active').length || 0}
+                          </div>
+                        </div>
+                        <div className="detail-card">
+                          <div className="detail-card__label">Promise count</div>
+                          <div className="detail-card__value detail-card__value--info">{promisesByLoan[loan.id]?.length || 0}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {(user.role === 'admin' || user.role === 'agent') && (
+                      <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                        <label className="field-group">
+                          <span className="field-label">Promise date</span>
+                          <input
+                            className="field-control"
+                            type="date"
+                            value={newPromiseByLoan[loan.id]?.promisedDate || ''}
+                            onChange={(event) => handlePromiseFormChange(loan.id, 'promisedDate', event.target.value)}
+                          />
+                        </label>
+                        <label className="field-group">
+                          <span className="field-label">Promise amount</span>
+                          <input
+                            className="field-control"
+                            type="number"
+                            value={newPromiseByLoan[loan.id]?.amount || ''}
+                            onChange={(event) => handlePromiseFormChange(loan.id, 'amount', event.target.value)}
+                          />
+                        </label>
+                        <label className="field-group">
+                          <span className="field-label">Notes</span>
+                          <input
+                            className="field-control"
+                            value={newPromiseByLoan[loan.id]?.notes || ''}
+                            onChange={(event) => handlePromiseFormChange(loan.id, 'notes', event.target.value)}
+                          />
+                        </label>
+                        <div className="field-group">
+                          <span className="field-label">Create</span>
+                          <button className="btn btn-primary" onClick={() => handleCreatePromise(loan.id)}>
+                            Save promise
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(user.role === 'admin' || user.role === 'agent') && (
+                      <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                        <label className="field-group">
+                          <span className="field-label">Attachment file</span>
+                          <input
+                            className="field-control"
+                            type="file"
+                            onChange={(event) => handleAttachmentFormChange(loan.id, 'file', event.target.files?.[0] || null)}
+                          />
+                        </label>
+                        <label className="field-group">
+                          <span className="field-label">Category</span>
+                          <input
+                            className="field-control"
+                            value={newAttachmentByLoan[loan.id]?.category || ''}
+                            onChange={(event) => handleAttachmentFormChange(loan.id, 'category', event.target.value)}
+                          />
+                        </label>
+                        <label className="field-group">
+                          <span className="field-label">Description</span>
+                          <input
+                            className="field-control"
+                            value={newAttachmentByLoan[loan.id]?.description || ''}
+                            onChange={(event) => handleAttachmentFormChange(loan.id, 'description', event.target.value)}
+                          />
+                        </label>
+                        <label className="field-group" style={{ justifyContent: 'center' }}>
+                          <span className="field-label">Customer visible</span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(newAttachmentByLoan[loan.id]?.customerVisible)}
+                            onChange={(event) => handleAttachmentFormChange(loan.id, 'customerVisible', event.target.checked)}
+                          />
+                        </label>
+                        <div className="field-group">
+                          <span className="field-label">Upload</span>
+                          <button className="btn btn-primary" onClick={() => handleCreateAttachment(loan.id)}>
+                            Upload attachment
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(user.role === 'admin' || user.role === 'agent') && alertsByLoan[loan.id]?.length > 0 && (
+                      <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Installment</th>
+                              <th>Due date</th>
+                              <th className="table-cell-right">Outstanding</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {alertsByLoan[loan.id].map((alert) => (
+                              <tr key={alert.id}>
+                                <td>#{alert.installmentNumber}</td>
+                                <td>{new Date(alert.dueDate).toLocaleDateString()}</td>
+                                <td className="table-cell-right">₹{Number(alert.outstandingAmount || 0).toFixed(2)}</td>
+                                <td>{alert.status}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {promisesByLoan[loan.id]?.length > 0 && (
+                      <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Promised date</th>
+                              <th className="table-cell-right">Amount</th>
+                              <th>Status</th>
+                              <th>Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {promisesByLoan[loan.id].map((promise) => (
+                              <tr key={promise.id}>
+                                <td>{new Date(promise.promisedDate).toLocaleDateString()}</td>
+                                <td className="table-cell-right">₹{Number(promise.amount || 0).toFixed(2)}</td>
+                                <td>{promise.status}</td>
+                                <td>{promise.notes || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Attachment</th>
+                            <th>Category</th>
+                            <th>Customer visible</th>
+                            <th className="table-cell-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(attachmentsByLoan[loan.id] || []).length === 0 ? (
+                            <tr>
+                              <td colSpan="4" className="table-cell-center">No attachments available</td>
+                            </tr>
+                          ) : (
+                            attachmentsByLoan[loan.id].map((attachment) => (
+                              <tr key={attachment.id}>
+                                <td>{attachment.originalName}</td>
+                                <td>{attachment.category || '-'}</td>
+                                <td>{attachment.customerVisible ? 'Yes' : 'No'}</td>
+                                <td className="table-cell-center">
+                                  <button
+                                    className="btn btn-outline-primary btn-sm"
+                                    onClick={() => handleDownloadAttachment(loan.id, attachment.id, attachment.originalName)}
+                                  >
+                                    Download
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

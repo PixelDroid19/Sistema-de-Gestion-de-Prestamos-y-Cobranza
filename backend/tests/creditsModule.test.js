@@ -8,8 +8,18 @@ const {
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
   createDeleteLoan,
+  createListLoanAttachments,
+  createCreateLoanAttachment,
+  createDownloadLoanAttachment,
+  createListLoanAlerts,
+  createGetPaymentCalendar,
+  createGetPayoffQuote,
+  createExecutePayoff,
+  createListPromisesToPay,
+  createCreatePromiseToPay,
 } = require('../src/modules/credits/application/useCases');
-const { AuthorizationError } = require('../src/utils/errorHandler');
+const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
+const { AuthorizationError, ValidationError } = require('../src/utils/errorHandler');
 
 test('createListLoans scopes repository results through the shared access policy', async () => {
   let filterCall;
@@ -242,4 +252,340 @@ test('createDeleteLoan deletes an authorized rejected loan', async () => {
   });
 
   assert.equal(destroyedLoan, rejectedLoan);
+});
+
+test('createListLoanAttachments hides internal-only documents from customers', async () => {
+  const listLoanAttachments = createListLoanAttachments({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ actor, loanId }) {
+        assert.equal(actor.id, 7);
+        assert.equal(loanId, 22);
+        return { id: 22, customerId: 7 };
+      },
+    },
+    attachmentRepository: {
+      async listByLoan() {
+        return [
+          { id: 1, customerVisible: true, originalName: 'visible.pdf' },
+          { id: 2, customerVisible: false, originalName: 'internal.pdf' },
+        ];
+      },
+    },
+  });
+
+  const attachments = await listLoanAttachments({ actor: { id: 7, role: 'customer' }, loanId: 22 });
+
+  assert.deepEqual(attachments, [
+    { id: 1, customerVisible: true, originalName: 'visible.pdf' },
+  ]);
+});
+
+test('createCreateLoanAttachment persists metadata for an authorized agent upload', async () => {
+  let createdPayload;
+  const createLoanAttachment = createCreateLoanAttachment({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan({ actor, loanId }) {
+        assert.equal(actor.id, 9);
+        assert.equal(loanId, 22);
+        return { id: 22, agentId: 9 };
+      },
+    },
+    attachmentRepository: {
+      async create(payload) {
+        createdPayload = payload;
+        return { id: 5, ...payload };
+      },
+    },
+    attachmentStorage: {
+      toRelativePath(filePath) {
+        assert.equal(filePath, '/tmp/loan-proof.pdf');
+        return 'loan-proof.pdf';
+      },
+      async deleteByAbsolutePath() {},
+    },
+  });
+
+  const attachment = await createLoanAttachment({
+    actor: { id: 9, role: 'agent' },
+    loanId: 22,
+    file: {
+      path: '/tmp/loan-proof.pdf',
+      filename: 'loan-proof.pdf',
+      originalname: 'Loan Proof.pdf',
+      mimetype: 'application/pdf',
+      size: 2048,
+    },
+    metadata: {
+      customerVisible: 'true',
+      category: 'contract',
+      description: 'Signed contract',
+    },
+  });
+
+  assert.equal(attachment.id, 5);
+  assert.deepEqual(createdPayload, {
+    loanId: 22,
+    uploadedByUserId: 9,
+    storageDisk: 'local',
+    storagePath: 'loan-proof.pdf',
+    storedName: 'loan-proof.pdf',
+    originalName: 'Loan Proof.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 2048,
+    customerVisible: true,
+    category: 'contract',
+    description: 'Signed contract',
+  });
+});
+
+test('createDownloadLoanAttachment blocks customers from internal-only files', async () => {
+  const downloadLoanAttachment = createDownloadLoanAttachment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    attachmentRepository: {
+      async findByIdForLoan() {
+        return { id: 4, loanId: 22, customerVisible: false, originalName: 'internal.pdf' };
+      },
+    },
+    attachmentStorage: {
+      async assertExists() {},
+      resolveAbsolutePath(storagePath) {
+        return storagePath;
+      },
+    },
+  });
+
+  await assert.rejects(() => downloadLoanAttachment({
+    actor: { id: 7, role: 'customer' },
+    loanId: 22,
+    attachmentId: 4,
+  }), AuthorizationError);
+});
+
+test('createListLoanAlerts returns persistent overdue alerts without forcing a sync', async () => {
+  let listLoanId;
+  const listLoanAlerts = createListLoanAlerts({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7, emiSchedule: [] };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [{ installmentNumber: 1, dueDate: '2026-01-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 20, scheduledPayment: 120 }],
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan(loanId) {
+        listLoanId = loanId;
+        return [{ id: 5, loanId: 22, status: 'active' }];
+      },
+    },
+  });
+
+  const alerts = await listLoanAlerts({ actor: { id: 1, role: 'admin' }, loanId: 22 });
+
+  assert.equal(listLoanId, 22);
+  assert.equal(alerts[0].id, 5);
+});
+
+test('createGetPaymentCalendar maps schedule rows into overdue-aware entries', async () => {
+  let listedLoanId;
+  const getPaymentCalendar = createGetPaymentCalendar({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7, emiSchedule: [] };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [
+            { installmentNumber: 1, dueDate: '2026-01-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 20, scheduledPayment: 120, paidTotal: 0 },
+            { installmentNumber: 2, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, scheduledPayment: 120, paidTotal: 120 },
+          ],
+          snapshot: { outstandingBalance: 120 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan(loanId) {
+        listedLoanId = loanId;
+        return [{ id: 10, installmentNumber: 1, status: 'active' }];
+      },
+    },
+  });
+
+  const calendar = await getPaymentCalendar({ actor: { id: 7, role: 'customer' }, loanId: 22 });
+
+  assert.equal(calendar.entries[0].status, 'overdue');
+  assert.equal(calendar.entries[1].status, 'paid');
+  assert.equal(calendar.snapshot.outstandingBalance, 120);
+  assert.equal(calendar.alerts.length, 1);
+  assert.equal(listedLoanId, 22);
+});
+
+test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
+  let requestedLoanId;
+  const getPayoffQuote = createGetPayoffQuote({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ actor, loanId }) {
+        requestedLoanId = loanId;
+        assert.equal(actor.role, 'agent');
+        return { id: 22, status: 'active', startDate: '2026-01-01T00:00:00.000Z' };
+      },
+    },
+    loanViewService: {
+      getPayoffQuote(loan, asOfDate) {
+        assert.equal(loan.id, 22);
+        assert.equal(asOfDate, '2026-03-15');
+        return { asOfDate, total: 100, breakdown: {} };
+      },
+    },
+  });
+
+  const quote = await getPayoffQuote({ actor: { id: 9, role: 'agent' }, loanId: 22, asOfDate: '2026-03-15' });
+
+  assert.equal(requestedLoanId, 22);
+  assert.equal(quote.total, 100);
+});
+
+test('createGetPayoffQuote rejects already settled loans', async () => {
+  const getPayoffQuote = createGetPayoffQuote({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return {
+          id: 22,
+          customerId: 7,
+          status: 'closed',
+          amount: 1000,
+          interestRate: 12,
+          termMonths: 3,
+          startDate: '2026-01-01T00:00:00.000Z',
+          emiSchedule: [],
+          financialSnapshot: {
+            outstandingPrincipal: 0,
+            outstandingInterest: 0,
+            outstandingBalance: 0,
+          },
+        };
+      },
+    },
+    loanViewService: createLoanViewService(),
+  });
+
+  await assert.rejects(() => getPayoffQuote({ actor: { id: 7, role: 'customer' }, loanId: 22, asOfDate: '2026-03-15' }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /not payable/i);
+    return true;
+  });
+});
+
+test('createExecutePayoff requires customer payment authority and forwards execution inputs', async () => {
+  let executionInput;
+  const executePayoff = createExecutePayoff({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ actor, loanId }) {
+        assert.equal(actor.role, 'customer');
+        assert.equal(loanId, 22);
+        return { id: 22, customerId: 7 };
+      },
+    },
+    paymentApplicationService: {
+      async applyPayoff(input) {
+        executionInput = input;
+        return { payment: { id: 1 }, allocation: { payoff: { total: input.quotedTotal } }, loan: { id: input.loanId } };
+      },
+    },
+    clock: () => new Date('2026-03-15T18:30:00.000Z'),
+  });
+
+  const result = await executePayoff({
+    actor: { id: 7, role: 'customer' },
+    loanId: 22,
+    asOfDate: '2026-03-15',
+    quotedTotal: 104.56,
+  });
+
+  assert.equal(result.payment.id, 1);
+  assert.deepEqual(executionInput, {
+    loanId: 22,
+    asOfDate: '2026-03-15',
+    quotedTotal: 104.56,
+    paymentDate: new Date('2026-03-15T18:30:00.000Z'),
+  });
+});
+
+test('createExecutePayoff rejects non-customer actors before payment execution', async () => {
+  const executePayoff = createExecutePayoff({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        throw new Error('findAuthorizedLoan should not be called');
+      },
+    },
+    paymentApplicationService: {
+      async applyPayoff() {
+        throw new Error('applyPayoff should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => executePayoff({
+    actor: { id: 1, role: 'admin' },
+    loanId: 22,
+    asOfDate: '2026-03-15',
+    quotedTotal: 104.56,
+  }), AuthorizationError);
+});
+
+test('createCreatePromiseToPay records a pending promise with status history', async () => {
+  let createdPayload;
+  const createPromiseToPay = createCreatePromiseToPay({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, agentId: 9 };
+      },
+    },
+    promiseRepository: {
+      async create(payload) {
+        createdPayload = payload;
+        return { id: 4, ...payload };
+      },
+    },
+  });
+
+  const promise = await createPromiseToPay({
+    actor: { id: 9, role: 'agent' },
+    loanId: 22,
+    payload: { promisedDate: '2026-03-25', amount: 300, notes: 'Customer confirmed payday' },
+  });
+
+  assert.equal(promise.id, 4);
+  assert.equal(createdPayload.status, 'pending');
+  assert.equal(createdPayload.statusHistory[0].status, 'pending');
+});
+
+test('createListPromisesToPay expires broken pending promises before returning history', async () => {
+  const listPromisesToPay = createListPromisesToPay({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, agentId: 9 };
+      },
+    },
+    promiseRepository: {
+      async expireBrokenPromises({ loanId }) {
+        assert.equal(loanId, 22);
+        return [{ id: 8, status: 'broken' }];
+      },
+    },
+  });
+
+  const promises = await listPromisesToPay({ actor: { id: 9, role: 'agent' }, loanId: 22 });
+
+  assert.equal(promises[0].status, 'broken');
 });

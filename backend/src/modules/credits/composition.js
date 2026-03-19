@@ -1,4 +1,5 @@
 const { createLoanAccessPolicy } = require('../shared/loanAccessPolicy');
+const { createPaymentApplicationService } = require('../../services/paymentApplicationService');
 const { createLoanViewService } = require('./application/loanFinancials');
 const { createRecoveryStatusGuard } = require('./application/recoveryStatusGuard');
 const { createCreditsInfrastructure } = require('./infrastructure/repositories');
@@ -15,7 +16,7 @@ const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService }) => ({
 
 /**
  * Compose the credits module infrastructure, shared policy, and domain helpers.
- * @param {{ infrastructure?: object, loanAccessPolicy?: object, loanViewService?: object, recoveryStatusGuard?: object }} [options]
+ * @param {{ infrastructure?: object, loanAccessPolicy?: object, loanViewService?: object, recoveryStatusGuard?: object, paymentApplicationService?: object }} [options]
  * @returns {object}
  */
 const createCreditsComposition = ({
@@ -23,11 +24,13 @@ const createCreditsComposition = ({
   loanAccessPolicy = createLoanAccessPolicy({ loanRepository: infrastructure.loanRepository }),
   loanViewService = createLoanViewService(),
   recoveryStatusGuard = createRecoveryStatusGuard({ loanViewService }),
+  paymentApplicationService = createPaymentApplicationService({ loanViewService }),
 } = {}) => ({
   ...infrastructure,
   loanAccessPolicy,
   loanViewService,
   recoveryStatusGuard,
+  paymentApplicationService,
 });
 
 module.exports = {

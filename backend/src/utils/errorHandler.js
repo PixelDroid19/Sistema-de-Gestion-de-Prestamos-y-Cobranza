@@ -1,3 +1,5 @@
+const { logError } = require('./logger');
+
 /**
  * Base application error that carries HTTP status metadata for API responses.
  */
@@ -116,16 +118,7 @@ const globalErrorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  console.error('Error Details:', {
-    message: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method,
-    body: req.body,
-    params: req.params,
-    query: req.query,
-    user: req.user?.id
-  });
+  logError(err, req);
 
   if (err.name === 'SequelizeValidationError') {
     const message = Object.values(err.errors).map(val => val.message).join(', ');

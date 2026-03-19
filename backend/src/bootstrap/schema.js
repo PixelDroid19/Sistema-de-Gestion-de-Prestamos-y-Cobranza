@@ -1,6 +1,30 @@
-const { Associate, Loan, Payment } = require('../models');
+const {
+  Associate,
+  Loan,
+  Payment,
+  DocumentAttachment,
+  LoanAlert,
+  PromiseToPay,
+  AssociateContribution,
+  ProfitDistribution,
+  Notification,
+  PushSubscription,
+  User,
+} = require('../models');
 
-const REQUIRED_SCHEMA_MODELS = [Associate, Loan, Payment];
+const REQUIRED_SCHEMA_MODELS = [
+  Associate,
+  Loan,
+  Payment,
+  DocumentAttachment,
+  LoanAlert,
+  PromiseToPay,
+  AssociateContribution,
+  ProfitDistribution,
+  Notification,
+  PushSubscription,
+  User,
+];
 
 const normalizeTableNames = (tables) => tables.map((table) => {
   if (typeof table === 'string') {
@@ -129,7 +153,7 @@ const syncDatabaseSchema = async ({
     };
   }
 
-  await database.sync();
+  await database.sync({ alter: true });
   const verification = await verifyRequiredSchema({ database });
 
   return {

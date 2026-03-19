@@ -29,6 +29,26 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, message: 'Associate deleted successfully' });
   }));
 
+  router.get('/:id/portal', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+    const portal = await useCases.listAssociatePortalSummary({ actor: req.user, associateId: req.params.id });
+    res.json({ success: true, data: { portal } });
+  }));
+
+  router.get('/portal/me', authMiddleware(['socio']), asyncHandler(async (req, res) => {
+    const portal = await useCases.listAssociatePortalSummary({ actor: req.user });
+    res.json({ success: true, data: { portal } });
+  }));
+
+  router.post('/:id/contributions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const contribution = await useCases.createAssociateContribution({ actor: req.user, associateId: req.params.id, payload: req.body });
+    res.status(201).json({ success: true, message: 'Associate contribution created successfully', data: { contribution } });
+  }));
+
+  router.post('/:id/distributions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const distribution = await useCases.createProfitDistribution({ actor: req.user, associateId: req.params.id, payload: req.body });
+    res.status(201).json({ success: true, message: 'Profit distribution created successfully', data: { distribution } });
+  }));
+
   return router;
 };
 
