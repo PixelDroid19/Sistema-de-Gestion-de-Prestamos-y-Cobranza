@@ -1,27 +1,21 @@
 
 import React, { useEffect, useState } from "react";
-import { api, handleApiError } from "../utils/api";
-import { User, Mail, Shield, AlertCircle, Phone, MapPin } from "lucide-react";
+import { handleApiError } from '../lib/api/errors';
+import { User, Mail, AlertCircle, Phone } from "lucide-react";
+import { useAgentsQuery } from '../hooks/useAgents';
 
 function AgentsPage() {
-  const [agents, setAgents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const agentsQuery = useAgentsQuery();
 
   useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        setLoading(true);
-        const data = await api.getAllAgents();
-        setAgents(Array.isArray(data.data) ? data.data : []);
-      } catch (err) {
-        handleApiError(err, setError);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAgents();
-  }, []);
+    if (agentsQuery.error) {
+      handleApiError(agentsQuery.error, setError);
+    }
+  }, [agentsQuery.error]);
+
+  const agents = Array.isArray(agentsQuery.data?.data) ? agentsQuery.data.data : [];
+  const loading = agentsQuery.isLoading;
 
   return (
     <div className="dashboard-page-stack fade-in">

@@ -1,0 +1,47 @@
+export const queryKeys = {
+  auth: {
+    profile: () => ['auth', 'profile'],
+  },
+  dashboard: {
+    summary: () => ['dashboard', 'summary'],
+  },
+  loans: {
+    all: (scope = 'all') => ['loans', scope],
+    detail: (loanId) => ['loans', 'detail', loanId],
+    payments: (loanId) => ['loans', loanId, 'payments'],
+    alerts: (loanId) => ['loans', loanId, 'alerts'],
+    calendar: (loanId) => ['loans', loanId, 'calendar'],
+    promises: (loanId) => ['loans', loanId, 'promises'],
+    attachments: (loanId) => ['loans', loanId, 'attachments'],
+    payoffQuote: (loanId, asOfDate) => ['loans', loanId, 'payoff-quote', asOfDate || 'today'],
+  },
+  payments: {
+    all: () => ['payments'],
+    byLoan: (loanId) => ['payments', 'loan', loanId],
+  },
+  agents: {
+    all: () => ['agents'],
+  },
+  customers: {
+    all: () => ['customers'],
+    documents: (customerId) => ['customers', customerId, 'documents'],
+    history: (customerId) => ['customers', customerId, 'history'],
+  },
+  associates: {
+    all: () => ['associates'],
+    detail: (associateId) => ['associates', associateId],
+    portal: (associateId) => ['associates', associateId || 'me', 'portal'],
+    profitability: (associateId) => ['associates', associateId || 'me', 'profitability'],
+  },
+  reports: {
+    dashboard: () => ['reports', 'dashboard'],
+    recovery: () => ['reports', 'recovery'],
+    recovered: () => ['reports', 'recovered'],
+    outstanding: () => ['reports', 'outstanding'],
+    creditHistory: (loanId) => ['reports', 'credit-history', loanId],
+  },
+  notifications: {
+    all: () => ['notifications'],
+    unreadCount: () => ['notifications', 'unread-count'],
+  },
+};

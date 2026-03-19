@@ -1,11 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api, handleApiError, handleTokenExpiration } from '../utils/api';
+import { handleApiError } from '../lib/api/errors';
+import { downloadFile } from '../lib/api/download';
+import {
+  useAssociateProfitabilityQuery,
+  useLoanCreditHistoryQuery,
+  useOutstandingLoansQuery,
+  useRecoveredLoansQuery,
+  useRecoveryReportQuery,
+} from '../hooks/useReports';
+import {
+  useAssociatePortalQuery,
+  useAssociatesQuery,
+  useCreateAssociateContributionMutation,
+  useCreateAssociateDistributionMutation,
+  useCreateAssociateMutation,
+  useCreateProportionalDistributionMutation,
+  useDeleteAssociateMutation,
+  useUpdateAssociateMutation,
+} from '../hooks/useAssociates';
+import { reportService } from '../services/reportService';
 
 const REPORT_TABS = [
   { id: 'overview', label: 'Overview', icon: '📊', description: 'Portfolio totals, recovery rate, and high-level operating context.' },
   { id: 'recovered', label: 'Recovered', icon: '✅', description: 'Loans that have completed recovery successfully.' },
   { id: 'outstanding', label: 'Outstanding', icon: '⏳', description: 'Balances that still require follow-up and collection attention.' },
 ];
+
+const emptyAssociateForm = {
+  name: '',
+  email: '',
+  phone: '',
+  status: 'active',
+  participationPercentage: '',
+};
+
+const emptyMoneyForm = {
+  amount: '',
+  notes: '',
+  contributionDate: '',
+  distributionDate: '',
+};
+
+const emptyProportionalForm = {
+  amount: '',
+  distributionDate: '',
+  notes: '',
+  idempotencyKey: '',
+};
 
 const RECOVERY_TONE_MAP = {
   pending: 'warning',
@@ -14,24 +55,113 @@ const RECOVERY_TONE_MAP = {
 };
 
 function Reports({ user }) {
-  const [recoveredLoans, setRecoveredLoans] = useState([]);
-  const [outstandingLoans, setOutstandingLoans] = useState([]);
-  const [recoverySummary, setRecoverySummary] = useState(null);
-  const [partnerReport, setPartnerReport] = useState(null);
-  const [creditHistory, setCreditHistory] = useState(null);
+  const isSocio = user.role === 'socio';
+  const isAdmin = user.role === 'admin';
+
   const [selectedHistoryLoanId, setSelectedHistoryLoanId] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [selectedAssociateId, setSelectedAssociateId] = useState('');
+  const [associateForm, setAssociateForm] = useState(emptyAssociateForm);
+  const [contributionForm, setContributionForm] = useState(emptyMoneyForm);
+  const [distributionForm, setDistributionForm] = useState(emptyMoneyForm);
+  const [proportionalForm, setProportionalForm] = useState(emptyProportionalForm);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
 
-  const formatCurrency = (amount) =>
-    new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount || 0);
+  const recoveryReportQuery = useRecoveryReportQuery({ enabled: !isSocio });
+  const recoveredLoansQuery = useRecoveredLoansQuery({ enabled: !isSocio && activeTab === 'recovered' });
+  const outstandingLoansQuery = useOutstandingLoansQuery({ enabled: !isSocio && activeTab === 'outstanding' });
+  const associateProfitabilityQuery = useAssociateProfitabilityQuery(null, { enabled: isSocio });
+  const associatePortalQuery = useAssociatePortalQuery(null, { enabled: isSocio });
+  const creditHistoryQuery = useLoanCreditHistoryQuery(selectedHistoryLoanId, {
+    enabled: !isSocio && Boolean(selectedHistoryLoanId),
+  });
+
+  const associatesQuery = useAssociatesQuery({ enabled: isAdmin });
+  const associates = useMemo(() => {
+    const rows = associatesQuery.data?.data?.associates;
+    return Array.isArray(rows) ? rows : [];
+  }, [associatesQuery.data]);
+  const createAssociateMutation = useCreateAssociateMutation();
+  const updateAssociateMutation = useUpdateAssociateMutation(selectedAssociateId || null);
+  const deleteAssociateMutation = useDeleteAssociateMutation();
+  const createContributionMutation = useCreateAssociateContributionMutation(selectedAssociateId || null);
+  const createDistributionMutation = useCreateAssociateDistributionMutation(selectedAssociateId || null);
+  const createProportionalDistributionMutation = useCreateProportionalDistributionMutation();
+  const selectedAssociatePortalQuery = useAssociatePortalQuery(selectedAssociateId || null, {
+    enabled: isAdmin && Boolean(selectedAssociateId),
+  });
+  const selectedAssociateProfitabilityQuery = useAssociateProfitabilityQuery(selectedAssociateId || null, {
+    enabled: isAdmin && Boolean(selectedAssociateId),
+  });
+  const selectedAssociate = useMemo(
+    () => associates.find((associate) => Number(associate.id) === Number(selectedAssociateId)) || null,
+    [associates, selectedAssociateId],
+  );
+
+  const recoverySummary = recoveryReportQuery.data?.summary
+    || recoveryReportQuery.data?.data?.summary
+    || recoveryReportQuery.data?.data?.report?.summary
+    || null;
+  const recoveredLoans = recoveredLoansQuery.data?.data?.loans || recoveryReportQuery.data?.data?.recoveredLoans || [];
+  const outstandingLoans = outstandingLoansQuery.data?.data?.loans || recoveryReportQuery.data?.data?.outstandingLoans || [];
+  const partnerReport = associateProfitabilityQuery.data?.data?.report || null;
+  const partnerPortal = associatePortalQuery.data?.data?.portal || null;
+  const selectedAssociatePortal = selectedAssociatePortalQuery.data?.data?.portal || null;
+  const selectedAssociateProfitability = selectedAssociateProfitabilityQuery.data?.data?.report || null;
+  const creditHistory = creditHistoryQuery.data?.data?.history || null;
+  const loading = isSocio ? associateProfitabilityQuery.isLoading : recoveryReportQuery.isLoading;
+
+  useEffect(() => {
+    const sourceError = recoveryReportQuery.error
+      || recoveredLoansQuery.error
+      || outstandingLoansQuery.error
+      || associateProfitabilityQuery.error
+      || associatePortalQuery.error
+      || creditHistoryQuery.error
+      || associatesQuery.error
+      || selectedAssociatePortalQuery.error
+      || selectedAssociateProfitabilityQuery.error;
+
+    if (sourceError) {
+      handleApiError(sourceError, setError);
+    }
+  }, [
+    associatePortalQuery.error,
+    associateProfitabilityQuery.error,
+    associatesQuery.error,
+    creditHistoryQuery.error,
+    outstandingLoansQuery.error,
+    recoveredLoansQuery.error,
+    recoveryReportQuery.error,
+    selectedAssociatePortalQuery.error,
+    selectedAssociateProfitabilityQuery.error,
+  ]);
+
+  useEffect(() => {
+    if (!selectedAssociateId) {
+      setAssociateForm(emptyAssociateForm);
+      return;
+    }
+
+    if (!selectedAssociate) return;
+
+    setAssociateForm({
+      name: selectedAssociate.name || '',
+      email: selectedAssociate.email || '',
+      phone: selectedAssociate.phone || '',
+      status: selectedAssociate.status || 'active',
+      participationPercentage: selectedAssociate.participationPercentage || '',
+    });
+  }, [selectedAssociate, selectedAssociateId]);
+
+  const formatCurrency = (amount) => new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+  }).format(Number(amount || 0));
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -48,78 +178,177 @@ function Reports({ user }) {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
+  const resetAssociateActionForms = () => {
+    setContributionForm(emptyMoneyForm);
+    setDistributionForm(emptyMoneyForm);
+    setProportionalForm(emptyProportionalForm);
+  };
+
+  const showSuccess = (message) => {
+    setSuccess(message);
+    setError('');
+  };
+
   const loadReports = async () => {
-    setLoading(true);
     setRefreshing(true);
     setError('');
     setRefreshSuccess(false);
 
     try {
-      if (user.role === 'socio') {
-        const partnerData = await api.getAssociateProfitability();
-        setPartnerReport(partnerData.data.report);
-        setRecoverySummary(null);
-        setRecoveredLoans([]);
-        setOutstandingLoans([]);
+      if (isSocio) {
+        await Promise.all([associateProfitabilityQuery.refetch(), associatePortalQuery.refetch()]);
       } else {
-        const reportData = await api.getRecoveryReport();
-        setRecoverySummary(reportData.data.summary);
-        setRecoveredLoans(reportData.data.recoveredLoans || []);
-        setOutstandingLoans(reportData.data.outstandingLoans || []);
-        setPartnerReport(null);
+        await Promise.all([
+          recoveryReportQuery.refetch(),
+          recoveredLoansQuery.refetch(),
+          outstandingLoansQuery.refetch(),
+          associatesQuery.refetch(),
+          ...(selectedAssociateId ? [selectedAssociatePortalQuery.refetch(), selectedAssociateProfitabilityQuery.refetch()] : []),
+        ]);
       }
 
       setRefreshSuccess(true);
       setTimeout(() => setRefreshSuccess(false), 3000);
-    } catch (err) {
-      if (err.status === 401) {
-        handleTokenExpiration();
-      } else {
-        handleApiError(err, setError);
-      }
+    } catch (refreshError) {
+      handleApiError(refreshError, setError);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    loadReports();
-  }, [user.role]);
-
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (!selectedHistoryLoanId || user.role === 'socio') {
-        setCreditHistory(null);
-        return;
-      }
-
-      try {
-        const historyData = await api.getLoanCreditHistory(selectedHistoryLoanId);
-        setCreditHistory(historyData.data.history);
-      } catch (err) {
-        if (err.status === 401) {
-          handleTokenExpiration();
-        } else {
-          handleApiError(err, setError);
-        }
-      }
-    };
-
-    loadHistory();
-  }, [selectedHistoryLoanId, user.role]);
-
   const handleExport = async (format) => {
     try {
-      const blob = await api.exportRecoveryReport(format);
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `recovery-report.${format}`;
-      link.click();
-      URL.revokeObjectURL(objectUrl);
-    } catch (err) {
-      handleApiError(err, setError);
+      await downloadFile({
+        loader: () => reportService.exportRecoveryReport(format),
+        filename: `recovery-report.${format}`,
+      });
+    } catch (exportError) {
+      handleApiError(exportError, setError);
+    }
+  };
+
+  const handleAssociateExport = async (format = 'xlsx') => {
+    const exportAssociateId = selectedAssociateId || partnerReport?.associate?.id || partnerPortal?.associate?.id;
+    if (!exportAssociateId) {
+      setError('Select an associate first to export profitability data.');
+      return;
+    }
+
+    try {
+      await downloadFile({
+        loader: () => reportService.exportAssociateProfitability(exportAssociateId, format),
+        filename: `associate-${exportAssociateId}-profitability.${format}`,
+      });
+    } catch (exportError) {
+      handleApiError(exportError, setError);
+    }
+  };
+
+  const handleCreateAssociate = async (event) => {
+    event.preventDefault();
+    try {
+      await createAssociateMutation.mutateAsync({
+        ...associateForm,
+        participationPercentage: associateForm.participationPercentage || undefined,
+      });
+      setAssociateForm(emptyAssociateForm);
+      showSuccess('Associate created successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleUpdateAssociate = async () => {
+    if (!selectedAssociateId) {
+      setError('Select an associate before updating.');
+      return;
+    }
+
+    try {
+      await updateAssociateMutation.mutateAsync({
+        ...associateForm,
+        participationPercentage: associateForm.participationPercentage || undefined,
+      });
+      showSuccess('Associate updated successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleDeleteAssociate = async () => {
+    if (!selectedAssociateId) {
+      setError('Select an associate before deleting.');
+      return;
+    }
+
+    if (!window.confirm('Delete the selected associate? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteAssociateMutation.mutateAsync(selectedAssociateId);
+      setSelectedAssociateId('');
+      setAssociateForm(emptyAssociateForm);
+      resetAssociateActionForms();
+      showSuccess('Associate deleted successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleCreateContribution = async () => {
+    if (!selectedAssociateId) {
+      setError('Select an associate before adding a contribution.');
+      return;
+    }
+
+    try {
+      await createContributionMutation.mutateAsync({
+        amount: contributionForm.amount,
+        notes: contributionForm.notes || undefined,
+        contributionDate: contributionForm.contributionDate || undefined,
+      });
+      setContributionForm(emptyMoneyForm);
+      showSuccess('Contribution created successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleCreateDistribution = async () => {
+    if (!selectedAssociateId) {
+      setError('Select an associate before adding a distribution.');
+      return;
+    }
+
+    try {
+      await createDistributionMutation.mutateAsync({
+        amount: distributionForm.amount,
+        notes: distributionForm.notes || undefined,
+        distributionDate: distributionForm.distributionDate || undefined,
+      });
+      setDistributionForm(emptyMoneyForm);
+      showSuccess('Distribution created successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleCreateProportionalDistribution = async () => {
+    try {
+      await createProportionalDistributionMutation.mutateAsync({
+        payload: {
+          amount: proportionalForm.amount,
+          distributionDate: proportionalForm.distributionDate || undefined,
+          notes: proportionalForm.notes || undefined,
+          idempotencyKey: proportionalForm.idempotencyKey || undefined,
+        },
+        idempotencyKey: proportionalForm.idempotencyKey || undefined,
+      });
+      setProportionalForm(emptyProportionalForm);
+      showSuccess('Proportional distribution created successfully.');
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
     }
   };
 
@@ -267,7 +496,7 @@ function Reports({ user }) {
     });
   }
 
-  if (error && !recoverySummary && !partnerReport) {
+  if (error && !recoverySummary && !partnerReport && (!isAdmin || !associates.length)) {
     return renderStatePanel({
       icon: '⚠️',
       title: 'Unable to load reports',
@@ -283,12 +512,14 @@ function Reports({ user }) {
           <div>
             <div className="section-eyebrow">{user.role === 'socio' ? 'Partner portal' : 'Reporting workspace'}</div>
             <div className="section-title">
-              {user.role === 'socio' ? 'Review partner profitability from one portal surface' : 'Review recovery performance with one shared analytics surface'}
+              {user.role === 'socio'
+                ? 'Review partner profitability from one portal surface'
+                : 'Review recovery performance and associate administration from one shared analytics surface'}
             </div>
             <div className="section-subtitle">
               {user.role === 'socio'
                 ? 'Track contributions, profit distributions, and linked loan exposure tied to your associate record.'
-                : 'Summary cards, tabs, and data tables now follow the same dashboard system used throughout Loans and Payments.'}
+                : 'Recovery analytics and associate operations now live together on the same TanStack Query-backed page.'}
             </div>
           </div>
           <div className="section-actions">
@@ -301,6 +532,11 @@ function Reports({ user }) {
                 <button className="btn btn-outline-primary" onClick={() => handleExport('csv')}>Export CSV</button>
                 <button className="btn btn-outline-primary" onClick={() => handleExport('pdf')}>Export PDF</button>
               </>
+            )}
+            {(isSocio || selectedAssociateId) && (
+              <button className="btn btn-outline-primary" onClick={() => handleAssociateExport(isSocio ? 'xlsx' : 'csv')}>
+                Export associate data
+              </button>
             )}
           </div>
         </div>
@@ -319,6 +555,7 @@ function Reports({ user }) {
       </section>
 
       {error && <div className="inline-message inline-message--error">⚠️ {error}</div>}
+      {success && <div className="inline-message inline-message--success">✅ {success}</div>}
 
       {user.role !== 'socio' && (
         <>
@@ -401,10 +638,176 @@ function Reports({ user }) {
                   <div className="detail-card"><div className="detail-card__label">Loan</div><div className="detail-card__value">#{creditHistory.loan.id}</div></div>
                   <div className="detail-card"><div className="detail-card__label">Outstanding</div><div className="detail-card__value detail-card__value--warning">{formatCurrency(creditHistory.snapshot.outstandingBalance)}</div></div>
                   <div className="detail-card"><div className="detail-card__label">Total paid</div><div className="detail-card__value detail-card__value--success">{formatCurrency(creditHistory.snapshot.totalPaid)}</div></div>
+                  <div className="detail-card"><div className="detail-card__label">Closure</div><div className="detail-card__value">{creditHistory.closure?.closureReason || '-'}</div></div>
                 </div>
               )}
             </div>
           </section>
+
+          {isAdmin && (
+            <section className="surface-card">
+              <div className="surface-card__header surface-card__header--compact">
+                <div>
+                  <div className="section-eyebrow">Associate operations</div>
+                  <div className="section-title">Manage associates, contributions, and distributions</div>
+                  <div className="section-subtitle">Surface associate CRUD and both manual and proportional distribution workflows without leaving the reports workspace.</div>
+                </div>
+              </div>
+              <div className="surface-card__body">
+                <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                  <label className="field-group">
+                    <span className="field-label">Selected associate</span>
+                    <select className="field-control" value={selectedAssociateId} onChange={(event) => setSelectedAssociateId(event.target.value)}>
+                      <option value="">Create a new associate</option>
+                      {associates.map((associate) => (
+                        <option key={associate.id} value={associate.id}>
+                          {associate.name} ({associate.participationPercentage || '0.0000'}%)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <form onSubmit={handleCreateAssociate} className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                  <label className="field-group">
+                    <span className="field-label">Name</span>
+                    <input className="field-control" value={associateForm.name} onChange={(event) => setAssociateForm((current) => ({ ...current, name: event.target.value }))} required />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Email</span>
+                    <input className="field-control" type="email" value={associateForm.email} onChange={(event) => setAssociateForm((current) => ({ ...current, email: event.target.value }))} required />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Phone</span>
+                    <input className="field-control" value={associateForm.phone} onChange={(event) => setAssociateForm((current) => ({ ...current, phone: event.target.value }))} required />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Status</span>
+                    <select className="field-control" value={associateForm.status} onChange={(event) => setAssociateForm((current) => ({ ...current, status: event.target.value }))}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Participation %</span>
+                    <input className="field-control" value={associateForm.participationPercentage} onChange={(event) => setAssociateForm((current) => ({ ...current, participationPercentage: event.target.value }))} placeholder="25.0000" />
+                  </label>
+                  <div className="field-group">
+                    <span className="field-label">Create</span>
+                    <button className="btn btn-success" type="submit" disabled={createAssociateMutation.isPending}>Create associate</button>
+                  </div>
+                </form>
+
+                {selectedAssociateId && (
+                  <div className="section-actions" style={{ marginBottom: '1rem' }}>
+                    <button className="btn btn-primary" onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</button>
+                    <button className="btn btn-danger" onClick={handleDeleteAssociate} disabled={deleteAssociateMutation.isPending}>Delete associate</button>
+                  </div>
+                )}
+
+                {selectedAssociateId && (
+                  <>
+                    <div className="summary-grid" style={{ marginBottom: '1rem' }}>
+                      <div className="detail-card"><div className="detail-card__label">Contributed</div><div className="detail-card__value">{formatCurrency(selectedAssociateProfitability?.summary?.totalContributed)}</div></div>
+                      <div className="detail-card"><div className="detail-card__label">Distributed</div><div className="detail-card__value detail-card__value--success">{formatCurrency(selectedAssociateProfitability?.summary?.totalDistributed)}</div></div>
+                      <div className="detail-card"><div className="detail-card__label">Active loans</div><div className="detail-card__value">{selectedAssociatePortal?.summary?.activeLoanCount || 0}</div></div>
+                      <div className="detail-card"><div className="detail-card__label">Exposure</div><div className="detail-card__value detail-card__value--warning">{formatCurrency(selectedAssociatePortal?.summary?.portfolioExposure)}</div></div>
+                    </div>
+
+                    <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                      <label className="field-group">
+                        <span className="field-label">Contribution amount</span>
+                        <input className="field-control" value={contributionForm.amount} onChange={(event) => setContributionForm((current) => ({ ...current, amount: event.target.value }))} />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">Contribution date</span>
+                        <input className="field-control" type="date" value={contributionForm.contributionDate} onChange={(event) => setContributionForm((current) => ({ ...current, contributionDate: event.target.value }))} />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">Notes</span>
+                        <input className="field-control" value={contributionForm.notes} onChange={(event) => setContributionForm((current) => ({ ...current, notes: event.target.value }))} />
+                      </label>
+                      <div className="field-group">
+                        <span className="field-label">Action</span>
+                        <button className="btn btn-primary" onClick={handleCreateContribution} disabled={createContributionMutation.isPending}>Add contribution</button>
+                      </div>
+                    </div>
+
+                    <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                      <label className="field-group">
+                        <span className="field-label">Distribution amount</span>
+                        <input className="field-control" value={distributionForm.amount} onChange={(event) => setDistributionForm((current) => ({ ...current, amount: event.target.value }))} />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">Distribution date</span>
+                        <input className="field-control" type="date" value={distributionForm.distributionDate} onChange={(event) => setDistributionForm((current) => ({ ...current, distributionDate: event.target.value }))} />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">Notes</span>
+                        <input className="field-control" value={distributionForm.notes} onChange={(event) => setDistributionForm((current) => ({ ...current, notes: event.target.value }))} />
+                      </label>
+                      <div className="field-group">
+                        <span className="field-label">Action</span>
+                        <button className="btn btn-primary" onClick={handleCreateDistribution} disabled={createDistributionMutation.isPending}>Add distribution</button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="dashboard-form-grid" style={{ marginBottom: '1rem' }}>
+                  <label className="field-group">
+                    <span className="field-label">Proportional amount</span>
+                    <input className="field-control" value={proportionalForm.amount} onChange={(event) => setProportionalForm((current) => ({ ...current, amount: event.target.value }))} />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Distribution date</span>
+                    <input className="field-control" type="date" value={proportionalForm.distributionDate} onChange={(event) => setProportionalForm((current) => ({ ...current, distributionDate: event.target.value }))} />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Idempotency key</span>
+                    <input className="field-control" value={proportionalForm.idempotencyKey} onChange={(event) => setProportionalForm((current) => ({ ...current, idempotencyKey: event.target.value }))} placeholder="assoc-proportional-2026-03" />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">Notes</span>
+                    <input className="field-control" value={proportionalForm.notes} onChange={(event) => setProportionalForm((current) => ({ ...current, notes: event.target.value }))} />
+                  </label>
+                  <div className="field-group">
+                    <span className="field-label">Action</span>
+                    <button className="btn btn-outline-primary" onClick={handleCreateProportionalDistribution} disabled={createProportionalDistributionMutation.isPending}>Run proportional distribution</button>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Associate</th>
+                        <th>Status</th>
+                        <th>Participation</th>
+                        <th className="table-cell-right">Contributed</th>
+                        <th className="table-cell-right">Distributed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {associates.length === 0 ? (
+                        <tr><td colSpan="5" className="table-cell-center">No associates available</td></tr>
+                      ) : (
+                        associates.map((associate) => (
+                          <tr key={associate.id}>
+                            <td>{associate.name}</td>
+                            <td>{associate.status || '-'}</td>
+                            <td>{associate.participationPercentage || '0.0000'}%</td>
+                            <td className="table-cell-right">{Number(selectedAssociateId) === Number(associate.id) ? formatCurrency(selectedAssociateProfitability?.summary?.totalContributed) : '-'}</td>
+                            <td className="table-cell-right">{Number(selectedAssociateId) === Number(associate.id) ? formatCurrency(selectedAssociateProfitability?.summary?.totalDistributed) : '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -422,8 +825,9 @@ function Reports({ user }) {
               <div className="detail-card"><div className="detail-card__label">Contribution count</div><div className="detail-card__value">{partnerReport?.summary?.contributionCount || 0}</div></div>
               <div className="detail-card"><div className="detail-card__label">Distribution count</div><div className="detail-card__value">{partnerReport?.summary?.distributionCount || 0}</div></div>
               <div className="detail-card"><div className="detail-card__label">Net profit</div><div className="detail-card__value detail-card__value--success">{formatCurrency(partnerReport?.summary?.netProfit || 0)}</div></div>
+              <div className="detail-card"><div className="detail-card__label">Portfolio exposure</div><div className="detail-card__value detail-card__value--warning">{formatCurrency(partnerPortal?.summary?.portfolioExposure || 0)}</div></div>
             </div>
-            <div className="table-wrap">
+            <div className="table-wrap" style={{ marginBottom: '1rem' }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -441,6 +845,58 @@ function Reports({ user }) {
                         <td>{formatDate(entry.contributionDate)}</td>
                         <td className="table-cell-right">{formatCurrency(entry.amount)}</td>
                         <td>{entry.notes || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Distribution date</th>
+                    <th>Type</th>
+                    <th className="table-cell-right">Allocated</th>
+                    <th className="table-cell-right">Declared proportional total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(partnerReport?.data?.distributions || []).length === 0 ? (
+                    <tr><td colSpan="4" className="table-cell-center">No distributions recorded</td></tr>
+                  ) : (
+                    (partnerReport?.data?.distributions || []).map((entry) => (
+                      <tr key={`distribution-${entry.id}`}>
+                        <td>{formatDate(entry.distributionDate)}</td>
+                        <td>{entry.distributionType || '-'}</td>
+                        <td className="table-cell-right">{formatCurrency(entry.allocatedAmount || entry.amount)}</td>
+                        <td className="table-cell-right">{formatCurrency(entry.declaredProportionalTotal)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Loan ID</th>
+                    <th>Customer</th>
+                    <th className="table-cell-right">Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(partnerReport?.data?.loans || []).length === 0 ? (
+                    <tr><td colSpan="4" className="table-cell-center">No linked loans</td></tr>
+                  ) : (
+                    (partnerReport?.data?.loans || []).map((loan) => (
+                      <tr key={`loan-${loan.id}`}>
+                        <td>#{loan.id}</td>
+                        <td>{loan.Customer?.name || '-'}</td>
+                        <td className="table-cell-right">{formatCurrency(loan.amount)}</td>
+                        <td>{loan.status || '-'}</td>
                       </tr>
                     ))
                   )}

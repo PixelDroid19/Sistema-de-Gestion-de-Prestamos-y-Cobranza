@@ -1,49 +1,66 @@
-
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import "./App.css"; 
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import Loans from "./pages/Loans";
-import Payments from "./pages/Payments";
-import AgentsPage from "./pages/AgentsPage";
-import Reports from "./pages/Reports";
-import sessionManager from "./utils/sessionManager";
 import { Search, Bell, ChevronDown, CheckCircle, Moon, Sun } from "lucide-react";
+import { useSessionStore } from './store/sessionStore';
+import { useUiStore } from './store/uiStore';
+import { useUnreadCountQuery } from './hooks/useNotifications';
+
+const Home = lazy(() => import('./pages/Home'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Loans = lazy(() => import('./pages/Loans'));
+const Payments = lazy(() => import('./pages/Payments'));
+const AgentsPage = lazy(() => import('./pages/AgentsPage'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Notifications = lazy(() => import('./components/Notifications'));
+
+const viewComponents = {
+  Dashboard,
+  Loans,
+  Payments,
+  Agents: AgentsPage,
+  Reports,
+};
+
+function ScreenFallback({ label }) {
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '240px', color: 'var(--text-secondary)' }}>
+      {label}
+    </div>
+  );
+}
 
 function App() {
-  const [user, setUser] = useState(() => {
-    if (sessionManager.isSessionValid()) {
-      const session = sessionManager.getSession();
-      return session.userData;
-    }
-    return null;
+  const user = useSessionStore((state) => state.user);
+  const bootstrapSession = useSessionStore((state) => state.bootstrapSession);
+  const logout = useSessionStore((state) => state.logout);
+  const currentView = useUiStore((state) => state.currentView);
+  const setCurrentView = useUiStore((state) => state.setCurrentView);
+  const isDarkMode = useUiStore((state) => state.isDarkMode);
+  const toggleTheme = useUiStore((state) => state.toggleTheme);
+  const notificationsOpen = useUiStore((state) => state.notificationsOpen);
+  const setNotificationsOpen = useUiStore((state) => state.setNotificationsOpen);
+  const unreadCountQuery = useUnreadCountQuery({
+    enabled: Boolean(user),
+    refetchInterval: user ? 30000 : false,
   });
 
-  const [currentView, setCurrentView] = useState("Dashboard");
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  useEffect(() => {
+    bootstrapSession();
+  }, [bootstrapSession]);
 
   useEffect(() => {
     const handleSessionExpired = () => {
-      setUser(null);
+      logout();
       alert("Your session has expired due to inactivity. Please log in again.");
     };
 
     window.addEventListener("sessionExpired", handleSessionExpired);
 
-    const sessionCheckInterval = setInterval(() => {
-      if (user && !sessionManager.isSessionValid()) {
-        setUser(null);
-        alert("Your session has expired. Please log in again.");
-      }
-    }, 60000);
-
     return () => {
       window.removeEventListener("sessionExpired", handleSessionExpired);
-      clearInterval(sessionCheckInterval);
     };
-  }, [user]);
+  }, [logout]);
 
-  // Apply theme to document
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.setAttribute("data-theme", "dark");
@@ -52,25 +69,20 @@ function App() {
     }
   }, [isDarkMode]);
 
-  const handleLogin = (userData, token) => {
-    setUser(userData);
-    sessionManager.initSession(token, userData);
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(userData));
+  const handleLogin = () => {
     setCurrentView("Dashboard");
   };
 
   const handleLogout = () => {
-    setUser(null);
-    sessionManager.clearSession();
-  };
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+    logout();
   };
 
   if (!user) {
-    return <Home onLogin={handleLogin} />;
+    return (
+      <Suspense fallback={<ScreenFallback label="Loading home..." />}>
+        <Home onLogin={handleLogin} />
+      </Suspense>
+    );
   }
 
   // Define menu based on user role
@@ -101,16 +113,7 @@ function App() {
     return items;
   };
 
-  const renderView = () => {
-    switch (currentView) {
-      case "Dashboard": return <Dashboard user={user} />;
-      case "Loans": return <Loans user={user} />;
-      case "Payments": return <Payments user={user} />;
-      case "Agents": return <AgentsPage user={user} />;
-      case "Reports": return <Reports user={user} />;
-      default: return <Dashboard user={user} />;
-    }
-  };
+  const ActiveView = viewComponents[currentView] || Dashboard;
 
   return (
     <div className="layout-container">
@@ -156,6 +159,12 @@ function App() {
             </button>
           </div>
           <div className="header-actions">
+            <button className="icon-btn" title="Notifications" onClick={() => setNotificationsOpen(true)}>
+              <Bell size={18} />
+              {unreadCountQuery.data?.data?.unreadCount > 0 && (
+                <span className="notification-badge">{unreadCountQuery.data.data.unreadCount}</span>
+              )}
+            </button>
             <button className="icon-btn" title="System secured" style={{cursor: "default"}}>
               <CheckCircle size={18} color="#34c38f" />
             </button>
@@ -170,9 +179,16 @@ function App() {
           </div>
         </header>
         <main className="content-area">
-          {renderView()}
+          <Suspense fallback={<ScreenFallback label="Loading workspace..." />}>
+            <ActiveView user={user} />
+          </Suspense>
         </main>
       </div>
+      {notificationsOpen && (
+        <Suspense fallback={null}>
+          <Notifications user={user} isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

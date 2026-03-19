@@ -1,103 +1,50 @@
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Printer, Download, CreditCard, Users, Briefcase } from "lucide-react";
-import { api, handleApiError } from "../utils/api";
+import React, { useMemo } from "react";
+import { Printer, CreditCard, Users, Briefcase } from "lucide-react";
+import { useDashboardSummaryQuery, useLoansOverviewQuery, usePaymentsOverviewQuery } from '../hooks/useDashboard';
+import { useAssociateProfitabilityQuery } from '../hooks/useReports';
 import "./Dashboard.css"; 
 
 const Dashboard = ({ user }) => {
-  const [loans, setLoans] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [summary, setSummary] = useState({
-    totalAmount: 0,
-    paidAmount: 0,
-    pendingAmount: 0
-  });
-  const [partnerSummary, setPartnerSummary] = useState(null);
+  const isSocio = user.role === 'socio';
+  const associateProfitabilityQuery = useAssociateProfitabilityQuery(null, { enabled: isSocio });
+  const loansQuery = useLoansOverviewQuery({ user, enabled: !isSocio });
+  const paymentsQuery = usePaymentsOverviewQuery({ enabled: user.role === 'admin' });
+  const dashboardSummaryQuery = useDashboardSummaryQuery({ enabled: user.role === 'admin' });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (user.role === "socio") {
-          const profitabilityRes = await api.getAssociateProfitability();
-          const report = profitabilityRes?.data?.report || null;
-          setPartnerSummary(report);
-          const loansData = Array.isArray(report?.data?.loans) ? report.data.loans : [];
-          setLoans(loansData.slice(0, 5));
-          setPayments([]);
-          setSummary({
-            totalAmount: Number(report?.summary?.totalContributed || 0),
-            paidAmount: Number(report?.summary?.totalDistributed || 0),
-            pendingAmount: Math.max(0, Number(report?.summary?.totalContributed || 0) - Number(report?.summary?.totalDistributed || 0)),
-          });
-          return;
-        }
+  const partnerSummary = associateProfitabilityQuery.data?.data?.report || null;
+  const queriedLoans = Array.isArray(loansQuery.data?.data?.loans)
+    ? loansQuery.data.data.loans
+    : Array.isArray(loansQuery.data?.data)
+      ? loansQuery.data.data
+      : [];
+  const queriedPayments = Array.isArray(paymentsQuery.data?.data)
+    ? paymentsQuery.data.data
+    : Array.isArray(paymentsQuery.data?.data?.payments)
+      ? paymentsQuery.data.data.payments
+      : [];
 
-        const loansRes = user.role === 'customer'
-          ? await api.getLoansByCustomer(user.id)
-          : user.role === 'agent'
-            ? await api.getLoansByAgent(user.id)
-            : await api.getLoans();
-
-        const paymentsRes = user.role === 'admin'
-          ? await api.getPayments()
-          : null;
-        
-        const loansData = Array.isArray(loansRes?.data?.loans)
-          ? loansRes.data.loans
-          : Array.isArray(loansRes?.data)
-            ? loansRes.data
-            : [];
-        let paymentsData = Array.isArray(paymentsRes?.data)
-          ? paymentsRes.data
-          : Array.isArray(paymentsRes?.data?.payments)
-            ? paymentsRes.data.payments
-            : [];
-        
-        let filteredLoans = loansData;
-        let filteredPayments = paymentsData;
-        
-        // Filter based on role
-        if (user.role === "customer") {
-          filteredLoans = loansData.filter(l => l.customerId === user.id);
-        } else if (user.role === "agent") {
-          filteredLoans = loansData.filter(l => l.agentId === user.id);
-        }
-
-        if (user.role !== 'admin') {
-          const paymentsByLoan = await Promise.all(
-            filteredLoans.map(async (loan) => {
-              try {
-                const response = await api.getPaymentsByLoan(loan.id);
-                return Array.isArray(response?.data) ? response.data : [];
-              } catch (error) {
-                return [];
-              }
-            }),
-          );
-          paymentsData = paymentsByLoan.flat();
-          filteredPayments = paymentsData;
-        } else {
-          filteredPayments = paymentsData;
-        }
-
-        setLoans(filteredLoans.slice(0, 5)); // Keep only recent 5
-        setPayments(filteredPayments.slice(0, 5));
-        
-        // Calculate summary
-        const total = filteredLoans.reduce((sum, l) => sum + (l.amount || 0), 0);
-        const paid = filteredPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        setSummary({
-          totalAmount: total,
-          paidAmount: paid,
-          pendingAmount: total - paid
-        });
-        
-      } catch (err) {
-        console.error("Dashboard error", err);
+  const loans = isSocio
+    ? (Array.isArray(partnerSummary?.data?.loans) ? partnerSummary.data.loans : []).slice(0, 5)
+    : queriedLoans.slice(0, 5);
+  const payments = queriedPayments.slice(0, 5);
+  const summary = isSocio
+    ? {
+        totalAmount: Number(partnerSummary?.summary?.totalContributed || 0),
+        paidAmount: Number(partnerSummary?.summary?.totalDistributed || 0),
+        pendingAmount: Math.max(0, Number(partnerSummary?.summary?.totalContributed || 0) - Number(partnerSummary?.summary?.totalDistributed || 0)),
       }
-    };
-    fetchData();
-  }, [user]);
+    : user.role === 'admin' && dashboardSummaryQuery.data?.data?.summary
+      ? {
+          totalAmount: Number(dashboardSummaryQuery.data.data.summary.totalPortfolioAmount || 0),
+          paidAmount: Number(dashboardSummaryQuery.data.data.summary.totalRecoveredAmount || 0),
+          pendingAmount: Number(dashboardSummaryQuery.data.data.summary.totalOutstandingAmount || 0),
+        }
+      : {
+          totalAmount: queriedLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0),
+          paidAmount: queriedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+          pendingAmount: Math.max(0, queriedLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0) - queriedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)),
+        };
 
   const heroCopy = useMemo(() => {
     if (user.role === 'socio') {

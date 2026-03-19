@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { api, handleApiError, handleApiSuccess } from '../utils/api';
+import { handleApiError } from '../lib/api/errors';
+import { useLoginMutation, useRegisterMutation } from '../hooks/useAuth';
 
 function Register({ onRegister, onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'customer', phone: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
+  const registerMutation = useRegisterMutation();
+  const loginMutation = useLoginMutation();
+  const loading = registerMutation.isPending || loginMutation.isPending;
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -13,32 +16,23 @@ function Register({ onRegister, onLogin }) {
     e.preventDefault();
     setError(''); 
     setSuccess('');
-    setLoading(true);
     
     try {
       const payload = { ...form };
       if (form.role !== 'agent') delete payload.phone;
       
-      // Register the user
-      const registerData = await api.register(payload);
-      
-      // Automatically log in the user with the same credentials
-      const loginData = await api.login({ 
+      await registerMutation.mutateAsync(payload);
+      await loginMutation.mutateAsync({ 
         email: form.email, 
         password: form.password 
       });
       
       setSuccess('Registration successful! You have been automatically logged in.');
+      onLogin && onLogin();
       
-      // Call onLogin to set the user session
-      onLogin && onLogin(loginData.data.user, loginData.data.token);
-      
-      // Clear form
       setForm({ name: '', email: '', password: '', role: 'customer', phone: '' });
     } catch (err) {
       handleApiError(err, setError);
-    } finally {
-      setLoading(false);
     }
   };
 

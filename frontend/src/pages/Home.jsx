@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import Register from './Register';
-import { api, handleApiError } from '../utils/api';
+import { handleApiError } from '../lib/api/errors';
+import { useLoginMutation } from '../hooks/useAuth';
 
 function Home({ onLogin }) {
   const [showForm, setShowForm] = useState(false); // Controls if any form is shown
@@ -9,21 +10,19 @@ function Home({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const loginMutation = useLoginMutation();
+  const loading = loginMutation.isPending;
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     
     try {
-      const data = await api.login({ email, password });
+      await loginMutation.mutateAsync({ email, password });
       setError('');
-      onLogin(data.data.user, data.data.token);
+      onLogin();
     } catch (err) {
       handleApiError(err, setError);
-    } finally {
-      setLoading(false);
     }
   };
 

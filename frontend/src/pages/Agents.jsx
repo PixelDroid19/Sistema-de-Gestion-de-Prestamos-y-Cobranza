@@ -1,23 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { api, handleApiError } from '../utils/api';
+import { handleApiError } from '../lib/api/errors';
+import { useAgentsQuery } from '../hooks/useAgents';
 
 function Agents({ onSelect }) {
-  const [agents, setAgents] = useState([]);
   const [error, setError] = useState('');
+  const agentsQuery = useAgentsQuery();
 
   useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const data = await api.getAllAgents();
-        setAgents(Array.isArray(data.data) ? data.data : []);
-      } catch (err) {
-        handleApiError(err, setError);
-        setAgents([]);
-      }
-    };
-    
-    fetchAgents();
-  }, []);
+    if (agentsQuery.error) {
+      handleApiError(agentsQuery.error, setError);
+    }
+  }, [agentsQuery.error]);
+
+  const agents = Array.isArray(agentsQuery.data?.data) ? agentsQuery.data.data : [];
 
   return (
     <div>
