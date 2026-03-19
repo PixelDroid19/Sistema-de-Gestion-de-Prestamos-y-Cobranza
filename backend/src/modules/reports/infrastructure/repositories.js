@@ -16,6 +16,9 @@ const reportIncludes = [
   },
 ];
 
+/**
+ * Repository contract for report-oriented loan queries with shared related models included.
+ */
 const reportRepository = {
   listRecoveredLoans() {
     return Loan.findAll({
@@ -44,6 +47,9 @@ const reportRepository = {
   },
 };
 
+/**
+ * Repository contract for report-oriented payment history lookups.
+ */
 const paymentRepository = {
   listByLoan(loanId) {
     return Payment.findAll({

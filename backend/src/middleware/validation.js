@@ -7,7 +7,11 @@ const buildValidationError = (errors, message = 'Please correct the following er
   return error;
 };
 
-// Generic validation function
+/**
+ * Adapt a schema validator into Express middleware that raises backend validation errors.
+ * @param {{ validate: Function }} schema
+ * @returns {import('express').RequestHandler}
+ */
 const validate = (schema) => {
   return (req, res, next) => {
     try {
@@ -27,31 +31,66 @@ const validate = (schema) => {
   };
 };
 
-// Custom validation functions
+/**
+ * Validate a basic email address shape.
+ * @param {string} email
+ * @returns {boolean}
+ */
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
+/**
+ * Validate an E.164-like phone number payload.
+ * @param {string} phone
+ * @returns {boolean}
+ */
 const validatePhone = (phone) => {
   const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
   return phoneRegex.test(phone);
 };
 
+/**
+ * Validate positive monetary amounts.
+ * @param {number} amount
+ * @returns {boolean}
+ */
 const validateAmount = (amount) => {
   return typeof amount === 'number' && amount > 0;
 };
 
+/**
+ * Validate percentage rates accepted by the credit domain.
+ * @param {number} rate
+ * @returns {boolean}
+ */
 const validateInterestRate = (rate) => {
   return typeof rate === 'number' && rate >= 0 && rate <= 100;
 };
 
+/**
+ * Validate supported loan terms in months.
+ * @param {number} term
+ * @returns {boolean}
+ */
 const validateTermMonths = (term) => {
-  return Number.isInteger(term) && term > 0 && term <= 360; // Max 30 years
+  return Number.isInteger(term) && term > 0 && term <= 360;
 };
 
+/**
+ * Validate positive integer identifiers received in route params or bodies.
+ * @param {string|number} value
+ * @returns {boolean}
+ */
 const validateIntegerId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
 
+/**
+ * Reject late-fee modes that the canonical credit simulator does not support.
+ * @param {string|undefined|null} lateFeeMode
+ * @param {Array<object>} errors
+ * @param {string} [field='lateFeeMode']
+ */
 const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode') => {
   const normalizedMode = normalizeLateFeeMode(lateFeeMode);
 
@@ -63,8 +102,8 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
   }
 };
 
-// Validation schemas (using simple validation for now, can be replaced with Joi)
 const authValidation = {
+  /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
     const { name, email, password, role, phone } = req.body;
     const errors = [];
@@ -100,6 +139,7 @@ const authValidation = {
     next();
   },
 
+  /** @type {import('express').RequestHandler} */
   login: (req, res, next) => {
     const { email, password } = req.body;
     const errors = [];
@@ -123,6 +163,7 @@ const authValidation = {
 };
 
 const loanValidation = {
+  /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
     const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode } = req.body;
     const errors = [];
@@ -156,6 +197,7 @@ const loanValidation = {
     next();
   },
 
+  /** @type {import('express').RequestHandler} */
   simulate: (req, res, next) => {
     const { amount, interestRate, termMonths, lateFeeMode } = req.body;
     const errors = [];
@@ -181,6 +223,7 @@ const loanValidation = {
     next();
   },
 
+  /** @type {import('express').RequestHandler} */
   updateStatus: (req, res, next) => {
     const { status } = req.body;
     const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
@@ -196,6 +239,7 @@ const loanValidation = {
 };
 
 const paymentValidation = {
+  /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
     const { amount, loanId, lateFeeMode } = req.body;
     const errors = [];
@@ -219,6 +263,7 @@ const paymentValidation = {
 };
 
 const customerValidation = {
+  /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
     const { name, email, phone } = req.body;
     const errors = [];
@@ -246,6 +291,7 @@ const customerValidation = {
 };
 
 const agentValidation = {
+  /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
     const { name, email, phone } = req.body;
     const errors = [];
@@ -273,6 +319,7 @@ const agentValidation = {
 };
 
 const associateValidation = {
+  /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
     const { name, email, phone, status } = req.body;
     const errors = [];
@@ -302,6 +349,7 @@ const associateValidation = {
     next();
   },
 
+  /** @type {import('express').RequestHandler} */
   update: (req, res, next) => {
     const { name, email, phone, status } = req.body;
     const errors = [];

@@ -6,6 +6,10 @@ const { createListCustomers, createCreateCustomer } = require('./application/use
 const { customerRepository } = require('./infrastructure/repositories');
 const { createCustomersRouter } = require('./presentation/router');
 
+/**
+ * Compose the customers module entrypoint and its router dependencies.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createCustomersModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const useCases = {

@@ -11,6 +11,10 @@ const {
 const { notificationRepository } = require('./infrastructure/repositories');
 const { createNotificationsRouter } = require('./presentation/router');
 
+/**
+ * Compose the notifications module entrypoint and its router dependencies.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createNotificationsModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const useCases = {

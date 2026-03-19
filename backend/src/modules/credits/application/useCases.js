@@ -1,5 +1,10 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 
+/**
+ * Create the use case that lists loans, optionally filtered through the shared access policy.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
+ * @returns {Function}
+ */
 const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor }) => {
   const loans = await loanRepository.list();
 
@@ -10,8 +15,18 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
   return loans;
 };
 
+/**
+ * Create the use case that returns a canonical credit simulation preview.
+ * @param {{ creditDomainService: object }} dependencies
+ * @returns {Function}
+ */
 const createCreateSimulation = ({ creditDomainService }) => async (payload) => creditDomainService.simulate(payload);
 
+/**
+ * Create the use case that retrieves a single loan through the shared access policy.
+ * @param {{ loanAccessPolicy?: object, loanRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createGetLoanById = ({ loanAccessPolicy, loanRepository }) => async ({ actor, loanId }) => {
   if (loanAccessPolicy) {
     return loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -33,6 +48,11 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository }) => async ({ act
   return loan;
 };
 
+/**
+ * Create the use case that persists a new loan while enforcing customer self-service boundaries.
+ * @param {{ loanCreationService: object }} dependencies
+ * @returns {Function}
+ */
 const createCreateLoan = ({ loanCreationService }) => async ({ actor, payload }) => {
   if (actor.role === 'customer' && Number(payload.customerId) !== actor.id) {
     throw new AuthorizationError('You can only create loans for your own customer record');
@@ -41,6 +61,11 @@ const createCreateLoan = ({ loanCreationService }) => async ({ actor, payload })
   return loanCreationService.create(payload);
 };
 
+/**
+ * Create the use case that lists loans for a customer and returns the owning customer record.
+ * @param {{ customerRepository: object, loanRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createListLoansByCustomer = ({ customerRepository, loanRepository }) => async ({ actor, customerId }) => {
   if (actor.role === 'customer' && actor.id !== Number(customerId)) {
     throw new AuthorizationError('You can only view your own loans');
@@ -55,6 +80,11 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
   return { loans, customer };
 };
 
+/**
+ * Create the use case that lists loans assigned to a specific agent.
+ * @param {{ agentRepository: object, loanRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({ actor, agentId }) => {
   if (actor.role === 'agent' && actor.id !== Number(agentId)) {
     throw new AuthorizationError('You can only view your own assigned loans');
@@ -69,6 +99,11 @@ const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({
   return { loans, agent };
 };
 
+/**
+ * Create the use case that updates the primary loan lifecycle status.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
+ * @returns {Function}
+ */
 const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy }) => async ({ actor, loanId, status }) => {
   const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
   if (!validStatuses.includes(status)) {
@@ -107,6 +142,11 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy }) => async (
   return loanRepository.save(loan);
 };
 
+/**
+ * Create the use case that assigns an agent to a recoverable loan and emits a notification.
+ * @param {{ loanRepository: object, agentRepository: object, userRepository: object, notificationPort: object }} dependencies
+ * @returns {Function}
+ */
 const createAssignAgent = ({ loanRepository, agentRepository, userRepository, notificationPort }) => async ({ actor, loanId, agentId }) => {
   if (actor.role !== 'admin') {
     throw new AuthorizationError('Only admins can assign agents to loans');
@@ -151,6 +191,11 @@ const createAssignAgent = ({ loanRepository, agentRepository, userRepository, no
   return savedLoan;
 };
 
+/**
+ * Create the use case that updates recovery state after policy and domain-guard validation.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object, recoveryStatusGuard?: object }} dependencies
+ * @returns {Function}
+ */
 const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recoveryStatusGuard }) => async ({ actor, loanId, recoveryStatus }) => {
   const validRecoveryStatuses = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
   if (!validRecoveryStatuses.includes(recoveryStatus)) {
@@ -177,6 +222,11 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
   return loanRepository.save(loan);
 };
 
+/**
+ * Create the use case that deletes rejected loans after access checks succeed.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
+ * @returns {Function}
+ */
 const createDeleteLoan = ({ loanRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
   const loan = loanAccessPolicy
     ? await loanAccessPolicy.findAuthorizedLoan({ actor, loanId })

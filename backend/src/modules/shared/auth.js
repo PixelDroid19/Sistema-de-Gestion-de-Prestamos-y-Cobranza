@@ -2,6 +2,11 @@ const { AuthenticationError, AuthorizationError } = require('../../utils/errorHa
 
 const normalizeRoles = (roles = []) => (typeof roles === 'string' ? [roles] : roles);
 
+/**
+ * Create role-aware authentication middleware backed by a token verification service.
+ * @param {{ tokenService: { verify: Function } }} dependencies
+ * @returns {(roles?: string|string[]) => import('express').RequestHandler}
+ */
 const createAuthMiddleware = ({ tokenService }) => (roles = []) => {
   const requiredRoles = normalizeRoles(roles);
 

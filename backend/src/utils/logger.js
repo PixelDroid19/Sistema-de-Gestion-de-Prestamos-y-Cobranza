@@ -1,6 +1,5 @@
 const winston = require('winston');
 
-// Create logger instance
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -12,15 +11,11 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'loan-recovery-api' },
   transports: [
-    // Write all logs with importance level of `error` or less to `error.log`
     new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    // Write all logs with importance level of `info` or less to `combined.log`
     new winston.transports.File({ filename: 'logs/combined.log' }),
   ],
 });
 
-// If we're not in production then log to the `console` with the format:
-// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
@@ -30,7 +25,12 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-// Custom logging methods
+/**
+ * Log the completed HTTP request with timing and caller metadata.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 const logRequest = (req, res, next) => {
   const start = Date.now();
   
@@ -49,6 +49,11 @@ const logRequest = (req, res, next) => {
   next();
 };
 
+/**
+ * Log an application error with request context when available.
+ * @param {Error & { statusCode?: number }} error
+ * @param {import('express').Request} [req]
+ */
 const logError = (error, req) => {
   logger.error('Application Error', {
     message: error.message,
@@ -63,6 +68,11 @@ const logError = (error, req) => {
   });
 };
 
+/**
+ * Log a database operation using the shared structured logger.
+ * @param {string} message
+ * @param {object} [data={}]
+ */
 const logDatabase = (message, data = {}) => {
   logger.info('Database Operation', {
     message,
@@ -70,6 +80,11 @@ const logDatabase = (message, data = {}) => {
   });
 };
 
+/**
+ * Log a security-relevant event through the shared structured logger.
+ * @param {string} event
+ * @param {object} [data={}]
+ */
 const logSecurity = (event, data = {}) => {
   logger.warn('Security Event', {
     event,
@@ -77,6 +92,11 @@ const logSecurity = (event, data = {}) => {
   });
 };
 
+/**
+ * Log a domain or business event through the shared structured logger.
+ * @param {string} event
+ * @param {object} [data={}]
+ */
 const logBusiness = (event, data = {}) => {
   logger.info('Business Event', {
     event,
@@ -90,5 +110,5 @@ module.exports = {
   logError,
   logDatabase,
   logSecurity,
-  logBusiness
-}; 
+  logBusiness,
+};

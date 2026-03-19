@@ -16,6 +16,10 @@ const {
 } = require('./infrastructure/repositories');
 const { createAuthRouter } = require('./presentation/router');
 
+/**
+ * Compose the authentication module entrypoint and its router dependencies.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createAuthModule = () => {
   const tokenService = createJwtTokenService();
   const authMiddleware = createAuthMiddleware({ tokenService });

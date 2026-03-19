@@ -6,6 +6,10 @@ const { createListAgents, createCreateAgent } = require('./application/useCases'
 const { agentRepository } = require('./infrastructure/repositories');
 const { createAgentsRouter } = require('./presentation/router');
 
+/**
+ * Compose the agents module entrypoint and its router dependencies.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createAgentsModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const useCases = {

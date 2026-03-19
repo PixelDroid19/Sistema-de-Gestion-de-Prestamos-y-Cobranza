@@ -9,6 +9,11 @@ const { notificationService } = require('../../../services/NotificationService')
 const { simulateCredit } = require('../../../services/creditSimulationService');
 const { createLoanFromCanonicalData } = require('./loanCreation');
 
+/**
+ * Create the infrastructure ports consumed by the credits module composition seam.
+ * @param {{ loanModel?: object, customerModel?: object, agentModel?: object, associateModel?: object, userModel?: object, creditSimulator?: Function, loanCreator?: Function, notifications?: object }} [options]
+ * @returns {object}
+ */
 const createCreditsInfrastructure = ({
   loanModel = Loan,
   customerModel = Customer,

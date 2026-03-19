@@ -8,6 +8,10 @@ const { createListPayments, createCreatePayment, createListPaymentsByLoan } = re
 const { paymentRepository } = require('./infrastructure/repositories');
 const { createPayoutsRouter } = require('./presentation/router');
 
+/**
+ * Compose the payouts module entrypoint from payment and loan public seams.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createPayoutsModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const { loanAccessPolicy, loanViewService } = createCreditsPublicPorts();

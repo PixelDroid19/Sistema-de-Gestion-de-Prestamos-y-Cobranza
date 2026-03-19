@@ -1,4 +1,6 @@
-// Custom Error Classes
+/**
+ * Base application error that carries HTTP status metadata for API responses.
+ */
 class AppError extends Error {
   constructor(message, statusCode, isOperational = true) {
     super(message);
@@ -10,6 +12,9 @@ class AppError extends Error {
   }
 }
 
+/**
+ * Validation error raised when request or domain input is invalid.
+ */
 class ValidationError extends AppError {
   constructor(message) {
     super(message, 400);
@@ -17,6 +22,9 @@ class ValidationError extends AppError {
   }
 }
 
+/**
+ * Authentication error raised when a caller is not authenticated.
+ */
 class AuthenticationError extends AppError {
   constructor(message = 'Authentication failed') {
     super(message, 401);
@@ -24,6 +32,9 @@ class AuthenticationError extends AppError {
   }
 }
 
+/**
+ * Authorization error raised when a caller lacks permission.
+ */
 class AuthorizationError extends AppError {
   constructor(message = 'Access denied') {
     super(message, 403);
@@ -31,6 +42,9 @@ class AuthorizationError extends AppError {
   }
 }
 
+/**
+ * Not-found error raised when a requested resource does not exist.
+ */
 class NotFoundError extends AppError {
   constructor(resource = 'Resource') {
     super(`${resource} not found`, 404);
@@ -38,6 +52,9 @@ class NotFoundError extends AppError {
   }
 }
 
+/**
+ * Conflict error raised when persistence detects duplicate or incompatible state.
+ */
 class ConflictError extends AppError {
   constructor(message = 'Resource conflict') {
     super(message, 409);
@@ -45,7 +62,12 @@ class ConflictError extends AppError {
   }
 }
 
-// Error Response Formatter
+/**
+ * Build the JSON API error payload, including development diagnostics when enabled.
+ * @param {Error & { statusCode?: number, errors?: Array<object> }} error
+ * @param {import('express').Request} req
+ * @returns {object}
+ */
 const formatErrorResponse = (error, req) => {
   const isDevelopment = process.env.NODE_ENV === 'development';
   
@@ -61,7 +83,6 @@ const formatErrorResponse = (error, req) => {
     }
   };
 
-  // Add validation errors if they exist
   if (error.errors && Array.isArray(error.errors)) {
     errorResponse.error.validationErrors = error.errors.map((err) => ({
       field: err.field || err.path,
@@ -73,19 +94,28 @@ const formatErrorResponse = (error, req) => {
   return errorResponse;
 };
 
-// Async Error Wrapper
+/**
+ * Wrap an async Express handler so rejected promises flow into next().
+ * @param {Function} fn
+ * @returns {import('express').RequestHandler}
+ */
 const asyncHandler = (fn) => {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
 
-// Global Error Handler Middleware
+/**
+ * Normalize known backend errors into the shared API error response contract.
+ * @param {Error & { statusCode?: number, errors?: Array<object> }} err
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 const globalErrorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log error for debugging
   console.error('Error Details:', {
     message: err.message,
     stack: err.stack,
@@ -97,26 +127,22 @@ const globalErrorHandler = (err, req, res, next) => {
     user: req.user?.id
   });
 
-  // Sequelize validation errors
   if (err.name === 'SequelizeValidationError') {
     const message = Object.values(err.errors).map(val => val.message).join(', ');
     error = new ValidationError(message);
     error.errors = err.errors;
   }
 
-  // Sequelize unique constraint errors
   if (err.name === 'SequelizeUniqueConstraintError') {
     const message = `${err.errors[0].path} already exists`;
     error = new ConflictError(message);
   }
 
-  // Sequelize foreign key constraint errors
   if (err.name === 'SequelizeForeignKeyConstraintError') {
     const message = 'Referenced resource does not exist';
     error = new ValidationError(message);
   }
 
-  // JWT errors
   if (err.name === 'JsonWebTokenError') {
     error = new AuthenticationError('Invalid token');
   }
@@ -125,24 +151,27 @@ const globalErrorHandler = (err, req, res, next) => {
     error = new AuthenticationError('Token expired');
   }
 
-  // Cast errors (invalid ObjectId, etc.)
   if (err.name === 'CastError') {
     const message = 'Invalid resource identifier';
     error = new ValidationError(message);
   }
 
-  // Default error
   if (!error.statusCode) {
     error.statusCode = 500;
     error.message = 'Internal server error';
   }
 
   const errorResponse = formatErrorResponse(error, req);
-  
+
   res.status(error.statusCode).json(errorResponse);
 };
 
-// 404 Handler
+/**
+ * Convert unmatched routes into the shared not-found error contract.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 const notFoundHandler = (req, res, next) => {
   const error = new NotFoundError('Route');
   next(error);
@@ -158,5 +187,5 @@ module.exports = {
   asyncHandler,
   globalErrorHandler,
   notFoundHandler,
-  formatErrorResponse
-}; 
+  formatErrorResponse,
+};

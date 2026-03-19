@@ -22,6 +22,11 @@ const getRecoveryBucket = ({ loan, snapshot }) => {
   return 'ignored';
 };
 
+/**
+ * Build the enriched report record for a single loan using canonical payment state.
+ * @param {{ loan: object, paymentRepository: object, loanViewService: object }} dependencies
+ * @returns {Promise<object>}
+ */
 const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService }) => {
   const payments = await paymentRepository.listByLoan(loan.id);
   const snapshot = loanViewService.getSnapshot(loan);
@@ -40,10 +45,20 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   };
 };
 
+/**
+ * Build report-ready loan records with payment and canonical balance details.
+ * @param {{ loans: Array<object>, paymentRepository: object, loanViewService: object }} dependencies
+ * @returns {Promise<Array<object>>}
+ */
 const buildLoansWithDetails = async ({ loans, paymentRepository, loanViewService }) => Promise.all(
   loans.map((loan) => buildLoanReportRecord({ loan, paymentRepository, loanViewService })),
 );
 
+/**
+ * Create the report use case that returns fully recovered loans and summary totals.
+ * @param {{ reportRepository: object, paymentRepository: object, loanViewService: object }} dependencies
+ * @returns {Function}
+ */
 const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
   ensureAdmin(actor);
   const recoveredLoans = await reportRepository.listRecoveredLoans();
@@ -63,6 +78,11 @@ const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanView
   };
 };
 
+/**
+ * Create the report use case that returns only loans with outstanding balances.
+ * @param {{ reportRepository: object, paymentRepository: object, loanViewService: object }} dependencies
+ * @returns {Function}
+ */
 const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
   ensureAdmin(actor);
   const outstandingLoans = await reportRepository.listOutstandingLoans();
@@ -87,6 +107,11 @@ const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanVi
   };
 };
 
+/**
+ * Create the recovery summary use case that splits canonical results into recovered and outstanding buckets.
+ * @param {{ reportRepository: object, paymentRepository: object, loanViewService: object }} dependencies
+ * @returns {Function}
+ */
 const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
   ensureAdmin(actor);
   const allLoans = await reportRepository.listRecoveryLoans();

@@ -17,6 +17,10 @@ const {
 const { createCreditsComposition } = require('./composition');
 const { createCreditsRouter } = require('./presentation/router');
 
+/**
+ * Compose the credits module entrypoint from shared policy, services, and router seams.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createCreditsModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const {

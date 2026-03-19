@@ -1,5 +1,10 @@
 const { notificationService } = require('../../../services/NotificationService');
 
+/**
+ * Find an in-memory notification record by identifier across all user queues.
+ * @param {number} notificationId
+ * @returns {object|null}
+ */
 const findNotificationRecord = (notificationId) => {
   for (const notifications of notificationService.notifications.values()) {
     const notification = notifications.find((entry) => entry.id === notificationId);
@@ -11,6 +16,9 @@ const findNotificationRecord = (notificationId) => {
   return null;
 };
 
+/**
+ * Repository adapter that exposes the notification service through persistence-style methods.
+ */
 const notificationRepository = {
   getNotifications(userId) {
     return notificationService.getNotifications(userId);

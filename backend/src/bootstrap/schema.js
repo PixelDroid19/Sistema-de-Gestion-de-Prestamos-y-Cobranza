@@ -15,12 +15,22 @@ const resolveTableName = (model) => {
   return typeof tableName === 'string' ? tableName : tableName.tableName;
 };
 
+/**
+ * Build the schema contract the runtime expects from the loaded Sequelize models.
+ * @param {Array<object>} [models]
+ * @returns {Array<{ modelName: string, tableName: string, columns: Array<string> }>}
+ */
 const buildRequiredSchema = (models = REQUIRED_SCHEMA_MODELS) => models.map((model) => ({
   modelName: model.name,
   tableName: resolveTableName(model),
   columns: Object.values(model.getAttributes()).map((attribute) => attribute.field || attribute.fieldName),
 }));
 
+/**
+ * Create a structured schema verification error for missing tables or columns.
+ * @param {Array<string>} issues
+ * @returns {Error}
+ */
 const buildSchemaVerificationError = (issues) => {
   const error = new Error(`Schema verification failed: ${issues.join('; ')}`);
   error.code = 'SCHEMA_VERIFICATION_FAILED';
@@ -28,6 +38,11 @@ const buildSchemaVerificationError = (issues) => {
   return error;
 };
 
+/**
+ * Verify that the connected database satisfies the required runtime schema.
+ * @param {{ database: object, requiredSchema?: Array<object> }} [options]
+ * @returns {Promise<{ status: string, tables: Array<string> }>}
+ */
 const verifyRequiredSchema = async ({
   database,
   requiredSchema = buildRequiredSchema(),
@@ -64,6 +79,11 @@ const verifyRequiredSchema = async ({
   };
 };
 
+/**
+ * Rebuild the local database schema before verifying required tables and columns.
+ * @param {{ database: object, env?: NodeJS.ProcessEnv|Record<string, string|undefined> }} [options]
+ * @returns {Promise<{ status: string, tables: Array<string> }>}
+ */
 const resetDatabaseSchema = async ({
   database,
   env = process.env,
@@ -86,6 +106,11 @@ const resetDatabaseSchema = async ({
   return verifyRequiredSchema({ database });
 };
 
+/**
+ * Synchronize the database schema, optionally resetting local development state first.
+ * @param {{ database: object, env?: NodeJS.ProcessEnv|Record<string, string|undefined>, forceReset?: boolean }} [options]
+ * @returns {Promise<{ mode: string, status: string, tables: Array<string> }>}
+ */
 const syncDatabaseSchema = async ({
   database,
   env = process.env,

@@ -2,6 +2,11 @@ const { AuthorizationError, NotFoundError } = require('../../utils/errorHandler'
 
 const normalizeId = (value) => Number(value);
 
+/**
+ * Determine whether an actor can read a loan under the shared visibility rules.
+ * @param {{ actor: object, loan: object }} input
+ * @returns {boolean}
+ */
 const isLoanVisibleToActor = ({ actor, loan }) => {
   if (!actor || !loan) {
     return false;
@@ -22,6 +27,11 @@ const isLoanVisibleToActor = ({ actor, loan }) => {
   return false;
 };
 
+/**
+ * Determine whether an actor can mutate a loan under the shared write rules.
+ * @param {{ actor: object, loan: object }} input
+ * @returns {boolean}
+ */
 const isLoanMutableByActor = ({ actor, loan }) => {
   if (!actor || !loan) {
     return false;
@@ -58,6 +68,11 @@ const buildMutationDeniedMessage = (actor) => {
   return 'You do not have permission to update this loan';
 };
 
+/**
+ * Create the shared loan access policy used by credit, payout, and reporting seams.
+ * @param {{ loanRepository: { findById: Function } }} dependencies
+ * @returns {{ assertLoanAccess: Function, findAuthorizedLoan: Function, filterVisibleLoans: Function, assertLoanMutationAccess: Function, findAuthorizedMutationLoan: Function }}
+ */
 const createLoanAccessPolicy = ({ loanRepository }) => {
   const assertLoanAccess = ({ actor, loan }) => {
     if (!isLoanVisibleToActor({ actor, loan })) {

@@ -3,6 +3,11 @@ const { bootstrap } = require('./bootstrap');
 
 const PORT = process.env.PORT || 5000;
 
+/**
+ * Bootstrap infrastructure, compose the Express app, and start listening.
+ * @param {{ port?: number|string, bootstrap?: Function, createApp?: Function }} [options]
+ * @returns {Promise<{ app: import('express').Express, server: import('http').Server, bootstrap: object }>}
+ */
 const startServer = async ({
   port = PORT,
   bootstrap: runBootstrap = bootstrap,

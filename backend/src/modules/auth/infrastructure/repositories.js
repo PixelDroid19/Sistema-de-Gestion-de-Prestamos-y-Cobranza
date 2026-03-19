@@ -3,6 +3,9 @@ const User = require('../../../models/User');
 const Customer = require('../../../models/Customer');
 const Agent = require('../../../models/Agent');
 
+/**
+ * Persistence ports for user identities and role-specific profile records.
+ */
 const userRepository = {
   findByEmail(email) {
     return User.findOne({ where: { email } });
@@ -30,6 +33,9 @@ const userRepository = {
   },
 };
 
+/**
+ * Persistence port for customer profile records linked to user identities.
+ */
 const customerProfileRepository = {
   create(payload) {
     return Customer.create(payload);
@@ -45,6 +51,9 @@ const customerProfileRepository = {
   },
 };
 
+/**
+ * Persistence port for agent profile records linked to user identities.
+ */
 const agentProfileRepository = {
   create(payload) {
     return Agent.create(payload);
@@ -60,6 +69,9 @@ const agentProfileRepository = {
   },
 };
 
+/**
+ * Password hashing contract used by the auth use cases.
+ */
 const passwordHasher = {
   hash(password) {
     return bcrypt.hash(password, 12);

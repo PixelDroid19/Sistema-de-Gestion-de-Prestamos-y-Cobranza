@@ -37,6 +37,11 @@ const sanitizeUser = (user) => ({
   role: user.role,
 });
 
+/**
+ * Create the registration use case for public customer signup and trusted admin provisioning.
+ * @param {{ userRepository: object, customerProfileRepository: object, agentProfileRepository: object, passwordHasher: object, tokenService: object }} dependencies
+ * @returns {Function}
+ */
 const createRegisterUser = ({
   userRepository,
   customerProfileRepository,
@@ -108,6 +113,11 @@ const createRegisterUser = ({
   };
 };
 
+/**
+ * Create the login use case that authenticates a user and returns a signed token.
+ * @param {{ userRepository: object, passwordHasher: object, tokenService: object }} dependencies
+ * @returns {Function}
+ */
 const createLoginUser = ({ userRepository, passwordHasher, tokenService }) => async ({ email, password }) => {
   const user = await userRepository.findByEmail(email);
   if (!user) {
@@ -125,6 +135,11 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService }) => as
   };
 };
 
+/**
+ * Create the profile lookup use case for authenticated users.
+ * @param {{ userRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createGetProfile = ({ userRepository }) => async (userId) => {
   const user = await userRepository.findById(userId);
   if (!user) {
@@ -134,6 +149,11 @@ const createGetProfile = ({ userRepository }) => async (userId) => {
   return sanitizeUser(user);
 };
 
+/**
+ * Create the profile update use case while keeping role-specific profile tables aligned.
+ * @param {{ userRepository: object, customerProfileRepository: object, agentProfileRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createUpdateProfile = ({
   userRepository,
   customerProfileRepository,

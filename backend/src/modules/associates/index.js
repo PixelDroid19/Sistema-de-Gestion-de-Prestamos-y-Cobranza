@@ -12,6 +12,10 @@ const {
 const { associateRepository } = require('./infrastructure/repositories');
 const { createAssociatesRouter } = require('./presentation/router');
 
+/**
+ * Compose the associates module entrypoint and its router dependencies.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createAssociatesModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const useCases = {

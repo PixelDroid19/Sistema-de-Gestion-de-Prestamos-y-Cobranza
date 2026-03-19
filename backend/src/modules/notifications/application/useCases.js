@@ -1,5 +1,10 @@
 const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
 
+/**
+ * Create the use case that returns notifications with unread and total counts.
+ * @param {{ notificationRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createGetNotifications = ({ notificationRepository }) => async ({ actor }) => {
   const notifications = await notificationRepository.getNotifications(actor.id);
   const unreadCount = await notificationRepository.getUnreadCount(actor.id);
@@ -14,6 +19,11 @@ const createGetNotifications = ({ notificationRepository }) => async ({ actor })
   };
 };
 
+/**
+ * Create the use case that marks a single owned notification as read.
+ * @param {{ notificationRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createMarkAsRead = ({ notificationRepository }) => async ({ actor, notificationId }) => {
   const notification = await notificationRepository.findById(Number(notificationId));
   if (!notification) {
@@ -32,6 +42,11 @@ const createMarkAsRead = ({ notificationRepository }) => async ({ actor, notific
   };
 };
 
+/**
+ * Create the use case that marks all notifications for the current actor as read.
+ * @param {{ notificationRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createMarkAllAsRead = ({ notificationRepository }) => async ({ actor }) => {
   const notifications = await notificationRepository.markAllAsRead(actor.id);
   return {
@@ -44,6 +59,11 @@ const createMarkAllAsRead = ({ notificationRepository }) => async ({ actor }) =>
   };
 };
 
+/**
+ * Create the use case that returns only the unread notification count.
+ * @param {{ notificationRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createGetUnreadCount = ({ notificationRepository }) => async ({ actor }) => ({
   success: true,
   data: {
@@ -51,6 +71,11 @@ const createGetUnreadCount = ({ notificationRepository }) => async ({ actor }) =
   },
 });
 
+/**
+ * Create the use case that clears all notifications for the current actor.
+ * @param {{ notificationRepository: object }} dependencies
+ * @returns {Function}
+ */
 const createClearNotifications = ({ notificationRepository }) => async ({ actor }) => {
   await notificationRepository.clearNotifications(actor.id);
   return {

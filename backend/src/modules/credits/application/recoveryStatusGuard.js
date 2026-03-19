@@ -2,6 +2,11 @@ const { ValidationError } = require('../../../utils/errorHandler');
 
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 
+/**
+ * Create the guard that validates recovery-status transitions against canonical loan balances.
+ * @param {{ loanViewService: { getSnapshot: Function } }} dependencies
+ * @returns {{ assertCanTransition: Function }}
+ */
 const createRecoveryStatusGuard = ({ loanViewService }) => {
   const assertCanTransition = ({ loan, nextRecoveryStatus }) => {
     const snapshot = loanViewService.getSnapshot(loan);

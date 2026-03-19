@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const Associate = require('../../../models/Associate');
 
+/**
+ * Persistence port for associate CRUD and contact-conflict checks.
+ */
 const associateRepository = {
   list() {
     return Associate.findAll({ order: [['name', 'ASC']] });

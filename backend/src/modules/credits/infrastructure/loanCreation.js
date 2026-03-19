@@ -3,6 +3,11 @@ const { NotFoundError } = require('../../../utils/errorHandler');
 const { simulateCredit } = require('../../../services/creditSimulationService');
 const { buildFinancialSnapshot } = require('../application/loanFinancials');
 
+/**
+ * Create a loan record from canonical simulation data after validating linked records.
+ * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate: number, termMonths: number, lateFeeMode?: string }} input
+ * @returns {Promise<object>}
+ */
 const createLoanFromCanonicalData = async (input) => {
   const customer = await Customer.findByPk(input.customerId);
   if (!customer) {

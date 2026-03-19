@@ -10,6 +10,10 @@ const {
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { createReportsRouter } = require('./presentation/router');
 
+/**
+ * Compose the reports module entrypoint from reporting repositories and credit read models.
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createReportsModule = () => {
   const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
   const { loanViewService } = createCreditsPublicPorts();

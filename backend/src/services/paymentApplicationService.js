@@ -2,6 +2,10 @@ const { sequelize, Loan, Payment } = require('../models');
 const { NotFoundError, ValidationError } = require('../utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
 
+/**
+ * Refresh an installment row status after payment allocation mutates its balances.
+ * @param {object} row
+ */
 const updateRowStatus = (row) => {
   const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
 
@@ -14,6 +18,11 @@ const updateRowStatus = (row) => {
   }
 };
 
+/**
+ * Create the payment application service that mutates canonical schedules and payment records together.
+ * @param {{ sequelizeInstance?: object, loanModel?: object, paymentModel?: object, loanViewService: { getCanonicalLoanView: Function } }} [options]
+ * @returns {{ applyPayment: Function }}
+ */
 const createPaymentApplicationService = ({
   sequelizeInstance = sequelize,
   loanModel = Loan,
@@ -27,8 +36,9 @@ const createPaymentApplicationService = ({
   }
 
   /**
-   * Apply a payment to the next outstanding interest/principal buckets in the canonical schedule.
+   * Apply a payment to the next outstanding interest and principal buckets in the canonical schedule.
    * @param {{ loanId: number, amount: number, paymentDate?: string|Date }} input
+   * @returns {Promise<{ payment: object, loan: object, allocation: object }>}
    */
   const applyPayment = async ({ loanId, amount, paymentDate = new Date() }) => {
     return sequelizeInstance.transaction(async (transaction) => {

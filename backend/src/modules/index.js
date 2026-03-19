@@ -7,6 +7,10 @@ const { createPayoutsModule } = require('./payouts');
 const { createReportsModule } = require('./reports');
 const { createNotificationsModule } = require('./notifications');
 
+/**
+ * Build the backend module registry consumed by the HTTP app and bootstrap flow.
+ * @returns {Array<{ name: string, basePath: string, router: object }>}
+ */
 const buildModuleRegistry = () => ([
   createAuthModule(),
   createAgentsModule(),
