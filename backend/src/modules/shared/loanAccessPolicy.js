@@ -1,0 +1,113 @@
+const { AuthorizationError, NotFoundError } = require('../../utils/errorHandler');
+
+const normalizeId = (value) => Number(value);
+
+const isLoanVisibleToActor = ({ actor, loan }) => {
+  if (!actor || !loan) {
+    return false;
+  }
+
+  if (actor.role === 'admin') {
+    return true;
+  }
+
+  if (actor.role === 'customer') {
+    return normalizeId(actor.id) === normalizeId(loan.customerId);
+  }
+
+  if (actor.role === 'agent') {
+    return normalizeId(actor.id) === normalizeId(loan.agentId);
+  }
+
+  return false;
+};
+
+const isLoanMutableByActor = ({ actor, loan }) => {
+  if (!actor || !loan) {
+    return false;
+  }
+
+  if (actor.role === 'admin') {
+    return true;
+  }
+
+  if (actor.role === 'agent') {
+    return normalizeId(actor.id) === normalizeId(loan.agentId);
+  }
+
+  return false;
+};
+
+const buildAccessDeniedMessage = (actor) => {
+  if (actor?.role === 'customer') {
+    return 'You can only access your own loans';
+  }
+
+  if (actor?.role === 'agent') {
+    return 'You can only access loans assigned to you';
+  }
+
+  return 'You do not have access to this loan';
+};
+
+const buildMutationDeniedMessage = (actor) => {
+  if (actor?.role === 'agent') {
+    return 'You can only update loans assigned to you';
+  }
+
+  return 'You do not have permission to update this loan';
+};
+
+const createLoanAccessPolicy = ({ loanRepository }) => {
+  const assertLoanAccess = ({ actor, loan }) => {
+    if (!isLoanVisibleToActor({ actor, loan })) {
+      throw new AuthorizationError(buildAccessDeniedMessage(actor));
+    }
+
+    return loan;
+  };
+
+  const findAuthorizedLoan = async ({ actor, loanId }) => {
+    const loan = await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    return assertLoanAccess({ actor, loan });
+  };
+
+  const filterVisibleLoans = ({ actor, loans }) => loans.filter((loan) => isLoanVisibleToActor({ actor, loan }));
+
+  const assertLoanMutationAccess = ({ actor, loan }) => {
+    if (!isLoanMutableByActor({ actor, loan })) {
+      throw new AuthorizationError(buildMutationDeniedMessage(actor));
+    }
+
+    return loan;
+  };
+
+  const findAuthorizedMutationLoan = async ({ actor, loanId }) => {
+    const loan = await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    return assertLoanMutationAccess({ actor, loan });
+  };
+
+  return {
+    assertLoanAccess,
+    findAuthorizedLoan,
+    filterVisibleLoans,
+    assertLoanMutationAccess,
+    findAuthorizedMutationLoan,
+  };
+};
+
+module.exports = {
+  createLoanAccessPolicy,
+  isLoanVisibleToActor,
+  isLoanMutableByActor,
+};

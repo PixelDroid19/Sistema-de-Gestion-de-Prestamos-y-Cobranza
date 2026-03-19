@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+
+# Local environment and runtime artifacts
+.env
+.env.*
+!.env.example
+logs/
+coverage/
+development.sqlite
