@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { NotFoundError, globalErrorHandler } = require('../src/utils/errorHandler');
+const { NotFoundError, ValidationError, globalErrorHandler } = require('../src/utils/errorHandler');
 const { createAssociatesRouter } = require('../src/modules/associates/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
@@ -29,6 +29,9 @@ const associateValidation = {
     next();
   },
   update(req, res, next) {
+    next();
+  },
+  proportionalDistribution(req, res, next) {
     next();
   },
 };
@@ -61,6 +64,16 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       },
       async deleteAssociate(id) {
         calls.push(['deleteAssociate', id]);
+      },
+      async createProportionalProfitDistribution({ payload }) {
+        calls.push(['createProportionalProfitDistribution', payload]);
+        return {
+          batchKey: 'batch-1',
+          declaredAmount: '100.00',
+          idempotencyStatus: 'created',
+          idempotencyKey: null,
+          createdRows: [{ id: 9, amount: 60 }],
+        };
       },
     },
   });
@@ -105,6 +118,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     path: '/5',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
+  const proportionalResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/distributions/proportional',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: '100.00' },
+  });
 
   assert.equal(listResponse.statusCode, 200);
   assert.deepEqual(listResponse.body, {
@@ -134,6 +153,72 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     success: true,
     message: 'Associate deleted successfully',
   });
+  assert.equal(proportionalResponse.statusCode, 201);
+  assert.deepEqual(proportionalResponse.body, {
+    success: true,
+    message: 'Proportional profit distribution created successfully',
+    data: {
+      distribution: {
+        batchKey: 'batch-1',
+        declaredAmount: '100.00',
+        idempotencyStatus: 'created',
+        idempotencyKey: null,
+        createdRows: [{ id: 9, amount: 60 }],
+      },
+    },
+  });
+});
+
+test('createAssociatesRouter replays proportional distributions safely for repeated idempotency keys', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async createProportionalProfitDistribution({ idempotencyKey, payload }) {
+        assert.equal(idempotencyKey, 'assoc-proportional-2026-03');
+        assert.equal(payload.amount, '100.00');
+        return {
+          batchKey: 'batch-1',
+          declaredAmount: '100.00',
+          idempotencyStatus: 'replayed',
+          idempotencyKey,
+          createdRows: [{ id: 9, amount: 60 }],
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/distributions/proportional',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'admin',
+      'idempotency-key': 'assoc-proportional-2026-03',
+    },
+    body: { amount: '100.00' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    message: 'Proportional profit distribution replayed safely',
+    data: {
+      distribution: {
+        batchKey: 'batch-1',
+        declaredAmount: '100.00',
+        idempotencyStatus: 'replayed',
+        idempotencyKey: 'assoc-proportional-2026-03',
+        createdRows: [{ id: 9, amount: 60 }],
+      },
+    },
+  });
 });
 
 test('createAssociatesRouter surfaces missing-record errors', async () => {
@@ -156,6 +241,9 @@ test('createAssociatesRouter surfaces missing-record errors', async () => {
       async deleteAssociate() {
         throw new Error('deleteAssociate should not be called');
       },
+      async createProportionalProfitDistribution() {
+        throw new Error('createProportionalProfitDistribution should not be called');
+      },
     },
   });
 
@@ -174,4 +262,48 @@ test('createAssociatesRouter surfaces missing-record errors', async () => {
 
   assert.equal(response.statusCode, 404);
   assert.equal(response.body.error.message, 'Associate not found');
+});
+
+test('createAssociatesRouter surfaces proportional distribution validation and authorization errors', async () => {
+  const router = createAssociatesRouter({
+    associateValidation: {
+      ...associateValidation,
+      proportionalDistribution(req, res, next) {
+        const error = new ValidationError('Validation failed');
+        error.errors = [{ field: 'amount', message: 'Amount must be positive' }];
+        next(error);
+      },
+    },
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async createProportionalProfitDistribution() {
+        throw new Error('createProportionalProfitDistribution should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const validationResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/distributions/proportional',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: '0' },
+  });
+
+  assert.equal(validationResponse.statusCode, 400);
+  assert.equal(validationResponse.body.error.validationErrors[0].field, 'amount');
+
+  const unauthorizedResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/distributions/proportional',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
+    body: { amount: '100.00' },
+  });
+
+  assert.equal(unauthorizedResponse.statusCode, 403);
 });

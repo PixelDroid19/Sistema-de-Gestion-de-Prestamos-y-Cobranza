@@ -3,6 +3,18 @@ const { asyncHandler } = require('../../../utils/errorHandler');
 
 const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases }) => {
   const router = express.Router();
+  const resolveIdempotencyKey = (req) => {
+    const headerValue = req.headers['idempotency-key'];
+    if (typeof headerValue === 'string' && headerValue.trim()) {
+      return headerValue.trim();
+    }
+
+    if (typeof req.body?.idempotencyKey === 'string' && req.body.idempotencyKey.trim()) {
+      return req.body.idempotencyKey.trim();
+    }
+
+    return null;
+  };
 
   router.get('/', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const associates = await useCases.listAssociates();
@@ -47,6 +59,22 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   router.post('/:id/distributions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const distribution = await useCases.createProfitDistribution({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Profit distribution created successfully', data: { distribution } });
+  }));
+
+  router.post('/distributions/proportional', authMiddleware(['admin']), associateValidation.proportionalDistribution, asyncHandler(async (req, res) => {
+    const distribution = await useCases.createProportionalProfitDistribution({
+      actor: req.user,
+      idempotencyKey: resolveIdempotencyKey(req),
+      payload: req.body,
+    });
+    const isReplay = distribution.idempotencyStatus === 'replayed';
+    res.status(isReplay ? 200 : 201).json({
+      success: true,
+      message: isReplay
+        ? 'Proportional profit distribution replayed safely'
+        : 'Proportional profit distribution created successfully',
+      data: { distribution },
+    });
   }));
 
   return router;

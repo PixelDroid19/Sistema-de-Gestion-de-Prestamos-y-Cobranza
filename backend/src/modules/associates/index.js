@@ -11,6 +11,7 @@ const {
   createListAssociatePortalSummary,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateProportionalProfitDistribution,
 } = require('./application/useCases');
 const { associateRepository } = require('./infrastructure/repositories');
 const { createAssociatesRouter } = require('./presentation/router');
@@ -30,6 +31,7 @@ const createAssociatesModule = () => {
     listAssociatePortalSummary: createListAssociatePortalSummary({ associateRepository }),
     createAssociateContribution: createCreateAssociateContribution({ associateRepository }),
     createProfitDistribution: createCreateProfitDistribution({ associateRepository }),
+    createProportionalProfitDistribution: createCreateProportionalProfitDistribution({ associateRepository }),
   };
 
   return createModule({

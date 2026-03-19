@@ -85,6 +85,63 @@ const validateTermMonths = (term) => {
  */
 const validateIntegerId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
 
+const hasDecimalPrecision = (value, maxDecimals) => {
+  const stringValue = typeof value === 'string' ? value.trim() : String(value);
+  return /^\d+(\.\d+)?$/.test(stringValue)
+    && ((stringValue.split('.')[1] || '').length <= maxDecimals);
+};
+
+const validateCurrencyPrecision = (value) => {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    return false;
+  }
+
+  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
+  if (!/^\d+(\.\d+)?$/.test(normalizedValue)) {
+    return false;
+  }
+
+  return (normalizedValue.split('.')[1] || '').length <= 2;
+};
+
+const validateParticipationPercentage = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  const numericValue = Number(value);
+
+  return Number.isFinite(numericValue)
+    && numericValue >= 0
+    && numericValue <= 100
+    && hasDecimalPrecision(value, 4);
+};
+
+const pushParticipationPercentageError = (errors, field = 'participationPercentage') => {
+  errors.push({
+    field,
+    message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+  });
+};
+
+const validateOptionalDateInput = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  return !Number.isNaN(new Date(value).getTime());
+};
+
+const validateIdempotencyKey = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  return typeof value === 'string'
+    && value.trim().length >= 8
+    && value.trim().length <= 160;
+};
+
 /**
  * Reject late-fee modes that the canonical credit simulator does not support.
  * @param {string|undefined|null} lateFeeMode
@@ -413,7 +470,13 @@ const agentValidation = {
 const associateValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { name, email, phone, status } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      status,
+      participationPercentage,
+    } = req.body;
     const errors = [];
 
     if (!name || name.trim().length < 2) {
@@ -434,6 +497,12 @@ const associateValidation = {
       errors.push({ field: 'status', message: 'Status must be active or inactive' });
     }
 
+    if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
+      errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
+    } else if (!validateParticipationPercentage(participationPercentage)) {
+      pushParticipationPercentageError(errors);
+    }
+
     if (errors.length > 0) {
       return next(buildValidationError(errors));
     }
@@ -443,7 +512,13 @@ const associateValidation = {
 
   /** @type {import('express').RequestHandler} */
   update: (req, res, next) => {
-    const { name, email, phone, status } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      status,
+      participationPercentage,
+    } = req.body;
     const errors = [];
 
     if (name !== undefined && name.trim().length < 2) {
@@ -460,6 +535,43 @@ const associateValidation = {
 
     if (status !== undefined && !['active', 'inactive'].includes(status)) {
       errors.push({ field: 'status', message: 'Status must be active or inactive' });
+    }
+
+    if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
+      errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
+    } else if (!validateParticipationPercentage(participationPercentage)) {
+      pushParticipationPercentageError(errors);
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+  /** @type {import('express').RequestHandler} */
+  proportionalDistribution: (req, res, next) => {
+    const { amount, distributionDate, basis, idempotencyKey } = req.body;
+    const errors = [];
+    const headerIdempotencyKey = req.headers['idempotency-key'];
+    const effectiveIdempotencyKey = typeof headerIdempotencyKey === 'string' && headerIdempotencyKey.trim()
+      ? headerIdempotencyKey
+      : idempotencyKey;
+
+    if (!validateAmount(Number(amount)) || !validateCurrencyPrecision(amount)) {
+      errors.push({ field: 'amount', message: 'Amount must be a positive number with up to 2 decimal places' });
+    }
+
+    if (!validateOptionalDateInput(distributionDate)) {
+      errors.push({ field: 'distributionDate', message: 'distributionDate must be a valid date when provided' });
+    }
+
+    if (basis !== undefined && (typeof basis !== 'object' || basis === null || Array.isArray(basis))) {
+      errors.push({ field: 'basis', message: 'basis must be an object when provided' });
+    }
+
+    if (!validateIdempotencyKey(effectiveIdempotencyKey)) {
+      errors.push({ field: 'idempotencyKey', message: 'Idempotency key must be between 8 and 160 characters when provided' });
     }
 
     if (errors.length > 0) {

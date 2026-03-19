@@ -1,5 +1,23 @@
 const XLSX = require('xlsx');
 const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
+const { normalizeDistributionRecord } = require('../../associates/application/useCases');
+
+const normalizeParticipationPercentage = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  return Number(value).toFixed(4);
+};
+
+const normalizeAssociateRecord = (associate) => {
+  const serializedAssociate = typeof associate?.toJSON === 'function' ? associate.toJSON() : associate;
+
+  return {
+    ...serializedAssociate,
+    participationPercentage: normalizeParticipationPercentage(serializedAssociate?.participationPercentage),
+  };
+};
 
 const buildCsv = ({ headers, rows }) => {
   const escapeCell = (value) => {
@@ -475,7 +493,7 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
   const totalDistributed = distributions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   return {
-    associate,
+    associate: normalizeAssociateRecord(associate),
     summary: {
       totalContributed: totalContributed.toFixed(2),
       totalDistributed: totalDistributed.toFixed(2),
@@ -483,10 +501,11 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
       contributionCount: contributions.length,
       distributionCount: distributions.length,
       loanCount: loans.length,
+      participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
     },
     data: {
       contributions,
-      distributions,
+      distributions: distributions.map(normalizeDistributionRecord),
       loans,
     },
   };
@@ -502,13 +521,21 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
     contributionDate: entry.contributionDate,
     notes: entry.notes || '',
   }));
-  const distributionRows = (dataset.distributions || []).map((entry) => ({
-    id: entry.id,
-    loanId: entry.loanId,
-    amount: entry.amount,
-    distributionDate: entry.distributionDate,
-    notes: entry.notes || '',
-  }));
+  const distributionRows = (dataset.distributions || []).map((entry) => {
+    const normalizedEntry = normalizeDistributionRecord(entry);
+
+    return {
+      id: entry.id,
+      loanId: entry.loanId,
+      amount: entry.amount,
+      distributionDate: entry.distributionDate,
+      distributionType: normalizedEntry.distributionType,
+      participationPercentage: normalizedEntry.participationPercentage || normalizeParticipationPercentage(dataset.associate?.participationPercentage),
+      declaredProportionalTotal: normalizedEntry.declaredProportionalTotal,
+      allocatedAmount: normalizedEntry.allocatedAmount,
+      notes: entry.notes || '',
+    };
+  });
   const loanRows = (dataset.loans || []).map((entry) => ({
     id: entry.id,
     customer: entry.Customer?.name || '',
@@ -519,11 +546,23 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
 
   if (format === 'csv') {
     const csv = buildCsv({
-      headers: ['section', 'id', 'reference', 'amount', 'date', 'status', 'notes'],
+      headers: ['section', 'id', 'reference', 'amount', 'date', 'status', 'participationPercentage', 'distributionType', 'declaredProportionalTotal', 'allocatedAmount', 'notes'],
       rows: [
-        ...contributionRows.map((row) => ['contribution', row.id, '', row.amount, row.contributionDate, '', row.notes]),
-        ...distributionRows.map((row) => ['distribution', row.id, row.loanId || '', row.amount, row.distributionDate, '', row.notes]),
-        ...loanRows.map((row) => ['loan', row.id, row.customer, row.amount, '', row.status, row.recoveryStatus]),
+        ...contributionRows.map((row) => ['contribution', row.id, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
+        ...distributionRows.map((row) => [
+          'distribution',
+          row.id,
+          row.loanId || '',
+          row.amount,
+          row.distributionDate,
+          '',
+          row.participationPercentage || '',
+          row.distributionType,
+          row.declaredProportionalTotal || '',
+          row.allocatedAmount || '',
+          row.notes,
+        ]),
+        ...loanRows.map((row) => ['loan', row.id, row.customer, row.amount, '', row.status, normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.recoveryStatus]),
       ],
     });
 

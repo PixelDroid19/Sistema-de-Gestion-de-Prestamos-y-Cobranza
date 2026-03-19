@@ -10,6 +10,7 @@ const LoanAlert = require('./LoanAlert');
 const PromiseToPay = require('./PromiseToPay');
 const AssociateContribution = require('./AssociateContribution');
 const ProfitDistribution = require('./ProfitDistribution');
+const IdempotencyKey = require('./IdempotencyKey');
 const Notification = require('./Notification');
 const PushSubscription = require('./PushSubscription');
 
@@ -70,6 +71,9 @@ Loan.hasMany(ProfitDistribution, { foreignKey: 'loanId', as: 'profitDistribution
 ProfitDistribution.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
 User.hasMany(ProfitDistribution, { foreignKey: 'createdByUserId', as: 'createdProfitDistributions' });
 
+IdempotencyKey.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
+User.hasMany(IdempotencyKey, { foreignKey: 'createdByUserId', as: 'createdIdempotencyKeys' });
+
 module.exports = {
   sequelize,
   Customer,
@@ -83,6 +87,7 @@ module.exports = {
   PromiseToPay,
   AssociateContribution,
   ProfitDistribution,
+  IdempotencyKey,
   Notification,
   PushSubscription,
 };

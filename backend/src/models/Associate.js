@@ -12,6 +12,7 @@ const Associate = sequelize.define('Associate', {
     allowNull: false,
     defaultValue: 'active',
   },
+  participationPercentage: { type: DataTypes.DECIMAL(7, 4), allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
 }, {
   timestamps: true,

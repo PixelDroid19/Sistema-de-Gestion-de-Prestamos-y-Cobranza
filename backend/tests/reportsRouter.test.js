@@ -73,7 +73,7 @@ test('createReportsRouter serves report contract responses', async () => {
         return { loan: { id: 4, status: 'closed' }, snapshot: { totalPaid: 100 }, payments: [], payoffHistory: [{ id: 9, payoff: { asOfDate: '2026-03-15' } }], closure: { closureReason: 'payoff' } };
       },
       async getAssociateProfitabilityReport() {
-        return { associate: { id: 7 }, summary: { totalContributed: '1000.00' }, data: { contributions: [] } };
+        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
       },
       async exportAssociateProfitabilityReport() {
         return {
@@ -151,7 +151,7 @@ test('createReportsRouter serves export and credit-history contracts', async () 
         return { loan: { id: 12 }, snapshot: { totalPaid: 300 }, payments: [], payoffHistory: [{ id: 8 }], closure: { closureReason: 'payoff' } };
       },
       async getAssociateProfitabilityReport() {
-        return { associate: { id: 7 }, summary: { totalContributed: '1000.00' }, data: { contributions: [] } };
+        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
       },
       async exportAssociateProfitabilityReport() {
         return {
@@ -224,7 +224,7 @@ test('createReportsRouter returns success when customer history has empty segmen
         return { loan: { id: 12 }, snapshot: { totalPaid: 300 }, payments: [], payoffHistory: [], closure: { closureReason: null } };
       },
       async getAssociateProfitabilityReport() {
-        return { associate: { id: 7 }, summary: { totalContributed: '1000.00' }, data: { contributions: [] } };
+        return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [] } };
       },
       async exportAssociateProfitabilityReport() {
         return {

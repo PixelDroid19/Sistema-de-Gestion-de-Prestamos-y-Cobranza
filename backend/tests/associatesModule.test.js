@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const { NotFoundError, ValidationError, AuthorizationError } = require('../src/utils/errorHandler');
 const {
+  allocateProportionalDistribution,
+  buildProportionalIdempotencyRequestHash,
   createListAssociates,
   createCreateAssociate,
   createGetAssociateById,
@@ -11,6 +13,7 @@ const {
   createListAssociatePortalSummary,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateProportionalProfitDistribution,
 } = require('../src/modules/associates/application/useCases');
 
 test('createListAssociates returns repository results in name order', async () => {
@@ -23,7 +26,7 @@ test('createListAssociates returns repository results in name order', async () =
   });
 
   const associates = await listAssociates();
-  assert.deepEqual(associates, [{ id: 4 }, { id: 3 }]);
+  assert.deepEqual(associates, [{ id: 4, participationPercentage: null }, { id: 3, participationPercentage: null }]);
 });
 
 test('createGetAssociateById rejects when the record is missing', async () => {
@@ -97,9 +100,11 @@ test('createCreateAssociate delegates persistence to the repository', async () =
     name: 'New Associate',
     email: 'associate@example.com',
     phone: '+573001112255',
+    participationPercentage: '25',
   });
 
   assert.equal(associate.id, 12);
+  assert.equal(associate.participationPercentage, '25.0000');
 });
 
 test('createCreateAssociate rejects duplicate contact details through the repository port', async () => {
@@ -132,13 +137,13 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   const listAssociatePortalSummary = createListAssociatePortalSummary({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One' };
+        return { id, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
       },
       async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150 }];
+        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
       },
       async listLoansByAssociate() {
         return [{ id: 3, status: 'active', amount: 4000 }];
@@ -149,9 +154,11 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   const report = await listAssociatePortalSummary({ actor: { id: 9, role: 'socio', associateId: 12 } });
 
   assert.equal(report.associate.id, 12);
+  assert.equal(report.associate.participationPercentage, '25.0000');
   assert.equal(report.summary.totalContributed, 1000);
   assert.equal(report.summary.totalDistributed, 150);
   assert.equal(report.summary.activeLoanCount, 1);
+  assert.equal(report.distributions[0].distributionType, 'proportional');
 });
 
 test('createCreateAssociateContribution validates positive amounts', async () => {
@@ -193,4 +200,287 @@ test('createCreateProfitDistribution rejects non-admin actors', async () => {
     associateId: 12,
     payload: { amount: 50 },
   }), AuthorizationError);
+});
+
+test('allocateProportionalDistribution assigns remainder deterministically by highest fractional remainder then associate id', () => {
+  const allocations = allocateProportionalDistribution({
+    amountCents: 100,
+    associates: [
+      { id: 1, participationUnits: 333300, participationPercentage: '33.3300' },
+      { id: 2, participationUnits: 333300, participationPercentage: '33.3300' },
+      { id: 3, participationUnits: 333400, participationPercentage: '33.3400' },
+    ],
+  });
+
+  assert.deepEqual(allocations.map((entry) => ({ id: entry.associate.id, amountCents: entry.amountCents, roundingAdjustmentCents: entry.roundingAdjustmentCents })), [
+    { id: 1, amountCents: 33, roundingAdjustmentCents: 0 },
+    { id: 2, amountCents: 33, roundingAdjustmentCents: 0 },
+    { id: 3, amountCents: 34, roundingAdjustmentCents: 1 },
+  ]);
+});
+
+test('createCreateProportionalProfitDistribution rejects missing active associates', async () => {
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async listActiveAssociatesWithParticipation() {
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    payload: { amount: '100.00' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'At least one active associate is required for proportional distributions');
+    return true;
+  });
+});
+
+test('createCreateProportionalProfitDistribution rejects missing or non-positive active participation percentages', async () => {
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async listActiveAssociatesWithParticipation() {
+        return [
+          { id: 4, participationPercentage: null },
+          { id: 8, participationPercentage: '0.0000' },
+        ];
+      },
+    },
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    payload: { amount: '100.00' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Eligible associate participation is incomplete');
+    assert.deepEqual(error.errors, [
+      {
+        field: 'participationPercentage',
+        message: 'Active associate 4 must define participationPercentage before proportional distributions',
+      },
+      {
+        field: 'participationPercentage',
+        message: 'Active associate 8 must have participationPercentage greater than 0 for proportional distributions',
+      },
+    ]);
+    return true;
+  });
+});
+
+test('createCreateProportionalProfitDistribution rejects pools that do not total exactly 100 percent', async () => {
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async listActiveAssociatesWithParticipation() {
+        return [
+          { id: 1, participationPercentage: '60.0000' },
+          { id: 2, participationPercentage: '39.9999' },
+        ];
+      },
+    },
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    payload: { amount: '100.00' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Active associate participation percentages must total exactly 100.0000');
+    return true;
+  });
+});
+
+test('createCreateProportionalProfitDistribution creates deterministic transactional batch output', async () => {
+  const batchPayloads = [];
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async listActiveAssociatesWithParticipation() {
+        return [
+          { id: 1, participationPercentage: '33.3300' },
+          { id: 2, participationPercentage: '33.3300' },
+          { id: 3, participationPercentage: '33.3400' },
+        ];
+      },
+      async createProfitDistributionBatch(payloads) {
+        batchPayloads.push(...payloads);
+        return payloads.map((payload, index) => ({ id: index + 1, ...payload }));
+      },
+    },
+  });
+
+  const result = await createProportionalProfitDistribution({
+    actor: { id: 7, role: 'admin' },
+    payload: {
+      amount: '1.00',
+      distributionDate: '2026-03-19T00:00:00.000Z',
+      notes: 'Monthly distribution',
+      basis: { source: 'statement-2026-03' },
+    },
+  });
+
+  assert.equal(result.declaredAmount, '1.00');
+  assert.equal(result.totalAllocatedAmount, '1.00');
+  assert.equal(result.eligibleAssociateCount, 3);
+  assert.equal(result.idempotencyStatus, 'created');
+  assert.equal(result.idempotencyKey, null);
+  assert.match(result.batchKey, /^assoc-proportional:7:/);
+  assert.deepEqual(batchPayloads.map((entry) => ({
+    associateId: entry.associateId,
+    amount: entry.amount,
+    roundingAdjustment: entry.basis.roundingAdjustment,
+    allocatedAmount: entry.basis.allocatedAmount,
+    participationPercentage: entry.basis.participationPercentage,
+    type: entry.basis.type,
+    source: entry.basis.source,
+  })), [
+    { associateId: 1, amount: 0.33, roundingAdjustment: '0.00', allocatedAmount: '0.33', participationPercentage: '33.3300', type: 'proportional-participation', source: 'statement-2026-03' },
+    { associateId: 2, amount: 0.33, roundingAdjustment: '0.00', allocatedAmount: '0.33', participationPercentage: '33.3300', type: 'proportional-participation', source: 'statement-2026-03' },
+    { associateId: 3, amount: 0.34, roundingAdjustment: '0.01', allocatedAmount: '0.34', participationPercentage: '33.3400', type: 'proportional-participation', source: 'statement-2026-03' },
+  ]);
+  assert.equal(result.createdRows[2].distributionType, 'proportional');
+  assert.equal(result.createdRows[2].declaredProportionalTotal, '1.00');
+  assert.equal(batchPayloads[0].basis.idempotencyKey, null);
+});
+
+test('createCreateProportionalProfitDistribution replays an exact retry with the same idempotency key', async () => {
+  const actor = { id: 7, role: 'admin' };
+  const payload = {
+    amount: '1.00',
+    distributionDate: '2026-03-19T00:00:00.000Z',
+    notes: 'Monthly distribution',
+    basis: { source: 'statement-2026-03', reference: 'abc' },
+  };
+  const idempotencyKey = 'assoc-proportional-2026-03-19';
+  const idempotencyRecords = new Map();
+  const batchPayloads = [];
+  const findRecord = (transactionLookup) => transactionLookup.get(`${actor.id}:${idempotencyKey}`) || null;
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async runInTransaction(work) {
+        return work(idempotencyRecords);
+      },
+      async findProportionalDistributionIdempotency({ actorId, idempotencyKey: lookupKey, transaction }) {
+        return (transaction || idempotencyRecords).get(`${actorId}:${lookupKey}`) || null;
+      },
+      async createProportionalDistributionIdempotency(payloadToPersist, { transaction }) {
+        const record = { ...payloadToPersist };
+        record.update = async (updates) => {
+          Object.assign(record, updates);
+          return record;
+        };
+        (transaction || idempotencyRecords).set(`${payloadToPersist.actorId}:${payloadToPersist.idempotencyKey}`, record);
+        return record;
+      },
+      async updateProportionalDistributionIdempotency(record, updates) {
+        Object.assign(record, updates);
+        return record;
+      },
+      async listActiveAssociatesWithParticipation() {
+        return [
+          { id: 1, participationPercentage: '50.0000' },
+          { id: 2, participationPercentage: '50.0000' },
+        ];
+      },
+      async createProfitDistributionBatch(payloads) {
+        batchPayloads.push(...payloads);
+        return payloads.map((entry, index) => ({ id: index + 1, ...entry }));
+      },
+    },
+  });
+
+  const firstResult = await createProportionalProfitDistribution({ actor, idempotencyKey, payload });
+  const replayResult = await createProportionalProfitDistribution({ actor, idempotencyKey, payload: { ...payload, basis: { reference: 'abc', source: 'statement-2026-03' } } });
+
+  assert.equal(firstResult.idempotencyStatus, 'created');
+  assert.equal(replayResult.idempotencyStatus, 'replayed');
+  assert.deepEqual(replayResult.createdRows, firstResult.createdRows);
+  assert.equal(batchPayloads.length, 2);
+  assert.equal(batchPayloads[0].basis.idempotencyKey, idempotencyKey);
+  assert.equal(findRecord(idempotencyRecords).status, 'completed');
+});
+
+test('createCreateProportionalProfitDistribution rejects a reused idempotency key with a mismatched payload', async () => {
+  const actor = { id: 7, role: 'admin' };
+  const idempotencyKey = 'assoc-proportional-2026-03-19';
+  const originalPayload = {
+    amount: '100.00',
+    distributionDate: '2026-03-19T00:00:00.000Z',
+    notes: 'Monthly distribution',
+    basis: { source: 'statement-2026-03' },
+  };
+  const existingRecord = {
+    requestHash: buildProportionalIdempotencyRequestHash({
+      amount: '100.00',
+      basis: { source: 'statement-2026-03' },
+      distributionDate: '2026-03-19T00:00:00.000Z',
+      notes: 'Monthly distribution',
+    }),
+    status: 'completed',
+    responsePayload: { batchKey: 'batch-1', declaredAmount: '100.00', createdRows: [] },
+  };
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async findProportionalDistributionIdempotency() {
+        return existingRecord;
+      },
+      async runInTransaction() {
+        throw new Error('runInTransaction should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor,
+    idempotencyKey,
+    payload: { ...originalPayload, amount: '101.00' },
+  }), (error) => {
+    assert.equal(error.name, 'ConflictError');
+    assert.equal(error.statusCode, 409);
+    assert.equal(error.errors[0].field, 'idempotencyKey');
+    return true;
+  });
+});
+
+test('createCreateProportionalProfitDistribution prevents a near-concurrent duplicate submission when the key is already pending', async () => {
+  const actor = { id: 7, role: 'admin' };
+  const idempotencyKey = 'assoc-proportional-2026-03-19';
+  const payload = {
+    amount: '100.00',
+    distributionDate: '2026-03-19T00:00:00.000Z',
+    notes: 'Monthly distribution',
+    basis: { source: 'statement-2026-03' },
+  };
+  const requestHash = buildProportionalIdempotencyRequestHash({
+    amount: '100.00',
+    basis: { source: 'statement-2026-03' },
+    distributionDate: '2026-03-19T00:00:00.000Z',
+    notes: 'Monthly distribution',
+  });
+  const createProportionalProfitDistribution = createCreateProportionalProfitDistribution({
+    associateRepository: {
+      async findProportionalDistributionIdempotency() {
+        return {
+          requestHash,
+          status: 'pending',
+          responsePayload: {},
+        };
+      },
+      async runInTransaction() {
+        throw new Error('runInTransaction should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createProportionalProfitDistribution({
+    actor,
+    idempotencyKey,
+    payload,
+  }), (error) => {
+    assert.equal(error.name, 'ConflictError');
+    assert.equal(error.statusCode, 409);
+    assert.match(error.message, /already being processed/);
+    return true;
+  });
 });

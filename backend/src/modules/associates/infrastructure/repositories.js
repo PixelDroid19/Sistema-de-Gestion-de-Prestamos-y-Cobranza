@@ -3,9 +3,12 @@ const {
   Associate,
   AssociateContribution,
   ProfitDistribution,
+  IdempotencyKey,
   Loan,
   User,
 } = require('../../../models');
+
+const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
 
 /**
  * Persistence port for associate CRUD and contact-conflict checks.
@@ -59,6 +62,13 @@ const associateRepository = {
   createContribution(payload) {
     return AssociateContribution.create(payload);
   },
+  listActiveAssociatesWithParticipation({ transaction } = {}) {
+    return Associate.findAll({
+      where: { status: 'active' },
+      order: [['id', 'ASC']],
+      transaction,
+    });
+  },
   listProfitDistributionsByAssociate(associateId) {
     return ProfitDistribution.findAll({
       where: { associateId },
@@ -71,6 +81,45 @@ const associateRepository = {
   },
   createProfitDistribution(payload) {
     return ProfitDistribution.create(payload);
+  },
+  createProfitDistributionBatch(payloads, { transaction } = {}) {
+    if (transaction) {
+      return ProfitDistribution.bulkCreate(payloads, {
+        transaction,
+        returning: true,
+      });
+    }
+
+    return Associate.sequelize.transaction(async (managedTransaction) => ProfitDistribution.bulkCreate(payloads, {
+      transaction: managedTransaction,
+      returning: true,
+    }));
+  },
+  runInTransaction(work) {
+    return Associate.sequelize.transaction(work);
+  },
+  findProportionalDistributionIdempotency({ actorId, idempotencyKey, transaction } = {}) {
+    return IdempotencyKey.findOne({
+      where: {
+        scope: PROPORTIONAL_DISTRIBUTION_SCOPE,
+        createdByUserId: actorId,
+        idempotencyKey,
+      },
+      transaction,
+    });
+  },
+  createProportionalDistributionIdempotency({ actorId, idempotencyKey, requestHash, status = 'pending', responsePayload = {} }, { transaction } = {}) {
+    return IdempotencyKey.create({
+      scope: PROPORTIONAL_DISTRIBUTION_SCOPE,
+      createdByUserId: actorId,
+      idempotencyKey,
+      requestHash,
+      status,
+      responsePayload,
+    }, { transaction });
+  },
+  updateProportionalDistributionIdempotency(record, payload, { transaction } = {}) {
+    return record.update(payload, { transaction });
   },
   listLoansByAssociate(associateId) {
     return Loan.findAll({

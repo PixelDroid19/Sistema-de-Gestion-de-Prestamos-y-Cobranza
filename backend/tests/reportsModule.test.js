@@ -414,16 +414,16 @@ test('createGetAssociateProfitabilityReport scopes socio requests to their linke
   const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One' };
+        return { id, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async findByLinkedUser() {
-        return { id: 12, name: 'Partner One' };
+        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
       },
       async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150 }];
+        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
       },
       async listLoansByAssociate() {
         return [{ id: 5, amount: 4000 }];
@@ -434,8 +434,43 @@ test('createGetAssociateProfitabilityReport scopes socio requests to their linke
   const report = await getAssociateProfitabilityReport({ actor: { id: 9, role: 'socio', associateId: 12 } });
 
   assert.equal(report.associate.id, 12);
+  assert.equal(report.associate.participationPercentage, '25.0000');
   assert.equal(report.summary.totalContributed, '1000.00');
   assert.equal(report.summary.totalDistributed, '150.00');
+  assert.equal(report.summary.participationPercentage, '25.0000');
+  assert.equal(report.data.distributions[0].distributionType, 'proportional');
+  assert.equal(report.data.distributions[0].declaredProportionalTotal, '600.00');
+});
+
+test('createGetAssociateProfitabilityReport rejects socio access to another associate by id', async () => {
+  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Other Partner', participationPercentage: '75.0000' };
+      },
+      async findByLinkedUser() {
+        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
+      },
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called');
+      },
+      async listLoansByAssociate() {
+        throw new Error('listLoansByAssociate should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => getAssociateProfitabilityReport({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    associateId: 99,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Socio users can only access their own profitability data');
+    return true;
+  });
 });
 
 test('createExportAssociateProfitabilityReport returns xlsx workbook for associate datasets', async () => {
@@ -443,18 +478,19 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
     reportRepository: {
       async getAssociateExportDataset() {
         return {
+          associate: { id: 12, participationPercentage: '25.0000' },
           contributions: [{ id: 1, amount: 1000, contributionDate: '2026-01-01' }],
-          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5 }],
+          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
           loans: [{ id: 5, amount: 4000, status: 'active', Customer: { name: 'Ana' } }],
         };
       },
     },
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One' };
+        return { id, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async findByLinkedUser() {
-        return { id: 12, name: 'Partner One' };
+        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
@@ -472,4 +508,76 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
 
   assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
+});
+
+test('createExportAssociateProfitabilityReport rejects socio export requests for another associate id', async () => {
+  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
+    reportRepository: {
+      async getAssociateExportDataset() {
+        throw new Error('getAssociateExportDataset should not be called');
+      },
+    },
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Other Partner', participationPercentage: '75.0000' };
+      },
+      async findByLinkedUser() {
+        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
+      },
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called');
+      },
+      async listLoansByAssociate() {
+        throw new Error('listLoansByAssociate should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => exportAssociateProfitabilityReport({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    associateId: 99,
+    format: 'xlsx',
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Socio users can only access their own profitability data');
+    return true;
+  });
+});
+
+test('createExportAssociateProfitabilityReport includes proportional audit columns in csv exports', async () => {
+  const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
+    reportRepository: {
+      async getAssociateExportDataset() {
+        return {
+          associate: { id: 12, participationPercentage: '25.0000' },
+          contributions: [],
+          distributions: [{ id: 2, amount: 150, distributionDate: '2026-02-01', loanId: 5, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }],
+          loans: [],
+        };
+      },
+    },
+    associateRepository: {
+      async findById(id) {
+        return { id, name: 'Partner One', participationPercentage: '25.0000' };
+      },
+      async listContributionsByAssociate() {
+        return [];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
+      },
+      async listLoansByAssociate() {
+        return [];
+      },
+    },
+  });
+
+  const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
+
+  assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
+  assert.match(exportFile.buffer.toString('utf8'), /participationPercentage,distributionType,declaredProportionalTotal,allocatedAmount/);
+  assert.match(exportFile.buffer.toString('utf8'), /25.0000,proportional,600.00,150.00/);
 });

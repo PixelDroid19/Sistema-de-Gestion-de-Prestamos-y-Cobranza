@@ -10,7 +10,7 @@ const {
 
 const buildDescribedTable = (tableName) => {
   if (tableName === 'Associates') {
-    return { id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, notes: {}, createdAt: {}, updatedAt: {} };
+    return { id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, participationPercentage: {}, notes: {}, createdAt: {}, updatedAt: {} };
   }
 
   if (tableName === 'Loans') {
@@ -68,6 +68,12 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
+  if (tableName === 'IdempotencyKeys') {
+    return {
+      id: {}, scope: {}, createdByUserId: {}, idempotencyKey: {}, requestHash: {}, status: {}, responsePayload: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
   if (tableName === 'Users') {
     return {
       id: {}, name: {}, email: {}, password: {}, role: {}, associateId: {}, createdAt: {}, updatedAt: {},
@@ -80,7 +86,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'Notifications', 'PushSubscriptions', 'Users'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -92,6 +98,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const promises = requiredSchema.find((entry) => entry.tableName === 'PromiseToPays');
   const contributions = requiredSchema.find((entry) => entry.tableName === 'AssociateContributions');
   const distributions = requiredSchema.find((entry) => entry.tableName === 'ProfitDistributions');
+  const idempotencyKeys = requiredSchema.find((entry) => entry.tableName === 'IdempotencyKeys');
   const notifications = requiredSchema.find((entry) => entry.tableName === 'Notifications');
   const pushSubscriptions = requiredSchema.find((entry) => entry.tableName === 'PushSubscriptions');
 
@@ -103,10 +110,12 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(promises);
   assert.ok(contributions);
   assert.ok(distributions);
+  assert.ok(idempotencyKeys);
   assert.ok(notifications);
   assert.ok(pushSubscriptions);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
   assert.ok(associates.columns.includes('email'));
+  assert.ok(associates.columns.includes('participationPercentage'));
   assert.ok(loans.columns.includes('associateId'));
   assert.ok(loans.columns.includes('closedAt'));
   assert.ok(loans.columns.includes('closureReason'));
@@ -117,6 +126,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(attachments.columns.includes('customerVisible'));
   assert.ok(alerts.columns.includes('outstandingAmount'));
   assert.ok(promises.columns.includes('statusHistory'));
+  assert.ok(idempotencyKeys.columns.includes('idempotencyKey'));
+  assert.ok(idempotencyKeys.columns.includes('responsePayload'));
   assert.ok(notifications.columns.includes('payload'));
   assert.ok(pushSubscriptions.columns.includes('providerKey'));
   assert.ok(pushSubscriptions.columns.includes('endpointHash'));

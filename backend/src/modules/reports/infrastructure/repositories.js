@@ -25,7 +25,7 @@ const reportIncludes = [
   },
   {
     model: Associate,
-    attributes: ['id', 'name', 'email', 'phone', 'status'],
+    attributes: ['id', 'name', 'email', 'phone', 'status', 'participationPercentage'],
   },
 ];
 

@@ -56,13 +56,108 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
 
 test('associateValidation.create accepts a valid associate payload', async () => {
   await assert.doesNotReject(() => runMiddleware(associateValidation.create, {
+    user: { role: 'admin' },
     body: {
       name: 'Ana Associate',
       email: 'ana@example.com',
       phone: '+573001112233',
       status: 'active',
+      participationPercentage: '25.1250',
     },
   }));
+});
+
+test('associateValidation.update rejects invalid participation percentage precision', async () => {
+  const error = await captureMiddlewareError(associateValidation.update, {
+    user: { role: 'admin' },
+    body: {
+      participationPercentage: '25.12345',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'participationPercentage',
+      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+    },
+  ]);
+});
+
+test('associateValidation.create rejects negative participation percentage values', async () => {
+  const error = await captureMiddlewareError(associateValidation.create, {
+    user: { role: 'admin' },
+    body: {
+      name: 'Ana Associate',
+      email: 'ana@example.com',
+      phone: '+573001112233',
+      status: 'active',
+      participationPercentage: '-0.0001',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'participationPercentage',
+      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+    },
+  ]);
+});
+
+test('associateValidation.update rejects participation percentage values above one hundred', async () => {
+  const error = await captureMiddlewareError(associateValidation.update, {
+    user: { role: 'admin' },
+    body: {
+      participationPercentage: '100.0001',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'participationPercentage',
+      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+    },
+  ]);
+});
+
+test('associateValidation.update rejects socio participation percentage mutations', async () => {
+  const error = await captureMiddlewareError(associateValidation.update, {
+    user: { role: 'socio' },
+    body: {
+      participationPercentage: '25.0000',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'participationPercentage',
+      message: 'Only admins can set participationPercentage',
+    },
+  ]);
+});
+
+test('associateValidation.proportionalDistribution rejects invalid declared amount precision', async () => {
+  const error = await captureMiddlewareError(associateValidation.proportionalDistribution, {
+    body: {
+      amount: '10.999',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'amount',
+      message: 'Amount must be a positive number with up to 2 decimal places',
+    },
+  ]);
 });
 
 test('buildPayoffQuote returns principal plus mid-cycle actual/365 accrual without future interest', () => {
