@@ -1,0 +1,39 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.68rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.success {
+  background: rgba(27, 139, 95, 0.12);
+  color: var(--success-color);
+}
+
+.warning {
+  background: rgba(209, 138, 28, 0.12);
+  color: var(--warning-color);
+}
+
+.danger {
+  background: rgba(217, 83, 79, 0.12);
+  color: var(--danger-color);
+}
+
+.info,
+.primary,
+.brand,
+.active {
+  background: rgba(50, 110, 194, 0.12);
+  color: var(--info-color);
+}
+
+.neutral {
+  background: rgba(84, 101, 95, 0.12);
+  color: var(--text-secondary);
+}

@@ -1,5 +1,7 @@
 import React from 'react';
 
+import Button from '@/components/ui/Button';
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -28,7 +30,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       // Custom fallback UI
       return (
-        <div style={{
+        <div className="state-panel" style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -52,36 +54,15 @@ class ErrorBoundary extends React.Component {
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
             
-            <button 
-              onClick={() => window.location.reload()}
-              style={{
-                background: '#007bff',
-                color: '#fff',
-                border: 'none',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                marginRight: '1rem'
-              }}
-            >
-              Refresh Page
-            </button>
+            <div className="section-actions" style={{ justifyContent: 'center' }}>
+              <Button onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
             
-            <button 
-              onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
-              style={{
-                background: '#6c757d',
-                color: '#fff',
-                border: 'none',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Try Again
-            </button>
+              <Button variant="outline" onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}>
+                Try Again
+              </Button>
+            </div>
 
             {import.meta.env.DEV && this.state.error && (
               <details style={{ marginTop: '1.5rem', textAlign: 'left' }}>

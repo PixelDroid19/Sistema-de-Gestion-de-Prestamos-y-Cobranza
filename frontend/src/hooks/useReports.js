@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { queryKeys } from '../lib/api/queryKeys';
-import { reportService } from '../services/reportService';
+import { queryKeys } from '@/lib/api/queryKeys';
+import { reportService } from '@/services/reportService';
 
 export const useRecoveryReportQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.reports.recovery(),

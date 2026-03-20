@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { paymentService } from '../services/paymentService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { paymentService } from '@/services/paymentService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 export const usePaymentsQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.payments.all(),

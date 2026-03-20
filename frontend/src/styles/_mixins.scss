@@ -1,0 +1,16 @@
+@mixin surface-border {
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+@mixin focus-ring {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 3px rgba(31, 122, 106, 0.16);
+}
+
+@mixin button-reset {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+}

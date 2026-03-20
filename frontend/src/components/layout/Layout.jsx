@@ -1,19 +1,9 @@
 import React from 'react';
-import Sidebar from './Sidebar';
-import TopHeader from './TopHeader';
+
+import AppShell from '@/components/layout/AppShell';
 
 const Layout = ({ children }) => {
-  return (
-    <div className="layout-container">
-      <Sidebar />
-      <div className="main-wrapper">
-        <TopHeader />
-        <main className="content-area">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 };
 
 export default Layout;

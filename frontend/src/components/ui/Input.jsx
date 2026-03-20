@@ -1,4 +1,6 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useId } from 'react';
+
+import styles from './Input.module.scss';
 
 const Input = forwardRef(({
   label,
@@ -8,23 +10,24 @@ const Input = forwardRef(({
   id,
   ...props
 }, ref) => {
-  const inputId = id || Math.random().toString(36).substring(7);
+  const generatedId = useId();
+  const inputId = id || generatedId;
   
   return (
     <div className={`field-group ${wrapperClassName}`}>
       {label && (
-        <label className="field-label" htmlFor={inputId}>
+        <label className={`field-label ${styles.label}`} htmlFor={inputId}>
           {label}
         </label>
       )}
       <input
         ref={ref}
         id={inputId}
-        className={`form-control ${className} ${error ? 'border-danger' : ''}`}
+        className={`form-control ${styles.input} ${className} ${error ? styles.error : ''}`}
         {...props}
       />
       {error && (
-        <span style={{ color: 'var(--danger, #f46a6a)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+        <span className={styles.message}>
           {error}
         </span>
       )}

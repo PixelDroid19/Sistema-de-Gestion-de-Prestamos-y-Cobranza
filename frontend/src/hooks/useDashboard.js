@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { reportService } from '../services/reportService';
-import { loanService } from '../services/loanService';
-import { paymentService } from '../services/paymentService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { reportService } from '@/services/reportService';
+import { loanService } from '@/services/loanService';
+import { paymentService } from '@/services/paymentService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 export const useDashboardSummaryQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.dashboard.summary(),

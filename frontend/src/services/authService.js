@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/api/client';
+import { apiRequest } from '@/lib/api/client';
 
 export const authService = {
   login: (credentials) => apiRequest('/api/auth/login', { method: 'POST', body: credentials }),

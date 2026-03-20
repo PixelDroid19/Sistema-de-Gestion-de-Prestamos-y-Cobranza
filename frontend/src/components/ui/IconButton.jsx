@@ -1,5 +1,7 @@
 import React, { forwardRef } from 'react';
 
+import styles from './IconButton.module.scss';
+
 const IconButton = forwardRef(({ 
   icon: Icon, 
   badge, 
@@ -11,13 +13,14 @@ const IconButton = forwardRef(({
   return (
     <button 
       ref={ref}
-      className={`icon-btn ${className}`}
+      className={`${styles.button} ${className}`}
       title={title}
+      aria-label={title}
       {...props}
     >
       <Icon size={size} strokeWidth={2.5} />
       {badge > 0 && (
-        <span className="badge">{badge > 99 ? '99+' : badge}</span>
+        <span className={styles.badge}>{badge > 99 ? '99+' : badge}</span>
       )}
     </button>
   );

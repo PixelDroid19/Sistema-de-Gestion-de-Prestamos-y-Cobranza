@@ -1,5 +1,5 @@
-import { ApiError } from './client';
-import { useSessionStore } from '../../store/sessionStore';
+import { ApiError } from '@/lib/api/client';
+import { useSessionStore } from '@/store/sessionStore';
 
 const expireSession = () => {
   useSessionStore.getState().logout();

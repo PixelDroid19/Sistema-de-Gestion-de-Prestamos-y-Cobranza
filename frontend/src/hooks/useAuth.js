@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authService } from '../services/authService';
-import { queryKeys } from '../lib/api/queryKeys';
-import { useSessionStore } from '../store/sessionStore';
+import { authService } from '@/services/authService';
+import { queryKeys } from '@/lib/api/queryKeys';
+import { useSessionStore } from '@/store/sessionStore';
 
 export const useProfileQuery = ({ enabled = true } = {}) => {
   const user = useSessionStore((state) => state.user);

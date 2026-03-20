@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { associateService } from '../services/associateService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { associateService } from '@/services/associateService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 export const useAssociatesQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.associates.all(),

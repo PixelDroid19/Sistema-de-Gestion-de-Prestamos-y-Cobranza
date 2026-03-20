@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { loanService } from '../services/loanService';
-import { paymentService } from '../services/paymentService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { loanService } from '@/services/loanService';
+import { paymentService } from '@/services/paymentService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 const resolveScope = (user) => {
   if (!user) return 'anonymous';

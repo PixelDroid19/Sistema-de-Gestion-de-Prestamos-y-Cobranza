@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { agentService } from '../services/agentService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { agentService } from '@/services/agentService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 export const useAgentsQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.agents.all(),

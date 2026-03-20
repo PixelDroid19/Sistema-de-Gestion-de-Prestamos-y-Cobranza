@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import sessionManager from '../utils/sessionManager';
+import sessionManager from '@/utils/sessionManager';
 
 const getInitialSessionState = () => {
   if (!sessionManager.isSessionValid()) {

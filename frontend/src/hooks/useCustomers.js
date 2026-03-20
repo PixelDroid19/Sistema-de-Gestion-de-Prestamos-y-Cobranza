@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { customerService } from '../services/customerService';
-import { reportService } from '../services/reportService';
-import { queryKeys } from '../lib/api/queryKeys';
+import { customerService } from '@/services/customerService';
+import { reportService } from '@/services/reportService';
+import { queryKeys } from '@/lib/api/queryKeys';
 
 export const useCustomersQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.customers.all(),
