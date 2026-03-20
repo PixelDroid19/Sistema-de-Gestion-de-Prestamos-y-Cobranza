@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect } from "react";
 import "./App.css"; 
-import { Search, Bell, ChevronDown, CheckCircle, Moon, Sun } from "lucide-react";
+import { Search, Bell, Settings, Moon, Sun, LayoutDashboard, Briefcase, CreditCard, Users, PieChart } from "lucide-react";
 import { useSessionStore } from './store/sessionStore';
 import { useUiStore } from './store/uiStore';
 import { useUnreadCountQuery } from './hooks/useNotifications';
@@ -89,25 +89,25 @@ function App() {
   const getMenuItems = () => {
     if (user.role === "socio") {
       return [
-        { id: "Dashboard", label: "Dashboard" },
-        { id: "Loans", label: "Loans" },
-        { id: "Reports", label: "Partner Portal" },
+        { id: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { id: "Loans", label: "Loans", icon: Briefcase },
+        { id: "Reports", label: "Partner Portal", icon: PieChart },
       ];
     }
 
     const items = [
-      { id: "Dashboard", label: "Dashboard" },
-      { id: "Loans", label: "Loans" },
-      { id: "Payments", label: "Payments" },
+      { id: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "Loans", label: "Loans", icon: Briefcase },
+      { id: "Payments", label: "Payments", icon: CreditCard },
     ];
     
     if (user.role === "admin") {
-      items.push({ id: "Agents", label: "Agents" });
-      items.push({ id: "Reports", label: "Reports" });
+      items.push({ id: "Agents", label: "Agents", icon: Users });
+      items.push({ id: "Reports", label: "Reports", icon: PieChart });
     }
 
     if (user.role === "socio") {
-      items.push({ id: "Reports", label: "Partner Portal" });
+      items.push({ id: "Reports", label: "Partner Portal", icon: PieChart });
     }
     
     return items;
@@ -118,66 +118,66 @@ function App() {
   return (
     <div className="layout-container">
       <aside className="sidebar">
-        <div className="sidebar-brand">LendFlow</div>
+        <div className="sidebar-brand">
+          {/* Faux logo matching image (yellow bird placeholder) */}
+          <div style={{color: '#EAB308', display: 'flex'}}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><path d="m9 11 3 3L22 4"></path></svg>
+          </div>
+        </div>
         <nav className="sidebar-nav">
-          <p className="nav-title">Main Menu</p>
           <ul>
-            {getMenuItems().map(item => (
-              <li 
-                key={item.id} 
-                className={currentView === item.id ? "active" : ""}
-                onClick={() => setCurrentView(item.id)}
-              >
-                {item.label}
-              </li>
-            ))}
+            {getMenuItems().map(item => {
+              const Icon = item.icon;
+              return (
+                <li 
+                  key={item.id} 
+                  className={currentView === item.id ? "active" : ""}
+                  onClick={() => setCurrentView(item.id)}
+                  title={item.label}
+                >
+                  <Icon size={22} strokeWidth={2.5} />
+                </li>
+              );
+            })}
           </ul>
         </nav>
         
-        {/* Customizable theme controls */}
-        <div className="sidebar-footer" style={{marginTop: "auto", borderTop: "1px solid var(--border-color)", paddingTop: "1rem"}}>
-           <p className="nav-title">Theme System</p>
-           <button onClick={toggleTheme} className="theme-toggle-btn flex items-center gap-2" style={{color: "var(--text-secondary)", fontSize: "0.9rem", padding: "0.5rem 0"}}>
-              {isDarkMode ? <Sun size={16}/> : <Moon size={16} />}
-              {isDarkMode ? "Light Mode" : "Dark Mode"}
+        {/* Bottom icon in sidebar for logout/exit */}
+        <div style={{marginTop: "auto", marginBottom: "1rem"}}>
+           <button onClick={handleLogout} style={{width: '48px', height: '48px', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '14px', transition: 'all 0.2s', cursor: 'pointer', border: 'none', background: 'transparent'}} title="Logout" onMouseOver={(e)=>e.currentTarget.style.color='#fff'} onMouseOut={(e)=>e.currentTarget.style.color='rgba(255,255,255,0.6)'}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
            </button>
-           <div className="theme-colors flex gap-2 mt-2">
-             <div onClick={()=>document.documentElement.style.setProperty("--accent-color", "#3b3f5c")} style={{width: 20, height: 20, borderRadius: "50%", background: "#3b3f5c", cursor: "pointer"}} title="Classic"></div>
-             <div onClick={()=>document.documentElement.style.setProperty("--accent-color", "#0066cc")} style={{width: 20, height: 20, borderRadius: "50%", background: "#0066cc", cursor: "pointer"}} title="Blue"></div>
-             <div onClick={()=>document.documentElement.style.setProperty("--accent-color", "#16a34a")} style={{width: 20, height: 20, borderRadius: "50%", background: "#16a34a", cursor: "pointer"}} title="Green"></div>
-           </div>
         </div>
-
       </aside>
 
       <div className="main-wrapper">
         <header className="top-header">
           <div className="search-bar">
-            <input type="text" placeholder="Search information" />
-            <button className="search-btn">
-              <Search size={16} />
-            </button>
+            <Search className="search-icon-static" size={20} strokeWidth={2.5} />
+            <input type="text" placeholder="SEARCH OR TYPE COMMAND" />
           </div>
           <div className="header-actions">
+            <button className="icon-btn" title="Settings">
+              <Settings size={20} strokeWidth={2.5} />
+            </button>
+            <button className="icon-btn" title="Toggle Theme" onClick={toggleTheme}>
+              {isDarkMode ? <Sun size={20} strokeWidth={2.5} /> : <Moon size={20} strokeWidth={2.5} />}
+            </button>
             <button className="icon-btn" title="Notifications" onClick={() => setNotificationsOpen(true)}>
-              <Bell size={18} />
+              <Bell size={20} strokeWidth={2.5} />
               {unreadCountQuery.data?.data?.unreadCount > 0 && (
                 <span className="notification-badge">{unreadCountQuery.data.data.unreadCount}</span>
               )}
             </button>
-            <button className="icon-btn" title="System secured" style={{cursor: "default"}}>
-              <CheckCircle size={18} color="#34c38f" />
-            </button>
-            <div className="user-profile" onClick={handleLogout} title="Click to logout">
-              <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${user.name}`} alt="Avatar" />
+            <div className="user-profile" title="Click for options">
               <div className="user-info">
                 <span className="user-name">{user.name}</span>
-                <span className="user-role" style={{textTransform: "capitalize"}}>{user.role}</span>
               </div>
-              <ChevronDown size={16} />
+              <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${user.name}&backgroundColor=f1f5f9`} alt="Avatar" />
             </div>
           </div>
         </header>
+
         <main className="content-area">
           <Suspense fallback={<ScreenFallback label="Loading workspace..." />}>
             <ActiveView user={user} />
@@ -194,4 +194,3 @@ function App() {
 }
 
 export default App;
-
