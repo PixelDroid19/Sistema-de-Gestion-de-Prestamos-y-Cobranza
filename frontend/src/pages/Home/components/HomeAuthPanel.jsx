@@ -3,6 +3,8 @@ import { ShieldCheck } from 'lucide-react';
 
 import Register from '@/pages/Register/Register';
 
+import './HomeAuthPanel.scss';
+
 function formatErrorMessage(errorMessage) {
   if (errorMessage.includes('\n')) {
     return errorMessage.split('\n').map((line, index) => (

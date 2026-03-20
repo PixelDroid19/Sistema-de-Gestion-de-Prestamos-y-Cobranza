@@ -1,4 +1,7 @@
 import React from 'react';
+
+import './HomeFeaturesSection.scss';
+
 function HomeFeaturesSection({ t, featureCards }) {
   return (
     <section className="home-section home-section--white">

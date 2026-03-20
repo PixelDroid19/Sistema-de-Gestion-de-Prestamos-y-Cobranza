@@ -1,6 +1,8 @@
 import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
 
+import './HomeControlSection.scss';
+
 function HomeControlSection({ t, controlItemKeys }) {
   return (
     <section className="home-section home-section--muted home-section--split">

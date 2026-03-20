@@ -1,0 +1,128 @@
+.home-auth-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  padding: 2rem;
+}
+
+.home-auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  padding: 3rem 2.5rem;
+  background: #fff;
+  border-radius: 32px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.home-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.home-auth-form__intro {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.home-auth-form__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1.5rem;
+  background: #eef2ff;
+  border-radius: 16px;
+}
+
+.home-auth-form__title {
+  margin: 0 0 0.5rem;
+  color: #1a1a2e;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.home-auth-form__description {
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.home-auth-error {
+  padding: 1rem;
+  color: #dc2626;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: #fef2f2;
+  border-radius: 14px;
+}
+
+.home-auth-error__line:not(:last-child) {
+  margin-bottom: 0.4rem;
+}
+
+.home-field__label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #334155;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.home-field__input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  color: #1a1a2e;
+  font-size: 1rem;
+  font-weight: 500;
+  background: #f1f5f9;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.home-field__input:focus {
+  background: #fff;
+  border-color: #c7d2fe;
+}
+
+.home-submit-button {
+  margin-top: 1rem;
+  padding: 1.15rem;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  background: #4f46e5;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+  transition: all 0.2s;
+}
+
+.home-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.home-back-button {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .home-auth-card {
+    padding: 2rem 1.5rem;
+  }
+}

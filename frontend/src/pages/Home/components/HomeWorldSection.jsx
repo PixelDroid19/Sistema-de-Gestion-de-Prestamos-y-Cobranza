@@ -1,6 +1,8 @@
 import React from 'react';
 import { MapPin, Users } from 'lucide-react';
 
+import './HomeWorldSection.scss';
+
 function HomeWorldSection({ t, worldStats }) {
   return (
     <section className="home-section home-section--muted home-section--centered">

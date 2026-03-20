@@ -1,6 +1,8 @@
 import React from 'react';
 import { Apple, Play, ShieldCheck, TrendingUp } from 'lucide-react';
 
+import './HomeHeroSection.scss';
+
 function HomeHeroSection({ t }) {
   return (
     <section className="home-hero-section">

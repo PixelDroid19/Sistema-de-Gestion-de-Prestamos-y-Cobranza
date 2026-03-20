@@ -1,6 +1,8 @@
 import React from 'react';
 import { Award, MousePointerClick, ShieldCheck } from 'lucide-react';
 
+import './HomeBentoSection.scss';
+
 function HomeBentoSection({ t }) {
   return (
     <section className="home-section home-section--white">

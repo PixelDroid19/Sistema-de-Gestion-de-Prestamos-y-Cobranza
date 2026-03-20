@@ -1,0 +1,122 @@
+.home-brand,
+.home-button,
+.home-header__link {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.home-brand__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #4f46e5, #3730a3);
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+}
+
+.home-brand__title {
+  margin: 0;
+  color: #1a1a2e;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.home-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 4rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+.home-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+}
+
+.home-header__link {
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-header__link:hover {
+  color: #1a1a2e;
+}
+
+.home-header__link--active {
+  color: #1a1a2e;
+}
+
+.home-header__actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.home-button {
+  border: 0;
+  border-radius: 100px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.home-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.home-button--ghost {
+  padding: 0.75rem 1.5rem;
+  color: #1a1a2e;
+  background: transparent;
+}
+
+.home-button--primary {
+  padding: 0.85rem 2rem;
+  color: #fff;
+  background: #4f46e5;
+  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
+}
+
+@media (max-width: 768px) {
+  .nav-links {
+    display: none !important;
+  }
+
+  .home-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+
+  .home-header__actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .home-button {
+    justify-content: center;
+  }
+}

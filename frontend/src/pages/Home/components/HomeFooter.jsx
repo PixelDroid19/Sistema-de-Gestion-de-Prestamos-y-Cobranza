@@ -1,6 +1,8 @@
 import React from 'react';
 import { Apple, Play } from 'lucide-react';
 
+import './HomeFooter.scss';
+
 function HomeFooter({ t }) {
   return (
     <footer className="home-footer">

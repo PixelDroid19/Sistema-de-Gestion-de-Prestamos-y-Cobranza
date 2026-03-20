@@ -1,6 +1,8 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
 
+import './HomeHeader.scss';
+
 function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
   return (
     <header className="home-header">
