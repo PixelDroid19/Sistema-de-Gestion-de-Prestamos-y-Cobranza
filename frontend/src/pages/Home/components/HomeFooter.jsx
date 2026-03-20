@@ -1,9 +1,11 @@
 import React from 'react';
-import { Apple, Play } from 'lucide-react';
+
+import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame';
+import HomeStoreButton from '@/pages/Home/components/HomeStoreButton';
 
 import './HomeFooter.scss';
 
-function HomeFooter({ t }) {
+function HomeFooter({ t, storeButtons }) {
   return (
     <footer className="home-footer">
       <div className="footer-grid">
@@ -13,28 +15,14 @@ function HomeFooter({ t }) {
           </h2>
 
           <div className="home-footer__store-buttons">
-            <button className="home-store-button home-store-button--light" type="button">
-              <Apple size={28} />
-              <span className="home-store-button__copy">
-                <span className="home-store-button__eyebrow">{t('home.hero.downloadApple')}</span>
-                <span className="home-store-button__label">App Store</span>
-              </span>
-            </button>
-
-            <button className="home-store-button home-store-button--mint" type="button">
-              <Play size={24} fill="#111827" />
-              <span className="home-store-button__copy">
-                <span className="home-store-button__eyebrow">{t('home.hero.availablePlay')}</span>
-                <span className="home-store-button__label">Google Play</span>
-              </span>
-            </button>
+            {storeButtons.map(({ key, eyebrowKey, ...buttonConfig }) => (
+              <HomeStoreButton key={key} eyebrow={t(eyebrowKey)} {...buttonConfig} />
+            ))}
           </div>
         </div>
 
         <div className="home-footer__visual">
-          <div className="phone-mockup phone-mockup--footer">
-            <div className="phone-notch" />
-            <div className="phone-screen phone-screen--footer">
+          <HomeDeviceFrame className="phone-mockup--footer" screenClassName="phone-screen--footer">
               <div className="mock-hero mock-hero--emerald" />
 
               <div className="mock-row mock-row--footer">
@@ -44,8 +32,7 @@ function HomeFooter({ t }) {
                   <div className="mock-line-2 mock-line-2--60" />
                 </div>
               </div>
-            </div>
-          </div>
+          </HomeDeviceFrame>
         </div>
       </div>
 

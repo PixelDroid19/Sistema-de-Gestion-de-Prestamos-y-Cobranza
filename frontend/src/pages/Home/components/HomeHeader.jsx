@@ -1,6 +1,8 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
 
+import Button from '@/components/ui/Button';
+
 import './HomeHeader.scss';
 
 function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
@@ -26,12 +28,12 @@ function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
       </nav>
 
       <div className="home-header__actions">
-        <button className="home-button home-button--ghost" type="button" onClick={onLoginClick}>
+        <Button className="home-button home-button--ghost" type="button" variant="outline" onClick={onLoginClick}>
           {t('home.auth.loginCta')}
-        </button>
-        <button className="home-button home-button--primary" type="button" onClick={onSignUpClick}>
+        </Button>
+        <Button className="home-button home-button--primary" type="button" onClick={onSignUpClick}>
           {t('home.auth.registerCta')}
-        </button>
+        </Button>
       </div>
     </header>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { homeContentMock } from '@/config/homeContent';
 import { handleApiError } from '@/lib/api/errors';
 import { useLoginMutation } from '@/hooks/useAuth';
 import HomeAuthPanel from '@/pages/Home/components/HomeAuthPanel';
@@ -11,7 +12,6 @@ import HomeFooter from '@/pages/Home/components/HomeFooter';
 import HomeHeader from '@/pages/Home/components/HomeHeader';
 import HomeHeroSection from '@/pages/Home/components/HomeHeroSection';
 import HomeWorldSection from '@/pages/Home/components/HomeWorldSection';
-import { controlItemKeys, featureCards, worldStats } from '@/pages/Home/homeContent';
 
 import './Home.scss';
 
@@ -88,12 +88,12 @@ function Home({ onLogin }) {
           />
         ) : (
           <>
-            <HomeHeroSection t={t} />
-            <HomeFeaturesSection t={t} featureCards={featureCards} />
-            <HomeControlSection t={t} controlItemKeys={controlItemKeys} />
-            <HomeBentoSection t={t} />
-            <HomeWorldSection t={t} worldStats={worldStats} />
-            <HomeFooter t={t} />
+            <HomeHeroSection t={t} storeButtons={homeContentMock.storeButtons.hero} />
+            <HomeFeaturesSection t={t} featureCards={homeContentMock.featureCards} />
+            <HomeControlSection t={t} controlItemKeys={homeContentMock.controlItems} />
+            <HomeBentoSection t={t} stats={homeContentMock.bentoStats} />
+            <HomeWorldSection t={t} worldStats={homeContentMock.worldStats} worldMarkers={homeContentMock.worldMarkers} />
+            <HomeFooter t={t} storeButtons={homeContentMock.storeButtons.footer} />
           </>
         )}
       </div>

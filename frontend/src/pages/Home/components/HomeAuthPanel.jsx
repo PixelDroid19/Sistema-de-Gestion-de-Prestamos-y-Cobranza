@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 
+import Button from '@/components/ui/Button';
 import Register from '@/pages/Register/Register';
 
 import './HomeAuthPanel.scss';
@@ -74,13 +75,13 @@ function HomeAuthPanel({
               />
             </div>
 
-            <button className="home-submit-button" type="submit" disabled={loading}>
+            <Button className="home-submit-button" type="submit" disabled={loading}>
               {loading ? t('home.auth.loadingLogin') : t('home.auth.loginButton')}
-            </button>
+            </Button>
 
-            <button className="home-back-button" type="button" onClick={onBackHome}>
+            <Button className="home-back-button" type="button" variant="outline" onClick={onBackHome}>
               {t('home.auth.backToHome')}
-            </button>
+            </Button>
           </form>
         )}
       </div>

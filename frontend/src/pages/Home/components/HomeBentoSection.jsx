@@ -1,16 +1,20 @@
 import React from 'react';
 import { Award, MousePointerClick, ShieldCheck } from 'lucide-react';
 
+import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading';
+
 import './HomeBentoSection.scss';
 
-function HomeBentoSection({ t }) {
+function HomeBentoSection({ t, stats }) {
   return (
     <section className="home-section home-section--white">
       <div className="home-section__container">
-        <h2 className="home-section__title home-section__title--accent home-section__title--bento">
-          {t('home.bento.title1')} <br />
-          <span className="home-section__title-dark">{t('home.bento.titleHighlight')}</span>
-        </h2>
+        <HomeSectionHeading
+          t={t}
+          titleKey="home.bento.title1"
+          highlightKey="home.bento.titleHighlight"
+          titleClassName="home-section__title home-section__title--accent home-section__title--bento"
+        />
 
         <div className="bento-grid">
           <article className="bento-item bento-tall bento-item--emerald">
@@ -34,13 +38,13 @@ function HomeBentoSection({ t }) {
           <article className="bento-item bento-wide bento-item--surface">
             <div className="bento-item__stats">
               <div className="bento-item__stat">
-                <div className="bento-item__stat-value">150+</div>
-                <div className="bento-item__stat-label">{t('home.bento.loansManaged')}</div>
+                <div className="bento-item__stat-value">{stats[0]?.value}</div>
+                <div className="bento-item__stat-label">{t(stats[0]?.labelKey)}</div>
               </div>
               <div className="bento-item__divider" />
               <div className="bento-item__stat">
-                <div className="bento-item__stat-value">60+</div>
-                <div className="bento-item__stat-label">{t('home.bento.activeAgents')}</div>
+                <div className="bento-item__stat-value">{stats[1]?.value}</div>
+                <div className="bento-item__stat-label">{t(stats[1]?.labelKey)}</div>
               </div>
             </div>
           </article>

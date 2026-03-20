@@ -1,6 +1,9 @@
 import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
 
+import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame';
+import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading';
+
 import './HomeControlSection.scss';
 
 function HomeControlSection({ t, controlItemKeys }) {
@@ -8,10 +11,12 @@ function HomeControlSection({ t, controlItemKeys }) {
     <section className="home-section home-section--muted home-section--split">
       <div className="home-section__container split-section">
         <div className="split-content">
-          <h2 className="home-section__title home-section__title--accent home-section__title--split">
-            {t('home.control.title1')} <br />
-            <span className="home-section__title-dark">{t('home.control.titleHighlight')}</span>
-          </h2>
+          <HomeSectionHeading
+            t={t}
+            titleKey="home.control.title1"
+            highlightKey="home.control.titleHighlight"
+            titleClassName="home-section__title home-section__title--accent home-section__title--split"
+          />
 
           <h3 className="split-content__subtitle">{t('home.control.subtitle')}</h3>
 
@@ -30,9 +35,7 @@ function HomeControlSection({ t, controlItemKeys }) {
         <div className="split-visual">
           <div className="split-visual__ring" />
 
-          <div className="phone-mockup phone-mockup--split">
-            <div className="phone-notch" />
-            <div className="phone-screen">
+          <HomeDeviceFrame className="phone-mockup--split">
               <div className="split-board__hero" />
               <div className="split-board__metrics">
                 <div className="split-board__metric split-board__metric--green" />
@@ -54,8 +57,7 @@ function HomeControlSection({ t, controlItemKeys }) {
                   <div className="mock-line-2" />
                 </div>
               </div>
-            </div>
-          </div>
+          </HomeDeviceFrame>
         </div>
       </div>
     </section>
