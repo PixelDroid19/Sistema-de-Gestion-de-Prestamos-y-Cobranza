@@ -4,6 +4,10 @@ import { handleApiError } from '../lib/api/errors';
 import { User, Mail, AlertCircle, Phone, X } from "lucide-react";
 import { useAgentsQuery } from '../hooks/useAgents';
 import { authService } from '../services/authService';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import Card, { CardHeader, CardBody } from '../components/ui/Card';
+import Input from '../components/ui/Input';
 
 const emptyAgentForm = { name: '', email: '', phone: '', password: '' };
 
@@ -55,30 +59,19 @@ function AlertBanner({ message, type = 'error' }) {
 
 function AgentFormField({ id, label, type = 'text', name, value, onChange, required, placeholder, minLength, autoComplete }) {
   return (
-    <div style={{ marginBottom: "1rem" }}>
-      <label htmlFor={id} style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.9rem" }}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        required={required}
-        placeholder={placeholder}
-        minLength={minLength}
-        autoComplete={autoComplete}
-        style={{
-          width: "100%",
-          padding: "0.75rem",
-          borderRadius: "8px",
-          border: "1px solid var(--border-color)",
-          fontSize: "0.95rem",
-          boxSizing: "border-box",
-        }}
-      />
-    </div>
+    <Input
+      id={id}
+      label={label}
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      required={required}
+      placeholder={placeholder}
+      minLength={minLength}
+      autoComplete={autoComplete}
+      style={{ marginBottom: "1rem" }}
+    />
   );
 }
 
@@ -108,18 +101,10 @@ function AgentRow({ agent }) {
         </div>
       </td>
       <td>
-        <span className={`status-badge status-badge--${statusTone}`}>{statusLabel}</span>
+        <Badge variant={statusTone}>{statusLabel}</Badge>
       </td>
       <td>
-        <button style={{
-          padding: "0.4rem 0.75rem",
-          borderRadius: "6px",
-          border: "1px solid var(--border-color)",
-          background: "transparent",
-          color: "var(--text-secondary)",
-          cursor: "pointer",
-          fontSize: "0.8rem"
-        }}>View Profile</button>
+        <Button variant="outline" size="sm">View Profile</Button>
       </td>
     </tr>
   );
@@ -267,36 +252,19 @@ function AddAgentModal({ isOpen, onClose, onSubmit, isCreating, form, onChange }
           />
 
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              style={{
-                padding: "0.625rem 1.25rem",
-                borderRadius: "8px",
-                border: "1px solid var(--border-color)",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-              }}
+              variant="outline"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isCreating}
-              style={{
-                padding: "0.625rem 1.25rem",
-                borderRadius: "8px",
-                border: "none",
-                background: "var(--accent-color, #d9822b)",
-                color: "white",
-                cursor: isCreating ? "not-allowed" : "pointer",
-                opacity: isCreating ? 0.7 : 1,
-                fontSize: "0.9rem",
-              }}
             >
               {isCreating ? "Creating..." : "Create Agent"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -358,26 +326,23 @@ function AgentsPage() {
           <h1 className="page-title">Agent Management</h1>
           <p className="page-subtitle">View and manage collection agents</p>
         </div>
-        <button
-          className="primary-button"
+        <Button
           onClick={() => dispatch({ type: 'OPEN_MODAL' })}
-          style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+          icon={User}
         >
-          <User size={16} /> Add New Agent
-        </button>
+          Add New Agent
+        </Button>
       </header>
 
       {state.error && <AlertBanner message={state.error} type="error" />}
       {state.success && <AlertBanner message={state.success} type="success" />}
 
-      <div className="surface-card">
-        <div className="surface-card__header">
-          <h2 className="surface-card__title">Registered Agents</h2>
-        </div>
-        <div className="surface-card__content" style={{ padding: 0 }}>
+      <Card>
+        <CardHeader title="Registered Agents" />
+        <CardBody className="p-0">
           <AgentsTable agents={agents} loading={agentsQuery.isLoading} />
-        </div>
-      </div>
+        </CardBody>
+      </Card>
 
       <AddAgentModal
         isOpen={state.showModal}

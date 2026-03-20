@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { handleApiError } from '../lib/api/errors';
 import { useLoginMutation, useRegisterMutation } from '../hooks/useAuth';
+import Button from '../components/ui/Button';
 
 function Register({ onRegister, onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'customer', phone: '' });

@@ -3,9 +3,11 @@ import {
   PlusCircle, ArrowUpRight, ArrowDownLeft, SendToBack,
   MoreHorizontal, ArrowRight, CreditCard, Wallet, MoveUpRight, ArrowRightCircle
 } from "lucide-react";
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
 import { useDashboardSummaryQuery, useLoansOverviewQuery, usePaymentsOverviewQuery } from '../hooks/useDashboard';
 import { useAssociateProfitabilityQuery } from '../hooks/useReports';
-import "./Dashboard.css";
+import "./Dashboard.scss";
 
 const Dashboard = ({ user }) => {
   const isSocio = user.role === 'socio';
@@ -47,7 +49,7 @@ const Dashboard = ({ user }) => {
       <div className="dash-grid">
 
         {/* === 1. MY CARDS WIDGET === */}
-        <div className="dash-card dash-my-cards">
+        <Card className="dash-card dash-my-cards">
           <div className="dash-title-row">
             <div className="flex items-center gap-2">
               <h3 className="dash-title" style={{ fontSize: '1.4rem' }}>My cards</h3>
@@ -100,10 +102,10 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* === 2. PROFIT WIDGET === */}
-        <div className="dash-card dash-profit" style={{ paddingBottom: '0.5rem' }}>
+        <Card className="dash-card dash-profit" style={{ paddingBottom: '0.5rem' }}>
           <div className="dash-title-row">
             <h3 className="dash-title">Profit</h3>
             <div className="flex items-center gap-4">
@@ -133,11 +135,11 @@ const Dashboard = ({ user }) => {
             <div className="flex justify-between mt-2" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                <span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span>
             </div>
-        </div>
-      </div>
+          </div>
+        </Card>
 
       {/* === 3. INCOME WIDGET === */}
-      <div className="dash-card dash-income">
+      <Card className="dash-card dash-income">
         <div className="mini-stat-header">
           <div className="flex items-center gap-2">
             <div className="mini-icon"><ArrowDownLeft size={16} /></div>
@@ -157,12 +159,12 @@ const Dashboard = ({ user }) => {
         </svg>
         <div className="flex items-center gap-2">
           <span className="mini-value" style={{ fontSize: '1.4rem' }}>+{formatCurrency(summary.paidAmount)}</span>
-          <span className="badge badge-up">+12% <ArrowUpRight size={10} /></span>
+          <Badge variant="success" className="badge-up">+12% <ArrowUpRight size={10} /></Badge>
         </div>
-      </div>
+      </Card>
 
       {/* === 4. EXPENSES WIDGET === */}
-      <div className="dash-card dash-expenses">
+      <Card className="dash-card dash-expenses">
         <div className="mini-stat-header">
           <div className="flex items-center gap-2">
             <div className="mini-icon" style={{ background: '#E2E8F0', color: '#457B66' }}><ArrowUpRight size={16} /></div>
@@ -182,12 +184,12 @@ const Dashboard = ({ user }) => {
         </svg>
         <div className="flex items-center gap-2">
           <span className="mini-value" style={{ fontSize: '1.4rem' }}>-{formatCurrency(summary.pendingAmount)}</span>
-          <span className="badge badge-down">-23% <ArrowUpRight size={10} style={{ transform: 'rotate(90deg)' }} /></span>
+          <Badge variant="danger" className="badge-down">-23% <ArrowUpRight size={10} style={{ transform: 'rotate(90deg)' }} /></Badge>
         </div>
-      </div>
+      </Card>
 
       {/* === 5. SPENDINGS STATISTIC WIDGET === */}
-      <div className="dash-card dash-spendings">
+      <Card className="dash-card dash-spendings">
         <div className="dash-title-row">
           <div className="flex items-center gap-2">
             <div className="mini-icon" style={{ width: 24, height: 24 }}><CreditCard size={12} /></div>
@@ -211,10 +213,10 @@ const Dashboard = ({ user }) => {
             )
           })}
         </div>
-      </div>
+      </Card>
 
       {/* === 6. PLANNING WIDGET === */}
-      <div className="dash-card dash-planning">
+      <Card className="dash-card dash-planning">
         <div className="dash-title-row">
           <h3 className="dash-title" style={{ fontSize: '1rem' }}>Planning</h3>
           <span className="dash-action text-muted" style={{ fontSize: '0.75rem' }}>Add new <PlusCircle size={14} color="#34c38f" /></span>
@@ -245,10 +247,10 @@ const Dashboard = ({ user }) => {
             <div className="plan-progress-fill" style={{ width: '75%' }}></div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* === 7. LATEST TRANSACTIONS WIDGET === */}
-      <div className="dash-card dash-transactions">
+      <Card className="dash-card dash-transactions">
         <div className="dash-title-row border-b pb-4 mb-4" style={{ borderBottom: '1px solid var(--border-color)', margin: 0 }}>
           <h3 className="dash-title" style={{ fontSize: '1rem' }}>Latest transactions</h3>
           <span className="dash-action text-muted"><ArrowUpRight size={14} color="var(--text-primary)" style={{ transform: 'rotate(45deg)' }} /></span>
@@ -300,10 +302,10 @@ const Dashboard = ({ user }) => {
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* === 8. GO PREMIUM WIDGET === */}
-      <div className="dash-card dash-premium premium-card">
+      <Card className="dash-card dash-premium premium-card">
         <div>
           <div className="dash-title-row">
             <h3 className="dash-title" style={{ fontSize: '1rem' }}>Go premium</h3>
@@ -329,7 +331,7 @@ const Dashboard = ({ user }) => {
             <path d="M85 45 Q90 40 90 30 Q90 20 80 20" fill="none" stroke="#1F2937" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </div>
-      </div>
+      </Card>
 
     </div>
     </div >

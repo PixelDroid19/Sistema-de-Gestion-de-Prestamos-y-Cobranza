@@ -12,6 +12,8 @@ import {
   usePaymentsByLoanQuery,
 } from '../hooks/usePayments';
 import { loanService } from '../services/loanService';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const INSTALLMENT_STATUS_LABELS = {
   pending: 'Pendiente',
@@ -313,9 +315,9 @@ function EligibilityPanel({ action, eligibilityState, quoteTotal, payoffDate, on
                 : config.helperText}
           </div>
         </div>
-        <span className={`status-badge status-badge--${isBlocked ? 'danger' : isLoading ? 'warning' : 'success'}`}>
+        <Badge variant={isBlocked ? 'danger' : isLoading ? 'warning' : 'success'}>
           {isBlocked ? 'Bloqueado' : isLoading ? 'Validando' : 'Disponible'}
-        </span>
+        </Badge>
       </div>
 
       {isBlocked && (
@@ -364,9 +366,9 @@ function PaymentRow({ payment }) {
         {new Date(payment.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
       </td>
       <td>
-        <span className={`status-badge status-badge--${payment.status === 'annulled' ? 'danger' : payment.status === 'completed' ? 'success' : 'default'}`}>
+        <Badge variant={payment.status === 'annulled' ? 'danger' : payment.status === 'completed' ? 'success' : 'neutral'}>
           {payment.status === 'annulled' ? 'Anulada' : payment.status === 'completed' ? 'Completado' : payment.status}
-        </span>
+        </Badge>
       </td>
     </tr>
   );
@@ -379,26 +381,26 @@ function InstallmentRow({ entry, canAnnul, canAnnulThisInstallment, onAnnul, isA
       <td>{new Date(entry.dueDate).toLocaleDateString('en-IN')}</td>
       <td className="table-cell-right">₹{Number(entry.outstandingAmount || 0).toFixed(2)}</td>
       <td className="table-cell-center">
-        <span className={`status-badge status-badge--${
+        <Badge variant={
           entry.status === 'paid' ? 'success' :
           entry.status === 'overdue' ? 'danger' :
           entry.status === 'annulled' ? 'warning' :
-          entry.status === 'partial' ? 'info' : 'default'
-        }`}>
+          entry.status === 'partial' ? 'primary' : 'neutral'
+        }>
           {INSTALLMENT_STATUS_LABELS[entry.status] || entry.status}
-        </span>
+        </Badge>
       </td>
       {canAnnul && (
         <td className="table-cell-center">
           {canAnnulThisInstallment && (
-            <button
-              className="btn btn-danger btn-sm"
+            <Button
+              variant="danger" size="sm"
               onClick={onAnnul}
               disabled={isAnnulling}
               title="Anular la cuota más próxima"
             >
               Anular
-            </button>
+            </Button>
           )}
         </td>
       )}
@@ -413,9 +415,9 @@ function AttachmentRow({ attachment, onDownload }) {
       <td>{attachment.category || '-'}</td>
       <td>{attachment.customerVisible ? 'Customer' : 'Internal'}</td>
       <td className="table-cell-center">
-        <button className="btn btn-outline-primary btn-sm" onClick={onDownload}>
+        <Button variant="outline" size="sm" onClick={onDownload}>
           Download
-        </button>
+        </Button>
       </td>
     </tr>
   );
@@ -463,9 +465,9 @@ function PaymentHistory({
         title="Unable to load payments"
         message={error}
         action={
-          <button className="btn btn-primary" onClick={onRetry}>
+          <Button onClick={onRetry}>
             Try again
-          </button>
+          </Button>
         }
       />
     );
@@ -1097,36 +1099,36 @@ function Payments({ user }) {
                 <div className="field-group">
                   <span className="field-label">Submit</span>
                   {formState.paymentType === 'installment' && (
-                    <button className="btn btn-success" type="submit" disabled={(formState.loanId && loanDetails.balance === '0.00') || submitting || !isCustomer}>
+                    <Button variant="success" type="submit" disabled={(formState.loanId && loanDetails.balance === '0.00') || submitting || !isCustomer}>
                       {submitting ? 'Processing…' : 'Pagar cuota'}
-                    </button>
+                    </Button>
                   )}
                   {formState.paymentType === 'partial' && (
-                    <button className="btn btn-info" type="button" onClick={handlePartialPayment} disabled={!formState.loanId || submitting || !canManagePayments}>
+                    <Button variant="primary" type="button" onClick={handlePartialPayment} disabled={!formState.loanId || submitting || !canManagePayments}>
                       {submitting ? 'Processing…' : 'Pago parcial'}
-                    </button>
+                    </Button>
                   )}
                   {formState.paymentType === 'capital' && isAdmin && (
-                    <button
-                      className="btn btn-warning"
+                    <Button
+                      variant="warning"
                       type="button"
                       onClick={handleCapitalPayment}
                       disabled={capitalButtonDisabled}
                       title={buildEligibilityButtonTitle(capitalEligibilityState)}
                     >
                       {submitting ? 'Processing…' : 'Reducir capital'}
-                    </button>
+                    </Button>
                   )}
                   {formState.paymentType === 'payoff' && (
-                    <button
+                    <Button
                       type="button"
-                      className="btn btn-outline-primary"
+                      variant="outline"
                       onClick={handlePayoff}
                       disabled={payoffButtonDisabled}
                       title={buildEligibilityButtonTitle(payoffEligibilityState)}
                     >
                       {submitting ? 'Processing…' : 'Liquidar'}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </form>

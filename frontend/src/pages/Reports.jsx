@@ -25,6 +25,8 @@ import {
   useReactivateUserMutation,
 } from '../hooks/useUsers';
 import { reportService } from '../services/reportService';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const REPORT_TABS = [
   { id: 'overview', label: 'Overview', icon: '📊', description: 'Portfolio totals, recovery rate, and high-level operating context.' },
@@ -537,9 +539,9 @@ function Reports({ user }) {
                 <td className="table-cell-right">{formatCurrency(loan.totalPaid)}</td>
                 <td className="table-cell-right">{formatCurrency(loan.outstandingAmount)}</td>
                 <td className="table-cell-center">
-                  <span className={`status-badge status-badge--${RECOVERY_TONE_MAP[loan.recoveryStatus] || 'neutral'}`}>
+                  <Badge variant={RECOVERY_TONE_MAP[loan.recoveryStatus] || 'neutral'}>
                     {formatRecoveryStatus(loan.recoveryStatus)}
-                  </span>
+                  </Badge>
                 </td>
               </tr>
             ))}
@@ -563,7 +565,7 @@ function Reports({ user }) {
       icon: '⚠️',
       title: 'Unable to load reports',
       message: error,
-      action: <button className="btn btn-primary" onClick={loadReports}>Try again</button>,
+      action: <Button onClick={loadReports}>Try again</Button>,
     });
   }
 
@@ -585,20 +587,20 @@ function Reports({ user }) {
             </div>
           </div>
           <div className="section-actions">
-            <button className="btn btn-primary" onClick={loadReports} disabled={refreshing}>
+            <Button onClick={loadReports} disabled={refreshing}>
               <span style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }}>↻</span>
               {refreshing ? 'Refreshing…' : 'Refresh reports'}
-            </button>
+            </Button>
             {user.role !== 'socio' && (
               <>
-                <button className="btn btn-outline-primary" onClick={() => handleExport('csv')}>Export CSV</button>
-                <button className="btn btn-outline-primary" onClick={() => handleExport('pdf')}>Export PDF</button>
+                <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
+                <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
               </>
             )}
             {(isSocio || selectedAssociateId) && (
-              <button className="btn btn-outline-primary" onClick={() => handleAssociateExport(isSocio ? 'xlsx' : 'csv')}>
+              <Button variant="outline" onClick={() => handleAssociateExport(isSocio ? 'xlsx' : 'csv')}>
                 Export associate data
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -715,40 +717,40 @@ function Reports({ user }) {
                                   <option value="admin">Admin</option>
                                 </select>
                               ) : (
-                                <span className={`status-badge status-badge--${user.role === 'admin' ? 'active' : user.role === 'agent' ? 'info' : 'default'}`}>
+                                <Badge variant={user.role === 'admin' ? 'success' : user.role === 'agent' ? 'brand' : 'neutral'}>
                                   {user.role}
-                                </span>
+                                </Badge>
                               )}
                             </td>
                             <td>
-                              <span className={`status-badge status-badge--${user.isActive !== false ? 'active' : 'danger'}`}>
+                              <Badge variant={user.isActive !== false ? 'success' : 'danger'}>
                                 {user.isActive !== false ? 'Active' : 'Inactive'}
-                              </span>
+                              </Badge>
                             </td>
                             <td>
                               <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 {editingUser === user.id ? (
                                   <>
-                                    <button
-                                      className="btn btn-success btn-sm"
+                                    <Button
+                                      variant="success" size="sm"
                                       type="button"
                                       disabled={updateUserMutation.isPending}
                                       onClick={() => handleUserRoleSave(user.id)}
                                     >
                                       Save
-                                    </button>
-                                    <button
-                                      className="btn btn-secondary btn-sm"
+                                    </Button>
+                                    <Button
+                                      variant="outline" size="sm"
                                       type="button"
                                       onClick={() => setEditingUser(null)}
                                     >
                                       Cancel
-                                    </button>
+                                    </Button>
                                   </>
                                 ) : (
                                   <>
-                                    <button
-                                      className="btn btn-outline-primary btn-sm"
+                                    <Button
+                                      variant="outline" size="sm"
                                       type="button"
                                       onClick={() => {
                                         clearMessages();
@@ -757,25 +759,25 @@ function Reports({ user }) {
                                       }}
                                     >
                                       Edit Role
-                                    </button>
+                                    </Button>
                                     {user.isActive !== false ? (
-                                      <button
-                                        className="btn btn-danger btn-sm"
+                                      <Button
+                                        variant="danger" size="sm"
                                         type="button"
                                         disabled={deactivateUserMutation.isPending || Number(user.id) === currentUserId}
                                         onClick={() => handleDeactivateUser(user)}
                                       >
                                         Deactivate
-                                      </button>
+                                      </Button>
                                     ) : (
-                                      <button
-                                        className="btn btn-success btn-sm"
+                                      <Button
+                                        variant="success" size="sm"
                                         type="button"
                                         disabled={reactivateUserMutation.isPending}
                                         onClick={() => handleReactivateUser(user)}
                                       >
                                         Reactivate
-                                      </button>
+                                      </Button>
                                     )}
                                   </>
                                 )}
@@ -867,15 +869,14 @@ function Reports({ user }) {
                   </label>
                   <div className="field-group">
                     <span className="field-label">Create</span>
-                    <button className="btn btn-success" type="submit" disabled={createAssociateMutation.isPending}>Create associate</button>
+                    <Button variant="success" type="submit" disabled={createAssociateMutation.isPending}>Create associate</Button>
                   </div>
                 </form>
 
                 {selectedAssociateId && (
                   <div className="section-actions" style={{ marginBottom: '1rem' }}>
-                    <button className="btn btn-primary" onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</button>
-                    <button className="btn btn-primary" type="button" onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</button>
-                    <button className="btn btn-danger" type="button" onClick={handleDeleteAssociate} disabled={deleteAssociateMutation.isPending}>Delete associate</button>
+                    <Button onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</Button>
+                    <Button variant="danger" type="button" onClick={handleDeleteAssociate} disabled={deleteAssociateMutation.isPending}>Delete associate</Button>
                   </div>
                 )}
 
@@ -903,7 +904,7 @@ function Reports({ user }) {
                       </label>
                       <div className="field-group">
                         <span className="field-label">Action</span>
-                        <button className="btn btn-primary" type="button" onClick={handleCreateContribution} disabled={createContributionMutation.isPending}>Add contribution</button>
+                        <Button type="button" onClick={handleCreateContribution} disabled={createContributionMutation.isPending}>Add contribution</Button>
                       </div>
                     </div>
 
@@ -922,7 +923,7 @@ function Reports({ user }) {
                       </label>
                       <div className="field-group">
                         <span className="field-label">Action</span>
-                        <button className="btn btn-primary" type="button" onClick={handleCreateDistribution} disabled={createDistributionMutation.isPending}>Add distribution</button>
+                        <Button type="button" onClick={handleCreateDistribution} disabled={createDistributionMutation.isPending}>Add distribution</Button>
                       </div>
                     </div>
                   </>
@@ -947,7 +948,7 @@ function Reports({ user }) {
                   </label>
                   <div className="field-group">
                     <span className="field-label">Action</span>
-                    <button className="btn btn-outline-primary" type="button" onClick={handleCreateProportionalDistribution} disabled={createProportionalDistributionMutation.isPending}>Run proportional distribution</button>
+                    <Button variant="outline" type="button" onClick={handleCreateProportionalDistribution} disabled={createProportionalDistributionMutation.isPending}>Run proportional distribution</Button>
                   </div>
                 </div>
 

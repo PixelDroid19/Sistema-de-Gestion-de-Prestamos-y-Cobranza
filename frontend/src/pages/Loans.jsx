@@ -20,6 +20,8 @@ import { customerService } from '../services/customerService';
 import { loanService } from '../services/loanService';
 import { reportService } from '../services/reportService';
 import { handleApiError } from '../lib/api/errors';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const LOAN_STATUS_TONE_MAP = {
   approved: 'success',
@@ -601,13 +603,13 @@ function Loans({ user }) {
       {user.role === 'admin' && loan.status === 'approved' && !loan.Agent && (
         <div className="table-inline-stack">
           <Agents onSelect={(agentId) => setAssignAgentId((current) => ({ ...current, [loan.id]: agentId }))} />
-          <button
-            className="btn btn-primary btn-sm"
+          <Button
+            size="sm"
             disabled={!assignAgentId[loan.id] || assignAgentMutation.isPending || pendingAssignAgents[loan.id]}
             onClick={() => handleAssignAgent(loan.id)}
           >
             {pendingAssignAgents[loan.id] ? 'Assigning...' : 'Assign agent'}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -633,27 +635,27 @@ function Loans({ user }) {
             <option value="in_progress">In Progress</option>
             <option value="recovered">Recovered</option>
           </select>
-          <button
-            className="btn btn-success btn-sm"
+          <Button
+            variant="success" size="sm"
             disabled={!recoveryDrafts[loan.id] || updateRecoveryStatusMutation.isPending || pendingRecovery[loan.id]}
             onClick={() => handleRecoverySave(loan.id)}
           >
             {pendingRecovery[loan.id] ? 'Saving...' : 'Save status'}
-          </button>
+          </Button>
         </div>
       );
     }
 
     return (
-      <button
-        className="btn btn-outline-primary btn-sm"
+      <Button
+        variant="outline" size="sm"
         onClick={() => {
           setEditingRecovery((current) => ({ ...current, [loan.id]: true }));
           setRecoveryDrafts((current) => ({ ...current, [loan.id]: loan.recoveryStatus || 'pending' }));
         }}
       >
         Edit recovery
-      </button>
+      </Button>
     );
   };
 
@@ -672,7 +674,7 @@ function Loans({ user }) {
         icon: '⚠️',
         title: 'Unable to load loans',
         message: error || 'We could not load the current loan portfolio.',
-        action: <button className="btn btn-primary" onClick={() => loansQuery.refetch()}>Try again</button>,
+        action: <Button onClick={() => loansQuery.refetch()}>Try again</Button>,
       });
     }
 
@@ -731,20 +733,20 @@ function Loans({ user }) {
                     <td className="table-cell-center">{Number(loan.interestRate || 0).toFixed(1)}%</td>
                     <td className="table-cell-center">{loan.termMonths}m</td>
                     <td className="table-cell-center">
-                      <span className={`status-badge status-badge--${LOAN_STATUS_TONE_MAP[loan.status] || 'neutral'}`}>
+                      <Badge variant={LOAN_STATUS_TONE_MAP[loan.status] || 'neutral'}>
                         {formatLoanStatus(loan.status)}
-                      </span>
+                      </Badge>
                     </td>
                     {(user.role === 'admin' || user.role === 'agent') && <td className="table-cell-center">{renderAgentAssignment(loan)}</td>}
                     <td className="table-cell-center">
-                      <span className={`status-badge status-badge--${RECOVERY_STATUS_TONE_MAP[loan.recoveryStatus] || 'neutral'}`}>
+                      <Badge variant={RECOVERY_STATUS_TONE_MAP[loan.recoveryStatus] || 'neutral'}>
                         {formatRecoveryStatus(loan.recoveryStatus)}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="table-cell-center">{renderProgress(loan)}</td>
                     <td className="table-cell-right">
                       {loanDetails.balance === '0.00'
-                        ? <span className="status-badge status-badge--success">Fully paid</span>
+                        ? <Badge variant="success">Fully paid</Badge>
                         : formatCurrency(loanDetails.balance)}
                     </td>
                     <td className="table-cell-center">
@@ -759,27 +761,27 @@ function Loans({ user }) {
                       <div className="action-stack">
                         {loan.status === 'pending' && canDecision && (
                           <>
-                            <button
-                              className="btn btn-success btn-sm"
+                            <Button
+                              variant="success" size="sm"
                               disabled={pendingStatusLoans[loan.id] || updateLoanStatusMutation.isPending}
                               onClick={() => handleLoanStatus(loan.id, 'approved')}
                             >
                               {pendingStatusLoans[loan.id] ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              className="btn btn-danger btn-sm"
+                            </Button>
+                            <Button
+                              variant="danger" size="sm"
                               disabled={pendingStatusLoans[loan.id] || updateLoanStatusMutation.isPending}
                               onClick={() => handleLoanStatus(loan.id, 'rejected')}
                             >
                               {pendingStatusLoans[loan.id] ? 'Processing...' : 'Reject'}
-                            </button>
+                            </Button>
                           </>
                         )}
                         {(user.role === 'admin' || user.role === 'agent') && renderRecoveryEditor(loan)}
                         {canDelete && (
-                          <button className="btn btn-danger btn-sm" disabled={pendingDeleteLoans[loan.id] || deleteLoanMutation.isPending} onClick={() => handleDeleteLoan(loan.id)}>
+                          <Button variant="danger" size="sm" disabled={pendingDeleteLoans[loan.id] || deleteLoanMutation.isPending} onClick={() => handleDeleteLoan(loan.id)}>
                             {pendingDeleteLoans[loan.id] ? 'Deleting...' : 'Delete'}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -869,20 +871,20 @@ function Loans({ user }) {
               </label>
               <div className="field-group">
                 <span className="field-label">Simulation</span>
-                <button
+                <Button
                   type="button"
-                  className="btn btn-outline-primary"
+                  variant="outline"
                   onClick={handleSimulate}
                   disabled={!applicationForm.amount || !applicationForm.termMonths || !applicationForm.interestRate || simulateLoanMutation.isPending}
                 >
                   {simulateLoanMutation.isPending ? 'Generating…' : 'Generate simulation'}
-                </button>
+                </Button>
               </div>
               <div className="field-group">
                 <span className="field-label">Submit</span>
-                <button className="btn btn-success" type="submit" disabled={createLoanMutation.isPending}>
+                <Button variant="success" type="submit" disabled={createLoanMutation.isPending}>
                   {createLoanMutation.isPending ? 'Submitting…' : 'Apply for loan'}
-                </button>
+                </Button>
               </div>
             </form>
 
@@ -1048,9 +1050,9 @@ function Loans({ user }) {
                           </label>
                           <div className="field-group">
                             <span className="field-label">Create</span>
-                            <button className="btn btn-primary" disabled={pendingPromises[loan.id] || createLoanPromiseMutation.isPending} onClick={() => handleCreatePromise(loan.id)}>
+                            <Button disabled={pendingPromises[loan.id] || createLoanPromiseMutation.isPending} onClick={() => handleCreatePromise(loan.id)}>
                               {pendingPromises[loan.id] ? 'Saving...' : 'Save promise'}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1103,9 +1105,9 @@ function Loans({ user }) {
                           </label>
                           <div className="field-group">
                             <span className="field-label">Upload</span>
-                            <button className="btn btn-primary" onClick={() => handleCreateAttachment(loan.id)}>
+                            <Button onClick={() => handleCreateAttachment(loan.id)}>
                               Upload attachment
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1158,9 +1160,9 @@ function Loans({ user }) {
                           </label>
                           <div className="field-group">
                             <span className="field-label">Upload</span>
-                            <button className="btn btn-primary" onClick={() => handleUploadCustomerDocument(customerId)}>
+                            <Button onClick={() => handleUploadCustomerDocument(customerId)}>
                               Upload document
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1269,12 +1271,12 @@ function Loans({ user }) {
                                   <td>{attachment.category || '-'}</td>
                                   <td>{attachment.customerVisible ? 'Yes' : 'No'}</td>
                                   <td className="table-cell-center">
-                                    <button
-                                      className="btn btn-outline-primary btn-sm"
+                                    <Button
+                                      variant="outline" size="sm"
                                       onClick={() => handleDownloadLoanAttachment(loan.id, attachment.id, attachment.originalName)}
                                     >
                                       Download
-                                    </button>
+                                    </Button>
                                   </td>
                                 </tr>
                               ))
@@ -1306,12 +1308,12 @@ function Loans({ user }) {
                                     <td>{formatCurrency(promise.amount)}</td>
                                     <td>{promise.status}</td>
                                     <td className="table-cell-center">
-                                      <button
-                                        className="btn btn-outline-primary btn-sm"
+                                      <Button
+                                        variant="outline" size="sm"
                                         onClick={() => handleDownloadPromise(loan.id, promise.id)}
                                       >
                                         Download PDF
-                                      </button>
+                                      </Button>
                                     </td>
                                   </tr>
                                 ))
@@ -1341,20 +1343,20 @@ function Loans({ user }) {
                                   <td>{document.category || '-'}</td>
                                   <td>{document.customerVisible ? 'Yes' : 'No'}</td>
                                   <td className="table-cell-center">
-                                    <button
-                                      className="btn btn-outline-primary btn-sm"
+                                    <Button
+                                      variant="outline" size="sm"
                                       onClick={() => handleDownloadCustomerDocument(customerId, document.id, document.originalName)}
                                     >
                                       Download
-                                    </button>
+                                    </Button>
                                     {user.role === 'admin' && (
-                                      <button
-                                        className="btn btn-outline-danger btn-sm"
+                                      <Button
+                                        variant="danger" size="sm"
                                         style={{ marginLeft: '0.25rem' }}
                                         onClick={() => handleDeleteCustomerDocument(customerId, document.id)}
                                       >
                                         Delete
-                                      </button>
+                                      </Button>
                                     )}
                                   </td>
                                 </tr>

@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
-import './index.css'
+import './index.scss'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 const queryClient = new QueryClient({
