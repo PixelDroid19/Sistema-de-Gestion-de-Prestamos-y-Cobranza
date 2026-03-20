@@ -38,6 +38,15 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.download(download.absolutePath, download.document.originalName);
   }));
 
+  router.delete('/:id/documents/:documentId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    await useCases.deleteCustomerDocument({
+      actor: req.user,
+      customerId: req.params.id,
+      documentId: req.params.documentId,
+    });
+    res.json({ success: true, message: 'Document deleted successfully' });
+  }));
+
   return router;
 };
 

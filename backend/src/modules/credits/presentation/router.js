@@ -110,6 +110,18 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.status(201).json({ success: true, message: 'Promise to pay created successfully', data: { promise } });
   }));
 
+  router.get('/:loanId/promises/:promiseId/download', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const download = await useCases.downloadPromiseToPay({
+      actor: req.user,
+      loanId: req.params.loanId,
+      promiseId: req.params.promiseId,
+    });
+
+    res.setHeader('Content-Type', download.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${download.fileName}"`);
+    res.send(download.buffer);
+  }));
+
   router.post('/:id/attachments', authMiddleware(['admin', 'agent']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
     const attachment = await useCases.createLoanAttachment({
       actor: req.user,

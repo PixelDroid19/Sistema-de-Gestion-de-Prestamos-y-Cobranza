@@ -18,12 +18,19 @@ import {
   useDeleteAssociateMutation,
   useUpdateAssociateMutation,
 } from '../hooks/useAssociates';
+import {
+  useUsersQuery,
+  useUpdateUserMutation,
+  useDeactivateUserMutation,
+  useReactivateUserMutation,
+} from '../hooks/useUsers';
 import { reportService } from '../services/reportService';
 
 const REPORT_TABS = [
   { id: 'overview', label: 'Overview', icon: '📊', description: 'Portfolio totals, recovery rate, and high-level operating context.' },
   { id: 'recovered', label: 'Recovered', icon: '✅', description: 'Loans that have completed recovery successfully.' },
   { id: 'outstanding', label: 'Outstanding', icon: '⏳', description: 'Balances that still require follow-up and collection attention.' },
+  { id: 'users', label: 'Users', icon: '👥', description: 'Manage user accounts, roles, and permissions.', adminOnly: true },
 ];
 
 const emptyAssociateForm = {
@@ -114,6 +121,16 @@ function Reports({ user }) {
   const creditHistory = creditHistoryQuery.data?.data?.history || null;
   const loading = isSocio ? associateProfitabilityQuery.isLoading : recoveryReportQuery.isLoading;
 
+  // User management queries and mutations
+  const usersQuery = useUsersQuery({ enabled: isAdmin && activeTab === 'users' });
+  const updateUserMutation = useUpdateUserMutation();
+  const deactivateUserMutation = useDeactivateUserMutation();
+  const reactivateUserMutation = useReactivateUserMutation();
+  const users = usersQuery.data?.data || [];
+  const [editingUser, setEditingUser] = useState(null);
+  const [userRoleForm, setUserRoleForm] = useState({ role: '' });
+  const currentUserId = Number(user.id);
+
   useEffect(() => {
     const sourceError = recoveryReportQuery.error
       || recoveredLoansQuery.error
@@ -122,6 +139,7 @@ function Reports({ user }) {
       || associatePortalQuery.error
       || creditHistoryQuery.error
       || associatesQuery.error
+      || usersQuery.error
       || selectedAssociatePortalQuery.error
       || selectedAssociateProfitabilityQuery.error;
 
@@ -138,7 +156,13 @@ function Reports({ user }) {
     recoveryReportQuery.error,
     selectedAssociatePortalQuery.error,
     selectedAssociateProfitabilityQuery.error,
+    usersQuery.error,
   ]);
+
+  const clearMessages = () => {
+    setError('');
+    setSuccess('');
+  };
 
   useEffect(() => {
     if (!selectedAssociateId) {
@@ -187,6 +211,44 @@ function Reports({ user }) {
   const showSuccess = (message) => {
     setSuccess(message);
     setError('');
+  };
+
+  const handleUserRoleSave = async (targetUserId) => {
+    clearMessages();
+
+    try {
+      await updateUserMutation.mutateAsync({ userId: targetUserId, payload: { role: userRoleForm.role } });
+      setEditingUser(null);
+      showSuccess('User role updated successfully');
+    } catch (err) {
+      handleApiError(err, setError);
+    }
+  };
+
+  const handleDeactivateUser = async (targetUser) => {
+    if (!window.confirm(`Deactivate user ${targetUser.name}?`)) {
+      return;
+    }
+
+    clearMessages();
+
+    try {
+      await deactivateUserMutation.mutateAsync(targetUser.id);
+      showSuccess('User deactivated successfully');
+    } catch (err) {
+      handleApiError(err, setError);
+    }
+  };
+
+  const handleReactivateUser = async (targetUser) => {
+    clearMessages();
+
+    try {
+      await reactivateUserMutation.mutateAsync(targetUser.id);
+      showSuccess('User reactivated successfully');
+    } catch (err) {
+      handleApiError(err, setError);
+    }
   };
 
   const loadReports = async () => {
@@ -588,7 +650,7 @@ function Reports({ user }) {
             </div>
             <div className="surface-card__body">
               <div className="page-tabs">
-                {REPORT_TABS.map((tab) => (
+                {REPORT_TABS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => (
                   <button key={tab.id} className={`page-tab${activeTab === tab.id ? ' page-tab--active' : ''}`} onClick={() => setActiveTab(tab.id)}>
                     {tab.icon} {tab.label}
                   </button>
@@ -615,6 +677,117 @@ function Reports({ user }) {
               )}
               {activeTab === 'recovered' && renderRecoveredTable()}
               {activeTab === 'outstanding' && renderOutstandingTable()}
+              {activeTab === 'users' && isAdmin && (
+                <div className="table-wrap">
+                  {usersQuery.isLoading ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading users...</div>
+                  ) : users.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No users found.</div>
+                  ) : (
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Role</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((user) => (
+                          <tr key={user.id}>
+                            <td>#{user.id}</td>
+                            <td>{user.name}</td>
+                            <td>{user.email}</td>
+                            <td>
+                              {editingUser === user.id ? (
+                                <select
+                                  className="form-control"
+                                  value={userRoleForm.role || user.role}
+                                  onChange={(e) => setUserRoleForm({ role: e.target.value })}
+                                  style={{ width: 'auto' }}
+                                >
+                                  <option value="customer">Customer</option>
+                                  <option value="agent">Agent</option>
+                                  <option value="socio">Socio</option>
+                                  <option value="admin">Admin</option>
+                                </select>
+                              ) : (
+                                <span className={`status-badge status-badge--${user.role === 'admin' ? 'active' : user.role === 'agent' ? 'info' : 'default'}`}>
+                                  {user.role}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`status-badge status-badge--${user.isActive !== false ? 'active' : 'danger'}`}>
+                                {user.isActive !== false ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {editingUser === user.id ? (
+                                  <>
+                                    <button
+                                      className="btn btn-success btn-sm"
+                                      type="button"
+                                      disabled={updateUserMutation.isPending}
+                                      onClick={() => handleUserRoleSave(user.id)}
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      type="button"
+                                      onClick={() => setEditingUser(null)}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      className="btn btn-outline-primary btn-sm"
+                                      type="button"
+                                      onClick={() => {
+                                        clearMessages();
+                                        setEditingUser(user.id);
+                                        setUserRoleForm({ role: user.role });
+                                      }}
+                                    >
+                                      Edit Role
+                                    </button>
+                                    {user.isActive !== false ? (
+                                      <button
+                                        className="btn btn-danger btn-sm"
+                                        type="button"
+                                        disabled={deactivateUserMutation.isPending || Number(user.id) === currentUserId}
+                                        onClick={() => handleDeactivateUser(user)}
+                                      >
+                                        Deactivate
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="btn btn-success btn-sm"
+                                        type="button"
+                                        disabled={reactivateUserMutation.isPending}
+                                        onClick={() => handleReactivateUser(user)}
+                                      >
+                                        Reactivate
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -701,7 +874,8 @@ function Reports({ user }) {
                 {selectedAssociateId && (
                   <div className="section-actions" style={{ marginBottom: '1rem' }}>
                     <button className="btn btn-primary" onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</button>
-                    <button className="btn btn-danger" onClick={handleDeleteAssociate} disabled={deleteAssociateMutation.isPending}>Delete associate</button>
+                    <button className="btn btn-primary" type="button" onClick={handleUpdateAssociate} disabled={updateAssociateMutation.isPending}>Update associate</button>
+                    <button className="btn btn-danger" type="button" onClick={handleDeleteAssociate} disabled={deleteAssociateMutation.isPending}>Delete associate</button>
                   </div>
                 )}
 
@@ -729,7 +903,7 @@ function Reports({ user }) {
                       </label>
                       <div className="field-group">
                         <span className="field-label">Action</span>
-                        <button className="btn btn-primary" onClick={handleCreateContribution} disabled={createContributionMutation.isPending}>Add contribution</button>
+                        <button className="btn btn-primary" type="button" onClick={handleCreateContribution} disabled={createContributionMutation.isPending}>Add contribution</button>
                       </div>
                     </div>
 
@@ -748,7 +922,7 @@ function Reports({ user }) {
                       </label>
                       <div className="field-group">
                         <span className="field-label">Action</span>
-                        <button className="btn btn-primary" onClick={handleCreateDistribution} disabled={createDistributionMutation.isPending}>Add distribution</button>
+                        <button className="btn btn-primary" type="button" onClick={handleCreateDistribution} disabled={createDistributionMutation.isPending}>Add distribution</button>
                       </div>
                     </div>
                   </>
@@ -773,7 +947,7 @@ function Reports({ user }) {
                   </label>
                   <div className="field-group">
                     <span className="field-label">Action</span>
-                    <button className="btn btn-outline-primary" onClick={handleCreateProportionalDistribution} disabled={createProportionalDistributionMutation.isPending}>Run proportional distribution</button>
+                    <button className="btn btn-outline-primary" type="button" onClick={handleCreateProportionalDistribution} disabled={createProportionalDistributionMutation.isPending}>Run proportional distribution</button>
                   </div>
                 </div>
 

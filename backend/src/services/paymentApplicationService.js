@@ -1,19 +1,50 @@
 const { sequelize, Loan, Payment } = require('../models');
-const { NotFoundError, ValidationError } = require('../utils/errorHandler');
+const { NotFoundError, ValidationError, AuthorizationError } = require('../utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
+const PARTIAL_PAYMENT_TYPE = 'partial';
+const CAPITAL_PAYMENT_TYPE = 'capital';
+
+const INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
+const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
+
+/**
+ * Determine if an installment is overdue based on its due date.
+ * @param {object} row - Installment row
+ * @param {Date} asOfDate - Date to check against (defaults to now)
+ * @returns {boolean}
+ */
+const isInstallmentOverdue = (row, asOfDate = new Date()) => {
+  if (row.status === 'paid' || row.status === 'annulled') {
+    return false;
+  }
+  const dueDate = new Date(row.dueDate);
+  return dueDate < asOfDate;
+};
+
+const normalizeScheduleStatuses = (schedule, asOfDate = new Date()) => {
+  schedule.forEach((row) => updateRowStatus(row, asOfDate));
+  return schedule;
+};
 
 /**
  * Refresh an installment row status after payment allocation mutates its balances.
  * @param {object} row
  */
-const updateRowStatus = (row) => {
+const updateRowStatus = (row, asOfDate = new Date()) => {
   const outstanding = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+
+  if (row.status === 'annulled') {
+    // Don't change annulled status
+    return;
+  }
 
   if (outstanding <= 0) {
     row.status = 'paid';
+  } else if (isInstallmentOverdue(row, asOfDate)) {
+    row.status = 'overdue';
   } else if ((row.paidTotal || 0) > 0) {
     row.status = 'partial';
   } else {
@@ -21,7 +52,27 @@ const updateRowStatus = (row) => {
   }
 };
 
-const payableLoanStatuses = new Set(['approved', 'active', 'defaulted']);
+const buildSnapshot = (schedule) => {
+  const actionableRows = schedule.filter((row) => row.status !== 'annulled');
+  const rawSnapshot = summarizeSchedule(actionableRows);
+  const nextInstallment = actionableRows.find((row) => (
+    roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0)) > 0
+  )) || null;
+
+  return {
+    ...rawSnapshot,
+    outstandingInstallments: actionableRows.filter((row) => row.status !== 'paid').length,
+    nextInstallment: nextInstallment ? {
+      installmentNumber: nextInstallment.installmentNumber,
+      dueDate: nextInstallment.dueDate,
+      scheduledPayment: roundCurrency(nextInstallment.scheduledPayment),
+      remainingPrincipal: roundCurrency(nextInstallment.remainingPrincipal),
+      remainingInterest: roundCurrency(nextInstallment.remainingInterest),
+    } : null,
+  };
+};
+
+const payableLoanStatuses = new Set(['approved', 'active', 'defaulted', 'overdue']);
 
 const normalizePaymentDate = (paymentDate) => new Date(paymentDate);
 
@@ -60,7 +111,20 @@ const persistLoanSnapshot = ({ loan, snapshot, schedule, paymentDate, closeLoan 
   }
 };
 
-const buildInstallmentPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, overpaymentAmount, snapshot, allocations }) => ({
+const buildInstallmentPaymentCreatePayload = ({
+  loan,
+  amount,
+  paymentDate,
+  principalApplied,
+  interestApplied,
+  penaltyApplied = 0,
+  additionalPrincipalApplied = 0,
+  overpaymentAmount,
+  unappliedOverpaymentAmount = 0,
+  snapshot,
+  allocations,
+  installmentNumber,
+}) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -68,10 +132,16 @@ const buildInstallmentPaymentCreatePayload = ({ loan, amount, paymentDate, princ
   paymentType: INSTALLMENT_PAYMENT_TYPE,
   principalApplied,
   interestApplied,
+  penaltyApplied,
   overpaymentAmount,
   remainingBalanceAfterPayment: snapshot.outstandingBalance,
   allocationBreakdown: allocations,
-  paymentMetadata: {},
+  paymentMetadata: {
+    penaltyApplied,
+    additionalPrincipalApplied,
+    unappliedOverpaymentAmount,
+  },
+  installmentNumber,
 });
 
 const buildPayoffAllocationBreakdown = (quote) => {
@@ -120,26 +190,63 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
 });
 
 /**
+ * Build partial payment payload (free amount, goes to interest then principal)
+ */
+const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, remainingBalanceAfterPayment }) => ({
+  loanId: loan.id,
+  amount,
+  paymentDate,
+  status: 'completed',
+  paymentType: PARTIAL_PAYMENT_TYPE,
+  principalApplied,
+  interestApplied,
+  overpaymentAmount: 0,
+  remainingBalanceAfterPayment,
+  allocationBreakdown: [],
+  paymentMetadata: { partial: true },
+});
+
+/**
+ * Build capital payment payload (reduces principal directly)
+ */
+const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot }) => ({
+  loanId: loan.id,
+  amount,
+  paymentDate,
+  status: 'completed',
+  paymentType: CAPITAL_PAYMENT_TYPE,
+  principalApplied,
+  interestApplied: 0,
+  overpaymentAmount: 0,
+  remainingBalanceAfterPayment: snapshot.outstandingBalance,
+  allocationBreakdown: [],
+  paymentMetadata: { capital_reduction: true },
+});
+
+/**
  * Create the payment application service that mutates canonical schedules and payment records together.
- * @param {{ sequelizeInstance?: object, loanModel?: object, paymentModel?: object, loanViewService: { getCanonicalLoanView: Function } }} [options]
- * @returns {{ applyPayment: Function }}
  */
 const createPaymentApplicationService = ({
   sequelizeInstance = sequelize,
   loanModel = Loan,
   paymentModel = Payment,
   loanViewService,
+  clock = () => new Date(),
 } = {}) => {
   if (!loanViewService || typeof loanViewService.getCanonicalLoanView !== 'function') {
     throw new Error('paymentApplicationService requires a loanViewService with getCanonicalLoanView()');
   }
 
   /**
-   * Apply a payment to the next outstanding interest and principal buckets in the canonical schedule.
-   * @param {{ loanId: number, amount: number, paymentDate?: string|Date }} input
-   * @returns {Promise<{ payment: object, loan: object, allocation: object }>}
+   * Apply a payment following the waterfall order:
+   * 1. Penalizaciones por mora (late fees/penalties) — if any overdue installments exist
+   * 2. Intereses normales (normal interest) from overdue installments
+   * 3. Capital de la cuota (installment principal) from overdue installments
+   * 4. Intereses normales from current/future installments
+   * 5. Capital de la cuota from current/future installments
+   * 6. Abonos adicionales a capital (excess overpayment reduces future principal)
    */
-  const applyPayment = async ({ loanId, amount, paymentDate = new Date() }) => {
+  const applyPayment = async ({ loanId, amount, paymentDate = clock() }) => {
     return sequelizeInstance.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction });
 
@@ -151,51 +258,162 @@ const createPaymentApplicationService = ({
 
       const numericAmount = assertPositiveAmount(amount);
 
+      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
       const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
-      const schedule = cloneSchedule(canonicalSchedule);
+      const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+      const now = normalizedPaymentDate;
       let remainingPayment = numericAmount;
       const allocations = [];
-      let principalApplied = 0;
-      let interestApplied = 0;
+      let totalPrincipalApplied = 0;
+      let totalInterestApplied = 0;
+      let penaltyApplied = 0;
+      let additionalPrincipalApplied = 0;
+      let targetInstallment = null;
 
-      for (const row of schedule) {
-        if (remainingPayment <= 0) {
-          break;
+      // ── Phase 1: Collect all overdue installments first ───────────────────────
+      // If any installment is overdue, ALL overdue amounts must be paid first
+      // (penalty interest + overdue interest + overdue principal)
+      const hasOverdue = schedule.some((row) => {
+        const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+        return outstanding > 0 && row.status === 'overdue';
+      });
+
+      if (hasOverdue) {
+        // Penalizaciones por mora: iterate overdue installments and pay interest first
+        for (const row of schedule) {
+          if (remainingPayment <= 0) break;
+
+          const outstanding = roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0));
+          if (outstanding <= 0 || row.status !== 'overdue') {
+            updateRowStatus(row, now);
+            continue;
+          }
+
+          // Penalizaciones por mora: interest portion first (includes accrued late fees)
+          const applyInterest = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
+          row.paidInterest = roundCurrency((row.paidInterest || 0) + applyInterest);
+          row.remainingInterest = roundCurrency((row.remainingInterest || 0) - applyInterest);
+          remainingPayment = roundCurrency(remainingPayment - applyInterest);
+          totalInterestApplied = roundCurrency(totalInterestApplied + applyInterest);
+
+          // Intereses normales: then principal
+          const applyPrincipal = Math.min(remainingPayment, roundCurrency(row.remainingPrincipal || 0));
+          row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + applyPrincipal);
+          row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - applyPrincipal);
+          remainingPayment = roundCurrency(remainingPayment - applyPrincipal);
+          totalPrincipalApplied = roundCurrency(totalPrincipalApplied + applyPrincipal);
+
+          row.paidTotal = roundCurrency((row.paidTotal || 0) + applyInterest + applyPrincipal);
+          updateRowStatus(row, now);
+
+          if (!targetInstallment && (row.paidPrincipal > 0 || row.paidInterest > 0)) {
+            targetInstallment = row.installmentNumber;
+          }
+
+          allocations.push({
+            installmentNumber: row.installmentNumber,
+            interestApplied: applyInterest,
+            principalApplied: applyPrincipal,
+            remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0)),
+            status: row.status,
+            bucket: 'overdue',
+          });
         }
-
-        const rowOutstanding = roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0));
-        if (rowOutstanding <= 0) {
-          updateRowStatus(row);
-          continue;
-        }
-
-        const applyInterest = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
-        row.paidInterest = roundCurrency((row.paidInterest || 0) + applyInterest);
-        row.remainingInterest = roundCurrency((row.remainingInterest || 0) - applyInterest);
-        remainingPayment = roundCurrency(remainingPayment - applyInterest);
-        interestApplied = roundCurrency(interestApplied + applyInterest);
-
-        const applyPrincipal = Math.min(remainingPayment, roundCurrency(row.remainingPrincipal || 0));
-        row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + applyPrincipal);
-        row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - applyPrincipal);
-        remainingPayment = roundCurrency(remainingPayment - applyPrincipal);
-        principalApplied = roundCurrency(principalApplied + applyPrincipal);
-
-        row.paidTotal = roundCurrency((row.paidTotal || 0) + applyInterest + applyPrincipal);
-        updateRowStatus(row);
-
-        allocations.push({
-          installmentNumber: row.installmentNumber,
-          interestApplied: applyInterest,
-          principalApplied: applyPrincipal,
-          remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0)),
-          status: row.status,
-        });
       }
 
-      const snapshot = summarizeSchedule(schedule);
+      // ── Phase 2: Pay current/future installments in order ─────────────────────
+      if (remainingPayment > 0) {
+        for (const row of schedule) {
+          if (remainingPayment <= 0) break;
+
+          const outstanding = roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0));
+          if (outstanding <= 0 || row.status === 'annulled') {
+            updateRowStatus(row, now);
+            continue;
+          }
+
+          const existingAlloc = allocations.find((allocation) => allocation.installmentNumber === row.installmentNumber);
+          if (existingAlloc) {
+            continue;
+          }
+
+          const applyInterest = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
+          row.paidInterest = roundCurrency((row.paidInterest || 0) + applyInterest);
+          row.remainingInterest = roundCurrency((row.remainingInterest || 0) - applyInterest);
+          remainingPayment = roundCurrency(remainingPayment - applyInterest);
+          totalInterestApplied = roundCurrency(totalInterestApplied + applyInterest);
+
+          const applyPrincipal = Math.min(remainingPayment, roundCurrency(row.remainingPrincipal || 0));
+          row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + applyPrincipal);
+          row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - applyPrincipal);
+          remainingPayment = roundCurrency(remainingPayment - applyPrincipal);
+          totalPrincipalApplied = roundCurrency(totalPrincipalApplied + applyPrincipal);
+
+          row.paidTotal = roundCurrency((row.paidTotal || 0) + applyInterest + applyPrincipal);
+          updateRowStatus(row, now);
+
+          if (!targetInstallment && (row.paidPrincipal > 0 || row.paidInterest > 0)) {
+            targetInstallment = row.installmentNumber;
+          }
+
+          allocations.push({
+            installmentNumber: row.installmentNumber,
+            interestApplied: applyInterest,
+            principalApplied: applyPrincipal,
+            remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0)),
+            status: row.status,
+            bucket: 'scheduled',
+          });
+        }
+      }
+
+      // ── Phase 3: Abonos adicionales a capital ────────────────────────────────
+      // Any excess after clearing overdue debt and the next scheduled installment
+      // goes directly to principal reduction without prepaying future interest.
       const overpaymentAmount = roundCurrency(remainingPayment);
-      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
+      let remainingOverpayment = overpaymentAmount;
+      if (overpaymentAmount > 0) {
+        for (const row of schedule) {
+          if (remainingOverpayment <= 0) break;
+          if (row.status === 'annulled') continue;
+
+          const rowPrincipal = roundCurrency(row.remainingPrincipal || 0);
+          if (rowPrincipal <= 0) continue;
+
+          const reduction = Math.min(rowPrincipal, remainingOverpayment);
+          row.remainingPrincipal = roundCurrency(rowPrincipal - reduction);
+          row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + reduction);
+          row.paidTotal = roundCurrency((row.paidTotal || 0) + reduction);
+          remainingOverpayment = roundCurrency(remainingOverpayment - reduction);
+          totalPrincipalApplied = roundCurrency(totalPrincipalApplied + reduction);
+          additionalPrincipalApplied = roundCurrency(additionalPrincipalApplied + reduction);
+          updateRowStatus(row, now);
+
+          if (!targetInstallment) {
+            targetInstallment = row.installmentNumber;
+          }
+
+          const existingAlloc = allocations.find((a) => a.installmentNumber === row.installmentNumber);
+          if (existingAlloc) {
+            existingAlloc.principalApplied = roundCurrency(existingAlloc.principalApplied + reduction);
+            existingAlloc.remainingInstallmentBalance = roundCurrency((row.remainingInterest || 0) + row.remainingPrincipal);
+            existingAlloc.status = row.status;
+          }
+          else {
+            allocations.push({
+              installmentNumber: row.installmentNumber,
+              interestApplied: 0,
+              principalApplied: reduction,
+              remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + row.remainingPrincipal),
+              status: row.status,
+              bucket: 'additional_principal',
+            });
+          }
+        }
+      }
+
+      const snapshot = buildSnapshot(schedule);
+      const unappliedOverpaymentAmount = roundCurrency(remainingOverpayment);
 
       persistLoanSnapshot({
         loan,
@@ -212,20 +430,27 @@ const createPaymentApplicationService = ({
         loan,
         amount: numericAmount,
         paymentDate: normalizedPaymentDate,
-        principalApplied,
-        interestApplied,
+        principalApplied: totalPrincipalApplied,
+        interestApplied: totalInterestApplied,
+        penaltyApplied,
+        additionalPrincipalApplied,
         overpaymentAmount,
+        unappliedOverpaymentAmount,
         snapshot,
         allocations,
+        installmentNumber: targetInstallment,
       }), { transaction });
 
       return {
         payment,
         loan,
         allocation: {
-          principalApplied,
-          interestApplied,
+          principalApplied: totalPrincipalApplied,
+          interestApplied: totalInterestApplied,
+          penaltyApplied,
+          additionalPrincipalApplied,
           overpaymentAmount,
+          unappliedOverpaymentAmount,
           remainingBalance: snapshot.outstandingBalance,
           outstandingInstallments: snapshot.outstandingInstallments,
           nextInstallment: snapshot.nextInstallment,
@@ -235,7 +460,208 @@ const createPaymentApplicationService = ({
     });
   };
 
-  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = new Date() }) => {
+  /**
+   * Apply a partial payment (free amount within limits).
+   * Follows the same overdue-first waterfall: penalizaciones → intereses → capital.
+   */
+  const applyPartialPayment = async ({ loanId, amount, paymentDate = clock() }) => {
+    return sequelizeInstance.transaction(async (transaction) => {
+      const loan = await loanModel.findByPk(loanId, { transaction });
+
+      if (!loan) {
+        throw new NotFoundError('Loan');
+      }
+
+      assertPayableLoanStatus(loan);
+
+      const numericAmount = assertPositiveAmount(amount);
+
+      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
+      const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
+      const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+      const now = normalizedPaymentDate;
+
+      // Collect all overdue installments first
+      const hasOverdue = schedule.some((row) => {
+        const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+        return outstanding > 0 && row.status === 'overdue';
+      });
+
+      let remainingPayment = numericAmount;
+      let totalPrincipalApplied = 0;
+      let totalInterestApplied = 0;
+
+      if (hasOverdue) {
+        // Penalizaciones por mora: pay overdue installments first
+        for (const row of schedule) {
+          if (remainingPayment <= 0) break;
+
+          const outstanding = roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0));
+          if (outstanding <= 0 || row.status !== 'overdue') continue;
+
+          // Interest first (penalty + normal interest)
+          const interestToApply = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
+          row.paidInterest = roundCurrency((row.paidInterest || 0) + interestToApply);
+          row.remainingInterest = roundCurrency((row.remainingInterest || 0) - interestToApply);
+          remainingPayment = roundCurrency(remainingPayment - interestToApply);
+          totalInterestApplied = roundCurrency(totalInterestApplied + interestToApply);
+
+          // Capital de la cuota: then principal
+          const principalToApply = Math.min(remainingPayment, roundCurrency(row.remainingPrincipal || 0));
+          row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + principalToApply);
+          row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - principalToApply);
+          remainingPayment = roundCurrency(remainingPayment - principalToApply);
+          totalPrincipalApplied = roundCurrency(totalPrincipalApplied + principalToApply);
+
+          row.paidTotal = roundCurrency((row.paidTotal || 0) + interestToApply + principalToApply);
+          updateRowStatus(row, now);
+        }
+      }
+
+      // If still have payment left and not fully allocated, apply to current/future installments
+      if (remainingPayment > 0) {
+        // Find first non-paid, non-annulled installment not already processed
+        const targetRow = schedule.find((row) => {
+          const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+          return outstanding > 0 && row.status !== 'annulled' && row.status !== 'overdue';
+        });
+
+        if (targetRow) {
+          const installmentOutstanding = roundCurrency(
+            (targetRow.remainingInterest || 0) + (targetRow.remainingPrincipal || 0)
+          );
+
+          const cappedAmount = Math.min(remainingPayment, installmentOutstanding);
+
+          const interestToApply = Math.min(cappedAmount, roundCurrency(targetRow.remainingInterest || 0));
+          const principalToApply = roundCurrency(cappedAmount - interestToApply);
+
+          targetRow.paidInterest = roundCurrency((targetRow.paidInterest || 0) + interestToApply);
+          targetRow.remainingInterest = roundCurrency((targetRow.remainingInterest || 0) - interestToApply);
+          targetRow.paidPrincipal = roundCurrency((targetRow.paidPrincipal || 0) + principalToApply);
+          targetRow.remainingPrincipal = roundCurrency((targetRow.remainingPrincipal || 0) - principalToApply);
+          targetRow.paidTotal = roundCurrency((targetRow.paidTotal || 0) + interestToApply + principalToApply);
+          updateRowStatus(targetRow, now);
+
+          totalInterestApplied = roundCurrency(totalInterestApplied + interestToApply);
+          totalPrincipalApplied = roundCurrency(totalPrincipalApplied + principalToApply);
+        }
+      }
+
+      const snapshot = buildSnapshot(schedule);
+
+      persistLoanSnapshot({
+        loan,
+        snapshot,
+        schedule,
+        paymentDate: normalizedPaymentDate,
+        closeLoan: snapshot.outstandingBalance <= 0.01,
+        closureReason: snapshot.outstandingBalance <= 0.01 ? 'schedule_completion' : null,
+      });
+
+      await loan.save({ transaction });
+
+      const payment = await paymentModel.create(buildPartialPaymentCreatePayload({
+        loan,
+        amount: numericAmount,
+        paymentDate: normalizedPaymentDate,
+        principalApplied: totalPrincipalApplied,
+        interestApplied: totalInterestApplied,
+        remainingBalanceAfterPayment: snapshot.outstandingBalance,
+      }), { transaction });
+
+      return {
+        payment,
+        loan,
+        allocation: {
+          amount: numericAmount,
+          principalApplied: totalPrincipalApplied,
+          interestApplied: totalInterestApplied,
+          remainingBalance: snapshot.outstandingBalance,
+          installmentNumber: schedule.find((r) => (r.paidPrincipal > 0 || r.paidInterest > 0))?.installmentNumber || null,
+        },
+      };
+    });
+  };
+
+  /**
+   * Apply a capital payment (reduces debt principal directly)
+   */
+  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock() }) => {
+    return sequelizeInstance.transaction(async (transaction) => {
+      const loan = await loanModel.findByPk(loanId, { transaction });
+
+      if (!loan) {
+        throw new NotFoundError('Loan');
+      }
+
+      assertPayableLoanStatus(loan);
+
+      const numericAmount = assertPositiveAmount(amount);
+
+      // Capital payment reduces principalOutstanding directly
+      const principalReduction = Math.min(numericAmount, roundCurrency(loan.principalOutstanding || 0));
+      
+      if (principalReduction <= 0) {
+        throw new ValidationError('No principal outstanding to reduce');
+      }
+
+      // Recalculate schedule with reduced principal
+      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
+      const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
+      const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+
+      // Find installments with remaining principal and reduce debt directly.
+      let principalRemaining = principalReduction;
+      for (const row of schedule) {
+        if (principalRemaining <= 0) break;
+        
+        const rowPrincipal = roundCurrency(row.remainingPrincipal || 0);
+        if (rowPrincipal <= 0) continue;
+
+        const reduction = Math.min(rowPrincipal, principalRemaining);
+        row.remainingPrincipal = roundCurrency(rowPrincipal - reduction);
+        row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + reduction);
+        row.paidTotal = roundCurrency((row.paidTotal || 0) + reduction);
+        principalRemaining = roundCurrency(principalRemaining - reduction);
+        updateRowStatus(row, normalizedPaymentDate);
+      }
+
+      const snapshot = buildSnapshot(schedule);
+
+      persistLoanSnapshot({
+        loan,
+        snapshot,
+        schedule,
+        paymentDate: normalizedPaymentDate,
+      });
+
+      await loan.save({ transaction });
+
+      const payment = await paymentModel.create(buildCapitalPaymentCreatePayload({
+        loan,
+        amount: principalReduction,
+        paymentDate: normalizedPaymentDate,
+        principalApplied: principalReduction,
+        snapshot,
+      }), { transaction });
+
+      return {
+        payment,
+        loan,
+        allocation: {
+          amount: principalReduction,
+          principalApplied: principalReduction,
+          remainingPrincipalOutstanding: snapshot.outstandingPrincipal,
+        },
+      };
+    });
+  };
+
+  /**
+   * Apply payoff (total payment to close the loan)
+   */
+  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock() }) => {
     return sequelizeInstance.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction });
 
@@ -271,7 +697,7 @@ const createPaymentApplicationService = ({
           status: 'paid',
         };
       });
-      const snapshot = summarizeSchedule(schedule);
+      const snapshot = buildSnapshot(schedule);
 
       persistLoanSnapshot({
         loan,
@@ -310,12 +736,138 @@ const createPaymentApplicationService = ({
     });
   };
 
+  /**
+   * Annul the nearest pending or overdue installment.
+   * Only the nearest cancellable installment can be annulled (accounting integrity rule).
+   */
+  const annulInstallment = async ({ loanId, actor, paymentDate = clock() }) => {
+    if (actor?.role !== 'admin' && actor?.role !== 'agent') {
+      throw new AuthorizationError('Only admins and agents can annul installments');
+    }
+
+    return sequelizeInstance.transaction(async (transaction) => {
+      const loan = await loanModel.findByPk(loanId, { transaction });
+
+      if (!loan) {
+        throw new NotFoundError('Loan');
+      }
+
+      const cancellableLoanStatuses = new Set(['active', 'overdue', 'defaulted']);
+      if (!cancellableLoanStatuses.has(loan.status)) {
+        throw new ValidationError('Cannot annul installments on a loan with status: ' + loan.status);
+      }
+
+      const normalizedPaymentDate = normalizePaymentDate(paymentDate);
+      const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
+      const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+
+      // Find the nearest cancellable installment
+      // Must be pending or overdue, not already paid, partial, or annulled
+      const cancellableRow = schedule.find((row) => {
+        const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+        return outstanding > 0 && CANCELLABLE_STATUSES.has(row.status);
+      });
+
+      if (!cancellableRow) {
+        throw new ValidationError('No cancellable installments found. All installments may already be paid or annulled.');
+      }
+
+      // Validate this is the nearest one (no paid/partial installments before it)
+      const rowIndex = schedule.findIndex((r) => r.installmentNumber === cancellableRow.installmentNumber);
+      const hasEarlierNonCancelled = schedule.slice(0, rowIndex).some((row) => {
+        const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+        return outstanding > 0 && row.status !== 'annulled' && !CANCELLABLE_STATUSES.has(row.status);
+      });
+
+      if (hasEarlierNonCancelled) {
+        throw new ValidationError('Cannot annul this installment. Only the nearest pending or overdue installment can be annulled.');
+      }
+
+      const previousStatus = cancellableRow.status;
+
+      // Mark installment as annulled
+      cancellableRow.status = 'annulled';
+      cancellableRow.paidPrincipal = 0;
+      cancellableRow.paidInterest = 0;
+      cancellableRow.paidTotal = 0;
+      // Keep remaining amounts as-is (the debt is cancelled, not redistributed)
+
+      const snapshot = buildSnapshot(schedule);
+
+      // Check if this was the last active installment
+      const hasActiveRemaining = schedule.some((row) => {
+        const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
+        return outstanding > 0 && row.status !== 'annulled';
+      });
+
+      persistLoanSnapshot({
+        loan,
+        snapshot,
+        schedule,
+        paymentDate: normalizedPaymentDate,
+        closeLoan: !hasActiveRemaining,
+        closureReason: !hasActiveRemaining ? 'annulled' : null,
+      });
+
+      // If loan is now closed, set appropriate status
+      if (!hasActiveRemaining) {
+        loan.status = 'cancelled';
+        loan.closureReason = 'annulled';
+        loan.closedAt = normalizedPaymentDate;
+      }
+
+      await loan.save({ transaction });
+
+      // Record the annulment as a special payment record
+      const payment = await paymentModel.create({
+        loanId: loan.id,
+        amount: 0,
+        paymentDate: normalizedPaymentDate,
+        status: 'annulled',
+        paymentType: INSTALLMENT_PAYMENT_TYPE,
+        principalApplied: 0,
+        interestApplied: 0,
+        overpaymentAmount: 0,
+        remainingBalanceAfterPayment: snapshot.outstandingBalance,
+        allocationBreakdown: [{
+          installmentNumber: cancellableRow.installmentNumber,
+          action: 'annulled',
+          previousStatus,
+        }],
+        paymentMetadata: {
+          annulment: {
+            installmentNumber: cancellableRow.installmentNumber,
+            annulledBy: actor.id,
+            annulledAt: normalizedPaymentDate.toISOString(),
+          },
+        },
+        installmentNumber: cancellableRow.installmentNumber,
+        annulledFromInstallment: cancellableRow.installmentNumber,
+      }, { transaction });
+
+      return {
+        payment,
+        loan,
+        annulment: {
+          installmentNumber: cancellableRow.installmentNumber,
+          remainingBalance: snapshot.outstandingBalance,
+          loanClosed: !hasActiveRemaining,
+        },
+      };
+    });
+  };
+
   return {
     applyPayment,
+    applyPartialPayment,
+    applyCapitalPayment,
     applyPayoff,
+    annulInstallment,
   };
 };
 
 module.exports = {
   createPaymentApplicationService,
+  isInstallmentOverdue,
+  CANCELLABLE_STATUSES,
 };

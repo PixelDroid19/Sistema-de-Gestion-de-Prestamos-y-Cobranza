@@ -44,4 +44,8 @@ export const queryKeys = {
     all: () => ['notifications'],
     unreadCount: () => ['notifications', 'unread-count'],
   },
+  users: {
+    all: () => ['users'],
+    detail: (userId) => ['users', userId],
+  },
 };

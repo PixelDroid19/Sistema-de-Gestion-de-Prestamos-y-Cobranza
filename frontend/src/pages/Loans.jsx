@@ -15,7 +15,7 @@ import {
   useUpdateRecoveryStatusMutation,
   useUploadLoanAttachmentMutation,
 } from '../hooks/useLoans';
-import { useUploadCustomerDocumentMutation } from '../hooks/useCustomers';
+import { useUploadCustomerDocumentMutation, useDeleteCustomerDocumentMutation } from '../hooks/useCustomers';
 import { customerService } from '../services/customerService';
 import { loanService } from '../services/loanService';
 import { reportService } from '../services/reportService';
@@ -215,6 +215,7 @@ function Loans({ user }) {
   );
 
   const uploadCustomerDocumentMutation = useUploadCustomerDocumentMutation();
+  const deleteCustomerDocumentMutation = useDeleteCustomerDocumentMutation();
 
   const loadingServicing = paymentQueries.some((query) => query.isLoading)
     || alertQueries.some((query) => query.isLoading)
@@ -484,6 +485,32 @@ function Loans({ user }) {
         loader: () => customerService.downloadDocument(customerId, documentId),
         filename: fileName,
         fallbackFilename: `customer-document-${documentId}`,
+      });
+    } catch (downloadError) {
+      handleApiError(downloadError, setError);
+    }
+  };
+
+  const handleDeleteCustomerDocument = async (customerId, documentId) => {
+    clearMessages();
+
+    try {
+      await deleteCustomerDocumentMutation.mutateAsync({ customerId, documentId });
+      showSuccess('Customer document deleted successfully.');
+    } catch (deleteError) {
+      handleApiError(deleteError, setError);
+    }
+  };
+
+  const handleDownloadPromise = async (loanId, promiseId) => {
+    clearMessages();
+
+    try {
+      const fileName = `promise-to-pay-${promiseId}.pdf`;
+      await downloadFile({
+        loader: () => loanService.downloadLoanPromise(loanId, promiseId),
+        filename: fileName,
+        fallbackFilename: `promise-${promiseId}`,
       });
     } catch (downloadError) {
       handleApiError(downloadError, setError);
@@ -1256,6 +1283,44 @@ function Loans({ user }) {
                         </table>
                       </div>
 
+                      {(user.role === 'admin' || user.role === 'agent') && (
+                        <div className="table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Promise ID</th>
+                                <th>Promised Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th className="table-cell-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(promisesByLoan[loan.id] || []).length === 0 ? (
+                                <tr><td colSpan="5" className="table-cell-center">No promises to pay</td></tr>
+                              ) : (
+                                (promisesByLoan[loan.id] || []).map((promise) => (
+                                  <tr key={promise.id}>
+                                    <td>{promise.id}</td>
+                                    <td>{formatDate(promise.promisedDate)}</td>
+                                    <td>{formatCurrency(promise.amount)}</td>
+                                    <td>{promise.status}</td>
+                                    <td className="table-cell-center">
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => handleDownloadPromise(loan.id, promise.id)}
+                                      >
+                                        Download PDF
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
                       <div className="table-wrap">
                         <table className="data-table">
                           <thead>
@@ -1282,6 +1347,15 @@ function Loans({ user }) {
                                     >
                                       Download
                                     </button>
+                                    {user.role === 'admin' && (
+                                      <button
+                                        className="btn btn-outline-danger btn-sm"
+                                        style={{ marginLeft: '0.25rem' }}
+                                        onClick={() => handleDeleteCustomerDocument(customerId, document.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               ))

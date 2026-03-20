@@ -61,6 +61,160 @@ test('applyPayment allocates payoff amounts and closes a recovered loan', async 
   assert.equal(savedPayment.principalApplied + savedPayment.interestApplied, totalPayable);
 });
 
+test('applyPayment prioritizes overdue debt before current installments and sends excess only to principal', async () => {
+  let savedLoan;
+  let savedPayment;
+
+  const loan = {
+    id: 22,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 3,
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-02-01T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-04-01T00:00:00.000Z',
+        remainingPrincipal: 120,
+        remainingInterest: 12,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 3,
+        dueDate: '2026-05-01T00:00:00.000Z',
+        remainingPrincipal: 130,
+        remainingInterest: 8,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-waterfall' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 777, ...payload };
+  });
+
+  const result = await createPaymentApplicationService({
+    loanViewService,
+    clock: () => new Date('2026-03-15T00:00:00.000Z'),
+  }).applyPayment({
+    loanId: 22,
+    amount: 170,
+    paymentDate: '2026-03-15T00:00:00.000Z',
+  });
+
+  assert.equal(result.allocation.interestApplied, 32);
+  assert.equal(result.allocation.principalApplied, 138);
+  assert.equal(result.allocation.additionalPrincipalApplied, 0);
+  assert.equal(result.allocation.overpaymentAmount, 0);
+  assert.equal(result.allocation.unappliedOverpaymentAmount, 0);
+  assert.deepEqual(result.allocation.allocations, [
+    {
+      installmentNumber: 1,
+      interestApplied: 20,
+      principalApplied: 100,
+      remainingInstallmentBalance: 0,
+      status: 'paid',
+      bucket: 'overdue',
+    },
+    {
+      installmentNumber: 2,
+      interestApplied: 12,
+      principalApplied: 38,
+      remainingInstallmentBalance: 82,
+      status: 'partial',
+      bucket: 'scheduled',
+    },
+  ]);
+  assert.equal(savedPayment.paymentMetadata.additionalPrincipalApplied, 0);
+  assert.equal(savedPayment.paymentMetadata.unappliedOverpaymentAmount, 0);
+  assert.equal(savedLoan.emiSchedule[0].status, 'paid');
+  assert.equal(savedLoan.emiSchedule[1].remainingInterest, 0);
+  assert.equal(savedLoan.emiSchedule[1].remainingPrincipal, 82);
+  assert.equal(savedLoan.emiSchedule[2].remainingPrincipal, 130);
+  assert.equal(savedLoan.financialSnapshot.outstandingBalance, 220);
+});
+
+test('applyCapitalPayment updates schedule balances and payment remaining balance from snapshot', async () => {
+  let savedLoan;
+  let savedPayment;
+
+  const loan = {
+    id: 33,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 300,
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-04-01T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-05-01T00:00:00.000Z',
+        remainingPrincipal: 200,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 888, ...payload };
+  });
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 33,
+    amount: 150,
+    paymentDate: '2026-03-10T00:00:00.000Z',
+  });
+
+  assert.equal(result.allocation.principalApplied, 150);
+  assert.equal(result.allocation.remainingPrincipalOutstanding, 150);
+  assert.equal(savedLoan.emiSchedule[0].remainingPrincipal, 0);
+  assert.equal(savedLoan.emiSchedule[1].remainingPrincipal, 150);
+  assert.equal(savedPayment.remainingBalanceAfterPayment, 180);
+});
+
 test('applyPayment rejects invalid amounts before persistence', async () => {
   const loan = {
     id: 10,
@@ -248,4 +402,63 @@ test('applyPayoff rejects already closed loans', async () => {
     assert.match(error.message, /approved, active, or defaulted/i);
     return true;
   });
+});
+
+test('annulInstallment excludes annulled installments from outstanding snapshot totals', async () => {
+  let savedLoan;
+  let savedPayment;
+
+  const loan = {
+    id: 44,
+    status: 'defaulted',
+    recoveryStatus: 'assigned',
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2025-12-15T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 110,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-01-15T00:00:00.000Z',
+        remainingPrincipal: 90,
+        remainingInterest: 9,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 99,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annulled' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 991, ...payload };
+  });
+
+  const result = await createPaymentApplicationService({ loanViewService }).annulInstallment({
+    loanId: 44,
+    actor: { id: 1, role: 'admin' },
+    paymentDate: '2026-03-20T00:00:00.000Z',
+  });
+
+  assert.equal(result.annulment.installmentNumber, 1);
+  assert.equal(savedLoan.emiSchedule[0].status, 'annulled');
+  assert.equal(savedLoan.financialSnapshot.outstandingBalance, 99);
+  assert.equal(savedLoan.financialSnapshot.outstandingInstallments, 1);
+  assert.equal(savedLoan.financialSnapshot.nextInstallment.installmentNumber, 2);
+  assert.equal(savedPayment.allocationBreakdown[0].previousStatus, 'overdue');
 });

@@ -430,6 +430,45 @@ test('createGetPaymentCalendar maps schedule rows into overdue-aware entries', a
   assert.equal(listedLoanId, 22);
 });
 
+test('createGetPaymentCalendar keeps annulled installments hidden from overdue alerts and zeroes outstanding amount', async () => {
+  const getPaymentCalendar = createGetPaymentCalendar({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 25, customerId: 7, emiSchedule: [] };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2026-01-01T00:00:00.000Z',
+              remainingPrincipal: 100,
+              remainingInterest: 20,
+              scheduledPayment: 120,
+              paidTotal: 0,
+              status: 'annulled',
+            },
+          ],
+          snapshot: { outstandingBalance: 0 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [{ id: 11, installmentNumber: 1, status: 'resolved' }];
+      },
+    },
+  });
+
+  const calendar = await getPaymentCalendar({ actor: { id: 7, role: 'customer' }, loanId: 25 });
+
+  assert.equal(calendar.entries[0].status, 'annulled');
+  assert.equal(calendar.entries[0].outstandingAmount, 0);
+  assert.equal(calendar.entries[0].alertId, null);
+});
+
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
   let requestedLoanId;
   const getPayoffQuote = createGetPayoffQuote({

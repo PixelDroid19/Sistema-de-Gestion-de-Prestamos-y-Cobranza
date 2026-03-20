@@ -8,6 +8,7 @@ const {
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
+  createDeleteCustomerDocument,
 } = require('./application/useCases');
 const { customerRepository } = require('./infrastructure/repositories');
 const { createCustomersRouter } = require('./presentation/router');
@@ -28,6 +29,7 @@ const createCustomersModule = () => {
     listCustomerDocuments: createListCustomerDocuments({ customerRepository }),
     uploadCustomerDocument: createUploadCustomerDocument({ customerRepository, attachmentStorage }),
     downloadCustomerDocument: createDownloadCustomerDocument({ customerRepository, attachmentStorage }),
+    deleteCustomerDocument: createDeleteCustomerDocument({ customerRepository, attachmentStorage }),
   };
 
   return createModule({

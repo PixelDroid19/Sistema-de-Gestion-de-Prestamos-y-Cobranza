@@ -8,7 +8,8 @@ const Loan = sequelize.define('Loan', {
   amount: { type: DataTypes.FLOAT, allowNull: false },
   interestRate: { type: DataTypes.FLOAT, allowNull: false },
   termMonths: { type: DataTypes.INTEGER, allowNull: false },
-  status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'), defaultValue: 'pending' },
+  // status: 'pending', 'approved', 'rejected', 'active', 'overdue', 'paid', 'cancelled', 'closed', 'defaulted'
+  status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'active', 'overdue', 'paid', 'cancelled', 'closed', 'defaulted'), defaultValue: 'pending' },
   startDate: { type: DataTypes.DATE },
   endDate: { type: DataTypes.DATE },
   agentId: { type: DataTypes.INTEGER, allowNull: true }, // assigned agent for recovery
@@ -22,7 +23,8 @@ const Loan = sequelize.define('Loan', {
   lateFeeMode: { type: DataTypes.STRING, allowNull: false, defaultValue: 'NONE' },
   financialSnapshot: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   closedAt: { type: DataTypes.DATE, allowNull: true },
-  closureReason: { type: DataTypes.ENUM('payoff', 'schedule_completion'), allowNull: true },
+  // closureReason: 'payoff', 'schedule_completion', 'annulled', 'cancelled'
+  closureReason: { type: DataTypes.ENUM('payoff', 'schedule_completion', 'annulled', 'cancelled'), allowNull: true },
   recoveryStatus: { type: DataTypes.STRING, allowNull: true }, // e.g. 'pending', 'in-progress', 'recovered'
 }, {
   timestamps: true,

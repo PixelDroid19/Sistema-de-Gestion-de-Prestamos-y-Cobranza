@@ -173,6 +173,60 @@ test('createRegisterUser allows trusted admins to create privileged agent accoun
   });
 });
 
+test('createRegisterUser accepts admin registrationSource for privileged provisioning', async () => {
+  let createdAgentProfile;
+
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create(payload) {
+        return { id: 45, ...payload };
+      },
+      async remove() {},
+    },
+    customerProfileRepository: { async create() {} },
+    agentProfileRepository: {
+      async create(payload) {
+        createdAgentProfile = payload;
+        return payload;
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Provisioned Agent',
+      email: 'provisioned.agent@example.com',
+      password: 'secret1',
+      role: 'agent',
+      phone: '+573001112233',
+    },
+  });
+
+  assert.equal(result.user.id, 45);
+  assert.equal(result.user.role, 'agent');
+  assert.deepEqual(createdAgentProfile, {
+    id: 45,
+    name: 'Provisioned Agent',
+    email: 'provisioned.agent@example.com',
+    phone: '+573001112233',
+  });
+});
+
 test('createRegisterUser blocks non-admin actors from creating privileged accounts in trusted flows', async () => {
   const registerUser = createRegisterUser({
     userRepository: {

@@ -22,6 +22,7 @@ const {
   createExecutePayoff,
   createListPromisesToPay,
   createCreatePromiseToPay,
+  createDownloadPromiseToPay,
 } = require('./application/useCases');
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
@@ -71,6 +72,7 @@ const createCreditsModule = () => {
     executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService }),
     listPromisesToPay: createListPromisesToPay({ promiseRepository, loanAccessPolicy }),
     createPromiseToPay: createCreatePromiseToPay({ promiseRepository, loanAccessPolicy }),
+    downloadPromiseToPay: createDownloadPromiseToPay({ promiseRepository, loanAccessPolicy }),
   };
 
   return createModule({

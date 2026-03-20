@@ -6,6 +6,7 @@ const { createCreditsModule } = require('./credits');
 const { createPayoutsModule } = require('./payouts');
 const { createReportsModule } = require('./reports');
 const { createNotificationsModule } = require('./notifications');
+const { createUsersModule } = require('./users');
 
 /**
  * Build the backend module registry consumed by the HTTP app and bootstrap flow.
@@ -20,6 +21,7 @@ const buildModuleRegistry = () => ([
   createPayoutsModule(),
   createReportsModule(),
   createNotificationsModule(),
+  createUsersModule(),
 ]);
 
 module.exports = {

@@ -30,6 +30,9 @@ const customerRepository = {
   createDocument(payload) {
     return DocumentAttachment.create(payload);
   },
+  deleteDocument(documentId) {
+    return DocumentAttachment.destroy({ where: { id: documentId } });
+  },
 };
 
 module.exports = {

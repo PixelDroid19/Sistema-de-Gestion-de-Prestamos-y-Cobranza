@@ -65,7 +65,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
       remainingPrincipal: principalComponent,
       remainingInterest: interestComponent,
       remainingBalance: balance,
-      status: 'pending',
+      status: 'pending', // pending, overdue, paid, partial, annulled
     });
   }
 

@@ -21,6 +21,9 @@ const passthroughValidation = {
   register(req, res, next) {
     next();
   },
+  adminRegister(req, res, next) {
+    next();
+  },
   login(req, res, next) {
     next();
   },
@@ -125,6 +128,81 @@ test('createAuthRouter serves register and login contract responses', async () =
   assert.deepEqual(calls, [
     ['registerUser', { actor: null, registrationSource: 'public', payload: registerPayload }],
     ['loginUser', loginPayload],
+  ]);
+});
+
+test('createAuthRouter serves admin registration through the trusted flow contract', async () => {
+  const calls = [];
+  const adminAwareAuth = () => (req, res, next) => {
+    req.user = { id: 1, role: 'admin' };
+    next();
+  };
+
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: adminAwareAuth,
+    useCases: {
+      async registerUser(payload) {
+        calls.push(['registerUser', payload]);
+        return {
+          token: 'admin-register-token',
+          user: {
+            id: 22,
+            name: payload.payload.name,
+            email: payload.payload.email,
+            role: payload.payload.role,
+          },
+        };
+      },
+      async loginUser() {
+        throw new Error('login should not be called');
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const payload = {
+    name: 'Ana Agent',
+    email: 'agent@example.com',
+    password: 'secret123',
+    role: 'agent',
+    phone: '+573001112233',
+  };
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/admin/register',
+    headers: { authorization: 'Bearer valid-token' },
+    body: payload,
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(response.body, {
+    success: true,
+    message: 'User created successfully',
+    data: {
+      token: 'admin-register-token',
+      user: {
+        id: 22,
+        name: 'Ana Agent',
+        email: 'agent@example.com',
+        role: 'agent',
+      },
+    },
+  });
+  assert.deepEqual(calls, [
+    ['registerUser', { actor: { id: 1, role: 'admin' }, registrationSource: 'admin', payload }],
   ]);
 });
 

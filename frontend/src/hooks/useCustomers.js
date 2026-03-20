@@ -43,3 +43,15 @@ export const useUploadCustomerDocumentMutation = () => {
     },
   });
 };
+
+export const useDeleteCustomerDocumentMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ customerId, documentId }) => customerService.deleteDocument(customerId, documentId),
+    onSuccess: (_response, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.documents(variables.customerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.history(variables.customerId) });
+    },
+  });
+};

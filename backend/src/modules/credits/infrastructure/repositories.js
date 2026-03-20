@@ -182,6 +182,26 @@ const createCreditsInfrastructure = ({
           order: [['promisedDate', 'ASC'], ['createdAt', 'DESC']],
         });
       },
+      findByIdForLoan({ loanId, promiseId }) {
+        return promiseToPayModel.findOne({
+          where: { id: promiseId, loanId },
+          include: [{
+            model: userModel,
+            as: 'createdBy',
+            attributes: ['id', 'name', 'email', 'role'],
+          }],
+        });
+      },
+      async getCustomerForPromise(promiseId) {
+        const promise = await promiseToPayModel.findByPk(promiseId, {
+          include: [{
+            model: loanModel,
+            as: 'loan',
+            include: [customerModel],
+          }],
+        });
+        return promise?.loan?.Customer || null;
+      },
       create(payload) {
         return promiseToPayModel.create(payload);
       },

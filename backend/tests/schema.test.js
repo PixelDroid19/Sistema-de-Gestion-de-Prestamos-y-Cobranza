@@ -76,13 +76,14 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Users') {
     return {
-      id: {}, name: {}, email: {}, password: {}, role: {}, associateId: {}, createdAt: {}, updatedAt: {},
+      id: {}, name: {}, email: {}, password: {}, role: {}, associateId: {}, isActive: {}, createdAt: {}, updatedAt: {},
     };
   }
 
   return {
     id: {}, loanId: {}, amount: {}, paymentDate: {}, status: {}, principalApplied: {}, interestApplied: {},
-    paymentType: {}, overpaymentAmount: {}, remainingBalanceAfterPayment: {}, allocationBreakdown: {}, paymentMetadata: {}, createdAt: {}, updatedAt: {},
+    penaltyApplied: {}, paymentType: {}, overpaymentAmount: {}, remainingBalanceAfterPayment: {}, allocationBreakdown: {}, paymentMetadata: {},
+    installmentNumber: {}, annulledFromInstallment: {}, createdAt: {}, updatedAt: {},
   };
 };
 

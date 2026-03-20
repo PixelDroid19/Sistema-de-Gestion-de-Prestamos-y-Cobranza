@@ -26,6 +26,10 @@ const paymentValidation = {
   },
 };
 
+const unexpectedUseCase = (name) => async () => {
+  throw new Error(`${name} should not be called`);
+};
+
 test('createPayoutsRouter serves list and create contract responses', async () => {
   const calls = [];
   const payments = [
@@ -161,5 +165,75 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
   });
   assert.deepEqual(calls, [
     ['listPaymentsByLoan', { actor: { id: 3, role: 'customer' }, loanId: '22' }],
+  ]);
+});
+
+test('createPayoutsRouter serves partial, capital, and annulment contract responses', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      async createPartialPayment(payload) {
+        calls.push(['createPartialPayment', payload]);
+        return {
+          payment: { id: 91, amount: payload.amount, paymentType: 'partial' },
+          allocation: { remainingBalance: 50 },
+          loan: { id: payload.loanId, status: 'active' },
+        };
+      },
+      async createCapitalPayment(payload) {
+        calls.push(['createCapitalPayment', payload]);
+        return {
+          payment: { id: 92, amount: payload.amount, paymentType: 'capital' },
+          allocation: { principalApplied: payload.amount },
+          loan: { id: payload.loanId, status: 'active' },
+        };
+      },
+      async annulInstallment(payload) {
+        calls.push(['annulInstallment', payload]);
+        return {
+          payment: { id: 93, status: 'annulled' },
+          annulment: { installmentNumber: 2 },
+          loan: { id: Number(payload.loanId), status: 'active' },
+        };
+      },
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const partialResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/partial',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { loanId: 15, amount: 40 },
+  });
+  const capitalResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/capital',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { loanId: 15, amount: 60 },
+  });
+  const annulResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/annul/15',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'agent' },
+  });
+
+  assert.equal(partialResponse.statusCode, 201);
+  assert.equal(capitalResponse.statusCode, 201);
+  assert.equal(annulResponse.statusCode, 201);
+  assert.deepEqual(calls, [
+    ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
+    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60 }],
+    ['annulInstallment', { actor: { id: 3, role: 'agent' }, loanId: '15' }],
   ]);
 });

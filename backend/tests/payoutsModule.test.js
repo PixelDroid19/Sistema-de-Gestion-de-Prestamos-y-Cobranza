@@ -6,6 +6,9 @@ const { AuthorizationError } = require('../src/utils/errorHandler');
 const {
   createListPayments,
   createCreatePayment,
+  createCreatePartialPayment,
+  createCreateCapitalPayment,
+  createAnnulInstallment,
   createListPaymentsByLoan,
 } = require('../src/modules/payouts/application/useCases');
 
@@ -147,5 +150,77 @@ test('createListPaymentsByLoan rejects history lookup for hidden loans', async (
   await assert.rejects(() => listPaymentsByLoan({ actor: { id: 8, role: 'agent' }, loanId: 999 }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
+  });
+});
+
+test('createCreatePartialPayment allows admins and delegates partial applications', async () => {
+  let serviceInput;
+  const createPartialPayment = createCreatePartialPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 5 };
+      },
+    },
+    paymentApplicationService: {
+      async applyPartialPayment(input) {
+        serviceInput = input;
+        return { payment: { id: 101 }, allocation: { remainingBalance: 10 }, loan: { id: 5 } };
+      },
+    },
+    clock: () => new Date('2026-03-20T00:00:00.000Z'),
+  });
+
+  const result = await createPartialPayment({ actor: { id: 1, role: 'admin' }, loanId: 5, amount: 80 });
+
+  assert.equal(result.payment.id, 101);
+  assert.deepEqual(serviceInput, {
+    loanId: 5,
+    amount: 80,
+    paymentDate: new Date('2026-03-20T00:00:00.000Z'),
+  });
+});
+
+test('createCreateCapitalPayment only allows admins', async () => {
+  const createCapitalPayment = createCreateCapitalPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        throw new Error('findAuthorizedLoan should not be called');
+      },
+    },
+    paymentApplicationService: {
+      async applyCapitalPayment() {
+        throw new Error('applyCapitalPayment should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createCapitalPayment({ actor: { id: 2, role: 'customer' }, loanId: 5, amount: 80 }), AuthorizationError);
+});
+
+test('createAnnulInstallment uses mutation access policy and delegates to the service', async () => {
+  let serviceInput;
+  const annulInstallment = createAnnulInstallment({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan({ actor, loanId }) {
+        assert.deepEqual(actor, { id: 9, role: 'agent' });
+        return { id: Number(loanId) };
+      },
+    },
+    paymentApplicationService: {
+      async annulInstallment(input) {
+        serviceInput = input;
+        return { payment: { id: 300 }, annulment: { installmentNumber: 1 }, loan: { id: input.loanId } };
+      },
+    },
+    clock: () => new Date('2026-03-21T00:00:00.000Z'),
+  });
+
+  const result = await annulInstallment({ actor: { id: 9, role: 'agent' }, loanId: 12 });
+
+  assert.equal(result.payment.id, 300);
+  assert.deepEqual(serviceInput, {
+    loanId: 12,
+    actor: { id: 9, role: 'agent' },
+    paymentDate: new Date('2026-03-21T00:00:00.000Z'),
   });
 });

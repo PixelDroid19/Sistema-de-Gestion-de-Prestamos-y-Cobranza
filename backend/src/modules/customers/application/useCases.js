@@ -106,10 +106,30 @@ const createDownloadCustomerDocument = ({ customerRepository, attachmentStorage 
   };
 };
 
+const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage }) => async ({ actor, customerId, documentId }) => {
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can delete customer documents');
+  }
+
+  await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
+  const document = await customerRepository.findDocument({ customerId, documentId });
+
+  if (!document) {
+    throw new NotFoundError('Document');
+  }
+
+  const absolutePath = attachmentStorage.resolveAbsolutePath(document.storagePath);
+  await attachmentStorage.deleteByAbsolutePath(absolutePath);
+  await customerRepository.deleteDocument(documentId);
+
+  return { success: true };
+};
+
 module.exports = {
   createListCustomers,
   createCreateCustomer,
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
+  createDeleteCustomerDocument,
 };

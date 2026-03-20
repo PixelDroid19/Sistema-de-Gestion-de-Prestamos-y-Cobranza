@@ -6,14 +6,18 @@ const Payment = sequelize.define('Payment', {
   loanId: { type: DataTypes.INTEGER, allowNull: false },
   amount: { type: DataTypes.FLOAT, allowNull: false },
   paymentDate: { type: DataTypes.DATE, allowNull: false },
-  status: { type: DataTypes.ENUM('pending', 'completed', 'failed'), defaultValue: 'pending' },
-  paymentType: { type: DataTypes.ENUM('installment', 'payoff'), allowNull: false, defaultValue: 'installment' },
+  status: { type: DataTypes.ENUM('pending', 'completed', 'failed', 'annulled'), defaultValue: 'pending' },
+  // paymentType: 'installment' (regular EMI), 'payoff' (total close), 'partial' (free amount), 'capital' (debt reduction)
+  paymentType: { type: DataTypes.ENUM('installment', 'payoff', 'partial', 'capital'), allowNull: false, defaultValue: 'installment' },
   principalApplied: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   interestApplied: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  penaltyApplied: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, // Late fee/penalty portion
   overpaymentAmount: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   remainingBalanceAfterPayment: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   allocationBreakdown: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
   paymentMetadata: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+  installmentNumber: { type: DataTypes.INTEGER, allowNull: true }, // For installment payments
+  annulledFromInstallment: { type: DataTypes.INTEGER, allowNull: true }, // For annulled payments, reference to original installment
 }, {
   timestamps: true,
 });

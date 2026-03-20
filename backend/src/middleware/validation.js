@@ -197,6 +197,51 @@ const authValidation = {
   },
 
   /** @type {import('express').RequestHandler} */
+  adminRegister: (req, res, next) => {
+    const { name, email, password, role, phone, associateId } = req.body;
+    const errors = [];
+    const validRoles = ['admin', 'agent', 'customer', 'socio'];
+
+    if (!name || name.trim().length < 2) {
+      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+    }
+
+    if (!email) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!validateEmail(email)) {
+      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+    }
+
+    if (!password) {
+      errors.push({ field: 'password', message: 'Password is required' });
+    } else if (password.length < 6) {
+      const remaining = 6 - password.length;
+      errors.push({
+        field: 'password',
+        message: `Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.`,
+      });
+    }
+
+    if (!validRoles.includes(role)) {
+      errors.push({ field: 'role', message: `Role must be one of: ${validRoles.join(', ')}` });
+    }
+
+    if ((role === 'agent' || role === 'socio') && (!phone || !validatePhone(phone))) {
+      errors.push({ field: 'phone', message: `Valid phone number is required for ${role} registration` });
+    }
+
+    if (role === 'socio' && !validateIntegerId(associateId)) {
+      errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
+
+  /** @type {import('express').RequestHandler} */
   login: (req, res, next) => {
     const { email, password } = req.body;
     const errors = [];
@@ -338,7 +383,52 @@ const loanValidation = {
     }
 
     next();
-  }
+  },
+
+  /** @type {import('express').RequestHandler} */
+  adminRegister: (req, res, next) => {
+    const { name, email, password, role, phone, associateId } = req.body;
+    const errors = [];
+    const validRoles = ['admin', 'agent', 'customer', 'socio'];
+
+    if (!name || name.trim().length < 2) {
+      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+    }
+
+    if (!email) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!validateEmail(email)) {
+      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+    }
+
+    if (!password) {
+      errors.push({ field: 'password', message: 'Password is required' });
+    } else if (password.length < 6) {
+      const remaining = 6 - password.length;
+      errors.push({
+        field: 'password',
+        message: `Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.`,
+      });
+    }
+
+    if (!validRoles.includes(role)) {
+      errors.push({ field: 'role', message: `Role must be one of: ${validRoles.join(', ')}` });
+    }
+
+    if ((role === 'agent' || role === 'socio') && (!phone || !validatePhone(phone))) {
+      errors.push({ field: 'phone', message: `Valid phone number is required for ${role} registration` });
+    }
+
+    if (role === 'socio' && !validateIntegerId(associateId)) {
+      errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
+    }
+
+    if (errors.length > 0) {
+      return next(buildValidationError(errors));
+    }
+
+    next();
+  },
 };
 
 const paymentValidation = {

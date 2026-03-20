@@ -19,5 +19,6 @@ export const loanService = {
   executePayoff: (loanId, payload) => apiRequest(`/api/loans/${loanId}/payoff-executions`, { method: 'POST', body: payload }),
   getLoanPromises: (loanId) => apiRequest(`/api/loans/${loanId}/promises`),
   createLoanPromise: (loanId, payload) => apiRequest(`/api/loans/${loanId}/promises`, { method: 'POST', body: payload }),
+  downloadLoanPromise: (loanId, promiseId) => apiRequest(`/api/loans/${loanId}/promises/${promiseId}/download`, { responseType: 'blob' }),
   deleteLoan: (loanId) => apiRequest(`/api/loans/${loanId}`, { method: 'DELETE' }),
 };

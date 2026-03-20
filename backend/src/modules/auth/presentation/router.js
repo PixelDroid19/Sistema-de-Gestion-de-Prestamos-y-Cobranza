@@ -14,6 +14,16 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
     res.status(201).json(presentAuthResult('User registered successfully', result));
   }));
 
+  // Admin-provisioned user registration (admin only)
+  router.post('/admin/register', authMiddleware(['admin']), authValidation.adminRegister, asyncHandler(async (req, res) => {
+    const result = await useCases.registerUser({
+      actor: req.user,
+      registrationSource: 'admin',
+      payload: req.body,
+    });
+    res.status(201).json(presentAuthResult('User created successfully', result));
+  }));
+
   router.post('/login', authValidation.login, asyncHandler(async (req, res) => {
     const result = await useCases.loginUser(req.body);
     res.json(presentAuthResult('Login successful', result));

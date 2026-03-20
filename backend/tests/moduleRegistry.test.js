@@ -17,6 +17,7 @@ test('buildModuleRegistry includes every modularized backend surface', () => {
   assert.equal(byName.associates, '/api/associates');
   assert.equal(byName.reports, '/api/reports');
   assert.equal(byName.notifications, '/api/notifications');
+  assert.equal(byName.users, '/api/users');
 });
 
 test('legacy route and controller wiring has been removed for every migrated surface', () => {
