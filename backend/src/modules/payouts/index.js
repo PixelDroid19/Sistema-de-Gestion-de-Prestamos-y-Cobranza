@@ -1,8 +1,5 @@
 const { paymentValidation } = require('../../middleware/validation');
-const { createPaymentApplicationService } = require('../../services/paymentApplicationService');
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const { createCreditsPublicPorts } = require('../credits/public');
 const {
   createListPayments,
@@ -18,10 +15,9 @@ const { createPayoutsRouter } = require('./presentation/router');
 /**
  * Compose the payouts module entrypoint from payment and loan public seams.
  */
-const createPayoutsModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
-  const { loanAccessPolicy, loanViewService } = createCreditsPublicPorts();
-  const paymentApplicationService = createPaymentApplicationService({ loanViewService });
+const createPayoutsModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
+  const { loanAccessPolicy, paymentApplicationService } = createCreditsPublicPorts({ sharedRuntime });
   const useCases = {
     listPayments: createListPayments({ paymentRepository }),
     createPayment: createCreatePayment({ paymentApplicationService, loanAccessPolicy }),

@@ -1,5 +1,5 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
-const { roundCurrency } = require('../../../services/creditFormulaHelpers');
+const { roundCurrency } = require('./creditFormulaHelpers');
 
 const normalizeAttachmentVisibility = (value) => {
   if (typeof value === 'boolean') {

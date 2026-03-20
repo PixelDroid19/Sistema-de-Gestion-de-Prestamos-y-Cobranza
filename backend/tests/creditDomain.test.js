@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { simulateCredit } = require('../src/services/creditSimulationService');
+const { simulateCredit } = require('../src/modules/credits/application/creditSimulationService');
 const { loanValidation, associateValidation } = require('../src/middleware/validation');
 const { ValidationError, BusinessRuleViolationError } = require('../src/utils/errorHandler');
 const { buildPayoffQuote } = require('../src/modules/credits/application/loanFinancials');

@@ -13,6 +13,7 @@ const {
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
 } = require('../src/modules/reports/application/useCases');
+const { createReportsModule } = require('../src/modules/reports');
 
 test('createGetRecoveredLoans builds report records and summary totals', async () => {
   const getRecoveredLoans = createGetRecoveredLoans({
@@ -580,4 +581,32 @@ test('createExportAssociateProfitabilityReport includes proportional audit colum
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
   assert.match(exportFile.buffer.toString('utf8'), /participationPercentage,distributionType,declaredProportionalTotal,allocatedAmount/);
   assert.match(exportFile.buffer.toString('utf8'), /25.0000,proportional,600.00,150.00/);
+});
+
+test('createReportsModule consumes shared auth and credits ports from runtime', () => {
+  let requestedModuleName;
+
+  const moduleRegistration = createReportsModule({
+    sharedRuntime: {
+      authContext: {
+        tokenService: { sign() {}, verify() {} },
+        authMiddleware() {
+          return (req, res, next) => next();
+        },
+      },
+      getModulePorts(name) {
+        requestedModuleName = name;
+        if (name === 'credits') {
+          return {
+            loanViewService: { getSnapshot() { return { outstandingBalance: 0 }; } },
+            loanAccessPolicy: { findAuthorizedLoan() {} },
+          };
+        }
+        return null;
+      },
+    },
+  });
+
+  assert.equal(requestedModuleName, 'credits');
+  assert.equal(moduleRegistration.basePath, '/api/reports');
 });

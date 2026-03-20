@@ -19,6 +19,7 @@ test('createApp mounts injected routes from the module registry and documents on
   });
 
   const app = createApp({
+    sharedRuntime: { id: 'runtime-1' },
     moduleRegistry: [
       {
         name: 'auth',
@@ -69,6 +70,7 @@ test('createApp forwards all modularized business surfaces from injected module 
   });
 
   const app = createApp({
+    sharedRuntime: { id: 'runtime-2' },
     moduleRegistry: [
       {
         name: 'agents',
@@ -136,4 +138,36 @@ test('createApp forwards all modularized business surfaces from injected module 
   assert.equal(docsResponse.body.endpoints.associates, '/api/associates');
   assert.equal(docsResponse.body.endpoints.reports, '/api/reports');
   assert.equal(docsResponse.body.endpoints.notifications, '/api/notifications');
+});
+
+test('createApp builds the registry from the shared runtime when no registry is injected', async () => {
+  const loansRouter = express.Router();
+  loansRouter.get('/', (req, res) => {
+    res.json({ success: true, surface: 'credits' });
+  });
+
+  const sharedRuntime = { id: 'runtime-3' };
+  const app = createApp({
+    sharedRuntime,
+    moduleRegistry: [
+      {
+        name: 'credits',
+        basePath: '/api/loans',
+        router: loansRouter,
+      },
+    ],
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/api/loans',
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    surface: 'credits',
+  });
+  assert.equal(sharedRuntime.id, 'runtime-3');
 });

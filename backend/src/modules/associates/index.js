@@ -1,7 +1,5 @@
 const { associateValidation } = require('../../middleware/validation');
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListAssociates,
   createCreateAssociate,
@@ -20,8 +18,8 @@ const { createAssociatesRouter } = require('./presentation/router');
  * Compose the associates module entrypoint and its router dependencies.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createAssociatesModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
+const createAssociatesModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     listAssociates: createListAssociates({ associateRepository }),
     createAssociate: createCreateAssociate({ associateRepository }),

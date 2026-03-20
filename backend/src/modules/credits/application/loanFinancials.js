@@ -1,5 +1,5 @@
 const { ValidationError } = require('../../../utils/errorHandler');
-const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('../../../services/creditFormulaHelpers');
+const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

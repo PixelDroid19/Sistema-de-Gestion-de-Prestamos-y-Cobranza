@@ -1,4 +1,5 @@
 const { AuthenticationError, AuthorizationError } = require('../../utils/errorHandler');
+const { createJwtTokenService } = require('./auth/tokenService');
 
 const normalizeRoles = (roles = []) => (typeof roles === 'string' ? [roles] : roles);
 
@@ -44,6 +45,28 @@ const createAuthMiddleware = ({ tokenService }) => (roles = []) => {
   };
 };
 
+/**
+ * Create the shared authentication context reused across backend modules.
+ * @param {{ tokenService?: object, authMiddleware?: Function }} [options]
+ * @returns {{ tokenService: object, authMiddleware: Function }}
+ */
+const createAuthContext = ({
+  tokenService = createJwtTokenService(),
+  authMiddleware = createAuthMiddleware({ tokenService }),
+} = {}) => ({
+  tokenService,
+  authMiddleware,
+});
+
+/**
+ * Resolve auth dependencies from the shared runtime when available.
+ * @param {{ authContext?: { tokenService: object, authMiddleware: Function } }} [sharedRuntime]
+ * @returns {{ tokenService: object, authMiddleware: Function }}
+ */
+const resolveAuthContext = (sharedRuntime) => sharedRuntime?.authContext || createAuthContext();
+
 module.exports = {
   createAuthMiddleware,
+  createAuthContext,
+  resolveAuthContext,
 };

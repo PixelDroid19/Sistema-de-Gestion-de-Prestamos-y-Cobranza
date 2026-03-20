@@ -1,7 +1,5 @@
 const { authValidation } = require('../../middleware/validation');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
-const { createAuthMiddleware } = require('../shared/auth');
+const { createModule, resolveAuthContext } = require('../shared');
 const {
   createRegisterUser,
   createLoginUser,
@@ -21,9 +19,8 @@ const { createAuthRouter } = require('./presentation/router');
  * Compose the authentication module entrypoint and its router dependencies.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createAuthModule = () => {
-  const tokenService = createJwtTokenService();
-  const authMiddleware = createAuthMiddleware({ tokenService });
+const createAuthModule = ({ sharedRuntime } = {}) => {
+  const { tokenService, authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     registerUser: createRegisterUser({
       userRepository,

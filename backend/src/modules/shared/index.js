@@ -1,4 +1,5 @@
 const { createModule } = require('./contracts');
+const { createAuthContext, resolveAuthContext } = require('./auth');
 const { respond, success, created } = require('./http');
 const { mapApplicationError } = require('./errors');
 
@@ -7,6 +8,8 @@ const { mapApplicationError } = require('./errors');
  */
 module.exports = {
   createModule,
+  createAuthContext,
+  resolveAuthContext,
   respond,
   success,
   created,

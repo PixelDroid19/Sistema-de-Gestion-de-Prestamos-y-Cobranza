@@ -28,6 +28,13 @@ const REQUIRED_SCHEMA_MODELS = [
   User,
 ];
 
+const SAFE_RESET_ENVIRONMENTS = new Set(['development', 'test', 'local']);
+const SCHEMA_MODES = {
+  VERIFY: 'verify',
+  ALTER: 'alter',
+  RESET: 'reset',
+};
+
 const normalizeTableNames = (tables) => tables.map((table) => {
   if (typeof table === 'string') {
     return table;
@@ -39,6 +46,40 @@ const normalizeTableNames = (tables) => tables.map((table) => {
 const resolveTableName = (model) => {
   const tableName = model.getTableName();
   return typeof tableName === 'string' ? tableName : tableName.tableName;
+};
+
+const normalizeSchemaMode = (value) => String(value || '').trim().toLowerCase();
+
+/**
+ * Resolve the startup schema mode with verify-by-default semantics.
+ * @param {NodeJS.ProcessEnv|Record<string, string|undefined>} [env]
+ * @returns {'verify'|'alter'|'reset'}
+ */
+const resolveSchemaMode = (env = process.env) => {
+  const requestedMode = normalizeSchemaMode(env.DB_SCHEMA_MODE);
+
+  if (requestedMode === SCHEMA_MODES.ALTER || requestedMode === SCHEMA_MODES.RESET || requestedMode === SCHEMA_MODES.VERIFY) {
+    return requestedMode;
+  }
+
+  if (env.DB_RESET_ON_BOOT === 'true') {
+    return SCHEMA_MODES.RESET;
+  }
+
+  return SCHEMA_MODES.VERIFY;
+};
+
+/**
+ * Guard destructive schema reset usage to local-safe environments only.
+ * @param {NodeJS.ProcessEnv|Record<string, string|undefined>} [env]
+ */
+const assertResetAllowed = (env = process.env) => {
+  const environment = String(env.NODE_ENV || 'development').toLowerCase();
+  const explicitlyAllowed = env.DB_SCHEMA_RESET_ALLOWED === 'true';
+
+  if (!SAFE_RESET_ENVIRONMENTS.has(environment) && !explicitlyAllowed) {
+    throw new Error('Schema reset mode is disabled outside safe local/test environments');
+  }
 };
 
 /**
@@ -118,9 +159,7 @@ const resetDatabaseSchema = async ({
     throw new Error('Database connection is required for schema reset');
   }
 
-  if (env.NODE_ENV === 'production') {
-    throw new Error('Local schema reset is disabled in production');
-  }
+  assertResetAllowed(env);
 
   if (typeof database.getDialect === 'function' && database.getDialect() === 'postgres') {
     await database.query('DROP SCHEMA IF EXISTS public CASCADE;');
@@ -133,42 +172,50 @@ const resetDatabaseSchema = async ({
 };
 
 /**
- * Synchronize the database schema, optionally resetting local development state first.
- * @param {{ database: object, env?: NodeJS.ProcessEnv|Record<string, string|undefined>, forceReset?: boolean }} [options]
+ * Synchronize the database schema using an explicit startup mode.
+ * @param {{ database: object, env?: NodeJS.ProcessEnv|Record<string, string|undefined>, mode?: string }} [options]
  * @returns {Promise<{ mode: string, status: string, tables: Array<string> }>}
  */
 const syncDatabaseSchema = async ({
   database,
   env = process.env,
-  forceReset = env.DB_RESET_ON_BOOT === 'true',
+  mode = resolveSchemaMode(env),
 } = {}) => {
   if (!database) {
     throw new Error('Database connection is required for schema synchronization');
   }
 
-  if (forceReset) {
+  if (mode === SCHEMA_MODES.RESET) {
     const verification = await resetDatabaseSchema({ database, env });
 
     return {
-      mode: 'reset',
+      mode: SCHEMA_MODES.RESET,
       ...verification,
     };
   }
 
-  await database.sync({ alter: true });
+  if (mode === SCHEMA_MODES.ALTER) {
+    await database.sync({ alter: true });
+  }
+
   const verification = await verifyRequiredSchema({ database });
 
   return {
-    mode: 'sync',
+    mode,
     ...verification,
   };
 };
 
 module.exports = {
   REQUIRED_SCHEMA_MODELS,
+  SAFE_RESET_ENVIRONMENTS,
+  SCHEMA_MODES,
   buildRequiredSchema,
   buildSchemaVerificationError,
   normalizeTableNames,
+  normalizeSchemaMode,
+  resolveSchemaMode,
+  assertResetAllowed,
   verifyRequiredSchema,
   resetDatabaseSchema,
   syncDatabaseSchema,

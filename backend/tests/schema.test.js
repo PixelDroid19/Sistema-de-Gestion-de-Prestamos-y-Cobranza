@@ -2,7 +2,10 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  SCHEMA_MODES,
+  assertResetAllowed,
   buildRequiredSchema,
+  resolveSchemaMode,
   resetDatabaseSchema,
   syncDatabaseSchema,
   verifyRequiredSchema,
@@ -178,11 +181,50 @@ test('verifyRequiredSchema rejects when a required column is missing', async () 
   }), /Missing columns on "Loans": associateId/);
 });
 
-test('syncDatabaseSchema syncs and verifies schema without destructive reset by default', async () => {
+test('resolveSchemaMode defaults to verify and honors explicit alter/reset modes', () => {
+  assert.equal(resolveSchemaMode({}), SCHEMA_MODES.VERIFY);
+  assert.equal(resolveSchemaMode({ DB_SCHEMA_MODE: 'alter' }), SCHEMA_MODES.ALTER);
+  assert.equal(resolveSchemaMode({ DB_SCHEMA_MODE: 'reset' }), SCHEMA_MODES.RESET);
+  assert.equal(resolveSchemaMode({ DB_RESET_ON_BOOT: 'true' }), SCHEMA_MODES.RESET);
+});
+
+test('assertResetAllowed rejects unsafe non-local environments by default', () => {
+  assert.throws(() => assertResetAllowed({ NODE_ENV: 'production' }), /disabled outside safe local\/test environments/i);
+  assert.doesNotThrow(() => assertResetAllowed({ NODE_ENV: 'production', DB_SCHEMA_RESET_ALLOWED: 'true' }));
+});
+
+test('syncDatabaseSchema verifies schema without altering tables by default', async () => {
   const calls = [];
 
   const result = await syncDatabaseSchema({
-    env: { NODE_ENV: 'development', DB_RESET_ON_BOOT: 'false' },
+    env: { NODE_ENV: 'development' },
+    database: {
+      async sync(options) {
+        calls.push(`sync:${JSON.stringify(options)}`);
+      },
+      getQueryInterface() {
+        return {
+          async showAllTables() {
+            return allTables;
+          },
+          async describeTable(tableName) {
+            return buildDescribedTable(tableName);
+          },
+        };
+      },
+    },
+  });
+
+  assert.deepEqual(calls, []);
+  assert.equal(result.mode, 'verify');
+  assert.deepEqual(result.tables, allTables);
+});
+
+test('syncDatabaseSchema alters schema only when alter mode is explicitly requested', async () => {
+  const calls = [];
+
+  const result = await syncDatabaseSchema({
+    env: { NODE_ENV: 'development', DB_SCHEMA_MODE: 'alter' },
     database: {
       async sync(options) {
         calls.push(`sync:${JSON.stringify(options)}`);
@@ -201,8 +243,7 @@ test('syncDatabaseSchema syncs and verifies schema without destructive reset by 
   });
 
   assert.deepEqual(calls, ['sync:{"alter":true}']);
-  assert.equal(result.mode, 'sync');
-  assert.deepEqual(result.tables, allTables);
+  assert.equal(result.mode, 'alter');
 });
 
 test('resetDatabaseSchema drops and recreates the local postgres schema before verifying', async () => {

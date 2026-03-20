@@ -11,6 +11,7 @@ const {
   createRegisterPushSubscription,
   createDeletePushSubscription,
 } = require('../src/modules/notifications/application/useCases');
+const { createNotificationsModule } = require('../src/modules/notifications');
 
 test('createGetNotifications aggregates unread and total counts', async () => {
   const getNotifications = createGetNotifications({
@@ -185,4 +186,32 @@ test('push subscription use cases reject payloads without endpoint or device tok
       channel: 'mobile',
     },
   }), /Subscription endpoint or device token is required/);
+});
+
+test('createNotificationsModule publishes notification ports to the shared runtime', () => {
+  let registeredName;
+  let registeredPorts;
+
+  const moduleRegistration = createNotificationsModule({
+    sharedRuntime: {
+      authContext: {
+        tokenService: { sign() {}, verify() {} },
+        authMiddleware() {
+          return (req, res, next) => next();
+        },
+      },
+      notificationService: { sendNotification() {} },
+      registerModulePorts(name, ports) {
+        registeredName = name;
+        registeredPorts = ports;
+      },
+      getModulePorts() {
+        return null;
+      },
+    },
+  });
+
+  assert.equal(moduleRegistration.basePath, '/api/notifications');
+  assert.equal(registeredName, 'notifications');
+  assert.equal(typeof registeredPorts.notificationService.sendNotification, 'function');
 });

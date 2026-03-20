@@ -20,6 +20,7 @@ const {
 } = require('../src/modules/credits/application/useCases');
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
 const { AuthorizationError, ValidationError } = require('../src/utils/errorHandler');
+const { createCreditsModule } = require('../src/modules/credits');
 
 test('createListLoans scopes repository results through the shared access policy', async () => {
   let filterCall;
@@ -628,4 +629,32 @@ test('createListPromisesToPay expires broken pending promises before returning h
   const promises = await listPromisesToPay({ actor: { id: 9, role: 'agent' }, loanId: 22 });
 
   assert.equal(promises[0].status, 'broken');
+});
+
+test('createCreditsModule reuses auth and credit ports from the shared runtime', () => {
+  let requestedModuleName;
+  const authMiddleware = () => (req, res, next) => next();
+  const loanAccessPolicy = { findAuthorizedLoan() {}, findAuthorizedMutationLoan() {}, filterVisibleLoans() {} };
+  const loanViewService = { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; }, getPayoffQuote() { return { total: 0, breakdown: {} }; } };
+
+  const moduleRegistration = createCreditsModule({
+    sharedRuntime: {
+      authContext: {
+        tokenService: { sign() {}, verify() {} },
+        authMiddleware,
+      },
+      registerModulePorts() {},
+      getModulePorts(name) {
+        requestedModuleName = name;
+        if (name === 'credits') {
+          return { loanAccessPolicy, loanViewService };
+        }
+        return null;
+      },
+    },
+  });
+
+  assert.equal(moduleRegistration.name, 'credits');
+  assert.equal(moduleRegistration.basePath, '/api/loans');
+  assert.equal(requestedModuleName, undefined);
 });

@@ -21,6 +21,7 @@ test('validateEnvironment rejects missing required variables', () => {
 test('bootstrap authenticates infrastructure, syncs schema, and returns module registry', async () => {
   const calls = [];
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];
+  const sharedRuntime = { id: 'runtime-1' };
   const scheduler = {
     async start() {
       calls.push('scheduler');
@@ -44,19 +45,59 @@ test('bootstrap authenticates infrastructure, syncs schema, and returns module r
     },
     syncSchema: async () => {
       calls.push('syncSchema');
-      return { mode: 'sync', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] };
+      return { mode: 'verify', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] };
     },
-    buildModuleRegistry: () => {
+    createSharedRuntime: () => {
+      calls.push('sharedRuntime');
+      return sharedRuntime;
+    },
+    buildModuleRegistry: ({ sharedRuntime: injectedRuntime }) => {
       calls.push('modules');
+      assert.equal(injectedRuntime, sharedRuntime);
       return modules;
     },
     scheduler,
   });
 
-  assert.deepEqual(calls, ['authenticate', 'syncSchema', 'scheduler', 'modules']);
+  assert.deepEqual(calls, ['authenticate', 'syncSchema', 'sharedRuntime', 'scheduler', 'modules']);
   assert.equal(result.modules, modules);
-  assert.deepEqual(result.schema, { mode: 'sync', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] });
+  assert.equal(result.sharedRuntime, sharedRuntime);
+  assert.deepEqual(result.schema, { mode: 'verify', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] });
   assert.deepEqual(result.overdueAlerts, { started: true, intervalMs: 3600000 });
+});
+
+test('startServer passes bootstrap shared runtime into app composition', async () => {
+  const sharedRuntime = { id: 'runtime-2' };
+  const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];
+  const listenCalls = [];
+  const server = {
+    close(callback) {
+      callback?.();
+    },
+    on() {},
+  };
+
+  const result = await startServer({
+    port: 0,
+    bootstrap: async () => ({
+      sharedRuntime,
+      modules,
+    }),
+    createApp: ({ sharedRuntime: injectedRuntime, moduleRegistry }) => {
+      assert.equal(injectedRuntime, sharedRuntime);
+      assert.equal(moduleRegistry, modules);
+      return {
+        listen(port, onListen) {
+          listenCalls.push(port);
+          process.nextTick(onListen);
+          return server;
+        },
+      };
+    },
+  });
+
+  assert.deepEqual(listenCalls, [0]);
+  result.server.close();
 });
 
 test('bootstrap rejects when schema synchronization fails', async () => {

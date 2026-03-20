@@ -1,5 +1,5 @@
 const { ValidationError } = require('../utils/errorHandler');
-const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('../services/creditSimulationService');
+const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('../modules/credits/application/creditSimulationService');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);

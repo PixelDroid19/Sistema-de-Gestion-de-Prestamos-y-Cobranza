@@ -10,11 +10,11 @@ const {
   PromiseToPay,
   Payment,
 } = require('../../../models');
-const { notificationService } = require('../../../services/NotificationService');
-const { simulateCredit } = require('../../../services/creditSimulationService');
+const { notificationService } = require('../../notifications/application/notificationService');
+const { simulateCredit } = require('../application/creditSimulationService');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalData } = require('./loanCreation');
-const { roundCurrency } = require('../../../services/creditFormulaHelpers');
+const { roundCurrency } = require('../application/creditFormulaHelpers');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
 

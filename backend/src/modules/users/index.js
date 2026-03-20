@@ -1,12 +1,10 @@
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const { createUsersRouter } = require('./presentation/router');
 const { createListUsers, createGetUserById, createUpdateUser, createDeactivateUser, createReactivateUser } = require('./application/useCases');
 const { userRepository } = require('./infrastructure/repositories');
 
-const createUsersModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
+const createUsersModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     listUsers: createListUsers({ userRepository }),
     getUserById: createGetUserById({ userRepository }),

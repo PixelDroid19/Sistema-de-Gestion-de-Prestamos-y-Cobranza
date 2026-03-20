@@ -7,21 +7,23 @@ const { createPayoutsModule } = require('./payouts');
 const { createReportsModule } = require('./reports');
 const { createNotificationsModule } = require('./notifications');
 const { createUsersModule } = require('./users');
+const { createSharedRuntime } = require('../bootstrap/sharedRuntime');
 
 /**
  * Build the backend module registry consumed by the HTTP app and bootstrap flow.
+ * @param {{ sharedRuntime?: object }} [options]
  * @returns {Array<{ name: string, basePath: string, router: object }>}
  */
-const buildModuleRegistry = () => ([
-  createAuthModule(),
-  createAgentsModule(),
-  createAssociatesModule(),
-  createCustomersModule(),
-  createCreditsModule(),
-  createPayoutsModule(),
-  createReportsModule(),
-  createNotificationsModule(),
-  createUsersModule(),
+const buildModuleRegistry = ({ sharedRuntime = createSharedRuntime() } = {}) => ([
+  createAuthModule({ sharedRuntime }),
+  createAgentsModule({ sharedRuntime }),
+  createAssociatesModule({ sharedRuntime }),
+  createCustomersModule({ sharedRuntime }),
+  createCreditsModule({ sharedRuntime }),
+  createPayoutsModule({ sharedRuntime }),
+  createReportsModule({ sharedRuntime }),
+  createNotificationsModule({ sharedRuntime }),
+  createUsersModule({ sharedRuntime }),
 ]);
 
 module.exports = {

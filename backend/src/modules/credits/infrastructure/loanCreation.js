@@ -1,6 +1,6 @@
 const { Loan, Customer, Associate } = require('../../../models');
 const { NotFoundError } = require('../../../utils/errorHandler');
-const { simulateCredit } = require('../../../services/creditSimulationService');
+const { simulateCredit } = require('../application/creditSimulationService');
 const { buildFinancialSnapshot } = require('../application/loanFinancials');
 
 /**

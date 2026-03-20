@@ -11,6 +11,7 @@ const {
   createAnnulInstallment,
   createListPaymentsByLoan,
 } = require('../src/modules/payouts/application/useCases');
+const { createPayoutsModule } = require('../src/modules/payouts');
 
 test('createCreatePayment delegates actor-aware canonical payment application', async () => {
   let serviceInput;
@@ -223,4 +224,38 @@ test('createAnnulInstallment uses mutation access policy and delegates to the se
     actor: { id: 9, role: 'agent' },
     paymentDate: new Date('2026-03-21T00:00:00.000Z'),
   });
+});
+
+test('createPayoutsModule consumes shared auth and shared credits public ports', () => {
+  let requestedModuleName;
+  const sharedPaymentApplicationService = {
+    applyPayment() {},
+    applyPartialPayment() {},
+    applyCapitalPayment() {},
+    annulInstallment() {},
+  };
+
+  const moduleRegistration = createPayoutsModule({
+    sharedRuntime: {
+      authContext: {
+        tokenService: { sign() {}, verify() {} },
+        authMiddleware() {
+          return (req, res, next) => next();
+        },
+      },
+      getModulePorts(name) {
+        requestedModuleName = name;
+        if (name === 'credits') {
+          return {
+            loanAccessPolicy: { findAuthorizedLoan() {}, findAuthorizedMutationLoan() {} },
+            paymentApplicationService: sharedPaymentApplicationService,
+          };
+        }
+        return null;
+      },
+    },
+  });
+
+  assert.equal(requestedModuleName, 'credits');
+  assert.equal(moduleRegistration.basePath, '/api/payments');
 });

@@ -1,7 +1,6 @@
 const { notificationValidation } = require('../../middleware/validation');
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
+const { createNotificationsPublicPorts } = require('./public');
 const {
   createGetNotifications,
   createMarkAsRead,
@@ -18,8 +17,8 @@ const { createNotificationsRouter } = require('./presentation/router');
  * Compose the notifications module entrypoint and its router dependencies.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createNotificationsModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
+const createNotificationsModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     getNotifications: createGetNotifications({ notificationRepository }),
     markAsRead: createMarkAsRead({ notificationRepository }),
@@ -30,11 +29,15 @@ const createNotificationsModule = () => {
     deletePushSubscription: createDeletePushSubscription({ pushSubscriptionRepository }),
   };
 
-  return createModule({
+  const moduleRegistration = createModule({
     name: 'notifications',
     basePath: '/api/notifications',
     router: createNotificationsRouter({ authMiddleware, notificationValidation, useCases }),
   });
+
+  sharedRuntime?.registerModulePorts?.('notifications', createNotificationsPublicPorts({ sharedRuntime }));
+
+  return moduleRegistration;
 };
 
 module.exports = {

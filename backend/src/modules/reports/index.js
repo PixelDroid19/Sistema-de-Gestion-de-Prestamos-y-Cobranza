@@ -1,6 +1,4 @@
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const { createCreditsPublicPorts } = require('../credits/public');
 const {
   createGetRecoveredLoans,
@@ -21,9 +19,9 @@ const { createReportsRouter } = require('./presentation/router');
  * Compose the reports module entrypoint from reporting repositories and credit read models.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createReportsModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
-  const { loanViewService, loanAccessPolicy } = createCreditsPublicPorts();
+const createReportsModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
+  const { loanViewService, loanAccessPolicy } = createCreditsPublicPorts({ sharedRuntime });
   const useCases = {
     getRecoveredLoans: createGetRecoveredLoans({ reportRepository, paymentRepository, loanViewService }),
     getOutstandingLoans: createGetOutstandingLoans({ reportRepository, paymentRepository, loanViewService }),

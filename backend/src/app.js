@@ -2,16 +2,20 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+const { createSharedRuntime } = require('./bootstrap/sharedRuntime');
 const { globalErrorHandler, notFoundHandler } = require('./utils/errorHandler');
 const { logRequest } = require('./utils/logger');
 const { buildModuleRegistry } = require('./modules');
 
 /**
  * Create the backend HTTP application with the registered module routers.
- * @param {{ moduleRegistry?: Array<{ name: string, basePath: string, router: import('express').Router }> }} [options]
+ * @param {{ sharedRuntime?: object, moduleRegistry?: Array<{ name: string, basePath: string, router: import('express').Router }> }} [options]
  * @returns {import('express').Express}
  */
-const createApp = ({ moduleRegistry = buildModuleRegistry() } = {}) => {
+const createApp = ({
+  sharedRuntime = createSharedRuntime(),
+  moduleRegistry = buildModuleRegistry({ sharedRuntime }),
+} = {}) => {
   const app = express();
 
   app.use(cors());

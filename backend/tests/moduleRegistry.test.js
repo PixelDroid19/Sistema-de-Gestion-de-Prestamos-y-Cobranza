@@ -6,7 +6,22 @@ const path = require('node:path');
 const { buildModuleRegistry } = require('../src/modules');
 
 test('buildModuleRegistry includes every modularized backend surface', () => {
-  const registry = buildModuleRegistry();
+  const sharedRuntime = {
+    authContext: {
+      tokenService: { sign() {}, verify() {} },
+      authMiddleware() {
+        return (req, res, next) => next();
+      },
+    },
+    notificationService: {
+      setPushDeliveryDependencies() {},
+    },
+    registerModulePorts() {},
+    getModulePorts() {
+      return null;
+    },
+  };
+  const registry = buildModuleRegistry({ sharedRuntime });
   const byName = Object.fromEntries(registry.map((moduleRegistration) => [moduleRegistration.name, moduleRegistration.basePath]));
 
   assert.equal(byName.auth, '/api/auth');

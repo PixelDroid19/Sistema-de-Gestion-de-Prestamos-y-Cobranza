@@ -1,7 +1,5 @@
 const { loanValidation } = require('../../middleware/validation');
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListLoans,
   createCreateSimulation,
@@ -32,8 +30,8 @@ const { createCreditsRouter } = require('./presentation/router');
  * Compose the credits module entrypoint from shared policy, services, and router seams.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createCreditsModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
+const createCreditsModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const {
     loanRepository,
     customerRepository,
@@ -50,7 +48,7 @@ const createCreditsModule = () => {
     recoveryStatusGuard,
     loanViewService,
     paymentApplicationService,
-  } = createCreditsComposition();
+  } = createCreditsComposition({ sharedRuntime });
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),

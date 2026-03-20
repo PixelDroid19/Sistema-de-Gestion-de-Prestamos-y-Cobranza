@@ -14,10 +14,14 @@ const startServer = async ({
   createApp: buildApp = createApp,
 } = {}) => {
   const bootstrapResult = await runBootstrap();
-  const app = buildApp({ moduleRegistry: bootstrapResult.modules });
+  const app = buildApp({
+    sharedRuntime: bootstrapResult.sharedRuntime,
+    moduleRegistry: bootstrapResult.modules,
+  });
 
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, () => {
+    let server;
+    server = app.listen(port, () => {
       console.log(`Backend server running on http://localhost:${port}`);
       resolve({ app, server, bootstrap: bootstrapResult });
     });

@@ -1,7 +1,5 @@
 const { customerValidation } = require('../../middleware/validation');
-const { createAuthMiddleware } = require('../shared/auth');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
-const { createModule } = require('../shared');
+const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListCustomers,
   createCreateCustomer,
@@ -19,8 +17,8 @@ const { createLocalAttachmentStorage } = require('../credits/infrastructure/atta
  * Compose the customers module entrypoint and its router dependencies.
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createCustomersModule = () => {
-  const authMiddleware = createAuthMiddleware({ tokenService: createJwtTokenService() });
+const createCustomersModule = ({ sharedRuntime } = {}) => {
+  const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const attachmentStorage = createLocalAttachmentStorage();
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
