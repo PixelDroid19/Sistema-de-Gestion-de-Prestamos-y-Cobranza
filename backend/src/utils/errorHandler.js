@@ -25,6 +25,18 @@ class ValidationError extends AppError {
 }
 
 /**
+ * Validation error raised when a business rule denies an otherwise valid action.
+ */
+class BusinessRuleViolationError extends ValidationError {
+  constructor(message, { code = 'BUSINESS_RULE_VIOLATION', denialReasons = [] } = {}) {
+    super(message);
+    this.name = 'BusinessRuleViolationError';
+    this.code = code;
+    this.denialReasons = denialReasons;
+  }
+}
+
+/**
  * Authentication error raised when a caller is not authenticated.
  */
 class AuthenticationError extends AppError {
@@ -78,6 +90,10 @@ const formatErrorResponse = (error, req) => {
     error: {
       message: error.message,
       statusCode: error.statusCode || 500,
+      ...(error.code ? { code: error.code } : {}),
+      ...(Array.isArray(error.denialReasons) && error.denialReasons.length > 0
+        ? { denialReasons: error.denialReasons }
+        : {}),
       ...(isDevelopment && { stack: error.stack }),
       ...(isDevelopment && { path: req.path }),
       ...(isDevelopment && { method: req.method }),
@@ -173,6 +189,7 @@ const notFoundHandler = (req, res, next) => {
 module.exports = {
   AppError,
   ValidationError,
+  BusinessRuleViolationError,
   AuthenticationError,
   AuthorizationError,
   NotFoundError,

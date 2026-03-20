@@ -19,6 +19,7 @@ const invalidatePaymentQueries = (queryClient, loanId) => {
   queryClient.invalidateQueries({ queryKey: queryKeys.payments.byLoan(loanId) });
   queryClient.invalidateQueries({ queryKey: ['loans'] });
   queryClient.invalidateQueries({ queryKey: queryKeys.loans.calendar(loanId) });
+  queryClient.invalidateQueries({ queryKey: ['loans', loanId, 'payoff-quote'] });
   queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) });
   queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   queryClient.invalidateQueries({ queryKey: ['reports'] });

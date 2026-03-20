@@ -520,7 +520,8 @@ test('createGetPayoffQuote rejects already settled loans', async () => {
 
   await assert.rejects(() => getPayoffQuote({ actor: { id: 7, role: 'customer' }, loanId: 22, asOfDate: '2026-03-15' }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /not payable/i);
+    assert.match(error.message, /not allowed/i);
+    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     return true;
   });
 });

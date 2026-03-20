@@ -6,10 +6,23 @@ const expireSession = () => {
   window.dispatchEvent(new CustomEvent('sessionExpired'));
 };
 
+export const extractApiErrorDetails = (error) => {
+  const payload = error?.payload?.error ?? error?.payload ?? {};
+
+  return {
+    status: error?.status,
+    message: payload.message || error?.message || 'An unexpected error occurred.',
+    code: payload.code || error?.code || null,
+    denialReasons: Array.isArray(payload.denialReasons) ? payload.denialReasons : [],
+    validationErrors: Array.isArray(payload.validationErrors) ? payload.validationErrors : [],
+    payload,
+  };
+};
+
 export const handleApiError = (error, setError = null) => {
   console.error('API Error:', error);
 
-  const status = error?.status;
+  const { status, message } = extractApiErrorDetails(error);
   let errorMessage = 'An unexpected error occurred.';
 
   if (status === 401) {
@@ -22,7 +35,7 @@ export const handleApiError = (error, setError = null) => {
   } else if (status === 500) {
     errorMessage = 'Server error. Please try again later.';
   } else if (error instanceof ApiError) {
-    errorMessage = error.message || errorMessage;
+    errorMessage = message || errorMessage;
   } else if (error?.message) {
     errorMessage = error.message;
   }

@@ -5,6 +5,7 @@ const models = require('../src/models');
 const { summarizeSchedule, buildAmortizationSchedule } = require('../src/services/creditFormulaHelpers');
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
 const { createPaymentApplicationService } = require('../src/services/paymentApplicationService');
+const { BusinessRuleViolationError } = require('../src/utils/errorHandler');
 
 afterEach(() => {
   mock.restoreAll();
@@ -215,6 +216,154 @@ test('applyCapitalPayment updates schedule balances and payment remaining balanc
   assert.equal(savedPayment.remainingBalanceAfterPayment, 180);
 });
 
+test('applyCapitalPayment rejects loans with overdue unpaid installments and exposes denial reasons', async () => {
+  const loan = {
+    id: 34,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 300,
+    financialSnapshot: {
+      outstandingPrincipal: 300,
+      outstandingInterest: 30,
+      outstandingBalance: 330,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-03-01T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-05-01T00:00:00.000Z',
+        remainingPrincipal: 200,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-overdue' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 34,
+    amount: 50,
+    paymentDate: '2026-03-15T00:00:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'OVERDUE_UNPAID_INSTALLMENTS',
+      message: 'Loan has overdue unpaid installments',
+    }]);
+    return true;
+  });
+});
+
+test('applyCapitalPayment rejects loans with a financial block and exposes denial reasons', async () => {
+  const loan = {
+    id: 35,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 300,
+    financialBlock: {
+      isBlocked: true,
+      code: 'MANUAL_REVIEW',
+      message: 'Manual review block active',
+      reason: 'collections_hold',
+    },
+    financialSnapshot: {
+      outstandingPrincipal: 300,
+      outstandingInterest: 30,
+      outstandingBalance: 330,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-04-01T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-block' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 35,
+    amount: 50,
+    paymentDate: '2026-03-15T00:00:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'FINANCIAL_BLOCK',
+      message: 'Manual review block active',
+      blockCode: 'MANUAL_REVIEW',
+      blockReason: 'collections_hold',
+    }]);
+    return true;
+  });
+});
+
+test('applyCapitalPayment rejects loans with no outstanding balance and exposes denial reasons', async () => {
+  const loan = {
+    id: 36,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 0,
+    financialSnapshot: {
+      outstandingPrincipal: 0,
+      outstandingInterest: 0,
+      outstandingBalance: 0,
+    },
+    emiSchedule: [],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-no-balance' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 36,
+    amount: 50,
+    paymentDate: '2026-03-15T00:00:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'NO_OUTSTANDING_BALANCE',
+      message: 'Loan has no outstanding balance for capital payment',
+    }]);
+    return true;
+  });
+});
+
 test('applyPayment rejects invalid amounts before persistence', async () => {
   const loan = {
     id: 10,
@@ -270,7 +419,7 @@ test('applyPayment rejects pending loans before persistence', async () => {
     amount: 50,
   }), (error) => {
     assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /approved, active, or defaulted/i);
+    assert.match(error.message, /approved, active, overdue, or defaulted/i);
     return true;
   });
 });
@@ -292,9 +441,9 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
     termMonths: 3,
     startDate: '2026-01-01T00:00:00.000Z',
     emiSchedule: [
-      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
-      { installmentNumber: 2, dueDate: '2026-03-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
-      { installmentNumber: 3, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 2, dueDate: '2026-05-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 3, dueDate: '2026-06-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
     ],
     financialSnapshot: {
       outstandingPrincipal: 1000,
@@ -317,7 +466,7 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   const result = await createPaymentApplicationService({ loanViewService }).applyPayoff({
     loanId: 10,
     asOfDate: '2026-03-15',
-    quotedTotal: 1054.6,
+    quotedTotal: 1024,
     paymentDate: '2026-03-15T16:00:00.000Z',
   });
 
@@ -325,14 +474,14 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(result.loan.closureReason, 'payoff');
   assert.equal(result.loan.closedAt.toISOString(), '2026-03-15T00:00:00.000Z');
   assert.equal(result.allocation.remainingBalance, 0);
-  assert.equal(result.allocation.payoff.total, 1054.6);
+  assert.equal(result.allocation.payoff.total, 1024);
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
   assert.equal(savedPayment.paymentType, 'payoff');
   assert.equal(savedPayment.paymentMetadata.payoff.asOfDate, '2026-03-15');
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overduePrincipal, 650);
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 50);
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 4.6);
-  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.futurePrincipal, 350);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overduePrincipal, 0);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 0);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 24);
+  assert.equal(savedPayment.paymentMetadata.payoff.breakdown.futurePrincipal, 1000);
 });
 
 test('applyPayoff rejects stale payoff quotes before persistence', async () => {
@@ -343,7 +492,11 @@ test('applyPayoff rejects stale payoff quotes before persistence', async () => {
     interestRate: 12,
     termMonths: 3,
     startDate: '2026-01-01T00:00:00.000Z',
-    emiSchedule: [],
+    emiSchedule: [
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 2, dueDate: '2026-05-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 3, dueDate: '2026-06-01T00:00:00.000Z', remainingPrincipal: 350, remainingInterest: 10, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+    ],
     financialSnapshot: {
       outstandingPrincipal: 1000,
       outstandingInterest: 60,
@@ -371,6 +524,132 @@ test('applyPayoff rejects stale payoff quotes before persistence', async () => {
   });
 });
 
+test('applyPayoff rejects overdue unpaid installments and exposes denial reasons', async () => {
+  const loan = {
+    id: 11,
+    status: 'active',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 3,
+    startDate: '2026-01-01T00:00:00.000Z',
+    emiSchedule: [
+      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 300, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+      { installmentNumber: 2, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 700, remainingInterest: 20, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+    ],
+    financialSnapshot: {
+      outstandingPrincipal: 1000,
+      outstandingInterest: 50,
+      outstandingBalance: 1050,
+    },
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-overdue' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
+    loanId: 11,
+    asOfDate: '2026-03-15',
+    quotedTotal: 1000,
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'OVERDUE_UNPAID_INSTALLMENTS',
+      message: 'Loan has overdue unpaid installments',
+    }]);
+    return true;
+  });
+});
+
+test('applyPayoff rejects financially blocked loans and exposes denial reasons', async () => {
+  const loan = {
+    id: 12,
+    status: 'active',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 3,
+    startDate: '2026-01-01T00:00:00.000Z',
+    financialBlock: {
+      active: true,
+      code: 'COMPLIANCE_HOLD',
+      message: 'Compliance block active',
+      reason: 'kyc_review',
+    },
+    emiSchedule: [
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 1000, remainingInterest: 30, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'pending' },
+    ],
+    financialSnapshot: {
+      outstandingPrincipal: 1000,
+      outstandingInterest: 30,
+      outstandingBalance: 1030,
+    },
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-block' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
+    loanId: 12,
+    asOfDate: '2026-03-15',
+    quotedTotal: 1000,
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'FINANCIAL_BLOCK',
+      message: 'Compliance block active',
+      blockCode: 'COMPLIANCE_HOLD',
+      blockReason: 'kyc_review',
+    }]);
+    return true;
+  });
+});
+
+test('applyPayoff rejects loans with no outstanding balance and exposes denial reasons', async () => {
+  const loan = {
+    id: 13,
+    status: 'active',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 3,
+    startDate: '2026-01-01T00:00:00.000Z',
+    emiSchedule: [
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'paid' },
+    ],
+    financialSnapshot: {
+      outstandingPrincipal: 0,
+      outstandingInterest: 0,
+      outstandingBalance: 0,
+    },
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-no-balance' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
+    loanId: 13,
+    asOfDate: '2026-03-15',
+    quotedTotal: 12,
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'LOAN_ALREADY_PAID',
+      message: 'Loan is already fully paid',
+    }]);
+    return true;
+  });
+});
+
 test('applyPayoff rejects already closed loans', async () => {
   const loan = {
     id: 10,
@@ -379,7 +658,9 @@ test('applyPayoff rejects already closed loans', async () => {
     interestRate: 12,
     termMonths: 3,
     startDate: '2026-01-01T00:00:00.000Z',
-    emiSchedule: [],
+    emiSchedule: [
+      { installmentNumber: 1, dueDate: '2026-04-01T00:00:00.000Z', remainingPrincipal: 0, remainingInterest: 0, paidPrincipal: 0, paidInterest: 0, paidTotal: 0, status: 'paid' },
+    ],
     financialSnapshot: {
       outstandingPrincipal: 0,
       outstandingInterest: 0,
@@ -398,8 +679,12 @@ test('applyPayoff rejects already closed loans', async () => {
     asOfDate: '2026-03-15',
     quotedTotal: 12,
   }), (error) => {
-    assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /approved, active, or defaulted/i);
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'LOAN_ALREADY_PAID',
+      message: 'Loan is already fully paid',
+    }]);
     return true;
   });
 });

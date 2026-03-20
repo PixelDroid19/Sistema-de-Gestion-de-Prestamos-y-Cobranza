@@ -832,6 +832,75 @@ test('createCreditsRouter rejects invalid payoff payloads through runtime valida
   assert.equal(executeResponse.body.error.validationErrors[0].field, 'quotedTotal');
 });
 
+test('createCreditsRouter returns structured denial reasons for payoff denials', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 7, role: 'customer' },
+    useCases: createUseCases({
+      async getPayoffQuote() {
+        const error = new Error('Total payoff is not allowed for this loan');
+        error.name = 'BusinessRuleViolationError';
+        error.statusCode = 400;
+        error.code = 'PAYOFF_NOT_ALLOWED';
+        error.denialReasons = [{
+          code: 'OVERDUE_UNPAID_INSTALLMENTS',
+          message: 'Loan has overdue unpaid installments',
+        }];
+        throw error;
+      },
+    }),
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/55/payoff-quote?asOfDate=2026-03-15',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.code, 'PAYOFF_NOT_ALLOWED');
+  assert.deepEqual(response.body.error.denialReasons, [{
+    code: 'OVERDUE_UNPAID_INSTALLMENTS',
+    message: 'Loan has overdue unpaid installments',
+  }]);
+});
+
+test('createCreditsRouter returns structured denial reasons for payoff execution no-outstanding-balance denials', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 7, role: 'customer' },
+    useCases: createUseCases({
+      async executePayoff() {
+        const error = new Error('Total payoff is not allowed for this loan');
+        error.name = 'BusinessRuleViolationError';
+        error.statusCode = 400;
+        error.code = 'PAYOFF_NOT_ALLOWED';
+        error.denialReasons = [{
+          code: 'LOAN_ALREADY_PAID',
+          message: 'Loan is already fully paid',
+        }];
+        throw error;
+      },
+    }),
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/55/payoff-executions',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { asOfDate: '2026-03-15', quotedTotal: 955.12 },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.code, 'PAYOFF_NOT_ALLOWED');
+  assert.deepEqual(response.body.error.denialReasons, [{
+    code: 'LOAN_ALREADY_PAID',
+    message: 'Loan is already fully paid',
+  }]);
+});
+
 test('createCreditsRouter blocks payoff execution for non-customer actors at the auth boundary', async () => {
   const app = createRuntimeApp({
     actor: { id: 1, role: 'admin' },

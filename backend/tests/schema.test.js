@@ -18,7 +18,7 @@ const buildDescribedTable = (tableName) => {
       id: {}, customerId: {}, associateId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
       startDate: {}, endDate: {}, agentId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
-      financialSnapshot: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
+      financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -120,6 +120,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(loans.columns.includes('associateId'));
   assert.ok(loans.columns.includes('closedAt'));
   assert.ok(loans.columns.includes('closureReason'));
+  assert.ok(loans.columns.includes('financialBlock'));
   assert.ok(payments.columns.includes('allocationBreakdown'));
   assert.ok(payments.columns.includes('paymentType'));
   assert.ok(payments.columns.includes('paymentMetadata'));

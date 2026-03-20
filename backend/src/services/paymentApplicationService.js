@@ -1,6 +1,11 @@
 const { sequelize, Loan, Payment } = require('../models');
 const { NotFoundError, ValidationError, AuthorizationError } = require('../utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
+const {
+  PAYABLE_LOAN_STATUSES,
+  assertCapitalPaymentAllowed,
+  assertPayoffAllowed,
+} = require('../modules/credits/application/paymentEligibility');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
@@ -72,13 +77,11 @@ const buildSnapshot = (schedule) => {
   };
 };
 
-const payableLoanStatuses = new Set(['approved', 'active', 'defaulted', 'overdue']);
-
 const normalizePaymentDate = (paymentDate) => new Date(paymentDate);
 
 const assertPayableLoanStatus = (loan) => {
-  if (!payableLoanStatuses.has(loan.status)) {
-    throw new ValidationError('Payments can only be applied to approved, active, or defaulted loans');
+  if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
+    throw new ValidationError('Payments can only be applied to approved, active, overdue, or defaulted loans');
   }
 };
 
@@ -599,17 +602,18 @@ const createPaymentApplicationService = ({
 
       const numericAmount = assertPositiveAmount(amount);
 
-      // Capital payment reduces principalOutstanding directly
-      const principalReduction = Math.min(numericAmount, roundCurrency(loan.principalOutstanding || 0));
-      
-      if (principalReduction <= 0) {
-        throw new ValidationError('No principal outstanding to reduce');
-      }
-
-      // Recalculate schedule with reduced principal
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
-      const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
+      const { schedule: canonicalSchedule, snapshot: canonicalSnapshot } = loanViewService.getCanonicalLoanView(loan);
       const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+
+      assertCapitalPaymentAllowed({
+        loan,
+        schedule,
+        snapshot: canonicalSnapshot,
+        asOfDate: normalizedPaymentDate,
+      });
+
+      const principalReduction = Math.min(numericAmount, roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0));
 
       // Find installments with remaining principal and reduce debt directly.
       let principalRemaining = principalReduction;
@@ -669,9 +673,17 @@ const createPaymentApplicationService = ({
         throw new NotFoundError('Loan');
       }
 
-      assertPayableLoanStatus(loan);
-
       const normalizedQuotedTotal = assertPositiveAmount(quotedTotal);
+      const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
+      const payoffDate = new Date(`${asOfDate}T00:00:00.000Z`);
+
+      assertPayoffAllowed({
+        loan,
+        schedule,
+        snapshot,
+        asOfDate: payoffDate,
+      });
+
       const recomputedQuote = loanViewService.getPayoffQuote(loan, asOfDate);
 
       if (roundCurrency(recomputedQuote.total) !== normalizedQuotedTotal) {
@@ -679,11 +691,10 @@ const createPaymentApplicationService = ({
       }
 
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
-      const payoffDate = new Date(`${recomputedQuote.asOfDate}T00:00:00.000Z`);
-      const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
-      const schedule = cloneSchedule(canonicalSchedule).map((row) => {
+      const appliedPayoffDate = new Date(`${recomputedQuote.asOfDate}T00:00:00.000Z`);
+      const settledSchedule = cloneSchedule(schedule).map((row) => {
         const rowDueDate = new Date(row.dueDate);
-        const isOverdueOrEarned = rowDueDate.getTime() <= payoffDate.getTime();
+        const isOverdueOrEarned = rowDueDate.getTime() <= appliedPayoffDate.getTime();
         const principalToApply = roundCurrency(row.remainingPrincipal || 0);
         const interestToApply = isOverdueOrEarned ? roundCurrency(row.remainingInterest || 0) : 0;
 
@@ -697,17 +708,17 @@ const createPaymentApplicationService = ({
           status: 'paid',
         };
       });
-      const snapshot = buildSnapshot(schedule);
+      const payoffSnapshot = buildSnapshot(settledSchedule);
 
       persistLoanSnapshot({
         loan,
-        snapshot,
-        schedule,
+        snapshot: payoffSnapshot,
+        schedule: settledSchedule,
         paymentDate: normalizedPaymentDate,
         closeLoan: true,
         closureReason: 'payoff',
       });
-      loan.closedAt = payoffDate;
+      loan.closedAt = appliedPayoffDate;
 
       await loan.save({ transaction });
 

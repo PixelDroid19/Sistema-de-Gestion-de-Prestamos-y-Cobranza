@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const { createPayoutsRouter } = require('../src/modules/payouts/presentation/router');
+const { globalErrorHandler, BusinessRuleViolationError } = require('../src/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -28,6 +29,14 @@ const paymentValidation = {
 
 const unexpectedUseCase = (name) => async () => {
   throw new Error(`${name} should not be called`);
+};
+
+const createRuntimeApp = ({ useCases }) => {
+  const app = express();
+  app.use(express.json());
+  app.use(createPayoutsRouter({ authMiddleware: allowAuth, paymentValidation, useCases }));
+  app.use(globalErrorHandler);
+  return app;
 };
 
 test('createPayoutsRouter serves list and create contract responses', async () => {
@@ -236,4 +245,80 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60 }],
     ['annulInstallment', { actor: { id: 3, role: 'agent' }, loanId: '15' }],
   ]);
+});
+
+test('createPayoutsRouter returns structured denial reasons for capital payment denials', async () => {
+  const app = createRuntimeApp({
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      async createCapitalPayment() {
+        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+          code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+          denialReasons: [{
+            code: 'FINANCIAL_BLOCK',
+            message: 'Manual review block active',
+            blockCode: 'MANUAL_REVIEW',
+          }],
+        });
+      },
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/capital',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { loanId: 15, amount: 60 },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+  assert.deepEqual(response.body.error.denialReasons, [{
+    code: 'FINANCIAL_BLOCK',
+    message: 'Manual review block active',
+    blockCode: 'MANUAL_REVIEW',
+  }]);
+});
+
+test('createPayoutsRouter returns structured denial reasons for capital payment no-outstanding-balance denials', async () => {
+  const app = createRuntimeApp({
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      async createCapitalPayment() {
+        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+          code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+          denialReasons: [{
+            code: 'NO_OUTSTANDING_BALANCE',
+            message: 'Loan has no outstanding balance for capital payment',
+          }],
+        });
+      },
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/capital',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { loanId: 15, amount: 60 },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+  assert.deepEqual(response.body.error.denialReasons, [{
+    code: 'NO_OUTSTANDING_BALANCE',
+    message: 'Loan has no outstanding balance for capital payment',
+  }]);
 });

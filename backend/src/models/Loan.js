@@ -22,6 +22,7 @@ const Loan = sequelize.define('Loan', {
   lastPaymentDate: { type: DataTypes.DATE, allowNull: true },
   lateFeeMode: { type: DataTypes.STRING, allowNull: false, defaultValue: 'NONE' },
   financialSnapshot: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+  financialBlock: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   closedAt: { type: DataTypes.DATE, allowNull: true },
   // closureReason: 'payoff', 'schedule_completion', 'annulled', 'cancelled'
   closureReason: { type: DataTypes.ENUM('payoff', 'schedule_completion', 'annulled', 'cancelled'), allowNull: true },

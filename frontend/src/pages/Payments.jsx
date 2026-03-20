@@ -1,7 +1,7 @@
 
 import React, { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
-import { handleApiError } from '../lib/api/errors';
+import { extractApiErrorDetails, handleApiError } from '../lib/api/errors';
 import { downloadFile } from '../lib/api/download';
 import { useLoansQuery, useLoanAttachmentsQuery, useLoanCalendarQuery, useLoanPayoffQuoteQuery, useExecutePayoffMutation } from '../hooks/useLoans';
 import {
@@ -35,6 +35,23 @@ const PAYMENT_TYPES_BY_ROLE = {
   customer: ['installment', 'partial', 'payoff'],
 };
 
+const PAYMENT_ACTION_CONFIG = {
+  payoff: {
+    actionLabel: 'Pago Total',
+    blockedTitle: 'Pago Total bloqueado',
+    readyTitle: 'Pago Total disponible',
+    helperText: 'La liquidacion total solo se habilita cuando el prestamo no tiene cuotas vencidas, mantiene saldo pendiente y no posee bloqueo financiero.',
+  },
+  capital: {
+    actionLabel: 'Pago a Capital',
+    blockedTitle: 'Pago a Capital bloqueado',
+    readyTitle: 'Pago a Capital disponible',
+    helperText: 'La reduccion de capital solo se habilita cuando el prestamo tiene saldo pendiente, esta al dia y no posee bloqueo financiero.',
+  },
+};
+
+const STRUCTURED_PAYMENT_ERROR_CODES = new Set(['PAYOFF_NOT_ALLOWED', 'CAPITAL_PAYMENT_NOT_ALLOWED']);
+
 const getPayoffQuoteTotal = (payoffQuote) => Number(
   payoffQuote?.total
   ?? payoffQuote?.totalPayoffAmount
@@ -46,6 +63,217 @@ const buildPaymentPayload = (loanId, amount) => ({
   amount: Number(amount),
 });
 
+const getOutstandingBalanceValue = (loan, fallbackBalance = 0) => {
+  const snapshotBalance = Number(loan?.financialSnapshot?.outstandingBalance);
+  if (Number.isFinite(snapshotBalance)) {
+    return snapshotBalance;
+  }
+
+  const normalizedFallback = Number(fallbackBalance);
+  return Number.isFinite(normalizedFallback) ? normalizedFallback : 0;
+};
+
+const getOutstandingPrincipalValue = (loan, fallbackBalance = 0) => {
+  const snapshotPrincipal = Number(loan?.financialSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding);
+  if (Number.isFinite(snapshotPrincipal)) {
+    return snapshotPrincipal;
+  }
+
+  return getOutstandingBalanceValue(loan, fallbackBalance);
+};
+
+const getFinancialBlockDetails = (loan) => {
+  const source = loan?.financialBlock ?? loan?.financialSnapshot?.financialBlock;
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  const isBlocked = source.isBlocked === true || source.active === true;
+  if (!isBlocked) {
+    return null;
+  }
+
+  return {
+    code: source.code ? String(source.code) : null,
+    message: source.message ? String(source.message) : 'Este prestamo tiene un bloqueo financiero activo.',
+    reason: source.reason ? String(source.reason) : null,
+  };
+};
+
+const getOverdueCalendarEntries = (calendar = []) => calendar.filter((entry) => (
+  entry.status === 'overdue' && Number(entry.outstandingAmount || 0) > 0.01
+));
+
+const dedupeDenialReasons = (reasons = []) => {
+  const seen = new Set();
+
+  return reasons.filter((reason) => {
+    const key = [reason?.code, reason?.message, reason?.blockCode, reason?.blockReason].join('|');
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
+const formatDenialReason = (reason, action) => {
+  const metadata = [
+    reason?.blockCode ? `Codigo: ${reason.blockCode}` : null,
+    reason?.blockReason ? `Motivo interno: ${reason.blockReason}` : null,
+  ].filter(Boolean).join(' · ');
+
+  switch (reason?.code) {
+    case 'OVERDUE_UNPAID_INSTALLMENTS':
+      return {
+        key: `${action}-overdue`,
+        title: 'Cuotas vencidas pendientes',
+        message: action === 'payoff'
+          ? 'Debes ponerte al dia con las cuotas vencidas antes de hacer el Pago Total.'
+          : 'Debes ponerte al dia con las cuotas vencidas antes de registrar un Pago a Capital.',
+        metadata,
+      };
+    case 'LOAN_ALREADY_PAID':
+      return {
+        key: `${action}-paid`,
+        title: 'Prestamo sin saldo',
+        message: 'Este prestamo ya fue pagado o no tiene saldo pendiente.',
+        metadata,
+      };
+    case 'NO_OUTSTANDING_BALANCE':
+      return {
+        key: `${action}-no-balance`,
+        title: 'Sin saldo pendiente',
+        message: 'Este prestamo no tiene saldo pendiente para aplicar un Pago a Capital.',
+        metadata,
+      };
+    case 'FINANCIAL_BLOCK':
+      return {
+        key: `${action}-financial-block`,
+        title: 'Bloqueo financiero',
+        message: reason?.message || 'Este prestamo tiene un bloqueo financiero activo y no permite esta operacion.',
+        metadata,
+      };
+    case 'LOAN_NOT_PAYABLE_STATUS':
+      return {
+        key: `${action}-status`,
+        title: 'Estado no elegible',
+        message: reason?.message || 'El estado actual del prestamo no permite esta operacion.',
+        metadata,
+      };
+    default:
+      return {
+        key: `${action}-${reason?.code || 'unknown'}`,
+        title: 'Operacion no disponible',
+        message: reason?.message || 'No se puede completar esta operacion para el prestamo seleccionado.',
+        metadata,
+      };
+  }
+};
+
+const formatDenialReasons = (reasons = [], action) => dedupeDenialReasons(reasons).map((reason) => (
+  formatDenialReason(reason, action)
+));
+
+const getStructuredDenialReasons = (details, action) => {
+  if (!details) {
+    return [];
+  }
+
+  const expectedCode = action === 'payoff' ? 'PAYOFF_NOT_ALLOWED' : 'CAPITAL_PAYMENT_NOT_ALLOWED';
+  const denialReasons = Array.isArray(details.denialReasons) ? details.denialReasons : [];
+
+  if (denialReasons.length > 0) {
+    return denialReasons;
+  }
+
+  if (details.code === expectedCode || STRUCTURED_PAYMENT_ERROR_CODES.has(details.code)) {
+    return [{ code: details.code, message: details.message }];
+  }
+
+  return [];
+};
+
+const buildClientEligibility = ({ action, loan, calendar, balance }) => {
+  if (!loan) {
+    return { allowed: true, denialReasons: [] };
+  }
+
+  const denialReasons = [];
+  const outstandingBalance = getOutstandingBalanceValue(loan, balance);
+  const outstandingPrincipal = getOutstandingPrincipalValue(loan, balance);
+  const overdueEntries = getOverdueCalendarEntries(calendar);
+  const financialBlock = getFinancialBlockDetails(loan);
+
+  if (action === 'payoff' && (loan.status === 'closed' || loan.status === 'paid' || outstandingBalance <= 0.01)) {
+    denialReasons.push({ code: 'LOAN_ALREADY_PAID' });
+  }
+
+  if (action === 'capital' && (outstandingBalance <= 0.01 || outstandingPrincipal <= 0.01)) {
+    denialReasons.push({ code: 'NO_OUTSTANDING_BALANCE' });
+  }
+
+  if (overdueEntries.length > 0) {
+    denialReasons.push({ code: 'OVERDUE_UNPAID_INSTALLMENTS' });
+  }
+
+  if (financialBlock) {
+    denialReasons.push({
+      code: 'FINANCIAL_BLOCK',
+      message: financialBlock.message,
+      blockCode: financialBlock.code,
+      blockReason: financialBlock.reason,
+    });
+  }
+
+  return {
+    allowed: denialReasons.length === 0,
+    denialReasons,
+  };
+};
+
+const buildEligibilityState = ({ action, clientEligibility, backendDetails, loading = false }) => {
+  const backendReasons = getStructuredDenialReasons(backendDetails, action);
+  if (backendReasons.length > 0) {
+    return {
+      status: 'blocked',
+      source: 'backend',
+      reasons: formatDenialReasons(backendReasons, action),
+    };
+  }
+
+  if (!clientEligibility.allowed) {
+    return {
+      status: 'blocked',
+      source: 'client',
+      reasons: formatDenialReasons(clientEligibility.denialReasons, action),
+    };
+  }
+
+  if (loading) {
+    return {
+      status: 'loading',
+      source: 'backend',
+      reasons: [],
+    };
+  }
+
+  return {
+    status: 'ready',
+    source: 'client',
+    reasons: [],
+  };
+};
+
+const buildEligibilityButtonTitle = (eligibilityState) => {
+  if (!eligibilityState || eligibilityState.status !== 'blocked' || eligibilityState.reasons.length === 0) {
+    return undefined;
+  }
+
+  return eligibilityState.reasons[0].message;
+};
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function StatePanel({ icon, title, message, action, loadingState }) {
@@ -55,6 +283,72 @@ function StatePanel({ icon, title, message, action, loadingState }) {
       <div className="state-panel__title">{title}</div>
       <div className="state-panel__text">{message}</div>
       {action}
+    </div>
+  );
+}
+
+function EligibilityPanel({ action, eligibilityState, quoteTotal, payoffDate, onPayoffDateChange, payoffLoading }) {
+  if (!eligibilityState) {
+    return null;
+  }
+
+  const config = PAYMENT_ACTION_CONFIG[action];
+  const isBlocked = eligibilityState.status === 'blocked';
+  const isLoading = eligibilityState.status === 'loading';
+  const isPayoff = action === 'payoff';
+
+  return (
+    <div className={`eligibility-panel eligibility-panel--${isBlocked ? 'blocked' : isLoading ? 'loading' : 'ready'}`}>
+      <div className="eligibility-panel__header">
+        <div>
+          <div className="eligibility-panel__eyebrow">{config.actionLabel}</div>
+          <div className="eligibility-panel__title">{isBlocked ? config.blockedTitle : isLoading ? 'Validando elegibilidad...' : config.readyTitle}</div>
+          <div className="eligibility-panel__text">
+            {isBlocked
+              ? eligibilityState.source === 'backend'
+                ? 'El backend confirmo que esta operacion no se puede registrar en este momento.'
+                : 'La UI detecto una restriccion y bloqueo preventivamente la accion antes del envio.'
+              : isLoading
+                ? 'Consultando las reglas mas recientes del backend para esta operacion.'
+                : config.helperText}
+          </div>
+        </div>
+        <span className={`status-badge status-badge--${isBlocked ? 'danger' : isLoading ? 'warning' : 'success'}`}>
+          {isBlocked ? 'Bloqueado' : isLoading ? 'Validando' : 'Disponible'}
+        </span>
+      </div>
+
+      {isBlocked && (
+        <ul className="eligibility-panel__list">
+          {eligibilityState.reasons.map((reason) => (
+            <li key={reason.key}>
+              <strong>{reason.title}:</strong> {reason.message}
+              {reason.metadata ? ` (${reason.metadata})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!isBlocked && isPayoff && (
+        <div className="eligibility-panel__grid">
+          <label className="field-group">
+            <span className="field-label">Fecha de liquidacion</span>
+            <input
+              id="payoff-date"
+              className="field-control"
+              type="date"
+              value={payoffDate}
+              onChange={(event) => onPayoffDateChange(event.target.value)}
+            />
+          </label>
+          <div className="detail-card">
+            <div className="detail-card__label">Total cotizado</div>
+            <div className="detail-card__value detail-card__value--warning">
+              {payoffLoading ? 'Calculando...' : `₹${quoteTotal.toFixed(2)}`}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -318,6 +612,7 @@ function Payments({ user }) {
   const [success, setSuccess] = React.useState('');
   const [showSuccessAnimation, setShowSuccessAnimation] = React.useState(false);
   const [resolvedAlertMessage, setResolvedAlertMessage] = React.useState('');
+  const [actionErrorDetails, setActionErrorDetails] = React.useState(null);
 
   const loansQuery = useLoansQuery({ user });
   const loans = useMemo(() => (
@@ -334,7 +629,7 @@ function Payments({ user }) {
   const calendarQuery = useLoanCalendarQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const attachmentsQuery = useLoanAttachmentsQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const payoffQuoteQuery = useLoanPayoffQuoteQuery(selectedLoanId, formState.payoffDate, {
-    enabled: Boolean(selectedLoanId) && isCustomer && isSelectedLoanPayable,
+    enabled: Boolean(selectedLoanId) && isCustomer && isSelectedLoanPayable && formState.paymentType === 'payoff',
   });
   const createPaymentMutation = useCreatePaymentMutation(selectedLoanId);
   const createPartialPaymentMutation = useCreatePartialPaymentMutation(selectedLoanId);
@@ -363,29 +658,6 @@ function Payments({ user }) {
     ))?.installmentNumber ?? null,
     [calendar],
   );
-
-  useEffect(() => {
-    if (allowedPaymentTypes.length === 0) {
-      return;
-    }
-
-    if (!allowedPaymentTypes.includes(formState.paymentType)) {
-      dispatch({ type: 'SET_PAYMENT_TYPE', paymentType: allowedPaymentTypes[0] });
-    }
-  }, [allowedPaymentTypes, formState.paymentType]);
-
-  useEffect(() => {
-    if (!formState.loanId) {
-      return;
-    }
-
-    if (payableLoans.some((loan) => loan.id === Number(formState.loanId))) {
-      return;
-    }
-
-    dispatch({ type: 'RESET' });
-  }, [formState.loanId, payableLoans]);
-
   const getLoanDetails = useCallback((loanId) => {
     const loan = loans.find((item) => item.id === parseInt(loanId, 10));
     if (!loan) return { emi: '', balance: '' };
@@ -414,11 +686,120 @@ function Payments({ user }) {
 
     return { emi: emi.toFixed(2), balance: finalBalance.toFixed(2) };
   }, [loans, payments]);
+  const loanDetails = formState.loanId ? getLoanDetails(formState.loanId) : { emi: '', balance: '' };
+  const payoffQuoteErrorDetails = useMemo(
+    () => extractApiErrorDetails(payoffQuoteQuery.error),
+    [payoffQuoteQuery.error],
+  );
+  const latestPayoffErrorDetails = actionErrorDetails?.action === 'payoff'
+    ? actionErrorDetails.details
+    : payoffQuoteErrorDetails;
+  const latestCapitalErrorDetails = actionErrorDetails?.action === 'capital'
+    ? actionErrorDetails.details
+    : null;
+  const payoffClientEligibility = useMemo(
+    () => buildClientEligibility({
+      action: 'payoff',
+      loan: selectedLoan,
+      calendar,
+      balance: loanDetails.balance,
+    }),
+    [calendar, loanDetails.balance, selectedLoan],
+  );
+  const capitalClientEligibility = useMemo(
+    () => buildClientEligibility({
+      action: 'capital',
+      loan: selectedLoan,
+      calendar,
+      balance: loanDetails.balance,
+    }),
+    [calendar, loanDetails.balance, selectedLoan],
+  );
+  const payoffEligibilityState = useMemo(
+    () => (selectedLoan
+      ? buildEligibilityState({
+        action: 'payoff',
+        clientEligibility: payoffClientEligibility,
+        backendDetails: latestPayoffErrorDetails,
+        loading: payoffQuoteQuery.isFetching,
+      })
+      : null),
+    [latestPayoffErrorDetails, payoffClientEligibility, payoffQuoteQuery.isFetching, selectedLoan],
+  );
+  const capitalEligibilityState = useMemo(
+    () => (selectedLoan
+      ? buildEligibilityState({
+        action: 'capital',
+        clientEligibility: capitalClientEligibility,
+        backendDetails: latestCapitalErrorDetails,
+      })
+      : null),
+    [capitalClientEligibility, latestCapitalErrorDetails, selectedLoan],
+  );
+  const payoffQuote = payoffQuoteQuery.data?.data?.payoffQuote;
+  const payoffQuoteTotal = getPayoffQuoteTotal(payoffQuote);
+  const payoffButtonDisabled = !isCustomer
+    || submitting
+    || !selectedLoanId
+    || payoffEligibilityState?.status !== 'ready'
+    || payoffQuoteQuery.isFetching
+    || payoffQuoteTotal <= 0;
+  const capitalButtonDisabled = !formState.loanId
+    || submitting
+    || capitalEligibilityState?.status === 'blocked';
+
+  const registerActionError = useCallback((action, err) => {
+    const details = extractApiErrorDetails(err);
+    const structuredReasons = getStructuredDenialReasons(details, action);
+
+    if (structuredReasons.length > 0) {
+      setActionErrorDetails({
+        action,
+        details: {
+          ...details,
+          denialReasons: structuredReasons,
+        },
+      });
+      setError('');
+      return;
+    }
+
+    setActionErrorDetails(null);
+    handleApiError(err, setError);
+  }, []);
+
+  useEffect(() => {
+    if (allowedPaymentTypes.length === 0) {
+      return;
+    }
+
+    if (!allowedPaymentTypes.includes(formState.paymentType)) {
+      dispatch({ type: 'SET_PAYMENT_TYPE', paymentType: allowedPaymentTypes[0] });
+    }
+  }, [allowedPaymentTypes, formState.paymentType]);
+
+  useEffect(() => {
+    if (!formState.loanId) {
+      return;
+    }
+
+    if (payableLoans.some((loan) => loan.id === Number(formState.loanId))) {
+      return;
+    }
+
+    dispatch({ type: 'RESET' });
+  }, [formState.loanId, payableLoans]);
 
   useEffect(() => {
     const sourceError = loansQuery.error
       || (selectedLoanId ? paymentsQuery.error || calendarQuery.error || attachmentsQuery.error : null)
-      || (isSelectedLoanPayable ? payoffQuoteQuery.error : null);
+      || (
+        isSelectedLoanPayable
+        && formState.paymentType === 'payoff'
+        && getStructuredDenialReasons(payoffQuoteErrorDetails, 'payoff').length === 0
+          ? payoffQuoteQuery.error
+          : null
+      );
 
     if (!sourceError) {
       return;
@@ -431,11 +812,11 @@ function Payments({ user }) {
     isSelectedLoanPayable,
     loansQuery.error,
     paymentsQuery.error,
+    payoffQuoteErrorDetails,
     payoffQuoteQuery.error,
     selectedLoanId,
+    formState.paymentType,
   ]);
-
-  const loanDetails = formState.loanId ? getLoanDetails(formState.loanId) : { emi: '', balance: '' };
 
   const handleDownloadAttachment = async (attachmentId, fileName) => {
     try {
@@ -453,6 +834,7 @@ function Payments({ user }) {
     setError('');
     setSuccess('');
     setShowSuccessAnimation(false);
+    setActionErrorDetails(null);
 
     try {
       const previousOverdueCount = calendar.filter((entry) => entry.status === 'overdue').length;
@@ -470,24 +852,27 @@ function Payments({ user }) {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      handleApiError(err, setError);
+      registerActionError('installment', err);
     }
   };
 
   const handlePayoff = async () => {
     setError('');
     setSuccess('');
+    setActionErrorDetails(null);
 
     try {
-      const payoffQuote = payoffQuoteQuery.data?.data?.payoffQuote;
       if (!payoffQuote) {
-        setError('Payoff quote is not available yet.');
+        setError('La cotizacion del Pago Total todavia no esta disponible.');
         return;
       }
 
-      const quotedTotal = getPayoffQuoteTotal(payoffQuote);
-      if (quotedTotal <= 0) {
-        setError('Payoff quote is not available yet.');
+      if (payoffEligibilityState?.status === 'blocked') {
+        return;
+      }
+
+      if (payoffQuoteTotal <= 0) {
+        setError('La cotizacion del Pago Total todavia no esta disponible.');
         return;
       }
 
@@ -495,20 +880,21 @@ function Payments({ user }) {
         loanId: formState.loanId,
         payload: {
           asOfDate: formState.payoffDate,
-          quotedTotal,
+          quotedTotal: payoffQuoteTotal,
         },
       });
 
       setSuccess('Payoff executed successfully.');
       dispatch({ type: 'RESET' });
     } catch (err) {
-      handleApiError(err, setError);
+      registerActionError('payoff', err);
     }
   };
 
   const handlePartialPayment = async () => {
     setError('');
     setSuccess('');
+    setActionErrorDetails(null);
 
     try {
       await createPartialPaymentMutation.mutateAsync(buildPaymentPayload(formState.loanId, formState.amount));
@@ -519,15 +905,20 @@ function Payments({ user }) {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      handleApiError(err, setError);
+      registerActionError('partial', err);
     }
   };
 
   const handleCapitalPayment = async () => {
     setError('');
     setSuccess('');
+    setActionErrorDetails(null);
 
     try {
+      if (capitalEligibilityState?.status === 'blocked') {
+        return;
+      }
+
       await createCapitalPaymentMutation.mutateAsync(buildPaymentPayload(formState.loanId, formState.amount));
       setShowSuccessAnimation(true);
       setSuccess('Capital reduction payment successful!');
@@ -536,7 +927,7 @@ function Payments({ user }) {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      handleApiError(err, setError);
+      registerActionError('capital', err);
     }
   };
 
@@ -559,6 +950,7 @@ function Payments({ user }) {
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
+    setActionErrorDetails(null);
     dispatch({ type: 'SET_FIELD', field: name, value });
 
     if (name === 'loanId' && value) {
@@ -669,13 +1061,16 @@ function Payments({ user }) {
                 </label>
 
                 <label className="field-group">
-                  <span className="field-label">Payment type</span>
-                  <select
-                    className="field-control"
-                    value={formState.paymentType}
-                    onChange={(e) => dispatch({ type: 'SET_PAYMENT_TYPE', paymentType: e.target.value })}
-                    disabled={!canManagePayments}
-                  >
+                    <span className="field-label">Payment type</span>
+                    <select
+                      className="field-control"
+                      value={formState.paymentType}
+                      onChange={(e) => {
+                        setActionErrorDetails(null);
+                        dispatch({ type: 'SET_PAYMENT_TYPE', paymentType: e.target.value });
+                      }}
+                      disabled={!canManagePayments}
+                    >
                     {allowedPaymentTypes.includes('installment') && <option value="installment">Cuota regular</option>}
                     {allowedPaymentTypes.includes('partial') && <option value="partial">Pago parcial</option>}
                     {allowedPaymentTypes.includes('capital') && <option value="capital">Reducción de capital</option>}
@@ -691,11 +1086,11 @@ function Payments({ user }) {
                     name="amount"
                     type="number"
                     step="0.01"
-                    placeholder={formState.paymentType === 'partial' ? 'Monto libre' : 'Amount'}
+                    placeholder={formState.paymentType === 'partial' ? 'Monto libre' : formState.paymentType === 'payoff' ? 'Se calcula automaticamente' : 'Amount'}
                     value={formState.amount}
                     onChange={handleFormChange}
-                    required
-                    disabled={!canManagePayments || (formState.loanId && loanDetails.balance === '0.00')}
+                    required={formState.paymentType !== 'payoff'}
+                    disabled={!canManagePayments || formState.paymentType === 'payoff' || (formState.loanId && loanDetails.balance === '0.00')}
                   />
                 </label>
 
@@ -712,12 +1107,24 @@ function Payments({ user }) {
                     </button>
                   )}
                   {formState.paymentType === 'capital' && isAdmin && (
-                    <button className="btn btn-warning" type="button" onClick={handleCapitalPayment} disabled={!formState.loanId || submitting}>
+                    <button
+                      className="btn btn-warning"
+                      type="button"
+                      onClick={handleCapitalPayment}
+                      disabled={capitalButtonDisabled}
+                      title={buildEligibilityButtonTitle(capitalEligibilityState)}
+                    >
                       {submitting ? 'Processing…' : 'Reducir capital'}
                     </button>
                   )}
                   {formState.paymentType === 'payoff' && (
-                    <button type="button" className="btn btn-outline-primary" onClick={handlePayoff} disabled={submitting || !isCustomer}>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary"
+                      onClick={handlePayoff}
+                      disabled={payoffButtonDisabled}
+                      title={buildEligibilityButtonTitle(payoffEligibilityState)}
+                    >
                       {submitting ? 'Processing…' : 'Liquidar'}
                     </button>
                   )}
@@ -732,31 +1139,27 @@ function Payments({ user }) {
                 </div>
               )}
 
-              {isCustomer && formState.loanId && payoffQuoteQuery.data?.data?.payoffQuote && (
+              {formState.loanId && formState.paymentType === 'capital' && isAdmin && (
+                <EligibilityPanel
+                  action="capital"
+                  eligibilityState={capitalEligibilityState}
+                />
+              )}
+
+              {isCustomer && formState.loanId && formState.paymentType === 'payoff' && payoffEligibilityState && (
                 <div className="surface-card surface-card--compact" style={{ marginTop: '1rem' }}>
                   <div className="surface-card__body">
-                    <div className="dashboard-form-grid">
-                      <label className="field-group">
-                        <span className="field-label">Payoff date</span>
-                        <input
-                          id="payoff-date"
-                          className="field-control"
-                          type="date"
-                          value={formState.payoffDate}
-                          onChange={(event) => dispatch({ type: 'SET_PAYOFF_DATE', payoffDate: event.target.value })}
-                        />
-                      </label>
-                      <div className="detail-card">
-                        <div className="detail-card__label">Quoted payoff</div>
-                        <div className="detail-card__value detail-card__value--warning">₹{getPayoffQuoteTotal(payoffQuoteQuery.data.data.payoffQuote).toFixed(2)}</div>
-                      </div>
-                      <div className="field-group">
-                        <span className="field-label">Close loan</span>
-                        <button type="button" className="btn btn-outline-primary" onClick={handlePayoff} disabled={submitting}>
-                          Execute payoff
-                        </button>
-                      </div>
-                    </div>
+                    <EligibilityPanel
+                      action="payoff"
+                      eligibilityState={payoffEligibilityState}
+                      quoteTotal={payoffQuoteTotal}
+                      payoffDate={formState.payoffDate}
+                      onPayoffDateChange={(payoffDate) => {
+                        setActionErrorDetails(null);
+                        dispatch({ type: 'SET_PAYOFF_DATE', payoffDate });
+                      }}
+                      payoffLoading={payoffQuoteQuery.isFetching}
+                    />
                   </div>
                 </div>
               )}

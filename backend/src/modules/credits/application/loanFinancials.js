@@ -1,5 +1,6 @@
 const { ValidationError } = require('../../../utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('../../../services/creditFormulaHelpers');
+const { assertPayoffAllowed } = require('./paymentEligibility');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -61,17 +62,6 @@ const countElapsedAccrualDays = ({ anchorDate, asOfDate }) => {
   return Math.round(diffMs / MS_PER_DAY);
 };
 
-const assertPayoffEligibleLoan = ({ loan, snapshot }) => {
-  const payableStatuses = new Set(['approved', 'active', 'defaulted']);
-  if (!payableStatuses.has(loan.status)) {
-    throw new ValidationError('Loan is not payable');
-  }
-
-  if (roundCurrency(snapshot.outstandingBalance || 0) <= 0.01) {
-    throw new ValidationError('Loan is not payable');
-  }
-};
-
 const extractOverdueBuckets = ({ schedule, asOfDate }) => schedule.reduce((summary, row) => {
   const dueDate = normalizeUtcDateOnly(row.dueDate, 'Schedule due date');
   if (dueDate.getTime() > asOfDate.getTime()) {
@@ -112,7 +102,12 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
     throw new ValidationError('Payoff effective date must be on or after the loan start date');
   }
 
-  assertPayoffEligibleLoan({ loan, snapshot });
+  assertPayoffAllowed({
+    loan,
+    schedule,
+    snapshot,
+    asOfDate: normalizedAsOfDate,
+  });
 
   const overdue = extractOverdueBuckets({ schedule, asOfDate: normalizedAsOfDate });
   const outstandingPrincipal = roundCurrency(snapshot.outstandingPrincipal || 0);
