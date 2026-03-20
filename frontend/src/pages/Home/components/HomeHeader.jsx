@@ -1,9 +1,9 @@
-import React from 'react';
-import { TrendingUp } from 'lucide-react';
+import React from 'react'
+import { TrendingUp } from 'lucide-react'
 
-import Button from '@/components/ui/Button';
+import Button from '@/components/ui/Button'
 
-import './HomeHeader.scss';
+import './HomeHeader.scss'
 
 function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
   return (
@@ -16,13 +16,13 @@ function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
       </button>
 
       <nav className="home-header__nav nav-links" aria-label={t('home.nav.home')}>
-        <a className="home-header__link home-header__link--active" href="#">
+        <a className="home-header__link home-header__link--active" href="#top">
           {t('home.nav.home')}
         </a>
-        <a className="home-header__link" href="#">
+        <a className="home-header__link" href="#features">
           {t('home.nav.platform')}
         </a>
-        <a className="home-header__link" href="#">
+        <a className="home-header__link" href="#world">
           {t('home.nav.partners')}
         </a>
       </nav>
@@ -36,7 +36,7 @@ function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
         </Button>
       </div>
     </header>
-  );
+  )
 }
 
-export default HomeHeader;
+export default HomeHeader

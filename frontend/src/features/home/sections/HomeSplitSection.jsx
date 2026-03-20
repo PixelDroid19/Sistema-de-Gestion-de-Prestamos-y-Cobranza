@@ -1,11 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-function HomeSplitSection({ points, workflowCards }) {
+function HomeSplitSection({ points, workflowCards, sectionId }) {
   const { t } = useTranslation()
 
   return (
-    <section className="home-page__section home-page__section--split">
+    <section id={sectionId} className="home-page__section home-page__section--split">
       <div className="home-page__split-layout">
         <div className="home-page__split-copy">
           <span className="section-eyebrow">{t('home.split.eyebrow')}</span>

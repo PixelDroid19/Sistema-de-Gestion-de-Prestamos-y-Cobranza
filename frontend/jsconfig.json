@@ -2,8 +2,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@tests/*": ["tests/src/*"]
     }
   },
-  "include": ["src", "vite.config.js", "vitest.config.js"]
+  "include": ["src", "tests", "vite.config.js", "vitest.config.js"]
 }

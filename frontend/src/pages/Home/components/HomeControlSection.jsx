@@ -1,10 +1,10 @@
-import React from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import React from 'react'
+import { CheckCircle2 } from 'lucide-react'
 
-import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame';
-import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading';
+import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame'
+import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading'
 
-import './HomeControlSection.scss';
+import './HomeControlSection.scss'
 
 function HomeControlSection({ t, controlItemKeys }) {
   return (
@@ -36,32 +36,32 @@ function HomeControlSection({ t, controlItemKeys }) {
           <div className="split-visual__ring" />
 
           <HomeDeviceFrame className="phone-mockup--split">
-              <div className="split-board__hero" />
-              <div className="split-board__metrics">
-                <div className="split-board__metric split-board__metric--green" />
-                <div className="split-board__metric split-board__metric--indigo" />
-              </div>
+            <div className="split-board__hero" />
+            <div className="split-board__metrics">
+              <div className="split-board__metric split-board__metric--green" />
+              <div className="split-board__metric split-board__metric--indigo" />
+            </div>
 
-              <div className="mock-row">
-                <div className="mock-avatar mock-avatar--slate" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1 mock-line-1--slate" />
-                  <div className="mock-line-2" />
-                </div>
+            <div className="mock-row">
+              <div className="mock-avatar mock-avatar--slate" />
+              <div className="mock-row__content">
+                <div className="mock-line-1 mock-line-1--slate" />
+                <div className="mock-line-2" />
               </div>
+            </div>
 
-              <div className="mock-row">
-                <div className="mock-avatar mock-avatar--slate" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1 mock-line-1--slate" />
-                  <div className="mock-line-2" />
-                </div>
+            <div className="mock-row">
+              <div className="mock-avatar mock-avatar--slate" />
+              <div className="mock-row__content">
+                <div className="mock-line-1 mock-line-1--slate" />
+                <div className="mock-line-2" />
               </div>
+            </div>
           </HomeDeviceFrame>
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default HomeControlSection;
+export default HomeControlSection

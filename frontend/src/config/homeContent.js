@@ -120,4 +120,4 @@ export const homeContentMock = {
       tone: 'emerald',
     },
   ],
-};
+}

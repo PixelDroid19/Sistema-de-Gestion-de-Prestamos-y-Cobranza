@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'
 
 function HomeSectionHeading({
   t,
@@ -12,7 +12,7 @@ function HomeSectionHeading({
   highlightClassName = 'home-section__title-dark',
   descriptionClassName = 'home-section__description',
 }) {
-  const resolvedHighlight = highlightText ?? (highlightKey ? t(highlightKey) : '');
+  const resolvedHighlight = highlightText ?? (highlightKey ? t(highlightKey) : '')
 
   return (
     <div className={className}>
@@ -35,7 +35,7 @@ function HomeSectionHeading({
 
       {descriptionKey ? <p className={descriptionClassName}>{t(descriptionKey)}</p> : null}
     </div>
-  );
+  )
 }
 
-export default HomeSectionHeading;
+export default HomeSectionHeading

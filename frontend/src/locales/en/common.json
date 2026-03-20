@@ -203,7 +203,21 @@
       "description": "Over 1000 users trust our platform to keep their portfolio healthy and stress-free.",
       "locations": "Locations",
       "operations": "Operations",
-      "portfolio": "Expansive Portfolio"
+      "portfolio": "Expansive Portfolio",
+      "regions": {
+        "bogota": {
+          "city": "Bogota",
+          "detail": "Collections, payments, and daily servicing coordination."
+        },
+        "medellin": {
+          "city": "Medellin",
+          "detail": "Regional desks aligned with associates and agents."
+        },
+        "miami": {
+          "city": "Miami",
+          "detail": "Operating expansion with executive context for leadership."
+        }
+      }
     },
     "cta": {
       "eyebrow": "Ready to enter",

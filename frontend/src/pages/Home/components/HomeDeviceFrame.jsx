@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'
 
 function HomeDeviceFrame({ className = '', screenClassName = '', children }) {
   return (
@@ -6,7 +6,7 @@ function HomeDeviceFrame({ className = '', screenClassName = '', children }) {
       <div className="phone-notch" />
       <div className={`phone-screen ${screenClassName}`.trim()}>{children}</div>
     </div>
-  );
+  )
 }
 
-export default HomeDeviceFrame;
+export default HomeDeviceFrame

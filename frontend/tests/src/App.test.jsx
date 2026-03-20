@@ -1,14 +1,14 @@
 import React from 'react'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
-import App from '@/pages/App/App'
 import i18n from '@/i18n'
+import App from '@/pages/App/App'
 import { API_BASE_URL } from '@/lib/api/client'
 import { useSessionStore } from '@/store/sessionStore'
 import { useUiStore } from '@/store/uiStore'
-import { renderWithProviders } from '@/test/renderWithProviders'
-import { server } from '@/test/msw/server'
+import { renderWithProviders } from '@tests/test/renderWithProviders'
+import { server } from '@tests/test/msw/server'
 
 const adminUser = { id: 1, role: 'admin', name: 'Ada Admin' }
 
@@ -35,8 +35,13 @@ describe('App shell', () => {
   })
 
   it('renders translated shell controls while mounting the active workspace page', async () => {
+    let unreadCountRequests = 0
+
     server.use(
-      http.get(`${API_BASE_URL}/api/notifications/unread-count`, () => HttpResponse.json({ data: { unreadCount: 2 } })),
+      http.get(`${API_BASE_URL}/api/notifications/unread-count`, () => {
+        unreadCountRequests += 1
+        return HttpResponse.json({ data: { unreadCount: 2 } })
+      }),
       http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({
         data: {
           loans: [{
@@ -56,5 +61,34 @@ describe('App shell', () => {
     expect(screen.getByPlaceholderText('Buscar en el espacio')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pagos' })).toBeInTheDocument()
     expect(await screen.findByText('Sigue la actividad de cuotas desde una sola superficie compartida')).toBeInTheDocument()
+    expect(unreadCountRequests).toBe(1)
+  })
+
+  it('logs the user out and alerts when the session-expired event is raised', async () => {
+    const logout = vi.fn()
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+
+    useSessionStore.setState({
+      user: adminUser,
+      token: 'token-1',
+      isReady: true,
+      bootstrapSession: vi.fn(),
+      logout,
+    })
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/notifications/unread-count`, () => HttpResponse.json({ data: { unreadCount: 0 } })),
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [] } })),
+    )
+
+    renderWithProviders(<App />)
+
+    await screen.findByPlaceholderText('Buscar en el espacio')
+    window.dispatchEvent(new Event('sessionExpired'))
+
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalledTimes(1)
+      expect(alertSpy).toHaveBeenCalledTimes(1)
+    })
   })
 })

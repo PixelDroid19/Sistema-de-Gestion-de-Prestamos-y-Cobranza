@@ -28,4 +28,24 @@ describe('Sidebar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
     expect(setCurrentView).toHaveBeenCalledWith('Payments')
   })
+
+  it('limits socio navigation and delegates logout to the session store', async () => {
+    const logout = vi.fn()
+    useSessionStore.setState({ user: { role: 'socio', name: 'Partner' }, logout })
+    useUiStore.setState({ currentView: 'Dashboard', setCurrentView: vi.fn() })
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Sidebar />
+      </I18nextProvider>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Pagos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Agentes' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Portal de socios' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesion' }))
+
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
 })

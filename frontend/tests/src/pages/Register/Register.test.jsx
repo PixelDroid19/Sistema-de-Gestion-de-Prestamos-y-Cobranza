@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 
 import i18n from '@/i18n'
 import Register from '@/pages/Register/Register'
-import { renderWithProviders } from '@/test/renderWithProviders'
+import { renderWithProviders } from '@tests/test/renderWithProviders'
 
 const registerMutateAsync = vi.fn()
 const loginMutateAsync = vi.fn()

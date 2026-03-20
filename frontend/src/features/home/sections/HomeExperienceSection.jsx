@@ -1,11 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-function HomeExperienceSection({ cards }) {
+function HomeExperienceSection({ cards, sectionId }) {
   const { t } = useTranslation()
 
   return (
-    <section className="home-page__section home-page__section--experience">
+    <section id={sectionId} className="home-page__section home-page__section--experience">
       <div className="home-page__section-header home-page__section-header--wide">
         <span className="section-eyebrow">{t('home.experience.eyebrow')}</span>
         <h2>{t('home.experience.title')}</h2>

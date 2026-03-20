@@ -1,67 +1,120 @@
-import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useReducer } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { homeContentMock } from '@/config/homeContent';
-import { handleApiError } from '@/lib/api/errors';
-import { useLoginMutation } from '@/hooks/useAuth';
-import HomeAuthPanel from '@/pages/Home/components/HomeAuthPanel';
-import HomeBentoSection from '@/pages/Home/components/HomeBentoSection';
-import HomeControlSection from '@/pages/Home/components/HomeControlSection';
-import HomeFeaturesSection from '@/pages/Home/components/HomeFeaturesSection';
-import HomeFooter from '@/pages/Home/components/HomeFooter';
-import HomeHeader from '@/pages/Home/components/HomeHeader';
-import HomeHeroSection from '@/pages/Home/components/HomeHeroSection';
-import HomeWorldSection from '@/pages/Home/components/HomeWorldSection';
+import { homeContentMock } from '@/config/homeContent'
+import { useLoginMutation } from '@/hooks/useAuth'
+import { handleApiError } from '@/lib/api/errors'
+import HomeAuthPanel from '@/pages/Home/components/HomeAuthPanel'
+import HomeBentoSection from '@/pages/Home/components/HomeBentoSection'
+import HomeControlSection from '@/pages/Home/components/HomeControlSection'
+import HomeFeaturesSection from '@/pages/Home/components/HomeFeaturesSection'
+import HomeFooter from '@/pages/Home/components/HomeFooter'
+import HomeHeader from '@/pages/Home/components/HomeHeader'
+import HomeHeroSection from '@/pages/Home/components/HomeHeroSection'
+import HomeWorldSection from '@/pages/Home/components/HomeWorldSection'
 
-import './Home.scss';
+import './Home.scss'
+
+const INITIAL_STATE = {
+  showForm: false,
+  showRegister: false,
+  email: '',
+  password: '',
+  error: '',
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'resetAuthState':
+      return {
+        ...state,
+        email: '',
+        password: '',
+        error: '',
+      }
+    case 'showLogin':
+      return {
+        ...state,
+        showForm: true,
+        showRegister: false,
+        email: '',
+        password: '',
+        error: '',
+      }
+    case 'showRegister':
+      return {
+        ...state,
+        showForm: true,
+        showRegister: true,
+        email: '',
+        password: '',
+        error: '',
+      }
+    case 'showHome':
+      return {
+        ...state,
+        showForm: false,
+        showRegister: false,
+        email: '',
+        password: '',
+        error: '',
+      }
+    case 'setEmail':
+      return {
+        ...state,
+        email: action.value,
+      }
+    case 'setPassword':
+      return {
+        ...state,
+        password: action.value,
+      }
+    case 'setError':
+      return {
+        ...state,
+        error: action.value,
+      }
+    default:
+      return state
+  }
+}
 
 function Home({ onLogin }) {
-  const { t } = useTranslation();
-  const [showForm, setShowForm] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const { t } = useTranslation()
+  const [state, dispatch] = useReducer(reducer, INITIAL_STATE)
+  const { showForm, showRegister, email, password, error } = state
 
-  const loginMutation = useLoginMutation();
-  const loading = loginMutation.isPending;
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    try {
-      await loginMutation.mutateAsync({ email, password });
-      setError('');
-      onLogin();
-    } catch (err) {
-      handleApiError(err, setError);
-    }
-  };
+  const loginMutation = useLoginMutation()
+  const loading = loginMutation.isPending
 
   const resetAuthState = () => {
-    setError('');
-    setEmail('');
-    setPassword('');
-  };
+    dispatch({ type: 'resetAuthState' })
+  }
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    dispatch({ type: 'setError', value: '' })
+
+    try {
+      await loginMutation.mutateAsync({ email, password })
+      resetAuthState()
+      onLogin()
+    } catch (loginError) {
+      handleApiError(loginError, (message) => dispatch({ type: 'setError', value: message }))
+    }
+  }
 
   const handleLoginClick = () => {
-    setShowForm(true);
-    setShowRegister(false);
-    resetAuthState();
-  };
+    dispatch({ type: 'showLogin' })
+  }
 
   const handleSignUpClick = () => {
-    setShowForm(true);
-    setShowRegister(true);
-    resetAuthState();
-  };
+    dispatch({ type: 'showRegister' })
+  }
 
   const handleBackHome = () => {
-    setShowForm(false);
-    setShowRegister(false);
-    resetAuthState();
-  };
+    dispatch({ type: 'showHome' })
+  }
 
   return (
     <div className="home-container">
@@ -81,10 +134,11 @@ function Home({ onLogin }) {
             password={password}
             error={error}
             loading={loading}
-            onEmailChange={setEmail}
-            onPasswordChange={setPassword}
+            onEmailChange={(value) => dispatch({ type: 'setEmail', value })}
+            onPasswordChange={(value) => dispatch({ type: 'setPassword', value })}
             onSubmit={handleLogin}
             onBackHome={handleBackHome}
+            onLogin={onLogin}
           />
         ) : (
           <>
@@ -98,7 +152,7 @@ function Home({ onLogin }) {
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default Home;
+export default Home

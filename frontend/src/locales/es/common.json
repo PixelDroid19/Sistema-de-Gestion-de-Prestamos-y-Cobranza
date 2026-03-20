@@ -203,7 +203,21 @@
       "description": "Mas de 1000 usuarios confian en nuestra plataforma para mantener su cartera sana y libre de estres.",
       "locations": "Ubicaciones",
       "operations": "Operaciones",
-      "portfolio": "Cartera Expansiva"
+      "portfolio": "Cartera Expansiva",
+      "regions": {
+        "bogota": {
+          "city": "Bogota",
+          "detail": "Coordinacion de cobranzas, pagos y seguimiento diario."
+        },
+        "medellin": {
+          "city": "Medellin",
+          "detail": "Mesas regionales conectadas con socios y agentes."
+        },
+        "miami": {
+          "city": "Miami",
+          "detail": "Expansion operativa y contexto ejecutivo para liderazgo."
+        }
+      }
     },
     "cta": {
       "eyebrow": "Listo para entrar",

@@ -1,9 +1,9 @@
-import React from 'react';
-import { Award, MousePointerClick, ShieldCheck } from 'lucide-react';
+import React from 'react'
+import { Award, MousePointerClick, ShieldCheck } from 'lucide-react'
 
-import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading';
+import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading'
 
-import './HomeBentoSection.scss';
+import './HomeBentoSection.scss'
 
 function HomeBentoSection({ t, stats }) {
   return (
@@ -51,7 +51,7 @@ function HomeBentoSection({ t, stats }) {
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default HomeBentoSection;
+export default HomeBentoSection

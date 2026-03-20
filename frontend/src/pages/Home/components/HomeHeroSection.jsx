@@ -1,14 +1,14 @@
-import React from 'react';
-import { ShieldCheck, TrendingUp } from 'lucide-react';
+import React from 'react'
+import { ShieldCheck, TrendingUp } from 'lucide-react'
 
-import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame';
-import HomeStoreButton from '@/pages/Home/components/HomeStoreButton';
+import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame'
+import HomeStoreButton from '@/pages/Home/components/HomeStoreButton'
 
-import './HomeHeroSection.scss';
+import './HomeHeroSection.scss'
 
 function HomeHeroSection({ t, storeButtons }) {
   return (
-    <section className="home-hero-section">
+    <section id="top" className="home-hero-section">
       <div className="home-hero-section__container hero-container">
         <div className="home-hero-content hero-content">
           <h1 className="home-hero-content__title">
@@ -51,37 +51,37 @@ function HomeHeroSection({ t, storeButtons }) {
           </div>
 
           <HomeDeviceFrame className="phone-mockup--hero">
-              <div className="mock-header" />
-              <div className="mock-hero" />
+            <div className="mock-header" />
+            <div className="mock-hero" />
 
-              <div className="mock-row">
-                <div className="mock-avatar mock-avatar--rose" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1" />
-                  <div className="mock-line-2" />
-                </div>
+            <div className="mock-row">
+              <div className="mock-avatar mock-avatar--rose" />
+              <div className="mock-row__content">
+                <div className="mock-line-1" />
+                <div className="mock-line-2" />
               </div>
+            </div>
 
-              <div className="mock-row">
-                <div className="mock-avatar mock-avatar--sky" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1 mock-line-1--80" />
-                  <div className="mock-line-2 mock-line-2--50" />
-                </div>
+            <div className="mock-row">
+              <div className="mock-avatar mock-avatar--sky" />
+              <div className="mock-row__content">
+                <div className="mock-line-1 mock-line-1--80" />
+                <div className="mock-line-2 mock-line-2--50" />
               </div>
+            </div>
 
-              <div className="mock-row">
-                <div className="mock-avatar mock-avatar--green" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1 mock-line-1--60" />
-                  <div className="mock-line-2 mock-line-2--30" />
-                </div>
+            <div className="mock-row">
+              <div className="mock-avatar mock-avatar--green" />
+              <div className="mock-row__content">
+                <div className="mock-line-1 mock-line-1--60" />
+                <div className="mock-line-2 mock-line-2--30" />
               </div>
+            </div>
           </HomeDeviceFrame>
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default HomeHeroSection;
+export default HomeHeroSection

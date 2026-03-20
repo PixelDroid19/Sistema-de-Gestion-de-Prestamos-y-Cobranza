@@ -1,21 +1,28 @@
-import React from 'react';
-import { ShieldCheck } from 'lucide-react';
+import React from 'react'
+import { ShieldCheck } from 'lucide-react'
 
-import Button from '@/components/ui/Button';
-import Register from '@/pages/Register/Register';
+import Button from '@/components/ui/Button'
+import Register from '@/pages/Register/Register'
 
-import './HomeAuthPanel.scss';
+import './HomeAuthPanel.scss'
 
 function formatErrorMessage(errorMessage) {
   if (errorMessage.includes('\n')) {
-    return errorMessage.split('\n').map((line, index) => (
-      <div key={index} className="home-auth-error__line">
-        {line}
-      </div>
-    ));
+    const lineOccurrences = new Map()
+
+    return errorMessage.split('\n').map((line) => {
+      const occurrence = lineOccurrences.get(line) ?? 0
+      lineOccurrences.set(line, occurrence + 1)
+
+      return (
+        <div key={`home-auth-error-line-${line}-${occurrence}`} className="home-auth-error__line">
+          {line}
+        </div>
+      )
+    })
   }
 
-  return errorMessage;
+  return errorMessage
 }
 
 function HomeAuthPanel({
@@ -29,12 +36,13 @@ function HomeAuthPanel({
   onPasswordChange,
   onSubmit,
   onBackHome,
+  onLogin,
 }) {
   return (
     <div className="home-auth-view">
       <div className="home-auth-card">
         {showRegister ? (
-          <Register onCancel={onBackHome} />
+          <Register onLogin={onLogin} />
         ) : (
           <form className="home-auth-form" onSubmit={onSubmit}>
             <div className="home-auth-form__intro">
@@ -86,7 +94,7 @@ function HomeAuthPanel({
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default HomeAuthPanel;
+export default HomeAuthPanel

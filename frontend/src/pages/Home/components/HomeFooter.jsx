@@ -1,9 +1,9 @@
-import React from 'react';
+import React from 'react'
 
-import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame';
-import HomeStoreButton from '@/pages/Home/components/HomeStoreButton';
+import HomeDeviceFrame from '@/pages/Home/components/HomeDeviceFrame'
+import HomeStoreButton from '@/pages/Home/components/HomeStoreButton'
 
-import './HomeFooter.scss';
+import './HomeFooter.scss'
 
 function HomeFooter({ t, storeButtons }) {
   return (
@@ -23,15 +23,15 @@ function HomeFooter({ t, storeButtons }) {
 
         <div className="home-footer__visual">
           <HomeDeviceFrame className="phone-mockup--footer" screenClassName="phone-screen--footer">
-              <div className="mock-hero mock-hero--emerald" />
+            <div className="mock-hero mock-hero--emerald" />
 
-              <div className="mock-row mock-row--footer">
-                <div className="mock-avatar mock-avatar--indigo-soft" />
-                <div className="mock-row__content">
-                  <div className="mock-line-1 mock-line-1--90" />
-                  <div className="mock-line-2 mock-line-2--60" />
-                </div>
+            <div className="mock-row mock-row--footer">
+              <div className="mock-avatar mock-avatar--indigo-soft" />
+              <div className="mock-row__content">
+                <div className="mock-line-1 mock-line-1--90" />
+                <div className="mock-line-2 mock-line-2--60" />
               </div>
+            </div>
           </HomeDeviceFrame>
         </div>
       </div>
@@ -39,16 +39,16 @@ function HomeFooter({ t, storeButtons }) {
       <div className="home-footer__legal">
         <div>{t('home.footer.copyright')}</div>
         <div className="home-footer__legal-links">
-          <a className="home-footer__legal-link" href="#">
+          <a className="home-footer__legal-link" href="#top">
             {t('home.footer.terms')}
           </a>
-          <a className="home-footer__legal-link" href="#">
+          <a className="home-footer__legal-link" href="#top">
             {t('home.footer.privacy')}
           </a>
         </div>
       </div>
     </footer>
-  );
+  )
 }
 
-export default HomeFooter;
+export default HomeFooter

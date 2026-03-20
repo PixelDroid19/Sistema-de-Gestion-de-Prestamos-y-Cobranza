@@ -1,15 +1,17 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-function HomeWorldSection({ stats, regions }) {
+function HomeWorldSection({ stats, regions, sectionId }) {
   const { t } = useTranslation()
 
   return (
-    <section className="home-page__section home-page__section--world">
+    <section id={sectionId} className="home-page__section home-page__section--world">
       <div className="home-page__world-layout">
         <div className="home-page__world-panel">
-          <span className="section-eyebrow">{t('home.world.eyebrow')}</span>
-          <h2>{t('home.world.title')}</h2>
+          <span className="section-eyebrow">{t('home.brand')}</span>
+          <h2>
+            {t('home.world.title1')} <span className="home-page__accent">LendFlow</span>
+          </h2>
           <p>{t('home.world.description')}</p>
 
           <div className="home-page__map-card" aria-hidden="true">

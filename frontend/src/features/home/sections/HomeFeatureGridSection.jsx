@@ -1,11 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-function HomeFeatureGridSection({ features }) {
+function HomeFeatureGridSection({ features, sectionId }) {
   const { t } = useTranslation()
 
   return (
-    <section className="home-page__section">
+    <section id={sectionId} className="home-page__section">
       <div className="home-page__section-header">
         <span className="section-eyebrow">{t('home.brand')}</span>
         <h2>{t('home.featureTitle')}</h2>

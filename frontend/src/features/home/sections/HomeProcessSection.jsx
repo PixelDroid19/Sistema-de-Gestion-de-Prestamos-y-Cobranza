@@ -1,11 +1,11 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-function HomeProcessSection({ steps }) {
+function HomeProcessSection({ steps, sectionId }) {
   const { t } = useTranslation()
 
   return (
-    <section className="home-page__section home-page__section--process">
+    <section id={sectionId} className="home-page__section home-page__section--process">
       <div className="home-page__section-header">
         <span className="section-eyebrow">{t('home.workflow')}</span>
         <h2>{t('home.processTitle')}</h2>

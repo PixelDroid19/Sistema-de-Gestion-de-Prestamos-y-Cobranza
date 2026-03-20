@@ -1,9 +1,9 @@
-import React from 'react';
-import { PiggyBank, ShieldCheck, TrendingUp } from 'lucide-react';
+import React from 'react'
+import { PiggyBank, ShieldCheck, TrendingUp } from 'lucide-react'
 
-import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading';
+import HomeSectionHeading from '@/pages/Home/components/HomeSectionHeading'
 
-import './HomeFeaturesSection.scss';
+import './HomeFeaturesSection.scss'
 
 const FEATURE_ICON_MAP = {
   'shield-check': {
@@ -18,11 +18,11 @@ const FEATURE_ICON_MAP = {
     Icon: TrendingUp,
     iconColor: '#EA580C',
   },
-};
+}
 
 function HomeFeaturesSection({ t, featureCards }) {
   return (
-    <section className="home-section home-section--white">
+    <section id="features" className="home-section home-section--white">
       <div className="home-section__container">
         <HomeSectionHeading
           t={t}
@@ -34,24 +34,24 @@ function HomeFeaturesSection({ t, featureCards }) {
 
         <div className="features-grid">
           {featureCards.map(({ key, icon, tone, titleKey, titleBreakKey }) => {
-            const { Icon, iconColor } = FEATURE_ICON_MAP[icon] ?? FEATURE_ICON_MAP['shield-check'];
+            const { Icon, iconColor } = FEATURE_ICON_MAP[icon] ?? FEATURE_ICON_MAP['shield-check']
 
             return (
               <article key={key} className={`feature-card feature-card--${tone}`}>
                 <div className={`feature-card__icon-shell feature-card__icon-shell--${tone}`}>
-                <Icon size={36} color={iconColor} />
+                  <Icon size={36} color={iconColor} />
                 </div>
                 <h3 className={`feature-card__title feature-card__title--${tone}`}>
                   {t(titleKey)} <br />
                   {t(titleBreakKey)}
                 </h3>
               </article>
-            );
+            )
           })}
         </div>
       </div>
     </section>
-  );
+  )
 }
 
-export default HomeFeaturesSection;
+export default HomeFeaturesSection

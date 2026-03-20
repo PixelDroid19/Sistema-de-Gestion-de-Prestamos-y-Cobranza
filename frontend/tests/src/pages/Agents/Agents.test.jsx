@@ -6,8 +6,8 @@ import { http, HttpResponse } from 'msw'
 import i18n from '@/i18n'
 import { API_BASE_URL } from '@/lib/api/client'
 import Agents from '@/pages/Agents/Agents'
-import { renderWithProviders } from '@/test/renderWithProviders'
-import { server } from '@/test/msw/server'
+import { renderWithProviders } from '@tests/test/renderWithProviders'
+import { server } from '@tests/test/msw/server'
 
 describe('Agents page', () => {
   beforeEach(async () => {
