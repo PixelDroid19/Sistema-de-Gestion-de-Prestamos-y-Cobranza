@@ -67,6 +67,9 @@ const createUseCases = (overrides) => ({
   executePayoff: unexpectedUseCase('executePayoff'),
   listPromisesToPay: unexpectedUseCase('listPromisesToPay'),
   createPromiseToPay: unexpectedUseCase('createPromiseToPay'),
+  createLoanFollowUp: unexpectedUseCase('createLoanFollowUp'),
+  updateLoanAlertStatus: unexpectedUseCase('updateLoanAlertStatus'),
+  updatePromiseToPayStatus: unexpectedUseCase('updatePromiseToPayStatus'),
   ...overrides,
 });
 
@@ -694,6 +697,18 @@ test('createCreditsRouter serves alert, calendar, and promise contracts', async 
         calls.push(['createPromiseToPay', input]);
         return { id: 3, status: 'pending' };
       },
+      async createLoanFollowUp(input) {
+        calls.push(['createLoanFollowUp', input]);
+        return { reminder: { id: 4, status: 'active' }, notificationSent: true };
+      },
+      async updateLoanAlertStatus(input) {
+        calls.push(['updateLoanAlertStatus', input]);
+        return { id: Number(input.alertId), status: input.payload.status };
+      },
+      async updatePromiseToPayStatus(input) {
+        calls.push(['updatePromiseToPayStatus', input]);
+        return { id: Number(input.promiseId), status: input.payload.status };
+      },
     }),
   });
 
@@ -712,6 +727,24 @@ test('createCreditsRouter serves alert, calendar, and promise contracts', async 
     headers: { authorization: 'Bearer valid-token' },
     body: { promisedDate: '2026-03-25', amount: 300 },
   });
+  const followUpResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/55/follow-ups',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { installmentNumber: 3, dueDate: '2026-03-25', outstandingAmount: 300 },
+  });
+  const resolveAlertResponse = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/55/alerts/1/status',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { status: 'resolved' },
+  });
+  const updatePromiseResponse = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/55/promises/2/status',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { status: 'kept' },
+  });
 
   assert.equal(alertsResponse.statusCode, 200);
   assert.equal(alertsResponse.body.count, 1);
@@ -721,6 +754,9 @@ test('createCreditsRouter serves alert, calendar, and promise contracts', async 
   assert.equal(listPromisesResponse.statusCode, 200);
   assert.equal(createPromiseResponse.statusCode, 201);
   assert.equal(createPromiseResponse.body.data.promise.id, 3);
+  assert.equal(followUpResponse.statusCode, 201);
+  assert.equal(resolveAlertResponse.statusCode, 200);
+  assert.equal(updatePromiseResponse.statusCode, 200);
 });
 
 test('createCreditsRouter serves payoff quote and payoff execution contracts', async () => {

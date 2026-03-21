@@ -1,4 +1,29 @@
-const { AuthorizationError } = require('../../../utils/errorHandler');
+const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
+
+const normalizeAttachmentVisibility = (value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+  }
+
+  return false;
+};
+
+const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId }) => {
+  if (!['admin', 'agent', 'customer'].includes(actor?.role)) {
+    throw new AuthorizationError('You do not have access to payment documents');
+  }
+
+  const payment = await paymentRepository.findById(paymentId);
+  if (!payment) {
+    throw new NotFoundError('Payment');
+  }
+
+  return payment;
+};
 
 /**
  * Create the use case that lists all payments for admins.
@@ -87,6 +112,72 @@ const createListPaymentsByLoan = ({ paymentRepository, loanAccessPolicy }) => as
   return paymentRepository.listByLoan(loan.id);
 };
 
+const createListPaymentDocuments = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId }) => {
+  const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
+  await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
+
+  const documents = await paymentRepository.listDocuments(payment.id);
+  if (actor.role === 'customer') {
+    return documents.filter((document) => document.customerVisible);
+  }
+
+  return documents;
+};
+
+const createUploadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, file, metadata = {} }) => {
+  if (!file) {
+    throw new ValidationError('Attachment file is required');
+  }
+
+  if (!['admin', 'agent'].includes(actor?.role)) {
+    await attachmentStorage.deleteByAbsolutePath(file.path);
+    throw new AuthorizationError('Only admins and agents can upload payment documents');
+  }
+
+  try {
+    const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
+    await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId: payment.loanId });
+
+    return await paymentRepository.createDocument({
+      paymentId: payment.id,
+      uploadedByUserId: actor.id,
+      storageDisk: 'local',
+      storagePath: attachmentStorage.toRelativePath(file.path),
+      storedName: file.filename,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+      category: metadata.category ? String(metadata.category).trim() : null,
+      description: metadata.description ? String(metadata.description).trim() : null,
+    });
+  } catch (error) {
+    await attachmentStorage.deleteByAbsolutePath(file.path);
+    throw error;
+  }
+};
+
+const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, documentId }) => {
+  const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
+  await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
+  const document = await paymentRepository.findDocument({ paymentId: payment.id, documentId });
+
+  if (!document) {
+    throw new NotFoundError('Document');
+  }
+
+  if (actor.role === 'customer' && !document.customerVisible) {
+    throw new AuthorizationError('You do not have access to this document');
+  }
+
+  await attachmentStorage.assertExists(document.storagePath);
+
+  return {
+    document,
+    absolutePath: attachmentStorage.resolveAbsolutePath(document.storagePath),
+  };
+};
+
 module.exports = {
   createListPayments,
   createCreatePayment,
@@ -94,4 +185,7 @@ module.exports = {
   createCreateCapitalPayment,
   createAnnulInstallment,
   createListPaymentsByLoan,
+  createListPaymentDocuments,
+  createUploadPaymentDocument,
+  createDownloadPaymentDocument,
 };

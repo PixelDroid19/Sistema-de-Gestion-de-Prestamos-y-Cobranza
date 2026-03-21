@@ -1,7 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 
-const createPayoutsRouter = ({ authMiddleware, paymentValidation, useCases }) => {
+const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();
 
   // List all payments (admin only)
@@ -70,6 +70,30 @@ const createPayoutsRouter = ({ authMiddleware, paymentValidation, useCases }) =>
   router.get('/loan/:loanId', authMiddleware(), asyncHandler(async (req, res) => {
     const payments = await useCases.listPaymentsByLoan({ actor: req.user, loanId: req.params.loanId });
     res.json({ success: true, count: payments.length, data: payments });
+  }));
+
+  router.get('/:paymentId/documents', authMiddleware(['admin', 'agent', 'customer']), asyncHandler(async (req, res) => {
+    const documents = await useCases.listPaymentDocuments({ actor: req.user, paymentId: req.params.paymentId });
+    res.json({ success: true, count: documents.length, data: { documents } });
+  }));
+
+  router.post('/:paymentId/documents', authMiddleware(['admin', 'agent']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
+    const document = await useCases.uploadPaymentDocument({
+      actor: req.user,
+      paymentId: req.params.paymentId,
+      file: req.file,
+      metadata: req.body,
+    });
+    res.status(201).json({ success: true, message: 'Payment document uploaded successfully', data: { document } });
+  }));
+
+  router.get('/:paymentId/documents/:documentId/download', authMiddleware(['admin', 'agent', 'customer']), asyncHandler(async (req, res) => {
+    const download = await useCases.downloadPaymentDocument({
+      actor: req.user,
+      paymentId: req.params.paymentId,
+      documentId: req.params.documentId,
+    });
+    res.download(download.absolutePath, download.document.originalName);
   }));
 
   return router;

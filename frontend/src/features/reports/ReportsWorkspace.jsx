@@ -5,6 +5,9 @@ import Button from '@/components/ui/Button';
 import StatePanel from '@/components/ui/StatePanel';
 import {
   useAssociateProfitabilityQuery,
+  useCustomerCreditProfileQuery,
+  useCustomerProfitabilityQuery,
+  useLoanProfitabilityQuery,
   useLoanCreditHistoryQuery,
   useOutstandingLoansQuery,
   useRecoveredLoansQuery,
@@ -16,6 +19,7 @@ import {
   useCreateAssociateContributionMutation,
   useCreateAssociateDistributionMutation,
   useCreateAssociateMutation,
+  useCreateAssociateReinvestmentMutation,
   useCreateProportionalDistributionMutation,
   useDeleteAssociateMutation,
   useUpdateAssociateMutation,
@@ -47,10 +51,12 @@ function ReportsWorkspace({ user }) {
   const isAdmin = user.role === 'admin';
 
   const [selectedHistoryLoanId, setSelectedHistoryLoanId] = useState('');
+  const [selectedCustomerProfileId, setSelectedCustomerProfileId] = useState('');
   const [selectedAssociateId, setSelectedAssociateId] = useState('');
   const [associateForm, setAssociateForm] = useState(emptyAssociateForm);
   const [contributionForm, setContributionForm] = useState(emptyMoneyForm);
   const [distributionForm, setDistributionForm] = useState(emptyMoneyForm);
+  const [reinvestmentForm, setReinvestmentForm] = useState(emptyMoneyForm);
   const [proportionalForm, setProportionalForm] = useState(emptyProportionalForm);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -68,6 +74,11 @@ function ReportsWorkspace({ user }) {
   const creditHistoryQuery = useLoanCreditHistoryQuery(selectedHistoryLoanId, {
     enabled: !isSocio && Boolean(selectedHistoryLoanId),
   });
+  const customerCreditProfileQuery = useCustomerCreditProfileQuery(selectedCustomerProfileId, {
+    enabled: isAdmin && Boolean(selectedCustomerProfileId),
+  });
+  const customerProfitabilityQuery = useCustomerProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview' });
+  const loanProfitabilityQuery = useLoanProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview' });
 
   const associatesQuery = useAssociatesQuery({ enabled: isAdmin });
   const associates = useMemo(() => {
@@ -79,6 +90,7 @@ function ReportsWorkspace({ user }) {
   const deleteAssociateMutation = useDeleteAssociateMutation();
   const createContributionMutation = useCreateAssociateContributionMutation(selectedAssociateId || null);
   const createDistributionMutation = useCreateAssociateDistributionMutation(selectedAssociateId || null);
+  const createReinvestmentMutation = useCreateAssociateReinvestmentMutation(selectedAssociateId || null);
   const createProportionalDistributionMutation = useCreateProportionalDistributionMutation();
   const selectedAssociatePortalQuery = useAssociatePortalQuery(selectedAssociateId || null, {
     enabled: isAdmin && Boolean(selectedAssociateId),
@@ -105,6 +117,9 @@ function ReportsWorkspace({ user }) {
       || associateProfitabilityQuery.error
       || associatePortalQuery.error
       || creditHistoryQuery.error
+      || customerCreditProfileQuery.error
+      || customerProfitabilityQuery.error
+      || loanProfitabilityQuery.error
       || associatesQuery.error
       || usersQuery.error
       || selectedAssociatePortalQuery.error
@@ -118,6 +133,9 @@ function ReportsWorkspace({ user }) {
     associateProfitabilityQuery.error,
     associatesQuery.error,
     creditHistoryQuery.error,
+    customerCreditProfileQuery.error,
+    customerProfitabilityQuery.error,
+    loanProfitabilityQuery.error,
     outstandingLoansQuery.error,
     recoveredLoansQuery.error,
     recoveryReportQuery.error,
@@ -154,11 +172,15 @@ function ReportsWorkspace({ user }) {
   const selectedAssociatePortal = selectedAssociatePortalQuery.data?.data?.portal || null;
   const selectedAssociateProfitability = selectedAssociateProfitabilityQuery.data?.data?.report || null;
   const creditHistory = creditHistoryQuery.data?.data?.history || null;
+  const customerCreditProfile = customerCreditProfileQuery.data?.data || null;
+  const customerProfitability = customerProfitabilityQuery.data?.data?.customers || [];
+  const loanProfitability = loanProfitabilityQuery.data?.data?.loans || [];
   const loading = isSocio ? associateProfitabilityQuery.isLoading : recoveryReportQuery.isLoading;
 
   const resetAssociateActionForms = () => {
     setContributionForm(emptyMoneyForm);
     setDistributionForm(emptyMoneyForm);
+    setReinvestmentForm(emptyMoneyForm);
     setProportionalForm(emptyProportionalForm);
   };
 
@@ -223,8 +245,11 @@ function ReportsWorkspace({ user }) {
           recoveryReportQuery.refetch(),
           recoveredLoansQuery.refetch(),
           outstandingLoansQuery.refetch(),
+          customerProfitabilityQuery.refetch(),
+          loanProfitabilityQuery.refetch(),
           associatesQuery.refetch(),
           ...(selectedAssociateId ? [selectedAssociatePortalQuery.refetch(), selectedAssociateProfitabilityQuery.refetch()] : []),
+          ...(selectedCustomerProfileId ? [customerCreditProfileQuery.refetch()] : []),
         ]);
       }
 
@@ -350,6 +375,25 @@ function ReportsWorkspace({ user }) {
       });
       setDistributionForm(emptyMoneyForm);
       showSuccess(t('reports.workspace.distributionCreated'));
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handleCreateReinvestment = async () => {
+    if (!selectedAssociateId) {
+      setError(t('reports.workspace.selectAssociateForDistribution'));
+      return;
+    }
+
+    try {
+      await createReinvestmentMutation.mutateAsync({
+        amount: reinvestmentForm.amount,
+        notes: reinvestmentForm.notes || undefined,
+        reinvestmentDate: reinvestmentForm.distributionDate || undefined,
+      });
+      setReinvestmentForm(emptyMoneyForm);
+      showSuccess(t('reports.workspace.reinvestmentCreated'));
     } catch (mutationError) {
       handleApiError(mutationError, setError);
     }
@@ -488,11 +532,17 @@ function ReportsWorkspace({ user }) {
               selectedHistoryLoanId={selectedHistoryLoanId}
               setSelectedHistoryLoanId={setSelectedHistoryLoanId}
               creditHistory={creditHistory}
+              selectedCustomerProfileId={selectedCustomerProfileId}
+              setSelectedCustomerProfileId={setSelectedCustomerProfileId}
+              customerCreditProfile={customerCreditProfile}
+              customerProfitability={customerProfitability}
+              loanProfitability={loanProfitability}
               selectedAssociateId={selectedAssociateId}
               associates={associates}
               associateForm={associateForm}
               contributionForm={contributionForm}
               distributionForm={distributionForm}
+              reinvestmentForm={reinvestmentForm}
               proportionalForm={proportionalForm}
               selectedAssociatePortal={selectedAssociatePortal}
               selectedAssociateProfitability={selectedAssociateProfitability}
@@ -501,6 +551,7 @@ function ReportsWorkspace({ user }) {
               deleteAssociatePending={deleteAssociateMutation.isPending}
               createContributionPending={createContributionMutation.isPending}
               createDistributionPending={createDistributionMutation.isPending}
+              createReinvestmentPending={createReinvestmentMutation.isPending}
               createProportionalPending={createProportionalDistributionMutation.isPending}
               onSelectAssociate={setSelectedAssociateId}
               onAssociateFormChange={(field, value) => setAssociateForm((current) => ({ ...current, [field]: value }))}
@@ -511,6 +562,8 @@ function ReportsWorkspace({ user }) {
               onCreateContribution={handleCreateContribution}
               onDistributionFormChange={(field, value) => setDistributionForm((current) => ({ ...current, [field]: value }))}
               onCreateDistribution={handleCreateDistribution}
+              onReinvestmentFormChange={(field, value) => setReinvestmentForm((current) => ({ ...current, [field]: value }))}
+              onCreateReinvestment={handleCreateReinvestment}
               onProportionalFormChange={(field, value) => setProportionalForm((current) => ({ ...current, [field]: value }))}
               onCreateProportionalDistribution={handleCreateProportionalDistribution}
             />

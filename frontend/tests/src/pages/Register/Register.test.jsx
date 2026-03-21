@@ -51,23 +51,23 @@ describe('Register page', () => {
     })
   })
 
-  it('requires phone for agent registration and includes it in the payload', async () => {
+  it('keeps public registration limited to customer accounts', async () => {
     renderWithProviders(<Register onLogin={vi.fn()} />)
 
-    await userEvent.type(screen.getByLabelText('Nombre completo'), 'Luis Agente')
+    expect(screen.getByLabelText('Tipo de cuenta')).toHaveValue('customer')
+    expect(screen.queryByLabelText('Telefono')).not.toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText('Nombre completo'), 'Luis Cliente')
     await userEvent.type(screen.getByLabelText('Correo electronico'), 'luis@lendflow.test')
     await userEvent.type(screen.getByLabelText('Contrasena'), 'secret123')
-    await userEvent.selectOptions(screen.getByLabelText('Tipo de cuenta'), 'agent')
-    await userEvent.type(screen.getByLabelText('Telefono'), '+57 311 222 3344')
     await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 
     await waitFor(() => {
       expect(registerMutateAsync).toHaveBeenCalledWith({
-        name: 'Luis Agente',
+        name: 'Luis Cliente',
         email: 'luis@lendflow.test',
         password: 'secret123',
-        role: 'agent',
-        phone: '+57 311 222 3344',
+        role: 'customer',
       })
     })
   })

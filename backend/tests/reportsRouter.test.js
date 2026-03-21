@@ -62,6 +62,16 @@ test('createReportsRouter serves report contract responses', async () => {
         calls.push(['getCustomerHistory', input.customerId]);
         return { success: true, data: { customer: { id: Number(input.customerId) }, timeline: [] } };
       },
+      async getCustomerCreditProfile(input) {
+        calls.push(['getCustomerCreditProfile', input.customerId]);
+        return { success: true, data: { customer: { id: Number(input.customerId) }, profile: { completeness: { isComplete: true } } } };
+      },
+      async getCustomerProfitabilityReport() {
+        return { success: true, summary: { totalProfit: '10.00' }, data: { customers: [{ customerId: 7 }] } };
+      },
+      async getLoanProfitabilityReport() {
+        return { success: true, summary: { totalProfit: '10.00' }, data: { loans: [{ loanId: 4 }] } };
+      },
       async exportRecoveryReport() {
         return {
           fileName: 'recovery-report.csv',
@@ -111,6 +121,14 @@ test('createReportsRouter serves report contract responses', async () => {
     path: '/customer-history/7',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
+  const customerProfileResponse = await requestJson(activeServer, {
+    path: '/customer-credit-profile/7',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const customerProfitabilityResponse = await requestJson(activeServer, {
+    path: '/profitability/customers',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
 
   assert.equal(recoveredResponse.statusCode, 200);
   assert.equal(recoveredResponse.body.summary.totalRecoveredAmount, '1200.00');
@@ -122,12 +140,17 @@ test('createReportsRouter serves report contract responses', async () => {
   assert.equal(dashboardResponse.body.data.summary.totalLoans, 2);
   assert.equal(customerHistoryResponse.statusCode, 200);
   assert.equal(customerHistoryResponse.body.data.customer.id, 7);
+  assert.equal(customerProfileResponse.statusCode, 200);
+  assert.equal(customerProfileResponse.body.data.profile.completeness.isComplete, true);
+  assert.equal(customerProfitabilityResponse.statusCode, 200);
+  assert.equal(customerProfitabilityResponse.body.data.customers[0].customerId, 7);
   assert.deepEqual(calls, [
     ['getRecoveredLoans', 'admin'],
     ['getOutstandingLoans', 'admin'],
     ['getRecoveryReport', 'admin'],
     ['getDashboardSummary', 'admin'],
     ['getCustomerHistory', '7'],
+    ['getCustomerCreditProfile', '7'],
   ]);
 });
 

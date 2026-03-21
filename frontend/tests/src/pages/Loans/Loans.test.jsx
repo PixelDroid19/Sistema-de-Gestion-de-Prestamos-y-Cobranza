@@ -1,5 +1,5 @@
 import React from 'react'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 
@@ -161,5 +161,72 @@ describe('Loans page', () => {
     await waitFor(() => {
       expect(updateStatusSpy).toHaveBeenCalledWith({ status: 'approved' })
     })
+  })
+
+  it('creates servicing follow-ups and updates promise status from the live workspace', async () => {
+    const followUpPayloads = []
+    const promiseStatusPayloads = []
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [adminLoan] } })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${adminLoan.id}`, () => HttpResponse.json({
+        data: [{ id: 9001, loanId: adminLoan.id, amount: 1400 }],
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/alerts`, () => HttpResponse.json({
+        data: { alerts: [{ id: 77, installmentNumber: 6, dueDate: '2026-03-10', outstandingAmount: 1400, status: 'active' }] },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/promises`, () => HttpResponse.json({
+        data: { promises: [{ id: 55, promisedDate: '2026-03-25', amount: 1400, status: 'pending', notes: 'Call scheduled' }] },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
+      http.get(`${API_BASE_URL}/api/customers/${adminLoan.customerId}/documents`, () => HttpResponse.json({ data: { documents: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/customer-history/${adminLoan.customerId}`, () => HttpResponse.json({ data: { segments: {}, timeline: [] } })),
+      http.post(`${API_BASE_URL}/api/loans/${adminLoan.id}/follow-ups`, async ({ request }) => {
+        followUpPayloads.push(await request.json())
+        return HttpResponse.json({ data: { reminder: { id: 91 } } }, { status: 201 })
+      }),
+      http.patch(`${API_BASE_URL}/api/loans/${adminLoan.id}/promises/55/status`, async ({ request }) => {
+        promiseStatusPayloads.push(await request.json())
+        return HttpResponse.json({ data: { promise: { id: 55, status: 'kept' } } })
+      }),
+    )
+
+    renderWithProviders(<Loans user={adminUser} />)
+
+    expect(await screen.findByText('Promesas, adjuntos, documentos del cliente e historial')).toBeInTheDocument()
+
+    const servicingSection = screen.getByText('Promesas, adjuntos, documentos del cliente e historial').closest('section')
+    const servicingQueries = within(servicingSection)
+
+    await userEvent.type(servicingQueries.getByLabelText('Numero de cuota'), '6')
+    await userEvent.type(servicingQueries.getByLabelText('Fecha de vencimiento'), '2026-03-30')
+    await userEvent.type(servicingQueries.getByLabelText('Monto pendiente'), '1400')
+    await userEvent.type(servicingQueries.getAllByLabelText('Notas')[1], 'Seguimiento programado para hoy')
+    await userEvent.click(servicingQueries.getByRole('button', { name: 'Crear seguimiento' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Seguimiento creado correctamente\./)).toBeInTheDocument()
+    })
+    expect(followUpPayloads).toEqual([
+      {
+        installmentNumber: '6',
+        dueDate: '2026-03-30',
+        outstandingAmount: '1400',
+        notes: 'Seguimiento programado para hoy',
+        notifyCustomer: true,
+      },
+    ])
+
+    await userEvent.click(servicingQueries.getByRole('button', { name: 'Marcar cumplida' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Promesa actualizada correctamente\./)).toBeInTheDocument()
+    })
+    expect(promiseStatusPayloads).toEqual([
+      {
+        status: 'kept',
+        notes: 'Promise marked kept',
+      },
+    ])
   })
 })

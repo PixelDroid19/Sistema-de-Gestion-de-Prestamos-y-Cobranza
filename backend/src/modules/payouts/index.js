@@ -1,6 +1,7 @@
 const { paymentValidation } = require('../../middleware/validation');
 const { createModule, resolveAuthContext } = require('../shared');
 const { createCreditsPublicPorts } = require('../credits/public');
+const { createAttachmentUpload } = require('../credits/presentation/attachmentUpload');
 const {
   createListPayments,
   createCreatePayment,
@@ -8,6 +9,9 @@ const {
   createCreateCapitalPayment,
   createAnnulInstallment,
   createListPaymentsByLoan,
+  createListPaymentDocuments,
+  createUploadPaymentDocument,
+  createDownloadPaymentDocument,
 } = require('./application/useCases');
 const { paymentRepository } = require('./infrastructure/repositories');
 const { createPayoutsRouter } = require('./presentation/router');
@@ -17,7 +21,8 @@ const { createPayoutsRouter } = require('./presentation/router');
  */
 const createPayoutsModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
-  const { loanAccessPolicy, paymentApplicationService } = createCreditsPublicPorts({ sharedRuntime });
+  const { loanAccessPolicy, paymentApplicationService, attachmentStorage } = createCreditsPublicPorts({ sharedRuntime });
+  const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listPayments: createListPayments({ paymentRepository }),
     createPayment: createCreatePayment({ paymentApplicationService, loanAccessPolicy }),
@@ -25,12 +30,15 @@ const createPayoutsModule = ({ sharedRuntime } = {}) => {
     createCapitalPayment: createCreateCapitalPayment({ paymentApplicationService, loanAccessPolicy }),
     annulInstallment: createAnnulInstallment({ paymentApplicationService, loanAccessPolicy }),
     listPaymentsByLoan: createListPaymentsByLoan({ paymentRepository, loanAccessPolicy }),
+    listPaymentDocuments: createListPaymentDocuments({ paymentRepository, loanAccessPolicy }),
+    uploadPaymentDocument: createUploadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),
+    downloadPaymentDocument: createDownloadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),
   };
 
   return createModule({
     name: 'payouts',
     basePath: '/api/payments',
-    router: createPayoutsRouter({ authMiddleware, paymentValidation, useCases }),
+    router: createPayoutsRouter({ authMiddleware, attachmentUpload, paymentValidation, useCases }),
   });
 };
 

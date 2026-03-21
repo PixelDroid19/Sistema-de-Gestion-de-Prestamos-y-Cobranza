@@ -105,6 +105,205 @@ const ensureAdmin = (actor) => {
 
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 
+const PROFITABILITY_PAYMENT_STATUSES = new Set(['completed']);
+
+const formatMoney = (value) => Number(value || 0).toFixed(2);
+
+const parseDateRange = ({ fromDate, toDate } = {}) => {
+  const parsedFromDate = fromDate ? new Date(fromDate) : null;
+  const parsedToDate = toDate ? new Date(toDate) : null;
+
+  return {
+    fromDate: parsedFromDate && !Number.isNaN(parsedFromDate.getTime()) ? parsedFromDate : null,
+    toDate: parsedToDate && !Number.isNaN(parsedToDate.getTime()) ? parsedToDate : null,
+  };
+};
+
+const buildCustomerHistoryTimeline = (history) => ([
+  ...(history.loans || []).map((loan) => ({
+    id: `loan-${loan.id}`,
+    entityId: loan.id,
+    entityType: 'loan',
+    eventType: `loan_${loan.status}`,
+    occurredAt: loan.updatedAt || loan.createdAt,
+    data: loan,
+  })),
+  ...(history.payments || []).map((payment) => ({
+    id: `payment-${payment.id}`,
+    entityId: payment.id,
+    entityType: 'payment',
+    eventType: `payment_${payment.status}`,
+    occurredAt: payment.paymentDate || payment.createdAt,
+    data: payment,
+  })),
+  ...(history.documents || []).map((document) => ({
+    id: `document-${document.id}`,
+    entityId: document.id,
+    entityType: 'document',
+    eventType: 'document_uploaded',
+    occurredAt: document.createdAt,
+    data: document,
+  })),
+  ...(history.alerts || []).map((alert) => ({
+    id: `alert-${alert.id}`,
+    entityId: alert.id,
+    entityType: 'alert',
+    eventType: `alert_${alert.status}`,
+    occurredAt: alert.updatedAt || alert.createdAt,
+    data: alert,
+  })),
+  ...(history.promises || []).map((promise) => ({
+    id: `promise-${promise.id}`,
+    entityId: promise.id,
+    entityType: 'promise',
+    eventType: `promise_${promise.status}`,
+    occurredAt: promise.lastStatusChangedAt || promise.createdAt,
+    data: promise,
+  })),
+  ...(history.notifications || []).map((notification) => ({
+    id: `notification-${notification.id}`,
+    entityId: notification.id,
+    entityType: 'notification',
+    eventType: notification.type,
+    occurredAt: notification.createdAt,
+    data: notification,
+  })),
+]).sort((left, right) => new Date(right.occurredAt) - new Date(left.occurredAt));
+
+const buildProfitabilityLoanRows = ({ loans, payments }) => {
+  const paymentsByLoan = payments.reduce((map, payment) => {
+    const key = Number(payment.loanId);
+    const current = map.get(key) || [];
+    current.push(payment);
+    map.set(key, current);
+    return map;
+  }, new Map());
+
+  return loans.map((loan) => {
+    const loanPayments = (paymentsByLoan.get(Number(loan.id)) || [])
+      .filter((payment) => PROFITABILITY_PAYMENT_STATUSES.has(payment.status));
+    const totalCollected = loanPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const principalCollected = loanPayments.reduce((sum, payment) => sum + Number(payment.principalApplied || 0), 0);
+    const interestCollected = loanPayments.reduce((sum, payment) => sum + Number(payment.interestApplied || 0), 0);
+    const penaltyCollected = loanPayments.reduce((sum, payment) => sum + Number(payment.penaltyApplied || 0), 0);
+    const totalProfit = interestCollected + penaltyCollected;
+    const outstandingBalance = loan.financialSnapshot?.outstandingBalance
+      ?? loan.remainingBalanceAfterPayment
+      ?? 0;
+
+    return {
+      loanId: loan.id,
+      customerId: loan.customerId,
+      customerName: loan.Customer?.name || null,
+      loanStatus: loan.status,
+      recoveryStatus: loan.recoveryStatus || null,
+      originatedAmount: formatMoney(loan.amount || 0),
+      totalCollected: formatMoney(totalCollected),
+      principalCollected: formatMoney(principalCollected),
+      interestCollected: formatMoney(interestCollected),
+      penaltyCollected: formatMoney(penaltyCollected),
+      totalProfit: formatMoney(totalProfit),
+      outstandingBalance: formatMoney(outstandingBalance),
+      paymentCount: loanPayments.length,
+      lastPaymentDate: loanPayments[0]?.paymentDate || null,
+      profitable: totalProfit > 0,
+    };
+  });
+};
+
+const buildProfitabilitySummary = (rows) => ({
+  totalOriginatedAmount: formatMoney(rows.reduce((sum, row) => sum + Number(row.originatedAmount || 0), 0)),
+  totalCollected: formatMoney(rows.reduce((sum, row) => sum + Number(row.totalCollected || 0), 0)),
+  totalProfit: formatMoney(rows.reduce((sum, row) => sum + Number(row.totalProfit || 0), 0)),
+  totalOutstandingBalance: formatMoney(rows.reduce((sum, row) => sum + Number(row.outstandingBalance || 0), 0)),
+});
+
+const buildCustomerProfitabilityRows = (loanRows) => {
+  const grouped = loanRows.reduce((map, row) => {
+    const current = map.get(Number(row.customerId)) || {
+      customerId: row.customerId,
+      customerName: row.customerName,
+      loanCount: 0,
+      originatedAmount: 0,
+      totalCollected: 0,
+      principalCollected: 0,
+      interestCollected: 0,
+      penaltyCollected: 0,
+      totalProfit: 0,
+      outstandingBalance: 0,
+      profitableLoanCount: 0,
+    };
+
+    current.loanCount += 1;
+    current.originatedAmount += Number(row.originatedAmount || 0);
+    current.totalCollected += Number(row.totalCollected || 0);
+    current.principalCollected += Number(row.principalCollected || 0);
+    current.interestCollected += Number(row.interestCollected || 0);
+    current.penaltyCollected += Number(row.penaltyCollected || 0);
+    current.totalProfit += Number(row.totalProfit || 0);
+    current.outstandingBalance += Number(row.outstandingBalance || 0);
+    current.profitableLoanCount += row.profitable ? 1 : 0;
+    map.set(Number(row.customerId), current);
+    return map;
+  }, new Map());
+
+  return Array.from(grouped.values()).map((row) => ({
+    ...row,
+    originatedAmount: formatMoney(row.originatedAmount),
+    totalCollected: formatMoney(row.totalCollected),
+    principalCollected: formatMoney(row.principalCollected),
+    interestCollected: formatMoney(row.interestCollected),
+    penaltyCollected: formatMoney(row.penaltyCollected),
+    totalProfit: formatMoney(row.totalProfit),
+    outstandingBalance: formatMoney(row.outstandingBalance),
+  }));
+};
+
+const buildServicingNotes = ({ alerts = [], promises = [] }) => {
+  const noteEntries = [];
+
+  alerts.forEach((alert) => {
+    if (alert.notes) {
+      noteEntries.push({
+        id: `alert-note-${alert.id}`,
+        entityType: 'alert',
+        entityId: alert.id,
+        note: alert.notes,
+        occurredAt: alert.updatedAt || alert.createdAt,
+      });
+    }
+  });
+
+  promises.forEach((promise) => {
+    if (promise.notes) {
+      noteEntries.push({
+        id: `promise-note-${promise.id}`,
+        entityType: 'promise',
+        entityId: promise.id,
+        note: promise.notes,
+        occurredAt: promise.lastStatusChangedAt || promise.createdAt,
+      });
+    }
+
+    (Array.isArray(promise.statusHistory) ? promise.statusHistory : []).forEach((entry, index) => {
+      if (entry?.note || entry?.reason) {
+        noteEntries.push({
+          id: `promise-history-${promise.id}-${index}`,
+          entityType: 'promise',
+          entityId: promise.id,
+          note: entry.note || entry.reason,
+          status: entry.status,
+          occurredAt: entry.changedAt || promise.lastStatusChangedAt || promise.createdAt,
+        });
+      }
+    });
+  });
+
+  return noteEntries
+    .sort((left, right) => new Date(right.occurredAt) - new Date(left.occurredAt))
+    .slice(0, 10);
+};
+
 const getRecoveryBucket = ({ loan, snapshot }) => {
   const outstandingBalance = parseFloat(snapshot.outstandingBalance || 0);
 
@@ -299,68 +498,90 @@ const createGetCustomerHistory = ({ reportRepository }) => async ({ actor, custo
     throw new NotFoundError('Customer');
   }
 
-  const timeline = [
-    ...(history.loans || []).map((loan) => ({
-      id: `loan-${loan.id}`,
-      entityId: loan.id,
-      entityType: 'loan',
-      eventType: `loan_${loan.status}`,
-      occurredAt: loan.updatedAt || loan.createdAt,
-      data: loan,
-    })),
-    ...(history.payments || []).map((payment) => ({
-      id: `payment-${payment.id}`,
-      entityId: payment.id,
-      entityType: 'payment',
-      eventType: `payment_${payment.status}`,
-      occurredAt: payment.paymentDate || payment.createdAt,
-      data: payment,
-    })),
-    ...(history.documents || []).map((document) => ({
-      id: `document-${document.id}`,
-      entityId: document.id,
-      entityType: 'document',
-      eventType: 'document_uploaded',
-      occurredAt: document.createdAt,
-      data: document,
-    })),
-    ...(history.alerts || []).map((alert) => ({
-      id: `alert-${alert.id}`,
-      entityId: alert.id,
-      entityType: 'alert',
-      eventType: `alert_${alert.status}`,
-      occurredAt: alert.updatedAt || alert.createdAt,
-      data: alert,
-    })),
-    ...(history.promises || []).map((promise) => ({
-      id: `promise-${promise.id}`,
-      entityId: promise.id,
-      entityType: 'promise',
-      eventType: `promise_${promise.status}`,
-      occurredAt: promise.lastStatusChangedAt || promise.createdAt,
-      data: promise,
-    })),
-    ...(history.notifications || []).map((notification) => ({
-      id: `notification-${notification.id}`,
-      entityId: notification.id,
-      entityType: 'notification',
-      eventType: notification.type,
-      occurredAt: notification.createdAt,
-      data: notification,
-    })),
-  ].sort((left, right) => new Date(right.occurredAt) - new Date(left.occurredAt));
-
   return {
     success: true,
     data: {
       customer: history.customer,
-      timeline,
+      timeline: buildCustomerHistoryTimeline(history),
       segments: {
         loans: history.loans || [],
         payments: history.payments || [],
         documents: history.documents || [],
         alerts: history.alerts || [],
         promises: history.promises || [],
+        notifications: history.notifications || [],
+      },
+    },
+  };
+};
+
+const createGetCustomerCreditProfile = ({ reportRepository }) => async ({ actor, customerId }) => {
+  ensureAdmin(actor);
+
+  const history = await reportRepository.getCustomerCreditProfileDataset(customerId);
+  if (!history.customer) {
+    throw new NotFoundError('Customer');
+  }
+
+  const loans = history.loans || [];
+  const payments = history.payments || [];
+  const alerts = history.alerts || [];
+  const promises = history.promises || [];
+  const documents = history.documents || [];
+  const activeLoans = loans.filter((loan) => ['approved', 'active', 'defaulted'].includes(loan.status));
+  const closedLoans = loans.filter((loan) => loan.status === 'closed');
+  const completedPayments = payments.filter((payment) => payment.status === 'completed');
+  const activeAlerts = alerts.filter((alert) => alert.status === 'active');
+  const brokenPromises = promises.filter((promise) => promise.status === 'broken');
+  const missingSections = [
+    completedPayments.length === 0 ? 'payment_history' : null,
+    documents.length === 0 ? 'supporting_documents' : null,
+    buildServicingNotes({ alerts, promises }).length === 0 ? 'servicing_notes' : null,
+  ].filter(Boolean);
+
+  const profitabilityRows = buildProfitabilityLoanRows({ loans, payments: completedPayments });
+  const customerProfitability = buildCustomerProfitabilityRows(profitabilityRows)
+    .find((row) => Number(row.customerId) === Number(customerId)) || null;
+
+  return {
+    success: true,
+    data: {
+      customer: history.customer,
+      profile: {
+        summary: {
+          totalLoans: loans.length,
+          activeLoans: activeLoans.length,
+          closedLoans: closedLoans.length,
+          completedPayments: completedPayments.length,
+          delinquentAlerts: activeAlerts.length,
+          brokenPromises: brokenPromises.length,
+          totalPaid: formatMoney(completedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)),
+        },
+        completeness: {
+          isComplete: missingSections.length === 0,
+          missingSections,
+          sections: {
+            loanHistory: { status: loans.length > 0 ? 'complete' : 'missing', count: loans.length },
+            paymentHistory: { status: completedPayments.length > 0 ? 'complete' : 'missing', count: completedPayments.length },
+            supportingDocuments: { status: documents.length > 0 ? 'complete' : 'missing', count: documents.length },
+            servicingNotes: { status: buildServicingNotes({ alerts, promises }).length > 0 ? 'complete' : 'missing', count: buildServicingNotes({ alerts, promises }).length },
+          },
+        },
+        delinquency: {
+          activeAlerts,
+          brokenPromises,
+          pendingPromises: promises.filter((promise) => promise.status === 'pending'),
+        },
+        servicingNotes: buildServicingNotes({ alerts, promises }),
+        profitability: customerProfitability,
+      },
+      timeline: buildCustomerHistoryTimeline(history),
+      segments: {
+        loans,
+        payments,
+        alerts,
+        promises,
+        documents,
         notifications: history.notifications || [],
       },
     },
@@ -585,14 +806,46 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
   };
 };
 
+const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor);
+
+  const { loans, payments } = await reportRepository.listProfitabilityDataset(parseDateRange(filters));
+  const loanRows = buildProfitabilityLoanRows({ loans, payments });
+  const customerRows = buildCustomerProfitabilityRows(loanRows);
+
+  return {
+    success: true,
+    count: customerRows.length,
+    summary: buildProfitabilitySummary(customerRows),
+    data: { customers: customerRows },
+  };
+};
+
+const createGetLoanProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor);
+
+  const { loans, payments } = await reportRepository.listProfitabilityDataset(parseDateRange(filters));
+  const loanRows = buildProfitabilityLoanRows({ loans, payments });
+
+  return {
+    success: true,
+    count: loanRows.length,
+    summary: buildProfitabilitySummary(loanRows),
+    data: { loans: loanRows },
+  };
+};
+
 module.exports = {
   createGetRecoveredLoans,
   createGetOutstandingLoans,
   createGetRecoveryReport,
   createGetDashboardSummary,
   createGetCustomerHistory,
+  createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
   createExportRecoveryReport,
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
+  createGetCustomerProfitabilityReport,
+  createGetLoanProfitabilityReport,
 };

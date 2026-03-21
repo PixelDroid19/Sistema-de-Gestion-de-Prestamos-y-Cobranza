@@ -20,6 +20,9 @@ const {
   createExecutePayoff,
   createListPromisesToPay,
   createCreatePromiseToPay,
+  createCreateLoanFollowUp,
+  createUpdateLoanAlertStatus,
+  createUpdatePromiseToPayStatus,
   createDownloadPromiseToPay,
 } = require('./application/useCases');
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
@@ -70,6 +73,9 @@ const createCreditsModule = ({ sharedRuntime } = {}) => {
     executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService }),
     listPromisesToPay: createListPromisesToPay({ promiseRepository, loanAccessPolicy }),
     createPromiseToPay: createCreatePromiseToPay({ promiseRepository, loanAccessPolicy }),
+    createLoanFollowUp: createCreateLoanFollowUp({ alertRepository, loanAccessPolicy, notificationPort }),
+    updateLoanAlertStatus: createUpdateLoanAlertStatus({ alertRepository, loanAccessPolicy }),
+    updatePromiseToPayStatus: createUpdatePromiseToPayStatus({ promiseRepository, loanAccessPolicy, notificationPort }),
     downloadPromiseToPay: createDownloadPromiseToPay({ promiseRepository, loanAccessPolicy }),
   };
 

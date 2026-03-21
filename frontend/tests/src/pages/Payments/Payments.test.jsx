@@ -1,7 +1,8 @@
 import React from 'react'
-import { screen } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
+import { vi } from 'vitest'
 
 import i18n from '@/i18n'
 import { API_BASE_URL } from '@/lib/api/client'
@@ -10,6 +11,7 @@ import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
 
 const customerUser = { id: 7, role: 'customer', name: 'Ana Customer' }
+const adminUser = { id: 1, role: 'admin', name: 'Ada Admin' }
 
 const payableLoan = {
   id: 10,
@@ -105,5 +107,113 @@ describe('Payments page', () => {
     await screen.findByRole('button', { name: 'Intentar de nuevo' })
     expect(screen.getByText('Prestamo #10')).toBeInTheDocument()
     expect(paymentsAttempts).toBe(2)
+  })
+
+  it('supports payment document listing, upload, and download for internal users', async () => {
+    const uploadedDocuments = []
+    const clickSpy = vi.fn()
+    if (!URL.createObjectURL) {
+      URL.createObjectURL = () => 'blob:default'
+    }
+    if (!URL.revokeObjectURL) {
+      URL.revokeObjectURL = () => {}
+    }
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:payment-document')
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const originalCreateElement = document.createElement.bind(document)
+    let downloadLink = null
+
+    vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+      if (tagName === 'a') {
+        downloadLink = {
+          click: clickSpy,
+          href: '',
+          download: '',
+        }
+        return downloadLink
+      }
+
+      return originalCreateElement(tagName)
+    })
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({
+        data: [
+          {
+            id: 301,
+            loanId: payableLoan.id,
+            amount: 1066.5,
+            paymentType: 'installment',
+            createdAt: '2026-03-20T00:00:00.000Z',
+            status: 'completed',
+          },
+        ],
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({
+        data: { calendar: { entries: [] } },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/attachments`, () => HttpResponse.json({
+        data: { attachments: [] },
+      })),
+      http.get(`${API_BASE_URL}/api/payments/301/documents`, () => HttpResponse.json({
+        data: {
+          documents: [
+            { id: 401, originalName: 'receipt.pdf', category: 'receipt', customerVisible: true },
+          ],
+        },
+      })),
+      http.post(`${API_BASE_URL}/api/payments/301/documents`, () => {
+        uploadedDocuments.push({
+          fileName: 'payment-proof.pdf',
+          category: 'receipt',
+          description: 'Comprobante bancario',
+          customerVisible: 'true',
+        })
+        return HttpResponse.json({ data: { document: { id: 402 } } }, { status: 201 })
+      }),
+      http.get(`${API_BASE_URL}/api/payments/301/documents/401/download`, () => new HttpResponse('payment-document', {
+        headers: {
+          'Content-Type': 'application/pdf',
+        },
+      })),
+    )
+
+    renderWithProviders(<Payments user={adminUser} />)
+
+    expect(await screen.findByText('Sigue la actividad de cuotas desde una sola superficie compartida')).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByLabelText('Prestamo'), String(payableLoan.id))
+
+    const historySection = screen.getByText('Transacciones recientes').closest('section')
+    const historyQueries = within(historySection)
+
+    expect(await historyQueries.findByText('receipt.pdf')).toBeInTheDocument()
+
+    const file = new File(['payment proof'], 'payment-proof.pdf', { type: 'application/pdf' })
+    await userEvent.upload(historyQueries.getByLabelText('Documento del pago'), file)
+    await userEvent.type(historyQueries.getByLabelText('Categoria'), 'receipt')
+    await userEvent.type(historyQueries.getByLabelText('Descripcion'), 'Comprobante bancario')
+    await userEvent.click(historyQueries.getByRole('checkbox'))
+    await userEvent.click(historyQueries.getByRole('button', { name: 'Subir documento' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Documento del pago cargado correctamente\./)).toBeInTheDocument()
+    })
+    expect(uploadedDocuments).toEqual([
+      {
+        fileName: 'payment-proof.pdf',
+        category: 'receipt',
+        description: 'Comprobante bancario',
+        customerVisible: 'true',
+      },
+    ])
+
+    await userEvent.click(historyQueries.getByRole('button', { name: 'Descargar' }))
+
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    expect(createObjectUrlSpy).toHaveBeenCalledTimes(1)
+    expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:payment-document')
+    expect(downloadLink.download).toBe('receipt.pdf')
   })
 })

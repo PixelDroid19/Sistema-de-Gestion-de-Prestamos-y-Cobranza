@@ -159,6 +159,30 @@ export const useCreateLoanPromiseMutation = (user) => {
   });
 };
 
+export const useCreateLoanFollowUpMutation = (user) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ loanId, payload }) => loanService.createLoanFollowUp(loanId, payload),
+    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+  });
+};
+
+export const useUpdateLoanAlertStatusMutation = (user) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ loanId, alertId, payload }) => loanService.updateLoanAlertStatus(loanId, alertId, payload),
+    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+  });
+};
+
+export const useUpdateLoanPromiseStatusMutation = (user) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ loanId, promiseId, payload }) => loanService.updateLoanPromiseStatus(loanId, promiseId, payload),
+    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+  });
+};
+
 export const useUploadLoanAttachmentMutation = (user) => {
   const queryClient = useQueryClient();
   return useMutation({

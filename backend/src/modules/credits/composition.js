@@ -6,13 +6,14 @@ const { createCreditsInfrastructure } = require('./infrastructure/repositories')
 
 /**
  * Select the credit ports that other modules are allowed to depend on.
- * @param {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object }} composition
- * @returns {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object }}
+ * @param {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }} composition
+ * @returns {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }}
  */
-const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService }) => ({
+const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService, attachmentStorage }) => ({
   loanAccessPolicy,
   loanViewService,
   paymentApplicationService,
+  attachmentStorage,
 });
 
 /**

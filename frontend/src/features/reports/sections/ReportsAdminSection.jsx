@@ -10,11 +10,17 @@ function ReportsAdminSection(props) {
     selectedHistoryLoanId,
     setSelectedHistoryLoanId,
     creditHistory,
+    selectedCustomerProfileId,
+    setSelectedCustomerProfileId,
+    customerCreditProfile,
+    customerProfitability,
+    loanProfitability,
     selectedAssociateId,
     associates,
     associateForm,
     contributionForm,
     distributionForm,
+    reinvestmentForm,
     proportionalForm,
     selectedAssociatePortal,
     selectedAssociateProfitability,
@@ -23,6 +29,7 @@ function ReportsAdminSection(props) {
     deleteAssociatePending,
     createContributionPending,
     createDistributionPending,
+    createReinvestmentPending,
     createProportionalPending,
     onSelectAssociate,
     onAssociateFormChange,
@@ -33,6 +40,8 @@ function ReportsAdminSection(props) {
     onCreateContribution,
     onDistributionFormChange,
     onCreateDistribution,
+    onReinvestmentFormChange,
+    onCreateReinvestment,
     onProportionalFormChange,
     onCreateProportionalDistribution,
   } = props
@@ -53,6 +62,10 @@ function ReportsAdminSection(props) {
               <span className="field-label">{t('reports.admin.fields.loanId')}</span>
               <input className="field-control" value={selectedHistoryLoanId} onChange={(event) => setSelectedHistoryLoanId(event.target.value)} />
             </label>
+            <label className="field-group">
+              <span className="field-label">{t('reports.admin.fields.customerId')}</span>
+              <input className="field-control" value={selectedCustomerProfileId} onChange={(event) => setSelectedCustomerProfileId(event.target.value)} />
+            </label>
           </div>
           {creditHistory && (
             <div className="summary-grid section-margin-top">
@@ -62,6 +75,23 @@ function ReportsAdminSection(props) {
               <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.headers.status')}</div><div className="detail-card__value">{creditHistory.closure?.closureReason || '-'}</div></div>
             </div>
           )}
+          {customerCreditProfile && (
+            <>
+              <div className="summary-grid section-margin-top">
+                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerName')}</div><div className="detail-card__value">{customerCreditProfile.customer?.name || '-'}</div></div>
+                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerCompleteness')}</div><div className="detail-card__value">{customerCreditProfile.profile?.completeness?.isComplete ? t('reports.admin.values.complete') : t('reports.admin.values.incomplete')}</div></div>
+                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.activeLoans')}</div><div className="detail-card__value">{customerCreditProfile.profile?.summary?.activeLoans || 0}</div></div>
+                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.delinquentAlerts')}</div><div className="detail-card__value detail-card__value--warning">{customerCreditProfile.profile?.summary?.delinquentAlerts || 0}</div></div>
+              </div>
+              <div className="content-note section-margin-top">
+                {t('reports.admin.fields.missingSections')}: {(customerCreditProfile.profile?.completeness?.missingSections || []).join(', ') || t('common.values.notAvailable')}
+              </div>
+            </>
+          )}
+          <div className="summary-grid section-margin-top">
+            <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerProfitabilityRows')}</div><div className="detail-card__value">{customerProfitability.length}</div></div>
+            <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.loanProfitabilityRows')}</div><div className="detail-card__value">{loanProfitability.length}</div></div>
+          </div>
         </div>
       </section>
 
@@ -169,6 +199,25 @@ function ReportsAdminSection(props) {
                 <div className="field-group">
                   <span className="field-label">{t('reports.admin.fields.action')}</span>
                   <Button type="button" onClick={onCreateDistribution} disabled={createDistributionPending}>{t('reports.admin.buttons.addDistribution')}</Button>
+                </div>
+              </div>
+
+              <div className="dashboard-form-grid section-margin-bottom">
+                <label className="field-group">
+                  <span className="field-label">{t('reports.admin.fields.reinvestmentAmount')}</span>
+                  <input className="field-control" value={reinvestmentForm.amount} onChange={(event) => onReinvestmentFormChange('amount', event.target.value)} />
+                </label>
+                <label className="field-group">
+                  <span className="field-label">{t('reports.admin.fields.reinvestmentDate')}</span>
+                  <input className="field-control" type="date" value={reinvestmentForm.distributionDate} onChange={(event) => onReinvestmentFormChange('distributionDate', event.target.value)} />
+                </label>
+                <label className="field-group">
+                  <span className="field-label">{t('reports.admin.fields.notes')}</span>
+                  <input className="field-control" value={reinvestmentForm.notes} onChange={(event) => onReinvestmentFormChange('notes', event.target.value)} />
+                </label>
+                <div className="field-group">
+                  <span className="field-label">{t('reports.admin.fields.action')}</span>
+                  <Button type="button" onClick={onCreateReinvestment} disabled={createReinvestmentPending}>{t('reports.admin.buttons.addReinvestment')}</Button>
                 </div>
               </div>
             </>

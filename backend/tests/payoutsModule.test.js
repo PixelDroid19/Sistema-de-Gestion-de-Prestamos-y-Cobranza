@@ -10,6 +10,9 @@ const {
   createCreateCapitalPayment,
   createAnnulInstallment,
   createListPaymentsByLoan,
+  createListPaymentDocuments,
+  createUploadPaymentDocument,
+  createDownloadPaymentDocument,
 } = require('../src/modules/payouts/application/useCases');
 const { createPayoutsModule } = require('../src/modules/payouts');
 
@@ -258,4 +261,60 @@ test('createPayoutsModule consumes shared auth and shared credits public ports',
 
   assert.equal(requestedModuleName, 'credits');
   assert.equal(moduleRegistration.basePath, '/api/payments');
+});
+
+test('payment document use cases enforce loan access and customer visibility', async () => {
+  const paymentRepository = {
+    async findById() {
+      return { id: 51, loanId: 9 };
+    },
+    async listDocuments() {
+      return [
+        { id: 1, customerVisible: true, originalName: 'visible.pdf' },
+        { id: 2, customerVisible: false, originalName: 'internal.pdf' },
+      ];
+    },
+    async createDocument(payload) {
+      return { id: 3, ...payload };
+    },
+    async findDocument() {
+      return { id: 1, paymentId: 51, customerVisible: true, storagePath: 'visible.pdf', originalName: 'visible.pdf' };
+    },
+  };
+  const loanAccessPolicy = {
+    async findAuthorizedLoan() {
+      return { id: 9 };
+    },
+    async findAuthorizedMutationLoan() {
+      return { id: 9 };
+    },
+  };
+
+  const documents = await createListPaymentDocuments({ paymentRepository, loanAccessPolicy })({ actor: { id: 7, role: 'customer' }, paymentId: 51 });
+  assert.equal(documents.length, 1);
+
+  const uploadResult = await createUploadPaymentDocument({
+    paymentRepository,
+    loanAccessPolicy,
+    attachmentStorage: {
+      toRelativePath() { return 'payment-proof.pdf'; },
+      async deleteByAbsolutePath() {},
+    },
+  })({
+    actor: { id: 1, role: 'admin' },
+    paymentId: 51,
+    file: { path: '/tmp/payment-proof.pdf', filename: 'payment-proof.pdf', originalname: 'Payment Proof.pdf', mimetype: 'application/pdf', size: 123 },
+    metadata: { customerVisible: 'true' },
+  });
+  assert.equal(uploadResult.paymentId, 51);
+
+  const downloadResult = await createDownloadPaymentDocument({
+    paymentRepository,
+    loanAccessPolicy,
+    attachmentStorage: {
+      async assertExists() {},
+      resolveAbsolutePath() { return '/tmp/payment-proof.pdf'; },
+    },
+  })({ actor: { id: 1, role: 'admin' }, paymentId: 51, documentId: 1 });
+  assert.equal(downloadResult.document.id, 1);
 });

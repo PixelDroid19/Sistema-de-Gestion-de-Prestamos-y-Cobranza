@@ -24,6 +24,24 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.json(await useCases.getCustomerHistory({ actor: req.user, customerId: req.params.customerId }));
   }));
 
+  router.get('/customer-credit-profile/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId }));
+  }));
+
+  router.get('/profitability/customers', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    res.json(await useCases.getCustomerProfitabilityReport({
+      actor: req.user,
+      filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
+    }));
+  }));
+
+  router.get('/profitability/loans', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    res.json(await useCases.getLoanProfitabilityReport({
+      actor: req.user,
+      filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
+    }));
+  }));
+
   router.get('/recovery/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'csv').toLowerCase();
     const exportFile = await useCases.exportRecoveryReport({ actor: req.user, format });

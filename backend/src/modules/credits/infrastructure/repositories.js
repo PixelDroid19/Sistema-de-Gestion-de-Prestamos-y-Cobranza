@@ -118,6 +118,17 @@ const createCreditsInfrastructure = ({
           order: [['installmentNumber', 'ASC'], ['createdAt', 'DESC']],
         });
       },
+      findByIdForLoan({ loanId, alertId }) {
+        return loanAlertModel.findOne({
+          where: { id: alertId, loanId },
+        });
+      },
+      create(payload) {
+        return loanAlertModel.create(payload);
+      },
+      save(alert) {
+        return alert.save();
+      },
       async syncOverdueInstallmentAlerts({ loan, schedule }) {
         const now = new Date();
         const overdueRows = schedule.filter((row) => {
@@ -205,6 +216,9 @@ const createCreditsInfrastructure = ({
       create(payload) {
         return promiseToPayModel.create(payload);
       },
+      save(promise) {
+        return promise.save();
+      },
       async expireBrokenPromises({ loanId, asOf = new Date() }) {
         const promises = await promiseToPayModel.findAll({
           where: {
@@ -268,6 +282,24 @@ const createCreditsInfrastructure = ({
           'loan_assignment',
           payload,
           { dedupeKey: `loan-assignment:${payload.loanId}:${userId}` },
+        );
+      },
+      sendLoanReminder(userId, payload) {
+        return notifications.sendNotification(
+          userId,
+          `Reminder for Loan #${payload.loanId}: installment #${payload.installmentNumber || 0} is due on ${payload.dueDate}.`,
+          'loan_reminder',
+          payload,
+          { dedupeKey: `loan-reminder:${payload.loanId}:${payload.alertId || payload.installmentNumber}:${userId}` },
+        );
+      },
+      sendPromiseStatus(userId, payload) {
+        return notifications.sendNotification(
+          userId,
+          `Promise to pay for Loan #${payload.loanId} is now ${payload.status}.`,
+          'promise_status',
+          payload,
+          { dedupeKey: `promise-status:${payload.promiseId}:${payload.status}:${userId}` },
         );
       },
     },

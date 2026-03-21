@@ -452,6 +452,64 @@ const createCreateProfitDistribution = ({ associateRepository }) => async ({ act
   });
 };
 
+const createCreateAssociateReinvestment = ({ associateRepository }) => async ({ actor, associateId, payload }) => {
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can create associate reinvestments');
+  }
+
+  const associate = await associateRepository.findById(associateId);
+  if (!associate) {
+    throw new NotFoundError('Associate');
+  }
+
+  const amount = Number(payload.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ValidationError('Reinvestment amount must be greater than 0');
+  }
+
+  const operationDate = payload.reinvestmentDate ? new Date(payload.reinvestmentDate) : new Date();
+  if (Number.isNaN(operationDate.getTime())) {
+    throw new ValidationError('reinvestmentDate must be a valid date when provided');
+  }
+
+  return associateRepository.runInTransaction(async (transaction) => {
+    const note = payload.notes ? String(payload.notes).trim() : null;
+    const distribution = await associateRepository.createProfitDistribution({
+      associateId: associate.id,
+      loanId: payload.loanId || null,
+      amount,
+      distributionDate: operationDate,
+      createdByUserId: actor.id,
+      notes: note,
+      basis: {
+        type: 'reinvestment',
+        reinvestment: true,
+        direction: 'distribution',
+      },
+    }, { transaction });
+
+    const contribution = await associateRepository.createContribution({
+      associateId: associate.id,
+      amount,
+      contributionDate: operationDate,
+      createdByUserId: actor.id,
+      notes: note,
+    }, { transaction });
+
+    return {
+      associate: normalizeAssociateRecord(associate),
+      reinvestment: {
+        amount: formatCurrency(amount),
+        reinvestmentDate: operationDate.toISOString(),
+        loanId: payload.loanId || null,
+        notes: note,
+      },
+      distribution: normalizeDistributionRecord(distribution),
+      contribution,
+    };
+  });
+};
+
 const createCreateProportionalProfitDistribution = ({ associateRepository }) => async ({ actor, idempotencyKey, payload }) => {
   if (actor.role !== 'admin') {
     throw new AuthorizationError('Only admins can create proportional profit distributions');
@@ -602,5 +660,6 @@ module.exports = {
   createListAssociatePortalSummary,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
 };

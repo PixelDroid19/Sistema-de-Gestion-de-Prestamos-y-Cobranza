@@ -14,6 +14,12 @@ export const usePaymentsByLoanQuery = (loanId, { enabled = true } = {}) => useQu
   enabled: enabled && Boolean(loanId),
 });
 
+export const usePaymentDocumentsQuery = (paymentId, { enabled = true } = {}) => useQuery({
+  queryKey: queryKeys.payments.documents(paymentId),
+  queryFn: () => paymentService.listPaymentDocuments(paymentId),
+  enabled: enabled && Boolean(paymentId),
+});
+
 const invalidatePaymentQueries = (queryClient, loanId) => {
   queryClient.invalidateQueries({ queryKey: ['payments'] });
   queryClient.invalidateQueries({ queryKey: queryKeys.payments.byLoan(loanId) });
@@ -65,6 +71,18 @@ export const useAnnulInstallmentMutation = (loanId) => {
     mutationFn: () => paymentService.annulInstallment(loanId),
     onSuccess: () => {
       invalidatePaymentQueries(queryClient, loanId);
+    },
+  });
+};
+
+export const useUploadPaymentDocumentMutation = (paymentId) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (formData) => paymentService.uploadPaymentDocument(paymentId, formData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.payments.documents(paymentId) });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 };

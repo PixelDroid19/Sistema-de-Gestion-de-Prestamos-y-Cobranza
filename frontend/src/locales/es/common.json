@@ -297,15 +297,13 @@
     },
     "register": {
       "title": "Crear cuenta",
-      "description": "Configura tu perfil y entra al espacio con el mismo flujo del backend.",
+      "description": "Configura tu perfil de cliente y entra al espacio con el mismo flujo del backend.",
       "name": "Nombre completo",
       "email": "Correo electronico",
       "password": "Contrasena",
       "role": "Tipo de cuenta",
       "phone": "Telefono",
       "customer": "Cliente",
-      "agent": "Agente",
-      "admin": "Administrador",
       "submit": "Crear cuenta",
       "submitting": "Creando cuenta...",
       "success": "Registro exitoso. Ya ingresaste al sistema.",
@@ -486,6 +484,9 @@
       "annulSuccess": "Cuota anulada correctamente.",
       "resolvedAlert": "Las alertas vencidas se actualizaron despues de este pago.",
       "successOverlay": "Pago exitoso",
+      "selectPaymentDocument": "Selecciona un pago antes de gestionar documentos.",
+      "choosePaymentDocument": "Selecciona un archivo antes de subir un documento del pago.",
+      "paymentDocumentUploaded": "Documento del pago cargado correctamente.",
       "summary": {
         "payableLoans": "Prestamos pagables",
         "payableLoansCaption": "Elegibles para seguimiento de cobros",
@@ -567,8 +568,16 @@
       "nearestAnnulSuffix": "(cuota #{{number}})",
       "noCalendar": "No hay cuotas disponibles",
       "noAttachments": "No hay adjuntos visibles para el cliente",
+      "noPaymentDocuments": "No hay documentos del pago disponibles",
       "visibilityCustomer": "Cliente",
       "visibilityInternal": "Interno",
+      "fields": {
+        "payment": "Pago",
+        "paymentDocument": "Documento del pago"
+      },
+      "buttons": {
+        "uploadDocument": "Subir documento"
+      },
       "headers": {
         "paymentId": "ID pago",
         "loanId": "ID prestamo",
@@ -641,6 +650,9 @@
       "deleteConfirm": "Seguro que quieres eliminar este prestamo rechazado? Esta accion no se puede deshacer.",
       "loanDeleted": "Prestamo eliminado correctamente.",
       "promiseCreated": "Promesa de pago creada correctamente.",
+      "followUpCreated": "Seguimiento creado correctamente.",
+      "alertResolved": "Alerta marcada como resuelta.",
+      "promiseUpdated": "Promesa actualizada correctamente.",
       "chooseAttachment": "Selecciona un archivo antes de subir un adjunto.",
       "attachmentUploaded": "Adjunto del prestamo cargado correctamente.",
       "chooseCustomerDocument": "Selecciona un archivo antes de subir un documento del cliente.",
@@ -756,6 +768,9 @@
       "fields": {
         "promiseDate": "Fecha prometida",
         "promiseAmount": "Monto prometido",
+        "installmentNumber": "Numero de cuota",
+        "dueDate": "Fecha de vencimiento",
+        "outstandingAmount": "Monto pendiente",
         "notes": "Notas",
         "create": "Crear",
         "loanAttachment": "Adjunto del prestamo",
@@ -770,6 +785,10 @@
       },
       "buttons": {
         "savePromise": "Guardar promesa",
+        "createFollowUp": "Crear seguimiento",
+        "resolveAlert": "Resolver alerta",
+        "markKept": "Marcar cumplida",
+        "markBroken": "Marcar incumplida",
         "uploadAttachment": "Subir adjunto",
         "uploadDocument": "Subir documento",
         "download": "Descargar",
@@ -851,6 +870,7 @@
       "contributionCreated": "Aporte creado correctamente.",
       "selectAssociateForDistribution": "Selecciona un socio antes de agregar una distribucion.",
       "distributionCreated": "Distribucion creada correctamente.",
+      "reinvestmentCreated": "Reinversion creada correctamente.",
       "proportionalCreated": "Distribucion proporcional creada correctamente.",
       "loadingTitle": "Cargando reportes",
       "loadingMessage": "Recolectando totales de cartera, desgloses de recuperacion y saldos pendientes.",
@@ -950,6 +970,13 @@
       "associateOpsSubtitle": "Muestra CRUD de socios y flujos de distribucion manual o proporcional sin salir del espacio de reportes.",
       "fields": {
         "loanId": "ID prestamo",
+        "customerId": "ID cliente",
+        "customerName": "Cliente",
+        "customerCompleteness": "Completitud",
+        "delinquentAlerts": "Alertas vencidas",
+        "missingSections": "Secciones faltantes",
+        "customerProfitabilityRows": "Filas rentabilidad cliente",
+        "loanProfitabilityRows": "Filas rentabilidad prestamo",
         "selectedAssociate": "Socio seleccionado",
         "createAssociate": "Crear un nuevo socio",
         "name": "Nombre",
@@ -968,8 +995,14 @@
         "action": "Accion",
         "distributionAmount": "Monto de la distribucion",
         "distributionDate": "Fecha de distribucion",
+        "reinvestmentAmount": "Monto de reinversion",
+        "reinvestmentDate": "Fecha de reinversion",
         "proportionalAmount": "Monto proporcional",
         "idempotencyKey": "Clave de idempotencia"
+      },
+      "values": {
+        "complete": "Completo",
+        "incomplete": "Incompleto"
       },
       "buttons": {
         "createAssociate": "Crear socio",
@@ -977,6 +1010,7 @@
         "deleteAssociate": "Eliminar socio",
         "addContribution": "Agregar aporte",
         "addDistribution": "Agregar distribucion",
+        "addReinvestment": "Registrar reinversion",
         "runProportional": "Ejecutar distribucion proporcional"
       },
       "headers": {

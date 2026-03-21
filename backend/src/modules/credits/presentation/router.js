@@ -71,6 +71,25 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: alerts.length, data: { alerts } });
   }));
 
+  router.post('/:id/follow-ups', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const result = await useCases.createLoanFollowUp({ actor: req.user, loanId: req.params.id, payload: req.body });
+    res.status(201).json({
+      success: true,
+      message: 'Follow-up reminder created successfully',
+      data: result,
+    });
+  }));
+
+  router.patch('/:loanId/alerts/:alertId/status', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const alert = await useCases.updateLoanAlertStatus({
+      actor: req.user,
+      loanId: req.params.loanId,
+      alertId: req.params.alertId,
+      payload: req.body,
+    });
+    res.json({ success: true, message: 'Loan alert updated successfully', data: { alert } });
+  }));
+
   router.get('/:id/calendar', authMiddleware(), asyncHandler(async (req, res) => {
     const calendar = await useCases.getPaymentCalendar({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, data: { calendar } });
@@ -108,6 +127,16 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.post('/:id/promises', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
     const promise = await useCases.createPromiseToPay({ actor: req.user, loanId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Promise to pay created successfully', data: { promise } });
+  }));
+
+  router.patch('/:loanId/promises/:promiseId/status', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const promise = await useCases.updatePromiseToPayStatus({
+      actor: req.user,
+      loanId: req.params.loanId,
+      promiseId: req.params.promiseId,
+      payload: req.body,
+    });
+    res.json({ success: true, message: 'Promise to pay updated successfully', data: { promise } });
   }));
 
   router.get('/:loanId/promises/:promiseId/download', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {

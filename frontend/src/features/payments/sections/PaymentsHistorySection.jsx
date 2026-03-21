@@ -84,11 +84,19 @@ function PaymentsHistorySection({
   payments,
   calendar,
   attachments,
+  selectedPaymentId,
+  paymentDocuments,
+  paymentDocumentDraft,
+  canManagePaymentDocuments,
   canAnnul,
   historyLoading,
   error,
   onRetry,
   onDownloadAttachment,
+  onSelectPayment,
+  onPaymentDocumentDraftChange,
+  onUploadPaymentDocument,
+  onDownloadPaymentDocument,
   onAnnulInstallment,
   annulMutation,
   nearestCancellableInstallmentNumber,
@@ -220,6 +228,71 @@ function PaymentsHistorySection({
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="surface-card surface-card--compact">
+          <div className="surface-card__body">
+            <div className="dashboard-form-grid section-margin-bottom">
+              <label className="field-group">
+                <span className="field-label">{t('payments.history.fields.payment')}</span>
+                <select className="field-control" value={selectedPaymentId || ''} onChange={(event) => onSelectPayment(event.target.value)}>
+                  {payments.map((payment) => (
+                    <option key={payment.id} value={payment.id}>#{payment.id} - ₹{payment.amount}</option>
+                  ))}
+                </select>
+              </label>
+              {canManagePaymentDocuments && (
+                <>
+                  <label className="field-group">
+                    <span className="field-label">{t('payments.history.fields.paymentDocument')}</span>
+                    <input className="field-control" type="file" onChange={(event) => onPaymentDocumentDraftChange('file', event.target.files?.[0] || null)} />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">{t('payments.history.headers.category')}</span>
+                    <input className="field-control" value={paymentDocumentDraft.category || ''} onChange={(event) => onPaymentDocumentDraftChange('category', event.target.value)} />
+                  </label>
+                  <label className="field-group">
+                    <span className="field-label">{t('loans.servicing.fields.description')}</span>
+                    <input className="field-control" value={paymentDocumentDraft.description || ''} onChange={(event) => onPaymentDocumentDraftChange('description', event.target.value)} />
+                  </label>
+                  <label className="field-group field-group--centered">
+                    <span className="field-label">{t('loans.servicing.fields.customerVisible')}</span>
+                    <input type="checkbox" checked={Boolean(paymentDocumentDraft.customerVisible)} onChange={(event) => onPaymentDocumentDraftChange('customerVisible', event.target.checked)} />
+                  </label>
+                  <div className="field-group">
+                    <span className="field-label">{t('payments.history.headers.action')}</span>
+                    <Button type="button" onClick={onUploadPaymentDocument}>{t('payments.history.buttons.uploadDocument')}</Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t('payments.history.headers.attachment')}</th>
+                    <th>{t('payments.history.headers.category')}</th>
+                    <th>{t('payments.history.headers.visibility')}</th>
+                    <th className="table-cell-center">{t('payments.history.headers.action')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentDocuments.length === 0 ? (
+                    <tr><td colSpan="4" className="table-cell-center">{t('payments.history.noPaymentDocuments')}</td></tr>
+                  ) : (
+                    paymentDocuments.map((document) => (
+                      <AttachmentRow
+                        key={document.id}
+                        attachment={document}
+                        onDownload={() => onDownloadPaymentDocument(document.id, document.originalName)}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     );

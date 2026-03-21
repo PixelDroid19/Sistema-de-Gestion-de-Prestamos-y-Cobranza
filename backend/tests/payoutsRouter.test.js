@@ -27,6 +27,22 @@ const paymentValidation = {
   },
 };
 
+const noopAttachmentUpload = {
+  single() {
+    return (req, res, next) => {
+      req.file = {
+        path: '/tmp/payment-proof.pdf',
+        filename: 'payment-proof.pdf',
+        originalname: 'Payment Proof.pdf',
+        mimetype: 'application/pdf',
+        size: 512,
+      };
+      req.body = { customerVisible: 'true' };
+      next();
+    };
+  },
+};
+
 const unexpectedUseCase = (name) => async () => {
   throw new Error(`${name} should not be called`);
 };
@@ -34,7 +50,7 @@ const unexpectedUseCase = (name) => async () => {
 const createRuntimeApp = ({ useCases }) => {
   const app = express();
   app.use(express.json());
-  app.use(createPayoutsRouter({ authMiddleware: allowAuth, paymentValidation, useCases }));
+  app.use(createPayoutsRouter({ authMiddleware: allowAuth, attachmentUpload: noopAttachmentUpload, paymentValidation, useCases }));
   app.use(globalErrorHandler);
   return app;
 };
@@ -47,6 +63,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
   ];
   const router = createPayoutsRouter({
     authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
       async listPayments() {
@@ -136,6 +153,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
   ];
   const router = createPayoutsRouter({
     authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
       async listPayments() {
@@ -181,6 +199,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   const calls = [];
   const router = createPayoutsRouter({
     authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
       listPayments: unexpectedUseCase('listPayments'),
@@ -321,4 +340,53 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
     code: 'NO_OUTSTANDING_BALANCE',
     message: 'Loan has no outstanding balance for capital payment',
   }]);
+});
+
+test('createPayoutsRouter serves payment document list and upload contracts', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      createCapitalPayment: unexpectedUseCase('createCapitalPayment'),
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+      async listPaymentDocuments(input) {
+        calls.push(['listPaymentDocuments', input]);
+        return [{ id: 1, originalName: 'proof.pdf', customerVisible: true }];
+      },
+      async uploadPaymentDocument(input) {
+        calls.push(['uploadPaymentDocument', input]);
+        return { id: 2, originalName: 'Payment Proof.pdf', customerVisible: true };
+      },
+      async downloadPaymentDocument() {
+        return { document: { originalName: 'proof.pdf' }, absolutePath: __filename };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const listResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/91/documents',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const createResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/91/documents',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: {},
+  });
+
+  assert.equal(listResponse.statusCode, 200);
+  assert.equal(createResponse.statusCode, 201);
+  assert.deepEqual(calls[0][1], { actor: { id: 3, role: 'admin' }, paymentId: '91' });
 });

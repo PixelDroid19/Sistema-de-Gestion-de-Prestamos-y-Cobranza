@@ -17,6 +17,9 @@ const {
   createExecutePayoff,
   createListPromisesToPay,
   createCreatePromiseToPay,
+  createCreateLoanFollowUp,
+  createUpdateLoanAlertStatus,
+  createUpdatePromiseToPayStatus,
 } = require('../src/modules/credits/application/useCases');
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
 const { AuthorizationError, ValidationError } = require('../src/utils/errorHandler');
@@ -629,6 +632,108 @@ test('createListPromisesToPay expires broken pending promises before returning h
   const promises = await listPromisesToPay({ actor: { id: 9, role: 'agent' }, loanId: 22 });
 
   assert.equal(promises[0].status, 'broken');
+});
+
+test('createCreateLoanFollowUp creates a reminder and notifies the customer', async () => {
+  let sentPayload;
+  const createLoanFollowUp = createCreateLoanFollowUp({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    alertRepository: {
+      async create(payload) {
+        return { id: 91, ...payload };
+      },
+    },
+    notificationPort: {
+      async sendLoanReminder(userId, payload) {
+        sentPayload = { userId, payload };
+      },
+    },
+  });
+
+  const result = await createLoanFollowUp({
+    actor: { id: 9, role: 'agent' },
+    loanId: 22,
+    payload: { installmentNumber: 5, dueDate: '2026-03-30', outstandingAmount: 120, notes: 'Reminder sent' },
+  });
+
+  assert.equal(result.reminder.id, 91);
+  assert.equal(sentPayload.userId, 7);
+  assert.equal(sentPayload.payload.installmentNumber, 5);
+});
+
+test('createUpdateLoanAlertStatus resolves active alerts with audit notes', async () => {
+  const alert = { id: 8, status: 'active', notes: null, async save() { return this; } };
+  const updateLoanAlertStatus = createUpdateLoanAlertStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22 };
+      },
+    },
+    alertRepository: {
+      async findByIdForLoan() {
+        return alert;
+      },
+      async save(savedAlert) {
+        return savedAlert;
+      },
+    },
+  });
+
+  const updated = await updateLoanAlertStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 22,
+    alertId: 8,
+    payload: { status: 'resolved', notes: 'Paid manually' },
+  });
+
+  assert.equal(updated.status, 'resolved');
+  assert.match(updated.notes, /Paid manually/);
+});
+
+test('createUpdatePromiseToPayStatus updates status history and notifies customer', async () => {
+  let notificationPayload;
+  const promise = {
+    id: 5,
+    status: 'pending',
+    statusHistory: [],
+    notes: null,
+    async save() { return this; },
+  };
+  const updatePromiseToPayStatus = createUpdatePromiseToPayStatus({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    promiseRepository: {
+      async findByIdForLoan() {
+        return promise;
+      },
+      async save(record) {
+        return record;
+      },
+    },
+    notificationPort: {
+      async sendPromiseStatus(userId, payload) {
+        notificationPayload = { userId, payload };
+      },
+    },
+  });
+
+  const updated = await updatePromiseToPayStatus({
+    actor: { id: 1, role: 'admin' },
+    loanId: 22,
+    promiseId: 5,
+    payload: { status: 'kept', notes: 'Customer completed payment' },
+  });
+
+  assert.equal(updated.status, 'kept');
+  assert.equal(updated.statusHistory.length, 1);
+  assert.equal(notificationPayload.userId, 7);
 });
 
 test('createCreditsModule reuses auth and credit ports from the shared runtime', () => {

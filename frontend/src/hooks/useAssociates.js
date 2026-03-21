@@ -65,6 +65,15 @@ export const useCreateAssociateDistributionMutation = (associateId) => {
   });
 };
 
+export const useCreateAssociateReinvestmentMutation = (associateId) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => associateService.createReinvestment(associateId, payload),
+    onSuccess: () => invalidateAssociateScope(queryClient, associateId),
+  });
+};
+
 export const useCreateProportionalDistributionMutation = () => {
   const queryClient = useQueryClient();
 

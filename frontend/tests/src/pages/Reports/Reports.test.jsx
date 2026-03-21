@@ -1,5 +1,5 @@
 import React from 'react'
-import { screen } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 
@@ -43,6 +43,12 @@ describe('Reports page', () => {
       http.get(`${API_BASE_URL}/api/reports/recovery`, async () => {
         await delay(80)
         return HttpResponse.json(recoverySummaryResponse)
+      }),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
+        return HttpResponse.json({ data: { customers: [] } })
+      }),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
+        return HttpResponse.json({ data: { loans: [] } })
       }),
       http.get(`${API_BASE_URL}/api/reports/recovered`, () => {
         requests.recovered += 1
@@ -90,6 +96,12 @@ describe('Reports page', () => {
 
         return HttpResponse.json(recoverySummaryResponse)
       }),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
+        return HttpResponse.json({ data: { customers: [] } })
+      }),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
+        return HttpResponse.json({ data: { loans: [] } })
+      }),
       http.get(`${API_BASE_URL}/api/reports/recovered`, () => HttpResponse.json({ data: { loans: [] } })),
       http.get(`${API_BASE_URL}/api/reports/outstanding`, () => HttpResponse.json({ data: { loans: [] } })),
       http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [] } })),
@@ -103,5 +115,112 @@ describe('Reports page', () => {
 
     expect(await screen.findByText('Espacio de reportes')).toBeInTheDocument()
     expect(recoveryAttempts).toBe(2)
+  })
+
+  it('displays the customer credit profile after entering a customer id', async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/api/reports/recovery`, () => HttpResponse.json(recoverySummaryResponse)),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
+        return HttpResponse.json({ data: { customers: [{ customerId: 7 }] } })
+      }),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
+        return HttpResponse.json({ data: { loans: [{ loanId: 11 }] } })
+      }),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/customer-credit-profile/7`, () => {
+        return HttpResponse.json({
+          data: {
+            customer: { id: 7, name: 'Ana Customer' },
+            profile: {
+              summary: {
+                activeLoans: 2,
+                delinquentAlerts: 1,
+              },
+              completeness: {
+                isComplete: false,
+                missingSections: ['supporting_documents', 'notifications'],
+              },
+            },
+          },
+        })
+      }),
+    )
+
+    renderWithProviders(<Reports user={adminUser} />)
+
+    expect(await screen.findByText('Espacio de reportes')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText('ID cliente'), '7')
+
+    expect(await screen.findByText('Ana Customer')).toBeInTheDocument()
+    expect(screen.getByText('Incompleto')).toBeInTheDocument()
+    expect(screen.getByText('Secciones faltantes: supporting_documents, notifications')).toBeInTheDocument()
+  })
+
+  it('submits associate reinvestments from the reports workspace', async () => {
+    const capturedRequests = []
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/reports/recovery`, () => HttpResponse.json(recoverySummaryResponse)),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => HttpResponse.json({ data: { customers: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => HttpResponse.json({ data: { loans: [] } })),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({
+        data: {
+          associates: [
+            { id: 12, name: 'Partner One', participationPercentage: '25.0000', status: 'active' },
+          ],
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/associates/12/portal`, () => HttpResponse.json({
+        data: {
+          portal: {
+            summary: {
+              activeLoanCount: 2,
+              portfolioExposure: '1500.00',
+            },
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/reports/associates/profitability/12`, () => HttpResponse.json({
+        data: {
+          report: {
+            summary: {
+              totalContributed: '1000.00',
+              totalDistributed: '150.00',
+            },
+          },
+        },
+      })),
+      http.post(`${API_BASE_URL}/api/associates/12/reinvestments`, async ({ request }) => {
+        capturedRequests.push(await request.json())
+        return HttpResponse.json({ data: { reinvestment: { id: 88 } } }, { status: 201 })
+      }),
+    )
+
+    renderWithProviders(<Reports user={adminUser} />)
+
+    expect(await screen.findByText('Espacio de reportes')).toBeInTheDocument()
+
+    const associateSection = screen.getByText('Gestionar socios, aportes y distribuciones').closest('section')
+    const associateQueries = within(associateSection)
+
+    await userEvent.selectOptions(associateQueries.getByLabelText('Socio seleccionado'), '12')
+    await screen.findByDisplayValue('Partner One')
+
+    await userEvent.type(associateQueries.getByLabelText('Monto de reinversion'), '80')
+    await userEvent.type(associateQueries.getByLabelText('Fecha de reinversion'), '2026-03-20')
+    await userEvent.type(associateQueries.getAllByLabelText('Notas')[2], 'Reinvertir utilidad del mes')
+    await userEvent.click(associateQueries.getByRole('button', { name: 'Registrar reinversion' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Reinversion creada correctamente\./)).toBeInTheDocument()
+    })
+    expect(capturedRequests).toEqual([
+      {
+        amount: '80',
+        notes: 'Reinvertir utilidad del mes',
+        reinvestmentDate: '2026-03-20',
+      },
+    ])
   })
 })

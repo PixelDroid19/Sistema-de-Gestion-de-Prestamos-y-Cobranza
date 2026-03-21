@@ -122,6 +122,40 @@ const reportRepository = {
       notifications: notifications.filter((notification) => Number(notification.payload?.customerId) === Number(customerId)),
     };
   },
+  async getCustomerCreditProfileDataset(customerId) {
+    return this.getCustomerHistory(customerId);
+  },
+  async listProfitabilityDataset({ fromDate = null, toDate = null } = {}) {
+    const paymentDateWhere = {};
+
+    if (fromDate || toDate) {
+      if (fromDate) {
+        paymentDateWhere[Op.gte] = fromDate;
+      }
+
+      if (toDate) {
+        paymentDateWhere[Op.lte] = toDate;
+      }
+    }
+
+    const [loans, payments] = await Promise.all([
+      Loan.findAll({
+        include: reportIncludes,
+        order: [['createdAt', 'DESC']],
+      }),
+      Payment.findAll({
+        where: {
+          ...(Object.keys(paymentDateWhere).length > 0 ? { paymentDate: paymentDateWhere } : {}),
+        },
+        order: [['paymentDate', 'DESC'], ['createdAt', 'DESC'], ['id', 'DESC']],
+      }),
+    ]);
+
+    return {
+      loans,
+      payments,
+    };
+  },
   async getAssociateExportDataset(associateId) {
     const [associate, contributions, distributions, loans] = await Promise.all([
       Associate.findByPk(associateId),

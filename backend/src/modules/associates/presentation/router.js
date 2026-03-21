@@ -61,6 +61,11 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.status(201).json({ success: true, message: 'Profit distribution created successfully', data: { distribution } });
   }));
 
+  router.post('/:id/reinvestments', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.createAssociateReinvestment({ actor: req.user, associateId: req.params.id, payload: req.body });
+    res.status(201).json({ success: true, message: 'Associate reinvestment created successfully', data: result });
+  }));
+
   router.post('/distributions/proportional', authMiddleware(['admin']), associateValidation.proportionalDistribution, asyncHandler(async (req, res) => {
     const distribution = await useCases.createProportionalProfitDistribution({
       actor: req.user,

@@ -9,6 +9,7 @@ const {
   createListAssociatePortalSummary,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
 } = require('./application/useCases');
 const { associateRepository } = require('./infrastructure/repositories');
@@ -29,6 +30,7 @@ const createAssociatesModule = ({ sharedRuntime } = {}) => {
     listAssociatePortalSummary: createListAssociatePortalSummary({ associateRepository }),
     createAssociateContribution: createCreateAssociateContribution({ associateRepository }),
     createProfitDistribution: createCreateProfitDistribution({ associateRepository }),
+    createAssociateReinvestment: createCreateAssociateReinvestment({ associateRepository }),
     createProportionalProfitDistribution: createCreateProportionalProfitDistribution({ associateRepository }),
   };
 

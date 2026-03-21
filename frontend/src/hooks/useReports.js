@@ -31,3 +31,21 @@ export const useAssociateProfitabilityQuery = (associateId, { enabled = true } =
   queryFn: () => reportService.getAssociateProfitability(associateId),
   enabled,
 });
+
+export const useCustomerCreditProfileQuery = (customerId, { enabled = true } = {}) => useQuery({
+  queryKey: queryKeys.reports.customerCreditProfile(customerId),
+  queryFn: () => reportService.getCustomerCreditProfile(customerId),
+  enabled: enabled && Boolean(customerId),
+});
+
+export const useCustomerProfitabilityQuery = ({ enabled = true, filters = {} } = {}) => useQuery({
+  queryKey: queryKeys.reports.customerProfitability(filters),
+  queryFn: () => reportService.getCustomerProfitability(filters),
+  enabled,
+});
+
+export const useLoanProfitabilityQuery = ({ enabled = true, filters = {} } = {}) => useQuery({
+  queryKey: queryKeys.reports.loanProfitability(filters),
+  queryFn: () => reportService.getLoanProfitability(filters),
+  enabled,
+});

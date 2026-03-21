@@ -8,10 +8,13 @@ const {
   createGetRecoveryReport,
   createGetDashboardSummary,
   createGetCustomerHistory,
+  createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
   createExportRecoveryReport,
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
+  createGetCustomerProfitabilityReport,
+  createGetLoanProfitabilityReport,
 } = require('../src/modules/reports/application/useCases');
 const { createReportsModule } = require('../src/modules/reports');
 
@@ -333,6 +336,125 @@ test('createGetCustomerHistory succeeds when some history segments are empty', a
   assert.deepEqual(history.data.segments.documents, []);
   assert.deepEqual(history.data.segments.alerts, []);
   assert.deepEqual(history.data.segments.notifications, []);
+});
+
+test('createGetCustomerCreditProfile returns completeness flags and servicing notes', async () => {
+  const getCustomerCreditProfile = createGetCustomerCreditProfile({
+    reportRepository: {
+      async getCustomerCreditProfileDataset() {
+        return {
+          customer: { id: 7, name: 'Ana Customer' },
+          loans: [{ id: 11, customerId: 7, status: 'active' }],
+          payments: [{ id: 12, loanId: 11, amount: 100, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z' }],
+          documents: [],
+          alerts: [{ id: 14, status: 'active', notes: 'Called customer', updatedAt: '2026-03-02T00:00:00.000Z' }],
+          promises: [{ id: 15, status: 'pending', notes: 'Pay on Friday', createdAt: '2026-03-03T00:00:00.000Z', statusHistory: [] }],
+          notifications: [],
+        };
+      },
+    },
+  });
+
+  const profile = await getCustomerCreditProfile({ actor: { id: 1, role: 'admin' }, customerId: 7 });
+
+  assert.equal(profile.data.customer.id, 7);
+  assert.equal(profile.data.profile.summary.activeLoans, 1);
+  assert.equal(profile.data.profile.completeness.isComplete, false);
+  assert.match(profile.data.profile.completeness.missingSections.join(','), /supporting_documents/);
+  assert.equal(profile.data.profile.servicingNotes.length, 2);
+});
+
+test('profitability reports reconcile customer and loan totals from shared calculations', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [
+          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
+          { id: 2, customerId: 7, amount: 500, status: 'closed', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 0 } },
+        ],
+        payments: [
+          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
+          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
+        ],
+      };
+    },
+  };
+
+  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(customerReport.data.customers.length, 1);
+  assert.equal(customerReport.summary.totalProfit, '100.00');
+  assert.equal(loanReport.summary.totalProfit, '100.00');
+  assert.equal(customerReport.data.customers[0].totalCollected, '850.00');
+  assert.equal(loanReport.data.loans[0].customerName, 'Ana');
+});
+
+test('profitability reports return empty summaries when the dataset has no loans or posted payments', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [],
+        payments: [],
+      };
+    },
+  };
+
+  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(customerReport.count, 0);
+  assert.deepEqual(customerReport.data.customers, []);
+  assert.equal(customerReport.summary.totalCollected, '0.00');
+  assert.equal(customerReport.summary.totalProfit, '0.00');
+  assert.equal(loanReport.count, 0);
+  assert.deepEqual(loanReport.data.loans, []);
+  assert.equal(loanReport.summary.totalCollected, '0.00');
+  assert.equal(loanReport.summary.totalProfit, '0.00');
+});
+
+test('profitability reports keep zero-activity loans and customers non-profitable', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [
+          {
+            id: 31,
+            customerId: 7,
+            amount: 1200,
+            status: 'approved',
+            Customer: { name: 'Ana' },
+            financialSnapshot: { outstandingBalance: 1200 },
+          },
+        ],
+        payments: [
+          {
+            id: 91,
+            loanId: 31,
+            amount: 100,
+            status: 'pending',
+            principalApplied: 0,
+            interestApplied: 0,
+            penaltyApplied: 0,
+            paymentDate: '2026-03-01T00:00:00.000Z',
+          },
+        ],
+      };
+    },
+  };
+
+  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({ actor: { id: 1, role: 'admin' } });
+
+  assert.equal(customerReport.count, 1);
+  assert.equal(customerReport.data.customers[0].totalCollected, '0.00');
+  assert.equal(customerReport.data.customers[0].totalProfit, '0.00');
+  assert.equal(customerReport.data.customers[0].profitableLoanCount, 0);
+  assert.equal(loanReport.count, 1);
+  assert.equal(loanReport.data.loans[0].paymentCount, 0);
+  assert.equal(loanReport.data.loans[0].totalCollected, '0.00');
+  assert.equal(loanReport.data.loans[0].totalProfit, '0.00');
+  assert.equal(loanReport.data.loans[0].profitable, false);
 });
 
 test('createExportRecoveryReport returns a CSV attachment contract', async () => {

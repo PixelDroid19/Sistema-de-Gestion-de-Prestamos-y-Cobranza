@@ -59,8 +59,8 @@ const associateRepository = {
       order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']],
     });
   },
-  createContribution(payload) {
-    return AssociateContribution.create(payload);
+  createContribution(payload, { transaction } = {}) {
+    return AssociateContribution.create(payload, { transaction });
   },
   listActiveAssociatesWithParticipation({ transaction } = {}) {
     return Associate.findAll({
@@ -79,8 +79,8 @@ const associateRepository = {
       order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
     });
   },
-  createProfitDistribution(payload) {
-    return ProfitDistribution.create(payload);
+  createProfitDistribution(payload, { transaction } = {}) {
+    return ProfitDistribution.create(payload, { transaction });
   },
   createProfitDistributionBatch(payloads, { transaction } = {}) {
     if (transaction) {

@@ -15,11 +15,14 @@ import {
   useCreateCapitalPaymentMutation,
   useCreatePartialPaymentMutation,
   useCreatePaymentMutation,
+  usePaymentDocumentsQuery,
   usePaymentsByLoanQuery,
+  useUploadPaymentDocumentMutation,
 } from '@/hooks/usePayments';
 import { downloadFile } from '@/lib/api/download';
 import { extractApiErrorDetails, handleApiError } from '@/lib/api/errors';
 import { loanService } from '@/services/loanService';
+import { paymentService } from '@/services/paymentService';
 
 import {
   initialFormState,
@@ -55,6 +58,8 @@ function PaymentsWorkspace({ user }) {
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [resolvedAlertMessage, setResolvedAlertMessage] = useState('');
   const [actionErrorDetails, setActionErrorDetails] = useState(null);
+  const [selectedPaymentId, setSelectedPaymentId] = useState('');
+  const [paymentDocumentDraft, setPaymentDocumentDraft] = useState({ file: null, category: '', description: '', customerVisible: false });
 
   const loansQuery = useLoansQuery({ user });
   const loans = useMemo(() => (
@@ -82,12 +87,18 @@ function PaymentsWorkspace({ user }) {
   const payments = useMemo(() => (
     Array.isArray(paymentsQuery.data?.data) ? paymentsQuery.data.data : []
   ), [paymentsQuery.data]);
+  const effectivePaymentId = selectedPaymentId || payments[0]?.id || null;
+  const paymentDocumentsQuery = usePaymentDocumentsQuery(effectivePaymentId, { enabled: Boolean(effectivePaymentId) });
+  const uploadPaymentDocumentMutation = useUploadPaymentDocumentMutation(effectivePaymentId);
   const calendar = useMemo(() => (
     Array.isArray(calendarQuery.data?.data?.calendar?.entries) ? calendarQuery.data.data.calendar.entries : []
   ), [calendarQuery.data]);
   const attachments = useMemo(() => (
     Array.isArray(attachmentsQuery.data?.data?.attachments) ? attachmentsQuery.data.data.attachments : []
   ), [attachmentsQuery.data]);
+  const paymentDocuments = useMemo(() => (
+    Array.isArray(paymentDocumentsQuery.data?.data?.documents) ? paymentDocumentsQuery.data.data.documents : []
+  ), [paymentDocumentsQuery.data]);
   const payableLoans = loans.filter((loan) => PAYABLE_LOAN_STATUSES.has(loan.status));
   const loading = loansQuery.isLoading;
   const historyLoading = paymentsQuery.isLoading || calendarQuery.isLoading || attachmentsQuery.isLoading;
@@ -203,7 +214,8 @@ function PaymentsWorkspace({ user }) {
 
   useEffect(() => {
     const sourceError = loansQuery.error
-      || (selectedLoanId ? paymentsQuery.error || calendarQuery.error || attachmentsQuery.error : null)
+    || (selectedLoanId ? paymentsQuery.error || calendarQuery.error || attachmentsQuery.error : null)
+      || (effectivePaymentId ? paymentDocumentsQuery.error : null)
       || (
         isSelectedLoanPayable
         && formState.paymentType === 'payoff'
@@ -224,6 +236,7 @@ function PaymentsWorkspace({ user }) {
     isSelectedLoanPayable,
     loansQuery.error,
     paymentsQuery.error,
+    paymentDocumentsQuery.error,
     payoffQuoteErrorDetails,
     payoffQuoteQuery.error,
     selectedLoanId,
@@ -235,6 +248,58 @@ function PaymentsWorkspace({ user }) {
         loader: () => loanService.downloadLoanAttachment(formState.loanId, attachmentId),
         filename: fileName,
         fallbackFilename: `attachment-${attachmentId}`,
+      });
+    } catch (err) {
+      handleApiError(err, setError);
+    }
+  };
+
+  useEffect(() => {
+    if (!payments.length) {
+      setSelectedPaymentId('');
+      return;
+    }
+
+    if (!payments.some((payment) => Number(payment.id) === Number(selectedPaymentId))) {
+      setSelectedPaymentId(String(payments[0].id));
+    }
+  }, [payments, selectedPaymentId]);
+
+  const handleUploadPaymentDocument = async () => {
+    if (!effectivePaymentId) {
+      setError(t('payments.workspace.selectPaymentDocument'));
+      return;
+    }
+
+    if (!paymentDocumentDraft.file) {
+      setError(t('payments.workspace.choosePaymentDocument'));
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', paymentDocumentDraft.file);
+      formData.append('customerVisible', String(Boolean(paymentDocumentDraft.customerVisible)));
+      if (paymentDocumentDraft.category) formData.append('category', paymentDocumentDraft.category);
+      if (paymentDocumentDraft.description) formData.append('description', paymentDocumentDraft.description);
+
+      await uploadPaymentDocumentMutation.mutateAsync(formData);
+      setPaymentDocumentDraft({ file: null, category: '', description: '', customerVisible: false });
+      setSuccess(t('payments.workspace.paymentDocumentUploaded'));
+    } catch (err) {
+      handleApiError(err, setError);
+    }
+  };
+
+  const handleDownloadPaymentDocument = async (documentId, fileName) => {
+    try {
+      await downloadFile({
+        loader: () => paymentService.downloadPaymentDocument(effectivePaymentId, documentId),
+        filename: fileName,
+        fallbackFilename: `payment-document-${documentId}`,
       });
     } catch (err) {
       handleApiError(err, setError);
@@ -468,6 +533,10 @@ function PaymentsWorkspace({ user }) {
         payments={payments}
         calendar={calendar}
         attachments={attachments}
+        selectedPaymentId={selectedPaymentId}
+        paymentDocuments={paymentDocuments}
+        paymentDocumentDraft={paymentDocumentDraft}
+        canManagePaymentDocuments={isAdmin || user.role === 'agent'}
         canAnnul={canAnnul}
         historyLoading={historyLoading}
         error={error}
@@ -477,6 +546,10 @@ function PaymentsWorkspace({ user }) {
           attachmentsQuery.refetch();
         }}
         onDownloadAttachment={handleDownloadAttachment}
+        onSelectPayment={setSelectedPaymentId}
+        onPaymentDocumentDraftChange={(field, value) => setPaymentDocumentDraft((current) => ({ ...current, [field]: value }))}
+        onUploadPaymentDocument={handleUploadPaymentDocument}
+        onDownloadPaymentDocument={handleDownloadPaymentDocument}
         onAnnulInstallment={handleAnnulInstallment}
         annulMutation={annulInstallmentMutation}
         nearestCancellableInstallmentNumber={nearestCancellableInstallmentNumber}

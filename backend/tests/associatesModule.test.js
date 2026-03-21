@@ -13,6 +13,7 @@ const {
   createListAssociatePortalSummary,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
+  createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
 } = require('../src/modules/associates/application/useCases');
 
@@ -200,6 +201,38 @@ test('createCreateProfitDistribution rejects non-admin actors', async () => {
     associateId: 12,
     payload: { amount: 50 },
   }), AuthorizationError);
+});
+
+test('createCreateAssociateReinvestment records paired distribution and contribution entries', async () => {
+  const calls = [];
+  const createAssociateReinvestment = createCreateAssociateReinvestment({
+    associateRepository: {
+      async findById() {
+        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
+      },
+      async runInTransaction(work) {
+        return work();
+      },
+      async createProfitDistribution(payload) {
+        calls.push(['distribution', payload]);
+        return { id: 41, ...payload };
+      },
+      async createContribution(payload) {
+        calls.push(['contribution', payload]);
+        return { id: 42, ...payload };
+      },
+    },
+  });
+
+  const result = await createAssociateReinvestment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 80, reinvestmentDate: '2026-03-20', notes: 'Reinvested' },
+  });
+
+  assert.equal(result.distribution.id, 41);
+  assert.equal(result.contribution.id, 42);
+  assert.equal(calls.length, 2);
 });
 
 test('allocateProportionalDistribution assigns remainder deterministically by highest fractional remainder then associate id', () => {

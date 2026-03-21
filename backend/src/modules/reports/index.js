@@ -6,10 +6,13 @@ const {
   createGetRecoveryReport,
   createGetDashboardSummary,
   createGetCustomerHistory,
+  createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
   createExportRecoveryReport,
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
+  createGetCustomerProfitabilityReport,
+  createGetLoanProfitabilityReport,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { associateRepository } = require('../associates/infrastructure/repositories');
@@ -28,10 +31,13 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getRecoveryReport: createGetRecoveryReport({ reportRepository, paymentRepository, loanViewService }),
     getDashboardSummary: createGetDashboardSummary({ reportRepository, paymentRepository, loanViewService }),
     getCustomerHistory: createGetCustomerHistory({ reportRepository }),
+    getCustomerCreditProfile: createGetCustomerCreditProfile({ reportRepository }),
     getCustomerCreditHistory: createGetCustomerCreditHistory({ reportRepository, paymentRepository, loanViewService, loanAccessPolicy }),
     exportRecoveryReport: createExportRecoveryReport({ reportRepository, paymentRepository, loanViewService }),
     getAssociateProfitabilityReport: createGetAssociateProfitabilityReport({ associateRepository }),
     exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ reportRepository, associateRepository }),
+    getCustomerProfitabilityReport: createGetCustomerProfitabilityReport({ reportRepository }),
+    getLoanProfitabilityReport: createGetLoanProfitabilityReport({ reportRepository }),
   };
 
   return createModule({

@@ -18,6 +18,7 @@ export const queryKeys = {
   payments: {
     all: () => ['payments'],
     byLoan: (loanId) => ['payments', 'loan', loanId],
+    documents: (paymentId) => ['payments', 'documents', paymentId],
   },
   agents: {
     all: () => ['agents'],
@@ -39,6 +40,9 @@ export const queryKeys = {
     recovered: () => ['reports', 'recovered'],
     outstanding: () => ['reports', 'outstanding'],
     creditHistory: (loanId) => ['reports', 'credit-history', loanId],
+    customerCreditProfile: (customerId) => ['reports', 'customer-credit-profile', customerId],
+    customerProfitability: (filters = {}) => ['reports', 'customer-profitability', filters.fromDate || 'all', filters.toDate || 'all'],
+    loanProfitability: (filters = {}) => ['reports', 'loan-profitability', filters.fromDate || 'all', filters.toDate || 'all'],
   },
   notifications: {
     all: () => ['notifications'],

@@ -6,12 +6,15 @@ import { useDeleteCustomerDocumentMutation, useUploadCustomerDocumentMutation } 
 import {
   useAssignAgentMutation,
   useCreateLoanMutation,
+  useCreateLoanFollowUpMutation,
   useCreateLoanPromiseMutation,
   useDeleteLoanMutation,
   useLoanServicingQueries,
   useLoansQuery,
   useSimulateLoanMutation,
+  useUpdateLoanAlertStatusMutation,
   useUpdateLoanStatusMutation,
+  useUpdateLoanPromiseStatusMutation,
   useUpdateRecoveryStatusMutation,
   useUploadLoanAttachmentMutation,
 } from '@/hooks/useLoans';
@@ -56,6 +59,8 @@ function LoansWorkspace({ user }) {
   const [pendingRecovery, setPendingRecovery] = useState({});
   const [pendingDeleteLoans, setPendingDeleteLoans] = useState({});
   const [pendingPromises, setPendingPromises] = useState({});
+  const [followUpDrafts, setFollowUpDrafts] = useState({});
+  const [pendingFollowUps, setPendingFollowUps] = useState({});
 
   const loansQuery = useLoansQuery({ user });
   const createLoanMutation = useCreateLoanMutation(user);
@@ -64,6 +69,9 @@ function LoansWorkspace({ user }) {
   const assignAgentMutation = useAssignAgentMutation(user);
   const updateRecoveryStatusMutation = useUpdateRecoveryStatusMutation(user);
   const createLoanPromiseMutation = useCreateLoanPromiseMutation(user);
+  const createLoanFollowUpMutation = useCreateLoanFollowUpMutation(user);
+  const updateLoanAlertStatusMutation = useUpdateLoanAlertStatusMutation(user);
+  const updateLoanPromiseStatusMutation = useUpdateLoanPromiseStatusMutation(user);
   const uploadLoanAttachmentMutation = useUploadLoanAttachmentMutation(user);
   const deleteLoanMutation = useDeleteLoanMutation(user);
   const uploadCustomerDocumentMutation = useUploadCustomerDocumentMutation();
@@ -327,6 +335,65 @@ function LoansWorkspace({ user }) {
     }
   };
 
+  const handleCreateFollowUp = async (loanId) => {
+    clearMessages();
+    setPendingFollowUps((current) => ({ ...current, [loanId]: true }));
+
+    try {
+      const draft = followUpDrafts[loanId] || {};
+      await createLoanFollowUpMutation.mutateAsync({
+        loanId,
+        payload: {
+          installmentNumber: draft.installmentNumber || 0,
+          dueDate: draft.dueDate,
+          outstandingAmount: draft.outstandingAmount,
+          notes: draft.notes,
+          notifyCustomer: true,
+        },
+      });
+      setFollowUpDrafts((current) => ({ ...current, [loanId]: {} }));
+      showSuccess(t('loans.workspace.followUpCreated'));
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    } finally {
+      setPendingFollowUps((current) => {
+        const next = { ...current };
+        delete next[loanId];
+        return next;
+      });
+    }
+  };
+
+  const handleResolveAlert = async (loanId, alertId) => {
+    clearMessages();
+
+    try {
+      await updateLoanAlertStatusMutation.mutateAsync({
+        loanId,
+        alertId,
+        payload: { status: 'resolved', resolutionSource: 'manual_follow_up', notes: 'Resolved from servicing workspace' },
+      });
+      showSuccess(t('loans.workspace.alertResolved'));
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
+  const handlePromiseStatus = async (loanId, promiseId, status) => {
+    clearMessages();
+
+    try {
+      await updateLoanPromiseStatusMutation.mutateAsync({
+        loanId,
+        promiseId,
+        payload: { status, notes: `Promise marked ${status}` },
+      });
+      showSuccess(t('loans.workspace.promiseUpdated'));
+    } catch (mutationError) {
+      handleApiError(mutationError, setError);
+    }
+  };
+
   const handleCreateAttachment = async (loanId) => {
     const attachmentDraft = attachmentDrafts[loanId] || emptyAttachmentDraft;
 
@@ -534,14 +601,23 @@ function LoansWorkspace({ user }) {
         attachmentsByLoan={attachmentsByLoan}
         promiseDrafts={promiseDrafts}
         attachmentDrafts={attachmentDrafts}
+        followUpDrafts={followUpDrafts}
         customerDocumentDrafts={customerDocumentDrafts}
         pendingPromises={pendingPromises}
+        pendingFollowUps={pendingFollowUps}
         createLoanPromisePending={createLoanPromiseMutation.isPending}
         onPromiseDraftChange={(loanId, field, value) => setPromiseDrafts((current) => ({
           ...current,
           [loanId]: { ...(current[loanId] || emptyPromiseDraft), [field]: value },
         }))}
         onCreatePromise={handleCreatePromise}
+        onFollowUpDraftChange={(loanId, field, value) => setFollowUpDrafts((current) => ({
+          ...current,
+          [loanId]: { ...(current[loanId] || {}), [field]: value },
+        }))}
+        onCreateFollowUp={handleCreateFollowUp}
+        onResolveAlert={handleResolveAlert}
+        onUpdatePromiseStatus={handlePromiseStatus}
         onAttachmentDraftChange={(loanId, field, value) => setAttachmentDrafts((current) => ({
           ...current,
           [loanId]: { ...(current[loanId] || emptyAttachmentDraft), [field]: value },

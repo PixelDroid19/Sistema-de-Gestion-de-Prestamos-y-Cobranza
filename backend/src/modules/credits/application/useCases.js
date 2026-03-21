@@ -117,6 +117,40 @@ const buildPromiseToPayPdfBuffer = ({ promise, loan, customer }) => {
   });
 };
 
+const appendFollowUpNote = (currentValue, nextEntry) => {
+  const currentNotes = currentValue ? String(currentValue).trim() : '';
+  const nextNote = nextEntry ? String(nextEntry).trim() : '';
+
+  if (!nextNote) {
+    return currentNotes || null;
+  }
+
+  if (!currentNotes) {
+    return nextNote;
+  }
+
+  return `${currentNotes}\n${nextNote}`;
+};
+
+const buildFollowUpNoteEntry = ({ actor, note, status = null, kind = 'follow_up', changedAt = new Date() }) => {
+  if (!note || !String(note).trim()) {
+    return null;
+  }
+
+  const pieces = [
+    `[${new Date(changedAt).toISOString()}]`,
+    kind.toUpperCase(),
+    `actor:${actor.id}`,
+  ];
+
+  if (status) {
+    pieces.push(`status:${status}`);
+  }
+
+  pieces.push(String(note).trim());
+  return pieces.join(' ');
+};
+
 const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
   if (outstandingAmount <= 0.01) {
     return 'paid';
@@ -575,6 +609,163 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy }) => as
   });
 };
 
+const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, payload }) => {
+  if (!['admin', 'agent'].includes(actor.role)) {
+    throw new AuthorizationError('Only admins and agents can create follow-up reminders');
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+  const dueDate = new Date(payload.dueDate || payload.reminderDate || new Date());
+
+  if (Number.isNaN(dueDate.getTime())) {
+    throw new ValidationError('Reminder due date is required');
+  }
+
+  const scheduledAmount = Number(payload.scheduledAmount || 0);
+  const outstandingAmount = Number(payload.outstandingAmount || scheduledAmount || 0);
+  const noteEntry = buildFollowUpNoteEntry({
+    actor,
+    note: payload.notes,
+    status: 'active',
+    kind: 'reminder',
+  });
+
+  const reminder = payload.alertId
+    ? await alertRepository.findByIdForLoan({ loanId: loan.id, alertId: payload.alertId })
+    : await alertRepository.create({
+      loanId: loan.id,
+      installmentNumber: Number(payload.installmentNumber || 0),
+      alertType: payload.alertType ? String(payload.alertType).trim() : 'payment_reminder',
+      dueDate,
+      scheduledAmount,
+      outstandingAmount,
+      status: 'active',
+      notes: noteEntry,
+    });
+
+  if (!reminder) {
+    throw new NotFoundError('Loan alert');
+  }
+
+  if (payload.alertId) {
+    reminder.status = 'active';
+    reminder.alertType = payload.alertType ? String(payload.alertType).trim() : reminder.alertType;
+    reminder.installmentNumber = Number(payload.installmentNumber ?? reminder.installmentNumber ?? 0);
+    reminder.dueDate = dueDate;
+    reminder.scheduledAmount = scheduledAmount || reminder.scheduledAmount || 0;
+    reminder.outstandingAmount = outstandingAmount || reminder.outstandingAmount || 0;
+    reminder.resolvedAt = null;
+    reminder.resolutionSource = null;
+    reminder.notes = appendFollowUpNote(reminder.notes, noteEntry);
+    await alertRepository.save(reminder);
+  }
+
+  const shouldNotifyCustomer = payload.notifyCustomer !== false;
+  if (shouldNotifyCustomer && loan.customerId) {
+    await notificationPort.sendLoanReminder(loan.customerId, {
+      alertId: reminder.id,
+      customerId: loan.customerId,
+      loanId: loan.id,
+      dueDate: dueDate.toISOString(),
+      installmentNumber: reminder.installmentNumber,
+      outstandingAmount: reminder.outstandingAmount,
+      notes: payload.notes ? String(payload.notes).trim() : null,
+    });
+  }
+
+  return {
+    reminder,
+    notificationSent: shouldNotifyCustomer && Boolean(loan.customerId),
+  };
+};
+
+const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => async ({ actor, loanId, alertId, payload }) => {
+  if (!['admin', 'agent'].includes(actor.role)) {
+    throw new AuthorizationError('Only admins and agents can update loan alerts');
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+  const alert = await alertRepository.findByIdForLoan({ loanId: loan.id, alertId });
+
+  if (!alert) {
+    throw new NotFoundError('Loan alert');
+  }
+
+  const nextStatus = payload.status;
+  if (!['active', 'resolved'].includes(nextStatus)) {
+    throw new ValidationError('Alert status must be active or resolved');
+  }
+
+  const changedAt = new Date();
+  alert.status = nextStatus;
+  alert.resolutionSource = nextStatus === 'resolved'
+    ? (payload.resolutionSource ? String(payload.resolutionSource).trim() : 'manual_follow_up')
+    : null;
+  alert.resolvedAt = nextStatus === 'resolved' ? changedAt : null;
+  alert.notes = appendFollowUpNote(alert.notes, buildFollowUpNoteEntry({
+    actor,
+    note: payload.notes,
+    status: nextStatus,
+    kind: 'alert',
+    changedAt,
+  }));
+
+  return alertRepository.save(alert);
+};
+
+const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, promiseId, payload }) => {
+  if (!['admin', 'agent'].includes(actor.role)) {
+    throw new AuthorizationError('Only admins and agents can update promise statuses');
+  }
+
+  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+  const promise = await promiseRepository.findByIdForLoan({ loanId: loan.id, promiseId });
+
+  if (!promise) {
+    throw new NotFoundError('Promise to pay');
+  }
+
+  const nextStatus = payload.status;
+  if (!['pending', 'kept', 'broken', 'cancelled'].includes(nextStatus)) {
+    throw new ValidationError('Promise status must be pending, kept, broken, or cancelled');
+  }
+
+  const changedAt = new Date();
+  const history = Array.isArray(promise.statusHistory) ? [...promise.statusHistory] : [];
+  history.push({
+    status: nextStatus,
+    changedAt: changedAt.toISOString(),
+    actorId: actor.id,
+    note: payload.notes ? String(payload.notes).trim() : undefined,
+  });
+
+  promise.status = nextStatus;
+  promise.fulfilledPaymentId = payload.fulfilledPaymentId || promise.fulfilledPaymentId || null;
+  promise.lastStatusChangedAt = changedAt;
+  promise.statusHistory = history;
+  promise.notes = appendFollowUpNote(promise.notes, buildFollowUpNoteEntry({
+    actor,
+    note: payload.notes,
+    status: nextStatus,
+    kind: 'promise',
+    changedAt,
+  }));
+
+  const updatedPromise = await promiseRepository.save(promise);
+
+  if (payload.notifyCustomer !== false && loan.customerId) {
+    await notificationPort.sendPromiseStatus(loan.customerId, {
+      customerId: loan.customerId,
+      loanId: loan.id,
+      promiseId: updatedPromise.id,
+      status: updatedPromise.status,
+      fulfilledPaymentId: updatedPromise.fulfilledPaymentId,
+    });
+  }
+
+  return updatedPromise;
+};
+
 const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, promiseId }) => {
   if (!['admin', 'agent'].includes(actor.role)) {
     throw new AuthorizationError('Only admins and agents can download promise documents');
@@ -616,5 +807,8 @@ module.exports = {
   createExecutePayoff,
   createListPromisesToPay,
   createCreatePromiseToPay,
+  createCreateLoanFollowUp,
+  createUpdateLoanAlertStatus,
+  createUpdatePromiseToPayStatus,
   createDownloadPromiseToPay,
 };

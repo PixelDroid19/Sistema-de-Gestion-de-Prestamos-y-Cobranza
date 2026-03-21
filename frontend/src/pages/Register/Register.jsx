@@ -31,9 +31,7 @@ function Register({ onLogin }) {
 
     try {
       const payload = { ...form }
-      if (form.role !== 'agent') {
-        delete payload.phone
-      }
+      delete payload.phone
 
       await registerMutation.mutateAsync(payload)
       await loginMutation.mutateAsync({ email: form.email, password: form.password })
@@ -74,17 +72,8 @@ function Register({ onLogin }) {
         <span className="field-label">{t('auth.register.role')}</span>
         <select className="field-control" name="role" value={form.role} onChange={handleChange}>
           <option value="customer">{t('auth.register.customer')}</option>
-          <option value="agent">{t('auth.register.agent')}</option>
-          <option value="admin">{t('auth.register.admin')}</option>
         </select>
       </label>
-
-      {form.role === 'agent' ? (
-        <label className="field-group">
-          <span className="field-label">{t('auth.register.phone')}</span>
-          <input className="field-control" name="phone" value={form.phone} onChange={handleChange} required />
-        </label>
-      ) : null}
 
       <Button type="submit" disabled={loading}>
         {loading ? t('auth.register.submitting') : t('auth.register.submit')}

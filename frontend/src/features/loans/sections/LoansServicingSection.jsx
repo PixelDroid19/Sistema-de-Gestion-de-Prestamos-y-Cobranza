@@ -13,12 +13,18 @@ function LoanServicingCard({
   promises,
   attachments,
   promiseDraft,
+  followUpDraft,
   attachmentDraft,
   customerDocumentDraft,
   pendingPromises,
+  pendingFollowUps,
   pendingCreatePromise,
   onPromiseDraftChange,
   onCreatePromise,
+  onFollowUpDraftChange,
+  onCreateFollowUp,
+  onResolveAlert,
+  onUpdatePromiseStatus,
   onAttachmentDraftChange,
   onCreateAttachment,
   onCustomerDocumentDraftChange,
@@ -95,6 +101,33 @@ function LoanServicingCard({
               <span className="field-label">{t('loans.servicing.fields.create')}</span>
               <Button disabled={pendingPromises[loan.id] || pendingCreatePromise} onClick={() => onCreatePromise(loan.id)}>
                 {pendingPromises[loan.id] ? t('loans.portfolio.saving') : t('loans.servicing.buttons.savePromise')}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(user.role === 'admin' || user.role === 'agent') && (
+          <div className="dashboard-form-grid section-margin-bottom">
+            <label className="field-group">
+              <span className="field-label">{t('loans.servicing.fields.installmentNumber')}</span>
+              <input className="field-control" type="number" value={followUpDraft.installmentNumber || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'installmentNumber', event.target.value)} />
+            </label>
+            <label className="field-group">
+              <span className="field-label">{t('loans.servicing.fields.dueDate')}</span>
+              <input className="field-control" type="date" value={followUpDraft.dueDate || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'dueDate', event.target.value)} />
+            </label>
+            <label className="field-group">
+              <span className="field-label">{t('loans.servicing.fields.outstandingAmount')}</span>
+              <input className="field-control" type="number" value={followUpDraft.outstandingAmount || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'outstandingAmount', event.target.value)} />
+            </label>
+            <label className="field-group">
+              <span className="field-label">{t('loans.servicing.fields.notes')}</span>
+              <input className="field-control" value={followUpDraft.notes || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'notes', event.target.value)} />
+            </label>
+            <div className="field-group">
+              <span className="field-label">{t('loans.servicing.fields.action')}</span>
+              <Button disabled={pendingFollowUps[loan.id]} onClick={() => onCreateFollowUp(loan.id)}>
+                {pendingFollowUps[loan.id] ? t('loans.portfolio.saving') : t('loans.servicing.buttons.createFollowUp')}
               </Button>
             </div>
           </div>
@@ -233,7 +266,16 @@ function LoanServicingCard({
                     <td>#{alert.installmentNumber}</td>
                     <td>{formatDate(alert.dueDate)}</td>
                     <td className="table-cell-right">{formatCurrency(alert.outstandingAmount)}</td>
-                    <td>{alert.status}</td>
+                    <td>
+                      <div className="inline-action-group">
+                        <span>{alert.status}</span>
+                        {alert.status === 'active' ? (
+                          <Button variant="outline" size="sm" onClick={() => onResolveAlert(loan.id, alert.id)}>
+                            {t('loans.servicing.buttons.resolveAlert')}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -257,7 +299,21 @@ function LoanServicingCard({
                   <tr key={promise.id}>
                     <td>{formatDate(promise.promisedDate)}</td>
                     <td className="table-cell-right">{formatCurrency(promise.amount)}</td>
-                    <td>{promise.status}</td>
+                    <td>
+                      <div className="inline-action-group">
+                        <span>{promise.status}</span>
+                        {(user.role === 'admin' || user.role === 'agent') && promise.status === 'pending' ? (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => onUpdatePromiseStatus(loan.id, promise.id, 'kept')}>
+                              {t('loans.servicing.buttons.markKept')}
+                            </Button>
+                            <Button variant="danger" size="sm" onClick={() => onUpdatePromiseStatus(loan.id, promise.id, 'broken')}>
+                              {t('loans.servicing.buttons.markBroken')}
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
                     <td>{promise.notes || '-'}</td>
                   </tr>
                 ))}
@@ -398,12 +454,18 @@ function LoansServicingSection(props) {
     promisesByLoan,
     attachmentsByLoan,
     promiseDrafts,
+    followUpDrafts,
     attachmentDrafts,
     customerDocumentDrafts,
     pendingPromises,
+    pendingFollowUps,
     createLoanPromisePending,
     onPromiseDraftChange,
     onCreatePromise,
+    onFollowUpDraftChange,
+    onCreateFollowUp,
+    onResolveAlert,
+    onUpdatePromiseStatus,
     onAttachmentDraftChange,
     onCreateAttachment,
     onCustomerDocumentDraftChange,
@@ -447,12 +509,18 @@ function LoansServicingSection(props) {
                 promises={promisesByLoan[loan.id] || []}
                 attachments={attachmentsByLoan[loan.id] || []}
                 promiseDraft={promiseDrafts[loan.id] || {}}
+                followUpDraft={followUpDrafts[loan.id] || {}}
                 attachmentDraft={attachmentDrafts[loan.id] || {}}
                 customerDocumentDraft={customerId ? customerDocumentDrafts[customerId] || {} : {}}
                 pendingPromises={pendingPromises}
+                pendingFollowUps={pendingFollowUps}
                 pendingCreatePromise={createLoanPromisePending}
                 onPromiseDraftChange={onPromiseDraftChange}
                 onCreatePromise={onCreatePromise}
+                onFollowUpDraftChange={onFollowUpDraftChange}
+                onCreateFollowUp={onCreateFollowUp}
+                onResolveAlert={onResolveAlert}
+                onUpdatePromiseStatus={onUpdatePromiseStatus}
                 onAttachmentDraftChange={onAttachmentDraftChange}
                 onCreateAttachment={onCreateAttachment}
                 onCustomerDocumentDraftChange={onCustomerDocumentDraftChange}
