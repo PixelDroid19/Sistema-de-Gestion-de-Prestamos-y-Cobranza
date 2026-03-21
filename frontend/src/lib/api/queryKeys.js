@@ -15,6 +15,10 @@ export const queryKeys = {
     attachments: (loanId) => ['loans', loanId, 'attachments'],
     payoffQuote: (loanId, asOfDate) => ['loans', loanId, 'payoff-quote', asOfDate || 'today'],
   },
+  dag: {
+    graph: (scopeKey = 'default') => ['dag', 'graph', scopeKey],
+    summary: (scopeKey = 'default') => ['dag', 'summary', scopeKey],
+  },
   payments: {
     all: () => ['payments'],
     byLoan: (loanId) => ['payments', 'loan', loanId],

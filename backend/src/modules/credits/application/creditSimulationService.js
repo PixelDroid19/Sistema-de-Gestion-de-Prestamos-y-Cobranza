@@ -1,28 +1,12 @@
-const { ValidationError } = require('../../../utils/errorHandler');
 const {
   buildAmortizationSchedule,
   summarizeSchedule,
 } = require('./creditFormulaHelpers');
-
-const UNSUPPORTED_LATE_FEE_MODES = new Set(['LINEAR', 'EFFECTIVE', 'SMART HYBRID']);
-
-const normalizeLateFeeMode = (mode) => (typeof mode === 'string' && mode.trim()
-  ? mode.trim().toUpperCase()
-  : 'NONE');
-
-/**
- * Reject unsupported late-fee modes before financial processing.
- * @param {string|undefined|null} lateFeeMode
- */
-const assertSupportedLateFeeMode = (lateFeeMode) => {
-  const normalizedMode = normalizeLateFeeMode(lateFeeMode);
-
-  if (UNSUPPORTED_LATE_FEE_MODES.has(normalizedMode)) {
-    throw new ValidationError(`Late fee mode '${normalizedMode}' is not supported`);
-  }
-
-  return normalizedMode;
-};
+const {
+  UNSUPPORTED_LATE_FEE_MODES,
+  normalizeLateFeeMode,
+  assertSupportedLateFeeMode,
+} = require('./dag/lateFeeMode');
 
 /**
  * Generate the canonical backend simulation for a credit request.
@@ -41,9 +25,32 @@ const simulateCredit = (input) => {
   };
 };
 
+const createCreditSimulationService = ({ calculationService } = {}) => ({
+  simulate(input) {
+    if (!calculationService) {
+      return simulateCredit(input);
+    }
+
+    return calculationService.calculate(input).result;
+  },
+  simulateDetailed(input) {
+    if (!calculationService) {
+      return {
+        selectedSource: 'legacy',
+        fallbackReason: null,
+        parity: { passed: true, mismatches: [] },
+        result: simulateCredit(input),
+      };
+    }
+
+    return calculationService.calculate(input);
+  },
+});
+
 module.exports = {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
+  createCreditSimulationService,
   simulateCredit,
 };

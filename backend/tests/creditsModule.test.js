@@ -369,22 +369,28 @@ test('createDownloadLoanAttachment blocks customers from internal-only files', a
   }), AuthorizationError);
 });
 
-test('createListLoanAlerts returns persistent overdue alerts without forcing a sync', async () => {
+test('createListLoanAlerts syncs overdue alerts before returning the latest list', async () => {
   let listLoanId;
+  let syncedInput;
+  const loan = { id: 22, customerId: 7, emiSchedule: [] };
+  const schedule = [{ installmentNumber: 1, dueDate: '2026-01-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 20, scheduledPayment: 120 }];
   const listLoanAlerts = createListLoanAlerts({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
-        return { id: 22, customerId: 7, emiSchedule: [] };
+        return loan;
       },
     },
     loanViewService: {
       getCanonicalLoanView() {
         return {
-          schedule: [{ installmentNumber: 1, dueDate: '2026-01-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 20, scheduledPayment: 120 }],
+          schedule,
         };
       },
     },
     alertRepository: {
+      async syncOverdueInstallmentAlerts(input) {
+        syncedInput = input;
+      },
       async listByLoan(loanId) {
         listLoanId = loanId;
         return [{ id: 5, loanId: 22, status: 'active' }];
@@ -394,6 +400,7 @@ test('createListLoanAlerts returns persistent overdue alerts without forcing a s
 
   const alerts = await listLoanAlerts({ actor: { id: 1, role: 'admin' }, loanId: 22 });
 
+  assert.deepEqual(syncedInput, { loan, schedule });
   assert.equal(listLoanId, 22);
   assert.equal(alerts[0].id, 5);
 });

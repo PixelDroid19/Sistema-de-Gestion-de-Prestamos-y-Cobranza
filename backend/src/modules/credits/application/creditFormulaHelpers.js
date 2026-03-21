@@ -1,4 +1,4 @@
-const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(2));
+const { roundCurrency } = require('./dag/precision');
 
 const addMonths = (date, months) => {
   const copy = new Date(date);

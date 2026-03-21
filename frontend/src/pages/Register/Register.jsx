@@ -10,7 +10,7 @@ import './Register.scss'
 
 const EMPTY_FORM = { name: '', email: '', password: '', role: 'customer', phone: '' }
 
-function Register({ onLogin }) {
+function Register({ onLogin, onSwitchToLogin }) {
   const { t } = useTranslation()
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
@@ -78,6 +78,12 @@ function Register({ onLogin }) {
       <Button type="submit" disabled={loading}>
         {loading ? t('auth.register.submitting') : t('auth.register.submit')}
       </Button>
+
+      {onSwitchToLogin ? (
+        <Button className="register-form__secondary-action" type="button" variant="outline" onClick={onSwitchToLogin}>
+          {t('auth.register.switch')}
+        </Button>
+      ) : null}
     </form>
   )
 }

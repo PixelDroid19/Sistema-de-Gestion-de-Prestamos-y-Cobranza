@@ -1,5 +1,6 @@
 const createApp = require('./app');
 const { bootstrap } = require('./bootstrap');
+const { createOutboxRelayWorker } = require('./workers/outboxRelayWorker');
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,11 +20,23 @@ const startServer = async ({
     moduleRegistry: bootstrapResult.modules,
   });
 
+  const outboxWorker = createOutboxRelayWorker();
+  outboxWorker.start(5000);
+
+  const shutdown = async () => {
+    console.log('Received shutdown signal, stopping worker...');
+    outboxWorker.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
   return new Promise((resolve, reject) => {
     let server;
     server = app.listen(port, () => {
       console.log(`Backend server running on http://localhost:${port}`);
-      resolve({ app, server, bootstrap: bootstrapResult });
+      resolve({ app, server, bootstrap: bootstrapResult, outboxWorker });
     });
 
     server.on('error', reject);

@@ -9,14 +9,20 @@ const {
   LoanAlert,
   PromiseToPay,
   Payment,
+  DagGraphVersion,
+  DagSimulationSummary,
 } = require('../../../models');
 const { notificationService } = require('../../notifications/application/notificationService');
-const { simulateCredit } = require('../application/creditSimulationService');
+const { createCreditSimulationService, simulateCredit } = require('../application/creditSimulationService');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
-const { createLoanFromCanonicalData } = require('./loanCreation');
+const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('../application/creditFormulaHelpers');
+const { createCreditsDagConfig } = require('../application/dag/config');
+const { createCreditsCalculationService } = require('../application/dag/calculationAdapter');
+const { logDagComparison } = require('../../../utils/logger');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
+const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
 
 /**
  * Create the infrastructure ports consumed by the credits module composition seam.
@@ -33,8 +39,18 @@ const createCreditsInfrastructure = ({
   loanAlertModel = LoanAlert,
   promiseToPayModel = PromiseToPay,
   paymentModel = Payment,
-  creditSimulator = simulateCredit,
-  loanCreator = createLoanFromCanonicalData,
+  dagGraphVersionModel = DagGraphVersion,
+  dagSimulationSummaryModel = DagSimulationSummary,
+  dagConfig = createCreditsDagConfig(),
+  calculationService = createCreditsCalculationService({ dagConfig, comparisonLogger: logDagComparison }),
+  creditSimulator = createCreditSimulationService({ calculationService }).simulate,
+  detailedCreditSimulator = createCreditSimulationService({ calculationService }).simulateDetailed,
+  loanCreator = createLoanFromCanonicalDataFactory({
+    calculationService,
+    customerModel,
+    associateModel,
+    loanModel,
+  }),
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
 } = {}) => {
@@ -137,7 +153,8 @@ const createCreditsInfrastructure = ({
         });
 
         const existingAlerts = await loanAlertModel.findAll({ where: { loanId: loan.id } });
-        const existingByInstallment = new Map(existingAlerts.map((alert) => [Number(alert.installmentNumber), alert]));
+        const syncedAlerts = existingAlerts.filter((alert) => alert.alertType === 'overdue_installment');
+        const existingByInstallment = new Map(syncedAlerts.map((alert) => [Number(alert.installmentNumber), alert]));
         const activeInstallments = new Set();
 
         for (const row of overdueRows) {
@@ -147,13 +164,16 @@ const createCreditsInfrastructure = ({
           const existingAlert = existingByInstallment.get(installmentNumber);
 
           if (existingAlert) {
+            const keepManuallyResolved = existingAlert.status === 'resolved'
+              && MANUAL_ALERT_RESOLUTION_SOURCES.has(String(existingAlert.resolutionSource || '').trim());
+
             await existingAlert.update({
-              status: 'active',
+              status: keepManuallyResolved ? 'resolved' : 'active',
               scheduledAmount: roundCurrency(row.scheduledPayment || 0),
               outstandingAmount,
               dueDate: new Date(row.dueDate),
-              resolvedAt: null,
-              resolutionSource: null,
+              resolvedAt: keepManuallyResolved ? existingAlert.resolvedAt : null,
+              resolutionSource: keepManuallyResolved ? existingAlert.resolutionSource : null,
             });
             continue;
           }
@@ -169,7 +189,7 @@ const createCreditsInfrastructure = ({
           });
         }
 
-        await Promise.all(existingAlerts
+        await Promise.all(syncedAlerts
           .filter((alert) => alert.status === 'active' && !activeInstallments.has(Number(alert.installmentNumber)))
           .map((alert) => alert.update({
             status: 'resolved',
@@ -268,6 +288,33 @@ const createCreditsInfrastructure = ({
       simulate(input) {
         return creditSimulator(input);
       },
+      simulateDetailed(input) {
+        return detailedCreditSimulator(input);
+      },
+    },
+    dagGraphRepository: {
+      getLatest(scopeKey) {
+        return dagGraphVersionModel.findOne({
+          where: { scopeKey },
+          order: [['version', 'DESC'], ['createdAt', 'DESC']],
+        });
+      },
+      async saveVersion(payload) {
+        const latest = await this.getLatest(payload.scopeKey);
+        const version = Number(latest?.version || 0) + 1;
+        return dagGraphVersionModel.create({ ...payload, version });
+      },
+    },
+    dagSimulationSummaryRepository: {
+      save(payload) {
+        return dagSimulationSummaryModel.create(payload);
+      },
+      getLatest(scopeKey) {
+        return dagSimulationSummaryModel.findOne({
+          where: { scopeKey },
+          order: [['createdAt', 'DESC'], ['id', 'DESC']],
+        });
+      },
     },
     loanCreationService: {
       create(input) {
@@ -304,6 +351,8 @@ const createCreditsInfrastructure = ({
       },
     },
     attachmentStorage,
+    creditsDagConfig: dagConfig,
+    creditsCalculationService: calculationService,
   };
 };
 
@@ -317,6 +366,8 @@ const {
   promiseRepository,
   paymentRepository,
   creditDomainService,
+  dagGraphRepository,
+  dagSimulationSummaryRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,
@@ -333,6 +384,8 @@ module.exports = {
   promiseRepository,
   paymentRepository,
   creditDomainService,
+  dagGraphRepository,
+  dagSimulationSummaryRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,

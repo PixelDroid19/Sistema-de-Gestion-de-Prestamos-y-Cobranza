@@ -5,6 +5,7 @@ const {
   SCHEMA_MODES,
   assertResetAllowed,
   buildRequiredSchema,
+  REQUIRED_SCHEMA_MODELS,
   resolveSchemaMode,
   resetDatabaseSchema,
   syncDatabaseSchema,
@@ -42,6 +43,18 @@ const buildDescribedTable = (tableName) => {
     return {
       id: {}, userId: {}, providerKey: {}, channel: {}, endpoint: {}, endpointHash: {}, deviceToken: {}, tokenHash: {},
       subscription: {}, status: {}, lastDeliveredAt: {}, lastFailureAt: {}, invalidatedAt: {}, failureReason: {}, expiresAt: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'DagGraphVersions') {
+    return {
+      id: {}, scopeKey: {}, name: {}, version: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'DagSimulationSummaries') {
+    return {
+      id: {}, scopeKey: {}, graphVersionId: {}, createdByUserId: {}, selectedSource: {}, fallbackReason: {}, parity: {}, simulationInput: {}, summary: {}, schedulePreview: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -90,7 +103,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'DagGraphVersions', 'DagSimulationSummaries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -105,6 +118,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const idempotencyKeys = requiredSchema.find((entry) => entry.tableName === 'IdempotencyKeys');
   const notifications = requiredSchema.find((entry) => entry.tableName === 'Notifications');
   const pushSubscriptions = requiredSchema.find((entry) => entry.tableName === 'PushSubscriptions');
+  const dagGraphVersions = requiredSchema.find((entry) => entry.tableName === 'DagGraphVersions');
+  const dagSimulationSummaries = requiredSchema.find((entry) => entry.tableName === 'DagSimulationSummaries');
 
   assert.ok(associates);
   assert.ok(loans);
@@ -117,6 +132,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(idempotencyKeys);
   assert.ok(notifications);
   assert.ok(pushSubscriptions);
+  assert.ok(dagGraphVersions);
+  assert.ok(dagSimulationSummaries);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
   assert.ok(associates.columns.includes('email'));
   assert.ok(associates.columns.includes('participationPercentage'));
@@ -136,6 +153,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(notifications.columns.includes('payload'));
   assert.ok(pushSubscriptions.columns.includes('providerKey'));
   assert.ok(pushSubscriptions.columns.includes('endpointHash'));
+  assert.ok(dagGraphVersions.columns.includes('graphSummary'));
+  assert.ok(dagSimulationSummaries.columns.includes('selectedSource'));
 });
 
 test('verifyRequiredSchema rejects when a required table is missing', async () => {
@@ -244,6 +263,106 @@ test('syncDatabaseSchema alters schema only when alter mode is explicitly reques
 
   assert.deepEqual(calls, ['sync:{"alter":true}']);
   assert.equal(result.mode, 'alter');
+});
+
+test('syncDatabaseSchema auto-creates newly required tables in local verify mode', async () => {
+  const dagGraphVersionModel = {
+    name: 'DagGraphVersion',
+    getTableName() {
+      return 'DagGraphVersions';
+    },
+    getAttributes() {
+      return {
+        id: { fieldName: 'id' },
+        scopeKey: { fieldName: 'scopeKey' },
+      };
+    },
+    async sync() {
+      calls.push('DagGraphVersions.sync');
+      existingTables.add('DagGraphVersions');
+    },
+  };
+  const dagSimulationSummaryModel = {
+    name: 'DagSimulationSummary',
+    getTableName() {
+      return 'DagSimulationSummaries';
+    },
+    getAttributes() {
+      return {
+        id: { fieldName: 'id' },
+        scopeKey: { fieldName: 'scopeKey' },
+      };
+    },
+    async sync() {
+      calls.push('DagSimulationSummaries.sync');
+      existingTables.add('DagSimulationSummaries');
+    },
+  };
+  const calls = [];
+  const existingTables = new Set(allTables.filter((tableName) => !['DagGraphVersions', 'DagSimulationSummaries'].includes(tableName)));
+  const models = [
+    ...REQUIRED_SCHEMA_MODELS.filter((model) => !['DagGraphVersion', 'DagSimulationSummary'].includes(model.name)),
+    dagGraphVersionModel,
+    dagSimulationSummaryModel,
+  ];
+
+  const result = await syncDatabaseSchema({
+    env: { NODE_ENV: 'development' },
+    models,
+    database: {
+      async sync() {
+        throw new Error('database.sync should not run in verify mode');
+      },
+      getQueryInterface() {
+        return {
+          async showAllTables() {
+            return Array.from(existingTables);
+          },
+          async describeTable(tableName) {
+            return buildDescribedTable(tableName);
+          },
+        };
+      },
+    },
+  });
+
+  assert.deepEqual(calls, ['DagGraphVersions.sync', 'DagSimulationSummaries.sync']);
+  assert.equal(result.mode, 'verify');
+  assert.deepEqual(result.createdTables, ['DagGraphVersions', 'DagSimulationSummaries']);
+});
+
+test('syncDatabaseSchema keeps failing on missing tables outside safe local environments', async () => {
+  const dagGraphVersionModel = {
+    name: 'DagGraphVersion',
+    getTableName() {
+      return 'DagGraphVersions';
+    },
+    getAttributes() {
+      return {
+        id: { fieldName: 'id' },
+      };
+    },
+    async sync() {
+      throw new Error('should not auto-create tables in production verify mode');
+    },
+  };
+
+  await assert.rejects(() => syncDatabaseSchema({
+    env: { NODE_ENV: 'production' },
+    models: [dagGraphVersionModel],
+    database: {
+      getQueryInterface() {
+        return {
+          async showAllTables() {
+            return [];
+          },
+          async describeTable() {
+            return {};
+          },
+        };
+      },
+    },
+  }), /Missing table "DagGraphVersions"/);
 });
 
 test('resetDatabaseSchema drops and recreates the local postgres schema before verifying', async () => {

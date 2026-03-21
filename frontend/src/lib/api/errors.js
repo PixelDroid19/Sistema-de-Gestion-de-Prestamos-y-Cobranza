@@ -6,6 +6,11 @@ const expireSession = () => {
   window.dispatchEvent(new CustomEvent('sessionExpired'));
 };
 
+const hasActiveSession = () => {
+  const { token, user } = useSessionStore.getState();
+  return Boolean(token || user || localStorage.getItem('token'));
+};
+
 export const extractApiErrorDetails = (error) => {
   const payload = error?.payload?.error ?? error?.payload ?? {};
 
@@ -26,8 +31,12 @@ export const handleApiError = (error, setError = null) => {
   let errorMessage = 'An unexpected error occurred.';
 
   if (status === 401) {
-    expireSession();
-    errorMessage = 'Session expired. Please log in again.';
+    if (hasActiveSession()) {
+      expireSession();
+      errorMessage = 'Session expired. Please log in again.';
+    } else {
+      errorMessage = message || 'Authentication failed.';
+    }
   } else if (status === 403) {
     errorMessage = 'Access denied. You do not have permission to perform this action.';
   } else if (status === 404) {

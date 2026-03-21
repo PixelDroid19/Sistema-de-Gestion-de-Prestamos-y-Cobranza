@@ -11,7 +11,13 @@ const {
   Notification,
   PushSubscription,
   User,
+  DagGraphVersion,
+  DagSimulationSummary,
+  FinancialProduct,
+  GraphTopology,
+  OutboxEvent,
 } = require('../models');
+const { createStandardAmortizationGraph } = require('./graphDefinitions');
 
 const REQUIRED_SCHEMA_MODELS = [
   Associate,
@@ -26,6 +32,11 @@ const REQUIRED_SCHEMA_MODELS = [
   Notification,
   PushSubscription,
   User,
+  DagGraphVersion,
+  DagSimulationSummary,
+  FinancialProduct,
+  GraphTopology,
+  OutboxEvent,
 ];
 
 const SAFE_RESET_ENVIRONMENTS = new Set(['development', 'test', 'local']);
@@ -49,6 +60,104 @@ const resolveTableName = (model) => {
 };
 
 const normalizeSchemaMode = (value) => String(value || '').trim().toLowerCase();
+
+const isSafeLocalEnvironment = (env = process.env) => SAFE_RESET_ENVIRONMENTS.has(String(env.NODE_ENV || 'development').toLowerCase());
+
+const extractMissingTableNames = (error) => {
+  if (!Array.isArray(error?.details)) {
+    return [];
+  }
+
+  return error.details
+    .map((issue) => issue.match(/^Missing table "([^"]+)"/u)?.[1])
+    .filter(Boolean);
+};
+
+const extractMissingColumnsByTable = (error) => {
+  if (!Array.isArray(error?.details)) {
+    return new Map();
+  }
+
+  const missingColumnsByTable = new Map();
+
+  error.details.forEach((issue) => {
+    const match = issue.match(/^Missing columns on "([^"]+)": (.+)$/u);
+    if (!match) {
+      return;
+    }
+
+    const [, tableName, columnsRaw] = match;
+    missingColumnsByTable.set(
+      tableName,
+      columnsRaw.split(',').map((column) => column.trim()).filter(Boolean)
+    );
+  });
+
+  return missingColumnsByTable;
+};
+
+const buildModelColumnMap = (model) => new Map(Object.entries(model.getAttributes()).map(([attributeName, attribute]) => {
+  const columnName = attribute.field || attribute.fieldName || attributeName;
+  return [columnName, attribute];
+}));
+
+const sanitizeColumnDefinition = (attribute) => {
+  const definition = { ...attribute };
+  delete definition.Model;
+  delete definition.fieldName;
+  delete definition.field;
+  return definition;
+};
+
+const createMissingTables = async ({
+  tableNames,
+  models = REQUIRED_SCHEMA_MODELS,
+} = {}) => {
+  const modelByTableName = new Map(models.map((model) => [resolveTableName(model), model]));
+
+  for (const tableName of tableNames) {
+    const model = modelByTableName.get(tableName);
+
+    if (!model || typeof model.sync !== 'function') {
+      throw new Error(`Cannot auto-create missing table "${tableName}" because no syncable model was found`);
+    }
+
+    await model.sync();
+  }
+};
+
+const createMissingColumns = async ({
+  database,
+  missingColumnsByTable,
+  models = REQUIRED_SCHEMA_MODELS,
+} = {}) => {
+  if (!database) {
+    throw new Error('Database connection is required to create missing columns');
+  }
+
+  const queryInterface = database.getQueryInterface();
+  const modelByTableName = new Map(models.map((model) => [resolveTableName(model), model]));
+
+  for (const [tableName, columns] of missingColumnsByTable.entries()) {
+    const model = modelByTableName.get(tableName);
+
+    if (!model) {
+      throw new Error(`Cannot auto-create missing columns on "${tableName}" because no syncable model was found`);
+    }
+
+    const columnMap = buildModelColumnMap(model);
+
+    for (const columnName of columns) {
+      const attribute = columnMap.get(columnName);
+
+      if (!attribute) {
+        throw new Error(`Cannot auto-create missing column "${columnName}" on "${tableName}" because no attribute definition was found`);
+      }
+
+      await queryInterface.addColumn(tableName, columnName, sanitizeColumnDefinition(attribute));
+    }
+  }
+};
 
 /**
  * Resolve the startup schema mode with verify-by-default semantics.
@@ -74,10 +183,9 @@ const resolveSchemaMode = (env = process.env) => {
  * @param {NodeJS.ProcessEnv|Record<string, string|undefined>} [env]
  */
 const assertResetAllowed = (env = process.env) => {
-  const environment = String(env.NODE_ENV || 'development').toLowerCase();
   const explicitlyAllowed = env.DB_SCHEMA_RESET_ALLOWED === 'true';
 
-  if (!SAFE_RESET_ENVIRONMENTS.has(environment) && !explicitlyAllowed) {
+  if (!isSafeLocalEnvironment(env) && !explicitlyAllowed) {
     throw new Error('Schema reset mode is disabled outside safe local/test environments');
   }
 };
@@ -180,6 +288,8 @@ const syncDatabaseSchema = async ({
   database,
   env = process.env,
   mode = resolveSchemaMode(env),
+  models = REQUIRED_SCHEMA_MODELS,
+  requiredSchema = buildRequiredSchema(models),
 } = {}) => {
   if (!database) {
     throw new Error('Database connection is required for schema synchronization');
@@ -198,12 +308,93 @@ const syncDatabaseSchema = async ({
     await database.sync({ alter: true });
   }
 
-  const verification = await verifyRequiredSchema({ database });
+  let createdTables = [];
+  let verification;
+
+  try {
+    verification = await verifyRequiredSchema({ database, requiredSchema });
+  } catch (error) {
+    const missingTables = extractMissingTableNames(error);
+    const missingColumnsByTable = extractMissingColumnsByTable(error);
+
+    if (mode !== SCHEMA_MODES.VERIFY || !isSafeLocalEnvironment(env) || (missingTables.length === 0 && missingColumnsByTable.size === 0)) {
+      throw error;
+    }
+
+    if (missingTables.length > 0) {
+      await createMissingTables({ tableNames: missingTables, models });
+      createdTables = missingTables;
+    }
+
+    if (missingColumnsByTable.size > 0) {
+      await createMissingColumns({ database, missingColumnsByTable, models });
+    }
+
+    verification = await verifyRequiredSchema({ database, requiredSchema });
+  }
 
   return {
     mode,
+    ...(createdTables.length > 0 ? { createdTables } : {}),
     ...verification,
   };
+};
+
+const FINANCIAL_PRODUCT_SEEDS = [
+  {
+    name: 'Personal Loan 12%',
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'NONE',
+    penaltyRate: 0,
+  },
+  {
+    name: 'Business Loan 18%',
+    interestRate: 18,
+    termMonths: 24,
+    lateFeeMode: 'SIMPLE',
+    penaltyRate: 2.0,
+  },
+  {
+    name: 'Quick Loan 24%',
+    interestRate: 24,
+    termMonths: 6,
+    lateFeeMode: 'COMPOUND',
+    penaltyRate: 5.0,
+  },
+];
+
+const seedFinancialProductsAndGraphs = async () => {
+  const { nodes, edges } = createStandardAmortizationGraph();
+
+  for (const seed of FINANCIAL_PRODUCT_SEEDS) {
+    const [product, created] = await FinancialProduct.findOrCreate({
+      where: { name: seed.name },
+      defaults: seed,
+    });
+
+    if (!created) {
+      await product.update(seed);
+    }
+
+    const topology = await GraphTopology.findOne({
+      where: { productId: product.id, version: 1 },
+    });
+
+    if (!topology) {
+      await GraphTopology.create({
+        productId: product.id,
+        version: 1,
+        nodes,
+        edges,
+      });
+      continue;
+    }
+
+    if (JSON.stringify(topology.nodes) !== JSON.stringify(nodes) || JSON.stringify(topology.edges) !== JSON.stringify(edges)) {
+      await topology.update({ nodes, edges });
+    }
+  }
 };
 
 module.exports = {
@@ -219,4 +410,5 @@ module.exports = {
   verifyRequiredSchema,
   resetDatabaseSchema,
   syncDatabaseSchema,
+  seedFinancialProductsAndGraphs,
 };

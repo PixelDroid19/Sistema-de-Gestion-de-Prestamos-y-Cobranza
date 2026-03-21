@@ -1,16 +1,18 @@
 import React from 'react'
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 
 import i18n from '@/i18n'
 import App from '@/pages/App/App'
 import { API_BASE_URL } from '@/lib/api/client'
 import { useSessionStore } from '@/store/sessionStore'
-import { useUiStore } from '@/store/uiStore'
+import { resolveCurrentView, useUiStore } from '@/store/uiStore'
 import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
 
 const adminUser = { id: 1, role: 'admin', name: 'Ada Admin' }
+const customerUser = { id: 7, role: 'customer', name: 'Ana Customer' }
 
 describe('App shell', () => {
   beforeEach(async () => {
@@ -90,5 +92,42 @@ describe('App shell', () => {
       expect(logout).toHaveBeenCalledTimes(1)
       expect(alertSpy).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('switches from Loans to Payments when the sidebar Pagos button is clicked', async () => {
+    useSessionStore.setState({
+      user: customerUser,
+      token: 'token-customer',
+      isReady: true,
+      bootstrapSession: vi.fn(),
+      logout: vi.fn(),
+    })
+
+    useUiStore.setState({
+      currentView: 'Loans',
+      isDarkMode: false,
+      notificationsOpen: false,
+      setCurrentView: (nextView) => useUiStore.setState({ currentView: nextView }),
+      toggleTheme: vi.fn(),
+      setNotificationsOpen: vi.fn(),
+    })
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/notifications/unread-count`, () => HttpResponse.json({ data: { unreadCount: 0 } })),
+      http.get(`${API_BASE_URL}/api/loans/customer/${customerUser.id}`, () => HttpResponse.json({ data: { loans: [] } })),
+    )
+
+    renderWithProviders(<App />)
+
+    expect(await screen.findByText('Espacio de prestamos')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
+
+    expect(await screen.findByText('No hay prestamos pagables')).toBeInTheDocument()
+  })
+
+  it('normalizes a persisted disallowed view for the logged-in role', () => {
+    expect(resolveCurrentView('Agents', 'customer')).toBe('Dashboard')
+    expect(resolveCurrentView('Loans', 'customer')).toBe('Loans')
   })
 })

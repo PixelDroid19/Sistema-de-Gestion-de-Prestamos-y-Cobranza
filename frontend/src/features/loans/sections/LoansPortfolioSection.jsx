@@ -16,6 +16,21 @@ import {
   getLoanDetails,
 } from '@/features/loans/loansWorkspace.utils';
 
+const RECOVERY_EDIT_STATUSES = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
+
+const formatRecoveryOptionLabel = (status) => {
+  const translatedLabel = formatRecoveryStatus(status);
+  if (translatedLabel && translatedLabel !== status) {
+    return translatedLabel;
+  }
+
+  return String(status || '')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+};
+
 function ProgressPill({ loan, payments }) {
   const totalInstallments = Number(loan.termMonths || 0);
   const financialSnapshot = loan.financialSnapshot || {};
@@ -85,39 +100,44 @@ function RecoveryEditorCell({
   onSaveRecovery,
 }) {
   const { t } = useTranslation()
-  const canEdit = user.role === 'admin' || (user.role === 'agent' && Number(loan.agentId) === Number(user.id));
+  const loanId = Number(loan.id);
+  const assignedAgentId = Number(loan.agentId || loan.Agent?.id || 0)
+  const canEditAssignedLoan = user.role === 'admin' || (user.role === 'agent' && assignedAgentId === Number(user.id));
+  const canEdit = canEditAssignedLoan && loan.status === 'defaulted';
 
   if (!canEdit) {
     return <span className="status-note">{t('loans.portfolio.noAction')}</span>;
   }
 
-  if (editingRecovery[loan.id]) {
+  if (editingRecovery[loanId]) {
     return (
       <div className="action-stack">
         <select
           className="form-control"
-          value={recoveryDrafts[loan.id] || loan.recoveryStatus || ''}
-          onChange={(event) => onRecoveryDraftChange(loan.id, event.target.value)}
+          data-testid={`loan-${loanId}-recovery-status`}
+          value={recoveryDrafts[loanId] || loan.recoveryStatus || 'pending'}
+          onChange={(event) => onRecoveryDraftChange(loanId, event.target.value)}
         >
           <option value="">{t('loans.portfolio.selectStatus')}</option>
-          <option value="pending">{t('loans.statusLabels.pending')}</option>
-          <option value="in_progress">{t('loans.statusLabels.in_progress')}</option>
-          <option value="recovered">{t('loans.statusLabels.recovered')}</option>
+          {RECOVERY_EDIT_STATUSES.map((status) => (
+            <option key={status} value={status}>{formatRecoveryOptionLabel(status)}</option>
+          ))}
         </select>
         <Button
+          data-testid={`loan-${loanId}-save-recovery`}
           variant="success"
           size="sm"
-          disabled={!recoveryDrafts[loan.id] || updateRecoveryPending || pendingRecovery[loan.id]}
-          onClick={() => onSaveRecovery(loan.id)}
+          disabled={!recoveryDrafts[loanId] || updateRecoveryPending || pendingRecovery[loanId]}
+          onClick={() => onSaveRecovery(loanId)}
         >
-          {pendingRecovery[loan.id] ? t('loans.portfolio.saving') : t('loans.portfolio.saveStatus')}
+          {pendingRecovery[loanId] ? t('loans.portfolio.saving') : t('loans.portfolio.saveStatus')}
         </Button>
       </div>
     );
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={() => onStartEditing(loan)}>
+    <Button data-testid={`loan-${loanId}-edit-recovery`} variant="outline" size="sm" onClick={() => onStartEditing(loan)}>
       {t('loans.portfolio.editRecovery')}
     </Button>
   );

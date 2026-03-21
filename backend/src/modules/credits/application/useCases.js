@@ -232,6 +232,16 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
  */
 const createCreateSimulation = ({ creditDomainService }) => async (payload) => creditDomainService.simulate(payload);
 
+const createLoadDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.loadGraph({ actor, scopeKey });
+
+const createSaveDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, name, graph }) => dagWorkbenchService.saveGraph({ actor, scopeKey, name, graph });
+
+const createValidateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph }) => dagWorkbenchService.validateGraph({ actor, scopeKey, graph });
+
+const createSimulateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph, simulationInput }) => dagWorkbenchService.simulateGraph({ actor, scopeKey, graph, simulationInput });
+
+const createGetDagWorkbenchSummary = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.getSummary({ actor, scopeKey });
+
 /**
  * Create the use case that retrieves a single loan through the shared access policy.
  * @param {{ loanAccessPolicy?: object, loanRepository: object }} dependencies
@@ -532,6 +542,8 @@ const createDownloadLoanAttachment = ({ attachmentRepository, attachmentStorage,
 
 const createListLoanAlerts = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const { schedule } = loanViewService.getCanonicalLoanView(loan);
+  await alertRepository.syncOverdueInstallmentAlerts({ loan, schedule });
   return alertRepository.listByLoan(loan.id);
 };
 
@@ -790,6 +802,11 @@ const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => 
 module.exports = {
   createListLoans,
   createCreateSimulation,
+  createLoadDagWorkbenchGraph,
+  createSaveDagWorkbenchGraph,
+  createValidateDagWorkbenchGraph,
+  createSimulateDagWorkbenchGraph,
+  createGetDagWorkbenchSummary,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,

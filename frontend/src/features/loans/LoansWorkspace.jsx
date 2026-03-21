@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
@@ -24,6 +24,9 @@ import { handleApiError } from '@/lib/api/errors';
 import { customerService } from '@/services/customerService';
 import { loanService } from '@/services/loanService';
 import { reportService } from '@/services/reportService';
+import Button from '@/components/ui/Button';
+import LoansDagWorkbenchSection from '@/features/loans/sections/LoansDagWorkbenchSection';
+import { useDagWorkbenchStore } from '@/store/dagWorkbenchStore';
 
 import {
   emptyAttachmentDraft,
@@ -44,6 +47,8 @@ import LoansServicingSection from '@/features/loans/sections/LoansServicingSecti
 
 function LoansWorkspace({ user }) {
   const { t } = useTranslation()
+  const workspaceMode = useDagWorkbenchStore((state) => state.workspaceMode);
+  const setWorkspaceMode = useDagWorkbenchStore((state) => state.setWorkspaceMode);
   const [applicationForm, setApplicationForm] = useState({ amount: '', interestRate: '', termMonths: '' });
   const [simulation, setSimulation] = useState(null);
   const [error, setError] = useState('');
@@ -59,10 +64,14 @@ function LoansWorkspace({ user }) {
   const [pendingRecovery, setPendingRecovery] = useState({});
   const [pendingDeleteLoans, setPendingDeleteLoans] = useState({});
   const [pendingPromises, setPendingPromises] = useState({});
+  const [createdPromiseOverrides, setCreatedPromiseOverrides] = useState({});
   const [followUpDrafts, setFollowUpDrafts] = useState({});
   const [pendingFollowUps, setPendingFollowUps] = useState({});
 
-  const loansQuery = useLoansQuery({ user });
+  const dagWorkbenchEnabled = user.role === 'admin' || user.role === 'agent';
+  const dagWorkbenchActive = dagWorkbenchEnabled && workspaceMode === 'dagWorkbench';
+
+  const loansQuery = useLoansQuery({ user, enabled: !dagWorkbenchActive });
   const createLoanMutation = useCreateLoanMutation(user);
   const simulateLoanMutation = useSimulateLoanMutation();
   const updateLoanStatusMutation = useUpdateLoanStatusMutation(user);
@@ -78,10 +87,11 @@ function LoansWorkspace({ user }) {
   const deleteCustomerDocumentMutation = useDeleteCustomerDocumentMutation();
 
   const loans = useMemo(() => {
+    if (dagWorkbenchActive) return [];
     if (Array.isArray(loansQuery.data?.data?.loans)) return loansQuery.data.data.loans;
     if (Array.isArray(loansQuery.data?.data)) return loansQuery.data.data;
     return [];
-  }, [loansQuery.data]);
+  }, [dagWorkbenchActive, loansQuery.data]);
 
   const loanIds = useMemo(() => loans.map((loan) => loan.id), [loans]);
   const customerIds = useMemo(
@@ -115,9 +125,37 @@ function LoansWorkspace({ user }) {
     () => mapQueriesById(loanIds, alertQueries, (data) => data?.data?.alerts),
     [loanIds, alertQueries],
   );
-  const promisesByLoan = useMemo(
+  const queriedPromisesByLoan = useMemo(
     () => mapQueriesById(loanIds, promiseQueries, (data) => data?.data?.promises),
     [loanIds, promiseQueries],
+  );
+  const promisesByLoan = useMemo(
+    () => loanIds.reduce((result, loanId) => {
+      const queriedPromises = queriedPromisesByLoan[loanId] || [];
+      const createdPromise = createdPromiseOverrides[loanId];
+
+      if (!createdPromise) {
+        result[loanId] = queriedPromises;
+        return result;
+      }
+
+      const hasCreatedPromise = queriedPromises.some((promise) => Number(promise?.id) === Number(createdPromise.id));
+      result[loanId] = hasCreatedPromise
+        ? queriedPromises
+        : [...queriedPromises, createdPromise].sort((left, right) => {
+          const leftDate = new Date(left.promisedDate || 0).getTime();
+          const rightDate = new Date(right.promisedDate || 0).getTime();
+
+          if (leftDate !== rightDate) {
+            return leftDate - rightDate;
+          }
+
+          return Number(right.id || 0) - Number(left.id || 0);
+        });
+
+      return result;
+    }, {}),
+    [createdPromiseOverrides, loanIds, queriedPromisesByLoan],
   );
   const attachmentsByLoan = useMemo(
     () => mapQueriesById(loanIds, attachmentQueries, (data) => data?.data?.attachments),
@@ -153,29 +191,31 @@ function LoansWorkspace({ user }) {
     handleApiError(firstSupportingError, setError);
   }, [firstSupportingError]);
 
-  const successTimeoutRef = useRef(null);
+  useEffect(() => {
+    setCreatedPromiseOverrides((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      Object.entries(current).forEach(([loanId, promise]) => {
+        const queriedPromises = queriedPromisesByLoan[loanId] || [];
+        if (queriedPromises.some((entry) => Number(entry?.id) === Number(promise?.id))) {
+          delete next[loanId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+  }, [queriedPromisesByLoan]);
 
   const clearMessages = () => {
-    if (successTimeoutRef.current) {
-      clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = null;
-    }
-
     setError('');
     setSuccess('');
   };
 
   const showSuccess = (message) => {
-    if (successTimeoutRef.current) {
-      clearTimeout(successTimeoutRef.current);
-    }
-
     setSuccess(message);
     setError('');
-    successTimeoutRef.current = setTimeout(() => {
-      setSuccess((current) => (current === message ? '' : current));
-      successTimeoutRef.current = null;
-    }, 4000);
   };
 
   const handleApplicationFormChange = (event) => {
@@ -278,6 +318,11 @@ function LoansWorkspace({ user }) {
       });
 
       setEditingRecovery((current) => ({ ...current, [loanId]: false }));
+      setRecoveryDrafts((current) => {
+        const next = { ...current };
+        delete next[loanId];
+        return next;
+      });
       showSuccess(t('loans.workspace.recoveryUpdated'));
     } catch (mutationError) {
       handleApiError(mutationError, setError);
@@ -317,12 +362,21 @@ function LoansWorkspace({ user }) {
     setPendingPromises((current) => ({ ...current, [loanId]: true }));
 
     try {
-      await createLoanPromiseMutation.mutateAsync({
+      const response = await createLoanPromiseMutation.mutateAsync({
         loanId,
         payload: promiseDrafts[loanId] || emptyPromiseDraft,
       });
+      const createdPromise = response?.data?.promise;
 
-      setPromiseDrafts((current) => ({ ...current, [loanId]: emptyPromiseDraft }));
+      if (createdPromise) {
+        setCreatedPromiseOverrides((current) => ({ ...current, [loanId]: createdPromise }));
+      }
+
+      setPromiseDrafts((current) => {
+        const next = { ...current };
+        delete next[loanId];
+        return next;
+      });
       showSuccess(t('loans.workspace.promiseCreated'));
     } catch (mutationError) {
       handleApiError(mutationError, setError);
@@ -351,7 +405,11 @@ function LoansWorkspace({ user }) {
           notifyCustomer: true,
         },
       });
-      setFollowUpDrafts((current) => ({ ...current, [loanId]: {} }));
+      setFollowUpDrafts((current) => {
+        const next = { ...current };
+        delete next[loanId];
+        return next;
+      });
       showSuccess(t('loans.workspace.followUpCreated'));
     } catch (mutationError) {
       handleApiError(mutationError, setError);
@@ -538,101 +596,144 @@ function LoansWorkspace({ user }) {
       ];
   }, [alertsByLoan, loans, paymentsByLoan, t, user.role]);
 
+  useEffect(() => {
+    if (!dagWorkbenchEnabled && workspaceMode !== 'portfolio') {
+      setWorkspaceMode('portfolio');
+    }
+  }, [dagWorkbenchEnabled, setWorkspaceMode, workspaceMode]);
+
   return (
     <div className="dashboard-page-stack loans-page">
       <LoansHeroSection role={user.role} summaryCards={summaryCards} />
 
+      {dagWorkbenchEnabled ? (
+        <section className="surface-card loans-page__workspace-switcher">
+          <div className="surface-card__header surface-card__header--compact loans-page__workspace-switcher-header">
+            <div>
+              <div className="section-eyebrow">{t('loans.workspace.mode.eyebrow')}</div>
+              <div className="section-title">{t('loans.workspace.mode.title')}</div>
+              <div className="section-subtitle">{t('loans.workspace.mode.subtitle')}</div>
+            </div>
+            <div className="action-stack">
+              <Button
+                type="button"
+                size="sm"
+                variant={workspaceMode === 'portfolio' ? 'primary' : 'outline'}
+                onClick={() => setWorkspaceMode('portfolio')}
+              >
+                {t('loans.workspace.mode.portfolio')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={workspaceMode === 'dagWorkbench' ? 'primary' : 'outline'}
+                onClick={() => setWorkspaceMode('dagWorkbench')}
+              >
+                {t('loans.workspace.mode.dagWorkbench')}
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {success && <div className="inline-message inline-message--success">✅ {success}</div>}
       {error && <div className="inline-message inline-message--error">⚠️ {error}</div>}
 
-      <LoanApplicationSection
-        role={user.role}
-        applicationForm={applicationForm}
-        simulation={simulation}
-        onChange={handleApplicationFormChange}
-        onSubmit={handleApply}
-        onSimulate={handleSimulate}
-        createLoanPending={createLoanMutation.isPending}
-        simulateLoanPending={simulateLoanMutation.isPending}
-      />
+      {dagWorkbenchActive ? (
+        <LoansDagWorkbenchSection user={user} active={dagWorkbenchActive} />
+      ) : (
+        <>
+          <LoanApplicationSection
+            role={user.role}
+            applicationForm={applicationForm}
+            simulation={simulation}
+            onChange={handleApplicationFormChange}
+            onSubmit={handleApply}
+            onSimulate={handleSimulate}
+            createLoanPending={createLoanMutation.isPending}
+            simulateLoanPending={simulateLoanMutation.isPending}
+          />
 
-      <LoansPortfolioSection
-        user={user}
-        loansQuery={loansQuery}
-        loans={loans}
-        error={error}
-        paymentsByLoan={paymentsByLoan}
-        alertsByLoan={alertsByLoan}
-        promisesByLoan={promisesByLoan}
-        attachmentsByLoan={attachmentsByLoan}
-        customerDocumentsByCustomer={customerDocumentsByCustomer}
-        assignAgentId={assignAgentId}
-        pendingStatusLoans={pendingStatusLoans}
-        pendingAssignAgents={pendingAssignAgents}
-        pendingRecovery={pendingRecovery}
-        pendingDeleteLoans={pendingDeleteLoans}
-        editingRecovery={editingRecovery}
-        recoveryDrafts={recoveryDrafts}
-        updateLoanStatusPending={updateLoanStatusMutation.isPending}
-        assignAgentPending={assignAgentMutation.isPending}
-        updateRecoveryPending={updateRecoveryStatusMutation.isPending}
-        deleteLoanPending={deleteLoanMutation.isPending}
-        onRefetch={() => loansQuery.refetch()}
-        onSelectAgent={(loanId, agentId) => setAssignAgentId((current) => ({ ...current, [loanId]: agentId }))}
-        onAssignAgent={handleAssignAgent}
-        onStartEditingRecovery={(loan) => {
-          setEditingRecovery((current) => ({ ...current, [loan.id]: true }));
-          setRecoveryDrafts((current) => ({ ...current, [loan.id]: loan.recoveryStatus || 'pending' }));
-        }}
-        onRecoveryDraftChange={(loanId, value) => setRecoveryDrafts((current) => ({ ...current, [loanId]: value }))}
-        onSaveRecovery={handleRecoverySave}
-        onUpdateLoanStatus={handleLoanStatus}
-        onDeleteLoan={handleDeleteLoan}
-      />
+          <LoansPortfolioSection
+            user={user}
+            loansQuery={loansQuery}
+            loans={loans}
+            error={error}
+            paymentsByLoan={paymentsByLoan}
+            alertsByLoan={alertsByLoan}
+            promisesByLoan={promisesByLoan}
+            attachmentsByLoan={attachmentsByLoan}
+            customerDocumentsByCustomer={customerDocumentsByCustomer}
+            assignAgentId={assignAgentId}
+            pendingStatusLoans={pendingStatusLoans}
+            pendingAssignAgents={pendingAssignAgents}
+            pendingRecovery={pendingRecovery}
+            pendingDeleteLoans={pendingDeleteLoans}
+            editingRecovery={editingRecovery}
+            recoveryDrafts={recoveryDrafts}
+            updateLoanStatusPending={updateLoanStatusMutation.isPending}
+            assignAgentPending={assignAgentMutation.isPending}
+            updateRecoveryPending={updateRecoveryStatusMutation.isPending}
+            deleteLoanPending={deleteLoanMutation.isPending}
+            onRefetch={() => loansQuery.refetch()}
+            onSelectAgent={(loanId, agentId) => setAssignAgentId((current) => ({ ...current, [loanId]: agentId }))}
+            onAssignAgent={handleAssignAgent}
+            onStartEditingRecovery={(loan) => {
+              const loanId = Number(loan.id);
+              setEditingRecovery((current) => ({ ...current, [loanId]: true }));
+              setRecoveryDrafts((current) => ({ ...current, [loanId]: loan.recoveryStatus || 'pending' }));
+            }}
+            onRecoveryDraftChange={(loanId, value) => setRecoveryDrafts((current) => ({ ...current, [loanId]: value }))}
+            onSaveRecovery={handleRecoverySave}
+            onUpdateLoanStatus={handleLoanStatus}
+            onDeleteLoan={handleDeleteLoan}
+          />
 
-      <LoansServicingSection
-        loans={loans}
-        user={user}
-        loadingServicing={loadingServicing}
-        customerDocumentsByCustomer={customerDocumentsByCustomer}
-        customerHistoryByCustomer={customerHistoryByCustomer}
-        alertsByLoan={alertsByLoan}
-        promisesByLoan={promisesByLoan}
-        attachmentsByLoan={attachmentsByLoan}
-        promiseDrafts={promiseDrafts}
-        attachmentDrafts={attachmentDrafts}
-        followUpDrafts={followUpDrafts}
-        customerDocumentDrafts={customerDocumentDrafts}
-        pendingPromises={pendingPromises}
-        pendingFollowUps={pendingFollowUps}
-        createLoanPromisePending={createLoanPromiseMutation.isPending}
-        onPromiseDraftChange={(loanId, field, value) => setPromiseDrafts((current) => ({
-          ...current,
-          [loanId]: { ...(current[loanId] || emptyPromiseDraft), [field]: value },
-        }))}
-        onCreatePromise={handleCreatePromise}
-        onFollowUpDraftChange={(loanId, field, value) => setFollowUpDrafts((current) => ({
-          ...current,
-          [loanId]: { ...(current[loanId] || {}), [field]: value },
-        }))}
-        onCreateFollowUp={handleCreateFollowUp}
-        onResolveAlert={handleResolveAlert}
-        onUpdatePromiseStatus={handlePromiseStatus}
-        onAttachmentDraftChange={(loanId, field, value) => setAttachmentDrafts((current) => ({
-          ...current,
-          [loanId]: { ...(current[loanId] || emptyAttachmentDraft), [field]: value },
-        }))}
-        onCreateAttachment={handleCreateAttachment}
-        onCustomerDocumentDraftChange={(customerId, field, value) => setCustomerDocumentDrafts((current) => ({
-          ...current,
-          [customerId]: { ...(current[customerId] || emptyCustomerDocumentDraft), [field]: value },
-        }))}
-        onUploadCustomerDocument={handleUploadCustomerDocument}
-        onDownloadLoanAttachment={handleDownloadLoanAttachment}
-        onDownloadCustomerDocument={handleDownloadCustomerDocument}
-        onDeleteCustomerDocument={handleDeleteCustomerDocument}
-        onDownloadPromise={handleDownloadPromise}
-      />
+          <LoansServicingSection
+            loans={loans}
+            user={user}
+            loadingServicing={loadingServicing}
+            customerDocumentsByCustomer={customerDocumentsByCustomer}
+            customerHistoryByCustomer={customerHistoryByCustomer}
+            alertsByLoan={alertsByLoan}
+            promisesByLoan={promisesByLoan}
+            attachmentsByLoan={attachmentsByLoan}
+            promiseDrafts={promiseDrafts}
+            attachmentDrafts={attachmentDrafts}
+            followUpDrafts={followUpDrafts}
+            customerDocumentDrafts={customerDocumentDrafts}
+            pendingPromises={pendingPromises}
+            pendingFollowUps={pendingFollowUps}
+            createLoanPromisePending={createLoanPromiseMutation.isPending}
+            onPromiseDraftChange={(loanId, field, value) => setPromiseDrafts((current) => ({
+              ...current,
+              [loanId]: { ...(current[loanId] || emptyPromiseDraft), [field]: value },
+            }))}
+            onCreatePromise={handleCreatePromise}
+            onFollowUpDraftChange={(loanId, field, value) => setFollowUpDrafts((current) => ({
+              ...current,
+              [loanId]: { ...(current[loanId] || {}), [field]: value },
+            }))}
+            onCreateFollowUp={handleCreateFollowUp}
+            onResolveAlert={handleResolveAlert}
+            onUpdatePromiseStatus={handlePromiseStatus}
+            onAttachmentDraftChange={(loanId, field, value) => setAttachmentDrafts((current) => ({
+              ...current,
+              [loanId]: { ...(current[loanId] || emptyAttachmentDraft), [field]: value },
+            }))}
+            onCreateAttachment={handleCreateAttachment}
+            onCustomerDocumentDraftChange={(customerId, field, value) => setCustomerDocumentDrafts((current) => ({
+              ...current,
+              [customerId]: { ...(current[customerId] || emptyCustomerDocumentDraft), [field]: value },
+            }))}
+            onUploadCustomerDocument={handleUploadCustomerDocument}
+            onDownloadLoanAttachment={handleDownloadLoanAttachment}
+            onDownloadCustomerDocument={handleDownloadCustomerDocument}
+            onDeleteCustomerDocument={handleDeleteCustomerDocument}
+            onDownloadPromise={handleDownloadPromise}
+          />
+        </>
+      )}
     </div>
   );
 }

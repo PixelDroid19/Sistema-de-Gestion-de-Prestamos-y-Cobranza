@@ -21,6 +21,7 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
     applyPayoff() {},
     annulInstallment() {},
   };
+  const dagWorkbenchService = { loadGraph() {}, saveGraph() {} };
   const composition = createCreditsComposition({
     infrastructure: {
       loanRepository: {},
@@ -33,12 +34,15 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
       paymentRepository: {},
       attachmentStorage: {},
       creditDomainService: {},
+      dagGraphRepository: {},
+      dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
     },
     loanAccessPolicy,
     loanViewService,
     paymentApplicationService,
+    dagWorkbenchService,
   });
 
   const ports = createCreditsPublicPorts({ composition });
@@ -46,6 +50,7 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
   assert.equal(ports.loanAccessPolicy, loanAccessPolicy);
   assert.equal(ports.loanViewService, loanViewService);
   assert.equal(ports.paymentApplicationService, paymentApplicationService);
+  assert.equal(ports.dagWorkbenchService, dagWorkbenchService);
 });
 
 test('createCreditsComposition registers its public ports in the shared runtime', () => {
@@ -71,6 +76,7 @@ test('createCreditsComposition registers its public ports in the shared runtime'
     applyPayoff() {},
     annulInstallment() {},
   };
+  const dagWorkbenchService = { loadGraph() {} };
 
   const composition = createCreditsComposition({
     sharedRuntime,
@@ -85,19 +91,62 @@ test('createCreditsComposition registers its public ports in the shared runtime'
       paymentRepository: {},
       attachmentStorage: {},
       creditDomainService: {},
+      dagGraphRepository: {},
+      dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
     },
     loanAccessPolicy,
     loanViewService,
     paymentApplicationService,
+    dagWorkbenchService,
   });
 
   assert.equal(registeredName, 'credits');
   assert.equal(registeredPorts.loanAccessPolicy, loanAccessPolicy);
   assert.equal(registeredPorts.loanViewService, loanViewService);
   assert.equal(registeredPorts.paymentApplicationService, paymentApplicationService);
+  assert.equal(registeredPorts.dagWorkbenchService, dagWorkbenchService);
   assert.equal(composition.loanAccessPolicy, loanAccessPolicy);
+});
+
+test('createCreditsComposition keeps a credits-local DAG config on the composition seam', () => {
+  const dagConfig = {
+    mode: 'shadow',
+    parityTolerance: 0.01,
+    workbenchEnabled: false,
+    workbenchScopes: [],
+    isScopeEnabled() {
+      return true;
+    },
+  };
+  const composition = createCreditsComposition({
+    dagConfig,
+    infrastructure: {
+      loanRepository: {},
+      customerRepository: {},
+      agentRepository: {},
+      userRepository: {},
+      attachmentRepository: {},
+      alertRepository: {},
+      promiseRepository: {},
+      paymentRepository: {},
+      attachmentStorage: {},
+      creditDomainService: {},
+      dagGraphRepository: {},
+      dagSimulationSummaryRepository: {},
+      loanCreationService: {},
+      notificationPort: {},
+    },
+    loanAccessPolicy: { filterVisibleLoans() {} },
+    loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },
+    paymentApplicationService: { applyPayment() {} },
+  });
+
+  assert.equal(composition.creditsDagConfig, dagConfig);
+  assert.equal(composition.creditsDagConfig.mode, 'shadow');
+  assert.equal(composition.creditsDagConfig.parityTolerance, 0.01);
+  assert.equal(composition.creditsDagConfig.workbenchEnabled, false);
 });
 
 test('createCreditsPublicPorts prefers ports already registered in the shared runtime', () => {
@@ -105,6 +154,7 @@ test('createCreditsPublicPorts prefers ports already registered in the shared ru
     loanAccessPolicy: { filterVisibleLoans() {} },
     loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },
     paymentApplicationService: { applyPayment() {} },
+    dagWorkbenchService: { loadGraph() {} },
   };
 
   const ports = createCreditsPublicPorts({

@@ -47,6 +47,12 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
+.home-header--auth {
+  position: static;
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
 .home-header__nav {
   display: flex;
   align-items: center;
@@ -109,6 +115,10 @@
     gap: 1rem;
     padding-right: 1.5rem;
     padding-left: 1.5rem;
+  }
+
+  .home-header--auth {
+    justify-content: center;
   }
 
   .home-header__actions {

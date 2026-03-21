@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import AppShell from '@/components/layout/AppShell'
 import { useSessionStore } from '@/store/sessionStore'
-import { useUiStore } from '@/store/uiStore'
+import { resolveCurrentView, useUiStore } from '@/store/uiStore'
 
 import './App.scss'
 
@@ -59,6 +59,17 @@ function App() {
     setCurrentView('Dashboard')
   }
 
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+
+    const nextView = resolveCurrentView(currentView, user.role)
+    if (nextView !== currentView) {
+      setCurrentView(nextView)
+    }
+  }, [currentView, setCurrentView, user])
+
   if (!user) {
     return (
       <Suspense fallback={<ScreenFallback label={t('app.loadingHome')} />}>
@@ -67,7 +78,7 @@ function App() {
     )
   }
 
-  const ActiveView = viewComponents[currentView] || Dashboard
+  const ActiveView = viewComponents[resolveCurrentView(currentView, user.role)] || Dashboard
 
   return (
     <div className={`app-page${isDarkMode ? ' app-page--dark' : ''}`}>

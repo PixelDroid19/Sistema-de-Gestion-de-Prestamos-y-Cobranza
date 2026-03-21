@@ -104,6 +104,18 @@ const logBusiness = (event, data = {}) => {
   });
 };
 
+/**
+ * Log structured DAG comparison metadata for credits rollout decisions.
+ * @param {string} event
+ * @param {object} [data={}]
+ */
+const logDagComparison = (event, data = {}) => {
+  logger.info('Credits DAG Comparison', {
+    event,
+    ...data,
+  });
+};
+
 module.exports = {
   logger,
   logRequest,
@@ -111,4 +123,5 @@ module.exports = {
   logDatabase,
   logSecurity,
   logBusiness,
+  logDagComparison,
 };

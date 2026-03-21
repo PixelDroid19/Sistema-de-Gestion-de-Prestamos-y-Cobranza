@@ -40,7 +40,7 @@ function LoanServicingCard({
   const historyTimeline = customerHistory?.timeline || []
 
   return (
-    <div className="surface-card surface-card--compact">
+    <div className="surface-card surface-card--compact" data-loan-id={loan.id}>
       <div className="surface-card__header surface-card__header--compact">
         <div>
           <div className="section-eyebrow">Loan #{loan.id}</div>
@@ -75,6 +75,8 @@ function LoanServicingCard({
               <span className="field-label">{t('loans.servicing.fields.promiseDate')}</span>
               <input
                 className="field-control"
+                data-testid={`loan-${loan.id}-promise-promised-date`}
+                name="promisePromisedDate"
                 type="date"
                 value={promiseDraft.promisedDate || ''}
                 onChange={(event) => onPromiseDraftChange(loan.id, 'promisedDate', event.target.value)}
@@ -84,6 +86,8 @@ function LoanServicingCard({
               <span className="field-label">{t('loans.servicing.fields.promiseAmount')}</span>
               <input
                 className="field-control"
+                data-testid={`loan-${loan.id}-promise-amount`}
+                name="promiseAmount"
                 type="number"
                 value={promiseDraft.amount || ''}
                 onChange={(event) => onPromiseDraftChange(loan.id, 'amount', event.target.value)}
@@ -93,13 +97,15 @@ function LoanServicingCard({
               <span className="field-label">{t('loans.servicing.fields.notes')}</span>
               <input
                 className="field-control"
+                data-testid={`loan-${loan.id}-promise-notes`}
+                name="promiseNotes"
                 value={promiseDraft.notes || ''}
                 onChange={(event) => onPromiseDraftChange(loan.id, 'notes', event.target.value)}
               />
             </label>
             <div className="field-group">
               <span className="field-label">{t('loans.servicing.fields.create')}</span>
-              <Button disabled={pendingPromises[loan.id] || pendingCreatePromise} onClick={() => onCreatePromise(loan.id)}>
+              <Button data-testid={`loan-${loan.id}-create-promise`} name="createPromise" disabled={pendingPromises[loan.id] || pendingCreatePromise} onClick={() => onCreatePromise(loan.id)}>
                 {pendingPromises[loan.id] ? t('loans.portfolio.saving') : t('loans.servicing.buttons.savePromise')}
               </Button>
             </div>
@@ -110,23 +116,23 @@ function LoanServicingCard({
           <div className="dashboard-form-grid section-margin-bottom">
             <label className="field-group">
               <span className="field-label">{t('loans.servicing.fields.installmentNumber')}</span>
-              <input className="field-control" type="number" value={followUpDraft.installmentNumber || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'installmentNumber', event.target.value)} />
+              <input className="field-control" data-testid={`loan-${loan.id}-follow-up-installment-number`} name="followUpInstallmentNumber" type="number" value={followUpDraft.installmentNumber || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'installmentNumber', event.target.value)} />
             </label>
             <label className="field-group">
               <span className="field-label">{t('loans.servicing.fields.dueDate')}</span>
-              <input className="field-control" type="date" value={followUpDraft.dueDate || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'dueDate', event.target.value)} />
+              <input className="field-control" data-testid={`loan-${loan.id}-follow-up-due-date`} name="followUpDueDate" type="date" value={followUpDraft.dueDate || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'dueDate', event.target.value)} />
             </label>
             <label className="field-group">
               <span className="field-label">{t('loans.servicing.fields.outstandingAmount')}</span>
-              <input className="field-control" type="number" value={followUpDraft.outstandingAmount || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'outstandingAmount', event.target.value)} />
+              <input className="field-control" data-testid={`loan-${loan.id}-follow-up-outstanding-amount`} name="followUpOutstandingAmount" type="number" value={followUpDraft.outstandingAmount || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'outstandingAmount', event.target.value)} />
             </label>
             <label className="field-group">
               <span className="field-label">{t('loans.servicing.fields.notes')}</span>
-              <input className="field-control" value={followUpDraft.notes || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'notes', event.target.value)} />
+              <input className="field-control" data-testid={`loan-${loan.id}-follow-up-notes`} name="followUpNotes" value={followUpDraft.notes || ''} onChange={(event) => onFollowUpDraftChange(loan.id, 'notes', event.target.value)} />
             </label>
             <div className="field-group">
               <span className="field-label">{t('loans.servicing.fields.action')}</span>
-              <Button disabled={pendingFollowUps[loan.id]} onClick={() => onCreateFollowUp(loan.id)}>
+              <Button data-testid={`loan-${loan.id}-create-follow-up`} name="createFollowUp" disabled={pendingFollowUps[loan.id]} onClick={() => onCreateFollowUp(loan.id)}>
                 {pendingFollowUps[loan.id] ? t('loans.portfolio.saving') : t('loans.servicing.buttons.createFollowUp')}
               </Button>
             </div>

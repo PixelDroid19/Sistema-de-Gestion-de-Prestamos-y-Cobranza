@@ -1,6 +1,9 @@
-const { sequelize, Loan, Payment } = require('../../../models');
+const crypto = require('crypto');
+const { sequelize, Loan, Payment, GraphTopology, IdempotencyKey } = require('../../../models');
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
+const { CalculationEngine } = require('../../../core/domain/calculation/CalculationEngine');
+const { scopeToPlainObject } = require('../../../core/domain/calculation/scopeBuilder');
 const {
   PAYABLE_LOAN_STATUSES,
   assertCapitalPaymentAllowed,
@@ -78,6 +81,73 @@ const buildSnapshot = (schedule) => {
 };
 
 const normalizePaymentDate = (paymentDate) => new Date(paymentDate);
+
+const toRoundedAmount = (value, fallback = 0) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return roundCurrency(fallback);
+  }
+
+  return roundCurrency(Number(value));
+};
+
+const resolveGraphForLoan = async ({ loan, transaction }) => {
+  if (!loan.financialProductId) {
+    return null;
+  }
+
+  const topology = await GraphTopology.findOne({
+    where: { productId: loan.financialProductId },
+    order: [['version', 'DESC']],
+    transaction,
+  });
+
+  if (!topology) {
+    return null;
+  }
+
+  return {
+    nodes: topology.nodes,
+    edges: topology.edges,
+  };
+};
+
+const extractPaymentBreakdown = ({ breakdown, parsedPaymentAmount }) => {
+  const principalApplied = toRoundedAmount(
+    breakdown.principalApplied
+      ?? breakdown.principal_payment
+      ?? breakdown.principalPayment
+      ?? breakdown.capital,
+    parsedPaymentAmount
+  );
+  const interestApplied = toRoundedAmount(
+    breakdown.interestApplied
+      ?? breakdown.interest_payment
+      ?? breakdown.interestPayment
+      ?? breakdown.interest,
+    0
+  );
+  const penaltyApplied = toRoundedAmount(
+    breakdown.penaltyApplied
+      ?? breakdown.penalty_payment
+      ?? breakdown.penalty
+      ?? breakdown.fees,
+    0
+  );
+  const remainingBalanceAfterPayment = toRoundedAmount(
+    breakdown.remainingBalanceAfterPayment
+      ?? breakdown.remainingBalance
+      ?? breakdown.newBalance
+      ?? breakdown.balance,
+    0
+  );
+
+  return {
+    principalApplied,
+    interestApplied,
+    penaltyApplied,
+    remainingBalanceAfterPayment,
+  };
+};
 
 const assertPayableLoanStatus = (loan) => {
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
@@ -235,6 +305,7 @@ const createPaymentApplicationService = ({
   paymentModel = Payment,
   loanViewService,
   clock = () => new Date(),
+  eventPublisher = { publishAmortizationCalculatedEvent: async () => {} },
 } = {}) => {
   if (!loanViewService || typeof loanViewService.getCanonicalLoanView !== 'function') {
     throw new Error('paymentApplicationService requires a loanViewService with getCanonicalLoanView()');
@@ -868,12 +939,167 @@ const createPaymentApplicationService = ({
     });
   };
 
+  const generateIdempotencyKey = (loanId, paymentAmount, paymentDate) => {
+    const hash = crypto.createHash('sha256');
+    hash.update(`${loanId}:${paymentAmount}:${paymentDate}`);
+    return hash.digest('hex').substring(0, 64);
+  };
+
+  const validateProcessPaymentInput = ({ loanId, paymentAmount, paymentDate }) => {
+    if (!loanId) {
+      throw new ValidationError('loanId is required');
+    }
+    if (!paymentAmount || paymentAmount === '0') {
+      throw new ValidationError('paymentAmount must be greater than 0');
+    }
+    const parsedAmount = parseFloat(paymentAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw new ValidationError('paymentAmount must be a valid number greater than 0');
+    }
+    if (!paymentDate) {
+      throw new ValidationError('paymentDate is required');
+    }
+    const parsedDate = new Date(paymentDate);
+    if (isNaN(parsedDate.getTime())) {
+      throw new ValidationError('paymentDate must be a valid date');
+    }
+  };
+
+  const processPayment = async ({ loanId, paymentAmount, paymentDate, actorId = 0 }) => {
+    validateProcessPaymentInput({ loanId, paymentAmount, paymentDate });
+
+    const idempotencyKey = generateIdempotencyKey(loanId, paymentAmount, paymentDate);
+    const requestHash = crypto.createHash('sha256')
+      .update(`${loanId}${paymentAmount}${paymentDate}`)
+      .digest('hex');
+
+    const existingKey = await IdempotencyKey.findOne({
+      where: { scope: 'payment', idempotencyKey },
+    });
+    if (existingKey && existingKey.status === 'completed') {
+      return {
+        ...existingKey.responsePayload,
+        idempotent: true,
+      };
+    }
+
+    let previousBalance;
+
+    const result = await sequelize.transaction({
+      isolationLevel: sequelize.constructor.Transaction.ISOLATION_LEVELS.SERIALIZABLE,
+    }, async (tx) => {
+      const loan = await Loan.findByPk(loanId, {
+        transaction: tx,
+        lock: true,
+      });
+
+      if (!loan) {
+        throw new NotFoundError('Loan');
+      }
+
+      previousBalance = loan.principalOutstanding || loan.amount;
+
+      const graph = await resolveGraphForLoan({ loan, transaction: tx });
+
+      const principal = loan.amount;
+      const interestRate = loan.interestRate;
+      const term = loan.termMonths;
+      const parsedPaymentAmount = parseFloat(paymentAmount);
+
+      if (!graph || !graph.nodes || graph.nodes.length === 0) {
+        throw new Error('No graph topology found for product');
+      }
+
+      const contractVars = {
+        principal,
+        interestRate,
+        rate: interestRate,
+        term,
+        termMonths: term,
+        paymentAmount: parsedPaymentAmount,
+        balance: loan.principalOutstanding || principal,
+        totalInterest: 0,
+      };
+      const calculationResult = CalculationEngine.execute(graph, contractVars);
+
+      const breakdown = scopeToPlainObject(calculationResult.scope || {});
+      const {
+        principalApplied: capital,
+        interestApplied: interest,
+        penaltyApplied: penalty,
+        remainingBalanceAfterPayment,
+      } = extractPaymentBreakdown({ breakdown, parsedPaymentAmount });
+
+      const payment = await Payment.create({
+        loanId,
+        amount: parsedPaymentAmount,
+        paymentDate: new Date(paymentDate),
+        status: 'completed',
+        paymentType: INSTALLMENT_PAYMENT_TYPE,
+        principalApplied: capital,
+        interestApplied: interest,
+        penaltyApplied: penalty,
+        overpaymentAmount: 0,
+        remainingBalanceAfterPayment,
+        allocationBreakdown: [],
+        paymentMetadata: {
+          calculationResult: scopeToPlainObject(calculationResult),
+          idempotencyKey,
+        },
+      }, { transaction: tx });
+
+      const newBalance = remainingBalanceAfterPayment;
+
+      loan.principalOutstanding = Math.max(0, newBalance);
+      loan.interestOutstanding = Math.max(0, (loan.interestOutstanding || 0) - interest);
+      loan.lastPaymentDate = new Date(paymentDate);
+      loan.totalPaid = (loan.totalPaid || 0) + parsedPaymentAmount;
+      await loan.save({ transaction: tx });
+
+      await eventPublisher.publishAmortizationCalculatedEvent({
+        loanId,
+        transactionId: tx.id,
+        previousBalance,
+        newBalance,
+        breakdown: {
+          capital,
+          interest,
+          penalty,
+        },
+      }, { transaction: tx });
+
+      return {
+        transactionId: tx.id,
+        status: 'APPLIED',
+        newBalance,
+        breakdown: {
+          capital,
+          interest,
+          penalty,
+        },
+        paymentId: payment.id,
+      };
+    });
+
+    await IdempotencyKey.create({
+      scope: 'payment',
+      idempotencyKey,
+      requestHash,
+      responsePayload: result,
+      createdByUserId: actorId,
+      status: 'completed',
+    }, { logging: false });
+
+    return result;
+  };
+
   return {
     applyPayment,
     applyPartialPayment,
     applyCapitalPayment,
     applyPayoff,
     annulInstallment,
+    processPayment,
   };
 };
 

@@ -37,12 +37,14 @@ function HomeAuthPanel({
   onSubmit,
   onBackHome,
   onLogin,
+  onShowLogin,
+  onShowRegister,
 }) {
   return (
     <div className="home-auth-view">
       <div className="home-auth-card">
         {showRegister ? (
-          <Register onLogin={onLogin} />
+          <Register onLogin={onLogin} onSwitchToLogin={onShowLogin} />
         ) : (
           <form className="home-auth-form" onSubmit={onSubmit}>
             <div className="home-auth-form__intro">
@@ -85,6 +87,10 @@ function HomeAuthPanel({
 
             <Button className="home-submit-button" type="submit" disabled={loading}>
               {loading ? t('home.auth.loadingLogin') : t('home.auth.loginButton')}
+            </Button>
+
+            <Button className="home-auth-switch-button" type="button" variant="outline" onClick={onShowRegister}>
+              {t('auth.login.switchToRegister')}
             </Button>
 
             <Button className="home-back-button" type="button" variant="outline" onClick={onBackHome}>

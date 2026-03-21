@@ -13,12 +13,20 @@ const ProfitDistribution = require('./ProfitDistribution');
 const IdempotencyKey = require('./IdempotencyKey');
 const Notification = require('./Notification');
 const PushSubscription = require('./PushSubscription');
+const DagGraphVersion = require('./DagGraphVersion');
+const DagSimulationSummary = require('./DagSimulationSummary');
+const FinancialProduct = require('./FinancialProduct');
+const GraphTopology = require('./GraphTopology');
+const OutboxEvent = require('./OutboxEvent');
 
 Loan.belongsTo(Customer, { foreignKey: 'customerId' });
 Customer.hasMany(Loan, { foreignKey: 'customerId' });
 
 Loan.belongsTo(Associate, { foreignKey: 'associateId' });
 Associate.hasMany(Loan, { foreignKey: 'associateId' });
+
+Loan.belongsTo(FinancialProduct, { foreignKey: 'financialProductId', as: 'financialProduct' });
+FinancialProduct.hasMany(Loan, { foreignKey: 'financialProductId', as: 'loans' });
 
 User.belongsTo(Associate, { foreignKey: 'associateId', as: 'associate' });
 Associate.hasMany(User, { foreignKey: 'associateId', as: 'portalUsers' });
@@ -56,6 +64,18 @@ User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
 PushSubscription.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(PushSubscription, { foreignKey: 'userId', as: 'pushSubscriptions' });
 
+DagGraphVersion.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
+User.hasMany(DagGraphVersion, { foreignKey: 'createdByUserId', as: 'dagGraphsCreated' });
+
+DagSimulationSummary.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
+User.hasMany(DagSimulationSummary, { foreignKey: 'createdByUserId', as: 'dagSummariesCreated' });
+
+DagSimulationSummary.belongsTo(DagGraphVersion, { foreignKey: 'graphVersionId', as: 'graphVersion' });
+DagGraphVersion.hasMany(DagSimulationSummary, { foreignKey: 'graphVersionId', as: 'simulationSummaries' });
+
+FinancialProduct.hasMany(GraphTopology, { foreignKey: 'productId', as: 'topologies' });
+GraphTopology.belongsTo(FinancialProduct, { foreignKey: 'productId', as: 'product' });
+
 AssociateContribution.belongsTo(Associate, { foreignKey: 'associateId' });
 Associate.hasMany(AssociateContribution, { foreignKey: 'associateId', as: 'contributions' });
 
@@ -90,4 +110,9 @@ module.exports = {
   IdempotencyKey,
   Notification,
   PushSubscription,
+  DagGraphVersion,
+  DagSimulationSummary,
+  FinancialProduct,
+  GraphTopology,
+  OutboxEvent,
 };

@@ -71,4 +71,14 @@ describe('Register page', () => {
       })
     })
   })
+
+  it('renders a login switch action when the parent provides it', async () => {
+    const onSwitchToLogin = vi.fn()
+
+    renderWithProviders(<Register onLogin={vi.fn()} onSwitchToLogin={onSwitchToLogin} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ya tienes cuenta? Ingresar' }))
+
+    expect(onSwitchToLogin).toHaveBeenCalledTimes(1)
+  })
 })

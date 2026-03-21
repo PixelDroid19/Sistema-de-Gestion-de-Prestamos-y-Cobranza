@@ -3,6 +3,11 @@ const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListLoans,
   createCreateSimulation,
+  createLoadDagWorkbenchGraph,
+  createSaveDagWorkbenchGraph,
+  createValidateDagWorkbenchGraph,
+  createSimulateDagWorkbenchGraph,
+  createGetDagWorkbenchSummary,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,
@@ -51,11 +56,17 @@ const createCreditsModule = ({ sharedRuntime } = {}) => {
     recoveryStatusGuard,
     loanViewService,
     paymentApplicationService,
+    dagWorkbenchService,
   } = createCreditsComposition({ sharedRuntime });
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),
     createSimulation: createCreateSimulation({ creditDomainService }),
+    loadDagWorkbenchGraph: createLoadDagWorkbenchGraph({ dagWorkbenchService }),
+    saveDagWorkbenchGraph: createSaveDagWorkbenchGraph({ dagWorkbenchService }),
+    validateDagWorkbenchGraph: createValidateDagWorkbenchGraph({ dagWorkbenchService }),
+    simulateDagWorkbenchGraph: createSimulateDagWorkbenchGraph({ dagWorkbenchService }),
+    getDagWorkbenchSummary: createGetDagWorkbenchSummary({ dagWorkbenchService }),
     getLoanById: createGetLoanById({ loanRepository, loanAccessPolicy }),
     createLoan: createCreateLoan({ loanCreationService }),
     listLoansByCustomer: createListLoansByCustomer({ customerRepository, loanRepository }),

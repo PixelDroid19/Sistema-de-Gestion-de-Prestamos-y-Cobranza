@@ -1,8 +1,15 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
+const { createPaymentRouter } = require('./paymentRouter');
 
-const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases }) => {
+const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
+
+  const paymentRouter = createPaymentRouter({
+    authMiddleware,
+    paymentApplicationService,
+  });
+  router.use('/payments', paymentRouter);
 
   router.get('/', authMiddleware(), asyncHandler(async (req, res) => {
     const loans = await useCases.listLoans({ actor: req.user });
@@ -22,6 +29,54 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
         },
       },
     });
+  }));
+
+  router.get('/workbench/graph', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const result = await useCases.loadDagWorkbenchGraph({ actor: req.user, scopeKey: req.query.scope });
+    res.json({ success: true, data: { graph: result.graphVersion } });
+  }));
+
+  router.post('/workbench/graph', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const result = await useCases.saveDagWorkbenchGraph({
+      actor: req.user,
+      scopeKey: req.body.scopeKey,
+      name: req.body.name,
+      graph: req.body.graph,
+    });
+    res.status(201).json({ success: true, message: 'DAG graph saved successfully', data: { graph: result } });
+  }));
+
+  router.post('/workbench/graph/validate', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const validation = await useCases.validateDagWorkbenchGraph({
+      actor: req.user,
+      scopeKey: req.body.scopeKey,
+      graph: req.body.graph,
+    });
+    res.json({ success: true, data: { validation } });
+  }));
+
+  router.post('/workbench/graph/simulations', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const result = await useCases.simulateDagWorkbenchGraph({
+      actor: req.user,
+      scopeKey: req.body.scopeKey,
+      graph: req.body.graph,
+      simulationInput: req.body.simulationInput,
+    });
+    res.json({
+      success: true,
+      message: 'DAG workbench simulation generated successfully',
+      data: {
+        graph: result.graphVersion,
+        validation: result.validation,
+        simulation: result.simulation,
+        summary: result.summary,
+      },
+    });
+  }));
+
+  router.get('/workbench/graph/summary', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+    const summary = await useCases.getDagWorkbenchSummary({ actor: req.user, scopeKey: req.query.scope });
+    res.json({ success: true, data: { summary } });
   }));
 
   router.get('/customer/:customerId', authMiddleware(['customer']), asyncHandler(async (req, res) => {

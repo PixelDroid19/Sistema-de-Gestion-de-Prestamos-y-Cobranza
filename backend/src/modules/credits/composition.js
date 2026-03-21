@@ -2,18 +2,24 @@ const { createLoanAccessPolicy } = require('../shared/loanAccessPolicy');
 const { createPaymentApplicationService } = require('./application/paymentApplicationService');
 const { createLoanViewService } = require('./application/loanFinancials');
 const { createRecoveryStatusGuard } = require('./application/recoveryStatusGuard');
+const { createCreditsDagConfig } = require('./application/dag/config');
+const { createDagWorkbenchService } = require('./application/dag/workbenchService');
 const { createCreditsInfrastructure } = require('./infrastructure/repositories');
+const { createPaymentRouter } = require('./presentation/paymentRouter');
+const { createOutboxEventRepository } = require('./infrastructure/outboxEventRepository');
 
 /**
  * Select the credit ports that other modules are allowed to depend on.
  * @param {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }} composition
  * @returns {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }}
  */
-const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService, attachmentStorage }) => ({
+const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService, attachmentStorage, creditsDagConfig, dagWorkbenchService }) => ({
   loanAccessPolicy,
   loanViewService,
   paymentApplicationService,
   attachmentStorage,
+  creditsDagConfig,
+  dagWorkbenchService,
 });
 
 /**
@@ -23,18 +29,31 @@ const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentAppl
  */
 const createCreditsComposition = ({
   sharedRuntime,
-  infrastructure = createCreditsInfrastructure(),
+  dagConfig = createCreditsDagConfig(),
+  infrastructure = createCreditsInfrastructure({ dagConfig }),
   loanAccessPolicy = createLoanAccessPolicy({ loanRepository: infrastructure.loanRepository }),
   loanViewService = createLoanViewService(),
   recoveryStatusGuard = createRecoveryStatusGuard({ loanViewService }),
   paymentApplicationService = createPaymentApplicationService({ loanViewService }),
+  dagWorkbenchService = createDagWorkbenchService({
+    dagConfig,
+    dagGraphRepository: infrastructure.dagGraphRepository,
+    dagSimulationSummaryRepository: infrastructure.dagSimulationSummaryRepository,
+    creditDomainService: infrastructure.creditDomainService,
+  }),
+  outboxEventRepository = createOutboxEventRepository(),
+  paymentRouter = createPaymentRouter({ paymentApplicationService }),
 } = {}) => {
   const composition = {
     ...infrastructure,
+    creditsDagConfig: dagConfig,
     loanAccessPolicy,
     loanViewService,
     recoveryStatusGuard,
     paymentApplicationService,
+    dagWorkbenchService,
+    outboxEventRepository,
+    paymentRouter,
   };
 
   sharedRuntime?.registerModulePorts?.('credits', pickCreditsPublicPorts(composition));

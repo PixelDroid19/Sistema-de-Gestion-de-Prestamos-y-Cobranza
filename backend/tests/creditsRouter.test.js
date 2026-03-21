@@ -214,6 +214,75 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   ]);
 });
 
+test('createCreditsRouter POST /simulations preserves the legacy-compatible response while shadow comparison runs behind the use-case seam', async () => {
+  const calls = [];
+  const simulation = {
+    lateFeeMode: 'NONE',
+    summary: {
+      installmentAmount: 100,
+      totalPayable: 200,
+      outstandingBalance: 200,
+    },
+    schedule: [{
+      installmentNumber: 1,
+      scheduledPayment: 100,
+      principalComponent: 90,
+      interestComponent: 10,
+      remainingBalance: 100,
+      remainingPrincipal: 90,
+      remainingInterest: 10,
+    }],
+  };
+
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: {
+      ...createUseCases({
+        async createSimulation(input) {
+          calls.push(['createSimulation', input]);
+          return simulation;
+        },
+      }),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const payload = {
+    amount: 1500,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'none',
+  };
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/simulations',
+    headers: { authorization: 'Bearer valid-token' },
+    body: payload,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    message: 'Loan simulation generated successfully',
+    data: {
+      simulation: {
+        lateFeeMode: 'NONE',
+        summary: simulation.summary,
+        schedule: simulation.schedule,
+      },
+    },
+  });
+  assert.deepEqual(calls, [['createSimulation', payload]]);
+});
+
 test('createCreditsRouter serves assignment and recovery contract responses', async () => {
   const calls = [];
   const router = createCreditsRouter({

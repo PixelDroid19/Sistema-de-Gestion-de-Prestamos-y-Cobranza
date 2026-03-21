@@ -5,6 +5,7 @@ const Loan = sequelize.define('Loan', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   customerId: { type: DataTypes.INTEGER, allowNull: false },
   associateId: { type: DataTypes.INTEGER, allowNull: true },
+  financialProductId: { type: DataTypes.UUID, allowNull: true },
   amount: { type: DataTypes.FLOAT, allowNull: false },
   interestRate: { type: DataTypes.FLOAT, allowNull: false },
   termMonths: { type: DataTypes.INTEGER, allowNull: false },

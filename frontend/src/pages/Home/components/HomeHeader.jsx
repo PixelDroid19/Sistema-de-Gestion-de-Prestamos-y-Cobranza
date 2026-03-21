@@ -5,9 +5,9 @@ import Button from '@/components/ui/Button'
 
 import './HomeHeader.scss'
 
-function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
+function HomeHeader({ t, authMode = false, onBackHome, onLoginClick, onSignUpClick }) {
   return (
-    <header className="home-header">
+    <header className={`home-header${authMode ? ' home-header--auth' : ''}`}>
       <button className="home-brand" type="button" onClick={onBackHome}>
         <span className="home-brand__mark">
           <TrendingUp size={20} color="white" />
@@ -15,26 +15,30 @@ function HomeHeader({ t, onBackHome, onLoginClick, onSignUpClick }) {
         <span className="home-brand__title">LendFlow</span>
       </button>
 
-      <nav className="home-header__nav nav-links" aria-label={t('home.nav.home')}>
-        <a className="home-header__link home-header__link--active" href="#top">
-          {t('home.nav.home')}
-        </a>
-        <a className="home-header__link" href="#features">
-          {t('home.nav.platform')}
-        </a>
-        <a className="home-header__link" href="#world">
-          {t('home.nav.partners')}
-        </a>
-      </nav>
+      {!authMode ? (
+        <>
+          <nav className="home-header__nav nav-links" aria-label={t('home.nav.home')}>
+            <a className="home-header__link home-header__link--active" href="#top">
+              {t('home.nav.home')}
+            </a>
+            <a className="home-header__link" href="#features">
+              {t('home.nav.platform')}
+            </a>
+            <a className="home-header__link" href="#world">
+              {t('home.nav.partners')}
+            </a>
+          </nav>
 
-      <div className="home-header__actions">
-        <Button className="home-button home-button--ghost" type="button" variant="outline" onClick={onLoginClick}>
-          {t('home.auth.loginCta')}
-        </Button>
-        <Button className="home-button home-button--primary" type="button" onClick={onSignUpClick}>
-          {t('home.auth.registerCta')}
-        </Button>
-      </div>
+          <div className="home-header__actions">
+            <Button className="home-button home-button--ghost" type="button" variant="outline" onClick={onLoginClick}>
+              {t('home.auth.loginCta')}
+            </Button>
+            <Button className="home-button home-button--primary" type="button" onClick={onSignUpClick}>
+              {t('home.auth.registerCta')}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </header>
   )
 }

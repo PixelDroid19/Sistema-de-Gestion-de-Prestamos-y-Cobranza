@@ -13,20 +13,47 @@ export class ApiError extends Error {
 
 const getToken = () => useSessionStore.getState().token || localStorage.getItem('token');
 
+const collectValidationMessages = (validationErrors = []) => validationErrors
+  .map((error) => error?.message)
+  .filter((message) => typeof message === 'string' && message.trim());
+
 const buildMessage = (payload, fallbackStatus) => {
   if (!payload) {
     return `HTTP error! status: ${fallbackStatus}`;
   }
 
+  const nestedError = payload.error && typeof payload.error === 'object' ? payload.error : null;
+  const topLevelValidationMessages = Array.isArray(payload.validationErrors)
+    ? collectValidationMessages(payload.validationErrors)
+    : [];
+  const nestedValidationMessages = Array.isArray(nestedError?.validationErrors)
+    ? collectValidationMessages(nestedError.validationErrors)
+    : [];
+  const combinedValidationMessages = [...topLevelValidationMessages, ...nestedValidationMessages];
+
   if (typeof payload.message === 'string' && payload.message.trim()) {
     if (Array.isArray(payload.errors) && payload.errors.length > 0) {
       return [payload.message, ...payload.errors.map((error) => error.message)].join('\n');
     }
+    if (combinedValidationMessages.length > 0) {
+      return [payload.message, ...combinedValidationMessages].join('\n');
+    }
     return payload.message;
+  }
+
+  if (typeof nestedError?.message === 'string' && nestedError.message.trim()) {
+    if (combinedValidationMessages.length > 0) {
+      return [nestedError.message, ...combinedValidationMessages].join('\n');
+    }
+    return nestedError.message;
   }
 
   if (Array.isArray(payload.errors) && payload.errors.length > 0) {
     return payload.errors.map((error) => error.message).join('\n');
+  }
+
+  if (combinedValidationMessages.length > 0) {
+    return combinedValidationMessages.join('\n');
   }
 
   return `HTTP error! status: ${fallbackStatus}`;

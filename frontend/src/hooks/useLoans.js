@@ -11,6 +11,139 @@ const resolveScope = (user) => {
   return 'all';
 };
 
+const mergeById = (items, nextItem, { appendIfMissing = false, sort } = {}) => {
+  if (!Array.isArray(items) || !nextItem) return items;
+
+  let found = false;
+  const nextItems = items.map((item) => {
+    if (Number(item?.id) !== Number(nextItem.id)) {
+      return item;
+    }
+
+    found = true;
+    return { ...item, ...nextItem };
+  });
+
+  if (!found && appendIfMissing) {
+    nextItems.push(nextItem);
+  }
+
+  return typeof sort === 'function' ? [...nextItems].sort(sort) : nextItems;
+};
+
+const updateLoanResponse = (current, updatedLoan) => {
+  if (!current || !updatedLoan) return current;
+
+  if (Array.isArray(current?.data?.loans)) {
+    return {
+      ...current,
+      data: {
+        ...current.data,
+        loans: mergeById(current.data.loans, updatedLoan),
+      },
+    };
+  }
+
+  if (Array.isArray(current?.data)) {
+    return {
+      ...current,
+      data: mergeById(current.data, updatedLoan),
+    };
+  }
+
+  if (current?.data?.loan && Number(current.data.loan.id) === Number(updatedLoan.id)) {
+    return {
+      ...current,
+      data: {
+        ...current.data,
+        loan: {
+          ...current.data.loan,
+          ...updatedLoan,
+        },
+      },
+    };
+  }
+
+  return current;
+};
+
+const updateNestedCollectionResponse = (current, collectionKey, nextItem, options) => {
+  if (!nextItem) return current;
+
+  const items = Array.isArray(current?.data?.[collectionKey])
+    ? current.data[collectionKey]
+    : [];
+
+  const nextItems = mergeById(items, nextItem, options);
+
+  return {
+    ...current,
+    success: current?.success ?? true,
+    count: nextItems.length,
+    data: {
+      ...(current?.data || {}),
+      [collectionKey]: nextItems,
+    },
+  };
+};
+
+const mergeLoanIntoCaches = (queryClient, updatedLoan) => {
+  if (!updatedLoan || !updatedLoan.id) return;
+
+  queryClient.setQueriesData({ queryKey: ['loans'] }, (current) => updateLoanResponse(current, updatedLoan));
+};
+
+const mergeAlertIntoCache = (queryClient, loanId, updatedAlert) => {
+  if (!loanId || !updatedAlert || !updatedAlert.id) return;
+
+  queryClient.setQueryData(
+    queryKeys.loans.alerts(loanId),
+    (current) => updateNestedCollectionResponse(current, 'alerts', updatedAlert),
+  );
+};
+
+const mergePromiseIntoCache = (queryClient, loanId, promise) => {
+  if (!loanId || !promise) {
+    return;
+  }
+
+  queryClient.setQueryData(
+    queryKeys.loans.promises(loanId),
+    (current) => {
+      const result = updateNestedCollectionResponse(current, 'promises', promise, {
+        appendIfMissing: true,
+        sort: (left, right) => {
+          const leftDate = new Date(left.promisedDate || 0).getTime();
+          const rightDate = new Date(right.promisedDate || 0).getTime();
+
+          if (leftDate !== rightDate) {
+            return leftDate - rightDate;
+          }
+
+          return Number(right.id || 0) - Number(left.id || 0);
+        },
+      });
+      return result;
+    },
+  );
+};
+
+const invalidatePromiseSideEffects = async (queryClient, loanId) => {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['reports'] }),
+  ];
+
+  if (loanId) {
+    invalidations.push(
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.promises(loanId) }),
+    );
+  }
+
+  await Promise.all(invalidations);
+};
+
 export const useLoansQuery = ({ user, enabled = true } = {}) => useQuery({
   queryKey: queryKeys.loans.all(resolveScope(user)),
   queryFn: () => {
@@ -100,21 +233,28 @@ export const useLoanServicingQueries = (loans, user) => {
   };
 };
 
-const invalidateLoanScope = (queryClient, user, loanId = null) => {
-  queryClient.invalidateQueries({ queryKey: ['loans'] });
-  queryClient.invalidateQueries({ queryKey: queryKeys.loans.all(resolveScope(user)) });
-  queryClient.invalidateQueries({ queryKey: ['payments'] });
-  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  queryClient.invalidateQueries({ queryKey: ['reports'] });
+const invalidateLoanScope = async (queryClient, user, loanId = null) => {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: ['loans'] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.loans.all(resolveScope(user)) }),
+    queryClient.invalidateQueries({ queryKey: ['payments'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['reports'] }),
+  ];
+
   if (loanId) {
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.payments(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.alerts(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.calendar(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.promises(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.loans.attachments(loanId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reports.creditHistory(loanId) });
+    invalidations.push(
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.payments(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.alerts(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.calendar(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.promises(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.attachments(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.creditHistory(loanId) }),
+    );
   }
+
+  await Promise.all(invalidations);
 };
 
 export const useCreateLoanMutation = (user) => {
@@ -147,7 +287,10 @@ export const useUpdateRecoveryStatusMutation = (user) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ loanId, recoveryStatus }) => loanService.updateRecoveryStatus(loanId, recoveryStatus),
-    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+    onSuccess: async (response, variables) => {
+      mergeLoanIntoCaches(queryClient, response?.data?.loan);
+      await invalidateLoanScope(queryClient, user, variables.loanId);
+    },
   });
 };
 
@@ -155,7 +298,10 @@ export const useCreateLoanPromiseMutation = (user) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ loanId, payload }) => loanService.createLoanPromise(loanId, payload),
-    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+    onSuccess: async (response, variables) => {
+      mergePromiseIntoCache(queryClient, variables.loanId, response?.data?.promise);
+      await invalidatePromiseSideEffects(queryClient, variables.loanId);
+    },
   });
 };
 
@@ -171,7 +317,10 @@ export const useUpdateLoanAlertStatusMutation = (user) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ loanId, alertId, payload }) => loanService.updateLoanAlertStatus(loanId, alertId, payload),
-    onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
+    onSuccess: async (response, variables) => {
+      mergeAlertIntoCache(queryClient, variables.loanId, response?.data?.alert);
+      await invalidateLoanScope(queryClient, user, variables.loanId);
+    },
   });
 };
 

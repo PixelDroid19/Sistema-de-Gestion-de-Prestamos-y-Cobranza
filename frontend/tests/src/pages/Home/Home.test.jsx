@@ -82,4 +82,13 @@ describe('Home page', () => {
     expect(await screen.findByText('Credenciales invalidas')).toBeInTheDocument()
     expect(onLogin).not.toHaveBeenCalled()
   })
+
+  it('lets the user switch from login to registration without leaving the auth panel', async () => {
+    renderWithProviders(<Home onLogin={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Necesitas una cuenta? Registrate' }))
+
+    expect(await screen.findByLabelText('Nombre completo')).toBeInTheDocument()
+  })
 })

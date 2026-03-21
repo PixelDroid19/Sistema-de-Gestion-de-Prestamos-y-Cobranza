@@ -293,7 +293,8 @@
       "password": "Password",
       "submit": "Sign in",
       "submitting": "Signing in...",
-      "back": "Back to overview"
+      "back": "Back to overview",
+      "switchToRegister": "Need an account? Register"
     },
     "register": {
       "title": "Create account",
@@ -674,6 +675,13 @@
         "activeAlerts": "Active alerts",
         "outstandingBalanceCaption": "Calculated from loaded payment history",
         "activeAlertsCaption": "Overdue servicing signals"
+      },
+      "mode": {
+        "eyebrow": "Workspace mode",
+        "title": "Switch between portfolio and DAG workbench",
+        "subtitle": "The DAG view is exposed as an incremental entry point for admins and agents without disrupting the current loans flow.",
+        "portfolio": "Portfolio",
+        "dagWorkbench": "DAG workbench"
       }
     },
     "hero": {
@@ -851,6 +859,60 @@
       "pending": "Pending",
       "in_progress": "In progress",
       "recovered": "Recovered"
+    },
+    "dagWorkbench": {
+      "eyebrow": "Incremental DAG entry",
+      "title": "Backend-connected DAG workbench",
+      "subtitle": "This workbench ports the approved DAG canvas, inspector, variables rail, formula preview, and table view on top of the existing backend authoring seams.",
+      "access": "{{role}} access",
+      "loadingTitle": "Loading DAG workbench",
+      "loadingMessage": "Preparing the latest graph, its validation snapshot, and the most recent summary for this scope.",
+      "emptyGraph": "No saved graph exists for this scope yet. You can start from the local draft and save it when ready.",
+      "fields": {
+        "scopeKey": "Scope key",
+        "graphName": "Graph name",
+        "graphJson": "Graph JSON",
+        "amount": "Amount",
+        "interestRate": "Interest rate",
+        "termMonths": "Term (months)"
+      },
+      "actions": {
+        "validate": "Validate",
+        "validating": "Validating...",
+        "save": "Save",
+        "saving": "Saving...",
+        "simulate": "Simulate",
+        "simulating": "Simulating..."
+      },
+      "status": {
+        "unsaved": "Local changes not saved yet",
+        "synced": "Draft synced with the latest saved version"
+      },
+      "summary": {
+        "latestVersion": "Latest version",
+        "nodeCount": "Nodes",
+        "edgeCountLabel": "Edges: {{count}}",
+        "selectedSource": "Selected source",
+        "schedulePreview": "Table preview",
+        "latestScope": "Active scope: {{scopeKey}}",
+        "fallbackReason": "Fallback: {{reason}}",
+        "parityPassed": "Parity passed",
+        "parityFailed": "Parity mismatched"
+      },
+      "validation": {
+        "eyebrow": "Validation",
+        "validTitle": "Graph is valid",
+        "invalidTitle": "Graph has observations",
+        "summary": "Errors: {{errors}} · Warnings: {{warnings}}"
+      },
+      "simulation": {
+        "eyebrow": "Simulation",
+        "title": "Connected summary",
+        "subtitle": "Responses come from the current backend DAG flow for this scope and reuse the shared simulation contract.",
+        "installments": "Simulated installments: {{count}}",
+        "totalPayable": "Total payable: {{value}}",
+        "monthlyInstallment": "Monthly installment: {{value}}"
+      }
     }
   },
   "reports": {

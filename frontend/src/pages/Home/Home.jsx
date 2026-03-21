@@ -121,6 +121,7 @@ function Home({ onLogin }) {
       <div className="home-page">
         <HomeHeader
           t={t}
+          authMode={showForm}
           onBackHome={handleBackHome}
           onLoginClick={handleLoginClick}
           onSignUpClick={handleSignUpClick}
@@ -139,6 +140,8 @@ function Home({ onLogin }) {
             onSubmit={handleLogin}
             onBackHome={handleBackHome}
             onLogin={onLogin}
+            onShowLogin={handleLoginClick}
+            onShowRegister={handleSignUpClick}
           />
         ) : (
           <>

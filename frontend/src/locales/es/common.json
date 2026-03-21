@@ -293,7 +293,8 @@
       "password": "Contrasena",
       "submit": "Ingresar",
       "submitting": "Ingresando...",
-      "back": "Volver al overview"
+      "back": "Volver al overview",
+      "switchToRegister": "Necesitas una cuenta? Registrate"
     },
     "register": {
       "title": "Crear cuenta",
@@ -674,6 +675,13 @@
         "activeAlerts": "Alertas activas",
         "outstandingBalanceCaption": "Calculado desde el historial de pagos cargado",
         "activeAlertsCaption": "Senales de mora en la cobranza"
+      },
+      "mode": {
+        "eyebrow": "Modo del espacio",
+        "title": "Alterna entre cartera y workbench DAG",
+        "subtitle": "La vista DAG se habilita como entrada incremental para administradores y agentes sin romper el flujo actual de prestamos.",
+        "portfolio": "Cartera",
+        "dagWorkbench": "Workbench DAG"
       }
     },
     "hero": {
@@ -851,6 +859,60 @@
       "pending": "Pendiente",
       "in_progress": "En progreso",
       "recovered": "Recuperado"
+    },
+    "dagWorkbench": {
+      "eyebrow": "Entrada incremental DAG",
+      "title": "Workbench DAG conectado al backend",
+      "subtitle": "Este workbench porta el canvas DAG aprobado, el inspector, la barra de variables, el preview de formulas y la vista de tabla sobre los seams ya creados hacia backend.",
+      "access": "Acceso {{role}}",
+      "loadingTitle": "Cargando workbench DAG",
+      "loadingMessage": "Preparando el ultimo grafo, sus validaciones y el resumen mas reciente para este alcance.",
+      "emptyGraph": "Todavia no existe un grafo guardado para este alcance. Puedes empezar con el borrador local y guardarlo cuando este listo.",
+      "fields": {
+        "scopeKey": "Scope key",
+        "graphName": "Nombre del grafo",
+        "graphJson": "JSON del grafo",
+        "amount": "Monto",
+        "interestRate": "Tasa de interes",
+        "termMonths": "Plazo (meses)"
+      },
+      "actions": {
+        "validate": "Validar",
+        "validating": "Validando...",
+        "save": "Guardar",
+        "saving": "Guardando...",
+        "simulate": "Simular",
+        "simulating": "Simulando..."
+      },
+      "status": {
+        "unsaved": "Cambios locales sin guardar",
+        "synced": "Borrador sincronizado con el ultimo guardado"
+      },
+      "summary": {
+        "latestVersion": "Ultima version",
+        "nodeCount": "Nodos",
+        "edgeCountLabel": "Aristas: {{count}}",
+        "selectedSource": "Fuente seleccionada",
+        "schedulePreview": "Preview de tabla",
+        "latestScope": "Scope activo: {{scopeKey}}",
+        "fallbackReason": "Fallback: {{reason}}",
+        "parityPassed": "Paridad aprobada",
+        "parityFailed": "Paridad con diferencias"
+      },
+      "validation": {
+        "eyebrow": "Validacion",
+        "validTitle": "Grafo valido",
+        "invalidTitle": "Grafo con observaciones",
+        "summary": "Errores: {{errors}} · Advertencias: {{warnings}}"
+      },
+      "simulation": {
+        "eyebrow": "Simulacion",
+        "title": "Resumen conectado",
+        "subtitle": "Las respuestas vienen del backend DAG actual para este scope y usan el mismo contrato de simulacion compartido.",
+        "installments": "Cuotas simuladas: {{count}}",
+        "totalPayable": "Total a pagar: {{value}}",
+        "monthlyInstallment": "Cuota mensual: {{value}}"
+      }
     }
   },
   "reports": {

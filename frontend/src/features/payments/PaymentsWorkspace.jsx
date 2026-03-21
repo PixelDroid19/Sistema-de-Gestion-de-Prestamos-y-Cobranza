@@ -54,6 +54,7 @@ function PaymentsWorkspace({ user }) {
 
   const [formState, dispatch] = useReducer(formReducer, initialFormState);
   const [error, setError] = useState('');
+  const [historyError, setHistoryError] = useState('');
   const [success, setSuccess] = useState('');
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [resolvedAlertMessage, setResolvedAlertMessage] = useState('');
@@ -225,10 +226,11 @@ function PaymentsWorkspace({ user }) {
       );
 
     if (!sourceError) {
+      setHistoryError('');
       return;
     }
 
-    handleApiError(sourceError, setError);
+    handleApiError(sourceError, setHistoryError);
   }, [
     attachmentsQuery.error,
     calendarQuery.error,
@@ -539,7 +541,7 @@ function PaymentsWorkspace({ user }) {
         canManagePaymentDocuments={isAdmin || user.role === 'agent'}
         canAnnul={canAnnul}
         historyLoading={historyLoading}
-        error={error}
+        error={historyError}
         onRetry={() => {
           paymentsQuery.refetch();
           calendarQuery.refetch();

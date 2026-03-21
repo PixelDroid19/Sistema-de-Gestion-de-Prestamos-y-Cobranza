@@ -32,6 +32,7 @@ Capacidades hoy presentes en el repositorio:
 - notificaciones del sistema
 - reportes de recuperacion, recuperados y pendientes
 - interfaz frontend para dashboard, loans, payments, agents y reports
+- workbench DAG incremental dentro de Loans para admin/agent con fallback legacy visible en simulaciones
 
 No es un sistema completamente productizado todavia: hay mejoras pendientes en despliegue, consistencia documental y endurecimiento de infraestructura.
 
@@ -320,6 +321,10 @@ Frontend:
 - `react`
 - `vite`
 - `lucide-react`
+- `@tanstack/react-query`
+- `zustand`
+- `mathjs`
+- `katex`
 - `lottie-react` / `@dotlottie/react-player`
 
 ## 8. Como correr tests y validar backend
@@ -354,6 +359,13 @@ Esto esta pensado para entornos locales y usa la logica de `backend/src/bootstra
 1. `npm test` en `backend/`
 2. smoke manual de `GET /health` y `GET /api`
 3. smoke del flujo afectado si el cambio toca auth, loans, payments o reports
+
+### Validacion minima recomendada para cambios DAG workbench
+
+1. `npm test -- tests/credits/workbenchService.test.js tests/creditsRouter.workbench.test.js` en `backend/`
+2. `npm test -- --run frontend/tests/src/pages/Loans/Loans.test.jsx frontend/tests/src/store/dagWorkbenchStore.test.js` en `frontend/`
+3. `npm run build` en `frontend/` para validar carga diferida de `mathjs` y `katex`
+4. smoke manual como `admin` o `agent` en Loans -> `Workbench DAG`, verificando fuente seleccionada, estado de paridad y fallback cuando aplique
 
 ## 9. Riesgos y limitaciones conocidas
 

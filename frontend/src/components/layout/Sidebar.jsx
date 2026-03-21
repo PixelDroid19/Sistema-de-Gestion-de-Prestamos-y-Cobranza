@@ -3,7 +3,15 @@ import { Briefcase, CreditCard, LayoutDashboard, LogOut, PieChart, Users } from 
 import { useTranslation } from 'react-i18next'
 
 import { useSessionStore } from '@/store/sessionStore'
-import { useUiStore } from '@/store/uiStore'
+import { getAllowedViewsForRole, useUiStore } from '@/store/uiStore'
+
+const MENU_ITEMS = {
+  Dashboard: { labelKey: 'shell.views.Dashboard', icon: LayoutDashboard },
+  Loans: { labelKey: 'shell.views.Loans', icon: Briefcase },
+  Payments: { labelKey: 'shell.views.Payments', icon: CreditCard },
+  Agents: { labelKey: 'shell.views.Agents', icon: Users },
+  Reports: { labelKey: 'shell.views.Reports', icon: PieChart },
+}
 
 const Sidebar = () => {
   const { t } = useTranslation()
@@ -18,27 +26,18 @@ const Sidebar = () => {
 
   const getMenuItems = () => {
     if (!user) return []
-    
-    if (user.role === "socio") {
-      return [
-        { id: 'Dashboard', label: t('shell.views.Dashboard'), icon: LayoutDashboard },
-        { id: 'Loans', label: t('shell.views.Loans'), icon: Briefcase },
-        { id: 'Reports', label: t('shell.views.partnerPortal'), icon: PieChart },
-      ]
-    }
 
-    const items = [
-      { id: 'Dashboard', label: t('shell.views.Dashboard'), icon: LayoutDashboard },
-      { id: 'Loans', label: t('shell.views.Loans'), icon: Briefcase },
-      { id: 'Payments', label: t('shell.views.Payments'), icon: CreditCard },
-    ]
-    
-    if (user.role === "admin") {
-      items.push({ id: 'Agents', label: t('shell.views.Agents'), icon: Users })
-      items.push({ id: 'Reports', label: t('shell.views.Reports'), icon: PieChart })
-    }
+    return getAllowedViewsForRole(user.role).map((id) => {
+      if (id === 'Reports' && user.role === 'socio') {
+        return { id, label: t('shell.views.partnerPortal'), icon: PieChart }
+      }
 
-    return items
+      return {
+        id,
+        label: t(MENU_ITEMS[id].labelKey),
+        icon: MENU_ITEMS[id].icon,
+      }
+    })
   }
 
   return (
