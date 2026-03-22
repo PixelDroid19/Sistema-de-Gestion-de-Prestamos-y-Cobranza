@@ -44,11 +44,18 @@ import LoanApplicationSection from '@/features/loans/sections/LoanApplicationSec
 import LoansHeroSection from '@/features/loans/sections/LoansHeroSection';
 import LoansPortfolioSection from '@/features/loans/sections/LoansPortfolioSection';
 import LoansServicingSection from '@/features/loans/sections/LoansServicingSection';
+import { usePaginationStore } from '@/store/paginationStore';
+
+const LOANS_PAGINATION_SCOPE = 'workspace-loans-portfolio';
+const DEFAULT_PAGINATION = { page: 1, pageSize: 25 };
 
 function LoansWorkspace({ user }) {
   const { t } = useTranslation()
   const workspaceMode = useDagWorkbenchStore((state) => state.workspaceMode);
   const setWorkspaceMode = useDagWorkbenchStore((state) => state.setWorkspaceMode);
+  const loansPagination = usePaginationStore((state) => state.scopes[LOANS_PAGINATION_SCOPE] || DEFAULT_PAGINATION);
+  const ensurePaginationScope = usePaginationStore((state) => state.ensureScope);
+  const setLoansPage = usePaginationStore((state) => state.setPage);
   const [applicationForm, setApplicationForm] = useState({ amount: '', interestRate: '', termMonths: '' });
   const [simulation, setSimulation] = useState(null);
   const [error, setError] = useState('');
@@ -71,7 +78,11 @@ function LoansWorkspace({ user }) {
   const dagWorkbenchEnabled = user.role === 'admin' || user.role === 'agent';
   const dagWorkbenchActive = dagWorkbenchEnabled && workspaceMode === 'dagWorkbench';
 
-  const loansQuery = useLoansQuery({ user, enabled: !dagWorkbenchActive });
+  useEffect(() => {
+    ensurePaginationScope(LOANS_PAGINATION_SCOPE, { page: 1, pageSize: 25 });
+  }, [ensurePaginationScope]);
+
+  const loansQuery = useLoansQuery({ user, enabled: !dagWorkbenchActive, pagination: loansPagination });
   const createLoanMutation = useCreateLoanMutation(user);
   const simulateLoanMutation = useSimulateLoanMutation();
   const updateLoanStatusMutation = useUpdateLoanStatusMutation(user);
@@ -88,10 +99,12 @@ function LoansWorkspace({ user }) {
 
   const loans = useMemo(() => {
     if (dagWorkbenchActive) return [];
+    if (Array.isArray(loansQuery.data?.items)) return loansQuery.data.items;
     if (Array.isArray(loansQuery.data?.data?.loans)) return loansQuery.data.data.loans;
     if (Array.isArray(loansQuery.data?.data)) return loansQuery.data.data;
     return [];
   }, [dagWorkbenchActive, loansQuery.data]);
+  const loansPaginationMeta = loansQuery.data?.pagination || loansQuery.data?.data?.pagination || null;
 
   const loanIds = useMemo(() => loans.map((loan) => loan.id), [loans]);
   const customerIds = useMemo(
@@ -687,6 +700,8 @@ function LoansWorkspace({ user }) {
             onSaveRecovery={handleRecoverySave}
             onUpdateLoanStatus={handleLoanStatus}
             onDeleteLoan={handleDeleteLoan}
+            pagination={loansPaginationMeta}
+            onPageChange={(page) => setLoansPage(LOANS_PAGINATION_SCOPE, page)}
           />
 
           <LoansServicingSection

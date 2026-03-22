@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
 const { normalizeDistributionRecord } = require('../../associates/application/useCases');
+const { buildPaginationMeta } = require('../../shared/pagination');
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -259,6 +260,11 @@ const buildCustomerProfitabilityRows = (loanRows) => {
   }));
 };
 
+const buildProfitabilitySummaryFromDataset = ({ loans = [], payments = [] }) => {
+  const loanRows = buildProfitabilityLoanRows({ loans, payments });
+  return buildProfitabilitySummary(loanRows);
+};
+
 const buildServicingNotes = ({ alerts = [], promises = [] }) => {
   const noteEntries = [];
 
@@ -345,12 +351,31 @@ const buildLoansWithDetails = async ({ loans, paymentRepository, loanViewService
   loans.map((loan) => buildLoanReportRecord({ loan, paymentRepository, loanViewService })),
 );
 
-const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
+const paginateCollection = (items, pagination) => {
+  if (!pagination) {
+    return { items, pagination: null };
+  }
+
+  return {
+    items: items.slice(0, pagination.pageSize),
+    pagination: buildPaginationMeta({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: pagination.totalItems,
+    }),
+  };
+};
+
+const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
-  const recoveredLoans = await reportRepository.listRecoveredLoans();
-  const loansWithDetails = await buildLoansWithDetails({ loans: recoveredLoans, paymentRepository, loanViewService });
+  const recoveredLoans = pagination
+    ? await reportRepository.listRecoveredLoansPage(pagination)
+    : await reportRepository.listRecoveredLoans();
+  const rawLoans = recoveredLoans.items || recoveredLoans;
+  const loansWithDetails = await buildLoansWithDetails({ loans: rawLoans, paymentRepository, loanViewService });
   const totalRecoveredAmount = loansWithDetails.reduce((sum, loan) => sum + parseFloat(loan.totalPaid), 0);
-  const totalLoansCount = loansWithDetails.length;
+  const totalLoansCount = recoveredLoans.pagination?.totalItems ?? loansWithDetails.length;
+  const paged = paginateCollection(loansWithDetails, recoveredLoans.pagination);
 
   return {
     success: true,
@@ -360,19 +385,23 @@ const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanView
       totalLoansCount,
       averageRecoveryAmount: totalLoansCount > 0 ? (totalRecoveredAmount / totalLoansCount).toFixed(2) : '0.00',
     },
-    data: { loans: loansWithDetails },
+    data: { loans: paged.items, ...(paged.pagination ? { pagination: paged.pagination } : {}) },
   };
 };
 
-const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
+const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
-  const outstandingLoans = await reportRepository.listOutstandingLoans();
-  const loansWithDetails = await buildLoansWithDetails({ loans: outstandingLoans, paymentRepository, loanViewService });
+  const outstandingLoans = pagination
+    ? await reportRepository.listOutstandingLoansPage(pagination)
+    : await reportRepository.listOutstandingLoans();
+  const rawLoans = outstandingLoans.items || outstandingLoans;
+  const loansWithDetails = await buildLoansWithDetails({ loans: rawLoans, paymentRepository, loanViewService });
   const outstandingLoansFiltered = loansWithDetails.filter((loan) => loan.recoveryBucket === 'outstanding');
   const totalOutstandingAmount = outstandingLoansFiltered.reduce((sum, loan) => sum + parseFloat(loan.outstandingAmount), 0);
-  const totalLoansCount = outstandingLoansFiltered.length;
+  const totalLoansCount = outstandingLoans.pagination?.totalItems ?? outstandingLoansFiltered.length;
   const pendingCount = outstandingLoansFiltered.filter((loan) => loan.recoveryStatus === 'pending').length;
   const inProgressCount = outstandingLoansFiltered.filter((loan) => loan.recoveryStatus === 'in_progress').length;
+  const paged = paginateCollection(outstandingLoansFiltered, outstandingLoans.pagination);
 
   return {
     success: true,
@@ -384,14 +413,17 @@ const createGetOutstandingLoans = ({ reportRepository, paymentRepository, loanVi
       inProgressCount,
       averageOutstandingAmount: totalLoansCount > 0 ? (totalOutstandingAmount / totalLoansCount).toFixed(2) : '0.00',
     },
-    data: { loans: outstandingLoansFiltered },
+    data: { loans: paged.items, ...(paged.pagination ? { pagination: paged.pagination } : {}) },
   };
 };
 
-const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
+const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
-  const allLoans = await reportRepository.listRecoveryLoans();
-  const loansWithDetails = await buildLoansWithDetails({ loans: allLoans, paymentRepository, loanViewService });
+  const allLoans = pagination
+    ? await reportRepository.listRecoveryLoansPage(pagination)
+    : await reportRepository.listRecoveryLoans();
+  const rawLoans = allLoans.items || allLoans;
+  const loansWithDetails = await buildLoansWithDetails({ loans: rawLoans, paymentRepository, loanViewService });
   const recoveredLoans = loansWithDetails.filter((loan) => loan.recoveryBucket === 'recovered');
   const outstandingLoans = loansWithDetails.filter((loan) => loan.recoveryBucket === 'outstanding');
   const totalRecoveredAmount = recoveredLoans.reduce((sum, loan) => sum + parseFloat(loan.totalPaid), 0);
@@ -413,6 +445,7 @@ const createGetRecoveryReport = ({ reportRepository, paymentRepository, loanView
     data: {
       recoveredLoans,
       outstandingLoans,
+      ...(allLoans.pagination ? { pagination: allLoans.pagination } : {}),
     },
   };
 };
@@ -806,10 +839,38 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
   };
 };
 
-const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {}, pagination }) => {
   ensureAdmin(actor);
 
-  const { loans, payments } = await reportRepository.listProfitabilityDataset(parseDateRange(filters));
+  const dateRange = parseDateRange(filters);
+
+  if (pagination) {
+    const [summaryDataset, pagedResult] = await Promise.all([
+      reportRepository.listProfitabilityDataset(dateRange),
+      reportRepository.listCustomerProfitabilityPage({
+        ...dateRange,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+      }),
+    ]);
+
+    return {
+      success: true,
+      count: pagedResult.pagination.totalItems,
+      summary: buildProfitabilitySummaryFromDataset(summaryDataset),
+      data: {
+        customers: buildCustomerProfitabilityRows(
+          buildProfitabilityLoanRows({
+            loans: pagedResult.items.loans,
+            payments: pagedResult.items.payments,
+          }),
+        ),
+        pagination: pagedResult.pagination,
+      },
+    };
+  }
+
+  const { loans, payments } = await reportRepository.listProfitabilityDataset(dateRange);
   const loanRows = buildProfitabilityLoanRows({ loans, payments });
   const customerRows = buildCustomerProfitabilityRows(loanRows);
 
@@ -817,21 +878,51 @@ const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ 
     success: true,
     count: customerRows.length,
     summary: buildProfitabilitySummary(customerRows),
-    data: { customers: customerRows },
+    data: {
+      customers: customerRows,
+    },
   };
 };
 
-const createGetLoanProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+const createGetLoanProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {}, pagination }) => {
   ensureAdmin(actor);
 
-  const { loans, payments } = await reportRepository.listProfitabilityDataset(parseDateRange(filters));
+  const dateRange = parseDateRange(filters);
+
+  if (pagination) {
+    const [summaryDataset, pagedResult] = await Promise.all([
+      reportRepository.listProfitabilityDataset(dateRange),
+      reportRepository.listLoanProfitabilityPage({
+        ...dateRange,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+      }),
+    ]);
+
+    return {
+      success: true,
+      count: pagedResult.pagination.totalItems,
+      summary: buildProfitabilitySummaryFromDataset(summaryDataset),
+      data: {
+        loans: buildProfitabilityLoanRows({
+          loans: pagedResult.items.loans,
+          payments: pagedResult.items.payments,
+        }),
+        pagination: pagedResult.pagination,
+      },
+    };
+  }
+
+  const { loans, payments } = await reportRepository.listProfitabilityDataset(dateRange);
   const loanRows = buildProfitabilityLoanRows({ loans, payments });
 
   return {
     success: true,
     count: loanRows.length,
     summary: buildProfitabilitySummary(loanRows),
-    data: { loans: loanRows },
+    data: {
+      loans: loanRows,
+    },
   };
 };
 

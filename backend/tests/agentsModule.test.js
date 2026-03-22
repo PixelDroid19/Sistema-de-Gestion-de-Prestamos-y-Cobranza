@@ -19,6 +19,26 @@ test('createListAgents returns repository results in name order', async () => {
   assert.deepEqual(agents, [{ id: 2, name: 'Ana Agent' }, { id: 3, name: 'Luis Agent' }]);
 });
 
+test('createListAgents preserves repository pagination results', async () => {
+  const listAgents = createListAgents({
+    agentRepository: {
+      async listPage() {
+        return {
+          items: [{ id: 2, name: 'Ana Agent' }, { id: 3, name: 'Luis Agent' }],
+          pagination: { page: 3, pageSize: 2, totalItems: 8, totalPages: 4 },
+        };
+      },
+    },
+  });
+
+  const result = await listAgents({ pagination: { page: 3, pageSize: 2 } });
+
+  assert.deepEqual(result, {
+    items: [{ id: 2, name: 'Ana Agent' }, { id: 3, name: 'Luis Agent' }],
+    pagination: { page: 3, pageSize: 2, totalItems: 8, totalPages: 4 },
+  });
+});
+
 test('createCreateAgent delegates persistence to the repository', async () => {
   const createAgent = createCreateAgent({
     agentRepository: {

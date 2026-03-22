@@ -1,8 +1,18 @@
 const User = require('../../../models/User');
+const { paginateModel } = require('../../shared/pagination');
 
 const userRepository = {
   findAll() {
     return User.findAll({
+      order: [['createdAt', 'DESC']],
+    });
+  },
+
+  findPage({ page, pageSize }) {
+    return paginateModel({
+      model: User,
+      page,
+      pageSize,
       order: [['createdAt', 'DESC']],
     });
   },

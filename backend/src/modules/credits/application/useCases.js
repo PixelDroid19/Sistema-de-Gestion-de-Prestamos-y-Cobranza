@@ -1,5 +1,6 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
+const { buildPaginatedResult } = require('../../shared/pagination');
 
 const normalizeAttachmentVisibility = (value) => {
   if (typeof value === 'boolean') {
@@ -215,14 +216,28 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
  * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
  * @returns {Function}
  */
-const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor }) => {
-  const loans = await loanRepository.list();
-
-  if (loanAccessPolicy) {
-    return loanAccessPolicy.filterVisibleLoans({ actor, loans });
+const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, pagination }) => {
+  if (pagination && actor?.role === 'admin') {
+    return loanRepository.listPage(pagination);
   }
 
-  return loans;
+  const loans = await loanRepository.list();
+  const visibleLoans = loanAccessPolicy
+    ? loanAccessPolicy.filterVisibleLoans({ actor, loans })
+    : loans;
+
+  if (pagination) {
+    const offset = pagination.offset || 0;
+    const items = visibleLoans.slice(offset, offset + pagination.pageSize);
+    return buildPaginatedResult({
+      items,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: visibleLoans.length,
+    });
+  }
+
+  return visibleLoans;
 };
 
 /**
@@ -286,7 +301,7 @@ const createCreateLoan = ({ loanCreationService }) => async ({ actor, payload })
  * @param {{ customerRepository: object, loanRepository: object }} dependencies
  * @returns {Function}
  */
-const createListLoansByCustomer = ({ customerRepository, loanRepository }) => async ({ actor, customerId }) => {
+const createListLoansByCustomer = ({ customerRepository, loanRepository }) => async ({ actor, customerId, pagination }) => {
   if (actor.role === 'customer' && actor.id !== Number(customerId)) {
     throw new AuthorizationError('You can only view your own loans');
   }
@@ -294,6 +309,11 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
   const customer = await customerRepository.findById(customerId);
   if (!customer) {
     throw new NotFoundError('Customer');
+  }
+
+  if (pagination) {
+    const result = await loanRepository.listPageByCustomer({ customerId, ...pagination });
+    return { customer, loans: result.items, pagination: result.pagination };
   }
 
   const loans = await loanRepository.listByCustomer(customerId);
@@ -305,7 +325,7 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
  * @param {{ agentRepository: object, loanRepository: object }} dependencies
  * @returns {Function}
  */
-const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({ actor, agentId }) => {
+const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({ actor, agentId, pagination }) => {
   if (actor.role === 'agent' && actor.id !== Number(agentId)) {
     throw new AuthorizationError('You can only view your own assigned loans');
   }
@@ -313,6 +333,11 @@ const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({
   const agent = await agentRepository.findById(agentId);
   if (!agent) {
     throw new NotFoundError('Agent');
+  }
+
+  if (pagination) {
+    const result = await loanRepository.listPageByAgent({ agentId, ...pagination });
+    return { agent, loans: result.items, pagination: result.pagination };
   }
 
   const loans = await loanRepository.listByAgent(agentId);

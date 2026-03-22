@@ -1,24 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { normalizePaginationState } from '@/lib/api/pagination';
 import { reportService } from '@/services/reportService';
 
 export const useRecoveryReportQuery = ({ enabled = true } = {}) => useQuery({
   queryKey: queryKeys.reports.recovery(),
-  queryFn: reportService.getRecoveryReport,
+  queryFn: () => reportService.getRecoveryReport(),
   enabled,
 });
 
-export const useRecoveredLoansQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.reports.recovered(),
-  queryFn: reportService.getRecoveredLoans,
-  enabled,
-});
+export const useRecoveredLoansQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
 
-export const useOutstandingLoansQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.reports.outstanding(),
-  queryFn: reportService.getOutstandingLoans,
-  enabled,
-});
+  return useQuery({
+    queryKey: queryKeys.reports.recovered(normalizedPagination),
+    queryFn: () => reportService.getRecoveredLoans(normalizedPagination),
+    enabled,
+  });
+};
+
+export const useOutstandingLoansQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.reports.outstanding(normalizedPagination),
+    queryFn: () => reportService.getOutstandingLoans(normalizedPagination),
+    enabled,
+  });
+};
 
 export const useLoanCreditHistoryQuery = (loanId, { enabled = true } = {}) => useQuery({
   queryKey: queryKeys.reports.creditHistory(loanId),
@@ -38,14 +47,22 @@ export const useCustomerCreditProfileQuery = (customerId, { enabled = true } = {
   enabled: enabled && Boolean(customerId),
 });
 
-export const useCustomerProfitabilityQuery = ({ enabled = true, filters = {} } = {}) => useQuery({
-  queryKey: queryKeys.reports.customerProfitability(filters),
-  queryFn: () => reportService.getCustomerProfitability(filters),
-  enabled,
-});
+export const useCustomerProfitabilityQuery = ({ enabled = true, filters = {}, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
 
-export const useLoanProfitabilityQuery = ({ enabled = true, filters = {} } = {}) => useQuery({
-  queryKey: queryKeys.reports.loanProfitability(filters),
-  queryFn: () => reportService.getLoanProfitability(filters),
-  enabled,
-});
+  return useQuery({
+    queryKey: queryKeys.reports.customerProfitability(filters, normalizedPagination),
+    queryFn: () => reportService.getCustomerProfitability(filters, normalizedPagination),
+    enabled,
+  });
+};
+
+export const useLoanProfitabilityQuery = ({ enabled = true, filters = {}, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.reports.loanProfitability(filters, normalizedPagination),
+    queryFn: () => reportService.getLoanProfitability(filters, normalizedPagination),
+    enabled,
+  });
+};

@@ -1,18 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paymentService } from '@/services/paymentService';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { normalizePaginationState } from '@/lib/api/pagination';
 
-export const usePaymentsQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.payments.all(),
-  queryFn: paymentService.listPayments,
-  enabled,
-});
+export const usePaymentsQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
 
-export const usePaymentsByLoanQuery = (loanId, { enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.payments.byLoan(loanId),
-  queryFn: () => paymentService.listPaymentsByLoan(loanId),
-  enabled: enabled && Boolean(loanId),
-});
+  return useQuery({
+    queryKey: queryKeys.payments.paged(normalizedPagination),
+    queryFn: () => paymentService.listPayments(normalizedPagination),
+    enabled,
+  });
+};
+
+export const usePaymentsByLoanQuery = (loanId, { enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.payments.byLoanPaged(loanId, normalizedPagination),
+    queryFn: () => paymentService.listPaymentsByLoan(loanId, normalizedPagination),
+    enabled: enabled && Boolean(loanId),
+  });
+};
 
 export const usePaymentDocumentsQuery = (paymentId, { enabled = true } = {}) => useQuery({
   queryKey: queryKeys.payments.documents(paymentId),

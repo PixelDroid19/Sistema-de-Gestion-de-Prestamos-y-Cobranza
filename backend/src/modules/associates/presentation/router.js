@@ -1,5 +1,6 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases }) => {
   const router = express.Router();
@@ -16,9 +17,14 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     return null;
   };
 
-  router.get('/', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const associates = await useCases.listAssociates();
-    res.json({ success: true, count: associates.length, data: { associates } });
+  router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listAssociates({ pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { associates: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: { associates: result } });
   }));
 
   router.post('/', authMiddleware(['admin']), associateValidation.create, asyncHandler(async (req, res) => {

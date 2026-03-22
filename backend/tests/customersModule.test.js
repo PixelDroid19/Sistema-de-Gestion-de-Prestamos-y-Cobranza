@@ -22,6 +22,26 @@ test('createListCustomers returns repository results in descending business orde
   assert.deepEqual(customers, [{ id: 4 }, { id: 3 }]);
 });
 
+test('createListCustomers preserves repository pagination results', async () => {
+  const listCustomers = createListCustomers({
+    customerRepository: {
+      async listPage() {
+        return {
+          items: [{ id: 4 }, { id: 3 }],
+          pagination: { page: 2, pageSize: 2, totalItems: 5, totalPages: 3 },
+        };
+      },
+    },
+  });
+
+  const result = await listCustomers({ pagination: { page: 2, pageSize: 2 } });
+
+  assert.deepEqual(result, {
+    items: [{ id: 4 }, { id: 3 }],
+    pagination: { page: 2, pageSize: 2, totalItems: 5, totalPages: 3 },
+  });
+});
+
 test('createCreateCustomer delegates persistence to the repository', async () => {
   const createCustomer = createCreateCustomer({
     customerRepository: {

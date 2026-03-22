@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Button from '@/components/ui/Button'
+import PaginationControls from '@/components/ui/PaginationControls'
 import { formatCurrency } from '@/features/reports/reportsWorkspace.utils'
 
 function ReportsAdminSection(props) {
@@ -24,6 +25,8 @@ function ReportsAdminSection(props) {
     proportionalForm,
     selectedAssociatePortal,
     selectedAssociateProfitability,
+    customerProfitabilityPagination,
+    loanProfitabilityPagination,
     createAssociatePending,
     updateAssociatePending,
     deleteAssociatePending,
@@ -44,6 +47,8 @@ function ReportsAdminSection(props) {
     onCreateReinvestment,
     onProportionalFormChange,
     onCreateProportionalDistribution,
+    onCustomerProfitabilityPageChange,
+    onLoanProfitabilityPageChange,
   } = props
 
   return (
@@ -91,6 +96,66 @@ function ReportsAdminSection(props) {
           <div className="summary-grid section-margin-top">
             <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerProfitabilityRows')}</div><div className="detail-card__value">{customerProfitability.length}</div></div>
             <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.loanProfitabilityRows')}</div><div className="detail-card__value">{loanProfitability.length}</div></div>
+          </div>
+          <div className="dashboard-page-stack section-stack--compact section-margin-top">
+            <PaginationControls pagination={customerProfitabilityPagination} onPageChange={onCustomerProfitabilityPageChange} />
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t('reports.admin.fields.customerId')}</th>
+                    <th>{t('reports.admin.fields.customerName')}</th>
+                    <th>{t('reports.admin.fields.customerProfitabilityRows')}</th>
+                    <th className="table-cell-right">{t('reports.admin.fields.exposure')}</th>
+                    <th className="table-cell-right">Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customerProfitability.length === 0 ? (
+                    <tr><td colSpan="5" className="table-cell-center">No customer profitability rows</td></tr>
+                  ) : (
+                    customerProfitability.map((row) => (
+                      <tr key={row.customerId}>
+                        <td>#{row.customerId}</td>
+                        <td>{row.customerName || '-'}</td>
+                        <td>{row.loanCount || 0}</td>
+                        <td className="table-cell-right">{formatCurrency(row.outstandingBalance)}</td>
+                        <td className="table-cell-right">{formatCurrency(row.totalProfit)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <PaginationControls pagination={loanProfitabilityPagination} onPageChange={onLoanProfitabilityPageChange} />
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t('reports.admin.fields.loanId')}</th>
+                    <th>{t('reports.admin.fields.customerName')}</th>
+                    <th>{t('reports.portfolio.headers.status')}</th>
+                    <th className="table-cell-right">Collected</th>
+                    <th className="table-cell-right">Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loanProfitability.length === 0 ? (
+                    <tr><td colSpan="5" className="table-cell-center">No loan profitability rows</td></tr>
+                  ) : (
+                    loanProfitability.map((row) => (
+                      <tr key={row.loanId}>
+                        <td>#{row.loanId}</td>
+                        <td>{row.customerName || '-'}</td>
+                        <td>{row.loanStatus || '-'}</td>
+                        <td className="table-cell-right">{formatCurrency(row.totalCollected)}</td>
+                        <td className="table-cell-right">{formatCurrency(row.totalProfit)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>

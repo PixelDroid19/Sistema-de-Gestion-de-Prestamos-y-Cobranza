@@ -191,7 +191,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
     data: payments,
   });
   assert.deepEqual(calls, [
-    ['listPaymentsByLoan', { actor: { id: 3, role: 'customer' }, loanId: '22' }],
+    ['listPaymentsByLoan', { actor: { id: 3, role: 'customer' }, loanId: '22', pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
   ]);
 });
 

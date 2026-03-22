@@ -1,5 +1,6 @@
 const { ValidationError } = require('../utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('../modules/credits/application/creditSimulationService');
+const { parsePaginationQuery } = require('../modules/shared/pagination');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);
@@ -140,6 +141,15 @@ const validateIdempotencyKey = (value) => {
   return typeof value === 'string'
     && value.trim().length >= 8
     && value.trim().length <= 160;
+};
+
+const attachPagination = ({ defaultPage, defaultPageSize, maxPageSize } = {}) => (req, _res, next) => {
+  try {
+    req.pagination = parsePaginationQuery(req.query, { defaultPage, defaultPageSize, maxPageSize });
+    next();
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
@@ -771,6 +781,7 @@ module.exports = {
   validateAmount,
   validateInterestRate,
   validateTermMonths,
+  attachPagination,
   authValidation,
   loanValidation,
   paymentValidation,

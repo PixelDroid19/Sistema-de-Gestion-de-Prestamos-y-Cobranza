@@ -208,7 +208,7 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
     },
   });
   assert.deepEqual(calls, [
-    ['listLoans', { actor: { id: 2, role: 'admin' } }],
+    ['listLoans', { actor: { id: 2, role: 'admin' }, pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['createLoan', { actor: { id: 2, role: 'admin' }, payload: createPayload }],
     ['getLoanById', { actor: { id: 2, role: 'admin' }, loanId: '44' }],
   ]);
@@ -424,12 +424,23 @@ test('createCreditsRouter GET / scopes loans to the authenticated customer at ru
         { id: 41, customerId: 7, agentId: 9, status: 'approved' },
         { id: 43, customerId: 7, agentId: 11, status: 'defaulted' },
       ],
+      pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
     },
   });
 });
 
 test('createCreditsRouter GET / returns all loans to admins at runtime', async () => {
   const loanRepository = {
+    async listPage() {
+      return {
+        items: [
+          { id: 51, customerId: 7, agentId: 9, status: 'approved' },
+          { id: 52, customerId: 99, agentId: 7, status: 'pending' },
+          { id: 53, customerId: 18, agentId: null, status: 'defaulted' },
+        ],
+        pagination: { page: 1, pageSize: 25, totalItems: 3, totalPages: 1 },
+      };
+    },
     async list() {
       return [
         { id: 51, customerId: 7, agentId: 9, status: 'approved' },
@@ -467,6 +478,7 @@ test('createCreditsRouter GET / returns all loans to admins at runtime', async (
         { id: 52, customerId: 99, agentId: 7, status: 'pending' },
         { id: 53, customerId: 18, agentId: null, status: 'defaulted' },
       ],
+      pagination: { page: 1, pageSize: 25, totalItems: 3, totalPages: 1 },
     },
   });
 });

@@ -1,12 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { userService } from '@/services/userService';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { normalizePaginationState } from '@/lib/api/pagination';
 
-export const useUsersQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.users.all(),
-  queryFn: userService.listUsers,
-  enabled,
-});
+export const useUsersQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.users.paged(normalizedPagination),
+    queryFn: () => userService.listUsers(normalizedPagination),
+    enabled,
+  });
+};
 
 export const useUserQuery = (userId, { enabled = true } = {}) => useQuery({
   queryKey: queryKeys.users.detail(userId),

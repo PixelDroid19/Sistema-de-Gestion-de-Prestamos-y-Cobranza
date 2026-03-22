@@ -3,6 +3,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { loanService } from '@/services/loanService';
 import { paymentService } from '@/services/paymentService';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { normalizePaginationState } from '@/lib/api/pagination';
 
 const resolveScope = (user) => {
   if (!user) return 'anonymous';
@@ -144,15 +145,19 @@ const invalidatePromiseSideEffects = async (queryClient, loanId) => {
   await Promise.all(invalidations);
 };
 
-export const useLoansQuery = ({ user, enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.loans.all(resolveScope(user)),
-  queryFn: () => {
-    if (user?.role === 'customer') return loanService.listLoansByCustomer(user.id);
-    if (user?.role === 'agent') return loanService.listLoansByAgent(user.id);
-    return loanService.listLoans();
-  },
-  enabled: enabled && Boolean(user),
-});
+export const useLoansQuery = ({ user, enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.loans.paged(resolveScope(user), normalizedPagination),
+    queryFn: () => {
+      if (user?.role === 'customer') return loanService.listLoansByCustomer(user.id, normalizedPagination);
+      if (user?.role === 'agent') return loanService.listLoansByAgent(user.id, normalizedPagination);
+      return loanService.listLoans(normalizedPagination);
+    },
+    enabled: enabled && Boolean(user),
+  });
+};
 
 export const useLoanDetailQuery = (loanId, { enabled = true } = {}) => useQuery({
   queryKey: queryKeys.loans.detail(loanId),
@@ -195,8 +200,8 @@ export const useLoanServicingQueries = (loans, user) => {
 
   const paymentQueries = useQueries({
     queries: loanIds.map((loanId) => ({
-      queryKey: queryKeys.payments.byLoan(loanId),
-      queryFn: () => paymentService.listPaymentsByLoan(loanId),
+      queryKey: queryKeys.payments.byLoanPaged(loanId, { page: 1, pageSize: 10 }),
+      queryFn: () => paymentService.listPaymentsByLoan(loanId, { page: 1, pageSize: 10 }),
       enabled: Boolean(loanId),
     })),
   });

@@ -1,3 +1,10 @@
+import { normalizePaginationState } from '@/lib/api/pagination';
+
+const pagedKey = (segments, pagination = {}) => {
+  const normalized = normalizePaginationState(pagination);
+  return [...segments, 'page', normalized.page, normalized.pageSize];
+};
+
 export const queryKeys = {
   auth: {
     profile: () => ['auth', 'profile'],
@@ -7,6 +14,7 @@ export const queryKeys = {
   },
   loans: {
     all: (scope = 'all') => ['loans', scope],
+    paged: (scope = 'all', pagination = {}) => pagedKey(['loans', scope], pagination),
     detail: (loanId) => ['loans', 'detail', loanId],
     payments: (loanId) => ['loans', loanId, 'payments'],
     alerts: (loanId) => ['loans', loanId, 'alerts'],
@@ -21,19 +29,24 @@ export const queryKeys = {
   },
   payments: {
     all: () => ['payments'],
+    paged: (pagination = {}) => pagedKey(['payments'], pagination),
     byLoan: (loanId) => ['payments', 'loan', loanId],
+    byLoanPaged: (loanId, pagination = {}) => pagedKey(['payments', 'loan', loanId], pagination),
     documents: (paymentId) => ['payments', 'documents', paymentId],
   },
   agents: {
     all: () => ['agents'],
+    paged: (pagination = {}) => pagedKey(['agents'], pagination),
   },
   customers: {
     all: () => ['customers'],
+    paged: (pagination = {}) => pagedKey(['customers'], pagination),
     documents: (customerId) => ['customers', customerId, 'documents'],
     history: (customerId) => ['customers', customerId, 'history'],
   },
   associates: {
     all: () => ['associates'],
+    paged: (pagination = {}) => pagedKey(['associates'], pagination),
     detail: (associateId) => ['associates', associateId],
     portal: (associateId) => ['associates', associateId || 'me', 'portal'],
     profitability: (associateId) => ['associates', associateId || 'me', 'profitability'],
@@ -41,12 +54,12 @@ export const queryKeys = {
   reports: {
     dashboard: () => ['reports', 'dashboard'],
     recovery: () => ['reports', 'recovery'],
-    recovered: () => ['reports', 'recovered'],
-    outstanding: () => ['reports', 'outstanding'],
+    recovered: (pagination = {}) => pagedKey(['reports', 'recovered'], pagination),
+    outstanding: (pagination = {}) => pagedKey(['reports', 'outstanding'], pagination),
     creditHistory: (loanId) => ['reports', 'credit-history', loanId],
     customerCreditProfile: (customerId) => ['reports', 'customer-credit-profile', customerId],
-    customerProfitability: (filters = {}) => ['reports', 'customer-profitability', filters.fromDate || 'all', filters.toDate || 'all'],
-    loanProfitability: (filters = {}) => ['reports', 'loan-profitability', filters.fromDate || 'all', filters.toDate || 'all'],
+    customerProfitability: (filters = {}, pagination = {}) => pagedKey(['reports', 'customer-profitability', filters.fromDate || 'all', filters.toDate || 'all'], pagination),
+    loanProfitability: (filters = {}, pagination = {}) => pagedKey(['reports', 'loan-profitability', filters.fromDate || 'all', filters.toDate || 'all'], pagination),
   },
   notifications: {
     all: () => ['notifications'],
@@ -54,6 +67,7 @@ export const queryKeys = {
   },
   users: {
     all: () => ['users'],
+    paged: (pagination = {}) => pagedKey(['users'], pagination),
     detail: (userId) => ['users', userId],
   },
 };

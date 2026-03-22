@@ -20,6 +20,7 @@ const { roundCurrency } = require('../application/creditFormulaHelpers');
 const { createCreditsDagConfig } = require('../application/dag/config');
 const { createCreditsCalculationService } = require('../application/dag/calculationAdapter');
 const { logDagComparison } = require('../../../utils/logger');
+const { paginateModel } = require('../../shared/pagination');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
 const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
@@ -61,6 +62,15 @@ const createCreditsInfrastructure = ({
       list() {
         return loanModel.findAll({ include: loanIncludes, order: [['createdAt', 'DESC']] });
       },
+      listPage({ page, pageSize }) {
+        return paginateModel({
+          model: loanModel,
+          page,
+          pageSize,
+          include: loanIncludes,
+          order: [['createdAt', 'DESC']],
+        });
+      },
       listForOverdueAlertSync() {
         return loanModel.findAll({
           where: {
@@ -76,8 +86,28 @@ const createCreditsInfrastructure = ({
       listByCustomer(customerId) {
         return loanModel.findAll({ where: { customerId }, include: [agentModel, associateModel], order: [['createdAt', 'DESC']] });
       },
+      listPageByCustomer({ customerId, page, pageSize }) {
+        return paginateModel({
+          model: loanModel,
+          page,
+          pageSize,
+          where: { customerId },
+          include: [agentModel, associateModel],
+          order: [['createdAt', 'DESC']],
+        });
+      },
       listByAgent(agentId) {
         return loanModel.findAll({ where: { agentId }, include: [customerModel, associateModel], order: [['createdAt', 'DESC']] });
+      },
+      listPageByAgent({ agentId, page, pageSize }) {
+        return paginateModel({
+          model: loanModel,
+          page,
+          pageSize,
+          where: { agentId },
+          include: [customerModel, associateModel],
+          order: [['createdAt', 'DESC']],
+        });
       },
       save(loan) {
         return loan.save();

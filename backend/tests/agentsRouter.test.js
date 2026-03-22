@@ -39,9 +39,12 @@ test('createAgentsRouter serves list and create contract responses', async () =>
     agentValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
-      async listAgents() {
-        calls.push(['listAgents']);
-        return agents;
+      async listAgents(input) {
+        calls.push(['listAgents', input]);
+        return {
+          items: agents,
+          pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
+        };
       },
       async createAgent(payload) {
         calls.push(['createAgent', payload]);
@@ -78,7 +81,7 @@ test('createAgentsRouter serves list and create contract responses', async () =>
   assert.deepEqual(listResponse.body, {
     success: true,
     count: 2,
-    data: agents,
+    data: { agents, pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 } },
   });
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
@@ -92,7 +95,7 @@ test('createAgentsRouter serves list and create contract responses', async () =>
     },
   });
   assert.deepEqual(calls, [
-    ['listAgents'],
+    ['listAgents', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['createAgent', createPayload],
   ]);
 });

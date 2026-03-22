@@ -1,13 +1,19 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();
 
   // List all payments (admin only)
-  router.get('/', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const payments = await useCases.listPayments({ actor: req.user });
-    res.json({ success: true, count: payments.length, data: payments });
+  router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listPayments({ actor: req.user, pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { payments: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: result });
   }));
 
   // Create regular payment (customer)
@@ -67,9 +73,14 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Get payments for a specific loan
-  router.get('/loan/:loanId', authMiddleware(), asyncHandler(async (req, res) => {
-    const payments = await useCases.listPaymentsByLoan({ actor: req.user, loanId: req.params.loanId });
-    res.json({ success: true, count: payments.length, data: payments });
+  router.get('/loan/:loanId', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listPaymentsByLoan({ actor: req.user, loanId: req.params.loanId, pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { payments: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: result });
   }));
 
   router.get('/:paymentId/documents', authMiddleware(['admin', 'agent', 'customer']), asyncHandler(async (req, res) => {

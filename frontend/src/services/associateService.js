@@ -1,7 +1,8 @@
 import { apiRequest } from '@/lib/api/client';
+import { buildPaginatedCollection, withPaginationParams } from '@/lib/api/pagination';
 
 export const associateService = {
-  listAssociates: () => apiRequest('/api/associates'),
+  listAssociates: async (pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams('/api/associates', pagination)), 'associates'),
   createAssociate: (payload) => apiRequest('/api/associates', { method: 'POST', body: payload }),
   getAssociateById: (associateId) => apiRequest(`/api/associates/${associateId}`),
   updateAssociate: (associateId, payload) => apiRequest(`/api/associates/${associateId}`, { method: 'PATCH', body: payload }),

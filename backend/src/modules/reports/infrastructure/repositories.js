@@ -13,6 +13,7 @@ const {
   ProfitDistribution,
   User,
 } = require('../../../models');
+const { paginateModel, buildPaginatedResult } = require('../../shared/pagination');
 
 const reportIncludes = [
   {
@@ -29,12 +30,36 @@ const reportIncludes = [
   },
 ];
 
+const buildPaymentDateWhere = ({ fromDate = null, toDate = null } = {}) => {
+  const paymentDateWhere = {};
+
+  if (fromDate) {
+    paymentDateWhere[Op.gte] = fromDate;
+  }
+
+  if (toDate) {
+    paymentDateWhere[Op.lte] = toDate;
+  }
+
+  return paymentDateWhere;
+};
+
 /**
  * Repository contract for report-oriented loan queries with shared related models included.
  */
 const reportRepository = {
   listRecoveredLoans() {
     return Loan.findAll({
+      where: { status: 'closed' },
+      include: reportIncludes,
+      order: [['updatedAt', 'DESC']],
+    });
+  },
+  listRecoveredLoansPage({ page, pageSize }) {
+    return paginateModel({
+      model: Loan,
+      page,
+      pageSize,
       where: { status: 'closed' },
       include: reportIncludes,
       order: [['updatedAt', 'DESC']],
@@ -49,8 +74,32 @@ const reportRepository = {
       order: [['updatedAt', 'DESC']],
     });
   },
+  listOutstandingLoansPage({ page, pageSize }) {
+    return paginateModel({
+      model: Loan,
+      page,
+      pageSize,
+      where: {
+        status: { [Op.in]: ['approved', 'active', 'defaulted', 'closed'] },
+      },
+      include: reportIncludes,
+      order: [['updatedAt', 'DESC']],
+    });
+  },
   listRecoveryLoans() {
     return Loan.findAll({
+      where: {
+        status: { [Op.in]: ['approved', 'active', 'defaulted', 'closed'] },
+      },
+      include: reportIncludes,
+      order: [['updatedAt', 'DESC']],
+    });
+  },
+  listRecoveryLoansPage({ page, pageSize }) {
+    return paginateModel({
+      model: Loan,
+      page,
+      pageSize,
       where: {
         status: { [Op.in]: ['approved', 'active', 'defaulted', 'closed'] },
       },
@@ -126,17 +175,7 @@ const reportRepository = {
     return this.getCustomerHistory(customerId);
   },
   async listProfitabilityDataset({ fromDate = null, toDate = null } = {}) {
-    const paymentDateWhere = {};
-
-    if (fromDate || toDate) {
-      if (fromDate) {
-        paymentDateWhere[Op.gte] = fromDate;
-      }
-
-      if (toDate) {
-        paymentDateWhere[Op.lte] = toDate;
-      }
-    }
+    const paymentDateWhere = buildPaymentDateWhere({ fromDate, toDate });
 
     const [loans, payments] = await Promise.all([
       Loan.findAll({
@@ -154,6 +193,73 @@ const reportRepository = {
     return {
       loans,
       payments,
+    };
+  },
+  async listLoanProfitabilityPage({ fromDate = null, toDate = null, page, pageSize }) {
+    const paymentDateWhere = buildPaymentDateWhere({ fromDate, toDate });
+    const loanPage = await paginateModel({
+      model: Loan,
+      page,
+      pageSize,
+      include: reportIncludes,
+      order: [['createdAt', 'DESC']],
+    });
+    const loanIds = loanPage.items.map((loan) => loan.id);
+    const payments = loanIds.length > 0
+      ? await Payment.findAll({
+        where: {
+          loanId: { [Op.in]: loanIds },
+          ...(Object.keys(paymentDateWhere).length > 0 ? { paymentDate: paymentDateWhere } : {}),
+        },
+        order: [['paymentDate', 'DESC'], ['createdAt', 'DESC'], ['id', 'DESC']],
+      })
+      : [];
+
+    return {
+      items: {
+        loans: loanPage.items,
+        payments,
+      },
+      pagination: loanPage.pagination,
+    };
+  },
+  async listCustomerProfitabilityPage({ fromDate = null, toDate = null, page, pageSize }) {
+    const paymentDateWhere = buildPaymentDateWhere({ fromDate, toDate });
+    const customerPage = await paginateModel({
+      model: Customer,
+      page,
+      pageSize,
+      include: [{ model: Loan, attributes: [], required: true }],
+      order: [['createdAt', 'DESC']],
+      distinct: true,
+      findOptions: { subQuery: false },
+    });
+    const customerIds = customerPage.items.map((customer) => customer.id);
+    const loans = customerIds.length > 0
+      ? await Loan.findAll({
+        where: { customerId: { [Op.in]: customerIds } },
+        include: reportIncludes,
+        order: [['createdAt', 'DESC']],
+      })
+      : [];
+    const loanIds = loans.map((loan) => loan.id);
+    const payments = loanIds.length > 0
+      ? await Payment.findAll({
+        where: {
+          loanId: { [Op.in]: loanIds },
+          ...(Object.keys(paymentDateWhere).length > 0 ? { paymentDate: paymentDateWhere } : {}),
+        },
+        order: [['paymentDate', 'DESC'], ['createdAt', 'DESC'], ['id', 'DESC']],
+      })
+      : [];
+
+    return {
+      items: {
+        customers: customerPage.items,
+        loans,
+        payments,
+      },
+      pagination: customerPage.pagination,
     };
   },
   async getAssociateExportDataset(associateId) {

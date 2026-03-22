@@ -30,6 +30,26 @@ test('createListAssociates returns repository results in name order', async () =
   assert.deepEqual(associates, [{ id: 4, participationPercentage: null }, { id: 3, participationPercentage: null }]);
 });
 
+test('createListAssociates preserves pagination metadata with normalized associate rows', async () => {
+  const listAssociates = createListAssociates({
+    associateRepository: {
+      async listPage() {
+        return {
+          items: [{ id: 4, participationPercentage: '25.0000' }, { id: 3, participationPercentage: null }],
+          pagination: { page: 2, pageSize: 5, totalItems: 7, totalPages: 2 },
+        };
+      },
+    },
+  });
+
+  const result = await listAssociates({ pagination: { page: 2, pageSize: 5 } });
+
+  assert.deepEqual(result, {
+    items: [{ id: 4, participationPercentage: '25.0000' }, { id: 3, participationPercentage: null }],
+    pagination: { page: 2, pageSize: 5, totalItems: 7, totalPages: 2 },
+  });
+});
+
 test('createGetAssociateById rejects when the record is missing', async () => {
   const getAssociateById = createGetAssociateById({
     associateRepository: {

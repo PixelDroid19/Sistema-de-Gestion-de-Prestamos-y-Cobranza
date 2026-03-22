@@ -37,6 +37,35 @@ test('createListUsers sanitizes administrative user listings', async () => {
   ]);
 });
 
+test('createListUsers preserves pagination metadata while sanitizing items', async () => {
+  const listUsers = createListUsers({
+    userRepository: {
+      async findPage() {
+        return {
+          items: [{ id: 1, name: 'Admin', email: 'admin@example.com', role: 'admin', password: 'hidden', isActive: true }],
+          pagination: { page: 2, pageSize: 10, totalItems: 11, totalPages: 2 },
+        };
+      },
+    },
+  });
+
+  const result = await listUsers({ pagination: { page: 2, pageSize: 10 } });
+
+  assert.deepEqual(result, {
+    items: [{
+      id: 1,
+      name: 'Admin',
+      email: 'admin@example.com',
+      role: 'admin',
+      associateId: null,
+      isActive: true,
+      createdAt: undefined,
+      updatedAt: undefined,
+    }],
+    pagination: { page: 2, pageSize: 10, totalItems: 11, totalPages: 2 },
+  });
+});
+
 test('createUpdateUser rejects duplicate email changes', async () => {
   const updateUser = createUpdateUser({
     userRepository: {

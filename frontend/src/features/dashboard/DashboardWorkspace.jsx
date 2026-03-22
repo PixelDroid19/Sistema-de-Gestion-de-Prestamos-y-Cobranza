@@ -52,16 +52,20 @@ function DashboardWorkspace({ user }) {
   const dashboardSummaryQuery = useDashboardSummaryQuery({ enabled: user.role === 'admin' })
 
   const partnerSummary = associateProfitabilityQuery.data?.data?.report || null
-  const queriedLoans = Array.isArray(loansQuery.data?.data?.loans)
-    ? loansQuery.data.data.loans
-    : Array.isArray(loansQuery.data?.data)
-      ? loansQuery.data.data
-      : []
-  const queriedPayments = Array.isArray(paymentsQuery.data?.data)
-    ? paymentsQuery.data.data
-    : Array.isArray(paymentsQuery.data?.data?.payments)
-      ? paymentsQuery.data.data.payments
-      : []
+  const queriedLoans = Array.isArray(loansQuery.data?.items)
+    ? loansQuery.data.items
+    : Array.isArray(loansQuery.data?.data?.loans)
+      ? loansQuery.data.data.loans
+      : Array.isArray(loansQuery.data?.data)
+        ? loansQuery.data.data
+        : []
+  const queriedPayments = Array.isArray(paymentsQuery.data?.items)
+    ? paymentsQuery.data.items
+    : Array.isArray(paymentsQuery.data?.data)
+      ? paymentsQuery.data.data
+      : Array.isArray(paymentsQuery.data?.data?.payments)
+        ? paymentsQuery.data.data.payments
+        : []
 
   const summary = isPartner
     ? {

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Agents from '@/components/agents/AgentsSelect';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import PaginationControls from '@/components/ui/PaginationControls';
 import StatePanel from '@/components/ui/StatePanel';
 import {
   LOAN_STATUS_TONE_MAP,
@@ -164,6 +165,8 @@ function LoansPortfolioSection({
   assignAgentPending,
   updateRecoveryPending,
   deleteLoanPending,
+  pagination,
+  onPageChange,
   onRefetch,
   onSelectAgent,
   onAssignAgent,
@@ -210,10 +213,12 @@ function LoansPortfolioSection({
     }
 
     return (
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
+      <div className="dashboard-page-stack section-stack--compact">
+        <PaginationControls pagination={pagination} isPending={loansQuery.isFetching} onPageChange={onPageChange} />
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
                 <th>{t('loans.portfolio.headers.loanId')}</th>
                 {(user.role === 'admin' || user.role === 'agent') && <th>{t('loans.portfolio.headers.customer')}</th>}
                 <th className="table-cell-right">{t('loans.portfolio.headers.amount')}</th>
@@ -227,10 +232,10 @@ function LoansPortfolioSection({
                 <th className="table-cell-center">{t('loans.portfolio.headers.servicing')}</th>
                 <th className="table-cell-center">{t('loans.portfolio.headers.actions')}</th>
               </tr>
-          </thead>
-          <tbody>
-            {[...loans]
-              .sort((left, right) => {
+            </thead>
+            <tbody>
+              {[...loans]
+               .sort((left, right) => {
                 if (left.status === 'rejected' && right.status !== 'rejected') return 1;
                 if (left.status !== 'rejected' && right.status === 'rejected') return -1;
                 return Number(right.id) - Number(left.id);
@@ -340,9 +345,10 @@ function LoansPortfolioSection({
                     </td>
                   </tr>
                 );
-              })}
-          </tbody>
-        </table>
+               })}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };

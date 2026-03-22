@@ -1,12 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { associateService } from '@/services/associateService';
 import { queryKeys } from '@/lib/api/queryKeys';
+import { normalizePaginationState } from '@/lib/api/pagination';
 
-export const useAssociatesQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.associates.all(),
-  queryFn: associateService.listAssociates,
-  enabled,
-});
+export const useAssociatesQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.associates.paged(normalizedPagination),
+    queryFn: () => associateService.listAssociates(normalizedPagination),
+    enabled,
+  });
+};
 
 export const useAssociatePortalQuery = (associateId, { enabled = true } = {}) => useQuery({
   queryKey: queryKeys.associates.portal(associateId),

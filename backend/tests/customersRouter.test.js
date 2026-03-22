@@ -35,9 +35,12 @@ test('createCustomersRouter serves list and create contract responses', async ()
     authMiddleware: allowAuth,
     attachmentUpload: { single() { return (req, res, next) => next(); } },
     useCases: {
-      async listCustomers() {
-        calls.push(['listCustomers']);
-        return customers;
+      async listCustomers(input) {
+        calls.push(['listCustomers', input]);
+        return {
+          items: customers,
+          pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
+        };
       },
       async createCustomer(payload) {
         calls.push(['createCustomer', payload]);
@@ -86,7 +89,8 @@ test('createCustomersRouter serves list and create contract responses', async ()
   assert.equal(listResponse.statusCode, 200);
   assert.deepEqual(listResponse.body, {
     success: true,
-    data: customers,
+    count: 2,
+    data: { customers, pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 } },
     message: 'Customers retrieved successfully',
   });
   assert.equal(createResponse.statusCode, 201);
@@ -101,7 +105,7 @@ test('createCustomersRouter serves list and create contract responses', async ()
     message: 'Customer created successfully',
   });
   assert.deepEqual(calls, [
-    ['listCustomers'],
+    ['listCustomers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['createCustomer', createPayload],
   ]);
 });

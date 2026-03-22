@@ -43,6 +43,10 @@ import {
 import PaymentsFormSection from '@/features/payments/sections/PaymentsFormSection';
 import PaymentsHeroSection from '@/features/payments/sections/PaymentsHeroSection';
 import PaymentsHistorySection from '@/features/payments/sections/PaymentsHistorySection';
+import { usePaginationStore } from '@/store/paginationStore';
+
+const PAYMENTS_HISTORY_SCOPE = 'workspace-payments-history';
+const DEFAULT_PAGINATION = { page: 1, pageSize: 25 };
 
 function PaymentsWorkspace({ user }) {
   const { t } = useTranslation()
@@ -61,11 +65,18 @@ function PaymentsWorkspace({ user }) {
   const [actionErrorDetails, setActionErrorDetails] = useState(null);
   const [selectedPaymentId, setSelectedPaymentId] = useState('');
   const [paymentDocumentDraft, setPaymentDocumentDraft] = useState({ file: null, category: '', description: '', customerVisible: false });
+  const paymentHistoryPagination = usePaginationStore((state) => state.scopes[PAYMENTS_HISTORY_SCOPE] || DEFAULT_PAGINATION);
+  const ensurePaymentHistoryScope = usePaginationStore((state) => state.ensureScope);
+  const setPaymentHistoryPage = usePaginationStore((state) => state.setPage);
 
-  const loansQuery = useLoansQuery({ user });
+  useEffect(() => {
+    ensurePaymentHistoryScope(PAYMENTS_HISTORY_SCOPE, DEFAULT_PAGINATION);
+  }, [ensurePaymentHistoryScope]);
+
+  const loansQuery = useLoansQuery({ user, pagination: { page: 1, pageSize: 100 } });
   const loans = useMemo(() => (
-    Array.isArray(loansQuery.data?.data?.loans)
-      ? loansQuery.data.data.loans
+    Array.isArray(loansQuery.data?.items)
+      ? loansQuery.data.items
       : Array.isArray(loansQuery.data?.data)
         ? loansQuery.data.data
         : []
@@ -73,7 +84,17 @@ function PaymentsWorkspace({ user }) {
   const selectedLoanId = formState.loanId || null;
   const selectedLoan = loans.find((loan) => loan.id === Number(formState.loanId));
   const isSelectedLoanPayable = Boolean(selectedLoan && PAYABLE_LOAN_STATUSES.has(selectedLoan.status));
-  const paymentsQuery = usePaymentsByLoanQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
+
+  useEffect(() => {
+    if (!selectedLoanId) {
+      setPaymentHistoryPage(PAYMENTS_HISTORY_SCOPE, DEFAULT_PAGINATION.page);
+    }
+  }, [selectedLoanId, setPaymentHistoryPage]);
+
+  const paymentsQuery = usePaymentsByLoanQuery(selectedLoanId, {
+    enabled: Boolean(selectedLoanId),
+    pagination: paymentHistoryPagination,
+  });
   const calendarQuery = useLoanCalendarQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const attachmentsQuery = useLoanAttachmentsQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const payoffQuoteQuery = useLoanPayoffQuoteQuery(selectedLoanId, formState.payoffDate, {
@@ -86,8 +107,13 @@ function PaymentsWorkspace({ user }) {
   const executePayoffMutation = useExecutePayoffMutation(user);
 
   const payments = useMemo(() => (
-    Array.isArray(paymentsQuery.data?.data) ? paymentsQuery.data.data : []
+    Array.isArray(paymentsQuery.data?.items)
+      ? paymentsQuery.data.items
+      : Array.isArray(paymentsQuery.data?.data)
+        ? paymentsQuery.data.data
+        : []
   ), [paymentsQuery.data]);
+  const paymentsPagination = paymentsQuery.data?.pagination || paymentsQuery.data?.data?.pagination || null;
   const effectivePaymentId = selectedPaymentId || payments[0]?.id || null;
   const paymentDocumentsQuery = usePaymentDocumentsQuery(effectivePaymentId, { enabled: Boolean(effectivePaymentId) });
   const uploadPaymentDocumentMutation = useUploadPaymentDocumentMutation(effectivePaymentId);
@@ -555,6 +581,8 @@ function PaymentsWorkspace({ user }) {
         onAnnulInstallment={handleAnnulInstallment}
         annulMutation={annulInstallmentMutation}
         nearestCancellableInstallmentNumber={nearestCancellableInstallmentNumber}
+        paymentsPagination={paymentsPagination}
+        onPaymentsPageChange={(page) => setPaymentHistoryPage(PAYMENTS_HISTORY_SCOPE, page)}
       />
     </div>
   );

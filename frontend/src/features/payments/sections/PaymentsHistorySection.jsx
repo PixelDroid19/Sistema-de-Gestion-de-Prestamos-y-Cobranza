@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import PaginationControls from '@/components/ui/PaginationControls';
 import StatePanel from '@/components/ui/StatePanel';
 import {
   INSTALLMENT_STATUS_LABELS,
@@ -100,6 +101,8 @@ function PaymentsHistorySection({
   onAnnulInstallment,
   annulMutation,
   nearestCancellableInstallmentNumber,
+  paymentsPagination,
+  onPaymentsPageChange,
 }) {
   const { t } = useTranslation()
   const renderContent = () => {
@@ -149,6 +152,11 @@ function PaymentsHistorySection({
 
     return (
       <div className="dashboard-page-stack section-stack--compact">
+        <PaginationControls
+          pagination={paymentsPagination}
+          isPending={historyLoading}
+          onPageChange={onPaymentsPageChange}
+        />
         <div className="table-wrap">
           <table className="data-table">
             <thead>

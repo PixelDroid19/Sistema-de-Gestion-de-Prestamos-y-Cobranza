@@ -1,5 +1,6 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createUsersRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
@@ -8,9 +9,14 @@ const createUsersRouter = ({ authMiddleware, useCases }) => {
   router.use(authMiddleware(['admin']));
 
   // List all users
-  router.get('/', asyncHandler(async (req, res) => {
-    const users = await useCases.listUsers();
-    res.json({ success: true, count: users.length, data: users });
+  router.get('/', attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listUsers({ pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { users: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: result });
   }));
 
   // Get single user

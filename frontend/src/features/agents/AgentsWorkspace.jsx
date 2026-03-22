@@ -6,10 +6,15 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card, { CardBody, CardHeader } from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
+import PaginationControls from '@/components/ui/PaginationControls'
 import StatePanel from '@/components/ui/StatePanel'
 import { useAgentsQuery } from '@/hooks/useAgents'
 import { handleApiError } from '@/lib/api/errors'
 import { authService } from '@/services/authService'
+import { usePaginationStore } from '@/store/paginationStore'
+
+const AGENTS_SCOPE = 'workspace-agents-roster'
+const DEFAULT_PAGINATION = { page: 1, pageSize: 25 }
 
 const emptyAgentForm = { name: '', email: '', phone: '', password: '' }
 
@@ -256,7 +261,14 @@ function AgentModal({
 function AgentsWorkspace() {
   const { t } = useTranslation()
   const [state, dispatch] = useReducer(reducer, initialState)
-  const agentsQuery = useAgentsQuery()
+  const agentsPagination = usePaginationStore((store) => store.scopes[AGENTS_SCOPE] || DEFAULT_PAGINATION)
+  const ensureAgentsScope = usePaginationStore((store) => store.ensureScope)
+  const setAgentsPage = usePaginationStore((store) => store.setPage)
+  const agentsQuery = useAgentsQuery({ pagination: agentsPagination })
+
+  useEffect(() => {
+    ensureAgentsScope(AGENTS_SCOPE, DEFAULT_PAGINATION)
+  }, [ensureAgentsScope])
 
   useEffect(() => {
     if (agentsQuery.error) {
@@ -265,9 +277,14 @@ function AgentsWorkspace() {
   }, [agentsQuery.error])
 
   const agents = useMemo(
-    () => (Array.isArray(agentsQuery.data?.data) ? agentsQuery.data.data : []),
+    () => (Array.isArray(agentsQuery.data?.items)
+      ? agentsQuery.data.items
+      : Array.isArray(agentsQuery.data?.data)
+        ? agentsQuery.data.data
+        : []),
     [agentsQuery.data],
   )
+  const agentsPaginationMeta = agentsQuery.data?.pagination || agentsQuery.data?.data?.pagination || null
 
   const activeCount = agents.filter((agent) => agent.isActive !== false).length
 
@@ -378,6 +395,7 @@ function AgentsWorkspace() {
           subtitle={t('agents.table.subtitle')}
         />
         <CardBody className="agents-page__table-card">
+          <PaginationControls pagination={agentsPaginationMeta} onPageChange={(page) => setAgentsPage(AGENTS_SCOPE, page)} />
           <AgentsTable
             agents={agents}
             emptyTitle={t('agents.table.emptyTitle')}

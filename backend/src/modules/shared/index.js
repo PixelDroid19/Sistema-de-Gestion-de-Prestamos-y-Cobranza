@@ -2,6 +2,15 @@ const { createModule } = require('./contracts');
 const { createAuthContext, resolveAuthContext } = require('./auth');
 const { respond, success, created } = require('./http');
 const { mapApplicationError } = require('./errors');
+const {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  parsePaginationQuery,
+  buildPaginationMeta,
+  buildPaginatedResult,
+  paginateModel,
+} = require('./pagination');
 
 /**
  * Re-export shared module helpers used by feature entrypoints and routers.
@@ -14,4 +23,11 @@ module.exports = {
   success,
   created,
   mapApplicationError,
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  parsePaginationQuery,
+  buildPaginationMeta,
+  buildPaginatedResult,
+  paginateModel,
 };

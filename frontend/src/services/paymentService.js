@@ -1,8 +1,9 @@
 import { apiRequest } from '@/lib/api/client';
+import { buildPaginatedCollection, withPaginationParams } from '@/lib/api/pagination';
 
 export const paymentService = {
-  listPayments: () => apiRequest('/api/payments'),
-  listPaymentsByLoan: (loanId) => apiRequest(`/api/payments/loan/${loanId}`),
+  listPayments: async (pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams('/api/payments', pagination)), 'payments'),
+  listPaymentsByLoan: async (loanId, pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams(`/api/payments/loan/${loanId}`, pagination)), 'payments'),
   createPayment: (payload) => apiRequest('/api/payments', { method: 'POST', body: payload }),
   createPartialPayment: (payload) => apiRequest('/api/payments/partial', { method: 'POST', body: payload }),
   createCapitalPayment: (payload) => apiRequest('/api/payments/capital', { method: 'POST', body: payload }),

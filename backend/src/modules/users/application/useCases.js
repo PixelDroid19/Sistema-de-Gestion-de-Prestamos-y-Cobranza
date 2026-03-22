@@ -22,7 +22,15 @@ const validateRole = (role) => {
 /**
  * Create the use case that lists all users (admin only)
  */
-const createListUsers = ({ userRepository }) => async () => {
+const createListUsers = ({ userRepository }) => async ({ pagination } = {}) => {
+  if (pagination) {
+    const result = await userRepository.findPage(pagination);
+    return {
+      items: result.items.map(sanitizeUser),
+      pagination: result.pagination,
+    };
+  }
+
   const users = await userRepository.findAll();
   return users.map(sanitizeUser);
 };

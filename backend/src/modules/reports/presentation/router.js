@@ -1,15 +1,16 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
 
-  router.get('/recovered', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    res.json(await useCases.getRecoveredLoans({ actor: req.user }));
+  router.get('/recovered', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    res.json(await useCases.getRecoveredLoans({ actor: req.user, pagination: req.pagination }));
   }));
 
-  router.get('/outstanding', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    res.json(await useCases.getOutstandingLoans({ actor: req.user }));
+  router.get('/outstanding', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    res.json(await useCases.getOutstandingLoans({ actor: req.user, pagination: req.pagination }));
   }));
 
   router.get('/recovery', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -28,16 +29,18 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId }));
   }));
 
-  router.get('/profitability/customers', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/profitability/customers', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerProfitabilityReport({
       actor: req.user,
+      pagination: req.pagination,
       filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
     }));
   }));
 
-  router.get('/profitability/loans', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/profitability/loans', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getLoanProfitabilityReport({
       actor: req.user,
+      pagination: req.pagination,
       filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
     }));
   }));

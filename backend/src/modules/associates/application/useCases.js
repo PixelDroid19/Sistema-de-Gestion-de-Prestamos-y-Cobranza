@@ -269,7 +269,15 @@ const ensureUniqueAssociateContact = async ({ associateRepository, email, phone,
  * @param {{ associateRepository: object }} dependencies
  * @returns {Function}
  */
-const createListAssociates = ({ associateRepository }) => async () => {
+const createListAssociates = ({ associateRepository }) => async ({ pagination } = {}) => {
+  if (pagination) {
+    const result = await associateRepository.listPage(pagination);
+    return {
+      items: result.items.map(normalizeAssociateRecord),
+      pagination: result.pagination,
+    };
+  }
+
   const associates = await associateRepository.list();
   return associates.map(normalizeAssociateRecord);
 };

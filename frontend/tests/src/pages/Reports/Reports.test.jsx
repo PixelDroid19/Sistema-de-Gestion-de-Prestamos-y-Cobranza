@@ -6,6 +6,7 @@ import { delay, http, HttpResponse } from 'msw'
 import i18n from '@/i18n'
 import { API_BASE_URL } from '@/lib/api/client'
 import Reports from '@/pages/Reports/Reports'
+import { usePaginationStore } from '@/store/paginationStore'
 import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
 
@@ -30,6 +31,7 @@ const recoverySummaryResponse = {
 describe('Reports page', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('es')
+    usePaginationStore.setState({ scopes: {} })
   })
 
   it('loads tab-specific report data only when the user switches sections', async () => {
@@ -45,23 +47,23 @@ describe('Reports page', () => {
         return HttpResponse.json(recoverySummaryResponse)
       }),
       http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
-        return HttpResponse.json({ data: { customers: [] } })
+        return HttpResponse.json({ data: { customers: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
       http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
-        return HttpResponse.json({ data: { loans: [] } })
+        return HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
       http.get(`${API_BASE_URL}/api/reports/recovered`, () => {
         requests.recovered += 1
-        return HttpResponse.json({ data: { loans: [] } })
+        return HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
       http.get(`${API_BASE_URL}/api/reports/outstanding`, () => {
         requests.outstanding += 1
-        return HttpResponse.json({ data: { loans: [] } })
+        return HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
-      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [] } })),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
       http.get(`${API_BASE_URL}/api/users`, () => {
         requests.users += 1
-        return HttpResponse.json({ data: [] })
+        return HttpResponse.json({ data: { users: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
     )
 
@@ -97,14 +99,14 @@ describe('Reports page', () => {
         return HttpResponse.json(recoverySummaryResponse)
       }),
       http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
-        return HttpResponse.json({ data: { customers: [] } })
+        return HttpResponse.json({ data: { customers: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
       http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
-        return HttpResponse.json({ data: { loans: [] } })
+        return HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })
       }),
-      http.get(`${API_BASE_URL}/api/reports/recovered`, () => HttpResponse.json({ data: { loans: [] } })),
-      http.get(`${API_BASE_URL}/api/reports/outstanding`, () => HttpResponse.json({ data: { loans: [] } })),
-      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/recovered`, () => HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/reports/outstanding`, () => HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
     )
 
     renderWithProviders(<Reports user={adminUser} />)
@@ -121,12 +123,12 @@ describe('Reports page', () => {
     server.use(
       http.get(`${API_BASE_URL}/api/reports/recovery`, () => HttpResponse.json(recoverySummaryResponse)),
       http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => {
-        return HttpResponse.json({ data: { customers: [{ customerId: 7 }] } })
+        return HttpResponse.json({ data: { customers: [{ customerId: 7 }], pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 } } })
       }),
       http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => {
-        return HttpResponse.json({ data: { loans: [{ loanId: 11 }] } })
+        return HttpResponse.json({ data: { loans: [{ loanId: 11 }], pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 } } })
       }),
-      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [] } })),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
       http.get(`${API_BASE_URL}/api/reports/customer-credit-profile/7`, () => {
         return HttpResponse.json({
           data: {
@@ -162,13 +164,14 @@ describe('Reports page', () => {
 
     server.use(
       http.get(`${API_BASE_URL}/api/reports/recovery`, () => HttpResponse.json(recoverySummaryResponse)),
-      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => HttpResponse.json({ data: { customers: [] } })),
-      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => HttpResponse.json({ data: { loans: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => HttpResponse.json({ data: { customers: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
       http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({
         data: {
           associates: [
             { id: 12, name: 'Partner One', participationPercentage: '25.0000', status: 'active' },
           ],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
         },
       })),
       http.get(`${API_BASE_URL}/api/associates/12/portal`, () => HttpResponse.json({
@@ -222,5 +225,40 @@ describe('Reports page', () => {
         reinvestmentDate: '2026-03-20',
       },
     ])
+  })
+
+  it('requests the next recovered page when pagination controls are used', async () => {
+    const recoveredPages = []
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/reports/recovery`, () => HttpResponse.json(recoverySummaryResponse)),
+      http.get(`${API_BASE_URL}/api/reports/profitability/customers`, () => HttpResponse.json({ data: { customers: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/reports/profitability/loans`, () => HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/associates`, () => HttpResponse.json({ data: { associates: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/reports/recovered`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') || '1')
+        recoveredPages.push(page)
+        return HttpResponse.json({
+          data: {
+            loans: page === 1 ? [{ id: 4, amount: 2000, totalPaid: 2000, updatedAt: '2026-03-01T00:00:00.000Z', Customer: { name: 'Loan A' } }] : [{ id: 5, amount: 2500, totalPaid: 2500, updatedAt: '2026-03-02T00:00:00.000Z', Customer: { name: 'Loan B' } }],
+            pagination: { page, pageSize: 25, totalItems: 30, totalPages: 2 },
+          },
+        })
+      }),
+      http.get(`${API_BASE_URL}/api/reports/outstanding`, () => HttpResponse.json({ data: { loans: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+      http.get(`${API_BASE_URL}/api/users`, () => HttpResponse.json({ data: { users: [], pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 } } })),
+    )
+
+    renderWithProviders(<Reports user={adminUser} />)
+
+    expect(await screen.findByText('Espacio de reportes')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Recuperados/i }))
+    expect(await screen.findByText('Loan A')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Siguiente|Next/i }))
+
+    expect(await screen.findByText('Loan B')).toBeInTheDocument()
+    expect(recoveredPages).toEqual([1, 2])
   })
 })

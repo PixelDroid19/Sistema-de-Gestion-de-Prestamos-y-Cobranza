@@ -457,6 +457,66 @@ test('profitability reports keep zero-activity loans and customers non-profitabl
   assert.equal(loanReport.data.loans[0].profitable, false);
 });
 
+test('profitability reports use repository-level paged queries when pagination is requested', async () => {
+  const calls = [];
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      calls.push('listProfitabilityDataset');
+      return {
+        loans: [
+          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
+          { id: 2, customerId: 8, amount: 500, status: 'closed', Customer: { name: 'Luis' }, financialSnapshot: { outstandingBalance: 0 } },
+        ],
+        payments: [
+          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
+          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
+        ],
+      };
+    },
+    async listCustomerProfitabilityPage({ page, pageSize }) {
+      calls.push(['listCustomerProfitabilityPage', page, pageSize]);
+      return {
+        items: {
+          customers: [{ id: 7, name: 'Ana' }],
+          loans: [{ id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } }],
+          payments: [{ id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' }],
+        },
+        pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
+      };
+    },
+    async listLoanProfitabilityPage({ page, pageSize }) {
+      calls.push(['listLoanProfitabilityPage', page, pageSize]);
+      return {
+        items: {
+          loans: [{ id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } }],
+          payments: [{ id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' }],
+        },
+        pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
+      };
+    },
+  };
+
+  const customerReport = await createGetCustomerProfitabilityReport({ reportRepository })({
+    actor: { id: 1, role: 'admin' },
+    pagination: { page: 2, pageSize: 1, limit: 1, offset: 1 },
+  });
+  const loanReport = await createGetLoanProfitabilityReport({ reportRepository })({
+    actor: { id: 1, role: 'admin' },
+    pagination: { page: 2, pageSize: 1, limit: 1, offset: 1 },
+  });
+
+  assert.deepEqual(calls, [
+    'listProfitabilityDataset',
+    ['listCustomerProfitabilityPage', 2, 1],
+    'listProfitabilityDataset',
+    ['listLoanProfitabilityPage', 2, 1],
+  ]);
+  assert.equal(customerReport.data.customers.length, 1);
+  assert.deepEqual(customerReport.data.pagination, { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });
+  assert.equal(loanReport.data.loans.length, 1);
+  assert.deepEqual(loanReport.data.pagination, { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });
+});
+
 test('createExportRecoveryReport returns a CSV attachment contract', async () => {
   const exportRecoveryReport = createExportRecoveryReport({
     reportRepository: {

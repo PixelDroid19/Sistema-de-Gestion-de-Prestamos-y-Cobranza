@@ -29,29 +29,38 @@ test('createReportsRouter serves report contract responses', async () => {
     authMiddleware: roleAwareAuth,
     useCases: {
       async getRecoveredLoans(input) {
-        calls.push(['getRecoveredLoans', input.actor.role]);
+        calls.push(['getRecoveredLoans', input.actor.role, input.pagination]);
         return {
           success: true,
           count: 1,
           summary: { totalRecoveredAmount: '1200.00' },
-          data: { loans: [{ id: 4 }] },
+          data: {
+            loans: [{ id: 4 }],
+            pagination: { page: input.pagination.page, pageSize: input.pagination.pageSize, totalItems: 1, totalPages: 1 },
+          },
         };
       },
       async getOutstandingLoans(input) {
-        calls.push(['getOutstandingLoans', input.actor.role]);
+        calls.push(['getOutstandingLoans', input.actor.role, input.pagination]);
         return {
           success: true,
           count: 1,
           summary: { totalOutstandingAmount: '500.00' },
-          data: { loans: [{ id: 5 }] },
+          data: {
+            loans: [{ id: 5 }],
+            pagination: { page: input.pagination.page, pageSize: input.pagination.pageSize, totalItems: 1, totalPages: 1 },
+          },
         };
       },
       async getRecoveryReport(input) {
-        calls.push(['getRecoveryReport', input.actor.role]);
+        calls.push(['getRecoveryReport', input.actor.role, input.pagination]);
         return {
           success: true,
           summary: { totalLoans: 2 },
-          data: { recoveredLoans: [{ id: 4 }], outstandingLoans: [{ id: 5 }] },
+          data: {
+            recoveredLoans: [{ id: 4 }],
+            outstandingLoans: [{ id: 5 }],
+          },
         };
       },
       async getDashboardSummary(input) {
@@ -66,11 +75,27 @@ test('createReportsRouter serves report contract responses', async () => {
         calls.push(['getCustomerCreditProfile', input.customerId]);
         return { success: true, data: { customer: { id: Number(input.customerId) }, profile: { completeness: { isComplete: true } } } };
       },
-      async getCustomerProfitabilityReport() {
-        return { success: true, summary: { totalProfit: '10.00' }, data: { customers: [{ customerId: 7 }] } };
+      async getCustomerProfitabilityReport(input) {
+        calls.push(['getCustomerProfitabilityReport', input.pagination]);
+        return {
+          success: true,
+          summary: { totalProfit: '10.00' },
+          data: {
+            customers: [{ customerId: 7 }],
+            pagination: { page: input.pagination.page, pageSize: input.pagination.pageSize, totalItems: 1, totalPages: 1 },
+          },
+        };
       },
-      async getLoanProfitabilityReport() {
-        return { success: true, summary: { totalProfit: '10.00' }, data: { loans: [{ loanId: 4 }] } };
+      async getLoanProfitabilityReport(input) {
+        calls.push(['getLoanProfitabilityReport', input.pagination]);
+        return {
+          success: true,
+          summary: { totalProfit: '10.00' },
+          data: {
+            loans: [{ loanId: 4 }],
+            pagination: { page: input.pagination.page, pageSize: input.pagination.pageSize, totalItems: 1, totalPages: 1 },
+          },
+        };
       },
       async exportRecoveryReport() {
         return {
@@ -102,11 +127,11 @@ test('createReportsRouter serves report contract responses', async () => {
   activeServer = await listen(app);
 
   const recoveredResponse = await requestJson(activeServer, {
-    path: '/recovered',
+    path: '/recovered?page=2&pageSize=5',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const outstandingResponse = await requestJson(activeServer, {
-    path: '/outstanding',
+    path: '/outstanding?page=3&pageSize=4',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const recoveryResponse = await requestJson(activeServer, {
@@ -126,16 +151,23 @@ test('createReportsRouter serves report contract responses', async () => {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const customerProfitabilityResponse = await requestJson(activeServer, {
-    path: '/profitability/customers',
+    path: '/profitability/customers?page=4&pageSize=3',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const loanProfitabilityResponse = await requestJson(activeServer, {
+    path: '/profitability/loans?page=5&pageSize=2',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
   assert.equal(recoveredResponse.statusCode, 200);
   assert.equal(recoveredResponse.body.summary.totalRecoveredAmount, '1200.00');
+  assert.deepEqual(recoveredResponse.body.data.pagination, { page: 2, pageSize: 5, totalItems: 1, totalPages: 1 });
   assert.equal(outstandingResponse.statusCode, 200);
   assert.equal(outstandingResponse.body.summary.totalOutstandingAmount, '500.00');
+  assert.deepEqual(outstandingResponse.body.data.pagination, { page: 3, pageSize: 4, totalItems: 1, totalPages: 1 });
   assert.equal(recoveryResponse.statusCode, 200);
   assert.equal(recoveryResponse.body.summary.totalLoans, 2);
+  assert.equal(recoveryResponse.body.data.pagination, undefined);
   assert.equal(dashboardResponse.statusCode, 200);
   assert.equal(dashboardResponse.body.data.summary.totalLoans, 2);
   assert.equal(customerHistoryResponse.statusCode, 200);
@@ -144,13 +176,57 @@ test('createReportsRouter serves report contract responses', async () => {
   assert.equal(customerProfileResponse.body.data.profile.completeness.isComplete, true);
   assert.equal(customerProfitabilityResponse.statusCode, 200);
   assert.equal(customerProfitabilityResponse.body.data.customers[0].customerId, 7);
+  assert.deepEqual(customerProfitabilityResponse.body.data.pagination, { page: 4, pageSize: 3, totalItems: 1, totalPages: 1 });
+  assert.equal(loanProfitabilityResponse.statusCode, 200);
+  assert.equal(loanProfitabilityResponse.body.data.loans[0].loanId, 4);
+  assert.deepEqual(loanProfitabilityResponse.body.data.pagination, { page: 5, pageSize: 2, totalItems: 1, totalPages: 1 });
   assert.deepEqual(calls, [
-    ['getRecoveredLoans', 'admin'],
-    ['getOutstandingLoans', 'admin'],
-    ['getRecoveryReport', 'admin'],
+    ['getRecoveredLoans', 'admin', { page: 2, pageSize: 5, limit: 5, offset: 5 }],
+    ['getOutstandingLoans', 'admin', { page: 3, pageSize: 4, limit: 4, offset: 8 }],
+    ['getRecoveryReport', 'admin', undefined],
     ['getDashboardSummary', 'admin'],
     ['getCustomerHistory', '7'],
     ['getCustomerCreditProfile', '7'],
+    ['getCustomerProfitabilityReport', { page: 4, pageSize: 3, limit: 3, offset: 9 }],
+    ['getLoanProfitabilityReport', { page: 5, pageSize: 2, limit: 2, offset: 8 }],
+  ]);
+});
+
+test('createReportsRouter rejects invalid pagination parameters', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getRecoveredLoans() {
+        throw new Error('getRecoveredLoans should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        message: error.message,
+        errors: error.errors || [],
+      },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/recovered?page=0&pageSize=500',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.success, false);
+  assert.deepEqual(response.body.error.errors, [
+    { field: 'page', message: 'page must be a positive integer' },
+    { field: 'pageSize', message: 'pageSize must be less than or equal to 100' },
   ]);
 });
 

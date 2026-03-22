@@ -46,9 +46,12 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     associateValidation,
     authMiddleware: roleAwareAuth,
     useCases: {
-      async listAssociates() {
-        calls.push(['listAssociates']);
-        return associates;
+      async listAssociates(input) {
+        calls.push(['listAssociates', input]);
+        return {
+          items: associates,
+          pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
+        };
       },
       async createAssociate(payload) {
         calls.push(['createAssociate', payload]);
@@ -129,7 +132,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(listResponse.body, {
     success: true,
     count: 2,
-    data: { associates },
+    data: { associates, pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 } },
   });
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
@@ -167,6 +170,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       },
     },
   });
+  assert.deepEqual(calls[0], ['listAssociates', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }]);
 });
 
 test('createAssociatesRouter replays proportional distributions safely for repeated idempotency keys', async () => {

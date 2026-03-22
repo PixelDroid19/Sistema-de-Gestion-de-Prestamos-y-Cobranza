@@ -3,7 +3,13 @@
  * @param {{ agentRepository: object }} dependencies
  * @returns {Function}
  */
-const createListAgents = ({ agentRepository }) => async () => agentRepository.list();
+const createListAgents = ({ agentRepository }) => async ({ pagination } = {}) => {
+  if (pagination) {
+    return agentRepository.listPage(pagination);
+  }
+
+  return agentRepository.list();
+};
 
 /**
  * Create the use case that persists a new agent record.

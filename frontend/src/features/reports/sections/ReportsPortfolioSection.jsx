@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import PaginationControls from '@/components/ui/PaginationControls'
 import StatePanel from '@/components/ui/StatePanel'
 import { RECOVERY_TONE_MAP, REPORT_TABS } from '@/features/reports/reportsWorkspace.constants'
 import { formatCurrency, formatDate, formatRecoveryStatus } from '@/features/reports/reportsWorkspace.utils'
@@ -138,6 +139,12 @@ function ReportsPortfolioSection({
   onSaveRole,
   onDeactivate,
   onReactivate,
+  recoveredPagination,
+  outstandingPagination,
+  usersPagination,
+  onRecoveredPageChange,
+  onOutstandingPageChange,
+  onUsersPageChange,
 }) {
   const { t } = useTranslation()
 
@@ -153,8 +160,10 @@ function ReportsPortfolioSection({
     }
 
     return (
-      <div className="table-wrap">
-        <table className="data-table">
+      <div className="dashboard-page-stack section-stack--compact">
+        <PaginationControls pagination={recoveredPagination} onPageChange={onRecoveredPageChange} />
+        <div className="table-wrap">
+          <table className="data-table">
           <thead>
             <tr>
               <th>{t('reports.portfolio.headers.id')}</th>
@@ -177,7 +186,8 @@ function ReportsPortfolioSection({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     )
   }
@@ -194,8 +204,10 @@ function ReportsPortfolioSection({
     }
 
     return (
-      <div className="table-wrap">
-        <table className="data-table">
+      <div className="dashboard-page-stack section-stack--compact">
+        <PaginationControls pagination={outstandingPagination} onPageChange={onOutstandingPageChange} />
+        <div className="table-wrap">
+          <table className="data-table">
           <thead>
             <tr>
               <th>{t('reports.portfolio.headers.id')}</th>
@@ -224,7 +236,8 @@ function ReportsPortfolioSection({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     )
   }
@@ -281,32 +294,35 @@ function ReportsPortfolioSection({
         <div className="surface-card__body">
           {activeTab === 'overview' && (
             <div className="summary-grid">
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewRecovered')}</div><div className="detail-card__value detail-card__value--success">{recoveredLoans.length}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewOutstanding')}</div><div className="detail-card__value detail-card__value--warning">{outstandingLoans.length}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewVisible')}</div><div className="detail-card__value">{recoveredLoans.length + outstandingLoans.length}</div></div>
+              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewRecovered')}</div><div className="detail-card__value detail-card__value--success">{recoverySummary?.recoveredLoans || 0}</div></div>
+              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewOutstanding')}</div><div className="detail-card__value detail-card__value--warning">{recoverySummary?.outstandingLoans || 0}</div></div>
+              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewVisible')}</div><div className="detail-card__value">{recoverySummary?.totalLoans || 0}</div></div>
               <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewRate')}</div><div className="detail-card__value detail-card__value--success">{recoverySummary?.recoveryRate || '0%'}</div></div>
             </div>
           )}
           {activeTab === 'recovered' && renderRecoveredTable()}
           {activeTab === 'outstanding' && renderOutstandingTable()}
           {activeTab === 'users' && isAdmin && (
-            <div className="table-wrap">
-              <UsersTable
-                users={users}
-                usersLoading={usersLoading}
-                editingUser={editingUser}
-                userRoleForm={userRoleForm}
-                currentUserId={currentUserId}
-                updateUserPending={updateUserPending}
-                deactivatePending={deactivatePending}
-                reactivatePending={reactivatePending}
-                onRoleChange={onRoleChange}
-                onStartEdit={onStartEdit}
-                onCancelEdit={onCancelEdit}
-                onSaveRole={onSaveRole}
-                onDeactivate={onDeactivate}
-                onReactivate={onReactivate}
-              />
+            <div className="dashboard-page-stack section-stack--compact">
+              <PaginationControls pagination={usersPagination} disabled={usersLoading} onPageChange={onUsersPageChange} />
+              <div className="table-wrap">
+                <UsersTable
+                  users={users}
+                  usersLoading={usersLoading}
+                  editingUser={editingUser}
+                  userRoleForm={userRoleForm}
+                  currentUserId={currentUserId}
+                  updateUserPending={updateUserPending}
+                  deactivatePending={deactivatePending}
+                  reactivatePending={reactivatePending}
+                  onRoleChange={onRoleChange}
+                  onStartEdit={onStartEdit}
+                  onCancelEdit={onCancelEdit}
+                  onSaveRole={onSaveRole}
+                  onDeactivate={onDeactivate}
+                  onReactivate={onReactivate}
+                />
+              </div>
             </div>
           )}
         </div>

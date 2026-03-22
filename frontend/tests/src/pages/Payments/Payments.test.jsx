@@ -104,7 +104,9 @@ describe('Payments page', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
 
-    await screen.findByRole('button', { name: 'Intentar de nuevo' })
+    await waitFor(() => {
+      expect(screen.queryByText('No se pudieron cargar los pagos')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Prestamo #10')).toBeInTheDocument()
     expect(paymentsAttempts).toBe(2)
   })

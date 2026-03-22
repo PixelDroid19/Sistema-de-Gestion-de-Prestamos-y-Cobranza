@@ -1,4 +1,5 @@
 const { Payment, Loan, DocumentAttachment, User } = require('../../../models');
+const { paginateModel } = require('../../shared/pagination');
 
 /**
  * Persistence port for payment list and loan-history queries.
@@ -7,8 +8,26 @@ const paymentRepository = {
   list() {
     return Payment.findAll({ include: Loan, order: [['createdAt', 'DESC']] });
   },
+  listPage({ page, pageSize }) {
+    return paginateModel({
+      model: Payment,
+      page,
+      pageSize,
+      include: [Loan],
+      order: [['createdAt', 'DESC']],
+    });
+  },
   listByLoan(loanId) {
     return Payment.findAll({ where: { loanId }, order: [['createdAt', 'DESC']] });
+  },
+  listPageByLoan({ loanId, page, pageSize }) {
+    return paginateModel({
+      model: Payment,
+      page,
+      pageSize,
+      where: { loanId },
+      order: [['createdAt', 'DESC']],
+    });
   },
   findById(id) {
     return Payment.findByPk(id, { include: [Loan] });

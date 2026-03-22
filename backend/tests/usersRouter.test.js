@@ -22,9 +22,12 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
   const router = createUsersRouter({
     authMiddleware: allowAuth(),
     useCases: {
-      async listUsers() {
-        calls.push(['listUsers']);
-        return [{ id: 2, role: 'agent', email: 'agent@example.com' }];
+      async listUsers(input) {
+        calls.push(['listUsers', input]);
+        return {
+          items: [{ id: 2, role: 'agent', email: 'agent@example.com' }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
       },
       async getUserById(userId) {
         calls.push(['getUserById', userId]);
@@ -63,12 +66,20 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
   const reactivateResponse = await requestJson(activeServer, { method: 'POST', path: '/7/reactivate', headers: { authorization: 'Bearer valid-token' } });
 
   assert.equal(listResponse.statusCode, 200);
+   assert.deepEqual(listResponse.body, {
+    success: true,
+    count: 1,
+    data: {
+      users: [{ id: 2, role: 'agent', email: 'agent@example.com' }],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    },
+   });
   assert.equal(getResponse.statusCode, 200);
   assert.equal(updateResponse.statusCode, 200);
   assert.equal(deactivateResponse.statusCode, 200);
   assert.equal(reactivateResponse.statusCode, 200);
   assert.deepEqual(calls, [
-    ['listUsers'],
+    ['listUsers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['getUserById', '7'],
     ['updateUser', '7', { role: 'agent' }],
     ['deactivateUser', '7'],

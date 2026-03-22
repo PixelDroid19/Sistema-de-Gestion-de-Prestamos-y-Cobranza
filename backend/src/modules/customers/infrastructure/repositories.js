@@ -1,5 +1,6 @@
 const Customer = require('../../../models/Customer');
 const { DocumentAttachment, User } = require('../../../models');
+const { paginateModel } = require('../../shared/pagination');
 
 /**
  * Persistence port for customer list and creation workflows.
@@ -7,6 +8,14 @@ const { DocumentAttachment, User } = require('../../../models');
 const customerRepository = {
   list() {
     return Customer.findAll({ order: [['createdAt', 'DESC']] });
+  },
+  listPage({ page, pageSize }) {
+    return paginateModel({
+      model: Customer,
+      page,
+      pageSize,
+      order: [['createdAt', 'DESC']],
+    });
   },
   create(payload) {
     return Customer.create(payload);

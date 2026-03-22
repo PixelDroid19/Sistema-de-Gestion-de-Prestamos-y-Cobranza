@@ -50,9 +50,15 @@
       "delete": "Delete",
       "cancel": "Cancel",
       "save": "Save",
+      "previous": "Previous",
+      "next": "Next",
       "refresh": "Refresh",
       "refreshing": "Refreshing...",
       "close": "Close"
+    },
+    "pagination": {
+      "navigation": "Pagination",
+      "pageIndicator": "Page {{page}} of {{totalPages}} ({{totalItems}} records)"
     },
     "values": {
       "notAvailable": "N/A",

@@ -1,9 +1,10 @@
 import { apiRequest } from '@/lib/api/client';
+import { buildPaginatedCollection, withPaginationParams } from '@/lib/api/pagination';
 
 export const loanService = {
-  listLoans: () => apiRequest('/api/loans'),
-  listLoansByCustomer: (customerId) => apiRequest(`/api/loans/customer/${customerId}`),
-  listLoansByAgent: (agentId) => apiRequest(`/api/loans/agent/${agentId}`),
+  listLoans: async (pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams('/api/loans', pagination)), 'loans'),
+  listLoansByCustomer: async (customerId, pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams(`/api/loans/customer/${customerId}`, pagination)), 'loans'),
+  listLoansByAgent: async (agentId, pagination) => buildPaginatedCollection(await apiRequest(withPaginationParams(`/api/loans/agent/${agentId}`, pagination)), 'loans'),
   getLoanById: (loanId) => apiRequest(`/api/loans/${loanId}`),
   createLoan: (payload) => apiRequest('/api/loans', { method: 'POST', body: payload }),
   simulateLoan: (payload) => apiRequest('/api/loans/simulations', { method: 'POST', body: payload }),

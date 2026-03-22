@@ -28,9 +28,13 @@ const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId
 /**
  * Create the use case that lists all payments for admins.
  */
-const createListPayments = ({ paymentRepository }) => async ({ actor }) => {
+const createListPayments = ({ paymentRepository }) => async ({ actor, pagination }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can access all payments');
+  }
+
+  if (pagination) {
+    return paymentRepository.listPage(pagination);
   }
 
   return paymentRepository.list();
@@ -107,8 +111,13 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
 /**
  * Create the use case that lists payment history for an authorized loan.
  */
-const createListPaymentsByLoan = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
+const createListPaymentsByLoan = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, loanId, pagination }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+
+  if (pagination) {
+    return paymentRepository.listPageByLoan({ loanId: loan.id, ...pagination });
+  }
+
   return paymentRepository.listByLoan(loan.id);
 };
 

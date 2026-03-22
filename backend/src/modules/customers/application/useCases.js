@@ -17,7 +17,13 @@ const normalizeAttachmentVisibility = (value) => {
  * @param {{ customerRepository: object }} dependencies
  * @returns {Function}
  */
-const createListCustomers = ({ customerRepository }) => async () => customerRepository.list();
+const createListCustomers = ({ customerRepository }) => async ({ pagination } = {}) => {
+  if (pagination) {
+    return customerRepository.listPage(pagination);
+  }
+
+  return customerRepository.list();
+};
 
 /**
  * Create the use case that persists a new customer record.

@@ -7,6 +7,7 @@ const {
   Loan,
   User,
 } = require('../../../models');
+const { paginateModel } = require('../../shared/pagination');
 
 const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
 
@@ -16,6 +17,14 @@ const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
 const associateRepository = {
   list() {
     return Associate.findAll({ order: [['name', 'ASC']] });
+  },
+  listPage({ page, pageSize }) {
+    return paginateModel({
+      model: Associate,
+      page,
+      pageSize,
+      order: [['name', 'ASC']],
+    });
   },
   findById(id) {
     return Associate.findByPk(id);

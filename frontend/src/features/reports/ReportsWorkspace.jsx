@@ -33,6 +33,7 @@ import {
 import { downloadFile } from '@/lib/api/download';
 import { handleApiError } from '@/lib/api/errors';
 import { reportService } from '@/services/reportService';
+import { usePaginationStore } from '@/store/paginationStore';
 
 import {
   emptyAssociateForm,
@@ -44,6 +45,13 @@ import ReportsAdminSection from '@/features/reports/sections/ReportsAdminSection
 import ReportsHeroSection from '@/features/reports/sections/ReportsHeroSection';
 import ReportsPartnerSection from '@/features/reports/sections/ReportsPartnerSection';
 import ReportsPortfolioSection from '@/features/reports/sections/ReportsPortfolioSection';
+
+const RECOVERED_SCOPE = 'workspace-reports-recovered';
+const OUTSTANDING_SCOPE = 'workspace-reports-outstanding';
+const USERS_SCOPE = 'workspace-reports-users';
+const CUSTOMER_PROFITABILITY_SCOPE = 'workspace-reports-customer-profitability';
+const LOAN_PROFITABILITY_SCOPE = 'workspace-reports-loan-profitability';
+const DEFAULT_PAGINATION = { page: 1, pageSize: 25 };
 
 function ReportsWorkspace({ user }) {
   const { t } = useTranslation()
@@ -65,10 +73,25 @@ function ReportsWorkspace({ user }) {
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userRoleForm, setUserRoleForm] = useState({ role: '' });
+  const ensurePaginationScope = usePaginationStore((state) => state.ensureScope);
+  const setPage = usePaginationStore((state) => state.setPage);
+  const recoveredPagination = usePaginationStore((state) => state.scopes[RECOVERED_SCOPE] || DEFAULT_PAGINATION);
+  const outstandingPagination = usePaginationStore((state) => state.scopes[OUTSTANDING_SCOPE] || DEFAULT_PAGINATION);
+  const usersPagination = usePaginationStore((state) => state.scopes[USERS_SCOPE] || DEFAULT_PAGINATION);
+  const customerProfitabilityPagination = usePaginationStore((state) => state.scopes[CUSTOMER_PROFITABILITY_SCOPE] || DEFAULT_PAGINATION);
+  const loanProfitabilityPagination = usePaginationStore((state) => state.scopes[LOAN_PROFITABILITY_SCOPE] || DEFAULT_PAGINATION);
+
+  useEffect(() => {
+    ensurePaginationScope(RECOVERED_SCOPE, DEFAULT_PAGINATION);
+    ensurePaginationScope(OUTSTANDING_SCOPE, DEFAULT_PAGINATION);
+    ensurePaginationScope(USERS_SCOPE, DEFAULT_PAGINATION);
+    ensurePaginationScope(CUSTOMER_PROFITABILITY_SCOPE, DEFAULT_PAGINATION);
+    ensurePaginationScope(LOAN_PROFITABILITY_SCOPE, DEFAULT_PAGINATION);
+  }, [ensurePaginationScope]);
 
   const recoveryReportQuery = useRecoveryReportQuery({ enabled: !isSocio });
-  const recoveredLoansQuery = useRecoveredLoansQuery({ enabled: !isSocio && activeTab === 'recovered' });
-  const outstandingLoansQuery = useOutstandingLoansQuery({ enabled: !isSocio && activeTab === 'outstanding' });
+  const recoveredLoansQuery = useRecoveredLoansQuery({ enabled: !isSocio && activeTab === 'recovered', pagination: recoveredPagination });
+  const outstandingLoansQuery = useOutstandingLoansQuery({ enabled: !isSocio && activeTab === 'outstanding', pagination: outstandingPagination });
   const associateProfitabilityQuery = useAssociateProfitabilityQuery(null, { enabled: isSocio });
   const associatePortalQuery = useAssociatePortalQuery(null, { enabled: isSocio });
   const creditHistoryQuery = useLoanCreditHistoryQuery(selectedHistoryLoanId, {
@@ -77,11 +100,15 @@ function ReportsWorkspace({ user }) {
   const customerCreditProfileQuery = useCustomerCreditProfileQuery(selectedCustomerProfileId, {
     enabled: isAdmin && Boolean(selectedCustomerProfileId),
   });
-  const customerProfitabilityQuery = useCustomerProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview' });
-  const loanProfitabilityQuery = useLoanProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview' });
+  const customerProfitabilityQuery = useCustomerProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview', pagination: customerProfitabilityPagination });
+  const loanProfitabilityQuery = useLoanProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview', pagination: loanProfitabilityPagination });
 
-  const associatesQuery = useAssociatesQuery({ enabled: isAdmin });
+  const associatesQuery = useAssociatesQuery({ enabled: isAdmin, pagination: { page: 1, pageSize: 100 } });
   const associates = useMemo(() => {
+    if (Array.isArray(associatesQuery.data?.items)) {
+      return associatesQuery.data.items;
+    }
+
     const rows = associatesQuery.data?.data?.associates;
     return Array.isArray(rows) ? rows : [];
   }, [associatesQuery.data]);
@@ -103,11 +130,13 @@ function ReportsWorkspace({ user }) {
     [associates, selectedAssociateId],
   );
 
-  const usersQuery = useUsersQuery({ enabled: isAdmin && activeTab === 'users' });
+  const usersQuery = useUsersQuery({ enabled: isAdmin && activeTab === 'users', pagination: usersPagination });
   const updateUserMutation = useUpdateUserMutation();
   const deactivateUserMutation = useDeactivateUserMutation();
   const reactivateUserMutation = useReactivateUserMutation();
-  const users = usersQuery.data?.data || [];
+  const users = Array.isArray(usersQuery.data?.items)
+    ? usersQuery.data.items
+    : usersQuery.data?.data || [];
   const currentUserId = Number(user.id);
 
   useEffect(() => {
@@ -165,16 +194,21 @@ function ReportsWorkspace({ user }) {
     || recoveryReportQuery.data?.data?.summary
     || recoveryReportQuery.data?.data?.report?.summary
     || null;
-  const recoveredLoans = recoveredLoansQuery.data?.data?.loans || recoveryReportQuery.data?.data?.recoveredLoans || [];
-  const outstandingLoans = outstandingLoansQuery.data?.data?.loans || recoveryReportQuery.data?.data?.outstandingLoans || [];
+  const recoveredLoans = recoveredLoansQuery.data?.items || recoveredLoansQuery.data?.data?.loans || [];
+  const outstandingLoans = outstandingLoansQuery.data?.items || outstandingLoansQuery.data?.data?.loans || [];
   const partnerReport = associateProfitabilityQuery.data?.data?.report || null;
   const partnerPortal = associatePortalQuery.data?.data?.portal || null;
   const selectedAssociatePortal = selectedAssociatePortalQuery.data?.data?.portal || null;
   const selectedAssociateProfitability = selectedAssociateProfitabilityQuery.data?.data?.report || null;
   const creditHistory = creditHistoryQuery.data?.data?.history || null;
   const customerCreditProfile = customerCreditProfileQuery.data?.data || null;
-  const customerProfitability = customerProfitabilityQuery.data?.data?.customers || [];
-  const loanProfitability = loanProfitabilityQuery.data?.data?.loans || [];
+  const customerProfitability = customerProfitabilityQuery.data?.items || customerProfitabilityQuery.data?.data?.customers || [];
+  const loanProfitability = loanProfitabilityQuery.data?.items || loanProfitabilityQuery.data?.data?.loans || [];
+  const recoveredPaginationMeta = recoveredLoansQuery.data?.pagination || recoveredLoansQuery.data?.data?.pagination || null;
+  const outstandingPaginationMeta = outstandingLoansQuery.data?.pagination || outstandingLoansQuery.data?.data?.pagination || null;
+  const usersPaginationMeta = usersQuery.data?.pagination || usersQuery.data?.data?.pagination || null;
+  const customerProfitabilityPaginationMeta = customerProfitabilityQuery.data?.pagination || customerProfitabilityQuery.data?.data?.pagination || null;
+  const loanProfitabilityPaginationMeta = loanProfitabilityQuery.data?.pagination || loanProfitabilityQuery.data?.data?.pagination || null;
   const loading = isSocio ? associateProfitabilityQuery.isLoading : recoveryReportQuery.isLoading;
 
   const resetAssociateActionForms = () => {
@@ -525,6 +559,12 @@ function ReportsWorkspace({ user }) {
             onSaveRole={handleUserRoleSave}
             onDeactivate={handleDeactivateUser}
             onReactivate={handleReactivateUser}
+            recoveredPagination={recoveredPaginationMeta}
+            outstandingPagination={outstandingPaginationMeta}
+            usersPagination={usersPaginationMeta}
+            onRecoveredPageChange={(page) => setPage(RECOVERED_SCOPE, page)}
+            onOutstandingPageChange={(page) => setPage(OUTSTANDING_SCOPE, page)}
+            onUsersPageChange={(page) => setPage(USERS_SCOPE, page)}
           />
 
           {isAdmin && (
@@ -546,6 +586,8 @@ function ReportsWorkspace({ user }) {
               proportionalForm={proportionalForm}
               selectedAssociatePortal={selectedAssociatePortal}
               selectedAssociateProfitability={selectedAssociateProfitability}
+              customerProfitabilityPagination={customerProfitabilityPaginationMeta}
+              loanProfitabilityPagination={loanProfitabilityPaginationMeta}
               createAssociatePending={createAssociateMutation.isPending}
               updateAssociatePending={updateAssociateMutation.isPending}
               deleteAssociatePending={deleteAssociateMutation.isPending}
@@ -566,6 +608,8 @@ function ReportsWorkspace({ user }) {
               onCreateReinvestment={handleCreateReinvestment}
               onProportionalFormChange={(field, value) => setProportionalForm((current) => ({ ...current, [field]: value }))}
               onCreateProportionalDistribution={handleCreateProportionalDistribution}
+              onCustomerProfitabilityPageChange={(page) => setPage(CUSTOMER_PROFITABILITY_SCOPE, page)}
+              onLoanProfitabilityPageChange={(page) => setPage(LOAN_PROFITABILITY_SCOPE, page)}
             />
           )}
         </>

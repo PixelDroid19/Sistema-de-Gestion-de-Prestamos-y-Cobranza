@@ -13,6 +13,7 @@ const startServer = async ({
   port = PORT,
   bootstrap: runBootstrap = bootstrap,
   createApp: buildApp = createApp,
+  createWorker = createOutboxRelayWorker,
 } = {}) => {
   const bootstrapResult = await runBootstrap();
   const app = buildApp({
@@ -20,7 +21,7 @@ const startServer = async ({
     moduleRegistry: bootstrapResult.modules,
   });
 
-  const outboxWorker = createOutboxRelayWorker();
+  const outboxWorker = createWorker();
   outboxWorker.start(5000);
 
   const shutdown = async () => {

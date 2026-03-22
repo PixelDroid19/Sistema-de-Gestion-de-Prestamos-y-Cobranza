@@ -3,9 +3,9 @@ import { customerService } from '@/services/customerService';
 import { reportService } from '@/services/reportService';
 import { queryKeys } from '@/lib/api/queryKeys';
 
-export const useCustomersQuery = ({ enabled = true } = {}) => useQuery({
-  queryKey: queryKeys.customers.all(),
-  queryFn: customerService.listCustomers,
+export const useCustomersQuery = ({ enabled = true, pagination } = {}) => useQuery({
+  queryKey: queryKeys.customers.paged(pagination || {}),
+  queryFn: () => customerService.listCustomers(pagination),
   enabled,
 });
 

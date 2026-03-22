@@ -1,6 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { createPaymentRouter } = require('./paymentRouter');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
@@ -11,9 +12,14 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   });
   router.use('/payments', paymentRouter);
 
-  router.get('/', authMiddleware(), asyncHandler(async (req, res) => {
-    const loans = await useCases.listLoans({ actor: req.user });
-    res.json({ success: true, count: loans.length, data: { loans } });
+  router.get('/', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listLoans({ actor: req.user, pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { loans: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
   router.post('/simulations', authMiddleware(), loanValidation.simulate, asyncHandler(async (req, res) => {
@@ -79,14 +85,14 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { summary } });
   }));
 
-  router.get('/customer/:customerId', authMiddleware(['customer']), asyncHandler(async (req, res) => {
-    const result = await useCases.listLoansByCustomer({ actor: req.user, customerId: req.params.customerId });
-    res.json({ success: true, count: result.loans.length, data: result });
+  router.get('/customer/:customerId', authMiddleware(['customer']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listLoansByCustomer({ actor: req.user, customerId: req.params.customerId, pagination: req.pagination });
+    res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
-  router.get('/agent/:agentId', authMiddleware(['agent']), asyncHandler(async (req, res) => {
-    const result = await useCases.listLoansByAgent({ actor: req.user, agentId: req.params.agentId });
-    res.json({ success: true, count: result.loans.length, data: result });
+  router.get('/agent/:agentId', authMiddleware(['agent']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listLoansByAgent({ actor: req.user, agentId: req.params.agentId, pagination: req.pagination });
+    res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
   router.post('/', authMiddleware(['customer', 'admin']), loanValidation.create, asyncHandler(async (req, res) => {

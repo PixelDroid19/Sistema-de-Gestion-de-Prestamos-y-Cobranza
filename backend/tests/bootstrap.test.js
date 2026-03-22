@@ -94,6 +94,7 @@ test('startServer passes bootstrap shared runtime into app composition', async (
         },
       };
     },
+    createWorker: () => ({ start() {}, stop() {} }),
   });
 
   assert.deepEqual(listenCalls, [0]);
