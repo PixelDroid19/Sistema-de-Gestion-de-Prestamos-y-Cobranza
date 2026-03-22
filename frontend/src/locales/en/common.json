@@ -13,16 +13,47 @@
     "searchPlaceholder": "Search workspace",
     "settings": "Settings",
     "toggleTheme": "Toggle theme",
+    "toggleGroup": "Toggle {{group}} group",
     "notifications": "Notifications",
+    "brandCaption": "Loan & Collections Management System",
+    "newNotifications": "{{count}} new",
+    "previousDate": "Previous date",
+    "nextDate": "Next date",
     "logout": "Logout",
     "userMenu": "User options",
     "avatarAlt": "User avatar",
+    "groups": {
+      "overview": "Overview",
+      "customers": "Customers",
+      "loans": "Loans & analytics",
+      "associates": "Associates",
+      "payments": "Payments",
+      "agents": "Agents",
+      "system": "System"
+    },
+    "viewTitles": {
+      "dashboard": "Dashboard overview",
+      "customers": "Customers workspace",
+      "customers-new": "New customer",
+      "loans": "Loans workspace",
+      "loans-new": "New loan",
+      "associates": "Associates workspace",
+      "payments": "Payments workspace",
+      "agents": "Agents workspace",
+      "reports": "Reports workspace",
+      "notifications": "Notifications center"
+    },
     "views": {
       "Dashboard": "Dashboard",
+      "Customers": "Customers",
+      "NewCustomer": "New customer",
       "Loans": "Loans",
+      "NewLoan": "New loan",
+      "Associates": "Associates",
       "Payments": "Payments",
       "Agents": "Agents",
       "Reports": "Reports",
+      "Notifications": "Notifications",
       "partnerPortal": "Partner portal"
     }
   },
@@ -72,9 +103,9 @@
     "title": "The credit desk that feels as precise as your best operator.",
     "description": "Bring origination, servicing, payments, associates, and reporting into a premium landing flow while keeping the backend, session store, and existing contracts intact.",
     "supportingDescription": "Editorial hero, phone mockups, floating badges, and product surfaces now mirror the same visual language as the authenticated workspace.",
-    "brand": "LendFlow",
+    "brand": "CrediCobranza",
     "workflow": "Workflow",
-    "proofLabel": "LendFlow trust signals",
+    "proofLabel": "CrediCobranza trust signals",
     "primaryCta": "Sign in",
     "secondaryCta": "Create account",
     "proofPoints": {
@@ -126,10 +157,10 @@
       }
     },
     "featureTitle": "Built for modern lending desks",
-    "featureDescription": "Editorial cards, floating badges, and decision blocks reinterpret the requested reference while staying inside the Sass, i18n, and component architecture.",
+    "featureDescription": "Editorial cards, floating badges, and decision blocks give the product a stronger identity while staying inside the Sass, i18n, and component architecture.",
     "features": {
       "title1": "Choose better",
-      "titleHighlight": "with LendFlow",
+      "titleHighlight": "with CrediCobranza",
       "description": "The tools you need under a flawless UI. Discover why top agencies choose us.",
       "card1": "Protect your",
       "card1Break": "portfolio",
@@ -141,7 +172,7 @@
     "split": {
       "eyebrow": "Split narrative",
       "title": "A product story that connects decisions, servicing, and recovery.",
-      "description": "The split section recreates the requested reference feel: expansive copy on the left and a highly visual operations board on the right.",
+      "description": "The split section pairs expansive copy on the left with a highly visual operations board on the right.",
       "boardEyebrow": "Operations board",
       "boardTitle": "The entire cycle stays visible on one surface",
       "boardDescription": "Origination, servicing, and reporting remain connected so the hand-off from overview to action feels immediate.",
@@ -152,7 +183,7 @@
         },
         "decisions": {
           "title": "Decisions backed by data",
-          "description": "Each block summarizes what already exists in hooks, stores, and services, now with a closer visual match to the requested sample."
+          "description": "Each block summarizes what already exists in hooks, stores, and services through a more deliberate visual system."
         },
         "recovery": {
           "title": "Recovery as an operating story",
@@ -163,7 +194,7 @@
     "experience": {
       "eyebrow": "Product experience",
       "title": "Bento layout, contrast, and hierarchy built to signal operational sophistication.",
-      "description": "These blocks mix bright surfaces, deep tones, and gold highlights to stay close to the requested reference without falling back to inline legacy styling.",
+      "description": "These blocks mix bright surfaces, deep tones, and gold highlights without falling back to inline styling.",
       "cards": {
         "command": {
           "title": "Command center for origination and collections",
@@ -200,7 +231,7 @@
       },
       "captions": {
         "origination": "Set amounts, terms, and early decisions with a premium presentation that still honors backend contracts.",
-        "servicing": "Monitor installments, documents, and promises with mockups, cards, and panels inspired by the requested sample.",
+        "servicing": "Monitor installments, documents, and promises with mockups, cards, and panels built for day-to-day servicing.",
         "reporting": "Inspect balances, recovery health, and associate data through reusable bilingual surfaces ready for export."
       }
     },
@@ -227,7 +258,7 @@
     },
     "cta": {
       "eyebrow": "Ready to enter",
-      "title": "Make the first touchpoint with LendFlow feel as refined as the internal operation.",
+      "title": "Make the first touchpoint with CrediCobranza feel as refined as the internal operation.",
       "description": "Use the hero to sign in or open registration without losing the premium narrative that now anchors the landing.",
       "primary": "Enter workspace",
       "secondary": "Open registration"
@@ -286,7 +317,7 @@
     "footer": {
       "title": "Managing your finances is",
       "titleBreak": "one click away.",
-      "copyright": "2026 LendFlow Inc. All rights reserved.",
+      "copyright": "2026 CrediCobranza. All rights reserved.",
       "terms": "Terms",
       "privacy": "Privacy"
     }
@@ -320,7 +351,7 @@
   "dashboard": {
     "eyebrow": "Executive snapshot",
     "title": "Keep lending activity, recovery, and planning in one financial cockpit",
-    "subtitle": "This workspace turns the legacy banking-style dashboard into a bilingual, Sass-driven page that still reads from the same report, loan, and payment queries.",
+    "subtitle": "This workspace keeps lending, recovery, and planning in a bilingual, Sass-driven page backed by the same report, loan, and payment queries.",
     "loading": {
       "title": "Loading dashboard",
       "message": "Collecting portfolio, recovery, and balance signals for this workspace."
@@ -584,6 +615,11 @@
       },
       "buttons": {
         "uploadDocument": "Upload document"
+      },
+      "calendar": {
+        "title": "Installment calendar",
+        "eventTitle": "Installment #{{number}}",
+        "emptyMessage": "Installments with due dates will appear here in calendar format."
       },
       "headers": {
         "paymentId": "Payment ID",
@@ -1113,6 +1149,132 @@
       "emptyContributions": "No contributions recorded",
       "emptyDistributions": "No distributions recorded",
       "emptyLoans": "No linked loans"
+    }
+  },
+  "customers": {
+    "title": "Customers workspace",
+    "subtitle": "Review customer records, contact details, and lending activity from one unified workspace.",
+    "actions": {
+      "new": "New customer",
+      "back": "Back to customers",
+      "save": "Save customer",
+      "saving": "Saving..."
+    },
+    "summary": {
+      "total": "Customers",
+      "totalCaption": "Profiles currently loaded in this workspace",
+      "active": "Active customers",
+      "activeCaption": "Accounts available for ongoing servicing",
+      "withLoans": "With loans",
+      "withLoansCaption": "Customers already linked to lending activity"
+    },
+    "filters": {
+      "search": "Search customers",
+      "allStatuses": "All statuses",
+      "timeline": "Updated timeline"
+    },
+    "table": {
+      "eyebrow": "Customer registry",
+      "title": "Visible customer accounts",
+      "subtitle": "Use the shared customer table surface to review identity, status, and loan linkage.",
+      "emptyTitle": "No customers yet",
+      "emptyMessage": "Customer records will appear here once they are registered in the backend.",
+      "headers": {
+        "id": "Customer ID",
+        "name": "Customer",
+        "contact": "Contact",
+        "status": "Status",
+        "joined": "Joined",
+        "loans": "Loans"
+      }
+    },
+    "form": {
+      "title": "Create a new customer",
+      "subtitle": "Capture identity and contact information using the new shared workspace form layout.",
+      "success": "Customer created successfully.",
+      "sections": {
+        "personal": "Personal information",
+        "contact": "Contact information"
+      },
+      "fields": {
+        "name": "Full name",
+        "documentNumber": "Document number",
+        "birthDate": "Birth date",
+        "occupation": "Occupation",
+        "phone": "Phone number",
+        "email": "Email",
+        "address": "Address"
+      }
+    }
+  },
+  "associates": {
+    "title": "Associates workspace",
+    "subtitle": "Track partner records, participation, and linked loans from one shared analytics surface.",
+    "actions": {
+      "new": "New associate"
+    },
+    "summary": {
+      "total": "Associates",
+      "totalCaption": "Associate records currently visible",
+      "active": "Active associates",
+      "activeCaption": "Profiles available for distributions and reporting",
+      "linked": "Linked loans",
+      "linkedCaption": "Loans currently tied to these associates"
+    },
+    "filters": {
+      "search": "Search associates"
+    },
+    "table": {
+      "eyebrow": "Associate registry",
+      "title": "Visible associates",
+      "subtitle": "Review participation and linked portfolio exposure without leaving the workspace.",
+      "emptyTitle": "No associates yet",
+      "emptyMessage": "Associate records will appear here once they are available in the backend.",
+      "headers": {
+        "id": "Associate ID",
+        "name": "Associate",
+        "status": "Status",
+        "participation": "Participation",
+        "loans": "Loans"
+      }
+    }
+  },
+  "newLoan": {
+    "title": "Create a new loan",
+    "subtitle": "Simulate lending terms, choose a customer, and send the request into the existing loan workflow.",
+    "actions": {
+      "back": "Back to loans",
+      "simulate": "Simulate loan",
+      "simulating": "Simulating...",
+      "save": "Create loan",
+      "saving": "Saving..."
+    },
+    "sections": {
+      "borrower": "Borrower",
+      "details": "Loan details"
+    },
+    "fields": {
+      "customer": "Customer",
+      "selectCustomer": "Select a customer",
+      "amount": "Loan amount",
+      "interestRate": "Interest rate",
+      "termMonths": "Term in months",
+      "frequency": "Payment frequency",
+      "monthly": "Monthly",
+      "biweekly": "Biweekly",
+      "weekly": "Weekly"
+    },
+    "summary": {
+      "eyebrow": "Simulation summary",
+      "title": "Expected lending values",
+      "subtitle": "Refresh the simulation before saving to compare installment, interest, and total payable values.",
+      "principal": "Principal",
+      "installment": "Installment",
+      "totalInterest": "Total interest",
+      "totalPayable": "Total payable"
+    },
+    "messages": {
+      "created": "Loan created successfully."
     }
   }
 }

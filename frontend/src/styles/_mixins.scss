@@ -14,3 +14,22 @@
   background: none;
   font: inherit;
 }
+
+@mixin lf-shell-surface($padding: 1.5rem, $radius: 1.5rem) {
+  padding: $padding;
+  border-radius: $radius;
+  background: var(--lf-shell-bg-surface);
+  border: 1px solid var(--lf-shell-border-subtle);
+  box-shadow: var(--lf-shell-shadow-card);
+}
+
+@mixin lf-shell-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--lf-shell-border-subtle);
+  background: var(--lf-shell-bg-surface);
+}

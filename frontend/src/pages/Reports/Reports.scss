@@ -2,4 +2,10 @@
   .surface-card--hero {
     background: linear-gradient(180deg, rgba(50, 110, 194, 0.08), rgba(255, 255, 255, 0.96));
   }
+
+  .surface-card {
+    background: var(--lf-shell-bg-surface);
+    border-color: var(--lf-shell-border-subtle);
+    box-shadow: var(--lf-shell-shadow-card);
+  }
 }

@@ -680,7 +680,7 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
       fileName: 'recovery-report.pdf',
       contentType: 'application/pdf',
       buffer: buildPdfBuffer({
-        title: 'LendFlow Recovery Report',
+        title: 'CrediCobranza Recovery Report',
         lines: [
           `Total loans: ${report.summary.totalLoans}`,
           `Recovered loans: ${report.summary.recoveredLoans}`,

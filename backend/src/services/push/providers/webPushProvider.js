@@ -26,7 +26,7 @@ const createWebPushProvider = ({
 
       try {
         await client.sendNotification(subscription.subscription, JSON.stringify({
-          title: 'LendFlow',
+          title: 'CrediCobranza',
           body: notification.message,
           notificationId: notification.id,
           type: notification.type,

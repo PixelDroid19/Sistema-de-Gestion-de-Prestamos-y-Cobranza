@@ -1,83 +1,43 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import PaginationControls from '@/components/ui/PaginationControls';
 import StatePanel from '@/components/ui/StatePanel';
+import DataTable from '@/components/ui/workspace/DataTable';
+import EmptyState from '@/components/ui/workspace/EmptyState';
+import FilterBar from '@/components/ui/workspace/FilterBar';
+import FormSection from '@/components/ui/workspace/FormSection';
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard';
+import WorkspaceCalendar from '@/components/widgets/WorkspaceCalendar';
 import {
   INSTALLMENT_STATUS_LABELS,
   PAYMENT_TYPE_LABELS,
 } from '@/features/payments/paymentsWorkspace.constants';
 
-function PaymentRow({ payment }) {
-  const { t } = useTranslation()
-  return (
-    <tr>
-      <td><span className="table-id-pill">#{payment.id}</span></td>
-      <td>Loan #{payment.loanId}</td>
-      <td className="table-cell-right">₹{payment.amount}</td>
-      <td>{t(PAYMENT_TYPE_LABELS[payment.paymentType] || payment.paymentType)}</td>
-      <td className="table-cell-center">
-        {new Date(payment.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
-      </td>
-      <td>
-        <Badge variant={payment.status === 'annulled' ? 'danger' : payment.status === 'completed' ? 'success' : 'neutral'}>
-          {payment.status === 'annulled' ? t('payments.statuses.annulled') : payment.status === 'completed' ? t('payments.statuses.completed') : payment.status}
-        </Badge>
-      </td>
-    </tr>
-  );
+const PAYMENT_DATE_FORMAT = { year: 'numeric', month: 'short', day: 'numeric' }
+
+function formatPaymentDate(value, options = PAYMENT_DATE_FORMAT) {
+  return new Date(value).toLocaleDateString('en-IN', options)
 }
 
-function InstallmentRow({ entry, canAnnul, canAnnulThisInstallment, onAnnul, isAnnulling }) {
-  const { t } = useTranslation()
-  return (
-    <tr>
-      <td>#{entry.installmentNumber}</td>
-      <td>{new Date(entry.dueDate).toLocaleDateString('en-IN')}</td>
-      <td className="table-cell-right">₹{Number(entry.outstandingAmount || 0).toFixed(2)}</td>
-      <td className="table-cell-center">
-        <Badge variant={
-          entry.status === 'paid' ? 'success' :
-          entry.status === 'overdue' ? 'danger' :
-          entry.status === 'annulled' ? 'warning' :
-          entry.status === 'partial' ? 'primary' : 'neutral'
-        }>
-          {t(INSTALLMENT_STATUS_LABELS[entry.status] || entry.status)}
-        </Badge>
-      </td>
-      {canAnnul && (
-        <td className="table-cell-center">
-          {canAnnulThisInstallment && (
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={onAnnul}
-              disabled={isAnnulling}
-              title={t('payments.history.annulTitle')}
-            >
-              {t('payments.history.annul')}
-            </Button>
-          )}
-        </td>
-      )}
-    </tr>
-  );
+function formatInstallmentDate(value) {
+  return new Date(value).toLocaleDateString('en-IN')
 }
 
-function AttachmentRow({ attachment, onDownload }) {
-  const { t } = useTranslation()
-  return (
-    <tr>
-      <td>{attachment.originalName}</td>
-      <td>{attachment.category || '-'}</td>
-      <td>{attachment.customerVisible ? t('payments.history.visibilityCustomer') : t('payments.history.visibilityInternal')}</td>
-      <td className="table-cell-center">
-        <Button variant="outline" size="sm" onClick={onDownload}>{t('common.actions.download')}</Button>
-      </td>
-    </tr>
-  );
+function getPaymentStatusVariant(status) {
+  if (status === 'annulled') return 'danger'
+  if (status === 'completed') return 'success'
+  return 'neutral'
+}
+
+function getInstallmentStatusVariant(status) {
+  if (status === 'paid') return 'success'
+  if (status === 'overdue') return 'danger'
+  if (status === 'annulled') return 'warning'
+  if (status === 'partial') return 'primary'
+  return 'neutral'
 }
 
 function PaymentsHistorySection({
@@ -105,141 +65,213 @@ function PaymentsHistorySection({
   onPaymentsPageChange,
 }) {
   const { t } = useTranslation()
-  const renderContent = () => {
-    if (!formLoanId) {
-      return (
-          <StatePanel
-            icon="📋"
-            title={t('payments.history.chooseTitle')}
-            message={t('payments.history.chooseMessage')}
-          />
-      );
-    }
+  const hasContent = payments.length > 0 || calendar.length > 0 || attachments.length > 0
 
-    if (historyLoading) {
-      return (
-          <StatePanel
-            icon="⏳"
-            title={t('payments.history.loadingTitle')}
-            message={t('payments.history.loadingMessage')}
-            loadingState
-          />
-      );
-    }
+  const calendarEvents = useMemo(() => (
+    calendar.map((entry) => ({
+      id: `installment-${entry.installmentNumber}`,
+      title: `${t('payments.history.calendar.eventTitle', { number: entry.installmentNumber })} · ${t(INSTALLMENT_STATUS_LABELS[entry.status] || entry.status)} · ₹${Number(entry.outstandingAmount || 0).toFixed(2)}`,
+      start: new Date(entry.dueDate),
+      end: new Date(entry.dueDate),
+      allDay: true,
+    }))
+  ), [calendar, t])
 
-    if (error) {
-      return (
-          <StatePanel
-            icon="⚠️"
-            title={t('payments.history.errorTitle')}
-            message={error}
-            action={<Button onClick={onRetry}>{t('common.actions.tryAgain')}</Button>}
-          />
-      );
-    }
+  const sortedPayments = useMemo(
+    () => [...payments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    [payments],
+  )
 
-    const hasContent = payments.length > 0 || calendar.length > 0 || attachments.length > 0;
+  const paymentColumns = useMemo(() => [
+      {
+        key: 'paymentId',
+        header: t('payments.history.headers.paymentId'),
+        render: (payment) => <span className="table-id-pill">#{payment.id}</span>,
+      },
+      {
+        key: 'loanId',
+        header: t('payments.history.headers.loanId'),
+        render: (payment) => `Loan #${payment.loanId}`,
+      },
+      {
+        key: 'amount',
+        header: t('payments.history.headers.amount'),
+        cellClassName: 'table-cell-right',
+        render: (payment) => `₹${payment.amount}`,
+      },
+      {
+        key: 'type',
+        header: t('payments.history.headers.type'),
+        render: (payment) => t(PAYMENT_TYPE_LABELS[payment.paymentType] || payment.paymentType),
+      },
+      {
+        key: 'date',
+        header: t('payments.history.headers.paymentDate'),
+        cellClassName: 'table-cell-center',
+        render: (payment) => formatPaymentDate(payment.createdAt),
+      },
+      {
+        key: 'status',
+        header: t('payments.history.headers.status'),
+        render: (payment) => (
+          <Badge variant={getPaymentStatusVariant(payment.status)}>
+            {payment.status === 'annulled' ? t('payments.statuses.annulled') : payment.status === 'completed' ? t('payments.statuses.completed') : payment.status}
+          </Badge>
+        ),
+      },
+    ], [t])
 
-    if (!hasContent) {
-      return (
-          <StatePanel
-            icon="💳"
-            title={t('payments.history.emptyTitle')}
-            message={t('payments.history.emptyMessage')}
-          />
-      );
-    }
+  const installmentColumns = useMemo(() => [
+      { key: 'installmentNumber', header: t('payments.history.headers.installment'), render: (entry) => `#${entry.installmentNumber}` },
+      { key: 'dueDate', header: t('payments.history.headers.dueDate'), render: (entry) => formatInstallmentDate(entry.dueDate) },
+      { key: 'outstandingAmount', header: t('payments.history.headers.outstanding'), cellClassName: 'table-cell-right', render: (entry) => `₹${Number(entry.outstandingAmount || 0).toFixed(2)}` },
+      {
+        key: 'status',
+        header: t('payments.history.headers.status'),
+        cellClassName: 'table-cell-center',
+        render: (entry) => (
+          <Badge variant={getInstallmentStatusVariant(entry.status)}>
+            {t(INSTALLMENT_STATUS_LABELS[entry.status] || entry.status)}
+          </Badge>
+        ),
+      },
+      canAnnul && {
+        key: 'action',
+        header: t('payments.history.headers.action'),
+        cellClassName: 'table-cell-center',
+        render: (entry) => (
+          nearestCancellableInstallmentNumber === entry.installmentNumber ? (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={onAnnulInstallment}
+              disabled={annulMutation.isPending}
+              title={t('payments.history.annulTitle')}
+            >
+              {t('payments.history.annul')}
+            </Button>
+          ) : null
+        ),
+      },
+    ].filter(Boolean), [annulMutation.isPending, canAnnul, nearestCancellableInstallmentNumber, onAnnulInstallment, t])
 
-    return (
+  const attachmentColumns = useMemo(() => [
+      { key: 'originalName', header: t('payments.history.headers.attachment') },
+      { key: 'category', header: t('payments.history.headers.category'), render: (attachment) => attachment.category || '-' },
+      { key: 'visibility', header: t('payments.history.headers.visibility'), render: (attachment) => attachment.customerVisible ? t('payments.history.visibilityCustomer') : t('payments.history.visibilityInternal') },
+      {
+        key: 'action',
+        header: t('payments.history.headers.action'),
+        cellClassName: 'table-cell-center',
+        render: (attachment) => <Button variant="outline" size="sm" onClick={() => onDownloadAttachment(attachment.id, attachment.originalName)}>{t('common.actions.download')}</Button>,
+      },
+    ], [onDownloadAttachment, t])
+
+  const paymentDocumentColumns = useMemo(() => [
+      { key: 'originalName', header: t('payments.history.headers.attachment') },
+      { key: 'category', header: t('payments.history.headers.category'), render: (document) => document.category || '-' },
+      { key: 'visibility', header: t('payments.history.headers.visibility'), render: (document) => document.customerVisible ? t('payments.history.visibilityCustomer') : t('payments.history.visibilityInternal') },
+      {
+        key: 'action',
+        header: t('payments.history.headers.action'),
+        cellClassName: 'table-cell-center',
+        render: (document) => <Button variant="outline" size="sm" onClick={() => onDownloadPaymentDocument(document.id, document.originalName)}>{t('common.actions.download')}</Button>,
+      },
+    ], [onDownloadPaymentDocument, t])
+
+  let content = (
+    <StatePanel
+      icon="📋"
+      title={t('payments.history.chooseTitle')}
+      message={t('payments.history.chooseMessage')}
+    />
+  )
+
+  if (formLoanId && historyLoading) {
+    content = (
+      <StatePanel
+        icon="⏳"
+        title={t('payments.history.loadingTitle')}
+        message={t('payments.history.loadingMessage')}
+        loadingState
+      />
+    )
+  } else if (formLoanId && error) {
+    content = (
+      <StatePanel
+        icon="⚠️"
+        title={t('payments.history.errorTitle')}
+        message={error}
+        action={<Button onClick={onRetry}>{t('common.actions.tryAgain')}</Button>}
+      />
+    )
+  } else if (formLoanId && !hasContent) {
+    content = (
+      <StatePanel
+        icon="💳"
+        title={t('payments.history.emptyTitle')}
+        message={t('payments.history.emptyMessage')}
+      />
+    )
+  } else if (formLoanId) {
+    content = (
       <div className="dashboard-page-stack section-stack--compact">
-        <PaginationControls
-          pagination={paymentsPagination}
-          isPending={historyLoading}
-          onPageChange={onPaymentsPageChange}
-        />
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('payments.history.headers.paymentId')}</th>
-                <th>{t('payments.history.headers.loanId')}</th>
-                <th className="table-cell-right">{t('payments.history.headers.amount')}</th>
-                <th>{t('payments.history.headers.type')}</th>
-                <th className="table-cell-center">{t('payments.history.headers.paymentDate')}</th>
-                <th>{t('payments.history.headers.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((payment) => (
-                <PaymentRow key={payment.id} payment={payment} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <FilterBar>
+          <PaginationControls
+            pagination={paymentsPagination}
+            isPending={historyLoading}
+            onPageChange={onPaymentsPageChange}
+          />
+        </FilterBar>
 
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('payments.history.headers.installment')}</th>
-                <th>{t('payments.history.headers.dueDate')}</th>
-                <th className="table-cell-right">{t('payments.history.headers.outstanding')}</th>
-                <th className="table-cell-center">{t('payments.history.headers.status')}</th>
-                {canAnnul && <th className="table-cell-center">{t('payments.history.headers.action')}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {calendar.length === 0 ? (
-                <tr><td colSpan={canAnnul ? 5 : 4} className="table-cell-center">{t('payments.history.noCalendar')}</td></tr>
-              ) : (
-                calendar.map((entry) => (
-                  <InstallmentRow
-                    key={entry.installmentNumber}
-                    entry={entry}
-                    canAnnul={canAnnul}
-                    canAnnulThisInstallment={nearestCancellableInstallmentNumber === entry.installmentNumber}
-                    onAnnul={onAnnulInstallment}
-                    isAnnulling={annulMutation.isPending}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
+        <FormSection title={t('payments.history.headers.paymentId')}>
+          <DataTable
+            columns={paymentColumns}
+            rows={sortedPayments}
+            rowKey="id"
+            emptyState={<EmptyState icon="💳" title={t('payments.history.emptyTitle')} description={t('payments.history.emptyMessage')} />}
+          />
+        </FormSection>
+
+        <FormSection title={t('payments.history.headers.installment')}>
+          <DataTable
+            columns={installmentColumns}
+            rows={calendar}
+            rowKey="installmentNumber"
+            emptyState={<EmptyState icon="📅" title={t('payments.history.noCalendar')} />}
+          />
           {canAnnul && (
             <div className="content-note">
               {t('payments.history.nearestAnnulNote')}{nearestCancellableInstallmentNumber ? ` ${t('payments.history.nearestAnnulSuffix', { number: nearestCancellableInstallmentNumber })}` : ''}
             </div>
           )}
-        </div>
+        </FormSection>
 
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('payments.history.headers.attachment')}</th>
-                <th>{t('payments.history.headers.category')}</th>
-                <th>{t('payments.history.headers.visibility')}</th>
-                <th className="table-cell-center">{t('payments.history.headers.action')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attachments.length === 0 ? (
-                <tr><td colSpan="4" className="table-cell-center">{t('payments.history.noAttachments')}</td></tr>
-              ) : (
-                attachments.map((attachment) => (
-                  <AttachmentRow
-                    key={attachment.id}
-                    attachment={attachment}
-                    onDownload={() => onDownloadAttachment(attachment.id, attachment.originalName)}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <FormSection title={t('payments.history.calendar.title')}>
+          {calendarEvents.length > 0 ? (
+            <WorkspaceCalendar
+              events={calendarEvents}
+              defaultView="month"
+              views={['month', 'agenda']}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: 420 }}
+            />
+          ) : (
+            <EmptyState icon="🗓️" title={t('payments.history.noCalendar')} description={t('payments.history.calendar.emptyMessage')} />
+          )}
+        </FormSection>
 
-        <div className="surface-card surface-card--compact">
-          <div className="surface-card__body">
+        <FormSection title={t('payments.history.headers.attachment')}>
+          <DataTable
+            columns={attachmentColumns}
+            rows={attachments}
+            rowKey="id"
+            emptyState={<EmptyState icon="📎" title={t('payments.history.noAttachments')} />}
+          />
+        </FormSection>
+
+        <WorkspaceCard compact className="surface-card surface-card--compact">
             <div className="dashboard-form-grid section-margin-bottom">
               <label className="field-group">
                 <span className="field-label">{t('payments.history.fields.payment')}</span>
@@ -275,49 +307,27 @@ function PaymentsHistorySection({
               )}
             </div>
 
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>{t('payments.history.headers.attachment')}</th>
-                    <th>{t('payments.history.headers.category')}</th>
-                    <th>{t('payments.history.headers.visibility')}</th>
-                    <th className="table-cell-center">{t('payments.history.headers.action')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentDocuments.length === 0 ? (
-                    <tr><td colSpan="4" className="table-cell-center">{t('payments.history.noPaymentDocuments')}</td></tr>
-                  ) : (
-                    paymentDocuments.map((document) => (
-                      <AttachmentRow
-                        key={document.id}
-                        attachment={document}
-                        onDownload={() => onDownloadPaymentDocument(document.id, document.originalName)}
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+            <DataTable
+              columns={paymentDocumentColumns}
+              rows={paymentDocuments}
+              rowKey="id"
+              emptyState={<EmptyState icon="🧾" title={t('payments.history.noPaymentDocuments')} />}
+            />
+        </WorkspaceCard>
       </div>
-    );
-  };
+    )
+  }
 
   return (
-    <section className="surface-card">
-      <div className="surface-card__header surface-card__header--compact">
-        <div>
-          <div className="section-eyebrow">{t('payments.history.eyebrow')}</div>
-          <div className="section-title">{t('payments.history.title')}</div>
-          <div className="section-subtitle">{t('payments.history.subtitle')}</div>
-        </div>
-      </div>
-      <div className="surface-card__body">{renderContent()}</div>
-    </section>
-  );
+    <WorkspaceCard
+      className="surface-card"
+      eyebrow={t('payments.history.eyebrow')}
+      title={t('payments.history.title')}
+      subtitle={t('payments.history.subtitle')}
+    >
+      {content}
+    </WorkspaceCard>
+  )
 }
 
 export default PaymentsHistorySection;

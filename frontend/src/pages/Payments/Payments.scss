@@ -2,6 +2,12 @@
   .surface-card--hero {
     background: linear-gradient(180deg, rgba(216, 165, 69, 0.12), rgba(255, 255, 255, 0.96));
   }
+
+  .surface-card {
+    background: var(--lf-shell-bg-surface);
+    border-color: var(--lf-shell-border-subtle);
+    box-shadow: var(--lf-shell-shadow-card);
+  }
 }
 
 .payments-success-overlay {

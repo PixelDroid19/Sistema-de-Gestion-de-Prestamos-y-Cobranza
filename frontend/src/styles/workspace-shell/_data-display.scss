@@ -1,0 +1,58 @@
+.lf-grid-layout {
+  .react-grid-item {
+    transition: transform 200ms ease;
+  }
+}
+
+.lf-data-table .data-table th,
+.lf-data-table .data-table td {
+  font-size: 0.88rem;
+}
+
+.lf-chart {
+  min-height: 180px;
+}
+
+.lf-calendar {
+  .rbc-calendar {
+    font-family: inherit;
+    color: var(--lf-shell-text-primary);
+  }
+
+  .rbc-month-view,
+  .rbc-time-view,
+  .rbc-agenda-view {
+    border: 1px solid var(--lf-shell-border-subtle);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--lf-shell-bg-surface);
+  }
+
+  .rbc-header,
+  .rbc-month-row,
+  .rbc-day-bg,
+  .rbc-time-header-content,
+  .rbc-timeslot-group,
+  .rbc-time-slot,
+  .rbc-time-content {
+    border-color: var(--lf-shell-border-subtle) !important;
+  }
+
+  .rbc-event {
+    border-radius: 10px;
+    border: none !important;
+    padding: 0.25rem 0.45rem !important;
+  }
+
+  .rbc-button-link,
+  .rbc-toolbar button {
+    color: var(--lf-shell-text-primary) !important;
+  }
+
+  .rbc-toolbar button:hover,
+  .rbc-toolbar button:active,
+  .rbc-toolbar button.rbc-active {
+    background: var(--lf-shell-hover-bg) !important;
+    box-shadow: none !important;
+  }
+}

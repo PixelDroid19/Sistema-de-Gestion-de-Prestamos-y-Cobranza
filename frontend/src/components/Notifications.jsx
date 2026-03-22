@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Smartphone, Globe, Trash2, CheckCheck, X } from 'lucide-react';
+
 import { handleApiError } from '@/lib/api/errors';
 import {
   useClearNotificationsMutation,
@@ -10,6 +11,11 @@ import {
   useRegisterBrowserNotificationSubscriptionMutation,
   useRegisterNotificationSubscriptionMutation,
 } from '@/hooks/useNotifications';
+import EmptyState from '@/components/ui/workspace/EmptyState';
+import FilterBar from '@/components/ui/workspace/FilterBar';
+import FormSection from '@/components/ui/workspace/FormSection';
+import StatCard from '@/components/ui/workspace/StatCard';
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard';
 
 const PROVIDER_PRESETS = {
   webpush: {
@@ -57,46 +63,15 @@ const createSubscriptionForm = (providerKey = 'webpush') => ({
 
 const emptyNotifications = [];
 
-const modalStyles = {
-  backdrop: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(15, 23, 42, 0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    backdropFilter: 'blur(6px)',
-    padding: '1rem',
-  },
-  card: {
-    background: 'var(--surface-color, #fff)',
-    borderRadius: '20px',
-    boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
-    width: 'min(960px, 100%)',
-    maxHeight: '90vh',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-};
-
 function NotificationHeader({ unreadCount, totalCount, onClose }) {
   return (
-    <div style={{
-      padding: '1.5rem',
-      background: 'linear-gradient(135deg, #0f4c81 0%, #1f7a8c 55%, #4f9d69 100%)',
-      color: 'white',
-      display: 'flex',
-      justifyContent: 'space-between',
-      gap: '1rem',
-    }}>
+    <div className="notifications-modal__hero">
       <div>
-        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.85 }}>Notification center</div>
-        <h3 style={{ margin: '0.35rem 0 0.4rem', fontSize: '1.6rem' }}><Bell size={18} style={{ verticalAlign: 'text-bottom' }} /> Notifications</h3>
-        <p style={{ margin: 0, opacity: 0.9 }}>{unreadCount} unread • {totalCount} total</p>
+        <div className="notifications-modal__eyebrow">Notification center</div>
+        <h3 className="notifications-modal__title"><Bell size={18} /> Notifications</h3>
+        <p className="notifications-modal__subtitle">{unreadCount} unread • {totalCount} total</p>
       </div>
-      <button onClick={onClose} className="btn btn-outline-primary" style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,0.16)', color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}>
+      <button type="button" onClick={onClose} className="btn btn-outline-primary notifications-modal__close">
         <X size={16} /> Close
       </button>
     </div>
@@ -105,43 +80,43 @@ function NotificationHeader({ unreadCount, totalCount, onClose }) {
 
 function NotificationsSummary({ notificationBuckets, error, success }) {
   return (
-    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)', background: 'var(--surface-muted, #f8fafc)' }}>
-      <div className="summary-grid">
-        <div className="detail-card"><div className="detail-card__label">Unread</div><div className="detail-card__value detail-card__value--warning">{notificationBuckets.unread}</div></div>
-        <div className="detail-card"><div className="detail-card__label">Loan-linked</div><div className="detail-card__value detail-card__value--info">{notificationBuckets.loanLinked}</div></div>
-        <div className="detail-card"><div className="detail-card__label">Subscriptions</div><div className="detail-card__value">Guided setup</div></div>
+    <div className="notifications-modal__summary">
+      <div className="metric-grid notifications-modal__summary-grid">
+        <StatCard label="Unread" value={notificationBuckets.unread} caption="Requires attention" tone="warning" />
+        <StatCard label="Loan-linked" value={notificationBuckets.loanLinked} caption="Linked to active workflows" tone="info" />
+        <StatCard label="Subscriptions" value="Guided setup" caption="Browser or mobile channels" tone="brand" />
       </div>
-      {error && <div className="inline-message inline-message--error" style={{ marginTop: '1rem' }}>⚠️ {error}</div>}
-      {success && <div className="inline-message inline-message--success" style={{ marginTop: '1rem' }}>✅ {success}</div>}
+      {error && <div className="inline-message inline-message--error notifications-modal__message">⚠️ {error}</div>}
+      {success && <div className="inline-message inline-message--success notifications-modal__message">✅ {success}</div>}
     </div>
   );
 }
 
 function NotificationFeed({ loading, notifications, unreadCount, markAllReadMutation, clearMutation, onMarkAllAsRead, onClearAll, onRefresh, onMarkAsRead }) {
   return (
-    <div style={{ borderRight: '1px solid var(--border-color)', overflow: 'auto' }}>
-      <div style={{ padding: '1rem 1.5rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)' }}>
-        <button className="btn btn-success" onClick={onMarkAllAsRead} disabled={unreadCount === 0 || markAllReadMutation.isPending}>
+    <div className="notifications-modal__feed">
+      <FilterBar className="notifications-modal__feed-actions">
+        <button type="button" className="btn btn-success" onClick={onMarkAllAsRead} disabled={unreadCount === 0 || markAllReadMutation.isPending}>
           <CheckCheck size={16} /> Mark all read
         </button>
-        <button className="btn btn-danger" onClick={onClearAll} disabled={clearMutation.isPending}>
+        <button type="button" className="btn btn-danger" onClick={onClearAll} disabled={clearMutation.isPending}>
           <Trash2 size={16} /> Clear all
         </button>
-        <button className="btn btn-outline-primary" onClick={onRefresh}>Refresh</button>
-      </div>
+        <button type="button" className="btn btn-outline-primary" onClick={onRefresh}>Refresh</button>
+      </FilterBar>
 
       {loading ? (
-        <div style={{ padding: '2rem' }}>{'Loading notifications...'}</div>
+        <div className="notifications-modal__loading">Loading notifications...</div>
       ) : notifications.length === 0 ? (
-        <div style={{ padding: '2rem' }}>
-          <div className="state-panel">
-            <div className="state-panel__icon">🔔</div>
-            <div className="state-panel__title">No notifications</div>
-            <div className="state-panel__text">You're all caught up. New activity will appear here.</div>
-          </div>
+        <div className="notifications-modal__empty-wrap">
+          <EmptyState
+            icon="🔔"
+            title="No notifications"
+            description="You're all caught up. New activity will appear here."
+          />
         </div>
       ) : (
-        <div style={{ padding: '1rem 1.5rem' }}>
+        <div className="notifications-modal__feed-list">
           {notifications.map((notification) => {
             const notificationData = notification.payload || notification.data || {};
             return (
@@ -149,25 +124,16 @@ function NotificationFeed({ loading, notifications, unreadCount, markAllReadMuta
                 key={notification.id}
                 type="button"
                 onClick={() => !notification.isRead && onMarkAsRead(notification.id)}
-                style={{
-                  padding: '1rem',
-                  borderRadius: '16px',
-                  border: '1px solid var(--border-color)',
-                  marginBottom: '0.75rem',
-                  background: notification.isRead ? 'var(--surface-color, #fff)' : 'rgba(31, 122, 140, 0.08)',
-                  cursor: notification.isRead ? 'default' : 'pointer',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
+                className={`notifications-modal__item${notification.isRead ? '' : ' notifications-modal__item--unread'}`}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <div className="notifications-modal__item-header">
                   <div>
-                    <div style={{ fontWeight: notification.isRead ? 500 : 700, marginBottom: '0.35rem' }}>{notification.message}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(notification.createdAt).toLocaleString()}</div>
+                    <div className="notifications-modal__item-message">{notification.message}</div>
+                    <div className="notifications-modal__item-date">{new Date(notification.createdAt).toLocaleString()}</div>
                   </div>
                   {!notification.isRead && <span className="status-badge status-badge--info">Unread</span>}
                 </div>
-                <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="notifications-modal__item-tags">
                   {notification.type && <span className="status-note">{notification.type.replaceAll('_', ' ')}</span>}
                   {notificationData.loanId && <span className="status-note">Loan #{notificationData.loanId}</span>}
                   {notificationData.customerName && <span className="status-note">{notificationData.customerName}</span>}
@@ -196,14 +162,14 @@ function SubscriptionManager({
   setSubscriptionForm,
 }) {
   return (
-    <div style={{ overflow: 'auto', padding: '1.5rem' }}>
-      <div className="section-eyebrow">Subscription management</div>
-      <div className="section-title" style={{ fontSize: '1.1rem', marginBottom: '0.4rem' }}>Connect a device for push updates</div>
-      <div className="section-subtitle" style={{ marginBottom: '1rem' }}>
-        Pick the device type first, then provide only the fields that backend registration expects for that provider.
-      </div>
-
-      <div className="section-actions" style={{ marginBottom: '1rem', justifyContent: 'flex-start' }}>
+    <div className="notifications-modal__subscriptions">
+      <WorkspaceCard
+        compact
+        eyebrow="Subscription management"
+        title="Connect a device for push updates"
+        subtitle="Pick the device type first, then provide only the fields that backend registration expects for that provider."
+      >
+      <FilterBar className="notifications-modal__provider-switcher">
         {Object.entries(PROVIDER_PRESETS).map(([providerKey, preset]) => (
           <button
             key={providerKey}
@@ -214,15 +180,14 @@ function SubscriptionManager({
             {preset.title}
           </button>
         ))}
-      </div>
+      </FilterBar>
 
-      <div className="surface-card" style={{ marginBottom: '1rem' }}>
-        <div className="surface-card__body" style={{ padding: '1rem' }}>
-          <div className="section-title" style={{ fontSize: '1rem', marginBottom: '0.35rem' }}>{providerPreset.title}</div>
-          <div className="section-subtitle" style={{ marginBottom: '0.75rem' }}>{providerPreset.description}</div>
+      <WorkspaceCard compact className="notifications-modal__provider-card">
+          <div className="section-title notifications-modal__provider-title">{providerPreset.title}</div>
+          <div className="section-subtitle notifications-modal__provider-description">{providerPreset.description}</div>
           <div className="status-note">Channel: {providerPreset.channel}</div>
           {subscriptionForm.providerKey === 'webpush' && (
-            <div className="section-actions" style={{ marginTop: '0.75rem', justifyContent: 'flex-start' }}>
+            <div className="section-actions section-actions--start notifications-modal__provider-actions">
               <button className="btn btn-outline-primary" type="button" onClick={onUseBrowserSubscription} disabled={registerBrowserSubscriptionMutation.isPending}>
                 Use current browser subscription
               </button>
@@ -231,10 +196,9 @@ function SubscriptionManager({
               </button>
             </div>
           )}
-        </div>
-      </div>
+      </WorkspaceCard>
 
-      <form onSubmit={onRegisterSubscription} className="dashboard-form-grid">
+      <form onSubmit={onRegisterSubscription} className="dashboard-form-grid notifications-modal__subscription-form">
         <label className="field-group">
           <span className="field-label">Provider</span>
           <select className="field-control" value={subscriptionForm.providerKey} onChange={(event) => onProviderSelect(event.target.value)}>
@@ -249,27 +213,28 @@ function SubscriptionManager({
         </label>
         <label className="field-group">
           <span className="field-label">{providerPreset.endpointLabel}</span>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="notifications-modal__input-with-icon">
             <Globe size={16} />
             <input className="field-control" value={subscriptionForm.endpoint} onChange={(event) => setSubscriptionForm((current) => ({ ...current, endpoint: event.target.value }))} placeholder={providerPreset.endpointPlaceholder} />
           </div>
         </label>
         <label className="field-group">
           <span className="field-label">{providerPreset.tokenLabel}</span>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="notifications-modal__input-with-icon">
             <Smartphone size={16} />
             <input className="field-control" value={subscriptionForm.deviceToken} onChange={(event) => setSubscriptionForm((current) => ({ ...current, deviceToken: event.target.value }))} placeholder={providerPreset.tokenPlaceholder} disabled={providerPreset.requiresSubscriptionJson} />
           </div>
         </label>
-        <label className="field-group" style={{ gridColumn: '1 / -1' }}>
+        <label className="field-group notifications-modal__full-width">
           <span className="field-label">Subscription JSON</span>
           <textarea className="field-control" rows="6" value={subscriptionForm.subscription} onChange={(event) => setSubscriptionForm((current) => ({ ...current, subscription: event.target.value }))} disabled={!providerPreset.requiresSubscriptionJson} placeholder={providerPreset.requiresSubscriptionJson ? providerPreset.subscriptionExample : 'Not required for this provider'}></textarea>
         </label>
-        <div className="section-actions" style={{ gridColumn: '1 / -1' }}>
+        <div className="section-actions section-actions--start notifications-modal__full-width">
           <button className="btn btn-primary" type="submit" disabled={registerSubscriptionMutation.isPending || registerBrowserSubscriptionMutation.isPending}>Save subscription</button>
           <button className="btn btn-outline-primary" type="button" onClick={onDeleteSubscription} disabled={deleteSubscriptionMutation.isPending}>Remove subscription</button>
         </div>
       </form>
+      </WorkspaceCard>
     </div>
   );
 }
@@ -486,12 +451,12 @@ function Notifications({ user, isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div style={modalStyles.backdrop}>
-      <div style={modalStyles.card}>
+    <div className="notifications-modal__backdrop">
+      <div className="notifications-modal__card">
         <NotificationHeader unreadCount={unreadCount} totalCount={totalCount} onClose={onClose} />
         <NotificationsSummary notificationBuckets={notificationBuckets} error={error} success={success} />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 0.8fr)', gap: '0', minHeight: 0, flex: 1 }}>
+        <div className="notifications-modal__layout">
           <NotificationFeed
             loading={loading}
             notifications={notifications}

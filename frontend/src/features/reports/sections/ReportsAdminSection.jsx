@@ -1,9 +1,63 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Button from '@/components/ui/Button'
 import PaginationControls from '@/components/ui/PaginationControls'
+import DataTable from '@/components/ui/workspace/DataTable'
+import EmptyState from '@/components/ui/workspace/EmptyState'
+import FormSection from '@/components/ui/workspace/FormSection'
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard'
 import { formatCurrency } from '@/features/reports/reportsWorkspace.utils'
+
+function SummaryMetric({ label, value, tone }) {
+  const valueClassName = tone ? `detail-card__value detail-card__value--${tone}` : 'detail-card__value'
+
+  return (
+    <div className="detail-card">
+      <div className="detail-card__label">{label}</div>
+      <div className={valueClassName}>{value}</div>
+    </div>
+  )
+}
+
+function AssociateLedgerForm({
+  title,
+  amountLabel,
+  dateLabel,
+  dateField,
+  notesLabel,
+  actionFieldLabel,
+  actionLabel,
+  amountValue,
+  dateValue,
+  notesValue,
+  onChange,
+  onSubmit,
+  isPending,
+}) {
+  return (
+    <FormSection title={title} className="section-margin-bottom">
+      <div className="dashboard-form-grid">
+        <label className="field-group">
+          <span className="field-label">{amountLabel}</span>
+          <input className="field-control" value={amountValue} onChange={(event) => onChange('amount', event.target.value)} />
+        </label>
+        <label className="field-group">
+          <span className="field-label">{dateLabel}</span>
+          <input className="field-control" type="date" value={dateValue} onChange={(event) => onChange(dateField, event.target.value)} />
+        </label>
+        <label className="field-group">
+          <span className="field-label">{notesLabel}</span>
+          <input className="field-control" value={notesValue} onChange={(event) => onChange('notes', event.target.value)} />
+        </label>
+        <div className="field-group">
+          <span className="field-label">{actionFieldLabel}</span>
+          <Button type="button" onClick={onSubmit} disabled={isPending}>{actionLabel}</Button>
+        </div>
+      </div>
+    </FormSection>
+  )
+}
 
 function ReportsAdminSection(props) {
   const { t } = useTranslation()
@@ -51,17 +105,55 @@ function ReportsAdminSection(props) {
     onLoanProfitabilityPageChange,
   } = props
 
+  const associateMetrics = useMemo(() => ({
+    contributed: formatCurrency(selectedAssociateProfitability?.summary?.totalContributed),
+    distributed: formatCurrency(selectedAssociateProfitability?.summary?.totalDistributed),
+    activeLoans: selectedAssociatePortal?.summary?.activeLoanCount || 0,
+    exposure: formatCurrency(selectedAssociatePortal?.summary?.portfolioExposure),
+  }), [selectedAssociatePortal?.summary?.activeLoanCount, selectedAssociatePortal?.summary?.portfolioExposure, selectedAssociateProfitability?.summary?.totalContributed, selectedAssociateProfitability?.summary?.totalDistributed])
+
+  const customerProfitabilityColumns = useMemo(() => [
+    { key: 'customerId', header: t('reports.admin.fields.customerId'), render: (row) => `#${row.customerId}` },
+    { key: 'customerName', header: t('reports.admin.fields.customerName'), render: (row) => row.customerName || '-' },
+    { key: 'loanCount', header: t('reports.admin.fields.customerProfitabilityRows'), render: (row) => row.loanCount || 0 },
+    { key: 'outstandingBalance', header: t('reports.admin.fields.exposure'), cellClassName: 'table-cell-right', render: (row) => formatCurrency(row.outstandingBalance) },
+    { key: 'totalProfit', header: 'Profit', cellClassName: 'table-cell-right', render: (row) => formatCurrency(row.totalProfit) },
+  ], [t])
+
+  const loanProfitabilityColumns = useMemo(() => [
+    { key: 'loanId', header: t('reports.admin.fields.loanId'), render: (row) => `#${row.loanId}` },
+    { key: 'customerName', header: t('reports.admin.fields.customerName'), render: (row) => row.customerName || '-' },
+    { key: 'loanStatus', header: t('reports.portfolio.headers.status'), render: (row) => row.loanStatus || '-' },
+    { key: 'totalCollected', header: 'Collected', cellClassName: 'table-cell-right', render: (row) => formatCurrency(row.totalCollected) },
+    { key: 'totalProfit', header: 'Profit', cellClassName: 'table-cell-right', render: (row) => formatCurrency(row.totalProfit) },
+  ], [t])
+
+  const associateColumns = useMemo(() => [
+    { key: 'name', header: t('reports.admin.headers.associate') },
+    { key: 'status', header: t('reports.admin.headers.status'), render: (associate) => associate.status || '-' },
+    { key: 'participationPercentage', header: t('reports.admin.headers.participation'), render: (associate) => `${associate.participationPercentage || '0.0000'}%` },
+    {
+      key: 'contributed',
+      header: t('reports.admin.headers.contributed'),
+      cellClassName: 'table-cell-right',
+      render: (associate) => Number(selectedAssociateId) === Number(associate.id) ? associateMetrics.contributed : '-',
+    },
+    {
+      key: 'distributed',
+      header: t('reports.admin.headers.distributed'),
+      cellClassName: 'table-cell-right',
+      render: (associate) => Number(selectedAssociateId) === Number(associate.id) ? associateMetrics.distributed : '-',
+    },
+  ], [associateMetrics.contributed, associateMetrics.distributed, selectedAssociateId, t])
+
   return (
     <>
-      <section className="surface-card">
-        <div className="surface-card__header surface-card__header--compact">
-          <div>
-            <div className="section-eyebrow">{t('reports.admin.creditHistoryEyebrow')}</div>
-            <div className="section-title">{t('reports.admin.creditHistoryTitle')}</div>
-            <div className="section-subtitle">{t('reports.admin.creditHistorySubtitle')}</div>
-          </div>
-        </div>
-        <div className="surface-card__body">
+      <WorkspaceCard
+        className="surface-card"
+        eyebrow={t('reports.admin.creditHistoryEyebrow')}
+        title={t('reports.admin.creditHistoryTitle')}
+        subtitle={t('reports.admin.creditHistorySubtitle')}
+      >
           <div className="dashboard-form-grid">
             <label className="field-group">
               <span className="field-label">{t('reports.admin.fields.loanId')}</span>
@@ -74,19 +166,19 @@ function ReportsAdminSection(props) {
           </div>
           {creditHistory && (
             <div className="summary-grid section-margin-top">
-              <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.loanId')}</div><div className="detail-card__value">#{creditHistory.loan.id}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.exposure')}</div><div className="detail-card__value detail-card__value--warning">{formatCurrency(creditHistory.snapshot.outstandingBalance)}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.distributed')}</div><div className="detail-card__value detail-card__value--success">{formatCurrency(creditHistory.snapshot.totalPaid)}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.headers.status')}</div><div className="detail-card__value">{creditHistory.closure?.closureReason || '-'}</div></div>
+              <SummaryMetric label={t('reports.admin.fields.loanId')} value={`#${creditHistory.loan.id}`} />
+              <SummaryMetric label={t('reports.admin.fields.exposure')} value={formatCurrency(creditHistory.snapshot.outstandingBalance)} tone="warning" />
+              <SummaryMetric label={t('reports.admin.fields.distributed')} value={formatCurrency(creditHistory.snapshot.totalPaid)} tone="success" />
+              <SummaryMetric label={t('reports.portfolio.headers.status')} value={creditHistory.closure?.closureReason || '-'} />
             </div>
           )}
           {customerCreditProfile && (
             <>
               <div className="summary-grid section-margin-top">
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerName')}</div><div className="detail-card__value">{customerCreditProfile.customer?.name || '-'}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerCompleteness')}</div><div className="detail-card__value">{customerCreditProfile.profile?.completeness?.isComplete ? t('reports.admin.values.complete') : t('reports.admin.values.incomplete')}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.activeLoans')}</div><div className="detail-card__value">{customerCreditProfile.profile?.summary?.activeLoans || 0}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.delinquentAlerts')}</div><div className="detail-card__value detail-card__value--warning">{customerCreditProfile.profile?.summary?.delinquentAlerts || 0}</div></div>
+                <SummaryMetric label={t('reports.admin.fields.customerName')} value={customerCreditProfile.customer?.name || '-'} />
+                <SummaryMetric label={t('reports.admin.fields.customerCompleteness')} value={customerCreditProfile.profile?.completeness?.isComplete ? t('reports.admin.values.complete') : t('reports.admin.values.incomplete')} />
+                <SummaryMetric label={t('reports.admin.fields.activeLoans')} value={customerCreditProfile.profile?.summary?.activeLoans || 0} />
+                <SummaryMetric label={t('reports.admin.fields.delinquentAlerts')} value={customerCreditProfile.profile?.summary?.delinquentAlerts || 0} tone="warning" />
               </div>
               <div className="content-note section-margin-top">
                 {t('reports.admin.fields.missingSections')}: {(customerCreditProfile.profile?.completeness?.missingSections || []).join(', ') || t('common.values.notAvailable')}
@@ -94,81 +186,35 @@ function ReportsAdminSection(props) {
             </>
           )}
           <div className="summary-grid section-margin-top">
-            <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.customerProfitabilityRows')}</div><div className="detail-card__value">{customerProfitability.length}</div></div>
-            <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.loanProfitabilityRows')}</div><div className="detail-card__value">{loanProfitability.length}</div></div>
+            <SummaryMetric label={t('reports.admin.fields.customerProfitabilityRows')} value={customerProfitability.length} />
+            <SummaryMetric label={t('reports.admin.fields.loanProfitabilityRows')} value={loanProfitability.length} />
           </div>
-          <div className="dashboard-page-stack section-stack--compact section-margin-top">
+          <FormSection title={t('reports.admin.fields.customerProfitabilityRows')} className="section-margin-top">
             <PaginationControls pagination={customerProfitabilityPagination} onPageChange={onCustomerProfitabilityPageChange} />
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>{t('reports.admin.fields.customerId')}</th>
-                    <th>{t('reports.admin.fields.customerName')}</th>
-                    <th>{t('reports.admin.fields.customerProfitabilityRows')}</th>
-                    <th className="table-cell-right">{t('reports.admin.fields.exposure')}</th>
-                    <th className="table-cell-right">Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customerProfitability.length === 0 ? (
-                    <tr><td colSpan="5" className="table-cell-center">No customer profitability rows</td></tr>
-                  ) : (
-                    customerProfitability.map((row) => (
-                      <tr key={row.customerId}>
-                        <td>#{row.customerId}</td>
-                        <td>{row.customerName || '-'}</td>
-                        <td>{row.loanCount || 0}</td>
-                        <td className="table-cell-right">{formatCurrency(row.outstandingBalance)}</td>
-                        <td className="table-cell-right">{formatCurrency(row.totalProfit)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={customerProfitabilityColumns}
+              rows={customerProfitability}
+              rowKey="customerId"
+              emptyState={<EmptyState icon="📈" title="No customer profitability rows" />}
+            />
+          </FormSection>
+          <FormSection title={t('reports.admin.fields.loanProfitabilityRows')} className="section-margin-top">
             <PaginationControls pagination={loanProfitabilityPagination} onPageChange={onLoanProfitabilityPageChange} />
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>{t('reports.admin.fields.loanId')}</th>
-                    <th>{t('reports.admin.fields.customerName')}</th>
-                    <th>{t('reports.portfolio.headers.status')}</th>
-                    <th className="table-cell-right">Collected</th>
-                    <th className="table-cell-right">Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loanProfitability.length === 0 ? (
-                    <tr><td colSpan="5" className="table-cell-center">No loan profitability rows</td></tr>
-                  ) : (
-                    loanProfitability.map((row) => (
-                      <tr key={row.loanId}>
-                        <td>#{row.loanId}</td>
-                        <td>{row.customerName || '-'}</td>
-                        <td>{row.loanStatus || '-'}</td>
-                        <td className="table-cell-right">{formatCurrency(row.totalCollected)}</td>
-                        <td className="table-cell-right">{formatCurrency(row.totalProfit)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
+            <DataTable
+              columns={loanProfitabilityColumns}
+              rows={loanProfitability}
+              rowKey="loanId"
+              emptyState={<EmptyState icon="💹" title="No loan profitability rows" />}
+            />
+          </FormSection>
+      </WorkspaceCard>
 
-      <section className="surface-card">
-        <div className="surface-card__header surface-card__header--compact">
-          <div>
-            <div className="section-eyebrow">{t('reports.admin.associateOpsEyebrow')}</div>
-            <div className="section-title">{t('reports.admin.associateOpsTitle')}</div>
-            <div className="section-subtitle">{t('reports.admin.associateOpsSubtitle')}</div>
-          </div>
-        </div>
-        <div className="surface-card__body">
+      <WorkspaceCard
+        className="surface-card"
+        eyebrow={t('reports.admin.associateOpsEyebrow')}
+        title={t('reports.admin.associateOpsTitle')}
+        subtitle={t('reports.admin.associateOpsSubtitle')}
+      >
           <div className="dashboard-form-grid section-margin-bottom">
             <label className="field-group">
               <span className="field-label">{t('reports.admin.fields.selectedAssociate')}</span>
@@ -223,72 +269,64 @@ function ReportsAdminSection(props) {
           {selectedAssociateId && (
             <>
               <div className="summary-grid section-margin-bottom">
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.contributed')}</div><div className="detail-card__value">{formatCurrency(selectedAssociateProfitability?.summary?.totalContributed)}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.distributed')}</div><div className="detail-card__value detail-card__value--success">{formatCurrency(selectedAssociateProfitability?.summary?.totalDistributed)}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.activeLoans')}</div><div className="detail-card__value">{selectedAssociatePortal?.summary?.activeLoanCount || 0}</div></div>
-                <div className="detail-card"><div className="detail-card__label">{t('reports.admin.fields.exposure')}</div><div className="detail-card__value detail-card__value--warning">{formatCurrency(selectedAssociatePortal?.summary?.portfolioExposure)}</div></div>
+                <SummaryMetric label={t('reports.admin.fields.contributed')} value={associateMetrics.contributed} />
+                <SummaryMetric label={t('reports.admin.fields.distributed')} value={associateMetrics.distributed} tone="success" />
+                <SummaryMetric label={t('reports.admin.fields.activeLoans')} value={associateMetrics.activeLoans} />
+                <SummaryMetric label={t('reports.admin.fields.exposure')} value={associateMetrics.exposure} tone="warning" />
               </div>
 
-              <div className="dashboard-form-grid section-margin-bottom">
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.contributionAmount')}</span>
-                  <input className="field-control" value={contributionForm.amount} onChange={(event) => onContributionFormChange('amount', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.contributionDate')}</span>
-                  <input className="field-control" type="date" value={contributionForm.contributionDate} onChange={(event) => onContributionFormChange('contributionDate', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.notes')}</span>
-                  <input className="field-control" value={contributionForm.notes} onChange={(event) => onContributionFormChange('notes', event.target.value)} />
-                </label>
-                <div className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.action')}</span>
-                  <Button type="button" onClick={onCreateContribution} disabled={createContributionPending}>{t('reports.admin.buttons.addContribution')}</Button>
-                </div>
-              </div>
+              <AssociateLedgerForm
+                title={t('reports.admin.buttons.addContribution')}
+                amountLabel={t('reports.admin.fields.contributionAmount')}
+                dateLabel={t('reports.admin.fields.contributionDate')}
+                dateField="contributionDate"
+                notesLabel={t('reports.admin.fields.notes')}
+                actionFieldLabel={t('reports.admin.fields.action')}
+                actionLabel={t('reports.admin.buttons.addContribution')}
+                amountValue={contributionForm.amount}
+                dateValue={contributionForm.contributionDate}
+                notesValue={contributionForm.notes}
+                onChange={onContributionFormChange}
+                onSubmit={onCreateContribution}
+                isPending={createContributionPending}
+              />
 
-              <div className="dashboard-form-grid section-margin-bottom">
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.distributionAmount')}</span>
-                  <input className="field-control" value={distributionForm.amount} onChange={(event) => onDistributionFormChange('amount', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.distributionDate')}</span>
-                  <input className="field-control" type="date" value={distributionForm.distributionDate} onChange={(event) => onDistributionFormChange('distributionDate', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.notes')}</span>
-                  <input className="field-control" value={distributionForm.notes} onChange={(event) => onDistributionFormChange('notes', event.target.value)} />
-                </label>
-                <div className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.action')}</span>
-                  <Button type="button" onClick={onCreateDistribution} disabled={createDistributionPending}>{t('reports.admin.buttons.addDistribution')}</Button>
-                </div>
-              </div>
+              <AssociateLedgerForm
+                title={t('reports.admin.buttons.addDistribution')}
+                amountLabel={t('reports.admin.fields.distributionAmount')}
+                dateLabel={t('reports.admin.fields.distributionDate')}
+                dateField="distributionDate"
+                notesLabel={t('reports.admin.fields.notes')}
+                actionFieldLabel={t('reports.admin.fields.action')}
+                actionLabel={t('reports.admin.buttons.addDistribution')}
+                amountValue={distributionForm.amount}
+                dateValue={distributionForm.distributionDate}
+                notesValue={distributionForm.notes}
+                onChange={onDistributionFormChange}
+                onSubmit={onCreateDistribution}
+                isPending={createDistributionPending}
+              />
 
-              <div className="dashboard-form-grid section-margin-bottom">
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.reinvestmentAmount')}</span>
-                  <input className="field-control" value={reinvestmentForm.amount} onChange={(event) => onReinvestmentFormChange('amount', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.reinvestmentDate')}</span>
-                  <input className="field-control" type="date" value={reinvestmentForm.distributionDate} onChange={(event) => onReinvestmentFormChange('distributionDate', event.target.value)} />
-                </label>
-                <label className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.notes')}</span>
-                  <input className="field-control" value={reinvestmentForm.notes} onChange={(event) => onReinvestmentFormChange('notes', event.target.value)} />
-                </label>
-                <div className="field-group">
-                  <span className="field-label">{t('reports.admin.fields.action')}</span>
-                  <Button type="button" onClick={onCreateReinvestment} disabled={createReinvestmentPending}>{t('reports.admin.buttons.addReinvestment')}</Button>
-                </div>
-              </div>
+              <AssociateLedgerForm
+                title={t('reports.admin.buttons.addReinvestment')}
+                amountLabel={t('reports.admin.fields.reinvestmentAmount')}
+                dateLabel={t('reports.admin.fields.reinvestmentDate')}
+                dateField="distributionDate"
+                notesLabel={t('reports.admin.fields.notes')}
+                actionFieldLabel={t('reports.admin.fields.action')}
+                actionLabel={t('reports.admin.buttons.addReinvestment')}
+                amountValue={reinvestmentForm.amount}
+                dateValue={reinvestmentForm.distributionDate}
+                notesValue={reinvestmentForm.notes}
+                onChange={onReinvestmentFormChange}
+                onSubmit={onCreateReinvestment}
+                isPending={createReinvestmentPending}
+              />
             </>
           )}
 
-          <div className="dashboard-form-grid section-margin-bottom">
+          <FormSection title={t('reports.admin.buttons.runProportional')} className="section-margin-bottom">
+          <div className="dashboard-form-grid">
             <label className="field-group">
               <span className="field-label">{t('reports.admin.fields.proportionalAmount')}</span>
               <input className="field-control" value={proportionalForm.amount} onChange={(event) => onProportionalFormChange('amount', event.target.value)} />
@@ -310,37 +348,15 @@ function ReportsAdminSection(props) {
               <Button variant="outline" type="button" onClick={onCreateProportionalDistribution} disabled={createProportionalPending}>{t('reports.admin.buttons.runProportional')}</Button>
             </div>
           </div>
+          </FormSection>
 
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t('reports.admin.headers.associate')}</th>
-                  <th>{t('reports.admin.headers.status')}</th>
-                  <th>{t('reports.admin.headers.participation')}</th>
-                  <th className="table-cell-right">{t('reports.admin.headers.contributed')}</th>
-                  <th className="table-cell-right">{t('reports.admin.headers.distributed')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {associates.length === 0 ? (
-                  <tr><td colSpan="5" className="table-cell-center">{t('reports.admin.emptyAssociates')}</td></tr>
-                ) : (
-                  associates.map((associate) => (
-                    <tr key={associate.id}>
-                      <td>{associate.name}</td>
-                      <td>{associate.status || '-'}</td>
-                      <td>{associate.participationPercentage || '0.0000'}%</td>
-                      <td className="table-cell-right">{Number(selectedAssociateId) === Number(associate.id) ? formatCurrency(selectedAssociateProfitability?.summary?.totalContributed) : '-'}</td>
-                      <td className="table-cell-right">{Number(selectedAssociateId) === Number(associate.id) ? formatCurrency(selectedAssociateProfitability?.summary?.totalDistributed) : '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+          <DataTable
+            columns={associateColumns}
+            rows={associates}
+            rowKey="id"
+            emptyState={<EmptyState icon="🤝" title={t('reports.admin.emptyAssociates')} />}
+          />
+      </WorkspaceCard>
     </>
   )
 }

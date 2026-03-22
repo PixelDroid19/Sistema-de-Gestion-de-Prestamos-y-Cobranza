@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import Agents from '@/components/agents/AgentsSelect';
@@ -6,6 +6,10 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import PaginationControls from '@/components/ui/PaginationControls';
 import StatePanel from '@/components/ui/StatePanel';
+import DataTable from '@/components/ui/workspace/DataTable';
+import EmptyState from '@/components/ui/workspace/EmptyState';
+import FilterBar from '@/components/ui/workspace/FilterBar';
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard';
 import {
   LOAN_STATUS_TONE_MAP,
   RECOVERY_STATUS_TONE_MAP,
@@ -18,6 +22,36 @@ import {
 } from '@/features/loans/loansWorkspace.utils';
 
 const RECOVERY_EDIT_STATUSES = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
+
+const INTERNAL_ROLES = new Set(['admin', 'agent'])
+
+function isInternalRole(role) {
+  return INTERNAL_ROLES.has(role)
+}
+
+function sortPortfolioRows(loans) {
+  return [...loans].sort((left, right) => {
+    if (left.status === 'rejected' && right.status !== 'rejected') return 1
+    if (left.status !== 'rejected' && right.status === 'rejected') return -1
+    return Number(right.id) - Number(left.id)
+  })
+}
+
+function getServicingCounts(loan, customerDocumentsByCustomer, promisesByLoan, alertsByLoan, attachmentsByLoan) {
+  const customerId = Number(loan.customerId || loan.Customer?.id)
+  const customerDocuments = customerId ? customerDocumentsByCustomer[customerId] || [] : []
+  const promises = promisesByLoan[loan.id] || []
+  const alerts = alertsByLoan[loan.id] || []
+  const attachments = attachmentsByLoan[loan.id] || []
+
+  return {
+    customerId,
+    customerDocumentsCount: customerDocuments.length,
+    promiseCount: promises.length,
+    activeAlertCount: alerts.filter((alert) => alert.status === 'active').length,
+    attachmentCount: attachments.length,
+  }
+}
 
 const formatRecoveryOptionLabel = (status) => {
   const translatedLabel = formatRecoveryStatus(status);
@@ -177,198 +211,261 @@ function LoansPortfolioSection({
   onDeleteLoan,
 }) {
   const { t } = useTranslation()
-  const renderContent = () => {
-    if (loansQuery.isLoading) {
-      return (
-          <StatePanel
-            icon="⏳"
-            title={t('loans.portfolio.loadingTitle')}
-            message={t('loans.portfolio.loadingMessage')}
-            loadingState
-          />
-      );
-    }
+  const isCustomer = user.role === 'customer'
+  const canViewInternalColumns = isInternalRole(user.role)
 
-    if (loansQuery.error) {
-      return (
-          <StatePanel
-            icon="⚠️"
-            title={t('loans.portfolio.errorTitle')}
-            message={error || t('loans.portfolio.errorMessage')}
-            action={<Button onClick={onRefetch}>{t('common.actions.tryAgain')}</Button>}
-          />
-      );
-    }
+  const portfolioRows = useMemo(() => sortPortfolioRows(loans), [loans])
 
-    if (!loans.length) {
-      return (
-          <StatePanel
-            icon={user.role === 'customer' ? '📄' : '🔍'}
-            title={user.role === 'customer' ? t('loans.portfolio.customerEmptyTitle') : t('loans.portfolio.emptyTitle')}
-            message={user.role === 'customer'
-              ? t('loans.portfolio.customerEmptyMessage')
-              : t('loans.portfolio.emptyMessage')}
+  const portfolioColumns = useMemo(() => [
+      {
+        key: 'loanId',
+        header: t('loans.portfolio.headers.loanId'),
+        render: (loan) => <span className="table-id-pill">#{loan.id}</span>,
+      },
+      canViewInternalColumns && {
+        key: 'customer',
+        header: t('loans.portfolio.headers.customer'),
+        render: (loan) => loan.Customer?.name || '-',
+      },
+      {
+        key: 'amount',
+        header: t('loans.portfolio.headers.amount'),
+        cellClassName: 'table-cell-right',
+        render: (loan) => formatCurrency(loan.amount),
+      },
+      {
+        key: 'interest',
+        header: t('loans.portfolio.headers.interest'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => `${Number(loan.interestRate || 0).toFixed(1)}%`,
+      },
+      {
+        key: 'term',
+        header: t('loans.portfolio.headers.term'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => `${loan.termMonths}m`,
+      },
+      {
+        key: 'status',
+        header: t('loans.portfolio.headers.status'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => (
+          <Badge variant={LOAN_STATUS_TONE_MAP[loan.status] || 'neutral'}>
+            {formatLoanStatus(loan.status)}
+          </Badge>
+        ),
+      },
+      canViewInternalColumns && {
+        key: 'agent',
+        header: t('loans.portfolio.headers.agent'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => (
+          <AgentAssignmentCell
+            loan={loan}
+            role={user.role}
+            assignAgentId={assignAgentId}
+            assignAgentPending={assignAgentPending}
+            pendingAssignAgents={pendingAssignAgents}
+            onSelectAgent={onSelectAgent}
+            onAssignAgent={onAssignAgent}
           />
-      );
-    }
+        ),
+      },
+      {
+        key: 'recovery',
+        header: t('loans.portfolio.headers.recovery'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => (
+          <Badge variant={RECOVERY_STATUS_TONE_MAP[loan.recoveryStatus] || 'neutral'}>
+            {formatRecoveryStatus(loan.recoveryStatus)}
+          </Badge>
+        ),
+      },
+      {
+        key: 'progress',
+        header: t('loans.portfolio.headers.progress'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => <ProgressPill loan={loan} payments={paymentsByLoan[loan.id] || []} />,
+      },
+      {
+        key: 'balance',
+        header: t('loans.portfolio.headers.balance'),
+        cellClassName: 'table-cell-right',
+        render: (loan) => {
+          const loanDetails = getLoanDetails(loan, paymentsByLoan[loan.id] || [])
 
-    return (
+          return loanDetails.balance === '0.00'
+            ? <Badge variant="success">{t('loans.portfolio.fullyPaid')}</Badge>
+            : formatCurrency(loanDetails.balance)
+        },
+      },
+      {
+        key: 'servicing',
+        header: t('loans.portfolio.headers.servicing'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => {
+          const counts = getServicingCounts(
+            loan,
+            customerDocumentsByCustomer,
+            promisesByLoan,
+            alertsByLoan,
+            attachmentsByLoan,
+          )
+
+          return (
+            <div className="table-inline-stack table-inline-stack--stretch">
+              {canViewInternalColumns && <span className="status-note">{t('loans.portfolio.alerts', { count: counts.activeAlertCount })}</span>}
+              {canViewInternalColumns && <span className="status-note">{t('loans.portfolio.promises', { count: counts.promiseCount })}</span>}
+              <span className="status-note">{t('loans.portfolio.attachments', { count: counts.attachmentCount })}</span>
+              {counts.customerId ? <span className="status-note">{t('loans.portfolio.customerDocs', { count: counts.customerDocumentsCount })}</span> : null}
+            </div>
+          )
+        },
+      },
+      {
+        key: 'actions',
+        header: t('loans.portfolio.headers.actions'),
+        cellClassName: 'table-cell-center',
+        render: (loan) => {
+          const canDecision = user.role === 'admin' || (user.role === 'agent' && Number(loan.agentId) === Number(user.id))
+          const canDelete = loan.status === 'rejected' && (user.role === 'admin' || user.role === 'customer' || user.role === 'agent')
+
+          return (
+            <div className="action-stack">
+              {loan.status === 'pending' && canDecision && (
+                <>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    disabled={pendingStatusLoans[loan.id] || updateLoanStatusPending}
+                    onClick={() => onUpdateLoanStatus(loan.id, 'approved')}
+                  >
+                    {pendingStatusLoans[loan.id] ? t('loans.portfolio.processing') : t('loans.portfolio.approve')}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={pendingStatusLoans[loan.id] || updateLoanStatusPending}
+                    onClick={() => onUpdateLoanStatus(loan.id, 'rejected')}
+                  >
+                    {pendingStatusLoans[loan.id] ? t('loans.portfolio.processing') : t('loans.portfolio.reject')}
+                  </Button>
+                </>
+              )}
+              {canViewInternalColumns && (
+                <RecoveryEditorCell
+                  loan={loan}
+                  user={user}
+                  editingRecovery={editingRecovery}
+                  recoveryDrafts={recoveryDrafts}
+                  pendingRecovery={pendingRecovery}
+                  updateRecoveryPending={updateRecoveryPending}
+                  onStartEditing={onStartEditingRecovery}
+                  onRecoveryDraftChange={onRecoveryDraftChange}
+                  onSaveRecovery={onSaveRecovery}
+                />
+              )}
+              {canDelete && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={pendingDeleteLoans[loan.id] || deleteLoanPending}
+                  onClick={() => onDeleteLoan(loan.id)}
+                >
+                  {pendingDeleteLoans[loan.id] ? 'Deleting...' : 'Delete'}
+                </Button>
+              )}
+            </div>
+          )
+        },
+      },
+    ].filter(Boolean), [
+      alertsByLoan,
+      assignAgentId,
+      assignAgentPending,
+      attachmentsByLoan,
+      canViewInternalColumns,
+      customerDocumentsByCustomer,
+      deleteLoanPending,
+      editingRecovery,
+      onAssignAgent,
+      onDeleteLoan,
+      onRecoveryDraftChange,
+      onSaveRecovery,
+      onSelectAgent,
+      onStartEditingRecovery,
+      onUpdateLoanStatus,
+      paymentsByLoan,
+      pendingAssignAgents,
+      pendingDeleteLoans,
+      pendingRecovery,
+      pendingStatusLoans,
+      promisesByLoan,
+      recoveryDrafts,
+      t,
+      updateLoanStatusPending,
+      updateRecoveryPending,
+      user,
+    ])
+
+  let content = (
+    <StatePanel
+      icon={isCustomer ? '📄' : '🔍'}
+      title={isCustomer ? t('loans.portfolio.customerEmptyTitle') : t('loans.portfolio.emptyTitle')}
+      message={isCustomer ? t('loans.portfolio.customerEmptyMessage') : t('loans.portfolio.emptyMessage')}
+    />
+  )
+
+  if (loansQuery.isLoading) {
+    content = (
+      <StatePanel
+        icon="⏳"
+        title={t('loans.portfolio.loadingTitle')}
+        message={t('loans.portfolio.loadingMessage')}
+        loadingState
+      />
+    )
+  } else if (loansQuery.error) {
+    content = (
+      <StatePanel
+        icon="⚠️"
+        title={t('loans.portfolio.errorTitle')}
+        message={error || t('loans.portfolio.errorMessage')}
+        action={<Button onClick={onRefetch}>{t('common.actions.tryAgain')}</Button>}
+      />
+    )
+  } else if (loans.length) {
+    content = (
       <div className="dashboard-page-stack section-stack--compact">
-        <PaginationControls pagination={pagination} isPending={loansQuery.isFetching} onPageChange={onPageChange} />
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('loans.portfolio.headers.loanId')}</th>
-                {(user.role === 'admin' || user.role === 'agent') && <th>{t('loans.portfolio.headers.customer')}</th>}
-                <th className="table-cell-right">{t('loans.portfolio.headers.amount')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.interest')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.term')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.status')}</th>
-                {(user.role === 'admin' || user.role === 'agent') && <th className="table-cell-center">{t('loans.portfolio.headers.agent')}</th>}
-                <th className="table-cell-center">{t('loans.portfolio.headers.recovery')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.progress')}</th>
-                <th className="table-cell-right">{t('loans.portfolio.headers.balance')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.servicing')}</th>
-                <th className="table-cell-center">{t('loans.portfolio.headers.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...loans]
-               .sort((left, right) => {
-                if (left.status === 'rejected' && right.status !== 'rejected') return 1;
-                if (left.status !== 'rejected' && right.status === 'rejected') return -1;
-                return Number(right.id) - Number(left.id);
-              })
-              .map((loan) => {
-                const loanDetails = getLoanDetails(loan, paymentsByLoan[loan.id] || []);
-                const customerId = Number(loan.customerId || loan.Customer?.id);
-                const customerDocuments = customerId ? customerDocumentsByCustomer[customerId] || [] : [];
-                const promises = promisesByLoan[loan.id] || [];
-                const alerts = alertsByLoan[loan.id] || [];
-                const attachments = attachmentsByLoan[loan.id] || [];
-                const canDecision = user.role === 'admin' || (user.role === 'agent' && Number(loan.agentId) === Number(user.id));
-                const canDelete = loan.status === 'rejected' && (user.role === 'admin' || user.role === 'customer' || user.role === 'agent');
-
-                return (
-                  <tr key={loan.id}>
-                    <td><span className="table-id-pill">#{loan.id}</span></td>
-                    {(user.role === 'admin' || user.role === 'agent') && <td>{loan.Customer?.name || '-'}</td>}
-                    <td className="table-cell-right">{formatCurrency(loan.amount)}</td>
-                    <td className="table-cell-center">{Number(loan.interestRate || 0).toFixed(1)}%</td>
-                    <td className="table-cell-center">{loan.termMonths}m</td>
-                    <td className="table-cell-center">
-                      <Badge variant={LOAN_STATUS_TONE_MAP[loan.status] || 'neutral'}>
-                        {formatLoanStatus(loan.status)}
-                      </Badge>
-                    </td>
-                    {(user.role === 'admin' || user.role === 'agent') && (
-                      <td className="table-cell-center">
-                        <AgentAssignmentCell
-                          loan={loan}
-                          role={user.role}
-                          assignAgentId={assignAgentId}
-                          assignAgentPending={assignAgentPending}
-                          pendingAssignAgents={pendingAssignAgents}
-                          onSelectAgent={onSelectAgent}
-                          onAssignAgent={onAssignAgent}
-                        />
-                      </td>
-                    )}
-                    <td className="table-cell-center">
-                      <Badge variant={RECOVERY_STATUS_TONE_MAP[loan.recoveryStatus] || 'neutral'}>
-                        {formatRecoveryStatus(loan.recoveryStatus)}
-                      </Badge>
-                    </td>
-                    <td className="table-cell-center">
-                      <ProgressPill loan={loan} payments={paymentsByLoan[loan.id] || []} />
-                    </td>
-                    <td className="table-cell-right">
-                      {loanDetails.balance === '0.00'
-                        ? <Badge variant="success">{t('loans.portfolio.fullyPaid')}</Badge>
-                        : formatCurrency(loanDetails.balance)}
-                    </td>
-                    <td className="table-cell-center">
-                      <div className="table-inline-stack table-inline-stack--stretch">
-                        {(user.role === 'admin' || user.role === 'agent') && <span className="status-note">{t('loans.portfolio.alerts', { count: alerts.filter((alert) => alert.status === 'active').length })}</span>}
-                        {(user.role === 'admin' || user.role === 'agent') && <span className="status-note">{t('loans.portfolio.promises', { count: promises.length })}</span>}
-                        <span className="status-note">{t('loans.portfolio.attachments', { count: attachments.length })}</span>
-                        {customerId ? <span className="status-note">{t('loans.portfolio.customerDocs', { count: customerDocuments.length })}</span> : null}
-                      </div>
-                    </td>
-                    <td className="table-cell-center">
-                      <div className="action-stack">
-                        {loan.status === 'pending' && canDecision && (
-                          <>
-                            <Button
-                              variant="success"
-                              size="sm"
-                              disabled={pendingStatusLoans[loan.id] || updateLoanStatusPending}
-                              onClick={() => onUpdateLoanStatus(loan.id, 'approved')}
-                            >
-                               {pendingStatusLoans[loan.id] ? t('loans.portfolio.processing') : t('loans.portfolio.approve')}
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              disabled={pendingStatusLoans[loan.id] || updateLoanStatusPending}
-                              onClick={() => onUpdateLoanStatus(loan.id, 'rejected')}
-                            >
-                               {pendingStatusLoans[loan.id] ? t('loans.portfolio.processing') : t('loans.portfolio.reject')}
-                            </Button>
-                          </>
-                        )}
-                        {(user.role === 'admin' || user.role === 'agent') && (
-                          <RecoveryEditorCell
-                            loan={loan}
-                            user={user}
-                            editingRecovery={editingRecovery}
-                            recoveryDrafts={recoveryDrafts}
-                            pendingRecovery={pendingRecovery}
-                            updateRecoveryPending={updateRecoveryPending}
-                            onStartEditing={onStartEditingRecovery}
-                            onRecoveryDraftChange={onRecoveryDraftChange}
-                            onSaveRecovery={onSaveRecovery}
-                          />
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            disabled={pendingDeleteLoans[loan.id] || deleteLoanPending}
-                            onClick={() => onDeleteLoan(loan.id)}
-                          >
-                            {pendingDeleteLoans[loan.id] ? 'Deleting...' : 'Delete'}
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-               })}
-            </tbody>
-          </table>
-        </div>
+        <FilterBar>
+          <PaginationControls pagination={pagination} isPending={loansQuery.isFetching} onPageChange={onPageChange} />
+        </FilterBar>
+        <DataTable
+          columns={portfolioColumns}
+          rows={portfolioRows}
+          rowKey="id"
+          emptyState={(
+            <EmptyState
+              icon={isCustomer ? '📄' : '🔍'}
+              title={isCustomer ? t('loans.portfolio.customerEmptyTitle') : t('loans.portfolio.emptyTitle')}
+              description={isCustomer ? t('loans.portfolio.customerEmptyMessage') : t('loans.portfolio.emptyMessage')}
+            />
+          )}
+        />
       </div>
-    );
-  };
+    )
+  }
 
   return (
-    <section className="surface-card">
-      <div className="surface-card__header surface-card__header--compact">
-        <div>
-          <div className="section-eyebrow">{t('loans.portfolio.eyebrow')}</div>
-          <div className="section-title">
-            {user.role === 'agent' ? t('loans.portfolio.agentTitle') : user.role === 'admin' ? t('loans.portfolio.adminTitle') : t('loans.portfolio.customerTitle')}
-          </div>
-          <div className="section-subtitle">
-            {t('loans.portfolio.subtitle')}
-          </div>
-        </div>
-      </div>
-      <div className="surface-card__body">{renderContent()}</div>
-    </section>
-  );
+    <WorkspaceCard
+      className="surface-card"
+      eyebrow={t('loans.portfolio.eyebrow')}
+      title={user.role === 'agent' ? t('loans.portfolio.agentTitle') : user.role === 'admin' ? t('loans.portfolio.adminTitle') : t('loans.portfolio.customerTitle')}
+      subtitle={t('loans.portfolio.subtitle')}
+    >
+      {content}
+    </WorkspaceCard>
+  )
 }
 
 export default LoansPortfolioSection;

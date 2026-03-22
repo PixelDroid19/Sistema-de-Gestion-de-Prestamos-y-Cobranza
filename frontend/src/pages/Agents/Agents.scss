@@ -1,5 +1,11 @@
 .agents-page {
   gap: 1.5rem;
+
+  .surface-card {
+    background: var(--lf-shell-bg-surface);
+    border-color: var(--lf-shell-border-subtle);
+    box-shadow: var(--lf-shell-shadow-card);
+  }
 }
 
 .agents-page__hero {

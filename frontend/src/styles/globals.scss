@@ -1,7 +1,13 @@
 @use './tokens';
 @use './mixins';
+@use './workspace-shell/shell';
+@use './workspace-shell/workspace';
+@use './workspace-shell/data-display';
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import 'react-grid-layout/css/styles.css';
+@import 'react-resizable/css/styles.css';
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 * {
   box-sizing: border-box;
@@ -188,6 +194,12 @@ svg {
   background: transparent;
   color: var(--text-primary);
   font-size: 0.92rem;
+}
+
+.lf-filter-pill input:focus,
+.lf-filter-pill select:focus,
+.search-bar input:focus {
+  outline: none;
 }
 
 .header-actions {

@@ -1,4 +1,20 @@
 :root {
+  --lf-shell-bg-base: #f8fafc;
+  --lf-shell-bg-surface: #ffffff;
+  --lf-shell-bg-elevated: #ffffff;
+  --lf-shell-hover-bg: #f1f5f9;
+  --lf-shell-text-primary: #0f172a;
+  --lf-shell-text-secondary: #64748b;
+  --lf-shell-text-muted: #94a3b8;
+  --lf-shell-border-subtle: #e2e8f0;
+  --lf-shell-border-strong: #cbd5e1;
+  --lf-shell-brand: #4f87ff;
+  --lf-shell-brand-deep: #1f3f72;
+  --lf-shell-accent: #34c38f;
+  --lf-shell-gold: #f4c168;
+  --lf-shell-danger: #fb7185;
+  --lf-shell-shadow-soft: 0 22px 48px rgba(15, 23, 42, 0.09);
+  --lf-shell-shadow-card: 0 14px 34px rgba(15, 23, 42, 0.08);
   --bg-color: #f3f5f2;
   --surface-color: #ffffff;
   --surface-muted: #f7faf8;
@@ -25,6 +41,22 @@
 }
 
 .theme-dark {
+  --lf-shell-bg-base: #0f172a;
+  --lf-shell-bg-surface: #1e293b;
+  --lf-shell-bg-elevated: #334155;
+  --lf-shell-hover-bg: #263346;
+  --lf-shell-text-primary: #f8fafc;
+  --lf-shell-text-secondary: #cbd5e1;
+  --lf-shell-text-muted: #94a3b8;
+  --lf-shell-border-subtle: #334155;
+  --lf-shell-border-strong: #475569;
+  --lf-shell-brand: #7da2ff;
+  --lf-shell-brand-deep: #dbeafe;
+  --lf-shell-accent: #61d4bb;
+  --lf-shell-gold: #f8d887;
+  --lf-shell-danger: #fda4af;
+  --lf-shell-shadow-soft: 0 28px 60px rgba(2, 6, 23, 0.45);
+  --lf-shell-shadow-card: 0 18px 40px rgba(2, 6, 23, 0.32);
   --bg-color: #0f1514;
   --surface-color: #15201d;
   --surface-muted: #1b2925;

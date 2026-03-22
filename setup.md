@@ -1,6 +1,6 @@
-# 🚀 Quick Setup Guide
+# CrediCobranza - Quick Setup Guide
 
-This guide will help you set up the Loan Recovery System locally with PostgreSQL.
+This guide will help you set up CrediCobranza, the Sistema de Gestion de Prestamos y Cobranza, locally with PostgreSQL.
 
 ## Prerequisites
 

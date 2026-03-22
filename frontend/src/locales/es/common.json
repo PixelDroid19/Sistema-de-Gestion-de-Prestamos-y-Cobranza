@@ -13,16 +13,47 @@
     "searchPlaceholder": "Buscar en el espacio",
     "settings": "Configuracion",
     "toggleTheme": "Cambiar tema",
+    "toggleGroup": "Alternar grupo {{group}}",
     "notifications": "Notificaciones",
+    "brandCaption": "Sistema de Gestion de Prestamos y Cobranza",
+    "newNotifications": "{{count}} nuevas",
+    "previousDate": "Fecha anterior",
+    "nextDate": "Fecha siguiente",
     "logout": "Cerrar sesion",
     "userMenu": "Opciones del usuario",
     "avatarAlt": "Avatar del usuario",
+    "groups": {
+      "overview": "Resumen",
+      "customers": "Clientes",
+      "loans": "Prestamos y analitica",
+      "associates": "Socios",
+      "payments": "Pagos",
+      "agents": "Agentes",
+      "system": "Sistema"
+    },
+    "viewTitles": {
+      "dashboard": "Resumen del dashboard",
+      "customers": "Espacio de clientes",
+      "customers-new": "Nuevo cliente",
+      "loans": "Espacio de prestamos",
+      "loans-new": "Nuevo prestamo",
+      "associates": "Espacio de socios",
+      "payments": "Espacio de pagos",
+      "agents": "Espacio de agentes",
+      "reports": "Espacio de reportes",
+      "notifications": "Centro de notificaciones"
+    },
     "views": {
       "Dashboard": "Panel",
+      "Customers": "Clientes",
+      "NewCustomer": "Nuevo cliente",
       "Loans": "Prestamos",
+      "NewLoan": "Nuevo prestamo",
+      "Associates": "Socios",
       "Payments": "Pagos",
       "Agents": "Agentes",
       "Reports": "Reportes",
+      "Notifications": "Notificaciones",
       "partnerPortal": "Portal de socios"
     }
   },
@@ -72,9 +103,9 @@
     "title": "La mesa de credito que se siente tan precisa como tu mejor operador.",
     "description": "Lleva originacion, cobranza, pagos, socios y reportes a una landing premium que conserva el backend, el store de sesion y tus contratos actuales.",
     "supportingDescription": "Hero editorial, mockups telefonicos, badges flotantes y superficies de producto para mostrar el mismo lenguaje visual del workspace autenticado.",
-    "brand": "LendFlow",
+    "brand": "CrediCobranza",
     "workflow": "Flujo de trabajo",
-    "proofLabel": "Senales de confianza de LendFlow",
+    "proofLabel": "Senales de confianza de CrediCobranza",
     "primaryCta": "Ingresar",
     "secondaryCta": "Crear cuenta",
     "proofPoints": {
@@ -126,10 +157,10 @@
       }
     },
     "featureTitle": "Pensado para mesas de credito modernas",
-    "featureDescription": "Tarjetas editoriales, badges y bloques de decision reinterpretan el sample pedido sin salir de la arquitectura Sass, i18n y componentes del proyecto.",
+    "featureDescription": "Tarjetas editoriales, badges y bloques de decision le dan mas identidad al producto sin salir de la arquitectura Sass, i18n y componentes del proyecto.",
     "features": {
       "title1": "Elige mejor",
-      "titleHighlight": "con LendFlow",
+      "titleHighlight": "con CrediCobranza",
       "description": "Las herramientas que necesitas bajo una UI perfecta. Descubre por que las mejores agencias nos eligen.",
       "card1": "Protege tu",
       "card1Break": "cartera",
@@ -141,7 +172,7 @@
     "split": {
       "eyebrow": "Vista dividida",
       "title": "Una narrativa de producto que conecta decision, seguimiento y recuperacion.",
-      "description": "La seccion partida replica el feel del sample pedido: copy amplia a la izquierda y un bloque operacional a la derecha para mostrar movimiento real dentro del sistema.",
+      "description": "La seccion partida combina copy amplia a la izquierda y un bloque operacional a la derecha para mostrar movimiento real dentro del sistema.",
       "boardEyebrow": "Panel de operacion",
       "boardTitle": "Todo el ciclo sigue visible en una sola superficie",
       "boardDescription": "Originacion, seguimiento y reportes viven juntos para que el traspaso entre overview y accion se sienta inmediato.",
@@ -152,7 +183,7 @@
         },
         "decisions": {
           "title": "Decisiones respaldadas por datos",
-          "description": "Cada bloque resume lo que ya existe en hooks, stores y servicios, pero con una direccion visual mas cercana al sample original."
+          "description": "Cada bloque resume lo que ya existe en hooks, stores y servicios con una direccion visual mas intencional."
         },
         "recovery": {
           "title": "Recuperacion como historia operativa",
@@ -163,7 +194,7 @@
     "experience": {
       "eyebrow": "Experiencia de producto",
       "title": "Bento, contrastes y jerarquia para comunicar sofisticacion operativa.",
-      "description": "Los bloques mezclan superficies claras, fondos profundos y highlights dorados para acercarse al sample de referencia sin usar estilos inline heredados.",
+      "description": "Los bloques mezclan superficies claras, fondos profundos y highlights dorados sin depender de estilos inline.",
       "cards": {
         "command": {
           "title": "Centro de comando para originacion y cobranza",
@@ -200,7 +231,7 @@
       },
       "captions": {
         "origination": "Configura montos, plazos y decisiones iniciales con una presentacion premium alineada a tus contratos de backend.",
-        "servicing": "Supervisa cuotas, documentos y promesas con mockups, cards y paneles que recuerdan el sample visual solicitado.",
+        "servicing": "Supervisa cuotas, documentos y promesas con mockups, cards y paneles pensados para el seguimiento diario.",
         "reporting": "Consulta saldos, recuperacion y datos de socios desde superficies reutilizables, bilingues y listas para exportar."
       }
     },
@@ -227,7 +258,7 @@
     },
     "cta": {
       "eyebrow": "Listo para entrar",
-      "title": "Haz que el primer contacto con LendFlow se sienta tan afinado como la operacion interna.",
+      "title": "Haz que el primer contacto con CrediCobranza se sienta tan afinado como la operacion interna.",
       "description": "Usa el hero para iniciar sesion o abrir registro sin perder la narrativa premium que ahora define la landing.",
       "primary": "Entrar al workspace",
       "secondary": "Abrir registro"
@@ -286,7 +317,7 @@
     "footer": {
       "title": "Gestionar tus finanzas es",
       "titleBreak": "a un clic.",
-      "copyright": "2026 LendFlow Inc. Todos los derechos reservados.",
+      "copyright": "2026 CrediCobranza. Todos los derechos reservados.",
       "terms": "Terminos",
       "privacy": "Privacidad"
     }
@@ -320,7 +351,7 @@
   "dashboard": {
     "eyebrow": "Resumen ejecutivo",
     "title": "Mantiene prestamos, recuperacion y planeacion dentro de una sola cabina financiera",
-    "subtitle": "Este espacio convierte el dashboard heredado de estilo bancario en una pagina bilingue y basada en Sass que sigue leyendo las mismas consultas de reportes, prestamos y pagos.",
+    "subtitle": "Este espacio mantiene prestamos, recuperacion y planeacion en una pagina bilingue basada en Sass y respaldada por las mismas consultas de reportes, prestamos y pagos.",
     "loading": {
       "title": "Cargando dashboard",
       "message": "Recolectando senales de cartera, recuperacion y balances para este espacio."
@@ -584,6 +615,11 @@
       },
       "buttons": {
         "uploadDocument": "Subir documento"
+      },
+      "calendar": {
+        "title": "Calendario de cuotas",
+        "eventTitle": "Cuota #{{number}}",
+        "emptyMessage": "Las cuotas con fecha de vencimiento apareceran aqui en formato de calendario."
       },
       "headers": {
         "paymentId": "ID pago",
@@ -1113,6 +1149,132 @@
       "emptyContributions": "No hay aportes registrados",
       "emptyDistributions": "No hay distribuciones registradas",
       "emptyLoans": "No hay prestamos vinculados"
+    }
+  },
+  "customers": {
+    "title": "Espacio de clientes",
+    "subtitle": "Revisa registros de clientes, datos de contacto y actividad crediticia desde un espacio unificado.",
+    "actions": {
+      "new": "Nuevo cliente",
+      "back": "Volver a clientes",
+      "save": "Guardar cliente",
+      "saving": "Guardando..."
+    },
+    "summary": {
+      "total": "Clientes",
+      "totalCaption": "Perfiles cargados actualmente en este espacio",
+      "active": "Clientes activos",
+      "activeCaption": "Cuentas disponibles para seguimiento continuo",
+      "withLoans": "Con prestamos",
+      "withLoansCaption": "Clientes ya vinculados a actividad crediticia"
+    },
+    "filters": {
+      "search": "Buscar clientes",
+      "allStatuses": "Todos los estados",
+      "timeline": "Linea de actualizacion"
+    },
+    "table": {
+      "eyebrow": "Registro de clientes",
+      "title": "Cuentas de clientes visibles",
+      "subtitle": "Usa la tabla compartida de clientes para revisar identidad, estado y relacion con prestamos.",
+      "emptyTitle": "Aun no hay clientes",
+      "emptyMessage": "Los registros de clientes apareceran aqui cuando se creen en el backend.",
+      "headers": {
+        "id": "ID cliente",
+        "name": "Cliente",
+        "contact": "Contacto",
+        "status": "Estado",
+        "joined": "Alta",
+        "loans": "Prestamos"
+      }
+    },
+    "form": {
+      "title": "Crear un nuevo cliente",
+      "subtitle": "Captura identidad y contacto usando el nuevo layout compartido del espacio de trabajo para formularios.",
+      "success": "Cliente creado correctamente.",
+      "sections": {
+        "personal": "Informacion personal",
+        "contact": "Informacion de contacto"
+      },
+      "fields": {
+        "name": "Nombre completo",
+        "documentNumber": "Numero de documento",
+        "birthDate": "Fecha de nacimiento",
+        "occupation": "Ocupacion",
+        "phone": "Telefono",
+        "email": "Correo electronico",
+        "address": "Direccion"
+      }
+    }
+  },
+  "associates": {
+    "title": "Espacio de socios",
+    "subtitle": "Sigue registros de socios, participacion y prestamos vinculados desde una sola superficie analitica compartida.",
+    "actions": {
+      "new": "Nuevo socio"
+    },
+    "summary": {
+      "total": "Socios",
+      "totalCaption": "Registros de socios visibles actualmente",
+      "active": "Socios activos",
+      "activeCaption": "Perfiles disponibles para distribuciones y reportes",
+      "linked": "Prestamos vinculados",
+      "linkedCaption": "Prestamos asociados actualmente a estos socios"
+    },
+    "filters": {
+      "search": "Buscar socios"
+    },
+    "table": {
+      "eyebrow": "Registro de socios",
+      "title": "Socios visibles",
+      "subtitle": "Revisa participacion y exposicion de cartera sin salir del workspace.",
+      "emptyTitle": "Aun no hay socios",
+      "emptyMessage": "Los registros de socios apareceran aqui cuando esten disponibles en el backend.",
+      "headers": {
+        "id": "ID socio",
+        "name": "Socio",
+        "status": "Estado",
+        "participation": "Participacion",
+        "loans": "Prestamos"
+      }
+    }
+  },
+  "newLoan": {
+    "title": "Crear un nuevo prestamo",
+    "subtitle": "Simula condiciones, elige un cliente y envia la solicitud al flujo actual de prestamos.",
+    "actions": {
+      "back": "Volver a prestamos",
+      "simulate": "Simular prestamo",
+      "simulating": "Simulando...",
+      "save": "Crear prestamo",
+      "saving": "Guardando..."
+    },
+    "sections": {
+      "borrower": "Solicitante",
+      "details": "Detalles del prestamo"
+    },
+    "fields": {
+      "customer": "Cliente",
+      "selectCustomer": "Selecciona un cliente",
+      "amount": "Monto del prestamo",
+      "interestRate": "Tasa de interes",
+      "termMonths": "Plazo en meses",
+      "frequency": "Frecuencia de pago",
+      "monthly": "Mensual",
+      "biweekly": "Quincenal",
+      "weekly": "Semanal"
+    },
+    "summary": {
+      "eyebrow": "Resumen de simulacion",
+      "title": "Valores esperados del credito",
+      "subtitle": "Actualiza la simulacion antes de guardar para comparar cuota, interes y total a pagar.",
+      "principal": "Capital",
+      "installment": "Cuota",
+      "totalInterest": "Interes total",
+      "totalPayable": "Total a pagar"
+    },
+    "messages": {
+      "created": "Prestamo creado correctamente."
     }
   }
 }

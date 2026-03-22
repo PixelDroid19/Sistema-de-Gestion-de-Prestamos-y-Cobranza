@@ -26,7 +26,7 @@ const createApp = ({
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'success',
-      message: 'Loan Recovery System API is running',
+      message: 'CrediCobranza API is running',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
     });
@@ -36,10 +36,10 @@ const createApp = ({
     res.send(`
       <!DOCTYPE html>
       <html lang="en">
-      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Loan Recovery System API</title></head>
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>CrediCobranza API</title></head>
       <body style="font-family: Arial, sans-serif; padding: 2rem;">
-        <h1>🏦 Loan Recovery System</h1>
-        <p>Backend API server running in ${process.env.NODE_ENV || 'development'}.</p>
+        <h1>🏦 CrediCobranza</h1>
+        <p>Sistema de Gestion de Prestamos y Cobranza ejecutandose en ${process.env.NODE_ENV || 'development'}.</p>
         <p><a href="/api">View API documentation</a></p>
       </body>
       </html>
@@ -50,7 +50,7 @@ const createApp = ({
     const endpoints = Object.fromEntries(moduleRegistry.map((moduleRegistration) => [moduleRegistration.name, moduleRegistration.basePath]));
 
     res.json({
-      message: 'Loan Recovery System API',
+      message: 'CrediCobranza API',
       version: '1.0.0',
       endpoints,
     });

@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next'
 
 import AppShell from '@/components/layout/AppShell'
 import { useSessionStore } from '@/store/sessionStore'
-import { resolveCurrentView, useUiStore } from '@/store/uiStore'
+import { resolveCurrentViewId, resolveViewComponentKey, useUiStore } from '@/store/uiStore'
 
 import './App.scss'
 
 const Home = lazy(() => import('@/pages/Home/Home'))
 const Dashboard = lazy(() => import('@/pages/Dashboard/Dashboard'))
+const Customers = lazy(() => import('@/pages/Customers/Customers'))
+const NewCustomer = lazy(() => import('@/pages/Customers/NewCustomer'))
 const Loans = lazy(() => import('@/pages/Loans/Loans'))
+const NewLoan = lazy(() => import('@/pages/Loans/NewLoan'))
+const Associates = lazy(() => import('@/pages/Associates/Associates'))
 const Payments = lazy(() => import('@/pages/Payments/Payments'))
 const Agents = lazy(() => import('@/pages/Agents/Agents'))
 const Reports = lazy(() => import('@/pages/Reports/Reports'))
@@ -17,10 +21,15 @@ const Notifications = lazy(() => import('@/components/Notifications'))
 
 const viewComponents = {
   Dashboard,
+  Customers,
+  NewCustomer,
   Loans,
+  NewLoan,
+  Associates,
   Payments,
   Agents,
   Reports,
+  Notifications,
 }
 
 function ScreenFallback({ label }) {
@@ -37,6 +46,7 @@ function App() {
   const isDarkMode = useUiStore((state) => state.isDarkMode)
   const notificationsOpen = useUiStore((state) => state.notificationsOpen)
   const setNotificationsOpen = useUiStore((state) => state.setNotificationsOpen)
+  const ensureAllowedView = useUiStore((state) => state.ensureAllowedView)
 
   useEffect(() => {
     bootstrapSession()
@@ -56,7 +66,7 @@ function App() {
   }, [logout, t])
 
   const handleLogin = () => {
-    setCurrentView('Dashboard')
+    setCurrentView('dashboard')
   }
 
   useEffect(() => {
@@ -64,11 +74,11 @@ function App() {
       return
     }
 
-    const nextView = resolveCurrentView(currentView, user.role)
+    const nextView = ensureAllowedView(user.role)
     if (nextView !== currentView) {
       setCurrentView(nextView)
     }
-  }, [currentView, setCurrentView, user])
+  }, [currentView, ensureAllowedView, setCurrentView, user])
 
   if (!user) {
     return (
@@ -78,7 +88,9 @@ function App() {
     )
   }
 
-  const ActiveView = viewComponents[resolveCurrentView(currentView, user.role)] || Dashboard
+  const resolvedView = resolveCurrentViewId(currentView, user.role)
+  const ActiveView = viewComponents[resolveViewComponentKey(resolvedView, user.role)] || Dashboard
+  const shouldRenderNotificationOverlay = notificationsOpen && resolvedView !== 'notifications'
 
   return (
     <div className={`app-page${isDarkMode ? ' app-page--dark' : ''}`}>
@@ -87,7 +99,7 @@ function App() {
           <ActiveView user={user} />
         </Suspense>
       </AppShell>
-      {notificationsOpen && (
+      {shouldRenderNotificationOverlay && (
         <Suspense fallback={null}>
           <Notifications user={user} isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
         </Suspense>

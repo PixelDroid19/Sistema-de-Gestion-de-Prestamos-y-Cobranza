@@ -16,10 +16,42 @@ import Card from '@/components/ui/Card'
 import StatePanel from '@/components/ui/StatePanel'
 import { useDashboardSummaryQuery, useLoansOverviewQuery, usePaymentsOverviewQuery } from '@/hooks/useDashboard'
 import { useAssociateProfitabilityQuery } from '@/hooks/useReports'
+import WorkspaceChart from '@/components/widgets/WorkspaceChart'
+import WorkspaceGrid from '@/components/widgets/WorkspaceGrid'
 
 const PROFIT_FILTERS = ['week', 'month', 'year']
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov']
 const MONTH_HEIGHTS = [30, 0, 50, 70, 0, 30, 40, 30, 40, 50, 60]
+const PROFIT_CHART_SERIES = [{ dataKey: 'value', color: '#4f87ff' }]
+const SPENDINGS_CHART_SERIES = [{ dataKey: 'value', color: '#f4c168' }]
+const PREMIUM_CHART_SERIES = [{ dataKey: 'value' }]
+const CHART_AXIS_LABELS = [16, 17, 18, 19, 20, 21, 22]
+const QUICK_ACTIONS = [
+  { key: 'send', icon: ArrowUpRight },
+  { key: 'receive', icon: ArrowDownLeft },
+  { key: 'withdraw', icon: SendToBack },
+]
+const PLANNING_ITEMS = [
+  { key: 'paris', current: '$265', target: '$10,000', progress: '20%' },
+  { key: 'brazil', current: '$10,465', target: '$14,000', progress: '75%' },
+]
+const TRANSACTIONS = [
+  { key: 'dribbble', amount: '-$5.78', date: 'September 30, 2022', time: '4:38 PM', status: 'pending' },
+  { key: 'youtube', amount: '-$1055.78', date: 'October 2, 2022', time: '03:34 AM', status: 'completed' },
+  { key: 'apple', amount: '-$345.78', date: 'October 13, 2022', time: '02:04 PM', status: 'completed' },
+]
+const DASHBOARD_LAYOUTS = {
+  lg: [
+    { i: 'heroCards', x: 0, y: 0, w: 2, h: 4 },
+    { i: 'profit', x: 2, y: 0, w: 2, h: 4 },
+    { i: 'income', x: 0, y: 4, w: 1, h: 3 },
+    { i: 'expenses', x: 1, y: 4, w: 1, h: 3 },
+    { i: 'spendings', x: 2, y: 4, w: 2, h: 3 },
+    { i: 'planning', x: 0, y: 7, w: 1, h: 3 },
+    { i: 'transactions', x: 1, y: 7, w: 2, h: 3 },
+    { i: 'premium', x: 3, y: 7, w: 1, h: 3 },
+  ],
+}
 
 const TRANSACTION_BRANDS = {
   dribbble: 'agents-page__brand--rose',
@@ -29,6 +61,48 @@ const TRANSACTION_BRANDS = {
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
+}
+
+function getOverviewItems(data, primaryKey, nestedKey) {
+  if (Array.isArray(data?.items)) return data.items
+  if (Array.isArray(data?.data?.[primaryKey])) return data.data[primaryKey]
+  if (Array.isArray(data?.data?.[nestedKey])) return data.data[nestedKey]
+  if (Array.isArray(data?.data)) return data.data
+  return []
+}
+
+function sumMoney(items, key) {
+  return items.reduce((sum, item) => sum + Number(item?.[key] || 0), 0)
+}
+
+function buildDashboardSummary({ isPartner, partnerSummary, isAdmin, dashboardSummary, loans, payments }) {
+  if (isPartner) {
+    const totalContributed = Number(partnerSummary?.summary?.totalContributed || 668)
+    const totalDistributed = Number(partnerSummary?.summary?.totalDistributed || 4465)
+
+    return {
+      totalAmount: totalContributed,
+      paidAmount: totalDistributed,
+      pendingAmount: Math.max(0, totalContributed - totalDistributed),
+    }
+  }
+
+  if (isAdmin && dashboardSummary) {
+    return {
+      totalAmount: Number(dashboardSummary.totalPortfolioAmount || 668),
+      paidAmount: Number(dashboardSummary.totalRecoveredAmount || 4465),
+      pendingAmount: Number(dashboardSummary.totalOutstandingAmount || 2465),
+    }
+  }
+
+  const totalLoanAmount = sumMoney(loans, 'amount') || 668
+  const totalPaymentAmount = sumMoney(payments, 'amount') || 4465
+
+  return {
+    totalAmount: totalLoanAmount,
+    paidAmount: totalPaymentAmount,
+    pendingAmount: Math.max(0, totalLoanAmount - totalPaymentAmount) || 2465,
+  }
 }
 
 function SummaryCard({ label, value, delta, tone }) {
@@ -52,47 +126,17 @@ function DashboardWorkspace({ user }) {
   const dashboardSummaryQuery = useDashboardSummaryQuery({ enabled: user.role === 'admin' })
 
   const partnerSummary = associateProfitabilityQuery.data?.data?.report || null
-  const queriedLoans = Array.isArray(loansQuery.data?.items)
-    ? loansQuery.data.items
-    : Array.isArray(loansQuery.data?.data?.loans)
-      ? loansQuery.data.data.loans
-      : Array.isArray(loansQuery.data?.data)
-        ? loansQuery.data.data
-        : []
-  const queriedPayments = Array.isArray(paymentsQuery.data?.items)
-    ? paymentsQuery.data.items
-    : Array.isArray(paymentsQuery.data?.data)
-      ? paymentsQuery.data.data
-      : Array.isArray(paymentsQuery.data?.data?.payments)
-        ? paymentsQuery.data.data.payments
-        : []
+  const queriedLoans = useMemo(() => getOverviewItems(loansQuery.data, 'loans', 'loans'), [loansQuery.data])
+  const queriedPayments = useMemo(() => getOverviewItems(paymentsQuery.data, 'payments', 'payments'), [paymentsQuery.data])
 
-  const summary = isPartner
-    ? {
-        totalAmount: Number(partnerSummary?.summary?.totalContributed || 668),
-        paidAmount: Number(partnerSummary?.summary?.totalDistributed || 4465),
-        pendingAmount: Math.max(
-          0,
-          Number(partnerSummary?.summary?.totalContributed || 2465)
-            - Number(partnerSummary?.summary?.totalDistributed || 0),
-        ),
-      }
-    : user.role === 'admin' && dashboardSummaryQuery.data?.data?.summary
-      ? {
-          totalAmount: Number(dashboardSummaryQuery.data.data.summary.totalPortfolioAmount || 668),
-          paidAmount: Number(dashboardSummaryQuery.data.data.summary.totalRecoveredAmount || 4465),
-          pendingAmount: Number(dashboardSummaryQuery.data.data.summary.totalOutstandingAmount || 2465),
-        }
-      : {
-          totalAmount: queriedLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0) || 668,
-          paidAmount: queriedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0) || 4465,
-          pendingAmount:
-            Math.max(
-              0,
-              queriedLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0)
-                - queriedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
-            ) || 2465,
-        }
+  const summary = useMemo(() => buildDashboardSummary({
+    isPartner,
+    partnerSummary,
+    isAdmin: user.role === 'admin',
+    dashboardSummary: dashboardSummaryQuery.data?.data?.summary,
+    loans: queriedLoans,
+    payments: queriedPayments,
+  }), [dashboardSummaryQuery.data?.data?.summary, isPartner, partnerSummary, queriedLoans, queriedPayments, user.role])
 
   const isLoading = isPartner
     ? associateProfitabilityQuery.isLoading
@@ -102,32 +146,6 @@ function DashboardWorkspace({ user }) {
     ? associateProfitabilityQuery.error
     : dashboardSummaryQuery.error || loansQuery.error || paymentsQuery.error
 
-  const quickActions = useMemo(
-    () => [
-      { key: 'send', icon: ArrowUpRight },
-      { key: 'receive', icon: ArrowDownLeft },
-      { key: 'withdraw', icon: SendToBack },
-    ],
-    [],
-  )
-
-  const planningItems = useMemo(
-    () => [
-      { key: 'paris', current: '$265', target: '$10,000', progress: '20%' },
-      { key: 'brazil', current: '$10,465', target: '$14,000', progress: '75%' },
-    ],
-    [],
-  )
-
-  const transactions = useMemo(
-    () => [
-      { key: 'dribbble', amount: '-$5.78', date: 'September 30, 2022', time: '4:38 PM', status: 'pending' },
-      { key: 'youtube', amount: '-$1055.78', date: 'October 2, 2022', time: '03:34 AM', status: 'completed' },
-      { key: 'apple', amount: '-$345.78', date: 'October 13, 2022', time: '02:04 PM', status: 'completed' },
-    ],
-    [],
-  )
-
   const summaryCards = useMemo(
     () => [
       { label: t('dashboard.metrics.portfolio'), value: formatCurrency(summary.totalAmount), delta: t('dashboard.metrics.portfolioDelta'), tone: 'brand' },
@@ -136,6 +154,17 @@ function DashboardWorkspace({ user }) {
     ],
     [summary.paidAmount, summary.pendingAmount, summary.totalAmount, t],
   )
+
+  const chartData = useMemo(() => MONTH_KEYS.map((month, index) => ({
+    name: t(`dashboard.months.${month}`),
+    value: Number(((summary.totalAmount || 0) * ((MONTH_HEIGHTS[index] || 20) / 100)).toFixed(2)),
+  })), [summary.totalAmount, t])
+
+  const statusData = useMemo(() => [
+    { name: t('dashboard.metrics.recovered'), value: Math.max(summary.paidAmount, 1) },
+    { name: t('dashboard.metrics.outstanding'), value: Math.max(summary.pendingAmount, 1) },
+    { name: t('dashboard.metrics.portfolio'), value: Math.max(summary.totalAmount - summary.paidAmount - summary.pendingAmount, 1) },
+  ], [summary.paidAmount, summary.pendingAmount, summary.totalAmount, t])
 
   if (isLoading) {
     return (
@@ -173,7 +202,8 @@ function DashboardWorkspace({ user }) {
         </div>
       </section>
 
-      <div className="dash-grid">
+      <WorkspaceGrid layouts={DASHBOARD_LAYOUTS} rowHeight={84}>
+        <div key="heroCards">
         <Card className="dash-card dash-my-cards">
           <div className="dash-title-row">
             <div>
@@ -215,7 +245,7 @@ function DashboardWorkspace({ user }) {
             </div>
 
             <div className="cc-quick-actions">
-              {quickActions.map((action) => (
+              {QUICK_ACTIONS.map((action) => (
                 <button key={action.key} type="button" className="quick-btn">
                   <span className="quick-icon">
                     <action.icon size={18} />
@@ -226,7 +256,9 @@ function DashboardWorkspace({ user }) {
             </div>
           </div>
         </Card>
+        </div>
 
+        <div key="profit">
         <Card className="dash-card dash-profit">
           <div className="dash-title-row">
             <h3 className="dash-title">{t('dashboard.profit.title')}</h3>
@@ -252,24 +284,17 @@ function DashboardWorkspace({ user }) {
           </div>
 
           <div className="svg-chart-container">
-            <svg viewBox="0 0 400 120" className="dashboard-page__line-chart" aria-hidden="true">
-              <defs>
-                <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#457B66" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#457B66" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M0,80 Q50,70 100,85 T200,60 T300,70 T400,20 L400,120 L0,120 Z" fill="url(#profitGrad)" />
-              <path d="M0,80 Q50,70 100,85 T200,60 T300,70 T400,20" fill="none" stroke="#457B66" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-            <div className="dashboard-page__chart-axis">
-              {[16, 17, 18, 19, 20, 21, 22].map((label) => (
+             <WorkspaceChart data={chartData} series={PROFIT_CHART_SERIES} />
+             <div className="dashboard-page__chart-axis">
+              {CHART_AXIS_LABELS.map((label) => (
                 <span key={label}>{label}</span>
               ))}
             </div>
           </div>
         </Card>
+        </div>
 
+        <div key="income">
         <Card className="dash-card dash-income">
           <div className="mini-stat-header">
             <div className="dashboard-page__icon-title">
@@ -295,7 +320,9 @@ function DashboardWorkspace({ user }) {
             <Badge variant="success">{t('dashboard.income.delta')}</Badge>
           </div>
         </Card>
+        </div>
 
+        <div key="expenses">
         <Card className="dash-card dash-expenses">
           <div className="mini-stat-header">
             <div className="dashboard-page__icon-title">
@@ -321,7 +348,9 @@ function DashboardWorkspace({ user }) {
             <Badge variant="warning">{t('dashboard.expenses.delta')}</Badge>
           </div>
         </Card>
+        </div>
 
+        <div key="spendings">
         <Card className="dash-card dash-spendings">
           <div className="dash-title-row">
             <div className="dashboard-page__icon-title">
@@ -334,18 +363,11 @@ function DashboardWorkspace({ user }) {
               {t('dashboard.spendings.period')}
             </button>
           </div>
-          <div className="bar-chart">
-            {MONTH_KEYS.map((month, index) => (
-              <div className="bar-col" key={month}>
-                <div className="bar-bg">
-                  <div className="bar-fill" style={{ '--bar-fill-height': `${MONTH_HEIGHTS[index]}%` }} />
-                </div>
-                <span className="bar-label">{t(`dashboard.months.${month}`)}</span>
-              </div>
-            ))}
-          </div>
+          <WorkspaceChart type="bar" data={chartData} series={SPENDINGS_CHART_SERIES} height={220} />
         </Card>
+        </div>
 
+        <div key="planning">
         <Card className="dash-card dash-planning">
           <div className="dash-title-row">
             <h3 className="dash-title">{t('dashboard.planning.title')}</h3>
@@ -355,7 +377,7 @@ function DashboardWorkspace({ user }) {
             </button>
           </div>
 
-          {planningItems.map((item) => (
+          {PLANNING_ITEMS.map((item) => (
             <div className="plan-item" key={item.key}>
               <div className="plan-item-header">
                 <span>{t(`dashboard.planning.items.${item.key}.name`)}</span>
@@ -370,7 +392,9 @@ function DashboardWorkspace({ user }) {
             </div>
           ))}
         </Card>
+        </div>
 
+        <div key="transactions">
         <Card className="dash-card dash-transactions">
           <div className="dash-title-row dash-title-row--bordered">
             <h3 className="dash-title">{t('dashboard.transactions.title')}</h3>
@@ -380,7 +404,7 @@ function DashboardWorkspace({ user }) {
           </div>
 
           <div className="dashboard-page__transaction-list">
-            {transactions.map((transaction) => (
+            {TRANSACTIONS.map((transaction) => (
               <div className="tx-item" key={transaction.key}>
                 <div className="tx-left">
                   <span className="tx-time">
@@ -402,7 +426,9 @@ function DashboardWorkspace({ user }) {
             ))}
           </div>
         </Card>
+        </div>
 
+        <div key="premium">
         <Card className="dash-card dash-premium premium-card">
           <div>
             <div className="dash-title-row">
@@ -413,18 +439,11 @@ function DashboardWorkspace({ user }) {
           </div>
 
           <div className="dashboard-page__premium-illustration" aria-hidden="true">
-            <svg width="100" height="70" viewBox="0 0 100 70" fill="none">
-              <rect x="20" y="20" width="60" height="40" rx="4" fill="#ffffff" stroke="#1F2937" strokeWidth="2" strokeLinejoin="round" />
-              <rect x="25" y="25" width="50" height="30" rx="2" fill="#FEE2E2" />
-              <path d="M40 40 L45 45 L55 35" stroke="#1F2937" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="20" cy="15" r="3" fill="#FCA5A5" />
-              <circle cx="85" cy="55" r="4" fill="#FCA5A5" />
-              <path d="M15 45 Q10 40 10 30 Q10 20 20 20" fill="none" stroke="#1F2937" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M85 45 Q90 40 90 30 Q90 20 80 20" fill="none" stroke="#1F2937" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <WorkspaceChart type="pie" data={statusData} xKey="name" series={PREMIUM_CHART_SERIES} height={180} innerRadius={34} outerRadius={64} />
           </div>
         </Card>
-      </div>
+        </div>
+      </WorkspaceGrid>
     </div>
   )
 }

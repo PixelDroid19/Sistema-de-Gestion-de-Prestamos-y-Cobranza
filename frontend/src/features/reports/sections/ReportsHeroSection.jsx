@@ -2,23 +2,20 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Button from '@/components/ui/Button'
+import StatCard from '@/components/ui/workspace/StatCard'
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard'
 
 function ReportsHeroSection({ role, headlineMetrics, refreshing, refreshSuccess, selectedAssociateId, onRefresh, onExport, onExportAssociate }) {
   const { t } = useTranslation()
   const isSocio = role === 'socio'
 
   return (
-    <section className="surface-card surface-card--hero">
-      <div className="surface-card__header">
-        <div>
-          <div className="section-eyebrow">{isSocio ? t('reports.hero.partnerEyebrow') : t('reports.hero.workspaceEyebrow')}</div>
-          <div className="section-title">
-            {isSocio ? t('reports.hero.partnerTitle') : t('reports.hero.workspaceTitle')}
-          </div>
-          <div className="section-subtitle">
-            {isSocio ? t('reports.hero.partnerSubtitle') : t('reports.hero.workspaceSubtitle')}
-          </div>
-        </div>
+    <WorkspaceCard
+      className="surface-card surface-card--hero"
+      eyebrow={isSocio ? t('reports.hero.partnerEyebrow') : t('reports.hero.workspaceEyebrow')}
+      title={isSocio ? t('reports.hero.partnerTitle') : t('reports.hero.workspaceTitle')}
+      subtitle={isSocio ? t('reports.hero.partnerSubtitle') : t('reports.hero.workspaceSubtitle')}
+      actions={(
         <div className="section-actions">
           <Button onClick={onRefresh} disabled={refreshing}>
             <span className={`spinner-icon${refreshing ? ' spinner-icon--spinning' : ''}`}>↻</span>
@@ -36,20 +33,21 @@ function ReportsHeroSection({ role, headlineMetrics, refreshing, refreshSuccess,
             </Button>
           )}
         </div>
+      )}
+    >
+      <div className="metric-grid">
+        {headlineMetrics.map((metric) => (
+          <StatCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            caption={metric.caption}
+            tone={metric.tone}
+          />
+        ))}
       </div>
-      <div className="surface-card__body">
-        <div className="metric-grid">
-          {headlineMetrics.map((metric) => (
-            <div key={metric.label} className={`metric-card metric-card--${metric.tone}`}>
-              <div className="metric-card__label">{metric.label}</div>
-              <div className="metric-card__value">{metric.value}</div>
-              <div className="metric-card__caption">{metric.caption}</div>
-            </div>
-          ))}
-        </div>
-        {refreshSuccess && <div className="inline-message inline-message--success">✅ {t('reports.hero.refreshed')}</div>}
-      </div>
-    </section>
+      {refreshSuccess && <div className="inline-message inline-message--success">✅ {t('reports.hero.refreshed')}</div>}
+    </WorkspaceCard>
   )
 }
 

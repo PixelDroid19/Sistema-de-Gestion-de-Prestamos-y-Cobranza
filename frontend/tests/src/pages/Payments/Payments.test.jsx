@@ -218,4 +218,35 @@ describe('Payments page', () => {
     expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:payment-document')
     expect(downloadLink.download).toBe('receipt.pdf')
   })
+
+  it('wires the migrated installment calendar surface to live loan calendar data', async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans/customer/${customerUser.id}`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({ data: [] })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({
+        data: {
+          calendar: {
+            entries: [
+              {
+                installmentNumber: 1,
+                dueDate: '2026-03-28T00:00:00.000Z',
+                outstandingAmount: 1200,
+                status: 'overdue',
+              },
+            ],
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
+    )
+
+    renderWithProviders(<Payments user={customerUser} />)
+
+    expect(await screen.findByText('Sigue la actividad de cuotas desde una sola superficie compartida')).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByLabelText('Prestamo'), String(payableLoan.id))
+
+    expect(await screen.findByText('Calendario de cuotas')).toBeInTheDocument()
+    expect(screen.getByText('Cuota #1 · Vencida · ₹1200.00')).toBeInTheDocument()
+  })
 })

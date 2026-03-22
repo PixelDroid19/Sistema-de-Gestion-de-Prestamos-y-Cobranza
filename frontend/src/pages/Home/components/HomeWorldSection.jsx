@@ -18,7 +18,7 @@ function HomeWorldSection({ t, worldStats, worldMarkers }) {
         <HomeSectionHeading
           t={t}
           titleKey="home.world.title1"
-          highlightText="LendFlow"
+          highlightText={t('home.brand')}
           descriptionKey="home.world.description"
           inlineHighlight
           titleClassName="home-world__title"

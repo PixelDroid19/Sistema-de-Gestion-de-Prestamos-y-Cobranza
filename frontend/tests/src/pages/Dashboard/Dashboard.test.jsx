@@ -86,7 +86,7 @@ describe('Dashboard page', () => {
 
     renderWithProviders(<Dashboard user={{ id: 7, role: 'customer', name: 'Ana Customer' }} />)
 
-    expect(await screen.findAllByText('$20,000.00')).toHaveLength(3)
+    expect(await screen.findAllByText('$20,000.00')).toHaveLength(2)
     expect(screen.getByText('$4,465.00')).toBeInTheDocument()
     expect(requests).toEqual({ summary: 0, customerLoans: 1, payments: 0 })
   })

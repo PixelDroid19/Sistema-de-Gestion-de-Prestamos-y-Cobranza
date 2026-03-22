@@ -12,7 +12,7 @@ function HomeHeader({ t, authMode = false, onBackHome, onLoginClick, onSignUpCli
         <span className="home-brand__mark">
           <TrendingUp size={20} color="white" />
         </span>
-        <span className="home-brand__title">LendFlow</span>
+        <span className="home-brand__title">{t('home.brand')}</span>
       </button>
 
       {!authMode ? (

@@ -1,0 +1,195 @@
+@use '../mixins';
+
+.lf-shell {
+  background:
+    radial-gradient(circle at top left, rgba(79, 135, 255, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(244, 193, 104, 0.14), transparent 24%),
+    var(--lf-shell-bg-base);
+}
+
+.lf-shell__main {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px);
+}
+
+.lf-shell__content {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 18%),
+    var(--lf-shell-bg-base);
+}
+
+.lf-sidebar {
+  width: 272px;
+  align-items: stretch;
+  padding: 1.5rem 1rem;
+  border-radius: 0 2rem 2rem 0;
+  background: linear-gradient(180deg, var(--lf-shell-bg-surface), rgba(241, 245, 249, 0.94));
+  border-right: 1px solid var(--lf-shell-border-subtle);
+  box-shadow: none;
+}
+
+.lf-sidebar .sidebar-brand {
+  width: 100%;
+  height: auto;
+  padding: 0.25rem 0.4rem 1.25rem;
+  margin-bottom: 1rem;
+  justify-content: flex-start;
+  background: transparent;
+}
+
+.sidebar-brand__mark {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 1rem;
+  align-items: center;
+  justify-content: center;
+  background: var(--lf-shell-text-primary);
+  color: var(--lf-shell-bg-base);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.sidebar-brand__copy {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.sidebar-brand__copy strong {
+  color: var(--lf-shell-text-primary);
+  font-size: 1.05rem;
+}
+
+.sidebar-brand__copy span {
+  color: var(--lf-shell-text-secondary);
+  font-size: 0.78rem;
+}
+
+.lf-sidebar__group {
+  margin-bottom: 0.9rem;
+}
+
+.lf-sidebar__group-toggle {
+  @include mixins.button-reset;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.7rem;
+  color: var(--lf-shell-text-secondary);
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lf-sidebar__group-list {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.4rem;
+}
+
+.lf-sidebar__button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.8rem;
+  height: auto;
+  min-height: 48px;
+  padding: 0.8rem 0.95rem;
+  border-radius: 1rem;
+  color: var(--lf-shell-text-secondary);
+}
+
+.lf-sidebar__button span {
+  font-weight: 600;
+  font-size: 0.93rem;
+}
+
+.lf-sidebar__button--sub {
+  padding-left: 2.2rem;
+}
+
+.lf-sidebar li.active .lf-sidebar__button,
+.lf-sidebar__button:hover {
+  background: var(--lf-shell-hover-bg);
+  color: var(--lf-shell-text-primary);
+}
+
+.lf-sidebar__profile {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.8rem;
+  border-radius: 1rem;
+  background: rgba(79, 135, 255, 0.08);
+}
+
+.lf-sidebar__profile-name {
+  font-weight: 700;
+  color: var(--lf-shell-text-primary);
+}
+
+.lf-sidebar__profile-role {
+  color: var(--lf-shell-text-secondary);
+  text-transform: capitalize;
+  font-size: 0.82rem;
+}
+
+.lf-sidebar__logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 999px;
+  color: var(--lf-shell-text-primary);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.lf-top-header {
+  padding: 1.25rem 1.5rem;
+  gap: 1rem;
+}
+
+.lf-top-header__title-cluster {
+  min-width: max-content;
+}
+
+.lf-top-header__workspace-chip,
+.lf-top-header__notification-chip,
+.lf-top-header__date-chip {
+  @include mixins.lf-shell-pill;
+  color: var(--lf-shell-text-primary);
+}
+
+.lf-top-header__workspace-chip,
+.lf-top-header__notification-chip,
+.lf-top-header__date-chip button {
+  @include mixins.button-reset;
+}
+
+.lf-top-header__notification-chip {
+  font-weight: 600;
+}
+
+.lf-top-header__date-chip {
+  gap: 0.4rem;
+}
+
+.lf-top-header__date-chip button,
+.lf-top-header__workspace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.lf-top-header__profile-chevron {
+  color: var(--lf-shell-text-secondary);
+}
+
+@media (max-width: 1024px) {
+  .lf-sidebar {
+    width: 100%;
+    border-radius: 0;
+  }
+}

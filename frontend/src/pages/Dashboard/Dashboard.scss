@@ -7,6 +7,48 @@
   gap: 1.5rem;
 }
 
+.dashboard-page .dash-card {
+  background: var(--lf-shell-bg-surface);
+  border: 1px solid var(--lf-shell-border-subtle);
+  box-shadow: var(--lf-shell-shadow-card);
+}
+
+.dashboard-page .dash-title,
+.dashboard-page .dash-action,
+.dashboard-page .mini-value,
+.dashboard-page .quick-label,
+.dashboard-page .tx-name,
+.dashboard-page .cc-balance-amount {
+  color: var(--lf-shell-text-primary);
+}
+
+.dashboard-page .dash-action,
+.dashboard-page .cc-balance-label,
+.dashboard-page .tx-status,
+.dashboard-page .tx-cat,
+.dashboard-page .tx-time,
+.dashboard-page .bar-label,
+.dashboard-page .dashboard-page__metric-label,
+.dashboard-page .dashboard-page__chart-axis {
+  color: var(--lf-shell-text-secondary);
+}
+
+.dashboard-page .quick-btn,
+.dashboard-page .plan-item,
+.dashboard-page .chart-filters,
+.dashboard-page .bar-bg,
+.dashboard-page .premium-card {
+  background: var(--lf-shell-hover-bg);
+}
+
+.dashboard-page .quick-icon,
+.dashboard-page .mini-icon,
+.dashboard-page .cc-visual,
+.dashboard-page .bar-fill,
+.dashboard-page .plan-progress-fill {
+  background: linear-gradient(135deg, var(--lf-shell-brand), var(--lf-shell-brand-deep));
+}
+
 .dashboard-page__hero {
   display: grid;
   gap: 1rem;

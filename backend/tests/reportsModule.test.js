@@ -565,7 +565,7 @@ test('createExportRecoveryReport returns a valid PDF attachment contract', async
 
   assert.equal(exportFile.contentType, 'application/pdf');
   assert.equal(exportFile.buffer.subarray(0, 4).toString('utf8'), '%PDF');
-  assert.match(exportFile.buffer.toString('utf8'), /LendFlow Recovery Report/);
+  assert.match(exportFile.buffer.toString('utf8'), /CrediCobranza Recovery Report/);
 });
 
 test('createExportRecoveryReport returns a valid XLSX attachment contract', async () => {

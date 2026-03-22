@@ -7,7 +7,7 @@ import i18n from '@/i18n'
 import App from '@/pages/App/App'
 import { API_BASE_URL } from '@/lib/api/client'
 import { useSessionStore } from '@/store/sessionStore'
-import { resolveCurrentView, useUiStore } from '@/store/uiStore'
+import { resolveCurrentViewId, useUiStore } from '@/store/uiStore'
 import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
 
@@ -27,7 +27,7 @@ describe('App shell', () => {
     })
 
     useUiStore.setState({
-      currentView: 'Payments',
+      currentView: 'payments',
       isDarkMode: false,
       notificationsOpen: false,
       setCurrentView: vi.fn(),
@@ -37,6 +37,15 @@ describe('App shell', () => {
   })
 
   it('renders translated shell controls while mounting the active workspace page', async () => {
+    useUiStore.setState({
+      currentView: 'dashboard',
+      isDarkMode: false,
+      notificationsOpen: false,
+      setCurrentView: vi.fn(),
+      toggleTheme: vi.fn(),
+      setNotificationsOpen: vi.fn(),
+    })
+
     let unreadCountRequests = 0
 
     server.use(
@@ -44,25 +53,28 @@ describe('App shell', () => {
         unreadCountRequests += 1
         return HttpResponse.json({ data: { unreadCount: 2 } })
       }),
-      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({
+      http.get(`${API_BASE_URL}/api/reports/dashboard`, () => HttpResponse.json({
         data: {
-          loans: [{
-            id: 10,
-            amount: 12000,
-            interestRate: 12,
-            termMonths: 12,
-            status: 'approved',
-            financialSnapshot: { installmentAmount: 1066.5, outstandingBalance: 8200 },
-          }],
+          summary: {
+            totalPortfolioAmount: 25000,
+            totalRecoveredAmount: 12000,
+            totalOutstandingAmount: 13000,
+          },
         },
       })),
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({
+        data: {
+          loans: [],
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/payments`, () => HttpResponse.json({ data: [] })),
     )
 
     renderWithProviders(<App />)
 
     expect(screen.getByPlaceholderText('Buscar en el espacio')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pagos' })).toBeInTheDocument()
-    expect(await screen.findByText('Sigue la actividad de cuotas desde una sola superficie compartida')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Panel' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Mantiene prestamos, recuperacion y planeacion dentro de una sola cabina financiera' }, { timeout: 5000 })).toBeInTheDocument()
     expect(unreadCountRequests).toBe(1)
   })
 
@@ -104,7 +116,7 @@ describe('App shell', () => {
     })
 
     useUiStore.setState({
-      currentView: 'Loans',
+      currentView: 'loans',
       isDarkMode: false,
       notificationsOpen: false,
       setCurrentView: (nextView) => useUiStore.setState({ currentView: nextView }),
@@ -123,11 +135,15 @@ describe('App shell', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
 
-    expect(await screen.findByText('No hay prestamos pagables')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(useUiStore.getState().currentView).toBe('payments')
+    })
+
+    expect(screen.getByText('Espacio de pagos')).toBeInTheDocument()
   })
 
   it('normalizes a persisted disallowed view for the logged-in role', () => {
-    expect(resolveCurrentView('Agents', 'customer')).toBe('Dashboard')
-    expect(resolveCurrentView('Loans', 'customer')).toBe('Loans')
+    expect(resolveCurrentViewId('Agents', 'customer')).toBe('dashboard')
+    expect(resolveCurrentViewId('Loans', 'customer')).toBe('loans')
   })
 })

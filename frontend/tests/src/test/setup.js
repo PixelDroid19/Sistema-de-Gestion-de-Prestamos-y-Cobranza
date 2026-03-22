@@ -18,6 +18,15 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+global.ResizeObserver = ResizeObserverMock
+window.ResizeObserver = ResizeObserverMock
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 
 afterEach(() => {

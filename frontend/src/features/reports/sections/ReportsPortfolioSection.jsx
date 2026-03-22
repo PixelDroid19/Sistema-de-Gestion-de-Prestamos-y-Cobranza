@@ -5,6 +5,8 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import PaginationControls from '@/components/ui/PaginationControls'
 import StatePanel from '@/components/ui/StatePanel'
+import StatCard from '@/components/ui/workspace/StatCard'
+import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard'
 import { RECOVERY_TONE_MAP, REPORT_TABS } from '@/features/reports/reportsWorkspace.constants'
 import { formatCurrency, formatDate, formatRecoveryStatus } from '@/features/reports/reportsWorkspace.utils'
 
@@ -246,58 +248,49 @@ function ReportsPortfolioSection({
 
   return (
     <>
-      <section className="surface-card">
-        <div className="surface-card__header surface-card__header--compact">
-          <div>
-            <div className="section-eyebrow">{t('reports.portfolio.amountSummaryEyebrow')}</div>
-            <div className="section-title">{t('reports.portfolio.amountSummaryTitle')}</div>
-            <div className="section-subtitle">{t('reports.portfolio.amountSummarySubtitle')}</div>
-          </div>
+      <WorkspaceCard
+        className="surface-card"
+        eyebrow={t('reports.portfolio.amountSummaryEyebrow')}
+        title={t('reports.portfolio.amountSummaryTitle')}
+        subtitle={t('reports.portfolio.amountSummarySubtitle')}
+      >
+        <div className="summary-grid">
+          {amountMetrics.map((metric) => (
+            <StatCard
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              tone={metric.tone === 'brand' ? 'brand' : metric.tone}
+            />
+          ))}
         </div>
-        <div className="surface-card__body">
-          <div className="summary-grid">
-            {amountMetrics.map((metric) => (
-              <div key={metric.label} className="detail-card">
-                <div className="detail-card__label">{metric.label}</div>
-                <div className={`detail-card__value detail-card__value--${metric.tone === 'brand' ? 'success' : metric.tone}`}>{metric.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      </WorkspaceCard>
 
-      <section className="surface-card">
-        <div className="surface-card__header surface-card__header--compact">
-          <div>
-            <div className="section-eyebrow">{t('reports.portfolio.reportViewsEyebrow')}</div>
-            <div className="section-title">{t('reports.portfolio.reportViewsTitle')}</div>
-          </div>
+      <WorkspaceCard
+        className="surface-card"
+        eyebrow={t('reports.portfolio.reportViewsEyebrow')}
+        title={t('reports.portfolio.reportViewsTitle')}
+      >
+        <div className="page-tabs">
+          {REPORT_TABS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => (
+            <button key={tab.id} className={`page-tab${activeTab === tab.id ? ' page-tab--active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+              {tab.icon} {t(tab.label)}
+            </button>
+          ))}
         </div>
-        <div className="surface-card__body">
-          <div className="page-tabs">
-            {REPORT_TABS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => (
-              <button key={tab.id} className={`page-tab${activeTab === tab.id ? ' page-tab--active' : ''}`} onClick={() => setActiveTab(tab.id)}>
-                {tab.icon} {t(tab.label)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      </WorkspaceCard>
 
-      <section className="surface-card">
-        <div className="surface-card__header surface-card__header--compact">
-          <div>
-            <div className="section-eyebrow">{activeTabEntry ? t(activeTabEntry.label) : ''}</div>
-            <div className="section-title">{activeTabEntry ? t(activeTabEntry.description) : ''}</div>
-          </div>
-        </div>
-        <div className="surface-card__body">
+      <WorkspaceCard
+        className="surface-card"
+        eyebrow={activeTabEntry ? t(activeTabEntry.label) : ''}
+        title={activeTabEntry ? t(activeTabEntry.description) : ''}
+      >
           {activeTab === 'overview' && (
             <div className="summary-grid">
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewRecovered')}</div><div className="detail-card__value detail-card__value--success">{recoverySummary?.recoveredLoans || 0}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewOutstanding')}</div><div className="detail-card__value detail-card__value--warning">{recoverySummary?.outstandingLoans || 0}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewVisible')}</div><div className="detail-card__value">{recoverySummary?.totalLoans || 0}</div></div>
-              <div className="detail-card"><div className="detail-card__label">{t('reports.portfolio.overviewRate')}</div><div className="detail-card__value detail-card__value--success">{recoverySummary?.recoveryRate || '0%'}</div></div>
+              <StatCard label={t('reports.portfolio.overviewRecovered')} value={recoverySummary?.recoveredLoans || 0} tone="success" />
+              <StatCard label={t('reports.portfolio.overviewOutstanding')} value={recoverySummary?.outstandingLoans || 0} tone="warning" />
+              <StatCard label={t('reports.portfolio.overviewVisible')} value={recoverySummary?.totalLoans || 0} tone="brand" />
+              <StatCard label={t('reports.portfolio.overviewRate')} value={recoverySummary?.recoveryRate || '0%'} tone="success" />
             </div>
           )}
           {activeTab === 'recovered' && renderRecoveredTable()}
@@ -325,8 +318,7 @@ function ReportsPortfolioSection({
               </div>
             </div>
           )}
-        </div>
-      </section>
+      </WorkspaceCard>
     </>
   )
 }

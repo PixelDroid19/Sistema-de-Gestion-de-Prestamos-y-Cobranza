@@ -6,18 +6,18 @@ import { I18nextProvider } from 'react-i18next'
 import i18n from '@/i18n'
 import Sidebar from '@/components/layout/Sidebar'
 import { useSessionStore } from '@/store/sessionStore'
-import { useUiStore } from '@/store/uiStore'
+import { getNavigationGroupsForRole, useUiStore } from '@/store/uiStore'
 
 describe('Sidebar', () => {
   beforeEach(() => {
     useSessionStore.setState({ user: { role: 'admin', name: 'Admin' }, logout: vi.fn() })
-    useUiStore.setState({ currentView: 'Dashboard', setCurrentView: vi.fn() })
+    useUiStore.setState({ currentView: 'dashboard', setCurrentView: vi.fn() })
     i18n.changeLanguage('es')
   })
 
   it('renders navigation buttons with translated labels', async () => {
     const setCurrentView = vi.fn()
-    useUiStore.setState({ currentView: 'Dashboard', setCurrentView })
+    useUiStore.setState({ currentView: 'dashboard', setCurrentView })
 
     render(
       <I18nextProvider i18n={i18n}>
@@ -26,13 +26,23 @@ describe('Sidebar', () => {
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
-    expect(setCurrentView).toHaveBeenCalledWith('Payments')
+    expect(setCurrentView).toHaveBeenCalledWith('payments')
+  })
+
+  it('keeps agent navigation aligned with role-gated workspaces', () => {
+    expect(getNavigationGroupsForRole('agent')).toEqual([
+      expect.objectContaining({ id: 'overview', items: [expect.objectContaining({ id: 'dashboard' })] }),
+      expect.objectContaining({ id: 'customers', items: [expect.objectContaining({ id: 'customers' }), expect.objectContaining({ id: 'customers-new' })] }),
+      expect.objectContaining({ id: 'loans', items: [expect.objectContaining({ id: 'loans' }), expect.objectContaining({ id: 'loans-new' })] }),
+      expect.objectContaining({ id: 'payments', items: [expect.objectContaining({ id: 'payments' })] }),
+      expect.objectContaining({ id: 'system', items: [expect.objectContaining({ id: 'notifications' })] }),
+    ])
   })
 
   it('limits socio navigation and delegates logout to the session store', async () => {
     const logout = vi.fn()
     useSessionStore.setState({ user: { role: 'socio', name: 'Partner' }, logout })
-    useUiStore.setState({ currentView: 'Dashboard', setCurrentView: vi.fn() })
+    useUiStore.setState({ currentView: 'dashboard', setCurrentView: vi.fn() })
 
     render(
       <I18nextProvider i18n={i18n}>

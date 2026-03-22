@@ -3,6 +3,18 @@
     background: linear-gradient(180deg, rgba(215, 239, 233, 0.35), rgba(255, 255, 255, 0.95));
   }
 
+  .surface-card,
+  .loans-dag-workbench__header,
+  .loans-dag-workbench__panel,
+  .loans-dag-workbench__formula-preview,
+  .loans-dag-workbench__formula-empty,
+  .loans-dag-workbench__dependency-item,
+  .loans-dag-workbench__node {
+    background: var(--lf-shell-bg-surface);
+    border-color: var(--lf-shell-border-subtle);
+    box-shadow: var(--lf-shell-shadow-card);
+  }
+
   &__workspace-switcher-header {
     gap: 1rem;
   }

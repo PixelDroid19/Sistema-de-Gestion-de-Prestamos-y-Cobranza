@@ -10,7 +10,7 @@ function HomeWorldSection({ stats, regions, sectionId }) {
         <div className="home-page__world-panel">
           <span className="section-eyebrow">{t('home.brand')}</span>
           <h2>
-            {t('home.world.title1')} <span className="home-page__accent">LendFlow</span>
+            {t('home.world.title1')} <span className="home-page__accent">{t('home.brand')}</span>
           </h2>
           <p>{t('home.world.description')}</p>
 
