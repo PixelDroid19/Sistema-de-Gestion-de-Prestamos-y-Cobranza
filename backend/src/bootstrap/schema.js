@@ -16,6 +16,7 @@ const {
   FinancialProduct,
   GraphTopology,
   OutboxEvent,
+  ConfigEntry,
 } = require('../models');
 const { createStandardAmortizationGraph } = require('./graphDefinitions');
 
@@ -37,6 +38,7 @@ const REQUIRED_SCHEMA_MODELS = [
   FinancialProduct,
   GraphTopology,
   OutboxEvent,
+  ConfigEntry,
 ];
 
 const SAFE_RESET_ENVIRONMENTS = new Set(['development', 'test', 'local']);

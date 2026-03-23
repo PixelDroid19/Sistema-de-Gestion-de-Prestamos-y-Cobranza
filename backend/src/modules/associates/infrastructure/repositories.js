@@ -5,6 +5,7 @@ const {
   ProfitDistribution,
   IdempotencyKey,
   Loan,
+  Customer,
   User,
 } = require('../../../models');
 const { paginateModel } = require('../../shared/pagination');
@@ -133,6 +134,7 @@ const associateRepository = {
   listLoansByAssociate(associateId) {
     return Loan.findAll({
       where: { associateId },
+      include: [{ model: Customer, attributes: ['id', 'name', 'email'] }],
       order: [['createdAt', 'DESC']],
     });
   },

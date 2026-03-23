@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import Agents from '@/components/agents/AgentsSelect';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import PaginationControls from '@/components/ui/PaginationControls';
@@ -23,7 +22,7 @@ import {
 
 const RECOVERY_EDIT_STATUSES = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
 
-const INTERNAL_ROLES = new Set(['admin', 'agent'])
+const INTERNAL_ROLES = new Set(['admin'])
 
 function isInternalRole(role) {
   return INTERNAL_ROLES.has(role)
@@ -35,6 +34,10 @@ function sortPortfolioRows(loans) {
     if (left.status !== 'rejected' && right.status === 'rejected') return -1
     return Number(right.id) - Number(left.id)
   })
+}
+
+function getRecoveryOwnerName(loan) {
+  return loan.recoveryAssigneeName || loan.recoveryAssignee?.name || loan.Agent?.name || '-'
 }
 
 function getServicingCounts(loan, customerDocumentsByCustomer, promisesByLoan, alertsByLoan, attachmentsByLoan) {
@@ -94,29 +97,39 @@ function ProgressPill({ loan, payments }) {
   );
 }
 
-function AgentAssignmentCell({
+function RecoveryAssignmentCell({
   loan,
   role,
-  assignAgentId,
-  assignAgentPending,
+  recoveryRoster,
+  recoveryRosterError,
+  recoveryAssigneeDrafts,
+  assignRecoveryAssigneePending,
   pendingAssignAgents,
-  onSelectAgent,
-  onAssignAgent,
+  onSelectRecoveryAssignee,
+  onAssignRecoveryAssignee,
 }) {
   const { t } = useTranslation()
   return (
     <div className="table-inline-stack">
-      <div>{loan.Agent?.name || '-'}</div>
+      <div>{getRecoveryOwnerName(loan)}</div>
       {role === 'admin' && loan.status === 'approved' && !loan.Agent && (
         <div className="table-inline-stack">
-          <Agents onSelect={(agentId) => onSelectAgent(loan.id, agentId)} />
-            <Button
-              size="sm"
-              disabled={!assignAgentId[loan.id] || assignAgentPending || pendingAssignAgents[loan.id]}
-              onClick={() => onAssignAgent(loan.id)}
-            >
-              {pendingAssignAgents[loan.id] ? t('loans.portfolio.assigning') : t('loans.portfolio.assignAgent')}
-            </Button>
+          <select className="form-control" onChange={(event) => onSelectRecoveryAssignee(loan.id, event.target.value)} defaultValue="">
+            <option value="">{t('loans.portfolio.selectRecoveryOwner')}</option>
+            {recoveryRoster.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name} ({assignee.email})
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            disabled={!recoveryAssigneeDrafts[loan.id] || assignRecoveryAssigneePending || pendingAssignAgents[loan.id] || recoveryRoster.length === 0}
+            onClick={() => onAssignRecoveryAssignee(loan.id)}
+          >
+            {pendingAssignAgents[loan.id] ? t('loans.portfolio.assigning') : t('loans.portfolio.assignAgent')}
+          </Button>
+          {recoveryRosterError ? <div className="status-note">{recoveryRosterError}</div> : null}
         </div>
       )}
     </div>
@@ -136,8 +149,7 @@ function RecoveryEditorCell({
 }) {
   const { t } = useTranslation()
   const loanId = Number(loan.id);
-  const assignedAgentId = Number(loan.agentId || loan.Agent?.id || 0)
-  const canEditAssignedLoan = user.role === 'admin' || (user.role === 'agent' && assignedAgentId === Number(user.id));
+  const canEditAssignedLoan = user.role === 'admin';
   const canEdit = canEditAssignedLoan && loan.status === 'defaulted';
 
   if (!canEdit) {
@@ -188,7 +200,9 @@ function LoansPortfolioSection({
   promisesByLoan,
   attachmentsByLoan,
   customerDocumentsByCustomer,
-  assignAgentId,
+  recoveryRoster,
+  recoveryRosterError,
+  recoveryAssigneeDrafts,
   pendingStatusLoans,
   pendingAssignAgents,
   pendingRecovery,
@@ -196,19 +210,21 @@ function LoansPortfolioSection({
   editingRecovery,
   recoveryDrafts,
   updateLoanStatusPending,
-  assignAgentPending,
+  assignRecoveryAssigneePending,
   updateRecoveryPending,
   deleteLoanPending,
   pagination,
   onPageChange,
+  onPageSizeChange,
   onRefetch,
-  onSelectAgent,
-  onAssignAgent,
+  onSelectRecoveryAssignee,
+  onAssignRecoveryAssignee,
   onStartEditingRecovery,
   onRecoveryDraftChange,
   onSaveRecovery,
   onUpdateLoanStatus,
   onDeleteLoan,
+  onViewCustomer,
 }) {
   const { t } = useTranslation()
   const isCustomer = user.role === 'customer'
@@ -256,18 +272,20 @@ function LoansPortfolioSection({
         ),
       },
       canViewInternalColumns && {
-        key: 'agent',
-        header: t('loans.portfolio.headers.agent'),
+        key: 'assignment',
+        header: t('loans.portfolio.headers.recoveryOwner'),
         cellClassName: 'table-cell-center',
         render: (loan) => (
-          <AgentAssignmentCell
-            loan={loan}
-            role={user.role}
-            assignAgentId={assignAgentId}
-            assignAgentPending={assignAgentPending}
-            pendingAssignAgents={pendingAssignAgents}
-            onSelectAgent={onSelectAgent}
-            onAssignAgent={onAssignAgent}
+            <RecoveryAssignmentCell
+              loan={loan}
+              role={user.role}
+              recoveryRoster={recoveryRoster}
+              recoveryRosterError={recoveryRosterError}
+              recoveryAssigneeDrafts={recoveryAssigneeDrafts}
+              assignRecoveryAssigneePending={assignRecoveryAssigneePending}
+              pendingAssignAgents={pendingAssignAgents}
+            onSelectRecoveryAssignee={onSelectRecoveryAssignee}
+            onAssignRecoveryAssignee={onAssignRecoveryAssignee}
           />
         ),
       },
@@ -327,8 +345,8 @@ function LoansPortfolioSection({
         header: t('loans.portfolio.headers.actions'),
         cellClassName: 'table-cell-center',
         render: (loan) => {
-          const canDecision = user.role === 'admin' || (user.role === 'agent' && Number(loan.agentId) === Number(user.id))
-          const canDelete = loan.status === 'rejected' && (user.role === 'admin' || user.role === 'customer' || user.role === 'agent')
+          const canDecision = user.role === 'admin'
+          const canDelete = loan.status === 'rejected' && (user.role === 'admin' || user.role === 'customer')
 
           return (
             <div className="action-stack">
@@ -351,6 +369,15 @@ function LoansPortfolioSection({
                     {pendingStatusLoans[loan.id] ? t('loans.portfolio.processing') : t('loans.portfolio.reject')}
                   </Button>
                 </>
+              )}
+              {canViewInternalColumns && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onViewCustomer(loan)}
+                >
+                  {t('loans.portfolio.viewCustomer')}
+                </Button>
               )}
               {canViewInternalColumns && (
                 <RecoveryEditorCell
@@ -381,26 +408,29 @@ function LoansPortfolioSection({
       },
     ].filter(Boolean), [
       alertsByLoan,
-      assignAgentId,
-      assignAgentPending,
+      assignRecoveryAssigneePending,
       attachmentsByLoan,
       canViewInternalColumns,
       customerDocumentsByCustomer,
       deleteLoanPending,
       editingRecovery,
-      onAssignAgent,
+      onAssignRecoveryAssignee,
       onDeleteLoan,
       onRecoveryDraftChange,
       onSaveRecovery,
-      onSelectAgent,
+      onSelectRecoveryAssignee,
       onStartEditingRecovery,
       onUpdateLoanStatus,
+      onViewCustomer,
       paymentsByLoan,
       pendingAssignAgents,
       pendingDeleteLoans,
       pendingRecovery,
       pendingStatusLoans,
       promisesByLoan,
+      recoveryAssigneeDrafts,
+      recoveryRoster,
+      recoveryRosterError,
       recoveryDrafts,
       t,
       updateLoanStatusPending,
@@ -438,7 +468,12 @@ function LoansPortfolioSection({
     content = (
       <div className="dashboard-page-stack section-stack--compact">
         <FilterBar>
-          <PaginationControls pagination={pagination} isPending={loansQuery.isFetching} onPageChange={onPageChange} />
+          <PaginationControls
+            pagination={pagination}
+            isPending={loansQuery.isFetching}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
         </FilterBar>
         <DataTable
           columns={portfolioColumns}
@@ -460,7 +495,7 @@ function LoansPortfolioSection({
     <WorkspaceCard
       className="surface-card"
       eyebrow={t('loans.portfolio.eyebrow')}
-      title={user.role === 'agent' ? t('loans.portfolio.agentTitle') : user.role === 'admin' ? t('loans.portfolio.adminTitle') : t('loans.portfolio.customerTitle')}
+      title={user.role === 'admin' ? t('loans.portfolio.adminTitle') : t('loans.portfolio.customerTitle')}
       subtitle={t('loans.portfolio.subtitle')}
     >
       {content}

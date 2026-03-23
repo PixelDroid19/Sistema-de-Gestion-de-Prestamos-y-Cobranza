@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
+const { NotFoundError } = require('../../../utils/errorHandler');
 
 const DEFAULT_ATTACHMENT_STORAGE_DIRECTORY = path.resolve(__dirname, '..', '..', '..', '..', 'uploads', 'attachments');
 
@@ -37,7 +38,15 @@ const createLocalAttachmentStorage = ({
     return absolutePath;
   },
   async assertExists(storagePath) {
-    await fsPromises.access(this.resolveAbsolutePath(storagePath));
+    try {
+      await fsPromises.access(this.resolveAbsolutePath(storagePath));
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        throw new NotFoundError('Attachment file');
+      }
+
+      throw error;
+    }
   },
   async deleteByAbsolutePath(filePath) {
     if (!filePath) {

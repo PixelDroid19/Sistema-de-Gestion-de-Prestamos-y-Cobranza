@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const User = require('../../../models/User');
 const Customer = require('../../../models/Customer');
-const Agent = require('../../../models/Agent');
 const Associate = require('../../../models/Associate');
 
 /**
@@ -29,8 +28,8 @@ const userRepository = {
   remove(id) {
     return User.destroy({ where: { id } });
   },
-  findAgentUserByEmail(email) {
-    return User.findOne({ where: { email, role: 'agent' } });
+  findRecoveryAssigneeUserByEmail(email) {
+    return User.findOne({ where: { email } });
   },
 };
 
@@ -49,24 +48,6 @@ const customerProfileRepository = {
 
     await customer.update(payload);
     return customer;
-  },
-};
-
-/**
- * Persistence port for agent profile records linked to user identities.
- */
-const agentProfileRepository = {
-  create(payload) {
-    return Agent.create(payload);
-  },
-  async update(id, payload) {
-    const agent = await Agent.findByPk(id);
-    if (!agent) {
-      return null;
-    }
-
-    await agent.update(payload);
-    return agent;
   },
 };
 
@@ -100,7 +81,6 @@ const passwordHasher = {
 module.exports = {
   userRepository,
   customerProfileRepository,
-  agentProfileRepository,
   associateProfileRepository,
   passwordHasher,
 };

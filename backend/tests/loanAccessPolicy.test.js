@@ -4,12 +4,11 @@ const assert = require('node:assert/strict');
 const { AuthorizationError, NotFoundError } = require('../src/utils/errorHandler');
 const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor, canActorViewAttachment } = require('../src/modules/shared/loanAccessPolicy');
 
-test('isLoanVisibleToActor supports admin, customer, and assigned agent visibility', () => {
+test('isLoanVisibleToActor supports admin and customer visibility under the three-role model', () => {
   const loan = { id: 18, customerId: 7, agentId: 14 };
 
   assert.equal(isLoanVisibleToActor({ actor: { id: 1, role: 'admin' }, loan }), true);
   assert.equal(isLoanVisibleToActor({ actor: { id: 7, role: 'customer' }, loan }), true);
-  assert.equal(isLoanVisibleToActor({ actor: { id: 14, role: 'agent' }, loan }), true);
   assert.equal(isLoanVisibleToActor({ actor: { id: 99, role: 'customer' }, loan }), false);
 });
 
@@ -23,7 +22,7 @@ test('createLoanAccessPolicy finds only authorized loans', async () => {
   });
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({
-    actor: { id: 14, role: 'agent' },
+    actor: { id: 1, role: 'admin' },
     loanId: 18,
   });
 
@@ -66,7 +65,7 @@ test('createLoanAccessPolicy filters visible loans for list responses', async ()
   });
 
   const loans = loanAccessPolicy.filterVisibleLoans({
-    actor: { id: 14, role: 'agent' },
+    actor: { id: 1, role: 'admin' },
     loans: [
       { id: 1, customerId: 7, agentId: 14 },
       { id: 2, customerId: 7, agentId: 9 },
@@ -76,17 +75,17 @@ test('createLoanAccessPolicy filters visible loans for list responses', async ()
 
   assert.deepEqual(loans, [
     { id: 1, customerId: 7, agentId: 14 },
+    { id: 2, customerId: 7, agentId: 9 },
     { id: 3, customerId: 99, agentId: 14 },
   ]);
 });
 
-test('isLoanMutableByActor only allows admins and assigned agents', () => {
+test('isLoanMutableByActor only allows admins', () => {
   const loan = { id: 18, customerId: 7, agentId: 14 };
 
   assert.equal(isLoanMutableByActor({ actor: { id: 1, role: 'admin' }, loan }), true);
-  assert.equal(isLoanMutableByActor({ actor: { id: 14, role: 'agent' }, loan }), true);
-  assert.equal(isLoanMutableByActor({ actor: { id: 9, role: 'agent' }, loan }), false);
   assert.equal(isLoanMutableByActor({ actor: { id: 7, role: 'customer' }, loan }), false);
+  assert.equal(isLoanMutableByActor({ actor: { id: 40, role: 'socio', associateId: 22 }, loan }), false);
 });
 
 test('isLoanVisibleToActor supports socio visibility through associate ownership', () => {
@@ -104,7 +103,7 @@ test('canActorViewAttachment blocks customers from internal-only files and allow
   assert.equal(canActorViewAttachment({ actor: { id: 40, role: 'socio', associateId: 22 }, loan, attachment: { customerVisible: false } }), true);
 });
 
-test('createLoanAccessPolicy rejects loan mutation for unassigned agents', async () => {
+test('createLoanAccessPolicy rejects loan mutation for non-admin actors', async () => {
   const loanAccessPolicy = createLoanAccessPolicy({
     loanRepository: {
       async findById(loanId) {
@@ -114,11 +113,18 @@ test('createLoanAccessPolicy rejects loan mutation for unassigned agents', async
   });
 
   await assert.rejects(() => loanAccessPolicy.findAuthorizedMutationLoan({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'customer' },
     loanId: 18,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'You can only update loans assigned to you');
+    assert.equal(error.message, 'You do not have permission to update this loan');
     return true;
   });
+});
+
+test('legacy agent actors inherit admin loan access during runtime normalization', () => {
+  const loan = { id: 18, customerId: 7, agentId: 14, associateId: 22 };
+
+  assert.equal(isLoanVisibleToActor({ actor: { id: 99, role: 'agent' }, loan }), true);
+  assert.equal(isLoanMutableByActor({ actor: { id: 99, role: 'agent' }, loan }), true);
 });

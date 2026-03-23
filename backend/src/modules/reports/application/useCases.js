@@ -98,6 +98,15 @@ const buildWorkbookBuffer = (sheets) => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
 
+const formatIsoDate = (value) => {
+  if (!value) {
+    return 'N/A';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+};
+
 const ensureAdmin = (actor) => {
   if (actor.role !== 'admin') {
     throw new AuthorizationError('Only admins can access reports');
@@ -647,12 +656,142 @@ const createGetCustomerCreditHistory = ({ paymentRepository, loanViewService, lo
   };
 };
 
+const createExportCustomerHistory = ({ reportRepository }) => async ({ actor, customerId, format = 'pdf' }) => {
+  const history = await createGetCustomerHistory({ reportRepository })({ actor, customerId });
+  const data = history.data;
+  const timelinePreview = (data.timeline || []).slice(0, 6);
+
+  if (String(format).toLowerCase() === 'csv') {
+    const csv = buildCsv({
+      headers: ['eventType', 'entityType', 'occurredAt'],
+      rows: timelinePreview.map((entry) => [entry.eventType, entry.entityType, formatIsoDate(entry.occurredAt)]),
+    });
+
+    return {
+      fileName: `customer-${data.customer.id}-history.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      buffer: Buffer.from(csv, 'utf8'),
+    };
+  }
+
+  return {
+    fileName: `customer-${data.customer.id}-history.pdf`,
+    contentType: 'application/pdf',
+    buffer: buildPdfBuffer({
+      title: `Customer History #${data.customer.id}`,
+      lines: [
+        `Customer: ${data.customer.name || `#${data.customer.id}`}`,
+        `Loans: ${data.segments.loans.length}`,
+        `Payments: ${data.segments.payments.length}`,
+        `Documents: ${data.segments.documents.length}`,
+        `Alerts: ${data.segments.alerts.length}`,
+        `Promises: ${data.segments.promises.length}`,
+        `Notifications: ${data.segments.notifications.length}`,
+        'Recent timeline:',
+        ...timelinePreview.map((entry) => `${formatIsoDate(entry.occurredAt)} | ${entry.entityType} | ${entry.eventType}`),
+      ],
+    }),
+  };
+};
+
+const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ actor, customerId, format = 'pdf' }) => {
+  const profile = await createGetCustomerCreditProfile({ reportRepository })({ actor, customerId });
+  const data = profile.data;
+  const summary = data.profile?.summary || {};
+  const completeness = data.profile?.completeness || {};
+  const profitability = data.profile?.profitability || null;
+  const missingSections = Array.isArray(completeness.missingSections) && completeness.missingSections.length > 0
+    ? completeness.missingSections.join('; ')
+    : 'none';
+
+  if (String(format).toLowerCase() === 'csv') {
+    const csv = buildCsv({
+      headers: ['customerId', 'customerName', 'totalLoans', 'activeLoans', 'completedPayments', 'delinquentAlerts', 'brokenPromises', 'totalPaid', 'isComplete', 'missingSections', 'profitability'],
+      rows: [[
+        data.customer.id,
+        data.customer.name || '',
+        summary.totalLoans || 0,
+        summary.activeLoans || 0,
+        summary.completedPayments || 0,
+        summary.delinquentAlerts || 0,
+        summary.brokenPromises || 0,
+        summary.totalPaid || '0.00',
+        completeness.isComplete ? 'yes' : 'no',
+        missingSections,
+        profitability?.totalProfit || '',
+      ]],
+    });
+
+    return {
+      fileName: `customer-${data.customer.id}-credit-profile.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      buffer: Buffer.from(csv, 'utf8'),
+    };
+  }
+
+  return {
+    fileName: `customer-${data.customer.id}-credit-profile.pdf`,
+    contentType: 'application/pdf',
+    buffer: buildPdfBuffer({
+      title: `Customer Credit Profile #${data.customer.id}`,
+      lines: [
+        `Customer: ${data.customer.name || `#${data.customer.id}`}`,
+        `Total loans: ${summary.totalLoans || 0}`,
+        `Active loans: ${summary.activeLoans || 0}`,
+        `Closed loans: ${summary.closedLoans || 0}`,
+        `Completed payments: ${summary.completedPayments || 0}`,
+        `Delinquent alerts: ${summary.delinquentAlerts || 0}`,
+        `Broken promises: ${summary.brokenPromises || 0}`,
+        `Total paid: ${summary.totalPaid || '0.00'}`,
+        `Complete profile: ${completeness.isComplete ? 'yes' : 'no'}`,
+        `Missing sections: ${missingSections}`,
+        `Profitability total: ${profitability?.totalProfit || 'N/A'}`,
+      ],
+    }),
+  };
+};
+
+const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService, loanAccessPolicy }) => async ({ actor, loanId, format = 'pdf' }) => {
+  const history = await createGetCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy })({ actor, loanId });
+
+  if (String(format).toLowerCase() === 'csv') {
+    const csv = buildCsv({
+      headers: ['paymentId', 'paymentDate', 'paymentType', 'status', 'amount'],
+      rows: (history.payments || []).map((payment) => [payment.id, formatIsoDate(payment.paymentDate), payment.paymentType || '', payment.status || '', payment.amount || 0]),
+    });
+
+    return {
+      fileName: `loan-${history.loan.id}-credit-history.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      buffer: Buffer.from(csv, 'utf8'),
+    };
+  }
+
+  return {
+    fileName: `loan-${history.loan.id}-credit-history.pdf`,
+    contentType: 'application/pdf',
+    buffer: buildPdfBuffer({
+      title: `Loan Credit History #${history.loan.id}`,
+      lines: [
+        `Customer ID: ${history.loan.customerId || 'N/A'}`,
+        `Loan status: ${history.loan.status || 'N/A'}`,
+        `Outstanding balance: ${formatMoney(history.snapshot?.outstandingBalance || 0)}`,
+        `Total paid: ${formatMoney(history.snapshot?.totalPaid || 0)}`,
+        `Payments recorded: ${history.payments?.length || 0}`,
+        `Payoff entries: ${history.payoffHistory?.length || 0}`,
+        `Closure reason: ${history.closure?.closureReason || 'N/A'}`,
+        `Closed at: ${formatIsoDate(history.closure?.closedAt)}`,
+      ],
+    }),
+  };
+};
+
 const buildRecoveryExportRows = (report) => ([
   ...report.data.recoveredLoans.map((loan) => ({
     section: 'recovered',
     loanId: loan.id,
     customer: loan.Customer?.name || '',
-    agent: loan.Agent?.name || '',
+    recoveryOwner: loan.Agent?.name || '',
     amount: loan.amount,
     paid: loan.totalPaid,
     outstanding: loan.outstandingAmount,
@@ -662,7 +801,7 @@ const buildRecoveryExportRows = (report) => ([
     section: 'outstanding',
     loanId: loan.id,
     customer: loan.Customer?.name || '',
-    agent: loan.Agent?.name || '',
+    recoveryOwner: loan.Agent?.name || '',
     amount: loan.amount,
     paid: loan.totalPaid,
     outstanding: loan.outstandingAmount,
@@ -702,8 +841,8 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
   }
 
   const csv = buildCsv({
-    headers: ['section', 'loanId', 'customer', 'agent', 'amount', 'paid', 'outstanding', 'recoveryStatus'],
-    rows: rows.map((row) => [row.section, row.loanId, row.customer, row.agent, row.amount, row.paid, row.outstanding, row.recoveryStatus]),
+    headers: ['section', 'loanId', 'customer', 'recoveryOwner', 'amount', 'paid', 'outstanding', 'recoveryStatus'],
+    rows: rows.map((row) => [row.section, row.loanId, row.customer, row.recoveryOwner, row.amount, row.paid, row.outstanding, row.recoveryStatus]),
   });
 
   return {
@@ -934,6 +1073,9 @@ module.exports = {
   createGetCustomerHistory,
   createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
+  createExportCustomerHistory,
+  createExportCustomerCreditProfile,
+  createExportCustomerCreditHistory,
   createExportRecoveryReport,
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,

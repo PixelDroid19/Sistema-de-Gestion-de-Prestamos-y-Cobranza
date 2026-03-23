@@ -39,6 +39,11 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
     res.json(presentAuthResult('Profile updated successfully', { user }));
   }));
 
+  router.put('/password', authMiddleware(), asyncHandler(async (req, res) => {
+    await useCases.changePassword(req.user.id, req.body);
+    res.json({ success: true, message: 'Password changed successfully' });
+  }));
+
   return router;
 };
 

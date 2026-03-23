@@ -1,3 +1,5 @@
+import { normalizeSessionUser } from '@/utils/applicationRole'
+
 // Session Management Utility
 class SessionManager {
   constructor() {
@@ -9,15 +11,24 @@ class SessionManager {
 
   // Initialize session when user logs in
   initSession(token, userData) {
+    const normalizedUserData = normalizeSessionUser(userData)
+    if (!token || !normalizedUserData) {
+      this.clearSession();
+      return null;
+    }
+
     const sessionData = {
       token,
-      userData,
+      userData: normalizedUserData,
       loginTime: Date.now(),
       lastActivity: Date.now()
     };
     
     localStorage.setItem('session', JSON.stringify(sessionData));
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(normalizedUserData));
     this.resetInactivityTimer();
+    return sessionData;
   }
 
   // Check if session is valid
@@ -50,9 +61,33 @@ class SessionManager {
   getSession() {
     try {
       const session = localStorage.getItem('session');
-      return session ? JSON.parse(session) : null;
+      if (!session) {
+        return null;
+      }
+
+      const parsedSession = JSON.parse(session);
+      const normalizedUserData = normalizeSessionUser(parsedSession?.userData);
+
+      if (!parsedSession?.token || !normalizedUserData) {
+        this.clearSession();
+        return null;
+      }
+
+      const normalizedSession = {
+        ...parsedSession,
+        userData: normalizedUserData,
+      };
+
+      if (JSON.stringify(normalizedSession) !== JSON.stringify(parsedSession)) {
+        localStorage.setItem('session', JSON.stringify(normalizedSession));
+        localStorage.setItem('token', normalizedSession.token);
+        localStorage.setItem('user', JSON.stringify(normalizedUserData));
+      }
+
+      return normalizedSession;
     } catch (error) {
       console.error('Error parsing session data:', error);
+      this.clearSession();
       return null;
     }
   }

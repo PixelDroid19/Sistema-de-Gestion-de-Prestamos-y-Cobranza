@@ -262,7 +262,7 @@ test('manual follow-up created through the use case stays active after overdue s
   });
 
   const followUpResult = await createLoanFollowUp({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     loanId: 22,
     payload: {
       installmentNumber: 1,

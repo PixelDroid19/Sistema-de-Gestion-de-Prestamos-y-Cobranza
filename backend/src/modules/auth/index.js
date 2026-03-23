@@ -5,11 +5,11 @@ const {
   createLoginUser,
   createGetProfile,
   createUpdateProfile,
+  createChangePassword,
 } = require('./application/useCases');
 const {
   userRepository,
   customerProfileRepository,
-  agentProfileRepository,
   associateProfileRepository,
   passwordHasher,
 } = require('./infrastructure/repositories');
@@ -25,7 +25,6 @@ const createAuthModule = ({ sharedRuntime } = {}) => {
     registerUser: createRegisterUser({
       userRepository,
       customerProfileRepository,
-      agentProfileRepository,
       associateProfileRepository,
       passwordHasher,
       tokenService,
@@ -35,9 +34,9 @@ const createAuthModule = ({ sharedRuntime } = {}) => {
     updateProfile: createUpdateProfile({
       userRepository,
       customerProfileRepository,
-      agentProfileRepository,
       associateProfileRepository,
     }),
+    changePassword: createChangePassword({ userRepository, passwordHasher }),
   };
 
   return createModule({

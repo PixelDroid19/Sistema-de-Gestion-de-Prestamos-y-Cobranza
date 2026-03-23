@@ -123,6 +123,29 @@ const asyncHandler = (fn) => {
   };
 };
 
+const getUniqueConstraintField = (err) => {
+  const constraintName = String(err?.parent?.constraint || err?.original?.constraint || '').trim();
+  if (constraintName === 'Customers_pkey') {
+    return 'Customer id';
+  }
+
+  if (Array.isArray(err?.errors)) {
+    const matchingError = err.errors.find((entry) => typeof entry?.path === 'string' && entry.path.trim());
+    if (matchingError?.path) {
+      return matchingError.path;
+    }
+  }
+
+  if (err?.fields && typeof err.fields === 'object') {
+    const fieldName = Object.keys(err.fields).find((key) => typeof key === 'string' && key.trim());
+    if (fieldName) {
+      return fieldName;
+    }
+  }
+
+  return 'Resource';
+};
+
 /**
  * Normalize known backend errors into the shared API error response contract.
  * @param {Error & { statusCode?: number, errors?: Array<object> }} err
@@ -143,7 +166,7 @@ const globalErrorHandler = (err, req, res, next) => {
   }
 
   if (err.name === 'SequelizeUniqueConstraintError') {
-    const message = `${err.errors[0].path} already exists`;
+    const message = `${getUniqueConstraintField(err)} already exists`;
     error = new ConflictError(message);
   }
 

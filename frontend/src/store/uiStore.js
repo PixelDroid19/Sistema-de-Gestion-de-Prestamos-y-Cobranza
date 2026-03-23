@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+import { normalizeApplicationRole } from '@/utils/applicationRole'
+
 const VIEW_DEFINITIONS = {
   dashboard: {
     id: 'dashboard',
@@ -8,7 +10,7 @@ const VIEW_DEFINITIONS = {
     group: 'overview',
     labelKey: 'shell.views.Dashboard',
     searchTokens: ['dashboard'],
-    roles: ['admin', 'agent', 'customer', 'socio'],
+    roles: ['admin', 'customer', 'socio'],
     parent: null,
   },
   customers: {
@@ -17,7 +19,7 @@ const VIEW_DEFINITIONS = {
     group: 'customers',
     labelKey: 'shell.views.Customers',
     searchTokens: ['clientes', 'customers'],
-    roles: ['admin', 'agent'],
+    roles: ['admin'],
     parent: null,
   },
   'customers-new': {
@@ -26,61 +28,61 @@ const VIEW_DEFINITIONS = {
     group: 'customers',
     labelKey: 'shell.views.NewCustomer',
     searchTokens: ['nuevo cliente', 'new customer'],
-    roles: ['admin', 'agent'],
+    roles: ['admin'],
     parent: 'customers',
   },
-  loans: {
-    id: 'loans',
+  credits: {
+    id: 'credits',
     key: 'Loans',
-    group: 'loans',
-    labelKey: 'shell.views.Loans',
-    searchTokens: ['creditos', 'prestamos', 'loans'],
-    roles: ['admin', 'agent', 'customer', 'socio'],
+    group: 'credits',
+    labelKey: 'shell.views.Credits',
+    searchTokens: ['creditos', 'prestamos', 'loans', 'cartera'],
+    roles: ['admin', 'customer'],
     parent: null,
   },
-  'loans-new': {
-    id: 'loans-new',
-    key: 'LoanCreate',
-    group: 'loans',
-    labelKey: 'shell.views.NewLoan',
-    searchTokens: ['nuevo credito', 'new loan'],
-    roles: ['admin', 'agent'],
-    parent: 'loans',
-  },
-  associates: {
-    id: 'associates',
-    key: 'Associates',
-    group: 'associates',
-    labelKey: 'shell.views.Associates',
-    searchTokens: ['socios', 'associates'],
-    roles: ['admin', 'socio'],
-    parent: null,
-  },
-  payments: {
-    id: 'payments',
-    key: 'Payments',
-    group: 'payments',
-    labelKey: 'shell.views.Payments',
-    searchTokens: ['pagos', 'payments'],
-    roles: ['admin', 'agent', 'customer'],
-    parent: null,
-  },
-  agents: {
-    id: 'agents',
-    key: 'Agents',
-    group: 'agents',
-    labelKey: 'shell.views.Agents',
-    searchTokens: ['agentes', 'agents'],
+  'credits-new': {
+    id: 'credits-new',
+    key: 'NewLoan',
+    group: 'credits',
+    labelKey: 'shell.views.NewCredit',
+    searchTokens: ['nuevo credito', 'new credit', 'new loan'],
     roles: ['admin'],
+    parent: 'credits',
+  },
+  'credits-payments': {
+    id: 'credits-payments',
+    key: 'Payments',
+    group: 'credits',
+    labelKey: 'shell.views.Payments',
+    searchTokens: ['pagos', 'payments', 'cobros'],
+    roles: ['admin', 'customer'],
+    parent: 'credits',
+  },
+  partners: {
+    id: 'partners',
+    key: 'Associates',
+    group: 'partners',
+    labelKey: 'shell.views.Partners',
+    searchTokens: ['socios', 'partners', 'associates'],
+    roles: ['admin', 'socio'],
     parent: null,
   },
-  reports: {
-    id: 'reports',
+  'partners-reports': {
+    id: 'partners-reports',
     key: 'Reports',
-    group: 'reports',
+    group: 'partners',
     labelKey: 'shell.views.Reports',
-    searchTokens: ['reportes', 'reports'],
+    searchTokens: ['reportes', 'reports', 'rendimiento'],
     roles: ['admin', 'socio'],
+    parent: 'partners',
+  },
+  config: {
+    id: 'config',
+    key: 'Config',
+    group: 'config',
+    labelKey: 'shell.views.Config',
+    searchTokens: ['configuracion', 'config', 'payment methods', 'metodos de pago'],
+    roles: ['admin'],
     parent: null,
   },
   notifications: {
@@ -89,7 +91,7 @@ const VIEW_DEFINITIONS = {
     group: 'system',
     labelKey: 'shell.views.Notifications',
     searchTokens: ['notifications', 'notificaciones'],
-    roles: ['admin', 'agent', 'customer', 'socio'],
+    roles: ['admin', 'customer', 'socio'],
     parent: null,
   },
 }
@@ -97,10 +99,9 @@ const VIEW_DEFINITIONS = {
 const NAV_GROUPS = [
   { id: 'overview', labelKey: 'shell.groups.overview', itemIds: ['dashboard'] },
   { id: 'customers', labelKey: 'shell.groups.customers', itemIds: ['customers', 'customers-new'] },
-  { id: 'loans', labelKey: 'shell.groups.loans', itemIds: ['loans', 'loans-new', 'reports'] },
-  { id: 'associates', labelKey: 'shell.groups.associates', itemIds: ['associates'] },
-  { id: 'payments', labelKey: 'shell.groups.payments', itemIds: ['payments'] },
-  { id: 'agents', labelKey: 'shell.groups.agents', itemIds: ['agents'] },
+  { id: 'credits', labelKey: 'shell.groups.credits', itemIds: ['credits', 'credits-new', 'credits-payments'] },
+  { id: 'partners', labelKey: 'shell.groups.partners', itemIds: ['partners', 'partners-reports'] },
+  { id: 'config', labelKey: 'shell.groups.config', itemIds: ['config'] },
   { id: 'system', labelKey: 'shell.groups.system', itemIds: ['notifications'] },
 ]
 
@@ -108,41 +109,48 @@ export const VIEW_COMPONENT_KEYS = {
   dashboard: 'Dashboard',
   customers: 'Customers',
   'customers-new': 'NewCustomer',
-  loans: 'Loans',
-  'loans-new': 'NewLoan',
-  associates: 'Associates',
-  payments: 'Payments',
-  agents: 'Agents',
-  reports: 'Reports',
+  credits: 'Loans',
+  'credits-new': 'NewLoan',
+  'credits-payments': 'Payments',
+  partners: 'Associates',
+  'partners-reports': 'Reports',
+  config: 'Config',
   notifications: 'Notifications',
 }
 
 const DEFAULT_OPEN_GROUPS = {
   overview: true,
   customers: true,
-  loans: true,
-  associates: true,
-  payments: true,
-  agents: true,
+  credits: true,
+  partners: true,
+  config: true,
   system: false,
 }
 
 const LEGACY_VIEW_ALIASES = {
   Dashboard: 'dashboard',
-  Loans: 'loans',
-  Payments: 'payments',
-  Agents: 'agents',
-  Reports: 'reports',
+  Loans: 'credits',
+  NewLoan: 'credits-new',
+  Payments: 'credits-payments',
+  Reports: 'partners-reports',
   Customers: 'customers',
-  Associates: 'associates',
+  Associates: 'partners',
   Notifications: 'notifications',
+  Config: 'config',
+  loans: 'credits',
+  'loans-new': 'credits-new',
+  payments: 'credits-payments',
+  associates: 'partners',
+  reports: 'partners-reports',
+  config: 'config',
 }
 
 const normalizeViewId = (viewId) => LEGACY_VIEW_ALIASES[viewId] || viewId || 'dashboard'
 
 export const resolveCurrentViewId = (currentView, role) => {
+  const normalizedRole = normalizeApplicationRole(role)
   const normalized = normalizeViewId(currentView)
-  const allowedViews = getAllowedLeafViewIdsForRole(role)
+  const allowedViews = getAllowedLeafViewIdsForRole(normalizedRole)
   if (allowedViews.includes(normalized)) {
     return normalized
   }
@@ -151,14 +159,22 @@ export const resolveCurrentViewId = (currentView, role) => {
 
 const getViewDefinition = (viewId) => VIEW_DEFINITIONS[normalizeViewId(viewId)] || VIEW_DEFINITIONS.dashboard
 
-export const getAllowedViewsForRole = (role) => Object.values(VIEW_DEFINITIONS).filter((view) => view.roles.includes(role))
+export const getAllowedViewsForRole = (role) => {
+  const normalizedRole = normalizeApplicationRole(role)
+  if (!normalizedRole) {
+    return [VIEW_DEFINITIONS.dashboard]
+  }
+
+  return Object.values(VIEW_DEFINITIONS).filter((view) => view.roles.includes(normalizedRole))
+}
 
 export const getAllowedLeafViewIdsForRole = (role) => getAllowedViewsForRole(role).map((view) => view.id)
 
 export const getNavigationGroupsForRole = (role) => NAV_GROUPS.map((group) => {
+  const normalizedRole = normalizeApplicationRole(role)
   const items = group.itemIds
     .map((itemId) => VIEW_DEFINITIONS[itemId])
-    .filter((item) => item && item.roles.includes(role))
+    .filter((item) => item && normalizedRole && item.roles.includes(normalizedRole))
 
   return { ...group, items }
 }).filter((group) => group.items.length)
@@ -173,10 +189,19 @@ export const useUiStore = create()(
       notificationsOpen: false,
       navOpenGroups: DEFAULT_OPEN_GROUPS,
       searchQuery: '',
+      loanDraftCustomerId: null,
+      loanFilterCustomerId: null,
+      customerEditId: null,
       setCurrentView: (currentView) => set({ currentView: normalizeViewId(currentView) }),
       toggleTheme: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
       setNotificationsOpen: (notificationsOpen) => set({ notificationsOpen }),
       setSearchQuery: (searchQuery) => set({ searchQuery }),
+      setLoanDraftCustomerId: (customerId) => set({ loanDraftCustomerId: customerId ? Number(customerId) : null }),
+      clearLoanDraftCustomerId: () => set({ loanDraftCustomerId: null }),
+      setLoanFilterCustomerId: (customerId) => set({ loanFilterCustomerId: customerId ? Number(customerId) : null }),
+      clearLoanFilterCustomerId: () => set({ loanFilterCustomerId: null }),
+      setCustomerEditId: (customerId) => set({ customerEditId: customerId ? Number(customerId) : null }),
+      clearCustomerEditId: () => set({ customerEditId: null }),
       toggleNavGroup: (groupId) => set((state) => ({
         navOpenGroups: {
           ...state.navOpenGroups,

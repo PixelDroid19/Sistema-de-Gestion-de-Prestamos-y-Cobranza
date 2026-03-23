@@ -72,7 +72,7 @@ test('createListPayments rejects non-admin payment listing attempts', async () =
     },
   });
 
-  await assert.rejects(() => listPayments({ actor: { id: 4, role: 'agent' } }), (error) => {
+  await assert.rejects(() => listPayments({ actor: { id: 4, role: 'customer' } }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
@@ -118,12 +118,32 @@ test('createCreatePayment rejects non-customer payment creation attempts', async
   });
 });
 
-test('createListPaymentsByLoan returns repository data for visible loans', async () => {
+test('createListPaymentsByLoan returns payments plus canonical loan context for visible loans', async () => {
   const listPaymentsByLoan = createListPaymentsByLoan({
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
-        assert.deepEqual(actor, { id: 8, role: 'agent' });
-        return { id: Number(loanId) };
+        assert.deepEqual(actor, { id: 8, role: 'admin' });
+        return {
+          id: Number(loanId),
+          status: 'approved',
+          amount: 1000,
+          interestRate: 12,
+          termMonths: 12,
+          startDate: '2026-01-01',
+          financialSnapshot: {
+            installmentAmount: 120,
+            outstandingBalance: 700,
+            outstandingPrincipal: 650,
+          },
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(loan) {
+        return {
+          schedule: [],
+          snapshot: loan.financialSnapshot,
+        };
       },
     },
     paymentRepository: {
@@ -133,8 +153,176 @@ test('createListPaymentsByLoan returns repository data for visible loans', async
     },
   });
 
-  const payments = await listPaymentsByLoan({ actor: { id: 8, role: 'agent' }, loanId: 8 });
-  assert.deepEqual(payments, [{ id: 1, loanId: 8 }]);
+  const result = await listPaymentsByLoan({ actor: { id: 8, role: 'admin' }, loanId: 8 });
+  assert.deepEqual(result, {
+    payments: [{ id: 1, loanId: 8 }],
+    loan: {
+      id: 8,
+      status: 'approved',
+      amount: 1000,
+      interestRate: 12,
+      termMonths: 12,
+      startDate: '2026-01-01',
+      financialSnapshot: {
+        installmentAmount: 120,
+        outstandingBalance: 700,
+        outstandingPrincipal: 650,
+      },
+      paymentContext: {
+        isPayable: true,
+        allowedPaymentTypes: ['installment', 'partial', 'capital'],
+        snapshot: {
+          installmentAmount: 120,
+          outstandingBalance: 700,
+          outstandingPrincipal: 650,
+        },
+        payoffEligibility: { allowed: true, denialReasons: [] },
+        capitalEligibility: { allowed: true, denialReasons: [] },
+      },
+    },
+  });
+});
+
+test('createListPaymentsByLoan returns paginated payments plus canonical loan context for visible loans', async () => {
+  const listPaymentsByLoan = createListPaymentsByLoan({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return {
+          id: 8,
+          status: 'approved',
+          amount: 1000,
+          interestRate: 12,
+          termMonths: 12,
+          startDate: '2026-01-01',
+          financialSnapshot: {
+            installmentAmount: 120,
+            outstandingBalance: 700,
+            outstandingPrincipal: 650,
+          },
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(loan) {
+        return {
+          schedule: [],
+          snapshot: loan.financialSnapshot,
+        };
+      },
+    },
+    paymentRepository: {
+      async listPageByLoan() {
+        return {
+          items: [{ id: 2, loanId: 8 }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
+      },
+    },
+  });
+
+  const result = await listPaymentsByLoan({ actor: { id: 8, role: 'admin' }, loanId: 8, pagination: { page: 1, pageSize: 25 } });
+  assert.deepEqual(result, {
+    items: [{ id: 2, loanId: 8 }],
+    pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    loan: {
+      id: 8,
+      status: 'approved',
+      amount: 1000,
+      interestRate: 12,
+      termMonths: 12,
+      startDate: '2026-01-01',
+      financialSnapshot: {
+        installmentAmount: 120,
+        outstandingBalance: 700,
+        outstandingPrincipal: 650,
+      },
+      paymentContext: {
+        isPayable: true,
+        allowedPaymentTypes: ['installment', 'partial', 'capital'],
+        snapshot: {
+          installmentAmount: 120,
+          outstandingBalance: 700,
+          outstandingPrincipal: 650,
+        },
+        payoffEligibility: { allowed: true, denialReasons: [] },
+        capitalEligibility: { allowed: true, denialReasons: [] },
+      },
+    },
+  });
+});
+
+test('createListPaymentsByLoan strips ORM internals so paginated history stays JSON serializable', async () => {
+  const circularInclude = [];
+  const loanRecord = {
+    id: 19,
+    customerId: 34,
+    status: 'approved',
+    amount: 6400,
+    interestRate: 2.5,
+    termMonths: 6,
+    startDate: '2026-03-21T20:23:06.495Z',
+    emiSchedule: [{
+      dueDate: '2026-04-21T20:23:06.495Z',
+      scheduledPayment: 1074.46,
+      installmentNumber: 1,
+      remainingInterest: 13.33,
+      remainingPrincipal: 1061.13,
+    }],
+    financialSnapshot: {
+      installmentAmount: 1074.46,
+      outstandingBalance: 6446.74,
+      outstandingInterest: 46.74,
+      outstandingPrincipal: 6400,
+    },
+    Customer: { id: 34, name: 'Browser QA Customer' },
+    _options: { include: circularInclude },
+    toJSON() {
+      return {
+        id: this.id,
+        customerId: this.customerId,
+        status: this.status,
+        amount: this.amount,
+        interestRate: this.interestRate,
+        termMonths: this.termMonths,
+        startDate: this.startDate,
+        emiSchedule: this.emiSchedule,
+        financialSnapshot: this.financialSnapshot,
+        Customer: this.Customer,
+      };
+    },
+  };
+  circularInclude.push({ parent: loanRecord._options });
+
+  const listPaymentsByLoan = createListPaymentsByLoan({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return loanRecord;
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(loan) {
+        return {
+          schedule: loan.emiSchedule,
+          snapshot: loan.financialSnapshot,
+        };
+      },
+    },
+    paymentRepository: {
+      async listPageByLoan() {
+        return {
+          items: [{ id: 3, loanId: 19, amount: 100 }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
+      },
+    },
+  });
+
+  const result = await listPaymentsByLoan({ actor: { id: 8, role: 'admin' }, loanId: 19, pagination: { page: 1, pageSize: 25 } });
+
+  assert.equal(result.loan.id, 19);
+  assert.equal(result.loan.Customer.name, 'Browser QA Customer');
+  assert.equal(Object.hasOwn(result.loan, '_options'), false);
+  assert.doesNotThrow(() => JSON.stringify(result));
 });
 
 test('createListPaymentsByLoan rejects history lookup for hidden loans', async () => {
@@ -151,7 +339,7 @@ test('createListPaymentsByLoan rejects history lookup for hidden loans', async (
     },
   });
 
-  await assert.rejects(() => listPaymentsByLoan({ actor: { id: 8, role: 'agent' }, loanId: 999 }), (error) => {
+  await assert.rejects(() => listPaymentsByLoan({ actor: { id: 8, role: 'admin' }, loanId: 999 }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
@@ -206,7 +394,7 @@ test('createAnnulInstallment uses mutation access policy and delegates to the se
   const annulInstallment = createAnnulInstallment({
     loanAccessPolicy: {
       async findAuthorizedMutationLoan({ actor, loanId }) {
-        assert.deepEqual(actor, { id: 9, role: 'agent' });
+        assert.deepEqual(actor, { id: 9, role: 'admin' });
         return { id: Number(loanId) };
       },
     },
@@ -219,12 +407,13 @@ test('createAnnulInstallment uses mutation access policy and delegates to the se
     clock: () => new Date('2026-03-21T00:00:00.000Z'),
   });
 
-  const result = await annulInstallment({ actor: { id: 9, role: 'agent' }, loanId: 12 });
+  const result = await annulInstallment({ actor: { id: 9, role: 'admin' }, loanId: 12 });
 
   assert.equal(result.payment.id, 300);
   assert.deepEqual(serviceInput, {
     loanId: 12,
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
+    reason: undefined,
     paymentDate: new Date('2026-03-21T00:00:00.000Z'),
   });
 });
@@ -251,6 +440,7 @@ test('createPayoutsModule consumes shared auth and shared credits public ports',
         if (name === 'credits') {
           return {
             loanAccessPolicy: { findAuthorizedLoan() {}, findAuthorizedMutationLoan() {} },
+            loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },
             paymentApplicationService: sharedPaymentApplicationService,
           };
         }

@@ -26,7 +26,7 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
     infrastructure: {
       loanRepository: {},
       customerRepository: {},
-      agentRepository: {},
+      recoveryAssignmentRepository: {},
       userRepository: {},
       attachmentRepository: {},
       alertRepository: {},
@@ -83,7 +83,7 @@ test('createCreditsComposition registers its public ports in the shared runtime'
     infrastructure: {
       loanRepository: {},
       customerRepository: {},
-      agentRepository: {},
+      recoveryAssignmentRepository: {},
       userRepository: {},
       attachmentRepository: {},
       alertRepository: {},
@@ -125,7 +125,7 @@ test('createCreditsComposition keeps a credits-local DAG config on the compositi
     infrastructure: {
       loanRepository: {},
       customerRepository: {},
-      agentRepository: {},
+      recoveryAssignmentRepository: {},
       userRepository: {},
       attachmentRepository: {},
       alertRepository: {},

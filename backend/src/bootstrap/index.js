@@ -25,13 +25,14 @@ const validateEnvironment = (env = process.env) => {
 
 /**
  * Authenticate infrastructure, synchronize schema requirements, and build the module registry.
- * @param {{ env?: NodeJS.ProcessEnv|Record<string, string|undefined>, sequelize?: object, syncSchema?: Function, buildModuleRegistry?: Function, createSharedRuntime?: Function }} [options]
+ * @param {{ env?: NodeJS.ProcessEnv|Record<string, string|undefined>, sequelize?: object, syncSchema?: Function, seedFinancialProducts?: Function, buildModuleRegistry?: Function, createSharedRuntime?: Function }} [options]
  * @returns {Promise<{ ready: true, schema: object, sharedRuntime: object, modules: Array<object>, readyAt: string }>}
  */
 const bootstrap = async ({
   env = process.env,
   sequelize: database = sequelize,
   syncSchema = syncDatabaseSchema,
+  seedFinancialProducts = seedFinancialProductsAndGraphs,
   buildModuleRegistry: getModuleRegistry = buildModuleRegistry,
   createSharedRuntime: buildSharedRuntime = createSharedRuntime,
   scheduler = sharedOverdueAlertScheduler,
@@ -45,7 +46,7 @@ const bootstrap = async ({
   await database.authenticate();
 
   const schema = await syncSchema({ database, env });
-  await seedFinancialProductsAndGraphs();
+  await seedFinancialProducts();
   const sharedRuntime = buildSharedRuntime();
 
   if (!scheduler) {

@@ -49,12 +49,14 @@ function LoanServicingCard({
   onDownloadCustomerDocument,
   onDeleteCustomerDocument,
   onDownloadPromise,
+  onDownloadCustomerHistory,
+  onDownloadLoanHistory,
 }) {
   const { t } = useTranslation()
   const customerId = Number(loan.customerId || loan.Customer?.id)
   const historySegments = customerHistory?.segments || {}
   const historyTimeline = customerHistory?.timeline || []
-  const canManageServicing = user.role === 'admin' || user.role === 'agent'
+  const canManageServicing = user.role === 'admin'
   const activeAlertCount = alerts.filter((alert) => alert.status === 'active').length
   const historyPreview = historyTimeline.slice(0, 5)
 
@@ -178,6 +180,18 @@ function LoanServicingCard({
       data-loan-id={loan.id}
       eyebrow={`Loan #${loan.id}`}
       title={`${loan.Customer?.name || user.name} · ${formatCurrency(loan.amount)}`}
+      actions={(
+        <div className="section-actions">
+          <Button variant="outline" size="sm" type="button" onClick={() => onDownloadLoanHistory(loan.id)}>
+            {t('loans.servicing.buttons.downloadLoanReport')}
+          </Button>
+          {canManageServicing && customerId ? (
+            <Button variant="outline" size="sm" type="button" onClick={() => onDownloadCustomerHistory(customerId)}>
+              {t('loans.servicing.buttons.downloadCustomerReport')}
+            </Button>
+          ) : null}
+        </div>
+      )}
     >
         <div className="summary-grid section-margin-bottom">
           <SummaryMetric label={t('loans.servicing.metrics.alerts')} value={activeAlertCount} tone="warning" />
@@ -454,6 +468,8 @@ function LoansServicingSection(props) {
     onDownloadCustomerDocument,
     onDeleteCustomerDocument,
     onDownloadPromise,
+    onDownloadCustomerHistory,
+    onDownloadLoanHistory,
   } = props
 
   if (loans.length === 0) {
@@ -506,6 +522,8 @@ function LoansServicingSection(props) {
                 onDownloadCustomerDocument={onDownloadCustomerDocument}
                 onDeleteCustomerDocument={onDeleteCustomerDocument}
                 onDownloadPromise={onDownloadPromise}
+                onDownloadCustomerHistory={onDownloadCustomerHistory}
+                onDownloadLoanHistory={onDownloadLoanHistory}
               />
             )
           })}

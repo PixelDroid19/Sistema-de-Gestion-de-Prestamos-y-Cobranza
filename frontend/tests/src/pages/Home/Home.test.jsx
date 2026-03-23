@@ -91,4 +91,14 @@ describe('Home page', () => {
 
     expect(await screen.findByLabelText('Nombre completo')).toBeInTheDocument()
   })
+
+  it('keeps the public landing free of legacy agent wording', async () => {
+    renderWithProviders(<Home onLogin={vi.fn()} />)
+
+    expect(screen.getByText('Monitoreo facil con vista unica')).toBeInTheDocument()
+    expect(screen.getByText('Asignacion de responsables de cobranza en 1 clic')).toBeInTheDocument()
+    expect(screen.getByText('Responsables activos')).toBeInTheDocument()
+    expect(screen.queryByText('Asignacion de agentes en 1 clic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agentes Activos')).not.toBeInTheDocument()
+  })
 })

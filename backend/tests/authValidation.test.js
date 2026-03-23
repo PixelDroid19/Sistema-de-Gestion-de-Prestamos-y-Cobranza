@@ -36,3 +36,34 @@ test('authValidation.register rejects privileged public roles with a clear role 
     },
   ]);
 });
+
+test('authValidation.adminRegister rejects legacy agent as an unsupported application role', async () => {
+  const error = await captureMiddlewareError(authValidation.adminRegister, {
+    body: {
+      name: 'Ana Agent',
+      email: 'agent@example.com',
+      password: 'secret1',
+      role: 'agent',
+      phone: '+573001112233',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [
+    {
+      field: 'role',
+      message: 'Role must be one of: admin, customer, socio',
+    },
+  ]);
+});
+
+test('authValidation.adminRegister accepts admin registration without a phone number', async () => {
+  await assert.doesNotReject(() => runMiddleware(authValidation.adminRegister, {
+    body: {
+      name: 'Ana Admin',
+      email: 'admin@example.com',
+      password: 'secret1',
+      role: 'admin',
+    },
+  }));
+});

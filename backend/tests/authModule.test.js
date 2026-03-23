@@ -6,6 +6,7 @@ const {
   createLoginUser,
   createGetProfile,
   createUpdateProfile,
+  createChangePassword,
 } = require('../src/modules/auth/application/useCases');
 const { AuthenticationError, AuthorizationError, ConflictError, ValidationError } = require('../src/utils/errorHandler');
 
@@ -115,8 +116,8 @@ test('createRegisterUser rejects privileged public signup even when validation i
   assert.equal(createdUser, false);
 });
 
-test('createRegisterUser allows trusted admins to create privileged agent accounts', async () => {
-  let createdAgentProfile;
+test('createRegisterUser allows trusted admins to create privileged admin accounts', async () => {
+  let agentProfileCreateCalls = 0;
 
   const registerUser = createRegisterUser({
     userRepository: {
@@ -134,9 +135,9 @@ test('createRegisterUser allows trusted admins to create privileged agent accoun
       },
     },
     agentProfileRepository: {
-      async create(payload) {
-        createdAgentProfile = payload;
-        return payload;
+      async create() {
+        agentProfileCreateCalls += 1;
+        throw new Error('agent repository should not be used');
       },
     },
     passwordHasher: {
@@ -155,26 +156,20 @@ test('createRegisterUser allows trusted admins to create privileged agent accoun
     actor: { id: 1, role: 'admin' },
     registrationSource: 'trusted',
     payload: {
-      name: 'Ana Agent',
-      email: 'agent@example.com',
+      name: 'Ana Admin',
+      email: 'admin@example.com',
       password: 'secret1',
-      role: 'agent',
-      phone: '+573001112233',
+      role: 'admin',
     },
   });
 
-  assert.equal(result.user.role, 'agent');
-  assert.equal(result.token, 'token:21:agent');
-  assert.deepEqual(createdAgentProfile, {
-    id: 21,
-    name: 'Ana Agent',
-    email: 'agent@example.com',
-    phone: '+573001112233',
-  });
+  assert.equal(result.user.role, 'admin');
+  assert.equal(result.token, 'token:21:admin');
+  assert.equal(agentProfileCreateCalls, 0);
 });
 
 test('createRegisterUser accepts admin registrationSource for privileged provisioning', async () => {
-  let createdAgentProfile;
+  let agentProfileCreateCalls = 0;
 
   const registerUser = createRegisterUser({
     userRepository: {
@@ -188,9 +183,9 @@ test('createRegisterUser accepts admin registrationSource for privileged provisi
     },
     customerProfileRepository: { async create() {} },
     agentProfileRepository: {
-      async create(payload) {
-        createdAgentProfile = payload;
-        return payload;
+      async create() {
+        agentProfileCreateCalls += 1;
+        throw new Error('agent repository should not be used');
       },
     },
     passwordHasher: {
@@ -209,22 +204,16 @@ test('createRegisterUser accepts admin registrationSource for privileged provisi
     actor: { id: 1, role: 'admin' },
     registrationSource: 'admin',
     payload: {
-      name: 'Provisioned Agent',
-      email: 'provisioned.agent@example.com',
+      name: 'Provisioned Admin',
+      email: 'provisioned.admin@example.com',
       password: 'secret1',
-      role: 'agent',
-      phone: '+573001112233',
+      role: 'admin',
     },
   });
 
   assert.equal(result.user.id, 45);
-  assert.equal(result.user.role, 'agent');
-  assert.deepEqual(createdAgentProfile, {
-    id: 45,
-    name: 'Provisioned Agent',
-    email: 'provisioned.agent@example.com',
-    phone: '+573001112233',
-  });
+  assert.equal(result.user.role, 'admin');
+  assert.equal(agentProfileCreateCalls, 0);
 });
 
 test('createRegisterUser blocks non-admin actors from creating privileged accounts in trusted flows', async () => {
@@ -260,11 +249,10 @@ test('createRegisterUser blocks non-admin actors from creating privileged accoun
     actor: { id: 7, role: 'customer' },
     registrationSource: 'trusted',
     payload: {
-      name: 'Ana Agent',
-      email: 'agent@example.com',
+      name: 'Ana Admin',
+      email: 'admin@example.com',
       password: 'secret1',
-      role: 'agent',
-      phone: '+573001112233',
+      role: 'admin',
     },
   }), AuthorizationError);
 });
@@ -345,6 +333,36 @@ test('createLoginUser rejects an invalid password', async () => {
   });
 
   await assert.rejects(() => loginUser({ email: 'ana@example.com', password: 'wrong-pass' }), AuthenticationError);
+});
+
+test('createLoginUser normalizes legacy agent identities to admin during login', async () => {
+  const loginUser = createLoginUser({
+    userRepository: {
+      async findByEmail() {
+        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Legacy Agent' };
+      },
+    },
+    passwordHasher: {
+      async compare() {
+        return true;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await loginUser({ email: 'ana@example.com', password: 'secret1' });
+
+  assert.deepEqual(result.user, {
+    id: 9,
+    email: 'ana@example.com',
+    role: 'admin',
+    name: 'Ana Legacy Agent',
+  });
+  assert.equal(result.token, 'token:9:admin');
 });
 
 test('createGetProfile returns the sanitized user profile', async () => {
@@ -453,4 +471,63 @@ test('createUpdateProfile prevents duplicate email updates', async () => {
   });
 
   await assert.rejects(() => updateProfile(3, { email: 'other@example.com' }), ConflictError);
+});
+
+test('createChangePassword updates the stored password hash', async () => {
+  const updates = [];
+
+  const changePassword = createChangePassword({
+    userRepository: {
+      async findById() {
+        return { id: 8, password: 'hashed-current' };
+      },
+      async update(id, payload) {
+        updates.push({ id, payload });
+        return { id, ...payload };
+      },
+    },
+    passwordHasher: {
+      async compare(candidate, hashed) {
+        return (candidate === 'current-secret' && hashed === 'hashed-current')
+          || (candidate === 'current-secret' && hashed === 'current-secret');
+      },
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+  });
+
+  const result = await changePassword(8, {
+    currentPassword: 'current-secret',
+    nextPassword: 'next-secret',
+  });
+
+  assert.deepEqual(result, { success: true });
+  assert.deepEqual(updates, [{ id: 8, payload: { password: 'hashed:next-secret' } }]);
+});
+
+test('createChangePassword rejects an invalid current password', async () => {
+  const changePassword = createChangePassword({
+    userRepository: {
+      async findById() {
+        return { id: 8, password: 'hashed-current' };
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    },
+    passwordHasher: {
+      async compare() {
+        return false;
+      },
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: 'wrong-secret',
+    nextPassword: 'next-secret',
+  }), AuthenticationError);
 });

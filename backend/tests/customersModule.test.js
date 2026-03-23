@@ -42,6 +42,64 @@ test('createListCustomers preserves repository pagination results', async () => 
   });
 });
 
+test('createListCustomers enriches rows with linked loan summary fields when available', async () => {
+  const listCustomers = createListCustomers({
+    customerRepository: {
+      async list() {
+        return [
+          { id: 7, name: 'Ana Customer' },
+          { id: 8, name: 'Luis Customer' },
+        ];
+      },
+      async attachLoanSummaries(customers) {
+        return customers.map((customer) => ({
+          ...customer,
+          loanCount: customer.id === 7 ? 2 : 0,
+          activeLoans: customer.id === 7 ? 1 : 0,
+          loanSummary: {
+            totalLoans: customer.id === 7 ? 2 : 0,
+            activeLoans: customer.id === 7 ? 1 : 0,
+            totalOutstandingBalance: customer.id === 7 ? 450 : 0,
+            latestLoanId: customer.id === 7 ? 91 : null,
+            latestLoanStatus: customer.id === 7 ? 'approved' : null,
+          },
+        }))
+      },
+    },
+  });
+
+  const customers = await listCustomers();
+
+  assert.deepEqual(customers, [
+    {
+      id: 7,
+      name: 'Ana Customer',
+      loanCount: 2,
+      activeLoans: 1,
+      loanSummary: {
+        totalLoans: 2,
+        activeLoans: 1,
+        totalOutstandingBalance: 450,
+        latestLoanId: 91,
+        latestLoanStatus: 'approved',
+      },
+    },
+    {
+      id: 8,
+      name: 'Luis Customer',
+      loanCount: 0,
+      activeLoans: 0,
+      loanSummary: {
+        totalLoans: 0,
+        activeLoans: 0,
+        totalOutstandingBalance: 0,
+        latestLoanId: null,
+        latestLoanStatus: null,
+      },
+    },
+  ]);
+});
+
 test('createCreateCustomer delegates persistence to the repository', async () => {
   const createCustomer = createCreateCustomer({
     customerRepository: {
@@ -59,6 +117,69 @@ test('createCreateCustomer delegates persistence to the repository', async () =>
 
   assert.equal(customer.id, 10);
   assert.equal(customer.email, 'new@example.com');
+});
+
+test('createCreateCustomer repairs customer id sequence drift and retries once on primary-key conflict', async () => {
+  const attempts = [];
+  let syncCalls = 0;
+  const createCustomer = createCreateCustomer({
+    customerRepository: {
+      async create(payload) {
+        attempts.push(payload.email);
+
+        if (attempts.length === 1) {
+          const error = new Error('duplicate key value violates unique constraint "Customers_pkey"');
+          error.name = 'SequelizeUniqueConstraintError';
+          error.parent = { constraint: 'Customers_pkey' };
+          throw error;
+        }
+
+        return { id: 37, ...payload };
+      },
+      async syncPrimaryKeySequence() {
+        syncCalls += 1;
+      },
+    },
+  });
+
+  const customer = await createCustomer({
+    name: 'Recovered Customer',
+    email: 'recovered@example.com',
+    phone: '+573001112288',
+  });
+
+  assert.equal(syncCalls, 1);
+  assert.deepEqual(attempts, ['recovered@example.com', 'recovered@example.com']);
+  assert.equal(customer.id, 37);
+});
+
+test('createCreateCustomer does not retry non-primary-key unique conflicts', async () => {
+  let syncCalls = 0;
+  const createCustomer = createCreateCustomer({
+    customerRepository: {
+      async create() {
+        const error = new Error('duplicate key value violates unique constraint "Customers_email_key"');
+        error.name = 'SequelizeUniqueConstraintError';
+        error.parent = { constraint: 'Customers_email_key' };
+        error.errors = [{ path: 'email', message: 'email must be unique', value: 'dup@example.com' }];
+        throw error;
+      },
+      async syncPrimaryKeySequence() {
+        syncCalls += 1;
+      },
+    },
+  });
+
+  await assert.rejects(() => createCustomer({
+    name: 'Duplicate Email',
+    email: 'dup@example.com',
+    phone: '+573001112299',
+  }), (error) => {
+    assert.equal(error.name, 'SequelizeUniqueConstraintError');
+    return true;
+  });
+
+  assert.equal(syncCalls, 0);
 });
 
 test('createListCustomerDocuments hides internal documents from customer actors', async () => {

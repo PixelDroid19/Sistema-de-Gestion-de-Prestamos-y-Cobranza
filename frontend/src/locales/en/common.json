@@ -25,34 +25,33 @@
     "groups": {
       "overview": "Overview",
       "customers": "Customers",
-      "loans": "Loans & analytics",
-      "associates": "Associates",
-      "payments": "Payments",
-      "agents": "Agents",
+      "credits": "Credits",
+      "partners": "Partners & reporting",
+      "config": "Configuration",
       "system": "System"
     },
     "viewTitles": {
       "dashboard": "Dashboard overview",
       "customers": "Customers workspace",
       "customers-new": "New customer",
-      "loans": "Loans workspace",
-      "loans-new": "New loan",
-      "associates": "Associates workspace",
-      "payments": "Payments workspace",
-      "agents": "Agents workspace",
-      "reports": "Reports workspace",
+      "credits": "Credits workspace",
+      "credits-new": "New credit",
+      "credits-payments": "Payments workspace",
+      "partners": "Partners workspace",
+      "partners-reports": "Reports workspace",
+      "config": "Configuration workspace",
       "notifications": "Notifications center"
     },
     "views": {
       "Dashboard": "Dashboard",
       "Customers": "Customers",
       "NewCustomer": "New customer",
-      "Loans": "Loans",
-      "NewLoan": "New loan",
-      "Associates": "Associates",
+      "Credits": "Credits",
+      "NewCredit": "New credit",
       "Payments": "Payments",
-      "Agents": "Agents",
+      "Partners": "Partners",
       "Reports": "Reports",
+      "Config": "Configuration",
       "Notifications": "Notifications",
       "partnerPortal": "Partner portal"
     }
@@ -62,7 +61,7 @@
       "active": "Active",
       "inactive": "Inactive",
       "customer": "Customer",
-      "agent": "Agent",
+      "agent": "Collections roster",
       "admin": "Admin",
       "socio": "Partner",
       "pending": "Pending",
@@ -79,8 +78,10 @@
       "tryAgain": "Try again",
       "download": "Download",
       "delete": "Delete",
+      "edit": "Edit",
       "cancel": "Cancel",
       "save": "Save",
+      "clear": "Clear",
       "previous": "Previous",
       "next": "Next",
       "refresh": "Refresh",
@@ -111,7 +112,7 @@
     "proofPoints": {
       "operations": "Collections, payments, and origination in one front door",
       "signals": "Actionable signals and live follow-up for the team",
-      "roles": "Clear experience for admins, agents, customers, and associates"
+      "roles": "Clear experience for admins, customers, and associates"
     },
     "metrics": {
       "portfolio": {
@@ -301,7 +302,7 @@
       "titleHighlight": "of your finances",
       "subtitle": "Management at your fingertips",
       "item1": "Easy monitoring with unified view",
-      "item2": "1-click agent assignment",
+      "item2": "1-click recovery-owner assignment",
       "item3": "Premium collection reminders"
     },
     "bento": {
@@ -312,7 +313,7 @@
       "panel2Title": "The brightest minds do the hard research.",
       "panel2Text": "So you can make truly prudent decisions about your money without friction and focus 100% on expanding your agency.",
       "loansManaged": "Loans Managed",
-      "activeAgents": "Active Agents"
+      "activeAgents": "Active recovery owners"
     },
     "footer": {
       "title": "Managing your finances is",
@@ -453,9 +454,9 @@
     }
   },
   "agents": {
-    "eyebrow": "Agent operations",
-    "title": "Manage the collection team from one workspace-ready roster",
-    "subtitle": "Agent onboarding, contact visibility, and status tracking now live in the same page-folder, Sass, and i18n architecture as the rest of the frontend.",
+    "eyebrow": "Operational roster",
+    "title": "Manage the collection roster from one admin-managed workspace",
+    "subtitle": "Agent contact visibility, history, and status tracking now live in the same page-folder, Sass, and i18n architecture as the rest of the frontend without treating agents as a sign-in role.",
     "loading": {
       "title": "Loading agents",
       "message": "Fetching the latest collection roster and status information."
@@ -472,13 +473,13 @@
     },
     "table": {
       "eyebrow": "Team roster",
-      "title": "Registered agents",
+      "title": "Agent roster",
       "subtitle": "Every row keeps identity, contact channels, and availability visible without relying on inline layout styles.",
       "emptyTitle": "No agents yet",
-      "emptyMessage": "Create the first collection profile to populate this roster.",
+      "emptyMessage": "Create the first operational collection record to populate this roster.",
       "unnamed": "Unnamed agent",
       "columns": {
-        "agent": "Agent",
+        "agent": "Collections roster",
         "contact": "Contact",
         "status": "Status"
       }
@@ -486,18 +487,16 @@
     "modal": {
       "eyebrow": "Provisioning flow",
       "title": "Add new agent",
-      "description": "Create an operational user through the admin registration flow and refresh the roster after success.",
+      "description": "Create an operational roster entry managed by admins and refresh the roster after success.",
       "fields": {
         "name": "Full name",
         "email": "Email",
-        "phone": "Phone number",
-        "password": "Temporary password"
+        "phone": "Phone number"
       },
       "placeholders": {
         "name": "Enter the agent full name",
         "email": "agent@example.com",
-        "phone": "+57 300 123 4567",
-        "password": "Minimum 6 characters"
+        "phone": "+57 300 123 4567"
       }
     },
     "actions": {
@@ -506,7 +505,7 @@
       "creating": "Creating..."
     },
     "messages": {
-      "created": "Agent created successfully!"
+      "created": "Agent roster entry created successfully!"
     }
   },
   "payments": {
@@ -519,6 +518,7 @@
       "partialSuccess": "Partial payment recorded successfully.",
       "capitalSuccess": "Capital payment recorded successfully.",
       "annulConfirm": "Annul the nearest pending or overdue installment? This action cannot be undone.",
+      "annulReasonPrompt": "Annulment reason",
       "annulSuccess": "Installment annulled successfully.",
       "resolvedAlert": "Overdue alerts were refreshed after this payment.",
       "successOverlay": "Payment successful",
@@ -607,6 +607,10 @@
       "noCalendar": "No calendar entries available",
       "noAttachments": "No customer-visible attachments available",
       "noPaymentDocuments": "No payment documents available",
+      "editMethodPrompt": "Payment method",
+      "editDatePrompt": "Payment date (YYYY-MM-DD)",
+      "editObservationPrompt": "Observation in Spanish",
+      "updated": "Payment metadata updated successfully.",
       "visibilityCustomer": "Customer",
       "visibilityInternal": "Internal",
       "fields": {
@@ -626,6 +630,8 @@
         "loanId": "Loan ID",
         "amount": "Amount",
         "type": "Type",
+        "method": "Method",
+        "observation": "Observation",
         "paymentDate": "Payment date",
         "status": "Status",
         "installment": "Installment",
@@ -688,7 +694,7 @@
       "loanSubmitted": "Loan application submitted successfully.",
       "simulationGenerated": "Loan simulation generated successfully.",
       "loanMarked": "Loan marked as {{status}}.",
-      "agentAssigned": "Agent assigned successfully.",
+      "recoveryAssigned": "Recovery owner assigned successfully.",
       "recoveryUpdated": "Recovery status updated successfully.",
       "deleteConfirm": "Are you sure you want to delete this rejected loan? This action cannot be undone.",
       "loanDeleted": "Loan deleted successfully.",
@@ -701,6 +707,7 @@
       "chooseCustomerDocument": "Please choose a file before uploading a customer document.",
       "customerDocumentUploaded": "Customer document uploaded successfully.",
       "customerDocumentDeleted": "Customer document deleted successfully.",
+      "filteredByCustomer": "Showing portfolio filtered by customer #{{customerId}}",
       "summary": {
         "assignedLoans": "Assigned loans",
         "visibleLoans": "Visible loans",
@@ -721,14 +728,13 @@
       "mode": {
         "eyebrow": "Workspace mode",
         "title": "Switch between portfolio and DAG workbench",
-        "subtitle": "The DAG view is exposed as an incremental entry point for admins and agents without disrupting the current loans flow.",
+        "subtitle": "The DAG view is exposed as an incremental entry point for admins without disrupting the current loans flow.",
         "portfolio": "Portfolio",
         "dagWorkbench": "DAG workbench"
       }
     },
     "hero": {
       "eyebrow": "Loans workspace",
-      "agentTitle": "Track assigned collections with query-backed servicing data",
       "adminTitle": "Manage lending decisions and servicing from one aligned workspace",
       "customerTitle": "Apply for loans and follow every document and repayment milestone",
       "subtitle": "This page now reads portfolio, servicing, customer documents, and history through the shared TanStack Query foundation."
@@ -762,7 +768,6 @@
     },
     "portfolio": {
       "eyebrow": "Portfolio view",
-      "agentTitle": "Recovery queue",
       "adminTitle": "Loan operations overview",
       "customerTitle": "Your loan history",
       "subtitle": "Status decisions, servicing counts, and repayment balances now share the same query-backed table.",
@@ -775,11 +780,13 @@
       "emptyTitle": "No loans found",
       "emptyMessage": "New lending records will appear here as soon as they are available for your role.",
       "noAction": "No action available",
+      "selectRecoveryOwner": "Select recovery owner",
       "selectStatus": "Select status",
+      "viewCustomer": "View customer",
       "editRecovery": "Edit recovery",
       "saveStatus": "Save status",
       "saving": "Saving...",
-      "assignAgent": "Assign agent",
+      "assignAgent": "Assign recovery",
       "assigning": "Assigning...",
       "approve": "Approve",
       "reject": "Reject",
@@ -796,7 +803,7 @@
         "interest": "Interest",
         "term": "Term",
         "status": "Status",
-        "agent": "Agent",
+        "recoveryOwner": "Recovery owner",
         "recovery": "Recovery",
         "progress": "Progress",
         "balance": "Balance",
@@ -843,7 +850,9 @@
         "uploadDocument": "Upload document",
         "download": "Download",
         "delete": "Delete",
-        "downloadPdf": "Download PDF"
+        "downloadPdf": "Download PDF",
+        "downloadLoanReport": "Loan report PDF",
+        "downloadCustomerReport": "Customer report PDF"
       },
       "history": {
         "eyebrow": "Customer history",
@@ -964,6 +973,8 @@
       "userDeactivated": "User deactivated successfully.",
       "userReactivated": "User reactivated successfully.",
       "selectAssociateToExport": "Select an associate first to export profitability data.",
+      "selectCustomerToExport": "Select a customer first to export the profile.",
+      "selectLoanToExport": "Select a loan first to export the credit history.",
       "associateCreated": "Associate created successfully.",
       "selectAssociateToUpdate": "Select an associate before updating.",
       "associateUpdated": "Associate updated successfully.",
@@ -1003,9 +1014,9 @@
       "partnerEyebrow": "Partner portal",
       "workspaceEyebrow": "Reporting workspace",
       "partnerTitle": "Review partner profitability from one portal surface",
-      "workspaceTitle": "Review recovery performance and associate administration from one shared analytics surface",
+      "workspaceTitle": "Track recovery, profitability, and portfolio health from one analytics surface",
       "partnerSubtitle": "Track contributions, profit distributions, and linked loan exposure tied to your associate record.",
-      "workspaceSubtitle": "Recovery analytics and associate operations now live together on the same TanStack Query-backed page.",
+      "workspaceSubtitle": "Recovery analytics, customer profitability, and portfolio health now live together on the same TanStack Query-backed page.",
       "refreshReports": "Refresh reports",
       "exportCsv": "Export CSV",
       "exportPdf": "Export PDF",
@@ -1034,7 +1045,7 @@
       "headers": {
         "id": "Loan ID",
         "customer": "Customer",
-        "agent": "Agent",
+        "recoveryOwner": "Recovery owner",
         "amount": "Amount",
         "recovered": "Recovered",
         "recoveryDate": "Recovery date",
@@ -1109,6 +1120,8 @@
         "incomplete": "Incomplete"
       },
       "buttons": {
+        "downloadLoanHistory": "Download loan report",
+        "downloadCustomerProfile": "Download customer report",
         "createAssociate": "Create associate",
         "updateAssociate": "Update associate",
         "deleteAssociate": "Delete associate",
@@ -1158,7 +1171,22 @@
       "new": "New customer",
       "back": "Back to customers",
       "save": "Save customer",
+      "update": "Update customer",
+      "viewProfile": "View profile",
+      "createLoan": "Create loan",
+      "viewLoans": "View loans",
       "saving": "Saving..."
+    },
+    "profile": {
+      "eyebrow": "Customer profile",
+      "title": "Profile for {{name}}",
+      "subtitle": "Edit the customer's primary data and continue into related credits without leaving the current workflow.",
+      "relatedCredits": "Related credits",
+      "relatedCreditsCaption": "Visible loans linked to this profile",
+      "activeCredits": "Active credits",
+      "activeCreditsCaption": "Loans still in progress for this customer",
+      "latestCredit": "Latest credit",
+      "saveChanges": "Save changes"
     },
     "summary": {
       "total": "Customers",
@@ -1185,13 +1213,15 @@
         "contact": "Contact",
         "status": "Status",
         "joined": "Joined",
-        "loans": "Loans"
+        "loans": "Loans",
+        "actions": "Actions"
       }
     },
     "form": {
       "title": "Create a new customer",
       "subtitle": "Capture identity and contact information using the new shared workspace form layout.",
       "success": "Customer created successfully.",
+      "updated": "Customer updated successfully.",
       "sections": {
         "personal": "Personal information",
         "contact": "Contact information"
@@ -1201,17 +1231,113 @@
         "documentNumber": "Document number",
         "birthDate": "Birth date",
         "occupation": "Occupation",
+        "status": "Status",
         "phone": "Phone number",
         "email": "Email",
+        "department": "Department",
+        "city": "City",
+        "selectDepartment": "Select department",
+        "selectCity": "Select city",
         "address": "Address"
       }
+    },
+    "messages": {
+      "confirmDelete": "Do you want to delete this customer?"
+    },
+    "prompts": {
+      "editName": "Customer name",
+      "editPhone": "Customer phone",
+      "editStatus": "Customer status (active/inactive)"
     }
   },
   "associates": {
     "title": "Associates workspace",
     "subtitle": "Track partner records, participation, and linked loans from one shared analytics surface.",
     "actions": {
-      "new": "New associate"
+      "new": "New associate",
+      "details": "Details"
+    },
+    "forms": {
+      "title": "Associate operations",
+      "subtitle": "Create, edit, and manage investor records and profitability operations from this workspace."
+    },
+    "tabs": {
+      "overview": "Overview",
+      "history": "Contributions",
+      "simulation": "Simulation",
+      "calendar": "Calendar"
+    },
+    "detail": {
+      "subtitle": "Separate exposure, movements, profitability, and installment visibility for each associate.",
+      "profileTitle": "Associate profile",
+      "linkedLoansTitle": "Linked loans",
+      "cards": {
+        "yield": "Realized yield",
+        "movements": "Recorded movements",
+        "projectedPeriods": "Visible periods",
+        "netProfit": "Net profit"
+      }
+    },
+    "simulation": {
+      "title": "Profitability simulation",
+      "period": "Period",
+      "date": "Date",
+      "type": "Type",
+      "distributed": "Distributed",
+      "accumulated": "Accumulated return",
+      "yield": "Yield",
+      "empty": "No simulated return periods available yet.",
+      "emptyMessage": "Registered distributions will populate this table with accumulated return and realized yield."
+    },
+    "history": {
+      "contributionsTitle": "Contribution history",
+      "distributionsTitle": "Distribution history",
+      "emptyContributions": "No contributions registered for this associate yet.",
+      "emptyDistributions": "No distributions registered for this associate yet.",
+      "headers": {
+        "date": "Date",
+        "amount": "Amount",
+        "type": "Type",
+        "notes": "Notes"
+      }
+    },
+    "loans": {
+      "emptyTitle": "No linked loans",
+      "emptyMessage": "Once this associate participates in loans, they will appear here with the next visible installment.",
+      "headers": {
+        "loan": "Loan",
+        "customer": "Customer",
+        "status": "Status",
+        "amount": "Amount",
+        "nextDue": "Next due",
+        "nextOutstanding": "Next installment",
+        "overdue": "Overdue"
+      }
+    },
+    "calendar": {
+      "openPayments": "Open payments to mark installment paid",
+      "loadError": "Unable to load calendars for linked loans.",
+      "loadingTitle": "Loading linked installments",
+      "tableTitle": "Linked payment plan",
+      "surfaceTitle": "Investor calendar",
+      "emptyTitle": "No visible installments",
+      "emptyMessage": "Installments from linked loans will appear here to review due dates and status.",
+      "eventTitle": "Loan #{{loanId}} · Installment #{{installment}} · {{status}}",
+      "headers": {
+        "loan": "Loan",
+        "customer": "Customer",
+        "installment": "Installment",
+        "dueDate": "Due date",
+        "outstanding": "Outstanding",
+        "status": "Status"
+      }
+    },
+    "messages": {
+      "created": "Associate created successfully.",
+      "updated": "Associate updated successfully.",
+      "deleted": "Associate deleted successfully.",
+      "ledgerSaved": "Associate movement saved successfully.",
+      "confirmDelete": "Do you want to delete this associate?"
     },
     "summary": {
       "total": "Associates",
@@ -1246,6 +1372,8 @@
       "back": "Back to loans",
       "simulate": "Simulate loan",
       "simulating": "Simulating...",
+      "searchCustomer": "Search customer",
+      "searchingCustomer": "Searching...",
       "save": "Create loan",
       "saving": "Saving..."
     },
@@ -1255,14 +1383,19 @@
     },
     "fields": {
       "customer": "Customer",
+      "customerDocumentNumber": "Customer document",
+      "customerDocumentPlaceholder": "Enter customer document number",
       "selectCustomer": "Select a customer",
       "amount": "Loan amount",
       "interestRate": "Interest rate",
       "termMonths": "Term in months",
+      "startDate": "Start date",
+      "lateFeeRate": "Late fee rate",
       "frequency": "Payment frequency",
       "monthly": "Monthly",
-      "biweekly": "Biweekly",
-      "weekly": "Weekly"
+      "quarterly": "Quarterly",
+      "semiannual": "Semiannual",
+      "annual": "Annual"
     },
     "summary": {
       "eyebrow": "Simulation summary",
@@ -1270,11 +1403,17 @@
       "subtitle": "Refresh the simulation before saving to compare installment, interest, and total payable values.",
       "principal": "Principal",
       "installment": "Installment",
+      "firstInterest": "First installment interest",
+      "firstPrincipal": "First installment principal",
       "totalInterest": "Total interest",
       "totalPayable": "Total payable"
     },
     "messages": {
-      "created": "Loan created successfully."
+      "created": "Loan created successfully.",
+      "documentRequired": "Enter a customer document number to continue.",
+      "customerRequired": "Search and validate a customer before completing loan terms.",
+      "customerNotFound": "No customer was found with that document number.",
+      "customerFound": "Customer found successfully."
     }
   }
 }

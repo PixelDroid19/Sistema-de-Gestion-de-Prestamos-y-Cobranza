@@ -13,10 +13,12 @@ const {
   mockUseCustomersQuery,
   mockCreateLoanMutateAsync,
   mockSimulateLoanMutateAsync,
+  mockFindByDocumentNumber,
 } = vi.hoisted(() => ({
   mockUseCustomersQuery: vi.fn(),
   mockCreateLoanMutateAsync: vi.fn(),
   mockSimulateLoanMutateAsync: vi.fn(),
+  mockFindByDocumentNumber: vi.fn(),
 }))
 
 vi.mock('@/hooks/useCustomers', () => ({
@@ -28,27 +30,37 @@ vi.mock('@/hooks/useLoans', () => ({
   useSimulateLoanMutation: () => ({ mutateAsync: mockSimulateLoanMutateAsync, isPending: false }),
 }))
 
+vi.mock('@/services/customerService', () => ({
+  customerService: {
+    findByDocumentNumber: (...args) => mockFindByDocumentNumber(...args),
+  },
+}))
+
 describe('New loan page', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('es')
     useSessionStore.setState({ user: { id: 1, role: 'admin', name: 'Ada Admin' }, token: 'token-1' })
-    useUiStore.setState({ currentView: 'loans-new', setCurrentView: vi.fn() })
+    useUiStore.setState({ currentView: 'credits-new', setCurrentView: vi.fn() })
     mockUseCustomersQuery.mockReset()
     mockCreateLoanMutateAsync.mockReset()
     mockSimulateLoanMutateAsync.mockReset()
+    mockFindByDocumentNumber.mockReset()
   })
 
   it('simulates and creates a loan from the migrated form surface', async () => {
     const user = userEvent.setup()
     const setCurrentView = vi.fn()
-    useUiStore.setState({ currentView: 'loans-new', setCurrentView })
+    useUiStore.setState({ currentView: 'credits-new', setCurrentView })
     mockUseCustomersQuery.mockReturnValue({ data: { items: [{ id: 5, name: 'Ana Cliente' }] } })
+    mockFindByDocumentNumber.mockResolvedValue({ data: { customer: { id: 5, name: 'Ana Cliente', documentNumber: '100200300' } } })
     mockSimulateLoanMutateAsync.mockResolvedValue({
       data: {
         simulation: {
-          installmentAmount: 540.5,
-          totalInterest: 486,
-          totalPayable: 6486,
+          summary: {
+            installmentAmount: 540.5,
+            totalInterest: 486,
+            totalPayable: 6486,
+          },
         },
       },
     })
@@ -57,7 +69,8 @@ describe('New loan page', () => {
     renderWithProviders(<NewLoan />)
 
     expect(mockUseCustomersQuery).toHaveBeenCalledWith({ pagination: { page: 1, pageSize: 100 } })
-    await user.selectOptions(screen.getByLabelText('Cliente'), '5')
+    await user.type(screen.getByLabelText('Documento del cliente'), '100200300')
+    await user.click(screen.getByRole('button', { name: 'Buscar cliente' }))
     await user.type(screen.getByLabelText('Monto del prestamo'), '6000')
     await user.type(screen.getByLabelText('Tasa de interes'), '9')
     await user.type(screen.getByLabelText('Plazo en meses'), '12')
@@ -69,6 +82,7 @@ describe('New loan page', () => {
         amount: 6000,
         interestRate: 9,
         termMonths: 12,
+        startDate: undefined,
       })
     })
     expect(await screen.findByText('540.50')).toBeInTheDocument()
@@ -82,12 +96,15 @@ describe('New loan page', () => {
         amount: 6000,
         interestRate: 9,
         termMonths: 12,
+        paymentFrequency: 'monthly',
+        startDate: undefined,
+        lateFeeRate: 2,
       })
     })
     expect(await screen.findByText('✅ Prestamo creado correctamente.')).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(setCurrentView).toHaveBeenCalledWith('loans')
+      expect(setCurrentView).toHaveBeenCalledWith('credits')
     }, { timeout: 1200 })
   })
 })

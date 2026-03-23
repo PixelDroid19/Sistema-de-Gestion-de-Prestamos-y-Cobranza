@@ -2,18 +2,19 @@ import React from 'react'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
+import { vi } from 'vitest'
 
 import i18n from '@/i18n'
 import { API_BASE_URL } from '@/lib/api/client'
+import * as downloadModule from '@/lib/api/download'
 import Loans from '@/pages/Loans/Loans'
 import { useDagWorkbenchStore } from '@/store/dagWorkbenchStore'
+import { useUiStore } from '@/store/uiStore'
 import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
 
 const customerUser = { id: 7, role: 'customer', name: 'Ana Customer' }
 const adminUser = { id: 1, role: 'admin', name: 'Ada Admin' }
-const agentUser = { id: 4, role: 'agent', name: 'Miles Agent' }
-
 const adminLoan = {
   id: 101,
   customerId: 12,
@@ -35,6 +36,7 @@ const adminLoan = {
 describe('Loans page', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('es')
+    vi.restoreAllMocks()
     useDagWorkbenchStore.getState().resetWorkbenchDraft({ preserveMode: false })
   })
 
@@ -60,6 +62,7 @@ describe('Loans page', () => {
   })
 
   it('renders portfolio and servicing sections from live workspace queries', async () => {
+    const downloadSpy = vi.spyOn(downloadModule, 'downloadFile').mockResolvedValue(new Blob(['report']))
     const requests = {
       payments: 0,
       alerts: 0,
@@ -71,6 +74,7 @@ describe('Loans page', () => {
 
     server.use(
       http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [adminLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/recovery-roster`, () => HttpResponse.json({ data: { recoveryRoster: [] } })),
       http.get(`${API_BASE_URL}/api/payments/loan/${adminLoan.id}`, () => {
         requests.payments += 1
         return HttpResponse.json({
@@ -122,8 +126,13 @@ describe('Loans page', () => {
     expect(await screen.findByText('Resumen operativo de prestamos')).toBeInTheDocument()
     expect(await screen.findByText('Promesas, adjuntos, documentos del cliente e historial')).toBeInTheDocument()
     expect(await screen.findByText('Acme Corp')).toBeInTheDocument()
+    expect(screen.getByText('Responsable de recuperacion')).toBeInTheDocument()
     expect(screen.getByText('Alertas: 1')).toBeInTheDocument()
     expect(screen.getByText('Docs cliente: 1')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'PDF del prestamo' }))
+    await userEvent.click(screen.getByRole('button', { name: 'PDF del cliente' }))
+    expect(downloadSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ filename: 'loan-101-credit-history.pdf' }))
+    expect(downloadSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ filename: 'customer-12-history.pdf' }))
     expect(requests).toEqual({
       payments: 1,
       alerts: 1,
@@ -132,6 +141,80 @@ describe('Loans page', () => {
       customerDocuments: 1,
       customerHistory: 1,
     })
+  })
+
+  it('routes linked credits back into the editable customer profile without duplicate navigation', async () => {
+    useUiStore.setState({
+      currentView: 'credits',
+      setCurrentView: (nextView) => useUiStore.setState({ currentView: nextView }),
+      setCustomerEditId: (customerId) => useUiStore.setState({ customerEditId: Number(customerId) }),
+      customerEditId: null,
+    })
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [adminLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/recovery-roster`, () => HttpResponse.json({ data: { recoveryRoster: [] } })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${adminLoan.id}`, () => HttpResponse.json({ data: [] })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/alerts`, () => HttpResponse.json({ data: { alerts: [] } })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/promises`, () => HttpResponse.json({ data: { promises: [] } })),
+      http.get(`${API_BASE_URL}/api/loans/${adminLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
+      http.get(`${API_BASE_URL}/api/customers/${adminLoan.customerId}/documents`, () => HttpResponse.json({ data: { documents: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/customer-history/${adminLoan.customerId}`, () => HttpResponse.json({ data: { segments: {}, timeline: [] } })),
+    )
+
+    renderWithProviders(<Loans user={adminUser} />)
+
+    expect(await screen.findByText('Acme Corp')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ver cliente' }))
+
+    await waitFor(() => {
+      expect(useUiStore.getState().currentView).toBe('customers')
+      expect(useUiStore.getState().customerEditId).toBe(12)
+    })
+  })
+
+  it('uses aligned payment-history collections when loan payment queries return payments plus loan context', async () => {
+    const progressLoan = {
+      ...adminLoan,
+      id: 151,
+      termMonths: 12,
+      financialSnapshot: {
+        installmentAmount: 1400,
+        outstandingBalance: 5200,
+        totalPayable: 16800,
+      },
+    }
+
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [progressLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/recovery-roster`, () => HttpResponse.json({ data: { recoveryRoster: [] } })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${progressLoan.id}`, () => HttpResponse.json({
+        data: {
+          payments: [{ id: 9901, loanId: progressLoan.id, amount: 1400 }],
+          loan: {
+            ...progressLoan,
+            customerSummary: {
+              totalLoans: 2,
+              activeLoans: 1,
+              totalOutstandingBalance: 5200,
+              latestLoanId: progressLoan.id,
+              latestLoanStatus: 'approved',
+            },
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${progressLoan.id}/alerts`, () => HttpResponse.json({ data: { alerts: [] } })),
+      http.get(`${API_BASE_URL}/api/loans/${progressLoan.id}/promises`, () => HttpResponse.json({ data: { promises: [] } })),
+      http.get(`${API_BASE_URL}/api/loans/${progressLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
+      http.get(`${API_BASE_URL}/api/customers/${progressLoan.customerId}/documents`, () => HttpResponse.json({ data: { documents: [] } })),
+      http.get(`${API_BASE_URL}/api/reports/customer-history/${progressLoan.customerId}`, () => HttpResponse.json({ data: { segments: {}, timeline: [] } })),
+    )
+
+    renderWithProviders(<Loans user={adminUser} />)
+
+    expect(await screen.findByText('Acme Corp')).toBeInTheDocument()
+    expect(screen.getByText('1/12')).toBeInTheDocument()
   })
 
   it('submits the expected status payload when approving a pending loan', async () => {
@@ -245,6 +328,7 @@ describe('Loans page', () => {
 
     server.use(
       http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [recoveryLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/recovery-roster`, () => HttpResponse.json({ data: { recoveryRoster: [] } })),
       http.get(`${API_BASE_URL}/api/payments/loan/${recoveryLoan.id}`, () => HttpResponse.json({ data: [] })),
       http.get(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/alerts`, () => HttpResponse.json({ data: { alerts: [] } })),
       http.get(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/promises`, () => HttpResponse.json({ data: { promises: [] } })),
@@ -280,29 +364,31 @@ describe('Loans page', () => {
     expect(await screen.findByText(/Estado de recuperacion actualizado correctamente\./)).toBeInTheDocument()
   })
 
-  it('lets assigned agents edit recovery when assignment is exposed through the nested agent relation', async () => {
+  it('keeps legacy agent assignment history visible while admins remain the recovery operator', async () => {
     const recoveryLoan = {
       ...adminLoan,
       id: 304,
       status: 'defaulted',
       recoveryStatus: 'assigned',
       agentId: undefined,
-      Agent: { id: agentUser.id, name: agentUser.name },
+      Agent: { id: 4, name: 'Miles Agent' },
     }
 
     server.use(
-      http.get(`${API_BASE_URL}/api/loans/agent/${agentUser.id}`, () => HttpResponse.json({ data: { loans: [recoveryLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [recoveryLoan] } })),
       http.get(`${API_BASE_URL}/api/payments/loan/${recoveryLoan.id}`, () => HttpResponse.json({ data: [] })),
       http.get(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/alerts`, () => HttpResponse.json({ data: { alerts: [] } })),
       http.get(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/promises`, () => HttpResponse.json({ data: { promises: [] } })),
       http.get(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
       http.get(`${API_BASE_URL}/api/customers/${recoveryLoan.customerId}/documents`, () => HttpResponse.json({ data: { documents: [] } })),
-      http.patch(`${API_BASE_URL}/api/loans/${recoveryLoan.id}/recovery-status`, () => HttpResponse.json({ data: { loan: { ...recoveryLoan, recoveryStatus: 'contacted' } } })),
+      http.get(`${API_BASE_URL}/api/reports/customer-history/${recoveryLoan.customerId}`, () => HttpResponse.json({ data: { segments: {}, timeline: [] } })),
     )
 
-    renderWithProviders(<Loans user={agentUser} />)
+    renderWithProviders(<Loans user={adminUser} />)
 
     await screen.findByText('Acme Corp')
+    expect(screen.getByText('Responsable de recuperacion')).toBeInTheDocument()
+    expect(screen.getByText('Miles Agent')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Editar recuperacion' })).toBeInTheDocument()
   })
 

@@ -20,9 +20,33 @@ const buildDescribedTable = (tableName) => {
   if (tableName === 'Loans') {
     return {
       id: {}, customerId: {}, associateId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
-      startDate: {}, endDate: {}, agentId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
+      startDate: {}, endDate: {}, agentId: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
       financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'FinancialProducts') {
+    return {
+      id: {}, name: {}, active: {}, interestRate: {}, termMonths: {}, lateFeeMode: {}, penaltyRate: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'GraphTopologies') {
+    return {
+      id: {}, productId: {}, version: {}, nodes: {}, edges: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'OutboxEvents') {
+    return {
+      id: {}, aggregateType: {}, aggregateId: {}, eventType: {}, payload: {}, status: {}, processedAt: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'ConfigEntries') {
+    return {
+      id: {}, category: {}, key: {}, label: {}, value: {}, isActive: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -103,7 +127,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'DagGraphVersions', 'DagSimulationSummaries'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -120,6 +144,10 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const pushSubscriptions = requiredSchema.find((entry) => entry.tableName === 'PushSubscriptions');
   const dagGraphVersions = requiredSchema.find((entry) => entry.tableName === 'DagGraphVersions');
   const dagSimulationSummaries = requiredSchema.find((entry) => entry.tableName === 'DagSimulationSummaries');
+  const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
+  const graphTopologies = requiredSchema.find((entry) => entry.tableName === 'GraphTopologies');
+  const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
+  const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
 
   assert.ok(associates);
   assert.ok(loans);
@@ -134,10 +162,15 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(pushSubscriptions);
   assert.ok(dagGraphVersions);
   assert.ok(dagSimulationSummaries);
+  assert.ok(financialProducts);
+  assert.ok(graphTopologies);
+  assert.ok(outboxEvents);
+  assert.ok(configEntries);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
   assert.ok(associates.columns.includes('email'));
   assert.ok(associates.columns.includes('participationPercentage'));
   assert.ok(loans.columns.includes('associateId'));
+  assert.ok(loans.columns.includes('financialProductId'));
   assert.ok(loans.columns.includes('closedAt'));
   assert.ok(loans.columns.includes('closureReason'));
   assert.ok(loans.columns.includes('financialBlock'));
@@ -155,6 +188,11 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(pushSubscriptions.columns.includes('endpointHash'));
   assert.ok(dagGraphVersions.columns.includes('graphSummary'));
   assert.ok(dagSimulationSummaries.columns.includes('selectedSource'));
+  assert.ok(financialProducts.columns.includes('penaltyRate'));
+  assert.ok(graphTopologies.columns.includes('productId'));
+  assert.ok(outboxEvents.columns.includes('eventType'));
+  assert.ok(configEntries.columns.includes('category'));
+  assert.ok(configEntries.columns.includes('value'));
 });
 
 test('verifyRequiredSchema rejects when a required table is missing', async () => {

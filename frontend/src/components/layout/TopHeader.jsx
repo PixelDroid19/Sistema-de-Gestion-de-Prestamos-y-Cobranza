@@ -15,6 +15,7 @@ const TopHeader = () => {
   const isDarkMode = useUiStore((state) => state.isDarkMode)
   const toggleTheme = useUiStore((state) => state.toggleTheme)
   const setNotificationsOpen = useUiStore((state) => state.setNotificationsOpen)
+  const setCurrentView = useUiStore((state) => state.setCurrentView)
   const currentView = useUiStore((state) => state.currentView)
   const searchQuery = useUiStore((state) => state.searchQuery)
   const setSearchQuery = useUiStore((state) => state.setSearchQuery)
@@ -45,6 +46,11 @@ const TopHeader = () => {
         <IconButton
           icon={Settings}
           title={t('shell.settings')}
+          onClick={() => {
+            if (user?.role === 'admin') {
+              setCurrentView('config')
+            }
+          }}
         />
         <IconButton
           icon={isDarkMode ? Sun : Moon}

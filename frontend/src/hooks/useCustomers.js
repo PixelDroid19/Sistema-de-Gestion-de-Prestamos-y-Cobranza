@@ -32,6 +32,30 @@ export const useCreateCustomerMutation = () => {
   });
 };
 
+export const useUpdateCustomerMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ customerId, payload }) => customerService.updateCustomer(customerId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.all('all') });
+    },
+  });
+};
+
+export const useDeleteCustomerMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (customerId) => customerService.deleteCustomer(customerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.all('all') });
+    },
+  });
+};
+
 export const useUploadCustomerDocumentMutation = () => {
   const queryClient = useQueryClient();
 

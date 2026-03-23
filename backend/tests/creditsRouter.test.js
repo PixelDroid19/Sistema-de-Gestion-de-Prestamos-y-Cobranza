@@ -10,7 +10,7 @@ const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('.
 const { createCreditsRouter } = require('../src/modules/credits/presentation/router');
 const { createAuthMiddleware } = require('../src/modules/shared/auth');
 const { createLoanAccessPolicy } = require('../src/modules/shared/loanAccessPolicy');
-const { globalErrorHandler } = require('../src/utils/errorHandler');
+const { globalErrorHandler, NotFoundError } = require('../src/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -51,10 +51,11 @@ const createUseCases = (overrides) => ({
   listLoans: unexpectedUseCase('listLoans'),
   createSimulation: unexpectedUseCase('createSimulation'),
   listLoansByCustomer: unexpectedUseCase('listLoansByCustomer'),
-  listLoansByAgent: unexpectedUseCase('listLoansByAgent'),
+  listLoansByRecoveryAssignee: unexpectedUseCase('listLoansByRecoveryAssignee'),
+  listRecoveryRoster: unexpectedUseCase('listRecoveryRoster'),
   createLoan: unexpectedUseCase('createLoan'),
   updateLoanStatus: unexpectedUseCase('updateLoanStatus'),
-  assignAgent: unexpectedUseCase('assignAgent'),
+  assignRecoveryAssignee: unexpectedUseCase('assignRecoveryAssignee'),
   updateRecoveryStatus: unexpectedUseCase('updateRecoveryStatus'),
   deleteLoan: unexpectedUseCase('deleteLoan'),
   getLoanById: unexpectedUseCase('getLoanById'),
@@ -99,8 +100,16 @@ const createRuntimeApp = ({ actor, useCases, validation = runtimeLoanValidation 
 test('createCreditsRouter serves create, list, and read contract responses', async () => {
   const calls = [];
   const listedLoans = [
-    { id: 41, status: 'approved' },
-    { id: 42, status: 'pending' },
+    {
+      id: 41,
+      status: 'approved',
+      customerSummary: { totalLoans: 2, activeLoans: 1, totalOutstandingBalance: 450, latestLoanId: 41, latestLoanStatus: 'approved' },
+    },
+    {
+      id: 42,
+      status: 'pending',
+      customerSummary: { totalLoans: 1, activeLoans: 0, totalOutstandingBalance: 0, latestLoanId: 42, latestLoanStatus: 'pending' },
+    },
   ];
   const createdLoan = {
     id: 43,
@@ -126,8 +135,11 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
       async listLoansByCustomer() {
         throw new Error('listLoansByCustomer should not be called');
       },
-      async listLoansByAgent() {
-        throw new Error('listLoansByAgent should not be called');
+      async listLoansByRecoveryAssignee() {
+        throw new Error('listLoansByRecoveryAssignee should not be called');
+      },
+      async listRecoveryRoster() {
+        throw new Error('listRecoveryRoster should not be called');
       },
       async createLoan(input) {
         calls.push(['createLoan', input]);
@@ -136,8 +148,8 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
       async updateLoanStatus() {
         throw new Error('updateLoanStatus should not be called');
       },
-      async assignAgent() {
-        throw new Error('assignAgent should not be called');
+      async assignRecoveryAssignee() {
+        throw new Error('assignRecoveryAssignee should not be called');
       },
       async updateRecoveryStatus() {
         throw new Error('updateRecoveryStatus should not be called');
@@ -147,7 +159,24 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
       },
       async getLoanById(input) {
         calls.push(['getLoanById', input]);
-        return { id: Number(input.loanId), status: 'approved' };
+        return {
+          id: Number(input.loanId),
+          status: 'approved',
+          customerSummary: {
+            totalLoans: 2,
+            activeLoans: 1,
+            totalOutstandingBalance: 450,
+            latestLoanId: 44,
+            latestLoanStatus: 'approved',
+          },
+          paymentContext: {
+            isPayable: true,
+            allowedPaymentTypes: ['installment', 'payoff'],
+            snapshot: { outstandingBalance: 1000 },
+            payoffEligibility: { allowed: true, denialReasons: [] },
+            capitalEligibility: { allowed: true, denialReasons: [] },
+          },
+        };
       },
     },
   });
@@ -204,6 +233,20 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
       loan: {
         id: 44,
         status: 'approved',
+        customerSummary: {
+          totalLoans: 2,
+          activeLoans: 1,
+          totalOutstandingBalance: 450,
+          latestLoanId: 44,
+          latestLoanStatus: 'approved',
+        },
+        paymentContext: {
+          isPayable: true,
+          allowedPaymentTypes: ['installment', 'payoff'],
+          snapshot: { outstandingBalance: 1000 },
+          payoffEligibility: { allowed: true, denialReasons: [] },
+          capitalEligibility: { allowed: true, denialReasons: [] },
+        },
       },
     },
   });
@@ -299,8 +342,11 @@ test('createCreditsRouter serves assignment and recovery contract responses', as
       async listLoansByCustomer() {
         throw new Error('listLoansByCustomer should not be called');
       },
-      async listLoansByAgent() {
-        throw new Error('listLoansByAgent should not be called');
+      async listLoansByRecoveryAssignee() {
+        throw new Error('listLoansByRecoveryAssignee should not be called');
+      },
+      async listRecoveryRoster() {
+        throw new Error('listRecoveryRoster should not be called');
       },
       async createLoan() {
         throw new Error('createLoan should not be called');
@@ -308,13 +354,13 @@ test('createCreditsRouter serves assignment and recovery contract responses', as
       async updateLoanStatus() {
         throw new Error('updateLoanStatus should not be called');
       },
-      async assignAgent(input) {
-        calls.push(['assignAgent', input]);
+      async assignRecoveryAssignee(input) {
+        calls.push(['assignRecoveryAssignee', input]);
         return {
           id: Number(input.loanId),
           status: 'defaulted',
           recoveryStatus: 'assigned',
-          agentId: input.agentId,
+          agentId: input.recoveryAssigneeId,
         };
       },
       async updateRecoveryStatus(input) {
@@ -343,9 +389,9 @@ test('createCreditsRouter serves assignment and recovery contract responses', as
 
   const assignResponse = await requestJson(activeServer, {
     method: 'PATCH',
-    path: '/22/assign-agent',
+    path: '/22/recovery-assignment',
     headers: { authorization: 'Bearer valid-token' },
-    body: { agentId: 9 },
+    body: { recoveryAssigneeId: 9 },
   });
   const recoveryResponse = await requestJson(activeServer, {
     method: 'PATCH',
@@ -357,7 +403,7 @@ test('createCreditsRouter serves assignment and recovery contract responses', as
   assert.equal(assignResponse.statusCode, 200);
   assert.deepEqual(assignResponse.body, {
     success: true,
-    message: 'Agent assigned successfully',
+    message: 'Recovery assignment updated successfully',
     data: {
       loan: {
         id: 22,
@@ -381,7 +427,7 @@ test('createCreditsRouter serves assignment and recovery contract responses', as
     },
   });
   assert.deepEqual(calls, [
-    ['assignAgent', { actor: { id: 1, role: 'admin' }, loanId: '22', agentId: 9 }],
+    ['assignRecoveryAssignee', { actor: { id: 1, role: 'admin' }, loanId: '22', recoveryAssigneeId: 9 }],
     ['updateRecoveryStatus', { actor: { id: 1, role: 'admin' }, loanId: '22', recoveryStatus: 'contacted' }],
   ]);
 });
@@ -483,7 +529,7 @@ test('createCreditsRouter GET / returns all loans to admins at runtime', async (
   });
 });
 
-test('createCreditsRouter PATCH /:id/status lets an assigned agent mutate loan status at runtime', async () => {
+test('createCreditsRouter PATCH /:id/status lets an admin mutate loan status at runtime', async () => {
   const loanRepository = {
     async list() {
       throw new Error('list should not be called');
@@ -504,7 +550,7 @@ test('createCreditsRouter PATCH /:id/status lets an assigned agent mutate loan s
   };
   const loanAccessPolicy = createLoanAccessPolicy({ loanRepository });
   const app = createRuntimeApp({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     useCases: createUseCases({
       updateLoanStatus: createUpdateLoanStatus({ loanRepository, loanAccessPolicy }),
     }),
@@ -536,7 +582,7 @@ test('createCreditsRouter PATCH /:id/status lets an assigned agent mutate loan s
   });
 });
 
-test('createCreditsRouter DELETE /:id blocks an unassigned agent from deleting a foreign rejected loan at runtime', async () => {
+test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardless of previous assignment', async () => {
   let destroyCalled = false;
   const loanRepository = {
     async findById(loanId) {
@@ -553,7 +599,7 @@ test('createCreditsRouter DELETE /:id blocks an unassigned agent from deleting a
   };
   const loanAccessPolicy = createLoanAccessPolicy({ loanRepository });
   const app = createRuntimeApp({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     useCases: createUseCases({
       deleteLoan: createDeleteLoan({ loanRepository, loanAccessPolicy }),
     }),
@@ -567,10 +613,12 @@ test('createCreditsRouter DELETE /:id blocks an unassigned agent from deleting a
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 403);
-  assert.equal(response.body.success, false);
-  assert.equal(response.body.error.message, 'You can only access loans assigned to you');
-  assert.equal(destroyCalled, false);
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    message: 'Loan deleted successfully',
+  });
+  assert.equal(destroyCalled, true);
 });
 
 test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan at runtime', async () => {
@@ -753,6 +801,33 @@ test('createCreditsRouter downloads loan attachments through the use-case contra
   } finally {
     await fs.rm(temporaryDirectory, { recursive: true, force: true });
   }
+});
+
+test('createCreditsRouter returns 404 when the backing attachment file is missing', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 1, role: 'admin' },
+    useCases: createUseCases({
+      async downloadLoanAttachment() {
+        throw new NotFoundError('Attachment file');
+      },
+    }),
+  });
+
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/16/attachments/1/download`, {
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  const body = await response.json();
+
+  assert.equal(response.status, 404);
+  assert.equal(body.success, false);
+  assert.equal(body.error.message, 'Attachment file not found');
+  assert.equal(body.error.statusCode, 404);
+  assert.equal(body.error.path, '/16/attachments/1/download');
+  assert.equal(body.error.method, 'GET');
+  assert.ok(typeof body.error.timestamp === 'string');
 });
 
 test('createCreditsRouter serves alert, calendar, and promise contracts', async () => {

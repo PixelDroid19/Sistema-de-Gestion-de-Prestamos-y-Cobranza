@@ -25,7 +25,7 @@ test('createGetNotifications aggregates unread and total counts', async () => {
     },
   });
 
-  const result = await getNotifications({ actor: { id: 8, role: 'agent' } });
+  const result = await getNotifications({ actor: { id: 8, role: 'admin' } });
 
   assert.equal(result.data.totalCount, 2);
   assert.equal(result.data.unreadCount, 1);
@@ -45,7 +45,7 @@ test('createMarkAsRead verifies ownership before mutation', async () => {
     },
   });
 
-  await assert.rejects(() => markAsRead({ actor: { id: 8, role: 'agent' }, notificationId: '9' }), (error) => {
+  await assert.rejects(() => markAsRead({ actor: { id: 8, role: 'admin' }, notificationId: '9' }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
@@ -64,7 +64,7 @@ test('createMarkAsRead rejects when the notification does not exist', async () =
     },
   });
 
-  await assert.rejects(() => markAsRead({ actor: { id: 8, role: 'agent' }, notificationId: '88' }), (error) => {
+  await assert.rejects(() => markAsRead({ actor: { id: 8, role: 'admin' }, notificationId: '88' }), (error) => {
     assert.ok(error instanceof NotFoundError);
     return true;
   });
@@ -94,9 +94,9 @@ test('notification use cases preserve count-based contracts', async () => {
     },
   });
 
-  const marked = await markAllAsRead({ actor: { id: 8, role: 'agent' } });
-  const unread = await getUnreadCount({ actor: { id: 8, role: 'agent' } });
-  const cleared = await clearNotifications({ actor: { id: 8, role: 'agent' } });
+  const marked = await markAllAsRead({ actor: { id: 8, role: 'admin' } });
+  const unread = await getUnreadCount({ actor: { id: 8, role: 'admin' } });
+  const cleared = await clearNotifications({ actor: { id: 8, role: 'admin' } });
 
   assert.equal(marked.data.count, 2);
   assert.equal(unread.data.unreadCount, 4);
@@ -115,7 +115,7 @@ test('createGetNotifications preserves persisted payload fields for frontend com
     },
   });
 
-  const result = await getNotifications({ actor: { id: 8, role: 'agent' } });
+  const result = await getNotifications({ actor: { id: 8, role: 'admin' } });
 
   assert.equal(result.data.notifications[0].data.loanId, 12);
   assert.equal(result.data.notifications[0].payload.loanId, 12);
@@ -131,7 +131,7 @@ test('createRegisterPushSubscription upserts an actor-owned subscription', async
   });
 
   const result = await registerPushSubscription({
-    actor: { id: 8, role: 'agent' },
+    actor: { id: 8, role: 'admin' },
     payload: {
       providerKey: 'webpush',
       channel: 'web',
@@ -156,7 +156,7 @@ test('createDeletePushSubscription is idempotent when a subscription is already 
   });
 
   const result = await deletePushSubscription({
-    actor: { id: 8, role: 'agent' },
+    actor: { id: 8, role: 'admin' },
     payload: {
       providerKey: 'webpush',
       endpoint: 'https://push.example/sub',
@@ -180,7 +180,7 @@ test('push subscription use cases reject payloads without endpoint or device tok
   });
 
   await assert.rejects(() => registerPushSubscription({
-    actor: { id: 8, role: 'agent' },
+    actor: { id: 8, role: 'admin' },
     payload: {
       providerKey: 'fcm',
       channel: 'mobile',

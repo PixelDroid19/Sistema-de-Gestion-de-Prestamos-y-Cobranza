@@ -49,9 +49,9 @@ test('createApp mounts injected routes from the module registry and documents on
 });
 
 test('createApp forwards all modularized business surfaces from injected module routers', async () => {
-  const agentsRouter = express.Router();
-  agentsRouter.get('/', (req, res) => {
-    res.json({ success: true, surface: 'agents' });
+  const creditsRouter = express.Router();
+  creditsRouter.get('/recovery-roster', (req, res) => {
+    res.json({ success: true, surface: 'credits-recovery-roster' });
   });
 
   const associatesRouter = express.Router();
@@ -73,9 +73,9 @@ test('createApp forwards all modularized business surfaces from injected module 
     sharedRuntime: { id: 'runtime-2' },
     moduleRegistry: [
       {
-        name: 'agents',
-        basePath: '/api/agents',
-        router: agentsRouter,
+        name: 'credits',
+        basePath: '/api/loans',
+        router: creditsRouter,
       },
       {
         name: 'associates',
@@ -97,8 +97,8 @@ test('createApp forwards all modularized business surfaces from injected module 
 
   activeServer = await listen(app);
 
-  const agentsResponse = await requestJson(activeServer, {
-    path: '/api/agents',
+  const creditsResponse = await requestJson(activeServer, {
+    path: '/api/loans/recovery-roster',
   });
   const associatesResponse = await requestJson(activeServer, {
     path: '/api/associates',
@@ -113,10 +113,10 @@ test('createApp forwards all modularized business surfaces from injected module 
     path: '/api',
   });
 
-  assert.equal(agentsResponse.statusCode, 200);
-  assert.deepEqual(agentsResponse.body, {
+  assert.equal(creditsResponse.statusCode, 200);
+  assert.deepEqual(creditsResponse.body, {
     success: true,
-    surface: 'agents',
+    surface: 'credits-recovery-roster',
   });
   assert.equal(associatesResponse.statusCode, 200);
   assert.deepEqual(associatesResponse.body, {
@@ -134,7 +134,7 @@ test('createApp forwards all modularized business surfaces from injected module 
     surface: 'notifications',
   });
   assert.equal(docsResponse.statusCode, 200);
-  assert.equal(docsResponse.body.endpoints.agents, '/api/agents');
+  assert.equal(docsResponse.body.endpoints.credits, '/api/loans');
   assert.equal(docsResponse.body.endpoints.associates, '/api/associates');
   assert.equal(docsResponse.body.endpoints.reports, '/api/reports');
   assert.equal(docsResponse.body.endpoints.notifications, '/api/notifications');

@@ -22,6 +22,7 @@ test('bootstrap authenticates infrastructure, syncs schema, and returns module r
   const calls = [];
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];
   const sharedRuntime = { id: 'runtime-1' };
+  const seedResult = { seededProducts: 3, seededGraphs: 3 };
   const scheduler = {
     async start() {
       calls.push('scheduler');
@@ -47,6 +48,10 @@ test('bootstrap authenticates infrastructure, syncs schema, and returns module r
       calls.push('syncSchema');
       return { mode: 'verify', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] };
     },
+    seedFinancialProducts: async () => {
+      calls.push('seedFinancialProducts');
+      return seedResult;
+    },
     createSharedRuntime: () => {
       calls.push('sharedRuntime');
       return sharedRuntime;
@@ -59,7 +64,7 @@ test('bootstrap authenticates infrastructure, syncs schema, and returns module r
     scheduler,
   });
 
-  assert.deepEqual(calls, ['authenticate', 'syncSchema', 'sharedRuntime', 'scheduler', 'modules']);
+  assert.deepEqual(calls, ['authenticate', 'syncSchema', 'seedFinancialProducts', 'sharedRuntime', 'scheduler', 'modules']);
   assert.equal(result.modules, modules);
   assert.equal(result.sharedRuntime, sharedRuntime);
   assert.deepEqual(result.schema, { mode: 'verify', status: 'verified', tables: ['Associates', 'Loans', 'Payments'] });

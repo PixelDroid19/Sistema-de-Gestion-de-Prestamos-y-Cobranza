@@ -62,12 +62,11 @@ function UsersTable({
                   onChange={(event) => onRoleChange(event.target.value)}
                 >
                   <option value="customer">{t('common.status.customer')}</option>
-                  <option value="agent">{t('common.status.agent')}</option>
                   <option value="socio">{t('common.status.socio')}</option>
                   <option value="admin">{t('common.status.admin')}</option>
                 </select>
               ) : (
-                <Badge variant={user.role === 'admin' ? 'success' : user.role === 'agent' ? 'brand' : 'neutral'}>
+                <Badge variant={user.role === 'admin' ? 'success' : 'neutral'}>
                   {t(`common.status.${user.role}`)}
                 </Badge>
               )}
@@ -117,6 +116,10 @@ function UsersTable({
       </tbody>
     </table>
   )
+}
+
+function getRecoveryOwnerName(loan, fallbackLabel) {
+  return loan.recoveryAssigneeName || loan.recoveryAssignee?.name || loan.Agent?.name || fallbackLabel
 }
 
 function ReportsPortfolioSection({
@@ -170,7 +173,7 @@ function ReportsPortfolioSection({
             <tr>
               <th>{t('reports.portfolio.headers.id')}</th>
               <th>{t('reports.portfolio.headers.customer')}</th>
-              <th>{t('reports.portfolio.headers.agent')}</th>
+              <th>{t('reports.portfolio.headers.recoveryOwner')}</th>
               <th className="table-cell-right">{t('reports.portfolio.headers.amount')}</th>
               <th className="table-cell-right">{t('reports.portfolio.headers.recovered')}</th>
               <th className="table-cell-center">{t('reports.portfolio.headers.recoveryDate')}</th>
@@ -181,7 +184,7 @@ function ReportsPortfolioSection({
               <tr key={loan.id}>
                 <td><span className="table-id-pill">#{loan.id}</span></td>
                 <td>{loan.Customer?.name || t('common.values.notAvailable')}</td>
-                <td>{loan.Agent?.name || t('common.values.notAvailable')}</td>
+                <td>{getRecoveryOwnerName(loan, t('common.values.notAvailable'))}</td>
                 <td className="table-cell-right">{formatCurrency(loan.amount)}</td>
                 <td className="table-cell-right">{formatCurrency(loan.totalPaid)}</td>
                 <td className="table-cell-center">{formatDate(loan.updatedAt)}</td>
@@ -214,7 +217,7 @@ function ReportsPortfolioSection({
             <tr>
               <th>{t('reports.portfolio.headers.id')}</th>
               <th>{t('reports.portfolio.headers.customer')}</th>
-              <th>{t('reports.portfolio.headers.agent')}</th>
+              <th>{t('reports.portfolio.headers.recoveryOwner')}</th>
               <th className="table-cell-right">{t('reports.portfolio.headers.amount')}</th>
               <th className="table-cell-right">{t('reports.portfolio.headers.paid')}</th>
               <th className="table-cell-right">{t('reports.portfolio.headers.outstanding')}</th>
@@ -226,7 +229,7 @@ function ReportsPortfolioSection({
               <tr key={loan.id}>
                 <td><span className="table-id-pill">#{loan.id}</span></td>
                 <td>{loan.Customer?.name || t('common.values.notAvailable')}</td>
-                <td>{loan.Agent?.name || t('common.values.notAvailable')}</td>
+                <td>{getRecoveryOwnerName(loan, t('common.values.notAvailable'))}</td>
                 <td className="table-cell-right">{formatCurrency(loan.amount)}</td>
                 <td className="table-cell-right">{formatCurrency(loan.totalPaid)}</td>
                 <td className="table-cell-right">{formatCurrency(loan.outstandingAmount)}</td>

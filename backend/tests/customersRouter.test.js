@@ -22,13 +22,30 @@ const customerValidation = {
   create(req, res, next) {
     next();
   },
+  update(req, res, next) {
+    next();
+  },
 };
 
 test('createCustomersRouter serves list and create contract responses', async () => {
   const calls = [];
   const customers = [
-    { id: 4, name: 'Ana Customer', email: 'ana@example.com' },
-    { id: 3, name: 'Luis Customer', email: 'luis@example.com' },
+    {
+      id: 4,
+      name: 'Ana Customer',
+      email: 'ana@example.com',
+      loanCount: 2,
+      activeLoans: 1,
+      loanSummary: { totalLoans: 2, activeLoans: 1, totalOutstandingBalance: 450, latestLoanId: 91, latestLoanStatus: 'approved' },
+    },
+    {
+      id: 3,
+      name: 'Luis Customer',
+      email: 'luis@example.com',
+      loanCount: 0,
+      activeLoans: 0,
+      loanSummary: { totalLoans: 0, activeLoans: 0, totalOutstandingBalance: 0, latestLoanId: null, latestLoanStatus: null },
+    },
   ];
   const router = createCustomersRouter({
     customerValidation,
@@ -180,4 +197,124 @@ test('createCustomersRouter serves customer document routes', async () => {
     ['uploadCustomerDocument', '7'],
     ['downloadCustomerDocument', '2'],
   ]);
+});
+
+test('createCustomersRouter serves update contract responses', async () => {
+  const calls = [];
+  const router = createCustomersRouter({
+    customerValidation,
+    authMiddleware: allowAuth,
+    attachmentUpload: { single() { return (req, res, next) => next(); } },
+    useCases: {
+      async listCustomers() { return []; },
+      async createCustomer() { return {}; },
+      async updateCustomer(input) {
+        calls.push(['updateCustomer', input]);
+        return {
+          id: Number(input.customerId),
+          ...input.payload,
+        };
+      },
+      async deleteCustomer() { return { success: true }; },
+      async findCustomerByDocument() { return {}; },
+      async listCustomerDocuments() { return []; },
+      async uploadCustomerDocument() { return { id: 1 }; },
+      async downloadCustomerDocument() { return { document: { originalName: 'doc.pdf' }, absolutePath: __filename }; },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const payload = {
+    name: 'Updated Customer',
+    status: 'inactive',
+    phone: '+573001112255',
+  };
+
+  const response = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/7',
+    headers: { authorization: 'Bearer valid-token' },
+    body: payload,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    data: {
+      id: 7,
+      name: 'Updated Customer',
+      status: 'inactive',
+      phone: '+573001112255',
+    },
+    message: 'Customer updated successfully',
+  });
+  assert.deepEqual(calls, [
+    ['updateCustomer', { customerId: '7', payload }],
+  ]);
+});
+
+test('globalErrorHandler returns conflict payload when unique constraint path metadata is missing', async () => {
+  const app = express();
+
+  app.post('/', async (req, res, next) => {
+    const error = new Error('duplicate key value violates unique constraint');
+    error.name = 'SequelizeUniqueConstraintError';
+    error.errors = [];
+    error.fields = { email: 'duplicate@example.com' };
+    next(error);
+  });
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/',
+    body: {},
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.body, {
+    success: false,
+    error: {
+      message: 'email already exists',
+      statusCode: 409,
+    },
+  });
+});
+
+test('globalErrorHandler reports primary-key uniqueness conflicts without generic resource wording', async () => {
+  const app = express();
+
+  app.post('/', async (req, res, next) => {
+    const error = new Error('duplicate key value violates unique constraint "Customers_pkey"');
+    error.name = 'SequelizeUniqueConstraintError';
+    error.errors = [];
+    error.parent = { constraint: 'Customers_pkey' };
+    next(error);
+  });
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/',
+    body: {},
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.body, {
+    success: false,
+    error: {
+      message: 'Customer id already exists',
+      statusCode: 409,
+    },
+  });
 });

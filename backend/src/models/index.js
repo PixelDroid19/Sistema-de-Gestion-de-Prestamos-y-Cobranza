@@ -18,6 +18,7 @@ const DagSimulationSummary = require('./DagSimulationSummary');
 const FinancialProduct = require('./FinancialProduct');
 const GraphTopology = require('./GraphTopology');
 const OutboxEvent = require('./OutboxEvent');
+const ConfigEntry = require('./ConfigEntry');
 
 Loan.belongsTo(Customer, { foreignKey: 'customerId' });
 Customer.hasMany(Loan, { foreignKey: 'customerId' });
@@ -115,4 +116,5 @@ module.exports = {
   FinancialProduct,
   GraphTopology,
   OutboxEvent,
+  ConfigEntry,
 };

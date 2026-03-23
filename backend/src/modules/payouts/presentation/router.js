@@ -58,9 +58,13 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
-  // Annul installment (admin or agent)
-  router.post('/annul/:loanId', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
-    const result = await useCases.annulInstallment({ actor: req.user, loanId: req.params.loanId });
+  // Annul installment (admin only)
+  router.post('/annul/:loanId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.annulInstallment({
+      actor: req.user,
+      loanId: req.params.loanId,
+      reason: req.body?.reason,
+    });
     res.status(201).json({
       success: true,
       message: 'Installment annulled successfully',
@@ -76,19 +80,43 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   router.get('/loan/:loanId', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
     const result = await useCases.listPaymentsByLoan({ actor: req.user, loanId: req.params.loanId, pagination: req.pagination });
     if (result?.pagination) {
-      res.json({ success: true, count: result.pagination.totalItems, data: { payments: result.items, pagination: result.pagination } });
+      res.json({
+        success: true,
+        count: result.pagination.totalItems,
+        data: {
+          payments: result.items,
+          loan: result.loan,
+          pagination: result.pagination,
+        },
+      });
       return;
     }
 
-    res.json({ success: true, count: result.length, data: result });
+    res.json({
+      success: true,
+      count: Array.isArray(result?.payments) ? result.payments.length : 0,
+      data: {
+        payments: Array.isArray(result?.payments) ? result.payments : [],
+        loan: result?.loan || null,
+      },
+    });
   }));
 
-  router.get('/:paymentId/documents', authMiddleware(['admin', 'agent', 'customer']), asyncHandler(async (req, res) => {
+  router.patch('/:paymentId/metadata', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const payment = await useCases.updatePaymentMetadata({
+      actor: req.user,
+      paymentId: req.params.paymentId,
+      payload: req.body,
+    });
+    res.json({ success: true, message: 'Payment metadata updated successfully', data: { payment } });
+  }));
+
+  router.get('/:paymentId/documents', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
     const documents = await useCases.listPaymentDocuments({ actor: req.user, paymentId: req.params.paymentId });
     res.json({ success: true, count: documents.length, data: { documents } });
   }));
 
-  router.post('/:paymentId/documents', authMiddleware(['admin', 'agent']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
+  router.post('/:paymentId/documents', authMiddleware(['admin']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
     const document = await useCases.uploadPaymentDocument({
       actor: req.user,
       paymentId: req.params.paymentId,
@@ -98,7 +126,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.status(201).json({ success: true, message: 'Payment document uploaded successfully', data: { document } });
   }));
 
-  router.get('/:paymentId/documents/:documentId/download', authMiddleware(['admin', 'agent', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:paymentId/documents/:documentId/download', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
     const download = await useCases.downloadPaymentDocument({
       actor: req.user,
       paymentId: req.params.paymentId,

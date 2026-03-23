@@ -24,7 +24,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-global.ResizeObserver = ResizeObserverMock
+globalThis.ResizeObserver = ResizeObserverMock
 window.ResizeObserver = ResizeObserverMock
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))

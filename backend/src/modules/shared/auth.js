@@ -1,7 +1,20 @@
 const { AuthenticationError, AuthorizationError } = require('../../utils/errorHandler');
 const { createJwtTokenService } = require('./auth/tokenService');
+const { normalizeApplicationRole } = require('./roles');
 
-const normalizeRoles = (roles = []) => (typeof roles === 'string' ? [roles] : roles);
+const normalizeRoles = (roles = []) => {
+  const requestedRoles = typeof roles === 'string' ? [roles] : roles;
+
+  return [...new Set(requestedRoles.map((role) => {
+    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
+
+    if (!normalizedRole) {
+      throw new Error(`Unsupported role policy requested: ${role}`);
+    }
+
+    return normalizedRole;
+  }))];
+};
 
 /**
  * Create role-aware authentication middleware backed by a token verification service.
@@ -25,11 +38,22 @@ const createAuthMiddleware = ({ tokenService }) => (roles = []) => {
       }
 
       const user = tokenService.verify(token);
-      if (requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
+      const normalizedRole = normalizeApplicationRole(user?.role);
+
+      if (!normalizedRole) {
+        throw new AuthenticationError('Token contains an unsupported application role');
+      }
+
+      const authenticatedUser = {
+        ...user,
+        role: normalizedRole,
+      };
+
+      if (requiredRoles.length > 0 && !requiredRoles.includes(authenticatedUser.role)) {
         throw new AuthorizationError(`Access denied. Required roles: ${requiredRoles.join(', ')}`);
       }
 
-      req.user = user;
+      req.user = authenticatedUser;
       next();
     } catch (error) {
       if (error.name === 'TokenExpiredError') {

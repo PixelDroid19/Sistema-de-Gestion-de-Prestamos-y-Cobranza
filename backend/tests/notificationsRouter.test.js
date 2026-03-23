@@ -19,7 +19,7 @@ const authMiddleware = () => (req, res, next) => {
     return;
   }
 
-  req.user = { id: Number(req.headers['x-test-user-id'] || 8), role: req.headers['x-test-role'] || 'agent' };
+  req.user = { id: Number(req.headers['x-test-user-id'] || 8), role: req.headers['x-test-role'] || 'admin' };
   next();
 };
 

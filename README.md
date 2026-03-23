@@ -12,7 +12,7 @@ CrediCobranza es un Sistema de Gestion de Prestamos y Cobranza con frontend Reac
 ## Funcionalidades actuales
 
 - Autenticacion con JWT y carga de sesion por rol.
-- Workspace segmentado para `admin`, `agent`, `customer` y `socio`.
+- Workspace segmentado para `admin`, `customer` y `socio`, con roster operativo de agentes administrado por `admin`.
 - Dashboard con resumen de cartera, recuperacion y balances.
 - Gestion de clientes, agentes, socios y usuarios.
 - Solicitud, simulacion, aprobacion, rechazo, asignacion y seguimiento de prestamos.
@@ -98,9 +98,10 @@ El dominio de prestamos es la parte mas rica del sistema y hoy incluye:
 ## Roles disponibles
 
 - `admin`: acceso completo a operacion, reportes, usuarios, socios, prestamos, pagos y dashboard.
-- `agent`: seguimiento de cartera asignada, cobranza, promesas, alertas y flujo DAG permitido.
 - `customer`: consulta de sus prestamos, pagos, documentos y notificaciones.
 - `socio`: visibilidad de socios, reportes de rentabilidad y notificaciones asociadas.
+
+Los agentes se conservan como roster operativo e historial de asignacion (`Agent`, `Loan.agentId`), pero ya no existen como rol autenticado de la aplicacion.
 
 ## Estructura del repositorio
 

@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button'
 import StatCard from '@/components/ui/workspace/StatCard'
 import WorkspaceCard from '@/components/ui/workspace/WorkspaceCard'
 
-function ReportsHeroSection({ role, headlineMetrics, refreshing, refreshSuccess, selectedAssociateId, onRefresh, onExport, onExportAssociate }) {
+function ReportsHeroSection({ role, headlineMetrics, refreshing, refreshSuccess, onRefresh, onExport, onExportAssociate }) {
   const { t } = useTranslation()
   const isSocio = role === 'socio'
 
@@ -27,7 +27,7 @@ function ReportsHeroSection({ role, headlineMetrics, refreshing, refreshSuccess,
               <Button variant="outline" onClick={() => onExport('pdf')}>{t('reports.hero.exportPdf')}</Button>
             </>
           )}
-          {(isSocio || selectedAssociateId) && (
+          {isSocio && (
             <Button variant="outline" onClick={() => onExportAssociate(isSocio ? 'xlsx' : 'csv')}>
               {t('reports.hero.exportAssociate')}
             </Button>

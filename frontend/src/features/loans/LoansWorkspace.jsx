@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 
 import { useDeleteCustomerDocumentMutation, useUploadCustomerDocumentMutation } from '@/hooks/useCustomers';
 import {
-  useAssignAgentMutation,
+  useAssignRecoveryAssigneeMutation,
   useCreateLoanMutation,
   useCreateLoanFollowUpMutation,
   useCreateLoanPromiseMutation,
   useDeleteLoanMutation,
+  useRecoveryRosterQuery,
   useLoanServicingQueries,
   useLoansQuery,
   useSimulateLoanMutation,
@@ -45,22 +46,28 @@ import LoansHeroSection from '@/features/loans/sections/LoansHeroSection';
 import LoansPortfolioSection from '@/features/loans/sections/LoansPortfolioSection';
 import LoansServicingSection from '@/features/loans/sections/LoansServicingSection';
 import { usePaginationStore } from '@/store/paginationStore';
+import { useUiStore } from '@/store/uiStore';
 
 const LOANS_PAGINATION_SCOPE = 'workspace-loans-portfolio';
-const DEFAULT_PAGINATION = { page: 1, pageSize: 25 };
+const DEFAULT_PAGINATION = { page: 1, pageSize: 10 };
 
 function LoansWorkspace({ user }) {
   const { t } = useTranslation()
   const workspaceMode = useDagWorkbenchStore((state) => state.workspaceMode);
   const setWorkspaceMode = useDagWorkbenchStore((state) => state.setWorkspaceMode);
+  const loanFilterCustomerId = useUiStore((state) => state.loanFilterCustomerId);
+  const clearLoanFilterCustomerId = useUiStore((state) => state.clearLoanFilterCustomerId);
+  const setCurrentView = useUiStore((state) => state.setCurrentView);
+  const setCustomerEditId = useUiStore((state) => state.setCustomerEditId);
   const loansPagination = usePaginationStore((state) => state.scopes[LOANS_PAGINATION_SCOPE] || DEFAULT_PAGINATION);
   const ensurePaginationScope = usePaginationStore((state) => state.ensureScope);
   const setLoansPage = usePaginationStore((state) => state.setPage);
+  const setLoansPageSize = usePaginationStore((state) => state.setPageSize);
   const [applicationForm, setApplicationForm] = useState({ amount: '', interestRate: '', termMonths: '' });
   const [simulation, setSimulation] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [assignAgentId, setAssignAgentId] = useState({});
+  const [recoveryAssigneeDrafts, setRecoveryAssigneeDrafts] = useState({});
   const [recoveryDrafts, setRecoveryDrafts] = useState({});
   const [editingRecovery, setEditingRecovery] = useState({});
   const [promiseDrafts, setPromiseDrafts] = useState({});
@@ -75,20 +82,21 @@ function LoansWorkspace({ user }) {
   const [followUpDrafts, setFollowUpDrafts] = useState({});
   const [pendingFollowUps, setPendingFollowUps] = useState({});
 
-  const dagWorkbenchEnabled = user.role === 'admin' || user.role === 'agent';
+  const dagWorkbenchEnabled = user.role === 'admin';
   const dagWorkbenchActive = dagWorkbenchEnabled && workspaceMode === 'dagWorkbench';
 
   useEffect(() => {
-    ensurePaginationScope(LOANS_PAGINATION_SCOPE, { page: 1, pageSize: 25 });
+    ensurePaginationScope(LOANS_PAGINATION_SCOPE, DEFAULT_PAGINATION);
   }, [ensurePaginationScope]);
 
   const loansQuery = useLoansQuery({ user, enabled: !dagWorkbenchActive, pagination: loansPagination });
+  const recoveryRosterQuery = useRecoveryRosterQuery({ enabled: user.role === 'admin' && !dagWorkbenchActive });
   const createLoanMutation = useCreateLoanMutation(user);
   const simulateLoanMutation = useSimulateLoanMutation();
   const updateLoanStatusMutation = useUpdateLoanStatusMutation(user);
-  const assignAgentMutation = useAssignAgentMutation(user);
+  const assignRecoveryAssigneeMutation = useAssignRecoveryAssigneeMutation(user);
   const updateRecoveryStatusMutation = useUpdateRecoveryStatusMutation(user);
-  const createLoanPromiseMutation = useCreateLoanPromiseMutation(user);
+  const createLoanPromiseMutation = useCreateLoanPromiseMutation();
   const createLoanFollowUpMutation = useCreateLoanFollowUpMutation(user);
   const updateLoanAlertStatusMutation = useUpdateLoanAlertStatusMutation(user);
   const updateLoanPromiseStatusMutation = useUpdateLoanPromiseStatusMutation(user);
@@ -104,15 +112,27 @@ function LoansWorkspace({ user }) {
     if (Array.isArray(loansQuery.data?.data)) return loansQuery.data.data;
     return [];
   }, [dagWorkbenchActive, loansQuery.data]);
+  const visibleLoans = useMemo(() => {
+    if (!loanFilterCustomerId || user.role !== 'admin') {
+      return loans;
+    }
+    return loans.filter((loan) => Number(loan.customerId || loan.Customer?.id) === Number(loanFilterCustomerId));
+  }, [loanFilterCustomerId, loans, user.role]);
   const loansPaginationMeta = loansQuery.data?.pagination || loansQuery.data?.data?.pagination || null;
+  const recoveryRoster = useMemo(() => {
+    if (Array.isArray(recoveryRosterQuery.data?.items)) return recoveryRosterQuery.data.items
+    if (Array.isArray(recoveryRosterQuery.data?.data?.recoveryRoster)) return recoveryRosterQuery.data.data.recoveryRoster
+    if (Array.isArray(recoveryRosterQuery.data?.data)) return recoveryRosterQuery.data.data
+    return []
+  }, [recoveryRosterQuery.data])
 
-  const loanIds = useMemo(() => loans.map((loan) => loan.id), [loans]);
+  const loanIds = useMemo(() => visibleLoans.map((loan) => loan.id), [visibleLoans]);
   const customerIds = useMemo(
-    () => [...new Set(loans.map((loan) => Number(loan.customerId || loan.Customer?.id)).filter(Boolean))],
-    [loans],
+    () => [...new Set(visibleLoans.map((loan) => Number(loan.customerId || loan.Customer?.id)).filter(Boolean))],
+    [visibleLoans],
   );
 
-  const { paymentQueries, alertQueries, promiseQueries, attachmentQueries } = useLoanServicingQueries(loans, user);
+  const { paymentQueries, alertQueries, promiseQueries, attachmentQueries } = useLoanServicingQueries(visibleLoans, user);
 
   const customerDocumentQueries = useQueries({
     queries: customerIds.map((customerId) => ({
@@ -131,7 +151,7 @@ function LoansWorkspace({ user }) {
   });
 
   const paymentsByLoan = useMemo(
-    () => mapQueriesById(loanIds, paymentQueries, (data) => data?.data),
+    () => mapQueriesById(loanIds, paymentQueries, (data) => data?.items || data?.data?.payments || data?.data),
     [loanIds, paymentQueries],
   );
   const alertsByLoan = useMemo(
@@ -192,6 +212,7 @@ function LoansWorkspace({ user }) {
     || attachmentQueries.some((query) => query.isLoading);
 
   const firstSupportingError = loansQuery.error
+    || recoveryRosterQuery.error
     || getFirstQueryError(paymentQueries)
     || getFirstQueryError(alertQueries)
     || getFirstQueryError(promiseQueries)
@@ -302,13 +323,16 @@ function LoansWorkspace({ user }) {
     }
   };
 
-  const handleAssignAgent = async (loanId) => {
+  const handleAssignRecoveryAssignee = async (loanId) => {
     clearMessages();
     setPendingAssignAgents((current) => ({ ...current, [loanId]: true }));
 
     try {
-      await assignAgentMutation.mutateAsync({ loanId, agentId: Number(assignAgentId[loanId]) });
-      showSuccess(t('loans.workspace.agentAssigned'));
+      await assignRecoveryAssigneeMutation.mutateAsync({
+        loanId,
+        recoveryAssigneeId: Number(recoveryAssigneeDrafts[loanId]),
+      });
+      showSuccess(t('loans.workspace.recoveryAssigned'));
     } catch (mutationError) {
       handleApiError(mutationError, setError);
     } finally {
@@ -568,11 +592,48 @@ function LoansWorkspace({ user }) {
     }
   };
 
+  const handleDownloadCustomerHistory = async (customerId) => {
+    clearMessages();
+
+    try {
+      await downloadFile({
+        loader: () => reportService.exportCustomerHistory(customerId, 'pdf'),
+        filename: `customer-${customerId}-history.pdf`,
+      });
+    } catch (downloadError) {
+      handleApiError(downloadError, setError);
+    }
+  };
+
+  const handleDownloadLoanHistory = async (loanId) => {
+    clearMessages();
+
+    try {
+      await downloadFile({
+        loader: () => reportService.exportLoanCreditHistory(loanId, 'pdf'),
+        filename: `loan-${loanId}-credit-history.pdf`,
+      });
+    } catch (downloadError) {
+      handleApiError(downloadError, setError);
+    }
+  };
+
+  const handleViewCustomerProfile = (loan) => {
+    const customerId = Number(loan?.customerId || loan?.Customer?.id);
+
+    if (!customerId) {
+      return;
+    }
+
+    clearMessages();
+    setCustomerEditId(customerId);
+    setCurrentView('customers');
+  };
+
   const summaryCards = useMemo(() => {
-    const approvedCount = loans.filter((loan) => loan.status === 'approved').length;
-    const pendingCount = loans.filter((loan) => loan.status === 'pending').length;
-    const activeRecoveryCount = loans.filter((loan) => loan.recoveryStatus === 'in_progress').length;
-    const outstandingBalance = loans.reduce((sum, loan) => {
+    const approvedCount = visibleLoans.filter((loan) => loan.status === 'approved').length;
+    const pendingCount = visibleLoans.filter((loan) => loan.status === 'pending').length;
+    const outstandingBalance = visibleLoans.reduce((sum, loan) => {
       const details = getLoanDetails(loan, paymentsByLoan[loan.id] || []);
       return sum + Number(details.balance || 0);
     }, 0);
@@ -583,15 +644,15 @@ function LoansWorkspace({ user }) {
 
     return [
         {
-          label: user.role === 'agent' ? t('loans.workspace.summary.assignedLoans') : t('loans.workspace.summary.visibleLoans'),
-          value: loans.length,
+          label: t('loans.workspace.summary.visibleLoans'),
+          value: visibleLoans.length,
           caption: user.role === 'customer' ? t('loans.workspace.summary.customerLoansCaption') : t('loans.workspace.summary.assignedLoansCaption'),
           tone: 'brand',
         },
         {
-          label: user.role === 'agent' ? t('loans.workspace.summary.recoveryQueue') : t('loans.workspace.summary.approvedLoans'),
-          value: user.role === 'agent' ? activeRecoveryCount : approvedCount,
-          caption: user.role === 'agent' ? t('loans.workspace.summary.recoveryQueueCaption') : t('loans.workspace.summary.approvedLoansCaption'),
+          label: t('loans.workspace.summary.approvedLoans'),
+          value: approvedCount,
+          caption: t('loans.workspace.summary.approvedLoansCaption'),
           tone: 'success',
         },
         {
@@ -607,7 +668,7 @@ function LoansWorkspace({ user }) {
           tone: 'info',
         },
       ];
-  }, [alertsByLoan, loans, paymentsByLoan, t, user.role]);
+  }, [alertsByLoan, paymentsByLoan, t, user.role, visibleLoans]);
 
   useEffect(() => {
     if (!dagWorkbenchEnabled && workspaceMode !== 'portfolio') {
@@ -649,6 +710,15 @@ function LoansWorkspace({ user }) {
         </section>
       ) : null}
 
+      {loanFilterCustomerId && user.role === 'admin' ? (
+        <div className="inline-action-group">
+          <span className="status-note">{t('loans.workspace.filteredByCustomer', { customerId: loanFilterCustomerId })}</span>
+          <Button size="sm" variant="outline" onClick={clearLoanFilterCustomerId}>
+            {t('common.actions.clear')}
+          </Button>
+        </div>
+      ) : null}
+
       {success && <div className="inline-message inline-message--success">✅ {success}</div>}
       {error && <div className="inline-message inline-message--error">⚠️ {error}</div>}
 
@@ -670,14 +740,16 @@ function LoansWorkspace({ user }) {
           <LoansPortfolioSection
             user={user}
             loansQuery={loansQuery}
-            loans={loans}
+            loans={visibleLoans}
             error={error}
             paymentsByLoan={paymentsByLoan}
             alertsByLoan={alertsByLoan}
             promisesByLoan={promisesByLoan}
             attachmentsByLoan={attachmentsByLoan}
             customerDocumentsByCustomer={customerDocumentsByCustomer}
-            assignAgentId={assignAgentId}
+            recoveryRoster={recoveryRoster}
+            recoveryRosterError={user.role === 'admin' && recoveryRosterQuery.error ? error : ''}
+            recoveryAssigneeDrafts={recoveryAssigneeDrafts}
             pendingStatusLoans={pendingStatusLoans}
             pendingAssignAgents={pendingAssignAgents}
             pendingRecovery={pendingRecovery}
@@ -685,12 +757,15 @@ function LoansWorkspace({ user }) {
             editingRecovery={editingRecovery}
             recoveryDrafts={recoveryDrafts}
             updateLoanStatusPending={updateLoanStatusMutation.isPending}
-            assignAgentPending={assignAgentMutation.isPending}
+            assignRecoveryAssigneePending={assignRecoveryAssigneeMutation.isPending}
             updateRecoveryPending={updateRecoveryStatusMutation.isPending}
             deleteLoanPending={deleteLoanMutation.isPending}
             onRefetch={() => loansQuery.refetch()}
-            onSelectAgent={(loanId, agentId) => setAssignAgentId((current) => ({ ...current, [loanId]: agentId }))}
-            onAssignAgent={handleAssignAgent}
+            onSelectRecoveryAssignee={(loanId, recoveryAssigneeId) => setRecoveryAssigneeDrafts((current) => ({
+              ...current,
+              [loanId]: recoveryAssigneeId,
+            }))}
+            onAssignRecoveryAssignee={handleAssignRecoveryAssignee}
             onStartEditingRecovery={(loan) => {
               const loanId = Number(loan.id);
               setEditingRecovery((current) => ({ ...current, [loanId]: true }));
@@ -700,12 +775,14 @@ function LoansWorkspace({ user }) {
             onSaveRecovery={handleRecoverySave}
             onUpdateLoanStatus={handleLoanStatus}
             onDeleteLoan={handleDeleteLoan}
+            onViewCustomer={handleViewCustomerProfile}
             pagination={loansPaginationMeta}
             onPageChange={(page) => setLoansPage(LOANS_PAGINATION_SCOPE, page)}
+            onPageSizeChange={(pageSize) => setLoansPageSize(LOANS_PAGINATION_SCOPE, pageSize)}
           />
 
           <LoansServicingSection
-            loans={loans}
+            loans={visibleLoans}
             user={user}
             loadingServicing={loadingServicing}
             customerDocumentsByCustomer={customerDocumentsByCustomer}
@@ -746,6 +823,8 @@ function LoansWorkspace({ user }) {
             onDownloadCustomerDocument={handleDownloadCustomerDocument}
             onDeleteCustomerDocument={handleDeleteCustomerDocument}
             onDownloadPromise={handleDownloadPromise}
+            onDownloadCustomerHistory={handleDownloadCustomerHistory}
+            onDownloadLoanHistory={handleDownloadLoanHistory}
           />
         </>
       )}

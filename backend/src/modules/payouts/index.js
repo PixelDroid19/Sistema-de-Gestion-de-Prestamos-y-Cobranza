@@ -8,6 +8,7 @@ const {
   createCreatePartialPayment,
   createCreateCapitalPayment,
   createAnnulInstallment,
+  createUpdatePaymentMetadata,
   createListPaymentsByLoan,
   createListPaymentDocuments,
   createUploadPaymentDocument,
@@ -21,7 +22,12 @@ const { createPayoutsRouter } = require('./presentation/router');
  */
 const createPayoutsModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
-  const { loanAccessPolicy, paymentApplicationService, attachmentStorage } = createCreditsPublicPorts({ sharedRuntime });
+  const {
+    loanAccessPolicy,
+    loanViewService,
+    paymentApplicationService,
+    attachmentStorage,
+  } = createCreditsPublicPorts({ sharedRuntime });
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listPayments: createListPayments({ paymentRepository }),
@@ -29,7 +35,8 @@ const createPayoutsModule = ({ sharedRuntime } = {}) => {
     createPartialPayment: createCreatePartialPayment({ paymentApplicationService, loanAccessPolicy }),
     createCapitalPayment: createCreateCapitalPayment({ paymentApplicationService, loanAccessPolicy }),
     annulInstallment: createAnnulInstallment({ paymentApplicationService, loanAccessPolicy }),
-    listPaymentsByLoan: createListPaymentsByLoan({ paymentRepository, loanAccessPolicy }),
+    updatePaymentMetadata: createUpdatePaymentMetadata({ paymentRepository, loanAccessPolicy }),
+    listPaymentsByLoan: createListPaymentsByLoan({ paymentRepository, loanAccessPolicy, loanViewService }),
     listPaymentDocuments: createListPaymentDocuments({ paymentRepository, loanAccessPolicy }),
     uploadPaymentDocument: createUploadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),
     downloadPaymentDocument: createDownloadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),

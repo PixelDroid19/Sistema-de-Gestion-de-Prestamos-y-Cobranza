@@ -9,6 +9,7 @@ import { API_BASE_URL } from '@/lib/api/client'
 import Payments from '@/pages/Payments/Payments'
 import { renderWithProviders } from '@tests/test/renderWithProviders'
 import { server } from '@tests/test/msw/server'
+import { getNearestCancellableInstallmentNumber } from '@/features/payments/paymentsWorkspace.utils'
 
 const customerUser = { id: 7, role: 'customer', name: 'Ana Customer' }
 const adminUser = { id: 1, role: 'admin', name: 'Ada Admin' }
@@ -44,10 +45,38 @@ describe('Payments page', () => {
         await delay(60)
         return HttpResponse.json({ data: { loans: [payableLoan] } })
       }),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'payoff'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: false, denialReasons: [{ code: 'NO_OUTSTANDING_BALANCE' }] },
+            },
+          },
+        },
+      })),
       http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, async () => {
         requests.payments += 1
         await delay(60)
-        return HttpResponse.json({ data: [] })
+        return HttpResponse.json({
+          data: {
+            payments: [],
+            loan: {
+              ...payableLoan,
+              paymentContext: {
+                isPayable: true,
+                allowedPaymentTypes: ['installment', 'payoff'],
+                snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+                payoffEligibility: { allowed: true, denialReasons: [] },
+                capitalEligibility: { allowed: false, denialReasons: [{ code: 'NO_OUTSTANDING_BALANCE' }] },
+              },
+            },
+          },
+        })
       }),
       http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => {
         requests.calendar += 1
@@ -81,6 +110,20 @@ describe('Payments page', () => {
 
     server.use(
       http.get(`${API_BASE_URL}/api/loans/customer/${customerUser.id}`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'payoff'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: false, denialReasons: [] },
+            },
+          },
+        },
+      })),
       http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => {
         paymentsAttempts += 1
 
@@ -88,7 +131,21 @@ describe('Payments page', () => {
           return HttpResponse.json({ message: 'Broken' }, { status: 500 })
         }
 
-        return HttpResponse.json({ data: [] })
+        return HttpResponse.json({
+          data: {
+            payments: [],
+            loan: {
+              ...payableLoan,
+              paymentContext: {
+                isPayable: true,
+                allowedPaymentTypes: ['installment', 'payoff'],
+                snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+                payoffEligibility: { allowed: true, denialReasons: [] },
+                capitalEligibility: { allowed: false, denialReasons: [] },
+              },
+            },
+          },
+        })
       }),
       http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({ data: { calendar: { entries: [] } } })),
       http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
@@ -140,17 +197,43 @@ describe('Payments page', () => {
 
     server.use(
       http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
-      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({
-        data: [
-          {
-            id: 301,
-            loanId: payableLoan.id,
-            amount: 1066.5,
-            paymentType: 'installment',
-            createdAt: '2026-03-20T00:00:00.000Z',
-            status: 'completed',
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'partial', 'capital'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: true, denialReasons: [] },
+            },
           },
-        ],
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          payments: [
+            {
+              id: 301,
+              loanId: payableLoan.id,
+              amount: 1066.5,
+              paymentType: 'installment',
+              createdAt: '2026-03-20T00:00:00.000Z',
+              status: 'completed',
+            },
+          ],
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'partial', 'capital'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: true, denialReasons: [] },
+            },
+          },
+        },
       })),
       http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({
         data: { calendar: { entries: [] } },
@@ -222,7 +305,35 @@ describe('Payments page', () => {
   it('wires the migrated installment calendar surface to live loan calendar data', async () => {
     server.use(
       http.get(`${API_BASE_URL}/api/loans/customer/${customerUser.id}`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
-      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({ data: [] })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'payoff'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: false, denialReasons: [] },
+            },
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          payments: [],
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'payoff'],
+              snapshot: { outstandingBalance: 8200, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: false, denialReasons: [] },
+            },
+          },
+        },
+      })),
       http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({
         data: {
           calendar: {
@@ -248,5 +359,98 @@ describe('Payments page', () => {
 
     expect(await screen.findByText('Calendario de cuotas')).toBeInTheDocument()
     expect(screen.getByText('Cuota #1 · Vencida · ₹1200.00')).toBeInTheDocument()
+  })
+
+  it('shows the annul action on the nearest backend-cancellable installment after a partial payment exists', async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/api/loans`, () => HttpResponse.json({ data: { loans: [payableLoan] } })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'partial', 'capital'],
+              snapshot: { outstandingBalance: 8050, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: true, denialReasons: [] },
+            },
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/payments/loan/${payableLoan.id}`, () => HttpResponse.json({
+        data: {
+          payments: [
+            {
+              id: 777,
+              loanId: payableLoan.id,
+              amount: 150,
+              paymentType: 'partial',
+              createdAt: '2026-03-22T00:00:00.000Z',
+              status: 'completed',
+            },
+          ],
+          loan: {
+            ...payableLoan,
+            paymentContext: {
+              isPayable: true,
+              allowedPaymentTypes: ['installment', 'partial', 'capital'],
+              snapshot: { outstandingBalance: 8050, installmentAmount: 1066.5 },
+              payoffEligibility: { allowed: true, denialReasons: [] },
+              capitalEligibility: { allowed: true, denialReasons: [] },
+            },
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/calendar`, () => HttpResponse.json({
+        data: {
+          calendar: {
+            entries: [
+              {
+                installmentNumber: 1,
+                dueDate: '2026-04-21T00:00:00.000Z',
+                outstandingAmount: 916.5,
+                status: 'partial',
+              },
+              {
+                installmentNumber: 2,
+                dueDate: '2026-05-21T00:00:00.000Z',
+                outstandingAmount: 1066.5,
+                status: 'pending',
+              },
+            ],
+          },
+        },
+      })),
+      http.get(`${API_BASE_URL}/api/loans/${payableLoan.id}/attachments`, () => HttpResponse.json({ data: { attachments: [] } })),
+      http.get(`${API_BASE_URL}/api/payments/777/documents`, () => HttpResponse.json({ data: { documents: [] } })),
+    )
+
+    renderWithProviders(<Payments user={adminUser} />)
+
+    expect(await screen.findByText('Sigue la actividad de cuotas desde una sola superficie compartida')).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByLabelText('Prestamo'), String(payableLoan.id))
+
+    expect(await screen.findByText('No hay documentos del pago disponibles')).toBeInTheDocument()
+
+    const rows = screen.getAllByRole('row')
+    const partialInstallmentRow = rows.find((row) => within(row).queryByText('#1'))
+    const pendingInstallmentRow = rows.find((row) => within(row).queryByText('#2'))
+
+    expect(partialInstallmentRow).toBeTruthy()
+    expect(pendingInstallmentRow).toBeTruthy()
+    expect(within(partialInstallmentRow).queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument()
+    expect(within(pendingInstallmentRow).queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument()
+  })
+})
+
+describe('getNearestCancellableInstallmentNumber', () => {
+  it('returns null when an earlier partial installment still blocks annulment', () => {
+    expect(getNearestCancellableInstallmentNumber([
+      { installmentNumber: 1, outstandingAmount: 924.46, status: 'partial' },
+      { installmentNumber: 2, outstandingAmount: 1074.46, status: 'pending' },
+      { installmentNumber: 3, outstandingAmount: 1074.46, status: 'pending' },
+    ])).toBeNull()
   })
 })

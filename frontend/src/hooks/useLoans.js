@@ -8,7 +8,6 @@ import { normalizePaginationState } from '@/lib/api/pagination';
 const resolveScope = (user) => {
   if (!user) return 'anonymous';
   if (user.role === 'customer') return `customer-${user.id}`;
-  if (user.role === 'agent') return `agent-${user.id}`;
   return 'all';
 };
 
@@ -152,10 +151,19 @@ export const useLoansQuery = ({ user, enabled = true, pagination } = {}) => {
     queryKey: queryKeys.loans.paged(resolveScope(user), normalizedPagination),
     queryFn: () => {
       if (user?.role === 'customer') return loanService.listLoansByCustomer(user.id, normalizedPagination);
-      if (user?.role === 'agent') return loanService.listLoansByAgent(user.id, normalizedPagination);
       return loanService.listLoans(normalizedPagination);
     },
     enabled: enabled && Boolean(user),
+  });
+};
+
+export const useRecoveryRosterQuery = ({ enabled = true, pagination } = {}) => {
+  const normalizedPagination = normalizePaginationState(pagination);
+
+  return useQuery({
+    queryKey: queryKeys.recoveryRoster.paged(normalizedPagination),
+    queryFn: () => loanService.listRecoveryRoster(normalizedPagination),
+    enabled,
   });
 };
 
@@ -280,10 +288,10 @@ export const useUpdateLoanStatusMutation = (user) => {
   });
 };
 
-export const useAssignAgentMutation = (user) => {
+export const useAssignRecoveryAssigneeMutation = (user) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ loanId, agentId }) => loanService.assignAgent(loanId, agentId),
+    mutationFn: ({ loanId, recoveryAssigneeId }) => loanService.assignRecoveryAssignee(loanId, recoveryAssigneeId),
     onSuccess: (_response, variables) => invalidateLoanScope(queryClient, user, variables.loanId),
   });
 };
@@ -299,7 +307,7 @@ export const useUpdateRecoveryStatusMutation = (user) => {
   });
 };
 
-export const useCreateLoanPromiseMutation = (user) => {
+export const useCreateLoanPromiseMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ loanId, payload }) => loanService.createLoanPromise(loanId, payload),

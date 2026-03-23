@@ -15,14 +15,6 @@ import {
 } from '@/hooks/useReports';
 import {
   useAssociatePortalQuery,
-  useAssociatesQuery,
-  useCreateAssociateContributionMutation,
-  useCreateAssociateDistributionMutation,
-  useCreateAssociateMutation,
-  useCreateAssociateReinvestmentMutation,
-  useCreateProportionalDistributionMutation,
-  useDeleteAssociateMutation,
-  useUpdateAssociateMutation,
 } from '@/hooks/useAssociates';
 import {
   useUsersQuery,
@@ -35,11 +27,6 @@ import { handleApiError } from '@/lib/api/errors';
 import { reportService } from '@/services/reportService';
 import { usePaginationStore } from '@/store/paginationStore';
 
-import {
-  emptyAssociateForm,
-  emptyMoneyForm,
-  emptyProportionalForm,
-} from '@/features/reports/reportsWorkspace.constants';
 import { formatCurrency } from '@/features/reports/reportsWorkspace.utils';
 import ReportsAdminSection from '@/features/reports/sections/ReportsAdminSection';
 import ReportsHeroSection from '@/features/reports/sections/ReportsHeroSection';
@@ -60,12 +47,6 @@ function ReportsWorkspace({ user }) {
 
   const [selectedHistoryLoanId, setSelectedHistoryLoanId] = useState('');
   const [selectedCustomerProfileId, setSelectedCustomerProfileId] = useState('');
-  const [selectedAssociateId, setSelectedAssociateId] = useState('');
-  const [associateForm, setAssociateForm] = useState(emptyAssociateForm);
-  const [contributionForm, setContributionForm] = useState(emptyMoneyForm);
-  const [distributionForm, setDistributionForm] = useState(emptyMoneyForm);
-  const [reinvestmentForm, setReinvestmentForm] = useState(emptyMoneyForm);
-  const [proportionalForm, setProportionalForm] = useState(emptyProportionalForm);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
@@ -103,33 +84,6 @@ function ReportsWorkspace({ user }) {
   const customerProfitabilityQuery = useCustomerProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview', pagination: customerProfitabilityPagination });
   const loanProfitabilityQuery = useLoanProfitabilityQuery({ enabled: !isSocio && activeTab === 'overview', pagination: loanProfitabilityPagination });
 
-  const associatesQuery = useAssociatesQuery({ enabled: isAdmin, pagination: { page: 1, pageSize: 100 } });
-  const associates = useMemo(() => {
-    if (Array.isArray(associatesQuery.data?.items)) {
-      return associatesQuery.data.items;
-    }
-
-    const rows = associatesQuery.data?.data?.associates;
-    return Array.isArray(rows) ? rows : [];
-  }, [associatesQuery.data]);
-  const createAssociateMutation = useCreateAssociateMutation();
-  const updateAssociateMutation = useUpdateAssociateMutation(selectedAssociateId || null);
-  const deleteAssociateMutation = useDeleteAssociateMutation();
-  const createContributionMutation = useCreateAssociateContributionMutation(selectedAssociateId || null);
-  const createDistributionMutation = useCreateAssociateDistributionMutation(selectedAssociateId || null);
-  const createReinvestmentMutation = useCreateAssociateReinvestmentMutation(selectedAssociateId || null);
-  const createProportionalDistributionMutation = useCreateProportionalDistributionMutation();
-  const selectedAssociatePortalQuery = useAssociatePortalQuery(selectedAssociateId || null, {
-    enabled: isAdmin && Boolean(selectedAssociateId),
-  });
-  const selectedAssociateProfitabilityQuery = useAssociateProfitabilityQuery(selectedAssociateId || null, {
-    enabled: isAdmin && Boolean(selectedAssociateId),
-  });
-  const selectedAssociate = useMemo(
-    () => associates.find((associate) => Number(associate.id) === Number(selectedAssociateId)) || null,
-    [associates, selectedAssociateId],
-  );
-
   const usersQuery = useUsersQuery({ enabled: isAdmin && activeTab === 'users', pagination: usersPagination });
   const updateUserMutation = useUpdateUserMutation();
   const deactivateUserMutation = useDeactivateUserMutation();
@@ -149,10 +103,7 @@ function ReportsWorkspace({ user }) {
       || customerCreditProfileQuery.error
       || customerProfitabilityQuery.error
       || loanProfitabilityQuery.error
-      || associatesQuery.error
-      || usersQuery.error
-      || selectedAssociatePortalQuery.error
-      || selectedAssociateProfitabilityQuery.error;
+      || usersQuery.error;
 
     if (sourceError) {
       handleApiError(sourceError, setError);
@@ -160,7 +111,6 @@ function ReportsWorkspace({ user }) {
   }, [
     associatePortalQuery.error,
     associateProfitabilityQuery.error,
-    associatesQuery.error,
     creditHistoryQuery.error,
     customerCreditProfileQuery.error,
     customerProfitabilityQuery.error,
@@ -168,27 +118,8 @@ function ReportsWorkspace({ user }) {
     outstandingLoansQuery.error,
     recoveredLoansQuery.error,
     recoveryReportQuery.error,
-    selectedAssociatePortalQuery.error,
-    selectedAssociateProfitabilityQuery.error,
     usersQuery.error,
   ]);
-
-  useEffect(() => {
-    if (!selectedAssociateId) {
-      setAssociateForm(emptyAssociateForm);
-      return;
-    }
-
-    if (!selectedAssociate) return;
-
-    setAssociateForm({
-      name: selectedAssociate.name || '',
-      email: selectedAssociate.email || '',
-      phone: selectedAssociate.phone || '',
-      status: selectedAssociate.status || 'active',
-      participationPercentage: selectedAssociate.participationPercentage || '',
-    });
-  }, [selectedAssociate, selectedAssociateId]);
 
   const recoverySummary = recoveryReportQuery.data?.summary
     || recoveryReportQuery.data?.data?.summary
@@ -198,8 +129,6 @@ function ReportsWorkspace({ user }) {
   const outstandingLoans = outstandingLoansQuery.data?.items || outstandingLoansQuery.data?.data?.loans || [];
   const partnerReport = associateProfitabilityQuery.data?.data?.report || null;
   const partnerPortal = associatePortalQuery.data?.data?.portal || null;
-  const selectedAssociatePortal = selectedAssociatePortalQuery.data?.data?.portal || null;
-  const selectedAssociateProfitability = selectedAssociateProfitabilityQuery.data?.data?.report || null;
   const creditHistory = creditHistoryQuery.data?.data?.history || null;
   const customerCreditProfile = customerCreditProfileQuery.data?.data || null;
   const customerProfitability = customerProfitabilityQuery.data?.items || customerProfitabilityQuery.data?.data?.customers || [];
@@ -210,13 +139,6 @@ function ReportsWorkspace({ user }) {
   const customerProfitabilityPaginationMeta = customerProfitabilityQuery.data?.pagination || customerProfitabilityQuery.data?.data?.pagination || null;
   const loanProfitabilityPaginationMeta = loanProfitabilityQuery.data?.pagination || loanProfitabilityQuery.data?.data?.pagination || null;
   const loading = isSocio ? associateProfitabilityQuery.isLoading : recoveryReportQuery.isLoading;
-
-  const resetAssociateActionForms = () => {
-    setContributionForm(emptyMoneyForm);
-    setDistributionForm(emptyMoneyForm);
-    setReinvestmentForm(emptyMoneyForm);
-    setProportionalForm(emptyProportionalForm);
-  };
 
   const clearMessages = () => {
     setError('');
@@ -281,8 +203,6 @@ function ReportsWorkspace({ user }) {
           outstandingLoansQuery.refetch(),
           customerProfitabilityQuery.refetch(),
           loanProfitabilityQuery.refetch(),
-          associatesQuery.refetch(),
-          ...(selectedAssociateId ? [selectedAssociatePortalQuery.refetch(), selectedAssociateProfitabilityQuery.refetch()] : []),
           ...(selectedCustomerProfileId ? [customerCreditProfileQuery.refetch()] : []),
         ]);
       }
@@ -308,7 +228,7 @@ function ReportsWorkspace({ user }) {
   };
 
   const handleAssociateExport = async (format = 'xlsx') => {
-    const exportAssociateId = selectedAssociateId || partnerReport?.associate?.id || partnerPortal?.associate?.id;
+    const exportAssociateId = partnerReport?.associate?.id || partnerPortal?.associate?.id;
     if (!exportAssociateId) {
       setError(t('reports.workspace.selectAssociateToExport'));
       return;
@@ -324,130 +244,35 @@ function ReportsWorkspace({ user }) {
     }
   };
 
-  const handleCreateAssociate = async (event) => {
-    event.preventDefault();
-    try {
-      await createAssociateMutation.mutateAsync({
-        ...associateForm,
-        participationPercentage: associateForm.participationPercentage || undefined,
-      });
-      setAssociateForm(emptyAssociateForm);
-      showSuccess(t('reports.workspace.associateCreated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
-    }
-  };
-
-  const handleUpdateAssociate = async () => {
-    if (!selectedAssociateId) {
-      setError(t('reports.workspace.selectAssociateToUpdate'));
+  const handleCustomerProfileExport = async (format = 'pdf') => {
+    if (!selectedCustomerProfileId) {
+      setError(t('reports.workspace.selectCustomerToExport'));
       return;
     }
 
     try {
-      await updateAssociateMutation.mutateAsync({
-        ...associateForm,
-        participationPercentage: associateForm.participationPercentage || undefined,
+      await downloadFile({
+        loader: () => reportService.exportCustomerCreditProfile(selectedCustomerProfileId, format),
+        filename: `customer-${selectedCustomerProfileId}-credit-profile.${format}`,
       });
-      showSuccess(t('reports.workspace.associateUpdated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
+    } catch (exportError) {
+      handleApiError(exportError, setError);
     }
   };
 
-  const handleDeleteAssociate = async () => {
-    if (!selectedAssociateId) {
-      setError(t('reports.workspace.selectAssociateToDelete'));
-      return;
-    }
-
-    if (!window.confirm(t('reports.workspace.deleteAssociateConfirm'))) {
+  const handleLoanHistoryExport = async (format = 'pdf') => {
+    if (!selectedHistoryLoanId) {
+      setError(t('reports.workspace.selectLoanToExport'));
       return;
     }
 
     try {
-      await deleteAssociateMutation.mutateAsync(selectedAssociateId);
-      setSelectedAssociateId('');
-      setAssociateForm(emptyAssociateForm);
-      resetAssociateActionForms();
-      showSuccess(t('reports.workspace.associateDeleted'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
-    }
-  };
-
-  const handleCreateContribution = async () => {
-    if (!selectedAssociateId) {
-      setError(t('reports.workspace.selectAssociateForContribution'));
-      return;
-    }
-
-    try {
-      await createContributionMutation.mutateAsync({
-        amount: contributionForm.amount,
-        notes: contributionForm.notes || undefined,
-        contributionDate: contributionForm.contributionDate || undefined,
+      await downloadFile({
+        loader: () => reportService.exportLoanCreditHistory(selectedHistoryLoanId, format),
+        filename: `loan-${selectedHistoryLoanId}-credit-history.${format}`,
       });
-      setContributionForm(emptyMoneyForm);
-      showSuccess(t('reports.workspace.contributionCreated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
-    }
-  };
-
-  const handleCreateDistribution = async () => {
-    if (!selectedAssociateId) {
-      setError(t('reports.workspace.selectAssociateForDistribution'));
-      return;
-    }
-
-    try {
-      await createDistributionMutation.mutateAsync({
-        amount: distributionForm.amount,
-        notes: distributionForm.notes || undefined,
-        distributionDate: distributionForm.distributionDate || undefined,
-      });
-      setDistributionForm(emptyMoneyForm);
-      showSuccess(t('reports.workspace.distributionCreated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
-    }
-  };
-
-  const handleCreateReinvestment = async () => {
-    if (!selectedAssociateId) {
-      setError(t('reports.workspace.selectAssociateForDistribution'));
-      return;
-    }
-
-    try {
-      await createReinvestmentMutation.mutateAsync({
-        amount: reinvestmentForm.amount,
-        notes: reinvestmentForm.notes || undefined,
-        reinvestmentDate: reinvestmentForm.distributionDate || undefined,
-      });
-      setReinvestmentForm(emptyMoneyForm);
-      showSuccess(t('reports.workspace.reinvestmentCreated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
-    }
-  };
-
-  const handleCreateProportionalDistribution = async () => {
-    try {
-      await createProportionalDistributionMutation.mutateAsync({
-        payload: {
-          amount: proportionalForm.amount,
-          distributionDate: proportionalForm.distributionDate || undefined,
-          notes: proportionalForm.notes || undefined,
-          idempotencyKey: proportionalForm.idempotencyKey || undefined,
-        },
-        idempotencyKey: proportionalForm.idempotencyKey || undefined,
-      });
-      setProportionalForm(emptyProportionalForm);
-      showSuccess(t('reports.workspace.proportionalCreated'));
-    } catch (mutationError) {
-      handleApiError(mutationError, setError);
+    } catch (exportError) {
+      handleApiError(exportError, setError);
     }
   };
 
@@ -504,7 +329,7 @@ function ReportsWorkspace({ user }) {
     );
   }
 
-  if (error && !recoverySummary && !partnerReport && (!isAdmin || !associates.length)) {
+  if (error && !recoverySummary && !partnerReport) {
     return (
         <StatePanel
           icon="⚠️"
@@ -522,7 +347,6 @@ function ReportsWorkspace({ user }) {
         headlineMetrics={headlineMetrics}
         refreshing={refreshing}
         refreshSuccess={refreshSuccess}
-        selectedAssociateId={selectedAssociateId}
         onRefresh={loadReports}
         onExport={handleExport}
         onExportAssociate={handleAssociateExport}
@@ -568,7 +392,7 @@ function ReportsWorkspace({ user }) {
           />
 
           {isAdmin && (
-            <ReportsAdminSection
+        <ReportsAdminSection
               selectedHistoryLoanId={selectedHistoryLoanId}
               setSelectedHistoryLoanId={setSelectedHistoryLoanId}
               creditHistory={creditHistory}
@@ -577,40 +401,13 @@ function ReportsWorkspace({ user }) {
               customerCreditProfile={customerCreditProfile}
               customerProfitability={customerProfitability}
               loanProfitability={loanProfitability}
-              selectedAssociateId={selectedAssociateId}
-              associates={associates}
-              associateForm={associateForm}
-              contributionForm={contributionForm}
-              distributionForm={distributionForm}
-              reinvestmentForm={reinvestmentForm}
-              proportionalForm={proportionalForm}
-              selectedAssociatePortal={selectedAssociatePortal}
-              selectedAssociateProfitability={selectedAssociateProfitability}
               customerProfitabilityPagination={customerProfitabilityPaginationMeta}
-              loanProfitabilityPagination={loanProfitabilityPaginationMeta}
-              createAssociatePending={createAssociateMutation.isPending}
-              updateAssociatePending={updateAssociateMutation.isPending}
-              deleteAssociatePending={deleteAssociateMutation.isPending}
-              createContributionPending={createContributionMutation.isPending}
-              createDistributionPending={createDistributionMutation.isPending}
-              createReinvestmentPending={createReinvestmentMutation.isPending}
-              createProportionalPending={createProportionalDistributionMutation.isPending}
-              onSelectAssociate={setSelectedAssociateId}
-              onAssociateFormChange={(field, value) => setAssociateForm((current) => ({ ...current, [field]: value }))}
-              onCreateAssociate={handleCreateAssociate}
-              onUpdateAssociate={handleUpdateAssociate}
-              onDeleteAssociate={handleDeleteAssociate}
-              onContributionFormChange={(field, value) => setContributionForm((current) => ({ ...current, [field]: value }))}
-              onCreateContribution={handleCreateContribution}
-              onDistributionFormChange={(field, value) => setDistributionForm((current) => ({ ...current, [field]: value }))}
-              onCreateDistribution={handleCreateDistribution}
-              onReinvestmentFormChange={(field, value) => setReinvestmentForm((current) => ({ ...current, [field]: value }))}
-              onCreateReinvestment={handleCreateReinvestment}
-              onProportionalFormChange={(field, value) => setProportionalForm((current) => ({ ...current, [field]: value }))}
-              onCreateProportionalDistribution={handleCreateProportionalDistribution}
-              onCustomerProfitabilityPageChange={(page) => setPage(CUSTOMER_PROFITABILITY_SCOPE, page)}
-              onLoanProfitabilityPageChange={(page) => setPage(LOAN_PROFITABILITY_SCOPE, page)}
-            />
+          loanProfitabilityPagination={loanProfitabilityPaginationMeta}
+          onCustomerProfitabilityPageChange={(page) => setPage(CUSTOMER_PROFITABILITY_SCOPE, page)}
+          onLoanProfitabilityPageChange={(page) => setPage(LOAN_PROFITABILITY_SCOPE, page)}
+          onExportCustomerProfile={handleCustomerProfileExport}
+          onExportLoanHistory={handleLoanHistoryExport}
+        />
           )}
         </>
       )}

@@ -1,6 +1,6 @@
 const { ValidationError, NotFoundError, AuthorizationError, ConflictError } = require('../../../utils/errorHandler');
 
-const VALID_ROLES = ['admin', 'agent', 'customer', 'socio'];
+const VALID_ROLES = ['admin', 'customer', 'socio'];
 
 const sanitizeUser = (user) => ({
   id: user.id,

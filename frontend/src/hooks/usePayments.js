@@ -29,6 +29,12 @@ export const usePaymentDocumentsQuery = (paymentId, { enabled = true } = {}) => 
   enabled: enabled && Boolean(paymentId),
 });
 
+export const usePaymentMethodsQuery = ({ enabled = true } = {}) => useQuery({
+  queryKey: queryKeys.config.paymentMethods(),
+  queryFn: paymentService.listPaymentMethods,
+  enabled,
+});
+
 const invalidatePaymentQueries = (queryClient, loanId) => {
   queryClient.invalidateQueries({ queryKey: ['payments'] });
   queryClient.invalidateQueries({ queryKey: queryKeys.payments.byLoan(loanId) });
@@ -77,7 +83,7 @@ export const useAnnulInstallmentMutation = (loanId) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => paymentService.annulInstallment(loanId),
+    mutationFn: (payload = {}) => paymentService.annulInstallment(loanId, payload),
     onSuccess: () => {
       invalidatePaymentQueries(queryClient, loanId);
     },
@@ -92,6 +98,17 @@ export const useUploadPaymentDocumentMutation = (paymentId) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments.documents(paymentId) });
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+    },
+  });
+};
+
+export const useUpdatePaymentMetadataMutation = (loanId) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ paymentId, payload }) => paymentService.updatePaymentMetadata(paymentId, payload),
+    onSuccess: () => {
+      invalidatePaymentQueries(queryClient, loanId);
     },
   });
 };

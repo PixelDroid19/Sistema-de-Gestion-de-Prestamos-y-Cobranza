@@ -25,7 +25,7 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
       async listUsers(input) {
         calls.push(['listUsers', input]);
         return {
-          items: [{ id: 2, role: 'agent', email: 'agent@example.com' }],
+          items: [{ id: 2, role: 'admin', email: 'admin2@example.com' }],
           pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
         };
       },
@@ -60,7 +60,7 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
     method: 'PUT',
     path: '/7',
     headers: { authorization: 'Bearer valid-token' },
-    body: { role: 'agent' },
+    body: { role: 'admin' },
   });
   const deactivateResponse = await requestJson(activeServer, { method: 'POST', path: '/7/deactivate', headers: { authorization: 'Bearer valid-token' } });
   const reactivateResponse = await requestJson(activeServer, { method: 'POST', path: '/7/reactivate', headers: { authorization: 'Bearer valid-token' } });
@@ -70,7 +70,7 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
     success: true,
     count: 1,
     data: {
-      users: [{ id: 2, role: 'agent', email: 'agent@example.com' }],
+      users: [{ id: 2, role: 'admin', email: 'admin2@example.com' }],
       pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
     },
    });
@@ -81,7 +81,7 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
   assert.deepEqual(calls, [
     ['listUsers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['getUserById', '7'],
-    ['updateUser', '7', { role: 'agent' }],
+    ['updateUser', '7', { role: 'admin' }],
     ['deactivateUser', '7'],
     ['reactivateUser', '7'],
   ]);

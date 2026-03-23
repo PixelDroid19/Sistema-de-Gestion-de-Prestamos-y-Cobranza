@@ -32,6 +32,9 @@ const paymentRepository = {
   findById(id) {
     return Payment.findByPk(id, { include: [Loan] });
   },
+  update(payment, payload) {
+    return payment.update(payload);
+  },
   listDocuments(paymentId) {
     return DocumentAttachment.findAll({
       where: { paymentId },

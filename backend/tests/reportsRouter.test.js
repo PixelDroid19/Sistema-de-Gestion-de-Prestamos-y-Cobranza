@@ -75,6 +75,20 @@ test('createReportsRouter serves report contract responses', async () => {
         calls.push(['getCustomerCreditProfile', input.customerId]);
         return { success: true, data: { customer: { id: Number(input.customerId) }, profile: { completeness: { isComplete: true } } } };
       },
+      async exportCustomerHistory() {
+        return {
+          fileName: 'customer-7-history.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
+      },
+      async exportCustomerCreditProfile() {
+        return {
+          fileName: 'customer-7-credit-profile.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
+      },
       async getCustomerProfitabilityReport(input) {
         calls.push(['getCustomerProfitabilityReport', input.pagination]);
         return {
@@ -106,6 +120,13 @@ test('createReportsRouter serves report contract responses', async () => {
       },
       async getCustomerCreditHistory() {
         return { loan: { id: 4, status: 'closed' }, snapshot: { totalPaid: 100 }, payments: [], payoffHistory: [{ id: 9, payoff: { asOfDate: '2026-03-15' } }], closure: { closureReason: 'payoff' } };
+      },
+      async exportCustomerCreditHistory() {
+        return {
+          fileName: 'loan-4-credit-history.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
       },
       async getAssociateProfitabilityReport() {
         return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
@@ -239,6 +260,20 @@ test('createReportsRouter serves export and credit-history contracts', async () 
       async getRecoveryReport() { return { success: true, data: { recoveredLoans: [], outstandingLoans: [] }, summary: {} }; },
       async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async getCustomerHistory() { return { success: true, data: { customer: { id: 7 }, timeline: [] } }; },
+      async exportCustomerHistory() {
+        return {
+          fileName: 'customer-7-history.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
+      },
+      async exportCustomerCreditProfile() {
+        return {
+          fileName: 'customer-7-credit-profile.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
+      },
       async exportRecoveryReport() {
         return {
           fileName: 'recovery-report.csv',
@@ -248,6 +283,13 @@ test('createReportsRouter serves export and credit-history contracts', async () 
       },
       async getCustomerCreditHistory() {
         return { loan: { id: 12 }, snapshot: { totalPaid: 300 }, payments: [], payoffHistory: [{ id: 8 }], closure: { closureReason: 'payoff' } };
+      },
+      async exportCustomerCreditHistory() {
+        return {
+          fileName: 'loan-12-credit-history.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
       },
       async getAssociateProfitabilityReport() {
         return { associate: { id: 7, participationPercentage: '25.0000' }, summary: { totalContributed: '1000.00', participationPercentage: '25.0000' }, data: { contributions: [], distributions: [{ id: 4, distributionType: 'proportional', declaredProportionalTotal: '600.00', allocatedAmount: '150.00' }] } };
@@ -270,8 +312,17 @@ test('createReportsRouter serves export and credit-history contracts', async () 
   const exportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/recovery/export?format=csv`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
+  const customerHistoryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/customer-history/7/export?format=pdf`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const customerProfileExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/customer-credit-profile/7/export?format=pdf`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
   const historyResponse = await requestJson(activeServer, {
     path: '/credit-history/loan/12',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+  });
+  const loanHistoryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/credit-history/loan/12/export?format=pdf`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
   });
   const associateExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
@@ -280,9 +331,15 @@ test('createReportsRouter serves export and credit-history contracts', async () 
 
   assert.equal(exportResponse.status, 200);
   assert.match(await exportResponse.text(), /header/);
+  assert.equal(customerHistoryExportResponse.status, 200);
+  assert.match(await customerHistoryExportResponse.text(), /%PDF-1.4/);
+  assert.equal(customerProfileExportResponse.status, 200);
+  assert.match(await customerProfileExportResponse.text(), /%PDF-1.4/);
   assert.equal(historyResponse.statusCode, 200);
   assert.equal(historyResponse.body.data.history.loan.id, 12);
   assert.equal(historyResponse.body.data.history.closure.closureReason, 'payoff');
+  assert.equal(loanHistoryExportResponse.status, 200);
+  assert.match(await loanHistoryExportResponse.text(), /%PDF-1.4/);
   assert.equal(associateExportResponse.status, 200);
   assert.equal((await associateExportResponse.arrayBuffer()).byteLength > 0, true);
 });
@@ -384,7 +441,7 @@ test('createReportsRouter requires admin access', async () => {
 
   const response = await requestJson(activeServer, {
     path: '/recovered',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'agent' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
   });
 
   assert.equal(response.statusCode, 403);
@@ -406,7 +463,7 @@ test('createReportsRouter limits associate export routes to admin and socio role
   activeServer = await listen(app);
 
   const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'agent' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
   });
 
   assert.equal(response.status, 403);

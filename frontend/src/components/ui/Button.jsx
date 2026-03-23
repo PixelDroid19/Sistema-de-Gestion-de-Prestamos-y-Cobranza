@@ -2,20 +2,22 @@ import React, { forwardRef } from 'react';
 
 import styles from './Button.module.scss';
 
-const Button = forwardRef(({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
-  className = '', 
+const Button = forwardRef(({
+  children,
+  variant = 'primary',
+  size = 'md',
+  className = '',
   icon: Icon,
-  ...props 
+  type = 'button',
+  ...props
 }, ref) => {
   const variantClass = variant === 'outline' ? styles.outline : styles[variant] || styles.primary;
   const sizeClass = size === 'sm' ? styles.sm : styles.md;
-  
+
   return (
-    <button 
+    <button
       ref={ref}
+      type={type}
       className={`${styles.button} ${variantClass} ${sizeClass} ${className}`.trim()}
       {...props}
     >

@@ -4,7 +4,7 @@ const {
   ValidationError,
 } = require('../../../../utils/errorHandler');
 
-const ALLOWED_WORKBENCH_ROLES = new Set(['admin', 'agent']);
+const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
 
 const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
 

@@ -25,8 +25,24 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.json(await useCases.getCustomerHistory({ actor: req.user, customerId: req.params.customerId }));
   }));
 
+  router.get('/customer-history/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'pdf').toLowerCase();
+    const exportFile = await useCases.exportCustomerHistory({ actor: req.user, customerId: req.params.customerId, format });
+    res.setHeader('Content-Type', exportFile.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
+    res.send(exportFile.buffer);
+  }));
+
   router.get('/customer-credit-profile/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId }));
+  }));
+
+  router.get('/customer-credit-profile/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'pdf').toLowerCase();
+    const exportFile = await useCases.exportCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId, format });
+    res.setHeader('Content-Type', exportFile.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
+    res.send(exportFile.buffer);
   }));
 
   router.get('/profitability/customers', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
@@ -53,9 +69,17 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.send(exportFile.buffer);
   }));
 
-  router.get('/credit-history/loan/:loanId', authMiddleware(['admin', 'agent', 'customer', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/credit-history/loan/:loanId', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
     const history = await useCases.getCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId });
     res.json({ success: true, data: { history } });
+  }));
+
+  router.get('/credit-history/loan/:loanId/export', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'pdf').toLowerCase();
+    const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId, format });
+    res.setHeader('Content-Type', exportFile.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
+    res.send(exportFile.buffer);
   }));
 
   router.get('/associates/profitability/:associateId', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {

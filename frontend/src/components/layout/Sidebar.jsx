@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   PieChart,
+  Settings,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -20,12 +21,12 @@ const MENU_ITEMS = {
   dashboard: { labelKey: 'shell.views.Dashboard', icon: LayoutDashboard },
   customers: { labelKey: 'shell.views.Customers', icon: Users },
   'customers-new': { labelKey: 'shell.views.NewCustomer', icon: UserPlus },
-  loans: { labelKey: 'shell.views.Loans', icon: Briefcase },
-  'loans-new': { labelKey: 'shell.views.NewLoan', icon: CreditCard },
-  associates: { labelKey: 'shell.views.Associates', icon: UserPlus },
-  payments: { labelKey: 'shell.views.Payments', icon: CreditCard },
-  agents: { labelKey: 'shell.views.Agents', icon: Users },
-  reports: { labelKey: 'shell.views.Reports', icon: PieChart },
+  credits: { labelKey: 'shell.views.Credits', icon: Briefcase },
+  'credits-new': { labelKey: 'shell.views.NewCredit', icon: CreditCard },
+  'credits-payments': { labelKey: 'shell.views.Payments', icon: CreditCard },
+  partners: { labelKey: 'shell.views.Partners', icon: UserPlus },
+  'partners-reports': { labelKey: 'shell.views.Reports', icon: PieChart },
+  config: { labelKey: 'shell.views.Config', icon: Settings },
   notifications: { labelKey: 'shell.views.Notifications', icon: Bell },
 }
 
@@ -68,7 +69,7 @@ const Sidebar = () => {
                   {group.items.map((item) => {
                     const config = MENU_ITEMS[item.id]
                     const Icon = config?.icon || Briefcase
-                    const label = user.role === 'socio' && item.id === 'reports'
+                    const label = user.role === 'socio' && item.id === 'partners-reports'
                       ? t('shell.views.partnerPortal')
                       : t(config.labelKey)
                     const active = activeView === item.id

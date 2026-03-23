@@ -1,10 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 
 const {
   createListLoans,
   createCreateSimulation,
-  createAssignAgent,
+  createAssignRecoveryAssignee,
+  createListRecoveryRoster,
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
   createDeleteLoan,
@@ -12,6 +16,7 @@ const {
   createCreateLoanAttachment,
   createDownloadLoanAttachment,
   createListLoanAlerts,
+  createGetLoanById,
   createGetPaymentCalendar,
   createGetPayoffQuote,
   createExecutePayoff,
@@ -22,7 +27,8 @@ const {
   createUpdatePromiseToPayStatus,
 } = require('../src/modules/credits/application/useCases');
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
-const { AuthorizationError, ValidationError } = require('../src/utils/errorHandler');
+const { createLocalAttachmentStorage } = require('../src/modules/credits/infrastructure/attachmentStorage');
+const { AuthorizationError, NotFoundError, ValidationError } = require('../src/utils/errorHandler');
 const { createCreditsModule } = require('../src/modules/credits');
 
 test('createListLoans scopes repository results through the shared access policy', async () => {
@@ -44,11 +50,45 @@ test('createListLoans scopes repository results through the shared access policy
     },
   });
 
-  const loans = await listLoans({ actor: { id: 9, role: 'agent' } });
+  const loans = await listLoans({ actor: { id: 9, role: 'admin' } });
 
   assert.equal(filterCall.actor.id, 9);
   assert.equal(loans.length, 1);
   assert.equal(loans[0].id, 41);
+});
+
+test('createListLoans enriches visible loan rows with additive customer summary data', async () => {
+  const listLoans = createListLoans({
+    loanRepository: {
+      async list() {
+        return [
+          { id: 41, customerId: 7, Customer: { id: 7, name: 'Ana Customer' } },
+        ];
+      },
+      async attachCustomerSummaries(loans) {
+        return loans.map((loan) => ({
+          ...loan,
+          customerSummary: {
+            totalLoans: 2,
+            activeLoans: 1,
+            totalOutstandingBalance: 450,
+            latestLoanId: 41,
+            latestLoanStatus: 'approved',
+          },
+        }));
+      },
+    },
+  });
+
+  const loans = await listLoans({ actor: { id: 9, role: 'admin' } });
+
+  assert.deepEqual(loans[0].customerSummary, {
+    totalLoans: 2,
+    activeLoans: 1,
+    totalOutstandingBalance: 450,
+    latestLoanId: 41,
+    latestLoanStatus: 'approved',
+  });
 });
 
 test('createCreateSimulation returns canonical preview data from the domain service', async () => {
@@ -70,9 +110,85 @@ test('createCreateSimulation returns canonical preview data from the domain serv
   assert.equal(simulation.summary.amount, 12000);
 });
 
-test('createAssignAgent updates the loan and emits a notification payload', async () => {
+test('createGetLoanById enriches the loan with canonical payment context and eligibility', async () => {
+  const getLoanById = createGetLoanById({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ actor, loanId }) {
+        assert.equal(actor.role, 'customer');
+        assert.equal(loanId, 55);
+        return {
+          id: 55,
+          customerId: 7,
+          status: 'approved',
+          amount: 1000,
+          interestRate: 12,
+          termMonths: 2,
+          startDate: '2026-01-01T00:00:00.000Z',
+          financialSnapshot: {
+            installmentAmount: 530,
+            outstandingBalance: 1000,
+            outstandingPrincipal: 1000,
+          },
+          emiSchedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2099-01-01T00:00:00.000Z',
+              scheduledPayment: 530,
+              remainingPrincipal: 500,
+              remainingInterest: 30,
+              paidTotal: 0,
+              status: 'pending',
+            },
+            {
+              installmentNumber: 2,
+              dueDate: '2099-02-01T00:00:00.000Z',
+              scheduledPayment: 530,
+              remainingPrincipal: 500,
+              remainingInterest: 0,
+              paidTotal: 0,
+              status: 'pending',
+            },
+          ],
+        };
+      },
+    },
+    loanRepository: {
+      async attachCustomerSummaries(loans) {
+        return loans.map((loan) => ({
+          ...loan,
+          customerSummary: {
+            totalLoans: 3,
+            activeLoans: 2,
+            totalOutstandingBalance: 1000,
+            latestLoanId: 55,
+            latestLoanStatus: 'approved',
+          },
+        }))
+      },
+    },
+    loanViewService: createLoanViewService(),
+  });
+
+  const loan = await getLoanById({ actor: { id: 7, role: 'customer' }, loanId: 55 });
+
+  assert.equal(loan.id, 55);
+  assert.deepEqual(loan.paymentContext.allowedPaymentTypes, ['installment', 'payoff']);
+  assert.equal(loan.paymentContext.isPayable, true);
+  assert.equal(loan.paymentContext.snapshot.outstandingBalance, 1000);
+  assert.equal(loan.paymentContext.payoffEligibility.allowed, true);
+  assert.equal(loan.paymentContext.capitalEligibility.allowed, true);
+  assert.deepEqual(loan.customerSummary, {
+    totalLoans: 3,
+    activeLoans: 2,
+    totalOutstandingBalance: 1000,
+    latestLoanId: 55,
+    latestLoanStatus: 'approved',
+  });
+});
+
+test('createAssignRecoveryAssignee updates the loan and emits a notification payload', async () => {
   let sentNotification;
-  const assignAgent = createAssignAgent({
+  const assignRecoveryAssignee = createAssignRecoveryAssignee({
     loanRepository: {
       async findById() {
         return {
@@ -89,30 +205,50 @@ test('createAssignAgent updates the loan and emits a notification payload', asyn
         return loan;
       },
     },
-    agentRepository: {
+    recoveryAssignmentRepository: {
       async findById() {
         return { id: 9, email: 'agent@example.com' };
       },
     },
     userRepository: {
-      async findAgentUserByEmail() {
-        return { id: 99, role: 'agent' };
+      async findRecoveryAssigneeUserByEmail() {
+        return { id: 99, role: 'admin' };
       },
     },
     notificationPort: {
-      async sendAssignment(userId, payload) {
+      async sendRecoveryAssignment(userId, payload) {
         sentNotification = { userId, payload };
       },
     },
   });
 
-  const loan = await assignAgent({ actor: { id: 1, role: 'admin' }, loanId: 22, agentId: 9 });
+  const loan = await assignRecoveryAssignee({ actor: { id: 1, role: 'admin' }, loanId: 22, recoveryAssigneeId: 9 });
 
   assert.equal(loan.agentId, 9);
   assert.equal(loan.recoveryStatus, 'assigned');
   assert.equal(sentNotification.userId, 99);
   assert.equal(sentNotification.payload.loanId, 22);
 });
+
+test('createListRecoveryRoster returns repository pagination results for admins', async () => {
+  const listRecoveryRoster = createListRecoveryRoster({
+    recoveryAssignmentRepository: {
+      async listPage() {
+        return {
+          items: [{ id: 9, name: 'Marta Reyes', email: 'marta@lendflow.test' }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        }
+      },
+    },
+  })
+
+  const result = await listRecoveryRoster({ actor: { id: 1, role: 'admin' }, pagination: { page: 1, pageSize: 25 } })
+
+  assert.deepEqual(result, {
+    items: [{ id: 9, name: 'Marta Reyes', email: 'marta@lendflow.test' }],
+    pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+  })
+})
 
 test('createUpdateLoanStatus moves defaulted loans into pending recovery', async () => {
   const updateLoanStatus = createUpdateLoanStatus({
@@ -144,7 +280,7 @@ test('createUpdateLoanStatus moves defaulted loans into pending recovery', async
   assert.equal(updatedLoan.recoveryStatus, 'pending');
 });
 
-test('createUpdateLoanStatus rejects unassigned agent mutation attempts through shared policy', async () => {
+test('createUpdateLoanStatus rejects unauthorized admin mutation attempts through shared policy', async () => {
   const updateLoanStatus = createUpdateLoanStatus({
     loanRepository: {
       async save(loan) {
@@ -159,13 +295,13 @@ test('createUpdateLoanStatus rejects unassigned agent mutation attempts through 
   });
 
   await assert.rejects(() => updateLoanStatus({
-    actor: { id: 8, role: 'agent' },
+    actor: { id: 8, role: 'admin' },
     loanId: 55,
     status: 'approved',
   }), AuthorizationError);
 });
 
-test('createUpdateRecoveryStatus lets an assigned agent progress recovery', async () => {
+test('createUpdateRecoveryStatus lets admins progress recovery', async () => {
   const updateRecoveryStatus = createUpdateRecoveryStatus({
     loanAccessPolicy: {
       async findAuthorizedMutationLoan({ actor, loanId }) {
@@ -196,7 +332,7 @@ test('createUpdateRecoveryStatus lets an assigned agent progress recovery', asyn
   });
 
   const updatedLoan = await updateRecoveryStatus({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     loanId: 32,
     recoveryStatus: 'in_progress',
   });
@@ -220,7 +356,7 @@ test('createDeleteLoan rejects deletion of a foreign rejected loan before destro
   });
 
   await assert.rejects(() => deleteLoan({
-    actor: { id: 12, role: 'agent' },
+    actor: { id: 12, role: 'admin' },
     loanId: 88,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
@@ -284,7 +420,7 @@ test('createListLoanAttachments hides internal-only documents from customers', a
   ]);
 });
 
-test('createCreateLoanAttachment persists metadata for an authorized agent upload', async () => {
+test('createCreateLoanAttachment persists metadata for an authorized admin upload', async () => {
   let createdPayload;
   const createLoanAttachment = createCreateLoanAttachment({
     loanAccessPolicy: {
@@ -310,7 +446,7 @@ test('createCreateLoanAttachment persists metadata for an authorized agent uploa
   });
 
   const attachment = await createLoanAttachment({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     loanId: 22,
     file: {
       path: '/tmp/loan-proof.pdf',
@@ -367,6 +503,33 @@ test('createDownloadLoanAttachment blocks customers from internal-only files', a
     loanId: 22,
     attachmentId: 4,
   }), AuthorizationError);
+});
+
+test('createDownloadLoanAttachment surfaces missing backing files as not found', async () => {
+  const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'lendflow-missing-attachment-'));
+  const downloadLoanAttachment = createDownloadLoanAttachment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    attachmentRepository: {
+      async findByIdForLoan() {
+        return { id: 4, loanId: 22, customerVisible: true, originalName: 'visible.pdf', storagePath: 'visible.pdf' };
+      },
+    },
+    attachmentStorage: createLocalAttachmentStorage({ baseDirectory: temporaryDirectory }),
+  });
+
+  try {
+    await assert.rejects(() => downloadLoanAttachment({
+      actor: { id: 9, role: 'admin' },
+      loanId: 22,
+      attachmentId: 4,
+    }), NotFoundError);
+  } finally {
+    await fs.rm(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test('createListLoanAlerts syncs overdue alerts before returning the latest list', async () => {
@@ -486,7 +649,7 @@ test('createGetPayoffQuote reuses visible-loan authorization for quotes', async 
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
         requestedLoanId = loanId;
-        assert.equal(actor.role, 'agent');
+        assert.equal(actor.role, 'admin');
         return { id: 22, status: 'active', startDate: '2026-01-01T00:00:00.000Z' };
       },
     },
@@ -499,7 +662,7 @@ test('createGetPayoffQuote reuses visible-loan authorization for quotes', async 
     },
   });
 
-  const quote = await getPayoffQuote({ actor: { id: 9, role: 'agent' }, loanId: 22, asOfDate: '2026-03-15' });
+  const quote = await getPayoffQuote({ actor: { id: 9, role: 'admin' }, loanId: 22, asOfDate: '2026-03-15' });
 
   assert.equal(requestedLoanId, 22);
   assert.equal(quote.total, 100);
@@ -611,7 +774,7 @@ test('createCreatePromiseToPay records a pending promise with status history', a
   });
 
   const promise = await createPromiseToPay({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     loanId: 22,
     payload: { promisedDate: '2026-03-25', amount: 300, notes: 'Customer confirmed payday' },
   });
@@ -636,7 +799,7 @@ test('createListPromisesToPay expires broken pending promises before returning h
     },
   });
 
-  const promises = await listPromisesToPay({ actor: { id: 9, role: 'agent' }, loanId: 22 });
+  const promises = await listPromisesToPay({ actor: { id: 9, role: 'admin' }, loanId: 22 });
 
   assert.equal(promises[0].status, 'broken');
 });
@@ -662,7 +825,7 @@ test('createCreateLoanFollowUp creates a reminder and notifies the customer', as
   });
 
   const result = await createLoanFollowUp({
-    actor: { id: 9, role: 'agent' },
+    actor: { id: 9, role: 'admin' },
     loanId: 22,
     payload: { installmentNumber: 5, dueDate: '2026-03-30', outstandingAmount: 120, notes: 'Reminder sent' },
   });

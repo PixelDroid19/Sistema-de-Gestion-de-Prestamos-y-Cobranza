@@ -37,12 +37,12 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.get('/workbench/graph', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.get('/workbench/graph', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.loadDagWorkbenchGraph({ actor: req.user, scopeKey: req.query.scope });
     res.json({ success: true, data: { graph: result.graphVersion } });
   }));
 
-  router.post('/workbench/graph', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.saveDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -52,7 +52,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.status(201).json({ success: true, message: 'DAG graph saved successfully', data: { graph: result } });
   }));
 
-  router.post('/workbench/graph/validate', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph/validate', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const validation = await useCases.validateDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -61,7 +61,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { validation } });
   }));
 
-  router.post('/workbench/graph/simulations', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph/simulations', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.simulateDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -80,7 +80,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.get('/workbench/graph/summary', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.get('/workbench/graph/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const summary = await useCases.getDagWorkbenchSummary({ actor: req.user, scopeKey: req.query.scope });
     res.json({ success: true, data: { summary } });
   }));
@@ -90,8 +90,19 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
-  router.get('/agent/:agentId', authMiddleware(['agent']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listLoansByAgent({ actor: req.user, agentId: req.params.agentId, pagination: req.pagination });
+  router.get('/recovery-roster', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listRecoveryRoster({ actor: req.user, pagination: req.pagination });
+
+    if (result?.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { recoveryRoster: result.items, pagination: result.pagination } });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: { recoveryRoster: result } });
+  }));
+
+  router.get('/recovery-roster/:recoveryAssigneeId/loans', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listLoansByRecoveryAssignee({ actor: req.user, recoveryAssigneeId: req.params.recoveryAssigneeId, pagination: req.pagination });
     res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
@@ -107,17 +118,17 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.patch('/:id/status', authMiddleware(['admin', 'agent']), loanValidation.updateStatus, asyncHandler(async (req, res) => {
+  router.patch('/:id/status', authMiddleware(['admin']), loanValidation.updateStatus, asyncHandler(async (req, res) => {
     const loan = await useCases.updateLoanStatus({ actor: req.user, loanId: req.params.id, status: req.body.status });
     res.json({ success: true, message: `Loan status updated to ${req.body.status}`, data: { loan } });
   }));
 
-  router.patch('/:id/assign-agent', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const loan = await useCases.assignAgent({ actor: req.user, loanId: req.params.id, agentId: req.body.agentId });
-    res.json({ success: true, message: 'Agent assigned successfully', data: { loan } });
+  router.patch('/:id/recovery-assignment', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const loan = await useCases.assignRecoveryAssignee({ actor: req.user, loanId: req.params.id, recoveryAssigneeId: req.body.recoveryAssigneeId });
+    res.json({ success: true, message: 'Recovery assignment updated successfully', data: { loan } });
   }));
 
-  router.patch('/:id/recovery-status', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.patch('/:id/recovery-status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const loan = await useCases.updateRecoveryStatus({ actor: req.user, loanId: req.params.id, recoveryStatus: req.body.recoveryStatus });
     res.json({ success: true, message: 'Recovery status updated successfully', data: { loan } });
   }));
@@ -127,12 +138,12 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: attachments.length, data: { attachments } });
   }));
 
-  router.get('/:id/alerts', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.get('/:id/alerts', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const alerts = await useCases.listLoanAlerts({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, count: alerts.length, data: { alerts } });
   }));
 
-  router.post('/:id/follow-ups', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.post('/:id/follow-ups', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.createLoanFollowUp({ actor: req.user, loanId: req.params.id, payload: req.body });
     res.status(201).json({
       success: true,
@@ -141,7 +152,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.patch('/:loanId/alerts/:alertId/status', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.patch('/:loanId/alerts/:alertId/status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const alert = await useCases.updateLoanAlertStatus({
       actor: req.user,
       loanId: req.params.loanId,
@@ -180,17 +191,17 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.get('/:id/promises', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.get('/:id/promises', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const promises = await useCases.listPromisesToPay({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, count: promises.length, data: { promises } });
   }));
 
-  router.post('/:id/promises', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.post('/:id/promises', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const promise = await useCases.createPromiseToPay({ actor: req.user, loanId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Promise to pay created successfully', data: { promise } });
   }));
 
-  router.patch('/:loanId/promises/:promiseId/status', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.patch('/:loanId/promises/:promiseId/status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const promise = await useCases.updatePromiseToPayStatus({
       actor: req.user,
       loanId: req.params.loanId,
@@ -200,7 +211,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, message: 'Promise to pay updated successfully', data: { promise } });
   }));
 
-  router.get('/:loanId/promises/:promiseId/download', authMiddleware(['admin', 'agent']), asyncHandler(async (req, res) => {
+  router.get('/:loanId/promises/:promiseId/download', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const download = await useCases.downloadPromiseToPay({
       actor: req.user,
       loanId: req.params.loanId,
@@ -212,7 +223,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.send(download.buffer);
   }));
 
-  router.post('/:id/attachments', authMiddleware(['admin', 'agent']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
+  router.post('/:id/attachments', authMiddleware(['admin']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
     const attachment = await useCases.createLoanAttachment({
       actor: req.user,
       loanId: req.params.id,
@@ -237,7 +248,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.download(download.absolutePath, download.attachment.originalName);
   }));
 
-  router.delete('/:id', authMiddleware(['customer', 'admin', 'agent']), asyncHandler(async (req, res) => {
+  router.delete('/:id', authMiddleware(['customer', 'admin']), asyncHandler(async (req, res) => {
     await useCases.deleteLoan({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, message: 'Loan deleted successfully' });
   }));

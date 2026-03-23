@@ -15,8 +15,8 @@ const Loans = lazy(() => import('@/pages/Loans/Loans'))
 const NewLoan = lazy(() => import('@/pages/Loans/NewLoan'))
 const Associates = lazy(() => import('@/pages/Associates/Associates'))
 const Payments = lazy(() => import('@/pages/Payments/Payments'))
-const Agents = lazy(() => import('@/pages/Agents/Agents'))
 const Reports = lazy(() => import('@/pages/Reports/Reports'))
+const Config = lazy(() => import('@/pages/Config/Config'))
 const Notifications = lazy(() => import('@/components/Notifications'))
 
 const viewComponents = {
@@ -27,8 +27,8 @@ const viewComponents = {
   NewLoan,
   Associates,
   Payments,
-  Agents,
   Reports,
+  Config,
   Notifications,
 }
 
@@ -47,6 +47,7 @@ function App() {
   const notificationsOpen = useUiStore((state) => state.notificationsOpen)
   const setNotificationsOpen = useUiStore((state) => state.setNotificationsOpen)
   const ensureAllowedView = useUiStore((state) => state.ensureAllowedView)
+  const resolveAllowedView = ensureAllowedView || ((role) => resolveCurrentViewId(currentView, role))
 
   useEffect(() => {
     bootstrapSession()
@@ -74,11 +75,11 @@ function App() {
       return
     }
 
-    const nextView = ensureAllowedView(user.role)
+    const nextView = resolveAllowedView(user.role)
     if (nextView !== currentView) {
       setCurrentView(nextView)
     }
-  }, [currentView, ensureAllowedView, setCurrentView, user])
+  }, [currentView, resolveAllowedView, setCurrentView, user])
 
   if (!user) {
     return (

@@ -4,7 +4,15 @@ import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import { getPaginationSummary } from '@/lib/api/pagination'
 
-function PaginationControls({ pagination, onPageChange, disabled = false, isPending = false, fallbackCount = 0 }) {
+function PaginationControls({
+  pagination,
+  onPageChange,
+  onPageSizeChange = null,
+  pageSizeOptions = [10, 25, 50],
+  disabled = false,
+  isPending = false,
+  fallbackCount = 0,
+}) {
   const { t } = useTranslation()
   const summary = getPaginationSummary(pagination, fallbackCount)
 
@@ -27,6 +35,19 @@ function PaginationControls({ pagination, onPageChange, disabled = false, isPend
         })}
       </span>
       <div className="inline-action-group">
+        {typeof onPageSizeChange === 'function' ? (
+          <select
+            className="form-control"
+            value={summary.pageSize}
+            disabled={isDisabled}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            aria-label={t('common.pagination.pageSize', { defaultValue: 'Page size' })}
+          >
+            {pageSizeOptions.map((pageSize) => (
+              <option key={pageSize} value={pageSize}>{pageSize}</option>
+            ))}
+          </select>
+        ) : null}
         <Button
           type="button"
           size="sm"

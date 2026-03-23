@@ -7,6 +7,7 @@ import {
   useExecutePayoffMutation,
   useLoanAttachmentsQuery,
   useLoanCalendarQuery,
+  useLoanDetailQuery,
   useLoanPayoffQuoteQuery,
   useLoansQuery,
 } from '@/hooks/useLoans';
@@ -17,6 +18,7 @@ import {
   useCreatePaymentMutation,
   usePaymentDocumentsQuery,
   usePaymentsByLoanQuery,
+  useUpdatePaymentMetadataMutation,
   useUploadPaymentDocumentMutation,
 } from '@/hooks/usePayments';
 import { downloadFile } from '@/lib/api/download';
@@ -35,8 +37,10 @@ import {
   buildEligibilityState,
   buildPaymentPayload,
   formReducer,
+  getNearestCancellableInstallmentNumber,
   getEligibilityPanelCopy,
   getLoanDetails,
+  getLoanPaymentContext,
   getPayoffQuoteTotal,
   getStructuredDenialReasons,
 } from '@/features/payments/paymentsWorkspace.utils';
@@ -54,16 +58,15 @@ function PaymentsWorkspace({ user }) {
   const isCustomer = user.role === 'customer';
   const allowedPaymentTypes = useMemo(() => PAYMENT_TYPES_BY_ROLE[user.role] || [], [user.role]);
   const canManagePayments = allowedPaymentTypes.length > 0;
-  const canAnnul = isAdmin || user.role === 'agent';
+  const canAnnul = isAdmin;
 
   const [formState, dispatch] = useReducer(formReducer, initialFormState);
   const [error, setError] = useState('');
-  const [historyError, setHistoryError] = useState('');
   const [success, setSuccess] = useState('');
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [resolvedAlertMessage, setResolvedAlertMessage] = useState('');
   const [actionErrorDetails, setActionErrorDetails] = useState(null);
-  const [selectedPaymentId, setSelectedPaymentId] = useState('');
+  const [selectedPaymentIdOverride, setSelectedPaymentIdOverride] = useState('');
   const [paymentDocumentDraft, setPaymentDocumentDraft] = useState({ file: null, category: '', description: '', customerVisible: false });
   const paymentHistoryPagination = usePaginationStore((state) => state.scopes[PAYMENTS_HISTORY_SCOPE] || DEFAULT_PAGINATION);
   const ensurePaymentHistoryScope = usePaginationStore((state) => state.ensureScope);
@@ -83,7 +86,8 @@ function PaymentsWorkspace({ user }) {
   ), [loansQuery.data]);
   const selectedLoanId = formState.loanId || null;
   const selectedLoan = loans.find((loan) => loan.id === Number(formState.loanId));
-  const isSelectedLoanPayable = Boolean(selectedLoan && PAYABLE_LOAN_STATUSES.has(selectedLoan.status));
+  const selectedLoanDetailQuery = useLoanDetailQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
+  const selectedLoanDetail = selectedLoanDetailQuery.data?.data?.loan || null;
 
   useEffect(() => {
     if (!selectedLoanId) {
@@ -95,6 +99,10 @@ function PaymentsWorkspace({ user }) {
     enabled: Boolean(selectedLoanId),
     pagination: paymentHistoryPagination,
   });
+  const selectedLoanFromPayments = paymentsQuery.data?.data?.loan || paymentsQuery.data?.raw?.data?.loan || null;
+  const effectiveSelectedLoan = selectedLoanDetail || selectedLoanFromPayments || selectedLoan;
+  const selectedLoanContext = getLoanPaymentContext(effectiveSelectedLoan);
+  const isSelectedLoanPayable = Boolean(effectiveSelectedLoan && PAYABLE_LOAN_STATUSES.has(effectiveSelectedLoan.status));
   const calendarQuery = useLoanCalendarQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const attachmentsQuery = useLoanAttachmentsQuery(selectedLoanId, { enabled: Boolean(selectedLoanId) });
   const payoffQuoteQuery = useLoanPayoffQuoteQuery(selectedLoanId, formState.payoffDate, {
@@ -104,17 +112,27 @@ function PaymentsWorkspace({ user }) {
   const createPartialPaymentMutation = useCreatePartialPaymentMutation(selectedLoanId);
   const createCapitalPaymentMutation = useCreateCapitalPaymentMutation(selectedLoanId);
   const annulInstallmentMutation = useAnnulInstallmentMutation(selectedLoanId);
+  const updatePaymentMetadataMutation = useUpdatePaymentMetadataMutation(selectedLoanId);
   const executePayoffMutation = useExecutePayoffMutation(user);
 
   const payments = useMemo(() => (
     Array.isArray(paymentsQuery.data?.items)
       ? paymentsQuery.data.items
+      : Array.isArray(paymentsQuery.data?.data?.payments)
+        ? paymentsQuery.data.data.payments
       : Array.isArray(paymentsQuery.data?.data)
-        ? paymentsQuery.data.data
+          ? paymentsQuery.data.data
         : []
   ), [paymentsQuery.data]);
   const paymentsPagination = paymentsQuery.data?.pagination || paymentsQuery.data?.data?.pagination || null;
-  const effectivePaymentId = selectedPaymentId || payments[0]?.id || null;
+  const selectedPaymentId = useMemo(() => {
+    if (!payments.length) return '';
+    if (selectedPaymentIdOverride && payments.some((payment) => Number(payment.id) === Number(selectedPaymentIdOverride))) {
+      return String(selectedPaymentIdOverride);
+    }
+    return String(payments[0].id);
+  }, [payments, selectedPaymentIdOverride]);
+  const effectivePaymentId = selectedPaymentId || null;
   const paymentDocumentsQuery = usePaymentDocumentsQuery(effectivePaymentId, { enabled: Boolean(effectivePaymentId) });
   const uploadPaymentDocumentMutation = useUploadPaymentDocumentMutation(effectivePaymentId);
   const calendar = useMemo(() => (
@@ -132,12 +150,12 @@ function PaymentsWorkspace({ user }) {
   const submitting = createPaymentMutation.isPending || executePayoffMutation.isPending
     || createPartialPaymentMutation.isPending || createCapitalPaymentMutation.isPending || annulInstallmentMutation.isPending;
   const nearestCancellableInstallmentNumber = useMemo(
-    () => calendar.find((entry) => (
-      (entry.status === 'pending' || entry.status === 'overdue') && Number(entry.outstandingAmount || 0) > 0
-    ))?.installmentNumber ?? null,
+    () => getNearestCancellableInstallmentNumber(calendar),
     [calendar],
   );
-  const loanDetails = formState.loanId ? getLoanDetails(loans, payments, formState.loanId) : { emi: '', balance: '' };
+  const loanDetails = formState.loanId
+    ? getLoanDetails(effectiveSelectedLoan ? [effectiveSelectedLoan] : loans, payments, formState.loanId)
+    : { emi: '', balance: '' };
   const payoffQuoteErrorDetails = useMemo(
     () => extractApiErrorDetails(payoffQuoteQuery.error),
     [payoffQuoteQuery.error],
@@ -149,22 +167,22 @@ function PaymentsWorkspace({ user }) {
     ? actionErrorDetails.details
     : null;
   const payoffClientEligibility = useMemo(
-    () => buildClientEligibility({
+    () => selectedLoanContext?.payoffEligibility || buildClientEligibility({
       action: 'payoff',
-      loan: selectedLoan,
+      loan: effectiveSelectedLoan,
       calendar,
       balance: loanDetails.balance,
     }),
-    [calendar, loanDetails.balance, selectedLoan],
+    [calendar, effectiveSelectedLoan, loanDetails.balance, selectedLoanContext],
   );
   const capitalClientEligibility = useMemo(
-    () => buildClientEligibility({
+    () => selectedLoanContext?.capitalEligibility || buildClientEligibility({
       action: 'capital',
-      loan: selectedLoan,
+      loan: effectiveSelectedLoan,
       calendar,
       balance: loanDetails.balance,
     }),
-    [calendar, loanDetails.balance, selectedLoan],
+    [calendar, effectiveSelectedLoan, loanDetails.balance, selectedLoanContext],
   );
   const payoffEligibilityState = useMemo(
     () => (selectedLoan
@@ -239,36 +257,38 @@ function PaymentsWorkspace({ user }) {
     dispatch({ type: 'RESET' });
   }, [formState.loanId, payableLoans]);
 
-  useEffect(() => {
-    const sourceError = loansQuery.error
+  const historySourceError = useMemo(() => (
+    loansQuery.error
+    || (selectedLoanId ? selectedLoanDetailQuery.error : null)
     || (selectedLoanId ? paymentsQuery.error || calendarQuery.error || attachmentsQuery.error : null)
-      || (effectivePaymentId ? paymentDocumentsQuery.error : null)
-      || (
-        isSelectedLoanPayable
-        && formState.paymentType === 'payoff'
-        && getStructuredDenialReasons(payoffQuoteErrorDetails, 'payoff').length === 0
-          ? payoffQuoteQuery.error
-          : null
-      );
-
-    if (!sourceError) {
-      setHistoryError('');
-      return;
-    }
-
-    handleApiError(sourceError, setHistoryError);
-  }, [
+    || (effectivePaymentId ? paymentDocumentsQuery.error : null)
+    || (
+      isSelectedLoanPayable
+      && formState.paymentType === 'payoff'
+      && getStructuredDenialReasons(payoffQuoteErrorDetails, 'payoff').length === 0
+        ? payoffQuoteQuery.error
+        : null
+    )
+  ), [
     attachmentsQuery.error,
     calendarQuery.error,
+    effectivePaymentId,
     formState.paymentType,
     isSelectedLoanPayable,
     loansQuery.error,
+    selectedLoanDetailQuery.error,
     paymentsQuery.error,
     paymentDocumentsQuery.error,
     payoffQuoteErrorDetails,
     payoffQuoteQuery.error,
     selectedLoanId,
   ]);
+  const historyError = useMemo(() => {
+    if (!historySourceError) {
+      return '';
+    }
+    return extractApiErrorDetails(historySourceError).message;
+  }, [historySourceError]);
 
   const handleDownloadAttachment = async (attachmentId, fileName) => {
     try {
@@ -281,17 +301,6 @@ function PaymentsWorkspace({ user }) {
       handleApiError(err, setError);
     }
   };
-
-  useEffect(() => {
-    if (!payments.length) {
-      setSelectedPaymentId('');
-      return;
-    }
-
-    if (!payments.some((payment) => Number(payment.id) === Number(selectedPaymentId))) {
-      setSelectedPaymentId(String(payments[0].id));
-    }
-  }, [payments, selectedPaymentId]);
 
   const handleUploadPaymentDocument = async () => {
     if (!effectivePaymentId) {
@@ -444,11 +453,40 @@ function PaymentsWorkspace({ user }) {
     }
 
     try {
-      await annulInstallmentMutation.mutateAsync({ loanId: formState.loanId });
+      const reason = window.prompt(t('payments.workspace.annulReasonPrompt')) || '';
+      await annulInstallmentMutation.mutateAsync({ reason });
       setSuccess(t('payments.workspace.annulSuccess'));
       await calendarQuery.refetch();
     } catch (err) {
       handleApiError(err, setError);
+    }
+  };
+
+  const handleUpdatePaymentMetadata = async (payment) => {
+    const method = window.prompt(t('payments.history.editMethodPrompt'), payment?.paymentMetadata?.method || '');
+    if (method === null) return;
+    const paymentDate = window.prompt(
+      t('payments.history.editDatePrompt'),
+      payment?.paymentDate ? String(payment.paymentDate).slice(0, 10) : '',
+    );
+    if (paymentDate === null) return;
+    const observation = window.prompt(t('payments.history.editObservationPrompt'), payment?.paymentMetadata?.observation || '');
+    if (observation === null) return;
+
+    setError('');
+    setSuccess('');
+    try {
+      await updatePaymentMetadataMutation.mutateAsync({
+        paymentId: payment.id,
+        payload: {
+          method: String(method || '').trim() || undefined,
+          paymentDate: String(paymentDate || '').trim() || undefined,
+          observation: String(observation || '').trim() || undefined,
+        },
+      });
+      setSuccess(t('payments.history.updated'));
+    } catch (metadataError) {
+      handleApiError(metadataError, setError);
     }
   };
 
@@ -520,7 +558,7 @@ function PaymentsWorkspace({ user }) {
         isAdmin={isAdmin}
         isCustomer={isCustomer}
         loanDetails={loanDetails}
-        selectedLoan={selectedLoan}
+        selectedLoan={effectiveSelectedLoan}
         submitting={submitting}
         capitalEligibilityState={capitalEligibilityState}
         payoffEligibilityState={payoffEligibilityState}
@@ -564,7 +602,7 @@ function PaymentsWorkspace({ user }) {
         selectedPaymentId={selectedPaymentId}
         paymentDocuments={paymentDocuments}
         paymentDocumentDraft={paymentDocumentDraft}
-        canManagePaymentDocuments={isAdmin || user.role === 'agent'}
+        canManagePaymentDocuments={isAdmin}
         canAnnul={canAnnul}
         historyLoading={historyLoading}
         error={historyError}
@@ -574,10 +612,11 @@ function PaymentsWorkspace({ user }) {
           attachmentsQuery.refetch();
         }}
         onDownloadAttachment={handleDownloadAttachment}
-        onSelectPayment={setSelectedPaymentId}
+        onSelectPayment={setSelectedPaymentIdOverride}
         onPaymentDocumentDraftChange={(field, value) => setPaymentDocumentDraft((current) => ({ ...current, [field]: value }))}
         onUploadPaymentDocument={handleUploadPaymentDocument}
         onDownloadPaymentDocument={handleDownloadPaymentDocument}
+        onUpdatePaymentMetadata={handleUpdatePaymentMetadata}
         onAnnulInstallment={handleAnnulInstallment}
         annulMutation={annulInstallmentMutation}
         nearestCancellableInstallmentNumber={nearestCancellableInstallmentNumber}

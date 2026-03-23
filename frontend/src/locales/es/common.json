@@ -25,34 +25,33 @@
     "groups": {
       "overview": "Resumen",
       "customers": "Clientes",
-      "loans": "Prestamos y analitica",
-      "associates": "Socios",
-      "payments": "Pagos",
-      "agents": "Agentes",
+      "credits": "Creditos",
+      "partners": "Socios y reportes",
+      "config": "Configuracion",
       "system": "Sistema"
     },
     "viewTitles": {
       "dashboard": "Resumen del dashboard",
       "customers": "Espacio de clientes",
       "customers-new": "Nuevo cliente",
-      "loans": "Espacio de prestamos",
-      "loans-new": "Nuevo prestamo",
-      "associates": "Espacio de socios",
-      "payments": "Espacio de pagos",
-      "agents": "Espacio de agentes",
-      "reports": "Espacio de reportes",
+      "credits": "Espacio de creditos",
+      "credits-new": "Nuevo credito",
+      "credits-payments": "Espacio de pagos",
+      "partners": "Espacio de socios",
+      "partners-reports": "Espacio de reportes",
+      "config": "Espacio de configuracion",
       "notifications": "Centro de notificaciones"
     },
     "views": {
       "Dashboard": "Panel",
       "Customers": "Clientes",
       "NewCustomer": "Nuevo cliente",
-      "Loans": "Prestamos",
-      "NewLoan": "Nuevo prestamo",
-      "Associates": "Socios",
+      "Credits": "Creditos",
+      "NewCredit": "Nuevo credito",
       "Payments": "Pagos",
-      "Agents": "Agentes",
+      "Partners": "Socios",
       "Reports": "Reportes",
+      "Config": "Configuracion",
       "Notifications": "Notificaciones",
       "partnerPortal": "Portal de socios"
     }
@@ -62,7 +61,7 @@
       "active": "Activo",
       "inactive": "Inactivo",
       "customer": "Cliente",
-      "agent": "Agente",
+      "agent": "Roster de cobranza",
       "admin": "Administrador",
       "socio": "Socio",
       "pending": "Pendiente",
@@ -79,8 +78,10 @@
       "tryAgain": "Intentar de nuevo",
       "download": "Descargar",
       "delete": "Eliminar",
+      "edit": "Editar",
       "cancel": "Cancelar",
       "save": "Guardar",
+      "clear": "Limpiar",
       "previous": "Anterior",
       "next": "Siguiente",
       "refresh": "Actualizar",
@@ -111,7 +112,7 @@
     "proofPoints": {
       "operations": "Cobranza, pagos y originacion en un mismo frente",
       "signals": "Senales accionables y seguimiento en tiempo real",
-      "roles": "Experiencia clara para admin, agentes, clientes y socios"
+      "roles": "Experiencia clara para administradores, clientes y socios"
     },
     "metrics": {
       "portfolio": {
@@ -301,7 +302,7 @@
       "titleHighlight": "de tus finanzas",
       "subtitle": "Gestion al alcance de tus dedos",
       "item1": "Monitoreo facil con vista unica",
-      "item2": "Asignacion de agentes en 1 clic",
+      "item2": "Asignacion de responsables de cobranza en 1 clic",
       "item3": "Recordatorios de cobro premium"
     },
     "bento": {
@@ -312,7 +313,7 @@
       "panel2Title": "Las mentes mas brillantes realizan la investigacion dificil.",
       "panel2Text": "Para que puedas tomar decisiones verdaderamente prudentes sobre tu dinero sin fricciones y enfocarte al 100% en expandir tu agencia.",
       "loansManaged": "Prestamos Gestionados",
-      "activeAgents": "Agentes Activos"
+      "activeAgents": "Responsables activos"
     },
     "footer": {
       "title": "Gestionar tus finanzas es",
@@ -453,9 +454,9 @@
     }
   },
   "agents": {
-    "eyebrow": "Operacion de agentes",
-    "title": "Gestiona el equipo de cobranza desde un roster listo para workspace",
-    "subtitle": "El alta de agentes, la visibilidad de contacto y el seguimiento de estado ahora viven dentro de la misma arquitectura de page-folder, Sass e i18n que el resto del frontend.",
+    "eyebrow": "Roster operativo",
+    "title": "Gestiona el roster de cobranza desde un espacio administrado por admin",
+    "subtitle": "La visibilidad de contacto, el historial y el estado de los agentes ahora viven dentro de la misma arquitectura de page-folder, Sass e i18n que el resto del frontend, sin usarlos como rol de inicio de sesion.",
     "loading": {
       "title": "Cargando agentes",
       "message": "Trayendo el roster mas reciente y la informacion de estado."
@@ -472,13 +473,13 @@
     },
     "table": {
       "eyebrow": "Roster del equipo",
-      "title": "Agentes registrados",
+      "title": "Roster de agentes",
       "subtitle": "Cada fila mantiene identidad, canales de contacto y disponibilidad visibles sin depender de estilos inline.",
       "emptyTitle": "Aun no hay agentes",
-      "emptyMessage": "Crea el primer perfil de cobranza para poblar este roster.",
+      "emptyMessage": "Crea el primer registro operativo de cobranza para poblar este roster.",
       "unnamed": "Agente sin nombre",
       "columns": {
-        "agent": "Agente",
+        "agent": "Roster de cobranza",
         "contact": "Contacto",
         "status": "Estado"
       }
@@ -486,18 +487,16 @@
     "modal": {
       "eyebrow": "Flujo de aprovisionamiento",
       "title": "Agregar nuevo agente",
-      "description": "Crea un usuario operativo mediante el flujo administrativo de registro y refresca el roster al completar.",
+      "description": "Crea un registro operativo administrado por el equipo admin y refresca el roster al completar.",
       "fields": {
         "name": "Nombre completo",
         "email": "Correo",
-        "phone": "Telefono",
-        "password": "Contrasena temporal"
+        "phone": "Telefono"
       },
       "placeholders": {
         "name": "Ingresa el nombre completo del agente",
         "email": "agent@example.com",
-        "phone": "+57 300 123 4567",
-        "password": "Minimo 6 caracteres"
+        "phone": "+57 300 123 4567"
       }
     },
     "actions": {
@@ -506,7 +505,7 @@
       "creating": "Creando..."
     },
     "messages": {
-      "created": "Agente creado correctamente!"
+      "created": "Registro de agente creado correctamente!"
     }
   },
   "payments": {
@@ -519,6 +518,7 @@
       "partialSuccess": "Pago parcial registrado correctamente.",
       "capitalSuccess": "Pago a capital registrado correctamente.",
       "annulConfirm": "Anular la cuota pendiente o vencida mas proxima? Esta accion no se puede deshacer.",
+      "annulReasonPrompt": "Motivo de anulacion",
       "annulSuccess": "Cuota anulada correctamente.",
       "resolvedAlert": "Las alertas vencidas se actualizaron despues de este pago.",
       "successOverlay": "Pago exitoso",
@@ -607,6 +607,10 @@
       "noCalendar": "No hay cuotas disponibles",
       "noAttachments": "No hay adjuntos visibles para el cliente",
       "noPaymentDocuments": "No hay documentos del pago disponibles",
+      "editMethodPrompt": "Metodo de pago",
+      "editDatePrompt": "Fecha de pago (YYYY-MM-DD)",
+      "editObservationPrompt": "Observacion en espanol",
+      "updated": "Metadatos del pago actualizados correctamente.",
       "visibilityCustomer": "Cliente",
       "visibilityInternal": "Interno",
       "fields": {
@@ -626,6 +630,8 @@
         "loanId": "ID prestamo",
         "amount": "Monto",
         "type": "Tipo",
+        "method": "Metodo",
+        "observation": "Observacion",
         "paymentDate": "Fecha de pago",
         "status": "Estado",
         "installment": "Cuota",
@@ -688,7 +694,7 @@
       "loanSubmitted": "Solicitud de prestamo enviada correctamente.",
       "simulationGenerated": "Simulacion del prestamo generada correctamente.",
       "loanMarked": "Prestamo marcado como {{status}}.",
-      "agentAssigned": "Agente asignado correctamente.",
+      "recoveryAssigned": "Responsable de recuperacion asignado correctamente.",
       "recoveryUpdated": "Estado de recuperacion actualizado correctamente.",
       "deleteConfirm": "Seguro que quieres eliminar este prestamo rechazado? Esta accion no se puede deshacer.",
       "loanDeleted": "Prestamo eliminado correctamente.",
@@ -701,6 +707,7 @@
       "chooseCustomerDocument": "Selecciona un archivo antes de subir un documento del cliente.",
       "customerDocumentUploaded": "Documento del cliente cargado correctamente.",
       "customerDocumentDeleted": "Documento del cliente eliminado correctamente.",
+      "filteredByCustomer": "Mostrando cartera filtrada por cliente #{{customerId}}",
       "summary": {
         "assignedLoans": "Prestamos asignados",
         "visibleLoans": "Prestamos visibles",
@@ -721,14 +728,13 @@
       "mode": {
         "eyebrow": "Modo del espacio",
         "title": "Alterna entre cartera y workbench DAG",
-        "subtitle": "La vista DAG se habilita como entrada incremental para administradores y agentes sin romper el flujo actual de prestamos.",
+        "subtitle": "La vista DAG se habilita como entrada incremental para administradores sin romper el flujo actual de prestamos.",
         "portfolio": "Cartera",
         "dagWorkbench": "Workbench DAG"
       }
     },
     "hero": {
       "eyebrow": "Espacio de prestamos",
-      "agentTitle": "Sigue cobranzas asignadas con datos de seguimiento respaldados por consultas",
       "adminTitle": "Gestiona decisiones crediticias y seguimiento desde un espacio alineado",
       "customerTitle": "Solicita prestamos y sigue cada documento y etapa de pago",
       "subtitle": "Esta pagina ahora lee cartera, cobranza, documentos del cliente e historial desde la base compartida de TanStack Query."
@@ -762,7 +768,6 @@
     },
     "portfolio": {
       "eyebrow": "Vista de cartera",
-      "agentTitle": "Cola de recuperacion",
       "adminTitle": "Resumen operativo de prestamos",
       "customerTitle": "Tu historial de prestamos",
       "subtitle": "Decisiones de estado, contadores de seguimiento y saldos de pago comparten ahora la misma tabla respaldada por consultas.",
@@ -775,11 +780,13 @@
       "emptyTitle": "No se encontraron prestamos",
       "emptyMessage": "Los nuevos registros apareceran aqui tan pronto esten disponibles para tu rol.",
       "noAction": "Sin accion disponible",
+      "selectRecoveryOwner": "Selecciona un responsable",
       "selectStatus": "Selecciona un estado",
+      "viewCustomer": "Ver cliente",
       "editRecovery": "Editar recuperacion",
       "saveStatus": "Guardar estado",
       "saving": "Guardando...",
-      "assignAgent": "Asignar agente",
+      "assignAgent": "Asignar recuperacion",
       "assigning": "Asignando...",
       "approve": "Aprobar",
       "reject": "Rechazar",
@@ -796,7 +803,7 @@
         "interest": "Interes",
         "term": "Plazo",
         "status": "Estado",
-        "agent": "Agente",
+        "recoveryOwner": "Responsable de recuperacion",
         "recovery": "Recuperacion",
         "progress": "Progreso",
         "balance": "Saldo",
@@ -843,7 +850,9 @@
         "uploadDocument": "Subir documento",
         "download": "Descargar",
         "delete": "Eliminar",
-        "downloadPdf": "Descargar PDF"
+        "downloadPdf": "Descargar PDF",
+        "downloadLoanReport": "PDF del prestamo",
+        "downloadCustomerReport": "PDF del cliente"
       },
       "history": {
         "eyebrow": "Historial del cliente",
@@ -964,6 +973,8 @@
       "userDeactivated": "Usuario desactivado correctamente.",
       "userReactivated": "Usuario reactivado correctamente.",
       "selectAssociateToExport": "Selecciona primero un socio para exportar la rentabilidad.",
+      "selectCustomerToExport": "Selecciona primero un cliente para exportar el perfil.",
+      "selectLoanToExport": "Selecciona primero un prestamo para exportar el historial.",
       "associateCreated": "Socio creado correctamente.",
       "selectAssociateToUpdate": "Selecciona un socio antes de actualizar.",
       "associateUpdated": "Socio actualizado correctamente.",
@@ -1003,9 +1014,9 @@
       "partnerEyebrow": "Portal de socios",
       "workspaceEyebrow": "Espacio de reportes",
       "partnerTitle": "Revisa la rentabilidad del socio desde una sola superficie",
-      "workspaceTitle": "Revisa recuperacion y administra socios desde una misma superficie analitica",
+      "workspaceTitle": "Sigue recuperacion, rentabilidad y cartera desde una misma superficie analitica",
       "partnerSubtitle": "Sigue aportes, distribuciones y exposicion a prestamos ligada a tu registro de socio.",
-      "workspaceSubtitle": "Analitica de recuperacion y operaciones de socios ahora viven juntas en la misma pagina respaldada por TanStack Query.",
+      "workspaceSubtitle": "Analitica de recuperacion, rentabilidad de clientes y cartera viven juntas en la misma pagina respaldada por TanStack Query.",
       "refreshReports": "Actualizar reportes",
       "exportCsv": "Exportar CSV",
       "exportPdf": "Exportar PDF",
@@ -1034,7 +1045,7 @@
       "headers": {
         "id": "ID prestamo",
         "customer": "Cliente",
-        "agent": "Agente",
+        "recoveryOwner": "Responsable de recuperacion",
         "amount": "Monto",
         "recovered": "Recuperado",
         "recoveryDate": "Fecha de recuperacion",
@@ -1109,6 +1120,8 @@
         "incomplete": "Incompleto"
       },
       "buttons": {
+        "downloadLoanHistory": "Descargar reporte del prestamo",
+        "downloadCustomerProfile": "Descargar reporte del cliente",
         "createAssociate": "Crear socio",
         "updateAssociate": "Actualizar socio",
         "deleteAssociate": "Eliminar socio",
@@ -1158,7 +1171,22 @@
       "new": "Nuevo cliente",
       "back": "Volver a clientes",
       "save": "Guardar cliente",
+      "update": "Actualizar cliente",
+      "viewProfile": "Ver perfil",
+      "createLoan": "Crear credito",
+      "viewLoans": "Ver creditos",
       "saving": "Guardando..."
+    },
+    "profile": {
+      "eyebrow": "Perfil del cliente",
+      "title": "Perfil de {{name}}",
+      "subtitle": "Edita los datos principales del cliente y continua hacia sus creditos relacionados sin salir del flujo actual.",
+      "relatedCredits": "Creditos relacionados",
+      "relatedCreditsCaption": "Prestamos visibles vinculados al perfil actual",
+      "activeCredits": "Creditos activos",
+      "activeCreditsCaption": "Prestamos que siguen en curso para este cliente",
+      "latestCredit": "Ultimo credito",
+      "saveChanges": "Guardar cambios"
     },
     "summary": {
       "total": "Clientes",
@@ -1185,13 +1213,15 @@
         "contact": "Contacto",
         "status": "Estado",
         "joined": "Alta",
-        "loans": "Prestamos"
+        "loans": "Prestamos",
+        "actions": "Acciones"
       }
     },
     "form": {
       "title": "Crear un nuevo cliente",
       "subtitle": "Captura identidad y contacto usando el nuevo layout compartido del espacio de trabajo para formularios.",
       "success": "Cliente creado correctamente.",
+      "updated": "Cliente actualizado correctamente.",
       "sections": {
         "personal": "Informacion personal",
         "contact": "Informacion de contacto"
@@ -1201,17 +1231,113 @@
         "documentNumber": "Numero de documento",
         "birthDate": "Fecha de nacimiento",
         "occupation": "Ocupacion",
+        "status": "Estado",
         "phone": "Telefono",
         "email": "Correo electronico",
+        "department": "Departamento",
+        "city": "Ciudad",
+        "selectDepartment": "Selecciona un departamento",
+        "selectCity": "Selecciona una ciudad",
         "address": "Direccion"
       }
+    },
+    "messages": {
+      "confirmDelete": "Deseas eliminar este cliente?"
+    },
+    "prompts": {
+      "editName": "Nombre del cliente",
+      "editPhone": "Telefono del cliente",
+      "editStatus": "Estado del cliente (active/inactive)"
     }
   },
   "associates": {
     "title": "Espacio de socios",
     "subtitle": "Sigue registros de socios, participacion y prestamos vinculados desde una sola superficie analitica compartida.",
     "actions": {
-      "new": "Nuevo socio"
+      "new": "Nuevo socio",
+      "details": "Detalle"
+    },
+    "forms": {
+      "title": "Operaciones de socios",
+      "subtitle": "Crea, edita y administra registros de inversionistas y movimientos de rentabilidad desde este espacio."
+    },
+    "tabs": {
+      "overview": "Resumen",
+      "history": "Aportes",
+      "simulation": "Simulacion",
+      "calendar": "Calendario"
+    },
+    "detail": {
+      "subtitle": "Distingue exposicion, movimientos, rentabilidad y cuotas por socio sin mezclar los tableros.",
+      "profileTitle": "Perfil del socio",
+      "linkedLoansTitle": "Prestamos vinculados",
+      "cards": {
+        "yield": "Rentabilidad realizada",
+        "movements": "Movimientos registrados",
+        "projectedPeriods": "Periodos visibles",
+        "netProfit": "Utilidad neta"
+      }
+    },
+    "simulation": {
+      "title": "Simulacion de rentabilidad",
+      "period": "Periodo",
+      "date": "Fecha",
+      "type": "Tipo",
+      "distributed": "Distribuido",
+      "accumulated": "Rendimiento acumulado",
+      "yield": "Rentabilidad",
+      "empty": "Aun no hay periodos de rentabilidad simulada.",
+      "emptyMessage": "Las distribuciones registradas alimentaran esta tabla con acumulados y rendimiento realizado."
+    },
+    "history": {
+      "contributionsTitle": "Historial de aportes",
+      "distributionsTitle": "Historial de distribuciones",
+      "emptyContributions": "Aun no hay aportes registrados para este socio.",
+      "emptyDistributions": "Aun no hay distribuciones registradas para este socio.",
+      "headers": {
+        "date": "Fecha",
+        "amount": "Monto",
+        "type": "Tipo",
+        "notes": "Notas"
+      }
+    },
+    "loans": {
+      "emptyTitle": "Sin prestamos vinculados",
+      "emptyMessage": "Cuando este socio participe en creditos, apareceran aqui con su siguiente cuota visible.",
+      "headers": {
+        "loan": "Prestamo",
+        "customer": "Cliente",
+        "status": "Estado",
+        "amount": "Monto",
+        "nextDue": "Proximo vencimiento",
+        "nextOutstanding": "Proxima cuota",
+        "overdue": "Vencidas"
+      }
+    },
+    "calendar": {
+      "openPayments": "Ir a pagos para marcar cuota",
+      "loadError": "No se pudieron cargar los calendarios de los prestamos vinculados.",
+      "loadingTitle": "Cargando cuotas vinculadas",
+      "tableTitle": "Plan de pagos vinculado",
+      "surfaceTitle": "Calendario del inversionista",
+      "emptyTitle": "Sin cuotas visibles",
+      "emptyMessage": "Las cuotas de los prestamos vinculados apareceran aqui para revisar vencimientos y estado.",
+      "eventTitle": "Prestamo #{{loanId}} · Cuota #{{installment}} · {{status}}",
+      "headers": {
+        "loan": "Prestamo",
+        "customer": "Cliente",
+        "installment": "Cuota",
+        "dueDate": "Vencimiento",
+        "outstanding": "Pendiente",
+        "status": "Estado"
+      }
+    },
+    "messages": {
+      "created": "Socio creado correctamente.",
+      "updated": "Socio actualizado correctamente.",
+      "deleted": "Socio eliminado correctamente.",
+      "ledgerSaved": "Movimiento de socio guardado correctamente.",
+      "confirmDelete": "Deseas eliminar este socio?"
     },
     "summary": {
       "total": "Socios",
@@ -1246,6 +1372,8 @@
       "back": "Volver a prestamos",
       "simulate": "Simular prestamo",
       "simulating": "Simulando...",
+      "searchCustomer": "Buscar cliente",
+      "searchingCustomer": "Buscando...",
       "save": "Crear prestamo",
       "saving": "Guardando..."
     },
@@ -1255,14 +1383,19 @@
     },
     "fields": {
       "customer": "Cliente",
+      "customerDocumentNumber": "Documento del cliente",
+      "customerDocumentPlaceholder": "Ingresa el numero de documento",
       "selectCustomer": "Selecciona un cliente",
       "amount": "Monto del prestamo",
       "interestRate": "Tasa de interes",
       "termMonths": "Plazo en meses",
+      "startDate": "Fecha de inicio",
+      "lateFeeRate": "Interes de mora",
       "frequency": "Frecuencia de pago",
       "monthly": "Mensual",
-      "biweekly": "Quincenal",
-      "weekly": "Semanal"
+      "quarterly": "Trimestral",
+      "semiannual": "Semestral",
+      "annual": "Anual"
     },
     "summary": {
       "eyebrow": "Resumen de simulacion",
@@ -1270,11 +1403,17 @@
       "subtitle": "Actualiza la simulacion antes de guardar para comparar cuota, interes y total a pagar.",
       "principal": "Capital",
       "installment": "Cuota",
+      "firstInterest": "Primer interes",
+      "firstPrincipal": "Primera amortizacion",
       "totalInterest": "Interes total",
       "totalPayable": "Total a pagar"
     },
     "messages": {
-      "created": "Prestamo creado correctamente."
+      "created": "Prestamo creado correctamente.",
+      "documentRequired": "Ingresa el documento del cliente para continuar.",
+      "customerRequired": "Busca y valida un cliente antes de completar los terminos del credito.",
+      "customerNotFound": "No se encontro un cliente con ese numero de documento.",
+      "customerFound": "Cliente encontrado correctamente."
     }
   }
 }

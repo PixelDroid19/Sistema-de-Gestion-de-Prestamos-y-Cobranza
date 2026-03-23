@@ -24,6 +24,60 @@ const { paginateModel } = require('../../shared/pagination');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
 const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
+const ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
+
+const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
+
+const getLoanOutstandingBalance = (loan) => {
+  const snapshotOutstanding = Number(loan?.financialSnapshot?.outstandingBalance);
+  if (Number.isFinite(snapshotOutstanding)) {
+    return roundCurrency(snapshotOutstanding);
+  }
+
+  const principalOutstanding = Number(loan?.principalOutstanding);
+  const interestOutstanding = Number(loan?.interestOutstanding);
+  if (Number.isFinite(principalOutstanding) || Number.isFinite(interestOutstanding)) {
+    return roundCurrency(
+      (Number.isFinite(principalOutstanding) ? principalOutstanding : 0)
+      + (Number.isFinite(interestOutstanding) ? interestOutstanding : 0),
+    );
+  }
+
+  const totalPayable = Number(loan?.totalPayable);
+  const totalPaid = Number(loan?.totalPaid);
+  if (Number.isFinite(totalPayable) || Number.isFinite(totalPaid)) {
+    return roundCurrency(Math.max((Number.isFinite(totalPayable) ? totalPayable : 0) - (Number.isFinite(totalPaid) ? totalPaid : 0), 0));
+  }
+
+  return 0;
+};
+
+const getLatestLoan = (loans) => loans.reduce((latest, current) => {
+  if (!latest) {
+    return current;
+  }
+
+  const latestTimestamp = new Date(latest.createdAt || 0).getTime();
+  const currentTimestamp = new Date(current.createdAt || 0).getTime();
+
+  if (currentTimestamp === latestTimestamp) {
+    return Number(current.id || 0) > Number(latest.id || 0) ? current : latest;
+  }
+
+  return currentTimestamp > latestTimestamp ? current : latest;
+}, null);
+
+const buildCustomerSummary = (loans = []) => {
+  const latestLoan = getLatestLoan(loans);
+
+  return {
+    totalLoans: loans.length,
+    activeLoans: loans.filter((loan) => ACTIVE_LOAN_STATUSES.has(String(loan.status || '').toLowerCase())).length,
+    totalOutstandingBalance: roundCurrency(loans.reduce((total, loan) => total + getLoanOutstandingBalance(loan), 0)),
+    latestLoanId: latestLoan?.id ?? null,
+    latestLoanStatus: latestLoan?.status ?? null,
+  };
+};
 
 /**
  * Create the infrastructure ports consumed by the credits module composition seam.
@@ -96,17 +150,47 @@ const createCreditsInfrastructure = ({
           order: [['createdAt', 'DESC']],
         });
       },
-      listByAgent(agentId) {
-        return loanModel.findAll({ where: { agentId }, include: [customerModel, associateModel], order: [['createdAt', 'DESC']] });
+      listByRecoveryAssignee(recoveryAssigneeId) {
+        return loanModel.findAll({ where: { agentId: recoveryAssigneeId }, include: [customerModel, associateModel], order: [['createdAt', 'DESC']] });
       },
-      listPageByAgent({ agentId, page, pageSize }) {
+      listPageByRecoveryAssignee({ recoveryAssigneeId, page, pageSize }) {
         return paginateModel({
           model: loanModel,
           page,
           pageSize,
-          where: { agentId },
+          where: { agentId: recoveryAssigneeId },
           include: [customerModel, associateModel],
           order: [['createdAt', 'DESC']],
+        });
+      },
+      async attachCustomerSummaries(loans) {
+        if (!Array.isArray(loans) || loans.length === 0) {
+          return [];
+        }
+
+        const customerIds = [...new Set(loans.map((loan) => Number(loan?.customerId)).filter(Number.isFinite))];
+        const relatedLoans = customerIds.length > 0
+          ? await loanModel.findAll({
+            where: { customerId: customerIds },
+            order: [['createdAt', 'DESC'], ['id', 'DESC']],
+          })
+          : [];
+
+        const loansByCustomerId = new Map();
+        relatedLoans.forEach((loanRecord) => {
+          const loan = toPlainRecord(loanRecord);
+          const loanCustomerId = Number(loan.customerId);
+          const entries = loansByCustomerId.get(loanCustomerId) || [];
+          entries.push(loan);
+          loansByCustomerId.set(loanCustomerId, entries);
+        });
+
+        return loans.map((loanRecord) => {
+          const loan = toPlainRecord(loanRecord);
+          return {
+            ...loan,
+            customerSummary: buildCustomerSummary(loansByCustomerId.get(Number(loan.customerId)) || []),
+          };
         });
       },
       save(loan) {
@@ -121,14 +205,25 @@ const createCreditsInfrastructure = ({
         return customerModel.findByPk(id);
       },
     },
-    agentRepository: {
+    recoveryAssignmentRepository: {
+      list() {
+        return agentModel.findAll({ order: [['name', 'ASC']] });
+      },
+      listPage({ page, pageSize }) {
+        return paginateModel({
+          model: agentModel,
+          page,
+          pageSize,
+          order: [['name', 'ASC']],
+        });
+      },
       findById(id) {
         return agentModel.findByPk(id);
       },
     },
     userRepository: {
-      findAgentUserByEmail(email) {
-        return userModel.findOne({ where: { email, role: 'agent' } });
+      findRecoveryAssigneeUserByEmail(email) {
+        return userModel.findOne({ where: { email } });
       },
     },
     attachmentRepository: {
@@ -352,7 +447,7 @@ const createCreditsInfrastructure = ({
       },
     },
     notificationPort: {
-      sendAssignment(userId, payload) {
+      sendRecoveryAssignment(userId, payload) {
         return notifications.sendNotification(
           userId,
           `You have been assigned to Loan #${payload.loanId} (₹${payload.loanAmount}) for customer ${payload.customerName || 'Unknown'}. Please review and begin recovery process.`,
@@ -389,7 +484,7 @@ const createCreditsInfrastructure = ({
 const {
   loanRepository,
   customerRepository,
-  agentRepository,
+  recoveryAssignmentRepository,
   userRepository,
   attachmentRepository,
   alertRepository,
@@ -407,7 +502,7 @@ module.exports = {
   createCreditsInfrastructure,
   loanRepository,
   customerRepository,
-  agentRepository,
+  recoveryAssignmentRepository,
   userRepository,
   attachmentRepository,
   alertRepository,

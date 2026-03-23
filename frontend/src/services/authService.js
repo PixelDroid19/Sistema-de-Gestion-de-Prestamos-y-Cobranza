@@ -6,4 +6,5 @@ export const authService = {
   adminRegister: (payload) => apiRequest('/api/auth/admin/register', { method: 'POST', body: payload }),
   getProfile: () => apiRequest('/api/auth/profile'),
   updateProfile: (payload) => apiRequest('/api/auth/profile', { method: 'PUT', body: payload }),
+  changePassword: (payload) => apiRequest('/api/auth/password', { method: 'PUT', body: payload }),
 };

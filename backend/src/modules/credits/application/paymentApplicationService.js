@@ -822,9 +822,9 @@ const createPaymentApplicationService = ({
    * Annul the nearest pending or overdue installment.
    * Only the nearest cancellable installment can be annulled (accounting integrity rule).
    */
-  const annulInstallment = async ({ loanId, actor, paymentDate = clock() }) => {
-    if (actor?.role !== 'admin' && actor?.role !== 'agent') {
-      throw new AuthorizationError('Only admins and agents can annul installments');
+  const annulInstallment = async ({ loanId, actor, reason, paymentDate = clock() }) => {
+    if (actor?.role !== 'admin') {
+      throw new AuthorizationError('Only admins can annul installments');
     }
 
     return sequelizeInstance.transaction(async (transaction) => {
@@ -921,6 +921,7 @@ const createPaymentApplicationService = ({
             installmentNumber: cancellableRow.installmentNumber,
             annulledBy: actor.id,
             annulledAt: normalizedPaymentDate.toISOString(),
+            reason: reason ? String(reason).trim() : null,
           },
         },
         installmentNumber: cancellableRow.installmentNumber,

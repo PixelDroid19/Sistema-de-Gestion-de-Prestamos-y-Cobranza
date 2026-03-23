@@ -17,6 +17,7 @@ const customerUser = { id: 7, role: 'customer', name: 'Ana Customer' }
 describe('App shell', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('es')
+    window.localStorage.clear()
 
     useSessionStore.setState({
       user: adminUser,
@@ -27,7 +28,7 @@ describe('App shell', () => {
     })
 
     useUiStore.setState({
-      currentView: 'payments',
+      currentView: 'credits-payments',
       isDarkMode: false,
       notificationsOpen: false,
       setCurrentView: vi.fn(),
@@ -116,7 +117,7 @@ describe('App shell', () => {
     })
 
     useUiStore.setState({
-      currentView: 'loans',
+      currentView: 'credits',
       isDarkMode: false,
       notificationsOpen: false,
       setCurrentView: (nextView) => useUiStore.setState({ currentView: nextView }),
@@ -131,19 +132,21 @@ describe('App shell', () => {
 
     renderWithProviders(<App />)
 
-    expect(await screen.findByText('Espacio de prestamos')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(useUiStore.getState().currentView).toBe('credits')
+    })
 
     await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
 
     await waitFor(() => {
-      expect(useUiStore.getState().currentView).toBe('payments')
+      expect(useUiStore.getState().currentView).toBe('credits-payments')
     })
 
-    expect(screen.getByText('Espacio de pagos')).toBeInTheDocument()
+    expect(await screen.findByText('Espacio de pagos')).toBeInTheDocument()
   })
 
   it('normalizes a persisted disallowed view for the logged-in role', () => {
     expect(resolveCurrentViewId('Agents', 'customer')).toBe('dashboard')
-    expect(resolveCurrentViewId('Loans', 'customer')).toBe('loans')
+    expect(resolveCurrentViewId('Loans', 'customer')).toBe('credits')
   })
 })

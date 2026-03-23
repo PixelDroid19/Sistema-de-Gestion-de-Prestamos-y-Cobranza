@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { normalizeSessionUser } from '@/utils/applicationRole';
 import sessionManager from '@/utils/sessionManager';
 
 const getInitialSessionState = () => {
@@ -9,7 +10,7 @@ const getInitialSessionState = () => {
   const session = sessionManager.getSession();
 
   return {
-    user: session?.userData || null,
+    user: normalizeSessionUser(session?.userData),
     token: session?.token || null,
     isReady: true,
   };
@@ -25,16 +26,15 @@ export const useSessionStore = create((set, get) => ({
 
     const session = sessionManager.getSession();
     set({
-      user: session?.userData || null,
+      user: normalizeSessionUser(session?.userData),
       token: session?.token || null,
       isReady: true,
     });
   },
   login: ({ user, token }) => {
-    sessionManager.initSession(token, user);
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    set({ user, token, isReady: true });
+    const normalizedUser = normalizeSessionUser(user);
+    const session = sessionManager.initSession(token, normalizedUser);
+    set({ user: session?.userData || null, token: session?.token || null, isReady: true });
   },
   logout: () => {
     sessionManager.clearSession();
@@ -42,12 +42,18 @@ export const useSessionStore = create((set, get) => ({
   },
   syncUser: (user) => {
     const { token } = get();
-    if (token) {
-      sessionManager.initSession(token, user);
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+    const normalizedUser = normalizeSessionUser(user);
+
+    if (!normalizedUser) {
+      sessionManager.clearSession();
+      set({ user: null, token: null, isReady: true });
+      return;
     }
 
-    set({ user });
+    if (token) {
+      sessionManager.initSession(token, normalizedUser);
+    }
+
+    set({ user: normalizedUser });
   },
 }));

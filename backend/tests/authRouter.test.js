@@ -66,6 +66,9 @@ test('createAuthRouter serves register and login contract responses', async () =
       async updateProfile() {
         throw new Error('updateProfile should not be called');
       },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
     },
   });
 
@@ -163,6 +166,9 @@ test('createAuthRouter serves admin registration through the trusted flow contra
       async updateProfile() {
         throw new Error('updateProfile should not be called');
       },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
     },
   });
 
@@ -173,11 +179,10 @@ test('createAuthRouter serves admin registration through the trusted flow contra
   activeServer = await listen(app);
 
   const payload = {
-    name: 'Ana Agent',
-    email: 'agent@example.com',
+    name: 'Ana Admin',
+    email: 'admin@example.com',
     password: 'secret123',
-    role: 'agent',
-    phone: '+573001112233',
+    role: 'admin',
   };
 
   const response = await requestJson(activeServer, {
@@ -192,14 +197,14 @@ test('createAuthRouter serves admin registration through the trusted flow contra
     success: true,
     message: 'User created successfully',
     data: {
-      token: 'admin-register-token',
-      user: {
-        id: 22,
-        name: 'Ana Agent',
-        email: 'agent@example.com',
-        role: 'agent',
+        token: 'admin-register-token',
+        user: {
+          id: 22,
+          name: 'Ana Admin',
+          email: 'admin@example.com',
+          role: 'admin',
+        },
       },
-    },
   });
   assert.deepEqual(calls, [
     ['registerUser', { actor: { id: 1, role: 'admin' }, registrationSource: 'admin', payload }],
@@ -236,6 +241,10 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
           role: 'customer',
         };
       },
+      async changePassword(userId, payload) {
+        calls.push(['changePassword', userId, payload]);
+        return { success: true };
+      },
     },
   });
 
@@ -259,6 +268,15 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
       email: 'ana.maria@example.com',
     },
   });
+  const changePasswordResponse = await requestJson(activeServer, {
+    method: 'PUT',
+    path: '/password',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      currentPassword: 'current-secret',
+      nextPassword: 'next-secret',
+    },
+  });
 
   assert.equal(profileResponse.statusCode, 200);
   assert.deepEqual(profileResponse.body, {
@@ -273,6 +291,7 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
     },
   });
   assert.equal(updateResponse.statusCode, 200);
+  assert.equal(changePasswordResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body, {
     success: true,
     message: 'Profile updated successfully',
@@ -285,8 +304,13 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
       },
     },
   });
+  assert.deepEqual(changePasswordResponse.body, {
+    success: true,
+    message: 'Password changed successfully',
+  });
   assert.deepEqual(calls, [
     ['getProfile', 7],
     ['updateProfile', 7, { name: 'Ana Maria', email: 'ana.maria@example.com' }],
+    ['changePassword', 7, { currentPassword: 'current-secret', nextPassword: 'next-secret' }],
   ]);
 });

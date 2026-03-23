@@ -12,6 +12,38 @@ const normalizeAttachmentVisibility = (value) => {
   return false;
 };
 
+const enrichCustomersWithLoanSummaries = async ({ customerRepository, result }) => {
+  if (typeof customerRepository.attachLoanSummaries !== 'function') {
+    return result;
+  }
+
+  if (Array.isArray(result)) {
+    return customerRepository.attachLoanSummaries(result);
+  }
+
+  if (Array.isArray(result?.items)) {
+    return {
+      ...result,
+      items: await customerRepository.attachLoanSummaries(result.items),
+    };
+  }
+
+  return result;
+};
+
+const isCustomerPrimaryKeyConflict = (error) => {
+  if (error?.name !== 'SequelizeUniqueConstraintError') {
+    return false;
+  }
+
+  const constraintName = String(error?.parent?.constraint || error?.original?.constraint || '').trim();
+  if (constraintName === 'Customers_pkey') {
+    return true;
+  }
+
+  return /Customers_pkey/u.test(String(error?.message || ''));
+};
+
 /**
  * Create the use case that lists customers in repository-defined order.
  * @param {{ customerRepository: object }} dependencies
@@ -19,10 +51,12 @@ const normalizeAttachmentVisibility = (value) => {
  */
 const createListCustomers = ({ customerRepository }) => async ({ pagination } = {}) => {
   if (pagination) {
-    return customerRepository.listPage(pagination);
+    const result = await customerRepository.listPage(pagination);
+    return enrichCustomersWithLoanSummaries({ customerRepository, result });
   }
 
-  return customerRepository.list();
+  const customers = await customerRepository.list();
+  return enrichCustomersWithLoanSummaries({ customerRepository, result: customers });
 };
 
 /**
@@ -30,10 +64,54 @@ const createListCustomers = ({ customerRepository }) => async ({ pagination } = 
  * @param {{ customerRepository: object }} dependencies
  * @returns {Function}
  */
-const createCreateCustomer = ({ customerRepository }) => async (payload) => customerRepository.create(payload);
+const createCreateCustomer = ({ customerRepository }) => async (payload) => {
+  try {
+    return await customerRepository.create(payload);
+  } catch (error) {
+    if (!isCustomerPrimaryKeyConflict(error) || typeof customerRepository.syncPrimaryKeySequence !== 'function') {
+      throw error;
+    }
+
+    await customerRepository.syncPrimaryKeySequence();
+    return customerRepository.create(payload);
+  }
+};
+
+const createFindCustomerByDocument = ({ customerRepository }) => async ({ documentNumber }) => {
+  const normalizedDocumentNumber = String(documentNumber || '').trim();
+  if (!normalizedDocumentNumber) {
+    throw new ValidationError('Document number is required');
+  }
+
+  const customer = await customerRepository.findByDocumentNumber(normalizedDocumentNumber);
+  if (!customer) {
+    throw new NotFoundError('Customer');
+  }
+
+  return customer;
+};
+
+const createUpdateCustomer = ({ customerRepository }) => async ({ customerId, payload }) => {
+  const customer = await customerRepository.findById(customerId);
+  if (!customer) {
+    throw new NotFoundError('Customer');
+  }
+
+  return customerRepository.update(customer, payload);
+};
+
+const createDeleteCustomer = ({ customerRepository }) => async ({ customerId }) => {
+  const customer = await customerRepository.findById(customerId);
+  if (!customer) {
+    throw new NotFoundError('Customer');
+  }
+
+  await customerRepository.deleteById(customer.id);
+  return { success: true };
+};
 
 const ensureCustomerDocumentAccess = async ({ actor, customerRepository, customerId }) => {
-  if (!['admin', 'agent', 'customer'].includes(actor.role)) {
+  if (!['admin', 'customer'].includes(actor.role)) {
     throw new AuthorizationError('You do not have access to customer documents');
   }
 
@@ -65,9 +143,9 @@ const createUploadCustomerDocument = ({ customerRepository, attachmentStorage })
     throw new ValidationError('Attachment file is required');
   }
 
-  if (!['admin', 'agent'].includes(actor.role)) {
+  if (actor.role !== 'admin') {
     await attachmentStorage.deleteByAbsolutePath(file.path);
-    throw new AuthorizationError('Only admins and agents can upload customer documents');
+    throw new AuthorizationError('Only admins can upload customer documents');
   }
 
   try {
@@ -134,6 +212,9 @@ const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage })
 module.exports = {
   createListCustomers,
   createCreateCustomer,
+  createFindCustomerByDocument,
+  createUpdateCustomer,
+  createDeleteCustomer,
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,

@@ -151,6 +151,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
     { id: 81, loanId: 22, amount: 90 },
     { id: 82, loanId: 22, amount: 110 },
   ];
+  const loan = { id: 22, status: 'approved', paymentContext: { isPayable: true } };
   const router = createPayoutsRouter({
     authMiddleware: allowAuth,
     attachmentUpload: noopAttachmentUpload,
@@ -164,7 +165,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
       },
       async listPaymentsByLoan(input) {
         calls.push(['listPaymentsByLoan', input]);
-        return payments;
+        return { payments, loan };
       },
     },
   });
@@ -188,11 +189,60 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
   assert.deepEqual(response.body, {
     success: true,
     count: 2,
-    data: payments,
+    data: {
+      payments,
+      loan,
+    },
   });
   assert.deepEqual(calls, [
     ['listPaymentsByLoan', { actor: { id: 3, role: 'customer' }, loanId: '22', pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
   ]);
+});
+
+test('createPayoutsRouter serves paginated loan payment lookup contract responses with loan context', async () => {
+  const loan = { id: 22, status: 'approved', paymentContext: { isPayable: true } };
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      async listPaymentsByLoan() {
+        return {
+          items: [{ id: 91, loanId: 22, amount: 100 }],
+          pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
+          loan,
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/loan/22?page=2&pageSize=1',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'customer',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    count: 2,
+    data: {
+      payments: [{ id: 91, loanId: 22, amount: 100 }],
+      loan,
+      pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
+    },
+  });
 });
 
 test('createPayoutsRouter serves partial, capital, and annulment contract responses', async () => {
@@ -253,7 +303,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/annul/15',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'agent' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
   assert.equal(partialResponse.statusCode, 201);
@@ -262,7 +312,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
     ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60 }],
-    ['annulInstallment', { actor: { id: 3, role: 'agent' }, loanId: '15' }],
+    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', reason: undefined }],
   ]);
 });
 

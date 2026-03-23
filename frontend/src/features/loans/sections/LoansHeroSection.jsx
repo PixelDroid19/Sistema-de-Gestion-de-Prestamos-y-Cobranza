@@ -12,9 +12,7 @@ function LoansHeroSection({ role, summaryCards }) {
       className="surface-card surface-card--hero"
       eyebrow={t('loans.hero.eyebrow')}
       title={
-        role === 'agent'
-          ? t('loans.hero.agentTitle')
-          : role === 'admin'
+        role === 'admin'
             ? t('loans.hero.adminTitle')
             : t('loans.hero.customerTitle')
       }

@@ -7,7 +7,6 @@ import { queryKeys } from '@/lib/api/queryKeys';
 const OVERVIEW_PAGINATION = { page: 1, pageSize: 10 };
 const resolveLoanScope = (user) => {
   if (user?.role === 'customer') return `customer-${user?.id}`;
-  if (user?.role === 'agent') return `agent-${user?.id}`;
   return 'all';
 };
 
@@ -21,7 +20,6 @@ export const useLoansOverviewQuery = ({ user, enabled = true } = {}) => useQuery
   queryKey: queryKeys.loans.paged(resolveLoanScope(user), OVERVIEW_PAGINATION),
   queryFn: () => {
     if (user?.role === 'customer') return loanService.listLoansByCustomer(user.id, OVERVIEW_PAGINATION);
-    if (user?.role === 'agent') return loanService.listLoansByAgent(user.id, OVERVIEW_PAGINATION);
     return loanService.listLoans(OVERVIEW_PAGINATION);
   },
   enabled: enabled && Boolean(user),

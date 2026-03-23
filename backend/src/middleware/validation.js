@@ -1,6 +1,7 @@
 const { ValidationError } = require('../utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('../modules/credits/application/creditSimulationService');
 const { parsePaginationQuery } = require('../modules/shared/pagination');
+const { APPLICATION_ROLES, normalizeApplicationRole } = require('../modules/shared/roles');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);
@@ -174,6 +175,7 @@ const authValidation = {
   register: (req, res, next) => {
     const { name, email, password, role, phone } = req.body;
     const errors = [];
+    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -195,7 +197,7 @@ const authValidation = {
       });
     }
 
-    if (role !== 'customer') {
+    if (normalizedRole !== 'customer') {
       errors.push({ field: 'role', message: 'Public registration only allows the customer role' });
     }
 
@@ -210,7 +212,7 @@ const authValidation = {
   adminRegister: (req, res, next) => {
     const { name, email, password, role, phone, associateId } = req.body;
     const errors = [];
-    const validRoles = ['admin', 'agent', 'customer', 'socio'];
+    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -232,15 +234,15 @@ const authValidation = {
       });
     }
 
-    if (!validRoles.includes(role)) {
-      errors.push({ field: 'role', message: `Role must be one of: ${validRoles.join(', ')}` });
+    if (!normalizedRole) {
+      errors.push({ field: 'role', message: `Role must be one of: ${APPLICATION_ROLES.join(', ')}` });
     }
 
-    if ((role === 'agent' || role === 'socio') && (!phone || !validatePhone(phone))) {
-      errors.push({ field: 'phone', message: `Valid phone number is required for ${role} registration` });
+    if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {
+      errors.push({ field: 'phone', message: 'Valid phone number is required for socio registration' });
     }
 
-    if (role === 'socio' && !validateIntegerId(associateId)) {
+    if (normalizedRole === 'socio' && !validateIntegerId(associateId)) {
       errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
     }
 
@@ -399,7 +401,7 @@ const loanValidation = {
   adminRegister: (req, res, next) => {
     const { name, email, password, role, phone, associateId } = req.body;
     const errors = [];
-    const validRoles = ['admin', 'agent', 'customer', 'socio'];
+    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -421,15 +423,15 @@ const loanValidation = {
       });
     }
 
-    if (!validRoles.includes(role)) {
-      errors.push({ field: 'role', message: `Role must be one of: ${validRoles.join(', ')}` });
+    if (!normalizedRole) {
+      errors.push({ field: 'role', message: `Role must be one of: ${APPLICATION_ROLES.join(', ')}` });
     }
 
-    if ((role === 'agent' || role === 'socio') && (!phone || !validatePhone(phone))) {
-      errors.push({ field: 'phone', message: `Valid phone number is required for ${role} registration` });
+    if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {
+      errors.push({ field: 'phone', message: 'Valid phone number is required for socio registration' });
     }
 
-    if (role === 'socio' && !validateIntegerId(associateId)) {
+    if (normalizedRole === 'socio' && !validateIntegerId(associateId)) {
       errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
     }
 
@@ -468,35 +470,7 @@ const paymentValidation = {
 const customerValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { name, email, phone } = req.body;
-    const errors = [];
-
-    if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (!phone || !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
-    }
-
-    if (errors.length > 0) {
-      return next(buildValidationError(errors));
-    }
-
-    next();
-  }
-};
-
-const agentValidation = {
-  /** @type {import('express').RequestHandler} */
-  create: (req, res, next) => {
-    const { name, email, phone } = req.body;
+    const { name, email, phone, status, birthDate } = req.body;
     const errors = [];
 
     if (!name || name.trim().length < 2) {
@@ -521,42 +495,62 @@ const agentValidation = {
   },
 
   /** @type {import('express').RequestHandler} */
-  payoffQuote: (req, res, next) => {
+  update: (req, res, next) => {
+    const {
+      name,
+      email,
+      phone,
+      status,
+      birthDate,
+      documentNumber,
+      occupation,
+      department,
+      city,
+      address,
+    } = req.body;
     const errors = [];
-    const { asOfDate } = req.query;
 
-    if (!validateIntegerId(req.params.id)) {
-      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    if (name !== undefined && String(name).trim().length < 2) {
+      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
     }
 
-    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
-    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
-      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    if (email !== undefined && !validateEmail(email)) {
+      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
     }
 
-    if (errors.length > 0) {
-      return next(buildValidationError(errors));
+    if (phone !== undefined && !validatePhone(phone)) {
+      errors.push({ field: 'phone', message: 'Valid phone number is required' });
     }
 
-    next();
-  },
-
-  /** @type {import('express').RequestHandler} */
-  payoffExecute: (req, res, next) => {
-    const errors = [];
-    const { asOfDate, quotedTotal } = req.body;
-
-    if (!validateIntegerId(req.params.id)) {
-      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+    if (status !== undefined && !['active', 'inactive'].includes(status)) {
+      errors.push({ field: 'status', message: 'Status must be active or inactive' });
     }
 
-    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
-    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
-      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+    if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
+      const parsedBirthDate = new Date(`${String(birthDate).trim()}T00:00:00.000Z`);
+      if (Number.isNaN(parsedBirthDate.getTime())) {
+        errors.push({ field: 'birthDate', message: 'Birth date must be a valid YYYY-MM-DD date' });
+      }
     }
 
-    if (!validateAmount(Number(quotedTotal))) {
-      errors.push({ field: 'quotedTotal', message: 'quotedTotal must be a positive number' });
+    if (documentNumber !== undefined && documentNumber !== null && String(documentNumber).trim() === '') {
+      errors.push({ field: 'documentNumber', message: 'Document number cannot be empty' });
+    }
+
+    if (occupation !== undefined && occupation !== null && String(occupation).trim() === '') {
+      errors.push({ field: 'occupation', message: 'Occupation cannot be empty' });
+    }
+
+    if (department !== undefined && department !== null && String(department).trim() === '') {
+      errors.push({ field: 'department', message: 'Department cannot be empty' });
+    }
+
+    if (city !== undefined && city !== null && String(city).trim() === '') {
+      errors.push({ field: 'city', message: 'City cannot be empty' });
+    }
+
+    if (address !== undefined && address !== null && String(address).trim() === '') {
+      errors.push({ field: 'address', message: 'Address cannot be empty' });
     }
 
     if (errors.length > 0) {
@@ -786,7 +780,6 @@ module.exports = {
   loanValidation,
   paymentValidation,
   customerValidation,
-  agentValidation,
   associateValidation,
   notificationValidation,
 };

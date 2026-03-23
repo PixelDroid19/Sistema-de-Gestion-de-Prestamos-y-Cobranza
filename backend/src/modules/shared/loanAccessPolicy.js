@@ -1,6 +1,8 @@
 const { AuthorizationError, NotFoundError } = require('../../utils/errorHandler');
+const { normalizeApplicationRole } = require('./roles');
 
 const normalizeId = (value) => Number(value);
+const resolveActorRole = (actor) => normalizeApplicationRole(actor?.role);
 
 /**
  * Determine whether an actor can read a loan under the shared visibility rules.
@@ -12,19 +14,17 @@ const isLoanVisibleToActor = ({ actor, loan }) => {
     return false;
   }
 
-  if (actor.role === 'admin') {
+  const actorRole = resolveActorRole(actor);
+
+  if (actorRole === 'admin') {
     return true;
   }
 
-  if (actor.role === 'customer') {
+  if (actorRole === 'customer') {
     return normalizeId(actor.id) === normalizeId(loan.customerId);
   }
 
-  if (actor.role === 'agent') {
-    return normalizeId(actor.id) === normalizeId(loan.agentId);
-  }
-
-  if (actor.role === 'socio') {
+  if (actorRole === 'socio') {
     return normalizeId(actor.associateId) === normalizeId(loan.associateId);
   }
 
@@ -36,7 +36,7 @@ const canActorViewAttachment = ({ actor, loan, attachment }) => {
     return false;
   }
 
-  if (actor.role === 'customer') {
+  if (resolveActorRole(actor) === 'customer') {
     return isLoanVisibleToActor({ actor, loan }) && Boolean(attachment.customerVisible);
   }
 
@@ -53,36 +53,28 @@ const isLoanMutableByActor = ({ actor, loan }) => {
     return false;
   }
 
-  if (actor.role === 'admin') {
+  if (resolveActorRole(actor) === 'admin') {
     return true;
-  }
-
-  if (actor.role === 'agent') {
-    return normalizeId(actor.id) === normalizeId(loan.agentId);
   }
 
   return false;
 };
 
 const buildAccessDeniedMessage = (actor) => {
-  if (actor?.role === 'customer') {
+  const actorRole = resolveActorRole(actor);
+
+  if (actorRole === 'customer') {
     return 'You can only access your own loans';
   }
 
-  if (actor?.role === 'agent') {
-    return 'You can only access loans assigned to you';
+  if (actorRole === 'socio') {
+    return 'You can only access loans linked to your associate account';
   }
 
   return 'You do not have access to this loan';
 };
 
-const buildMutationDeniedMessage = (actor) => {
-  if (actor?.role === 'agent') {
-    return 'You can only update loans assigned to you';
-  }
-
-  return 'You do not have permission to update this loan';
-};
+const buildMutationDeniedMessage = () => 'You do not have permission to update this loan';
 
 /**
  * Create the shared loan access policy used by credit, payout, and reporting seams.

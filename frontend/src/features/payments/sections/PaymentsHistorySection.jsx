@@ -58,6 +58,7 @@ function PaymentsHistorySection({
   onPaymentDocumentDraftChange,
   onUploadPaymentDocument,
   onDownloadPaymentDocument,
+  onUpdatePaymentMetadata,
   onAnnulInstallment,
   annulMutation,
   nearestCancellableInstallmentNumber,
@@ -105,6 +106,16 @@ function PaymentsHistorySection({
         render: (payment) => t(PAYMENT_TYPE_LABELS[payment.paymentType] || payment.paymentType),
       },
       {
+        key: 'method',
+        header: t('payments.history.headers.method'),
+        render: (payment) => payment.paymentMetadata?.method || '—',
+      },
+      {
+        key: 'observation',
+        header: t('payments.history.headers.observation'),
+        render: (payment) => payment.paymentMetadata?.observation || payment.paymentMetadata?.description || '—',
+      },
+      {
         key: 'date',
         header: t('payments.history.headers.paymentDate'),
         cellClassName: 'table-cell-center',
@@ -119,7 +130,16 @@ function PaymentsHistorySection({
           </Badge>
         ),
       },
-    ], [t])
+      {
+        key: 'action',
+        header: t('payments.history.headers.action'),
+        render: (payment) => (
+          <Button variant="outline" size="sm" onClick={() => onUpdatePaymentMetadata(payment)}>
+            {t('common.actions.edit')}
+          </Button>
+        ),
+      },
+    ], [onUpdatePaymentMetadata, t])
 
   const installmentColumns = useMemo(() => [
       { key: 'installmentNumber', header: t('payments.history.headers.installment'), render: (entry) => `#${entry.installmentNumber}` },

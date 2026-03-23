@@ -13,18 +13,27 @@ function DagWorkbenchFormulaPreview({ formula, renderFormula, loading, error, em
     return <div className="inline-message inline-message--error">{error}</div>;
   }
 
-  try {
-    const markup = renderFormula ? renderFormula(formula) : formula;
+  let markup = formula;
+  let renderError = null;
 
-    return (
-      <div
-        className="loans-dag-workbench__formula-preview"
-        dangerouslySetInnerHTML={{ __html: markup }}
-      />
-    );
-  } catch (renderError) {
+  if (renderFormula) {
+    try {
+      markup = renderFormula(formula);
+    } catch (errorValue) {
+      renderError = errorValue;
+    }
+  }
+
+  if (renderError) {
     return <div className="inline-message inline-message--error">{renderError.message}</div>;
   }
+
+  return (
+    <div
+      className="loans-dag-workbench__formula-preview"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
 }
 
 export default DagWorkbenchFormulaPreview;

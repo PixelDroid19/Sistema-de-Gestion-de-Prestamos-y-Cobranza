@@ -26,17 +26,17 @@ describe('Sidebar', () => {
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Pagos' }))
-    expect(setCurrentView).toHaveBeenCalledWith('payments')
+    expect(setCurrentView).toHaveBeenCalledWith('credits-payments')
   })
 
-  it('keeps agent navigation aligned with role-gated workspaces', () => {
-    expect(getNavigationGroupsForRole('agent')).toEqual([
+  it('keeps admin navigation aligned with the final role-gated workspaces', () => {
+    expect(getNavigationGroupsForRole('admin')).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'overview', items: [expect.objectContaining({ id: 'dashboard' })] }),
       expect.objectContaining({ id: 'customers', items: [expect.objectContaining({ id: 'customers' }), expect.objectContaining({ id: 'customers-new' })] }),
-      expect.objectContaining({ id: 'loans', items: [expect.objectContaining({ id: 'loans' }), expect.objectContaining({ id: 'loans-new' })] }),
-      expect.objectContaining({ id: 'payments', items: [expect.objectContaining({ id: 'payments' })] }),
+      expect.objectContaining({ id: 'credits', items: [expect.objectContaining({ id: 'credits' }), expect.objectContaining({ id: 'credits-new' }), expect.objectContaining({ id: 'credits-payments' })] }),
+      expect.objectContaining({ id: 'partners', items: [expect.objectContaining({ id: 'partners' }), expect.objectContaining({ id: 'partners-reports' })] }),
       expect.objectContaining({ id: 'system', items: [expect.objectContaining({ id: 'notifications' })] }),
-    ])
+    ]))
   })
 
   it('limits socio navigation and delegates logout to the session store', async () => {

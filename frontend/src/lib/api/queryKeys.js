@@ -8,6 +8,7 @@ const pagedKey = (segments, pagination = {}) => {
 export const queryKeys = {
   auth: {
     profile: () => ['auth', 'profile'],
+    password: () => ['auth', 'password'],
   },
   dashboard: {
     summary: () => ['dashboard', 'summary'],
@@ -34,9 +35,9 @@ export const queryKeys = {
     byLoanPaged: (loanId, pagination = {}) => pagedKey(['payments', 'loan', loanId], pagination),
     documents: (paymentId) => ['payments', 'documents', paymentId],
   },
-  agents: {
-    all: () => ['agents'],
-    paged: (pagination = {}) => pagedKey(['agents'], pagination),
+  recoveryRoster: {
+    all: () => ['recovery-roster'],
+    paged: (pagination = {}) => pagedKey(['recovery-roster'], pagination),
   },
   customers: {
     all: () => ['customers'],
@@ -69,5 +70,10 @@ export const queryKeys = {
     all: () => ['users'],
     paged: (pagination = {}) => pagedKey(['users'], pagination),
     detail: (userId) => ['users', userId],
+  },
+  config: {
+    paymentMethods: () => ['config', 'payment-methods'],
+    settings: () => ['config', 'settings'],
+    catalogs: () => ['config', 'catalogs'],
   },
 };

@@ -60,3 +60,39 @@ test('createAuthMiddleware assigns req.user when verification succeeds', async (
 
   assert.deepEqual(req.user, { id: 7, role: 'admin' });
 });
+
+test('createAuthMiddleware normalizes legacy agent claims to admin access', async () => {
+  const auth = createAuthMiddleware({
+    tokenService: {
+      verify() {
+        return { id: 14, role: 'agent' };
+      },
+    },
+  });
+
+  const req = { body: {}, params: {}, query: {}, headers: { authorization: 'Bearer valid-token' } };
+  await new Promise((resolve, reject) => {
+    auth(['admin'])(req, {}, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+  assert.deepEqual(req.user, { id: 14, role: 'admin' });
+});
+
+test('createAuthMiddleware rejects unsupported role policies during setup', () => {
+  const auth = createAuthMiddleware({
+    tokenService: {
+      verify() {
+        return { id: 7, role: 'admin' };
+      },
+    },
+  });
+
+  assert.throws(() => auth(['agent']), /Unsupported role policy requested: agent/);
+});

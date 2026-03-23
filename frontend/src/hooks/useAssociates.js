@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { associateService } from '@/services/associateService';
+import { loanService } from '@/services/loanService';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { normalizePaginationState } from '@/lib/api/pagination';
 
@@ -17,6 +18,14 @@ export const useAssociatePortalQuery = (associateId, { enabled = true } = {}) =>
   queryKey: queryKeys.associates.portal(associateId),
   queryFn: () => associateService.getAssociatePortal(associateId),
   enabled,
+});
+
+export const useAssociateLoanCalendars = (loans = [], { enabled = true } = {}) => useQueries({
+  queries: loans.map((loan) => ({
+    queryKey: queryKeys.loans.calendar(loan?.id),
+    queryFn: () => loanService.getLoanCalendar(loan.id),
+    enabled: enabled && Boolean(loan?.id),
+  })),
 });
 
 const invalidateAssociateScope = (queryClient, associateId) => {

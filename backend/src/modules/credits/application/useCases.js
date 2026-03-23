@@ -1,6 +1,11 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
 const { buildPaginatedResult } = require('../../shared/pagination');
+const {
+  evaluateCapitalPaymentEligibility,
+  evaluatePayoffEligibility,
+  PAYABLE_LOAN_STATUSES,
+} = require('./paymentEligibility');
 
 const normalizeAttachmentVisibility = (value) => {
   if (typeof value === 'boolean') {
@@ -67,6 +72,43 @@ const buildPdfBuffer = ({ title, lines }) => {
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
 
   return Buffer.from(pdf, 'utf8');
+};
+
+const enrichLoansWithCustomerSummaries = async ({ loanRepository, result }) => {
+  if (typeof loanRepository.attachCustomerSummaries !== 'function') {
+    return result;
+  }
+
+  if (Array.isArray(result)) {
+    return loanRepository.attachCustomerSummaries(result);
+  }
+
+  if (Array.isArray(result?.items)) {
+    return {
+      ...result,
+      items: await loanRepository.attachCustomerSummaries(result.items),
+    };
+  }
+
+  return result;
+};
+
+const enrichLoanWithCustomerSummary = async ({ loanRepository, loan }) => {
+  if (!loan || typeof loanRepository.attachCustomerSummaries !== 'function') {
+    return loan;
+  }
+
+  const [enrichedLoan = loan] = await loanRepository.attachCustomerSummaries([loan]);
+  return enrichedLoan;
+};
+
+const enrichCustomerWithLoanSummary = async ({ customerRepository, customer }) => {
+  if (!customer || typeof customerRepository.attachLoanSummaries !== 'function') {
+    return customer;
+  }
+
+  const [enrichedCustomer = customer] = await customerRepository.attachLoanSummaries([customer]);
+  return enrichedCustomer;
 };
 
 const buildPromiseToPayPdfBuffer = ({ promise, loan, customer }) => {
@@ -218,7 +260,8 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
  */
 const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, pagination }) => {
   if (pagination && actor?.role === 'admin') {
-    return loanRepository.listPage(pagination);
+    const result = await loanRepository.listPage(pagination);
+    return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
 
   const loans = await loanRepository.list();
@@ -229,15 +272,16 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
   if (pagination) {
     const offset = pagination.offset || 0;
     const items = visibleLoans.slice(offset, offset + pagination.pageSize);
-    return buildPaginatedResult({
+    const result = buildPaginatedResult({
       items,
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems: visibleLoans.length,
     });
+    return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
 
-  return visibleLoans;
+  return enrichLoansWithCustomerSummaries({ loanRepository, result: visibleLoans });
 };
 
 /**
@@ -262,12 +306,36 @@ const createGetDagWorkbenchSummary = ({ dagWorkbenchService }) => async ({ actor
  * @param {{ loanAccessPolicy?: object, loanRepository: object }} dependencies
  * @returns {Function}
  */
-const createGetLoanById = ({ loanAccessPolicy, loanRepository }) => async ({ actor, loanId }) => {
+const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
+  const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
+  const payoffEligibility = evaluatePayoffEligibility({ loan, schedule, snapshot });
+  const capitalEligibility = evaluateCapitalPaymentEligibility({ loan, schedule, snapshot });
+
+  return {
+    isPayable: PAYABLE_LOAN_STATUSES.has(loan.status),
+    allowedPaymentTypes: actor?.role === 'admin'
+      ? ['installment', 'partial', 'capital']
+      : actor?.role === 'customer'
+        ? ['installment', 'payoff']
+        : [],
+    snapshot,
+    payoffEligibility,
+    capitalEligibility,
+  };
+};
+
+const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }) => async ({ actor, loanId }) => {
   if (loanAccessPolicy) {
-    return loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+    const authorizedLoan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+    const loan = await enrichLoanWithCustomerSummary({ loanRepository, loan: authorizedLoan });
+    return {
+      ...loan,
+      paymentContext: loanViewService ? buildLoanPaymentContext({ actor, loan, loanViewService }) : undefined,
+    };
   }
 
-  const loan = await loanRepository.findById(loanId);
+  const foundLoan = await loanRepository.findById(loanId);
+  const loan = await enrichLoanWithCustomerSummary({ loanRepository, loan: foundLoan });
   if (!loan) {
     throw new NotFoundError('Loan');
   }
@@ -276,11 +344,10 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository }) => async ({ act
     throw new AuthorizationError('You can only view your own loans');
   }
 
-  if (actor.role === 'agent' && loan.agentId !== actor.id) {
-    throw new AuthorizationError('You can only view loans assigned to you');
-  }
-
-  return loan;
+  return {
+    ...loan,
+    paymentContext: loanViewService ? buildLoanPaymentContext({ actor, loan, loanViewService }) : undefined,
+  };
 };
 
 /**
@@ -306,42 +373,62 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
     throw new AuthorizationError('You can only view your own loans');
   }
 
-  const customer = await customerRepository.findById(customerId);
+  const foundCustomer = await customerRepository.findById(customerId);
+  const customer = await enrichCustomerWithLoanSummary({ customerRepository, customer: foundCustomer });
   if (!customer) {
     throw new NotFoundError('Customer');
   }
 
   if (pagination) {
     const result = await loanRepository.listPageByCustomer({ customerId, ...pagination });
-    return { customer, loans: result.items, pagination: result.pagination };
+    const enrichedLoans = await enrichLoansWithCustomerSummaries({ loanRepository, result: result.items });
+    return { customer, loans: enrichedLoans, pagination: result.pagination };
   }
 
   const loans = await loanRepository.listByCustomer(customerId);
-  return { loans, customer };
+  const enrichedLoans = await enrichLoansWithCustomerSummaries({ loanRepository, result: loans });
+  return { loans: enrichedLoans, customer };
 };
 
 /**
- * Create the use case that lists loans assigned to a specific agent.
- * @param {{ agentRepository: object, loanRepository: object }} dependencies
+ * Create the use case that lists loans assigned to a specific recovery owner.
+ * @param {{ recoveryAssignmentRepository: object, loanRepository: object }} dependencies
  * @returns {Function}
  */
-const createListLoansByAgent = ({ agentRepository, loanRepository }) => async ({ actor, agentId, pagination }) => {
-  if (actor.role === 'agent' && actor.id !== Number(agentId)) {
-    throw new AuthorizationError('You can only view your own assigned loans');
+const createListLoansByRecoveryAssignee = ({ recoveryAssignmentRepository, loanRepository }) => async ({ actor, recoveryAssigneeId, pagination }) => {
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can view assigned loan portfolios');
   }
 
-  const agent = await agentRepository.findById(agentId);
-  if (!agent) {
-    throw new NotFoundError('Agent');
+  const recoveryAssignee = await recoveryAssignmentRepository.findById(recoveryAssigneeId);
+  if (!recoveryAssignee) {
+    throw new NotFoundError('Recovery assignee');
   }
 
   if (pagination) {
-    const result = await loanRepository.listPageByAgent({ agentId, ...pagination });
-    return { agent, loans: result.items, pagination: result.pagination };
+    const result = await loanRepository.listPageByRecoveryAssignee({ recoveryAssigneeId, ...pagination });
+    return { recoveryAssignee, loans: result.items, pagination: result.pagination };
   }
 
-  const loans = await loanRepository.listByAgent(agentId);
-  return { loans, agent };
+  const loans = await loanRepository.listByRecoveryAssignee(recoveryAssigneeId);
+  return { loans, recoveryAssignee };
+};
+
+/**
+ * Create the use case that lists available recovery roster entries.
+ * @param {{ recoveryAssignmentRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createListRecoveryRoster = ({ recoveryAssignmentRepository }) => async ({ actor, pagination }) => {
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can view the recovery roster');
+  }
+
+  if (pagination) {
+    return recoveryAssignmentRepository.listPage(pagination);
+  }
+
+  return recoveryAssignmentRepository.list();
 };
 
 /**
@@ -388,13 +475,13 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy }) => async (
 };
 
 /**
- * Create the use case that assigns an agent to a recoverable loan and emits a notification.
- * @param {{ loanRepository: object, agentRepository: object, userRepository: object, notificationPort: object }} dependencies
+ * Create the use case that assigns a recovery owner to a recoverable loan and emits a notification.
+ * @param {{ loanRepository: object, recoveryAssignmentRepository: object, userRepository: object, notificationPort: object }} dependencies
  * @returns {Function}
  */
-const createAssignAgent = ({ loanRepository, agentRepository, userRepository, notificationPort }) => async ({ actor, loanId, agentId }) => {
+const createAssignRecoveryAssignee = ({ loanRepository, recoveryAssignmentRepository, userRepository, notificationPort }) => async ({ actor, loanId, recoveryAssigneeId }) => {
   if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can assign agents to loans');
+    throw new AuthorizationError('Only admins can assign recovery owners to loans');
   }
 
   const loan = await loanRepository.findById(loanId);
@@ -402,26 +489,26 @@ const createAssignAgent = ({ loanRepository, agentRepository, userRepository, no
     throw new NotFoundError('Loan');
   }
 
-  const agent = await agentRepository.findById(agentId);
-  if (!agent) {
-    throw new NotFoundError('Agent');
+  const recoveryAssignee = await recoveryAssignmentRepository.findById(recoveryAssigneeId);
+  if (!recoveryAssignee) {
+    throw new NotFoundError('Recovery assignee');
   }
 
   if (!['approved', 'defaulted'].includes(loan.status)) {
-    throw new ValidationError('Can only assign agents to approved or defaulted loans');
+    throw new ValidationError('Can only assign recovery owners to approved or defaulted loans');
   }
 
-  if (loan.agentId === agentId) {
-    throw new ValidationError('This agent is already assigned to this loan');
+  if (loan.agentId === recoveryAssigneeId) {
+    throw new ValidationError('This recovery owner is already assigned to this loan');
   }
 
-  loan.agentId = agentId;
+  loan.agentId = recoveryAssigneeId;
   loan.recoveryStatus = loan.status === 'defaulted' ? 'assigned' : 'pending';
   const savedLoan = await loanRepository.save(loan);
 
-  const user = await userRepository.findAgentUserByEmail(agent.email);
+  const user = await userRepository.findRecoveryAssigneeUserByEmail(recoveryAssignee.email);
   if (user) {
-    await notificationPort.sendAssignment(user.id, {
+    await notificationPort.sendRecoveryAssignment(user.id, {
       loanId: savedLoan.id,
       loanAmount: savedLoan.amount,
       customerName: savedLoan.Customer?.name,
@@ -447,8 +534,8 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
     throw new ValidationError(`Invalid recovery status. Must be one of: ${validRecoveryStatuses.join(', ')}`);
   }
 
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can update recovery status');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can update recovery status');
   }
 
   const loan = loanAccessPolicy
@@ -612,8 +699,8 @@ const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => asy
 };
 
 const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, payload }) => {
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can create promises to pay');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can create promises to pay');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -647,8 +734,8 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy }) => as
 };
 
 const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, payload }) => {
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can create follow-up reminders');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can create follow-up reminders');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -717,8 +804,8 @@ const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificat
 };
 
 const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => async ({ actor, loanId, alertId, payload }) => {
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can update loan alerts');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can update loan alerts');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -751,8 +838,8 @@ const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => a
 };
 
 const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, promiseId, payload }) => {
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can update promise statuses');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can update promise statuses');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -804,8 +891,8 @@ const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, n
 };
 
 const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, promiseId }) => {
-  if (!['admin', 'agent'].includes(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can download promise documents');
+  if (actor.role !== 'admin') {
+    throw new AuthorizationError('Only admins can download promise documents');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -835,9 +922,10 @@ module.exports = {
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,
-  createListLoansByAgent,
+  createListLoansByRecoveryAssignee,
+  createListRecoveryRoster,
   createUpdateLoanStatus,
-  createAssignAgent,
+  createAssignRecoveryAssignee,
   createUpdateRecoveryStatus,
   createDeleteLoan,
   createListLoanAttachments,

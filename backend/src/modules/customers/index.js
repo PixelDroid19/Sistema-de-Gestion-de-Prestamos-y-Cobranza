@@ -3,6 +3,9 @@ const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListCustomers,
   createCreateCustomer,
+  createFindCustomerByDocument,
+  createUpdateCustomer,
+  createDeleteCustomer,
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
@@ -24,6 +27,9 @@ const createCustomersModule = ({ sharedRuntime } = {}) => {
   const useCases = {
     listCustomers: createListCustomers({ customerRepository }),
     createCustomer: createCreateCustomer({ customerRepository }),
+    findCustomerByDocument: createFindCustomerByDocument({ customerRepository }),
+    updateCustomer: createUpdateCustomer({ customerRepository }),
+    deleteCustomer: createDeleteCustomer({ customerRepository }),
     listCustomerDocuments: createListCustomerDocuments({ customerRepository }),
     uploadCustomerDocument: createUploadCustomerDocument({ customerRepository, attachmentStorage }),
     downloadCustomerDocument: createDownloadCustomerDocument({ customerRepository, attachmentStorage }),

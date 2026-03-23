@@ -10,6 +10,9 @@ const {
   createGetCustomerHistory,
   createGetCustomerCreditProfile,
   createGetCustomerCreditHistory,
+  createExportCustomerHistory,
+  createExportCustomerCreditProfile,
+  createExportCustomerCreditHistory,
   createExportRecoveryReport,
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
@@ -69,7 +72,7 @@ test('createGetOutstandingLoans rejects non-admin users', async () => {
     },
   });
 
-  await assert.rejects(() => getOutstandingLoans({ actor: { id: 2, role: 'agent' } }), (error) => {
+  await assert.rejects(() => getOutstandingLoans({ actor: { id: 2, role: 'customer' } }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
@@ -226,6 +229,72 @@ test('createGetCustomerCreditHistory does not surface quote-only activity when n
   assert.equal(history.payoffHistory.length, 0);
   assert.equal(history.payments[0].paymentType, 'installment');
   assert.equal(history.closure.closureReason, null);
+});
+
+test('customer report export use-cases return downloadable files', async () => {
+  const exportCustomerHistory = createExportCustomerHistory({
+    reportRepository: {
+      async getCustomerHistory() {
+        return {
+          customer: { id: 7, name: 'Ana Customer' },
+          loans: [{ id: 11, status: 'approved', createdAt: '2026-01-01T00:00:00.000Z' }],
+          payments: [{ id: 12, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z', createdAt: '2026-02-01T00:00:00.000Z' }],
+          documents: [],
+          alerts: [],
+          promises: [],
+          notifications: [],
+        };
+      },
+    },
+  });
+  const exportCustomerCreditProfile = createExportCustomerCreditProfile({
+    reportRepository: {
+      async getCustomerCreditProfileDataset() {
+        return {
+          customer: { id: 7, name: 'Ana Customer' },
+          loans: [{ id: 11, customerId: 7, status: 'active' }],
+          payments: [{ id: 12, loanId: 11, amount: 100, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z' }],
+          documents: [{ id: 18 }],
+          alerts: [],
+          promises: [],
+          notifications: [],
+        };
+      },
+    },
+  });
+  const exportCustomerCreditHistory = createExportCustomerCreditHistory({
+    paymentRepository: {
+      async listByLoan() {
+        return [{ id: 1, amount: 120, paymentType: 'installment', status: 'completed', paymentDate: '2026-02-15T00:00:00.000Z' }];
+      },
+    },
+    loanViewService: {
+      getSnapshot() {
+        return { outstandingBalance: 80, totalPaid: 120 };
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7, status: 'active', closedAt: null, closureReason: null };
+      },
+    },
+  });
+
+  const [historyFile, profileFile, loanFile] = await Promise.all([
+    exportCustomerHistory({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'pdf' }),
+    exportCustomerCreditProfile({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'pdf' }),
+    exportCustomerCreditHistory({ actor: { id: 7, role: 'customer' }, loanId: 22, format: 'pdf' }),
+  ]);
+
+  assert.equal(historyFile.fileName, 'customer-7-history.pdf');
+  assert.equal(historyFile.contentType, 'application/pdf');
+  assert.equal(historyFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
+  assert.equal(profileFile.fileName, 'customer-7-credit-profile.pdf');
+  assert.equal(profileFile.contentType, 'application/pdf');
+  assert.equal(profileFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
+  assert.equal(loanFile.fileName, 'loan-22-credit-history.pdf');
+  assert.equal(loanFile.contentType, 'application/pdf');
+  assert.equal(loanFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
 });
 
 test('createGetDashboardSummary aggregates dashboard sections and degrades to empty sections on repository failure', async () => {

@@ -255,6 +255,45 @@ export const getLoanDetails = (loans, payments, loanId) => {
   return { emi: emi.toFixed(2), balance: finalBalance.toFixed(2) };
 };
 
+export const getLoanPaymentContext = (loan) => {
+  if (!loan || typeof loan !== 'object') {
+    return null;
+  }
+
+  return loan.paymentContext && typeof loan.paymentContext === 'object'
+    ? loan.paymentContext
+    : null;
+};
+
+export const getNearestCancellableInstallmentNumber = (calendar = []) => {
+  const entries = Array.isArray(calendar) ? calendar : [];
+  const cancellableStatuses = new Set(['pending', 'overdue']);
+
+  const nearestCancellableEntry = entries.find((entry) => {
+    const outstanding = Number(entry?.outstandingAmount || 0);
+    return outstanding > 0 && cancellableStatuses.has(entry?.status);
+  });
+
+  if (!nearestCancellableEntry) {
+    return null;
+  }
+
+  const nearestIndex = entries.findIndex((entry) => (
+    Number(entry?.installmentNumber) === Number(nearestCancellableEntry.installmentNumber)
+  ));
+
+  if (nearestIndex <= 0) {
+    return nearestCancellableEntry.installmentNumber;
+  }
+
+  const hasEarlierBlockingEntry = entries.slice(0, nearestIndex).some((entry) => {
+    const outstanding = Number(entry?.outstandingAmount || 0);
+    return outstanding > 0 && entry?.status !== 'annulled' && !cancellableStatuses.has(entry?.status);
+  });
+
+  return hasEarlierBlockingEntry ? null : nearestCancellableEntry.installmentNumber;
+};
+
 export const formReducer = (state, action) => {
   switch (action.type) {
     case 'SET_FIELD':
