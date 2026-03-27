@@ -3,6 +3,7 @@ const {
   NotFoundError,
   ValidationError,
 } = require('../../../../utils/errorHandler');
+const { logSecurity, logBusiness } = require('../../../../utils/logger');
 
 const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
 
@@ -176,7 +177,6 @@ const createDagWorkbenchService = ({
         error.errors = validation.errors;
         throw error;
       }
-
       const graphVersion = await dagGraphRepository.saveVersion({
         scopeKey: normalizedScopeKey,
         name: String(name || 'Untitled DAG Graph').trim() || 'Untitled DAG Graph',
@@ -184,6 +184,13 @@ const createDagWorkbenchService = ({
         graphSummary: validation.summary,
         validation,
         createdByUserId: actor.id,
+      });
+
+      logBusiness('dag.graph.saved', {
+        graphId: graphVersion.id,
+        scopeKey: normalizedScopeKey,
+        actorId: actor.id,
+        version: graphVersion.version,
       });
 
       return { graphVersion, validation };
@@ -282,6 +289,13 @@ const createDagWorkbenchService = ({
       }
 
       const updated = await dagGraphRepository.updateStatus(graphId, 'active');
+      
+      logSecurity('dag.graph.activated', {
+        graphId,
+        actorId: actor.id,
+        name: graph.name,
+      });
+
       return { graph: updated };
     },
 
@@ -299,6 +313,13 @@ const createDagWorkbenchService = ({
       }
 
       const updated = await dagGraphRepository.updateStatus(graphId, 'inactive');
+      
+      logSecurity('dag.graph.deactivated', {
+        graphId,
+        actorId: actor.id,
+        name: graph.name,
+      });
+
       return { graph: updated };
     },
 
@@ -321,6 +342,13 @@ const createDagWorkbenchService = ({
       }
 
       await dagGraphRepository.deleteGraph(graphId);
+
+      logSecurity('dag.graph.deleted', {
+        graphId,
+        actorId: actor.id,
+        name: graph.name,
+      });
+
       return { deleted: true };
     },
   };

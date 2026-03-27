@@ -1,5 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+let helmet;
+try {
+  helmet = require('helmet');
+} catch (e) {
+  // helmet not installed
+}
 require('dotenv').config();
 
 const { createSharedRuntime } = require('./bootstrap/sharedRuntime');
@@ -17,10 +23,15 @@ const createApp = ({
   moduleRegistry = buildModuleRegistry({ sharedRuntime }),
 } = {}) => {
   const app = express();
+  const { globalLimiter } = require('./middleware/rateLimiter');
 
-  app.use(cors());
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  if (helmet) {
+    app.use(helmet());
+  }
+  app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
+  app.use(globalLimiter);
+  app.use(express.json({ limit: '2mb' })); // Reduced limit for better security
+  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(logRequest);
 
   app.get('/health', (req, res) => {

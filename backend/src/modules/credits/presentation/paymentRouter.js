@@ -41,16 +41,27 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {})
     next();
   };
 
-  router.post('/process', authMiddleware ? authMiddleware() : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); }, validateProcessPaymentBody, asyncHandler(async (req, res) => {
-    const { loanId, paymentAmount, paymentDate } = req.body;
-    const actorId = req.user?.id || 0;
+  const { paymentLimiter } = require('../../../middleware/rateLimiter');
 
-    const result = await paymentService.processPayment({
-      loanId,
-      paymentAmount,
-      paymentDate,
-      actorId,
-    });
+  /**
+   * Process a payment using the DAG workbench logic.
+   */
+  router.post('/process', 
+    authMiddleware ? authMiddleware() : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); }, 
+    paymentLimiter,
+    validateProcessPaymentBody, 
+    asyncHandler(async (req, res) => {
+      const { loanId, paymentAmount, paymentDate, idempotencyKey: bodyKey } = req.body;
+      const actorId = req.user?.id || 0;
+      const idempotencyKey = req.headers['idempotency-key'] || bodyKey;
+
+      const result = await paymentService.processPayment({
+        loanId,
+        paymentAmount,
+        paymentDate,
+        actorId,
+        idempotencyKey,
+      });
 
     res.status(200).json({
       success: true,

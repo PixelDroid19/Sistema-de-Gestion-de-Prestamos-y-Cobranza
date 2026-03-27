@@ -966,10 +966,10 @@ const createPaymentApplicationService = ({
     }
   };
 
-  const processPayment = async ({ loanId, paymentAmount, paymentDate, actorId = 0 }) => {
+  const processPayment = async ({ loanId, paymentAmount, paymentDate, actorId = 0, idempotencyKey: reqIdempotencyKey }) => {
     validateProcessPaymentInput({ loanId, paymentAmount, paymentDate });
 
-    const idempotencyKey = generateIdempotencyKey(loanId, paymentAmount, paymentDate);
+    const idempotencyKey = reqIdempotencyKey || generateIdempotencyKey(loanId, paymentAmount, paymentDate);
     const requestHash = crypto.createHash('sha256')
       .update(`${loanId}${paymentAmount}${paymentDate}`)
       .digest('hex');
