@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
+@import "react-big-calendar/lib/css/react-big-calendar.css";
+
+@theme {
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-hover-bg: var(--hover-bg);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+}
+
+@layer base {
+  :root {
+    --bg-base: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-elevated: #ffffff;
+    --hover-bg: #f1f5f9;
+    
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    
+    --border-subtle: #e2e8f0;
+    --border-strong: #cbd5e1;
+  }
+  
+  .dark {
+    --bg-base: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-elevated: #334155;
+    --hover-bg: #334155;
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    
+    --border-subtle: #334155;
+    --border-strong: #475569;
+  }
+  
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+  }
+}
+
+/* Custom styles for react-big-calendar to support dark mode */
+.rbc-calendar {
+  font-family: inherit;
+}
+
+.rbc-header {
+  padding: 8px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  border-left: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-month-view, .rbc-time-view, .rbc-agenda-view {
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--bg-surface);
+}
+
+.rbc-month-row, .rbc-day-bg, .rbc-time-header-content {
+  border-color: var(--border-subtle) !important;
+}
+
+.rbc-off-range-bg {
+  background-color: var(--bg-base) !important;
+}
+
+.rbc-today {
+  background-color: var(--hover-bg) !important;
+}
+
+.rbc-event {
+  background-color: transparent !important;
+  padding: 2px 5px !important;
+}
+
+.rbc-button-link {
+  color: var(--text-primary) !important;
+}
+
+.rbc-toolbar button {
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.rbc-toolbar button:hover, .rbc-toolbar button:active, .rbc-toolbar button.rbc-active {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.rbc-time-content {
+  border-top: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-time-slot {
+  border-top: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table {
+  border: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  border-top: 1px solid var(--border-subtle) !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  border-bottom: 1px solid var(--border-subtle) !important;
+}

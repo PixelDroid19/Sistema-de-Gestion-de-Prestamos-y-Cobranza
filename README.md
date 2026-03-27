@@ -75,13 +75,13 @@ Modulos expuestos actualmente:
 
 - `/api/auth`
 - `/api/customers`
-- `/api/agents`
 - `/api/associates`
 - `/api/loans`
 - `/api/payments`
 - `/api/reports`
 - `/api/notifications`
 - `/api/users`
+- `/api/config`
 
 ## Dominio financiero
 
@@ -175,8 +175,10 @@ Notas:
 
 ```env
 VITE_API_URL=http://localhost:5000
-PORT=5173
+PORT=3000
 ```
+
+El frontend se ejecuta en el puerto 3000 por defecto (configurable via variable PORT).
 
 ## Instalacion local
 
@@ -213,7 +215,7 @@ cd frontend
 npm run dev
 ```
 
-El frontend queda disponible por defecto en `http://localhost:5173`.
+El frontend queda disponible por defecto en `http://localhost:3000`.
 
 ## Opcion con Docker Compose
 
