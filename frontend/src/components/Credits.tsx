@@ -1,10 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
 import { useLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
+import { apiClient } from '../api/client';
+import { SimulationResult } from '../types/simulation';
+import DAGWorkbench from './DAGWorkbench';
 
 const locales = {
   'es': es,
@@ -33,6 +37,16 @@ interface InstallmentEvent {
   remainingCapital: number;
   arrears: number;
 }
+
+// Función para obtener simulación del backend
+const fetchSimulation = async (params: {
+  amount: number;
+  interestRate: number;
+  termMonths: number;
+}): Promise<SimulationResult> => {
+  const { data } = await apiClient.post('/loans/simulations', params);
+  return data.data.simulation;
+};
 
 // Generamos fechas relativas al mes actual (Marzo 2026 según el contexto)
 const currentYear = new Date().getFullYear();
@@ -146,41 +160,34 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     installments: 12
   });
 
-  // Simulator calculations
-  const simResults = useMemo(() => {
-    const p = simParams.principal;
-    const i = (simParams.tna / 100) / simParams.frequency;
-    const n = simParams.installments;
+  // Transformar parámetros al formato que espera el API
+  const apiParams = {
+    amount: simParams.principal,
+    interestRate: simParams.tna,
+    termMonths: simParams.installments
+  };
 
-    const pmt = i === 0 ? (n > 0 ? p / n : 0) : (p * i) / (1 - Math.pow(1 + i, -n));
+  // Simulator: obtener datos del backend
+  const { data: simulationData, isLoading: isSimulating } = useQuery({
+    queryKey: ['loans.simulation', apiParams],
+    queryFn: () => fetchSimulation(apiParams),
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
 
-    let balance = p;
-    const schedule = [];
-    let totalInterest = 0;
-
-    for (let step = 1; step <= n; step++) {
-      const interest = balance * i;
-      const principalPayment = pmt - interest;
-      balance -= principalPayment;
-      totalInterest += interest;
-
-      schedule.push({
-        step,
-        pmt,
-        interest,
-        principalPayment,
-        balance: Math.max(0, balance)
-      });
-    }
-
-    return {
-      pmt,
-      totalInterest,
-      totalPayment: p + totalInterest,
-      profitPerMonth: n > 0 ? totalInterest / n : 0,
-      schedule
-    };
-  }, [simParams]);
+  // Transformar respuesta del API al formato que usa la UI
+  const simResults = simulationData ? {
+    pmt: simulationData.summary.installmentAmount,
+    totalInterest: simulationData.summary.totalInterest,
+    totalPayment: simulationData.summary.totalPayable,
+    profitPerMonth: simulationData.summary.totalInterest / Math.max(simParams.installments, 1),
+    schedule: simulationData.schedule.map((row) => ({
+      step: row.installmentNumber,
+      pmt: row.scheduledPayment,
+      interest: row.interestComponent,
+      principalPayment: row.principalComponent,
+      balance: row.remainingBalance
+    }))
+  } : null;
 
   const { page, setPage, pageSize: limit } = usePaginationStore();
   const { data: loansData, isLoading, isError } = useLoans({ page, limit });
@@ -309,6 +316,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         >
           Simulación
         </button>
+        <button 
+          onClick={() => setActiveTab('workbench')}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+        >
+          <Calculator size={16} /> Workbench DAG
+        </button>
       </div>
 
       {activeTab === 'list' && (
@@ -368,7 +381,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       <td className="py-4 text-text-secondary">{getAgentLabel(credit)}</td>
                       <td className="py-4">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setCurrentView(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
+                          <button onClick={() => setCurrentView?.(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
                           <button onClick={() => setActionModal({ isOpen: true, type: 'edit', data: credit })} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
                           <button onClick={() => setActionModal({ isOpen: true, type: 'delete', data: credit })} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                         </div>
@@ -604,24 +617,54 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             {/* Resumen & Tabla */}
             <div className="col-span-1 lg:col-span-2 flex flex-col gap-6">
               {/* Resumen Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Cuota a Pagar</div>
-                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(simResults.pmt)}</div>
+              {isSimulating ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-bg-base p-4 rounded-xl border border-border-subtle animate-pulse">
+                      <div className="h-3 bg-border-subtle rounded w-20 mb-2"></div>
+                      <div className="h-6 bg-border-subtle rounded w-28"></div>
+                    </div>
+                  ))}
                 </div>
-                <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                  <div className="text-xs text-text-secondary mb-1">Suma de Cuotas</div>
-                  <div className="text-lg font-semibold">{formatCurrency(simResults.totalPayment)}</div>
+              ) : simResults ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Cuota a Pagar</div>
+                    <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(simResults.pmt)}</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Suma de Cuotas</div>
+                    <div className="text-lg font-semibold">{formatCurrency(simResults.totalPayment)}</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Suma de Intereses</div>
+                    <div className="text-lg font-semibold">{formatCurrency(simResults.totalInterest)}</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Ganancia por Cuota</div>
+                    <div className="text-lg font-semibold">{formatCurrency(simResults.profitPerMonth)}</div>
+                  </div>
                 </div>
-                <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                  <div className="text-xs text-text-secondary mb-1">Suma de Intereses</div>
-                  <div className="text-lg font-semibold">{formatCurrency(simResults.totalInterest)}</div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Cuota a Pagar</div>
+                    <div className="text-lg font-semibold text-text-secondary">-</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Suma de Cuotas</div>
+                    <div className="text-lg font-semibold text-text-secondary">-</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Suma de Intereses</div>
+                    <div className="text-lg font-semibold text-text-secondary">-</div>
+                  </div>
+                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                    <div className="text-xs text-text-secondary mb-1">Ganancia por Cuota</div>
+                    <div className="text-lg font-semibold text-text-secondary">-</div>
+                  </div>
                 </div>
-                <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                  <div className="text-xs text-text-secondary mb-1">Ganancia por Cuota</div>
-                  <div className="text-lg font-semibold">{formatCurrency(simResults.profitPerMonth)}</div>
-                </div>
-              </div>
+              )}
 
               {/* Tabla de Amortización */}
               <div className="bg-bg-base rounded-xl border border-border-subtle overflow-hidden flex-1">
@@ -644,21 +687,44 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <td className="py-2 px-4">-</td>
                         <td className="py-2 px-4 font-semibold">{formatCurrency(simParams.principal)}</td>
                       </tr>
-                      {simResults.schedule.map((row) => (
-                        <tr key={row.step} className="hover:bg-hover-bg transition-colors">
-                          <td className="py-2 px-4 text-center">{row.step}</td>
-                          <td className="py-2 px-4 font-medium text-blue-600 dark:text-blue-400">{formatCurrency(row.pmt)}</td>
-                          <td className="py-2 px-4 text-amber-600 dark:text-amber-400">{formatCurrency(row.interest)}</td>
-                          <td className="py-2 px-4 text-emerald-600 dark:text-emerald-400">{formatCurrency(row.principalPayment)}</td>
-                          <td className="py-2 px-4 font-medium">{formatCurrency(row.balance)}</td>
+                      {isSimulating ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-text-secondary">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                              Cargando simulación...
+                            </div>
+                          </td>
                         </tr>
-                      ))}
+                      ) : simResults && simResults.schedule.length > 0 ? (
+                        simResults.schedule.map((row) => (
+                          <tr key={row.step} className="hover:bg-hover-bg transition-colors">
+                            <td className="py-2 px-4 text-center">{row.step}</td>
+                            <td className="py-2 px-4 font-medium text-blue-600 dark:text-blue-400">{formatCurrency(row.pmt)}</td>
+                            <td className="py-2 px-4 text-amber-600 dark:text-amber-400">{formatCurrency(row.interest)}</td>
+                            <td className="py-2 px-4 text-emerald-600 dark:text-emerald-400">{formatCurrency(row.principalPayment)}</td>
+                            <td className="py-2 px-4 font-medium">{formatCurrency(row.balance)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-text-secondary">
+                            Ajusta los parámetros para ver la simulación
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'workbench' && (
+        <div className="bg-bg-surface rounded-2xl flex-1 flex flex-col min-h-[800px] overflow-hidden -mx-4 sm:mx-0 shadow-lg border border-border-subtle">
+          <DAGWorkbench />
         </div>
       )}
 

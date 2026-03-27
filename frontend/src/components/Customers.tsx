@@ -135,7 +135,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {customers.map((customer) => (
+                {customers.map((customer: any) => (
                   <tr key={customer.id} className="hover:bg-hover-bg transition-colors">
                     <td className="py-4 text-text-secondary">{formatCustomerId(customer?.id)}</td>
                     <td className="py-4 font-medium flex items-center gap-3">
