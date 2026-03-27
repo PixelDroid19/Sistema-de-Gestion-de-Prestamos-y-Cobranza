@@ -301,6 +301,16 @@ const createSimulateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ ac
 
 const createGetDagWorkbenchSummary = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.getSummary({ actor, scopeKey });
 
+const createListDagWorkbenchGraphs = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.listGraphs({ actor, scopeKey });
+
+const createGetDagWorkbenchGraphDetails = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.getGraphDetails({ actor, graphId });
+
+const createActivateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.activateGraph({ actor, graphId });
+
+const createDeactivateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.deactivateGraph({ actor, graphId });
+
+const createDeleteDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.deleteGraph({ actor, graphId });
+
 /**
  * Create the use case that retrieves a single loan through the shared access policy.
  * @param {{ loanAccessPolicy?: object, loanRepository: object }} dependencies
@@ -919,6 +929,11 @@ module.exports = {
   createValidateDagWorkbenchGraph,
   createSimulateDagWorkbenchGraph,
   createGetDagWorkbenchSummary,
+  createListDagWorkbenchGraphs,
+  createGetDagWorkbenchGraphDetails,
+  createActivateDagWorkbenchGraph,
+  createDeactivateDagWorkbenchGraph,
+  createDeleteDagWorkbenchGraph,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,

@@ -61,14 +61,18 @@ export interface ValidationResult {
 // =============================================================================
 // PERSISTENCE (DagGraphVersion)
 // =============================================================================
+export type DagGraphStatus = 'active' | 'inactive' | 'archived';
 export interface DagGraphVersion {
   id: number;
   scopeKey: string;
   name: string;
+  description?: string;
   version: number;
+  status: DagGraphStatus;
   graph: DagGraph;
   graphSummary: GraphSummary;
   validation: ValidationResult;
+  usageCount?: number; // computed via subquery — how many loans reference this graph
   createdByUserId: number;
   createdAt: string;
   updatedAt: string;
@@ -164,6 +168,33 @@ export interface SaveGraphResponse {
 export interface ValidateGraphRequest {
   scopeKey: string;
   graph: DagGraph;
+}
+
+export interface GraphListResponse {
+  success: boolean;
+  data: {
+    graphs: DagGraphVersion[];
+  };
+}
+
+export interface GraphDetailsResponse {
+  success: boolean;
+  data: {
+    graph: DagGraphVersion;
+  };
+}
+
+export interface GraphStatusUpdateResponse {
+  success: boolean;
+  message: string;
+  data: {
+    graph: DagGraphVersion;
+  };
+}
+
+export interface GraphDeleteResponse {
+  success: boolean;
+  message: string;
 }
 
 export interface ValidateGraphResponse {

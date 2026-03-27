@@ -85,6 +85,33 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { summary } });
   }));
 
+  // ── DAG Formula Management Endpoints ──────────────────────────────────────
+  router.get('/workbench/graphs', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.listDagWorkbenchGraphs({ actor: req.user, scopeKey: req.query.scope });
+    res.json({ success: true, data: { graphs: result.graphs } });
+  }));
+
+  router.get('/workbench/graphs/:graphId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.getDagWorkbenchGraphDetails({ actor: req.user, graphId: Number(req.params.graphId) });
+    res.json({ success: true, data: { graph: result.graph } });
+  }));
+
+  router.patch('/workbench/graphs/:graphId/status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid status. Must be "active" or "inactive".' } });
+    }
+
+    const useCase = status === 'active' ? useCases.activateDagWorkbenchGraph : useCases.deactivateDagWorkbenchGraph;
+    const result = await useCase({ actor: req.user, graphId: Number(req.params.graphId) });
+    res.json({ success: true, message: `Graph ${status === 'active' ? 'activated' : 'deactivated'} successfully`, data: { graph: result.graph } });
+  }));
+
+  router.delete('/workbench/graphs/:graphId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    await useCases.deleteDagWorkbenchGraph({ actor: req.user, graphId: Number(req.params.graphId) });
+    res.json({ success: true, message: 'Graph deleted successfully' });
+  }));
+
   router.get('/customer/:customerId', authMiddleware(['customer']), attachPagination(), asyncHandler(async (req, res) => {
     const result = await useCases.listLoansByCustomer({ actor: req.user, customerId: req.params.customerId, pagination: req.pagination });
     res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });

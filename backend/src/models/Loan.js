@@ -6,6 +6,7 @@ const Loan = sequelize.define('Loan', {
   customerId: { type: DataTypes.INTEGER, allowNull: false },
   associateId: { type: DataTypes.INTEGER, allowNull: true },
   financialProductId: { type: DataTypes.UUID, allowNull: true },
+  dagGraphVersionId: { type: DataTypes.INTEGER, allowNull: true }, // FK to DagGraphVersion used for this loan's calculation
   amount: { type: DataTypes.FLOAT, allowNull: false },
   interestRate: { type: DataTypes.FLOAT, allowNull: false },
   termMonths: { type: DataTypes.INTEGER, allowNull: false },

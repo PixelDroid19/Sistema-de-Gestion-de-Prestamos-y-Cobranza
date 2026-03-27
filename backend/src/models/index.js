@@ -74,6 +74,9 @@ User.hasMany(DagSimulationSummary, { foreignKey: 'createdByUserId', as: 'dagSumm
 DagSimulationSummary.belongsTo(DagGraphVersion, { foreignKey: 'graphVersionId', as: 'graphVersion' });
 DagGraphVersion.hasMany(DagSimulationSummary, { foreignKey: 'graphVersionId', as: 'simulationSummaries' });
 
+Loan.belongsTo(DagGraphVersion, { foreignKey: 'dagGraphVersionId', as: 'dagGraph' });
+DagGraphVersion.hasMany(Loan, { foreignKey: 'dagGraphVersionId', as: 'loans' });
+
 FinancialProduct.hasMany(GraphTopology, { foreignKey: 'productId', as: 'topologies' });
 GraphTopology.belongsTo(FinancialProduct, { foreignKey: 'productId', as: 'product' });
 

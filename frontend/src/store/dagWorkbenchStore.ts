@@ -12,6 +12,7 @@ import {
 import { dagService } from '../services/dagService';
 import {
   DagGraphVersion,
+  DagGraphStatus,
   DagNode,
   DagEdge,
   DagGraph,
@@ -73,6 +74,15 @@ export interface DagWorkbenchState {
   saveGraph: (name: string) => Promise<void>;
   simulateGraph: () => Promise<void>;
   setSimulationInput: (input: Partial<SimulationInput>) => void;
+  
+  // Actions - Formula Management
+  graphList: DagGraphVersion[];
+  isLoadingGraphList: boolean;
+  loadGraphList: (scopeKey: string) => Promise<void>;
+  activateGraph: (graphId: number) => Promise<void>;
+  deactivateGraph: (graphId: number) => Promise<void>;
+  deleteGraph: (graphId: number) => Promise<void>;
+  selectGraph: (graphId: number) => Promise<void>;
   
   // Converters
   getDagGraph: () => { nodes: DagNode[]; edges: { source: string; target: string }[] };
@@ -505,6 +515,10 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
   isSimulating: false,
   isSaving: false,
   error: null,
+
+  // Formula management
+  graphList: [],
+  isLoadingGraphList: false,
   
   nodes: [],
   edges: [],
@@ -716,6 +730,86 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       });
     } catch (err: any) {
       set({ error: err.message || 'Error ejecutando la simulación', isSimulating: false });
+    }
+  },
+
+  // ── Formula Management Actions ────────────────────────────────────────
+
+  loadGraphList: async (scopeKey: string) => {
+    set({ isLoadingGraphList: true });
+    try {
+      const response = await dagService.listGraphs(scopeKey);
+      set({ graphList: response.data?.graphs || [], isLoadingGraphList: false });
+    } catch (err: any) {
+      console.error('Error loading graph list:', err);
+      set({ graphList: [], isLoadingGraphList: false });
+    }
+  },
+
+  activateGraph: async (graphId: number) => {
+    try {
+      await dagService.updateGraphStatus(graphId, 'active');
+      // Refresh the graph list
+      const { scopeKey } = get();
+      await get().loadGraphList(scopeKey);
+    } catch (err: any) {
+      set({ error: err.response?.data?.error?.message || err.message || 'Error activating graph' });
+    }
+  },
+
+  deactivateGraph: async (graphId: number) => {
+    try {
+      await dagService.updateGraphStatus(graphId, 'inactive');
+      // Refresh the graph list
+      const { scopeKey } = get();
+      await get().loadGraphList(scopeKey);
+    } catch (err: any) {
+      set({ error: err.response?.data?.error?.message || err.message || 'Error deactivating graph' });
+    }
+  },
+
+  deleteGraph: async (graphId: number) => {
+    try {
+      await dagService.deleteGraph(graphId);
+      // Refresh the graph list
+      const { scopeKey } = get();
+      await get().loadGraphList(scopeKey);
+    } catch (err: any) {
+      set({ error: err.response?.data?.error?.message || err.message || 'Error deleting graph' });
+    }
+  },
+
+  selectGraph: async (graphId: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await dagService.getGraphDetails(graphId);
+      const graphVersion = response.data?.graph;
+      if (!graphVersion || !graphVersion.graph) {
+        set({ error: 'Graph not found', isLoading: false });
+        return;
+      }
+
+      const dagGraph = graphVersion.graph;
+      const updateFn = (id: string, data: Partial<RFNodeData>) => {
+        useDagStore.setState((state) => ({
+          nodes: state.nodes.map((n) =>
+            n.id === id ? { ...n, data: { ...n.data, ...data } } : n
+          ),
+        }));
+      };
+      const { nodes, edges } = convertGraphToRFState(dagGraph, updateFn);
+
+      set({
+        graphVersion,
+        graphName: graphVersion.name || 'Grafo Cargado',
+        nodes,
+        edges,
+        selectedNodeId: null,
+        validation: graphVersion.validation || null,
+        isLoading: false,
+      });
+    } catch (err: any) {
+      set({ error: err.message || 'Error loading graph', isLoading: false });
     }
   },
 }));

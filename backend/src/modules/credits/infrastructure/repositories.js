@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const {
   Loan,
   Customer,
@@ -424,10 +424,61 @@ const createCreditsInfrastructure = ({
           order: [['version', 'DESC'], ['createdAt', 'DESC']],
         });
       },
+      getLatestActive(scopeKey) {
+        return dagGraphVersionModel.findOne({
+          where: { scopeKey, status: 'active' },
+          order: [['version', 'DESC'], ['createdAt', 'DESC']],
+        });
+      },
+      async listByScopeKey(scopeKey) {
+        const graphs = await dagGraphVersionModel.findAll({
+          where: { scopeKey },
+          order: [['version', 'DESC'], ['createdAt', 'DESC']],
+          attributes: {
+            include: [
+              [
+                Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
+                'usageCount',
+              ],
+            ],
+          },
+        });
+        return graphs;
+      },
+      async findById(id) {
+        const graph = await dagGraphVersionModel.findByPk(id, {
+          attributes: {
+            include: [
+              [
+                Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
+                'usageCount',
+              ],
+            ],
+          },
+        });
+        return graph;
+      },
+      async getUsageCount(id) {
+        const count = await loanModel.count({ where: { dagGraphVersionId: id } });
+        return count;
+      },
+      async updateStatus(id, status) {
+        const graph = await dagGraphVersionModel.findByPk(id);
+        if (!graph) return null;
+        graph.status = status;
+        await graph.save();
+        return graph;
+      },
+      async deleteGraph(id) {
+        const graph = await dagGraphVersionModel.findByPk(id);
+        if (!graph) return null;
+        await graph.destroy();
+        return true;
+      },
       async saveVersion(payload) {
         const latest = await this.getLatest(payload.scopeKey);
         const version = Number(latest?.version || 0) + 1;
-        return dagGraphVersionModel.create({ ...payload, version });
+        return dagGraphVersionModel.create({ ...payload, version, status: payload.status || 'active' });
       },
     },
     dagSimulationSummaryRepository: {

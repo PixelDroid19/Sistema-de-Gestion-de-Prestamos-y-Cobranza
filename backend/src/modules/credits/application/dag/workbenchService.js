@@ -243,6 +243,86 @@ const createDagWorkbenchService = ({
         latestSimulation: await dagSimulationSummaryRepository.getLatest(normalizedScopeKey),
       };
     },
+
+    async listGraphs({ actor, scopeKey }) {
+      const normalizedScopeKey = assertScopeKey(scopeKey);
+      assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
+
+      const graphs = await dagGraphRepository.listByScopeKey(normalizedScopeKey);
+      return { graphs };
+    },
+
+    async getGraphDetails({ actor, graphId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      return { graph };
+    },
+
+    async activateGraph({ actor, graphId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const updated = await dagGraphRepository.updateStatus(graphId, 'active');
+      return { graph: updated };
+    },
+
+    async deactivateGraph({ actor, graphId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const updated = await dagGraphRepository.updateStatus(graphId, 'inactive');
+      return { graph: updated };
+    },
+
+    async deleteGraph({ actor, graphId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const usageCount = await dagGraphRepository.getUsageCount(graphId);
+      if (usageCount > 0) {
+        throw new ValidationError(`Cannot delete formula: ${usageCount} credit(s) are using it. Deactivate it instead.`);
+      }
+
+      await dagGraphRepository.deleteGraph(graphId);
+      return { deleted: true };
+    },
   };
 };
 

@@ -8,6 +8,11 @@ import {
   ValidateGraphRequest,
   ValidateGraphResponse,
   GraphSummaryResponse,
+  GraphListResponse,
+  GraphDetailsResponse,
+  GraphStatusUpdateResponse,
+  GraphDeleteResponse,
+  DagGraphStatus,
   SimulationInput,
   SimulationResponse,
 } from '../types/dag';
@@ -74,6 +79,47 @@ export const dagService = {
     const { data } = await apiClient.post('/loans/simulations', input);
     return data;
   },
+
+  // ── Formula Management Endpoints ─────────────────────────────────────────
+
+  /**
+   * GET /api/v1/loans/workbench/graphs?scope={scopeKey}
+   * List all graphs/formulas for a scope with usage count
+   */
+  async listGraphs(scopeKey: string): Promise<GraphListResponse> {
+    const { data } = await apiClient.get('/loans/workbench/graphs', {
+      params: { scope: scopeKey },
+    });
+    return data;
+  },
+
+  /**
+   * GET /api/v1/loans/workbench/graphs/:id
+   * Get details of a specific graph/formula with usage count
+   */
+  async getGraphDetails(graphId: number): Promise<GraphDetailsResponse> {
+    const { data } = await apiClient.get(`/loans/workbench/graphs/${graphId}`);
+    return data;
+  },
+
+  /**
+   * PATCH /api/v1/loans/workbench/graphs/:id/status
+   * Update graph status (activate/deactivate)
+   */
+  async updateGraphStatus(graphId: number, status: DagGraphStatus): Promise<GraphStatusUpdateResponse> {
+    const { data } = await apiClient.patch(`/loans/workbench/graphs/${graphId}/status`, { status });
+    return data;
+  },
+
+  /**
+   * DELETE /api/v1/loans/workbench/graphs/:id
+   * Delete a graph (only if unused by any loans)
+   */
+  async deleteGraph(graphId: number): Promise<GraphDeleteResponse> {
+    const { data } = await apiClient.delete(`/loans/workbench/graphs/${graphId}`);
+    return data;
+  },
 };
 
 export default dagService;
+
