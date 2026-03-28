@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Calculator, User, DollarSign, Calendar, Percent, FileT
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { useAssociates } from '../services/associateService';
+import { toast } from '../lib/toast';
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { createLoan, simulateLoan } = useLoans();
@@ -21,6 +22,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       : [];
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
     customerId: '',
@@ -28,7 +30,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     amount: '',
     interestRate: '',
     termMonths: '',
-    lateFeeMode: 'simple_daily',
+    lateFeeMode: 'SIMPLE',
     paymentFrequency: 'monthly'
   });
 
@@ -48,6 +50,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear field error when user modifies the field
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const calculateSimulation = async () => {
@@ -62,12 +68,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           amount,
           interestRate: rate,
           termMonths: months,
-          lateFeeMode: formData.lateFeeMode
+          lateFeeMode: formData.lateFeeMode,
+          paymentFrequency: formData.paymentFrequency
         });
         setSimulation(result?.data?.simulation);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in simulation', error);
-        alert('Error calculando la simulación');
+        toast.apiError(error, 'Error calculando la simulación. Verifica los datos ingresados.');
       } finally {
         setIsSimulating(false);
       }
@@ -84,11 +91,28 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         amount: parseFloat(formData.amount),
         interestRate: parseFloat(formData.interestRate),
         termMonths: parseInt(formData.termMonths),
-        lateFeeMode: formData.lateFeeMode
+        lateFeeMode: formData.lateFeeMode,
+        paymentFrequency: formData.paymentFrequency
       });
       onBack();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating loan:', error);
+      
+      // Extract validation errors from backend response
+      const validationErrors = error?.response?.data?.error?.validationErrors;
+      if (validationErrors && Array.isArray(validationErrors)) {
+        // Set inline field errors
+        const fieldErrs: Record<string, string> = {};
+        validationErrors.forEach((err: any) => {
+          fieldErrs[err.field] = err.message;
+        });
+        setFieldErrors(fieldErrs);
+        
+        // Show toast for validation errors
+        toast.validationErrors(validationErrors);
+      } else {
+        toast.apiError(error, 'Error al crear el crédito. Por favor intenta de nuevo.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -142,13 +166,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     <label className="text-sm font-medium text-text-secondary">Seleccionar Cliente</label>
                     <div className="relative">
                       <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <select name="customerId" value={formData.customerId} onChange={handleChange} required className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
+                      <select name="customerId" value={formData.customerId} onChange={handleChange} required className={`w-full bg-bg-base border rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:ring-1 transition-all appearance-none cursor-pointer ${fieldErrors.customerId ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-subtle focus:border-blue-500 focus:ring-blue-500'}`}>
                         <option value="">Buscar cliente por nombre o ID...</option>
                         {customers.map((c: any) => (
                           <option key={c.id} value={c.id}>{getDisplayName(c)} (CUS-{String(c.id).substring(0, 8)})</option>
                         ))}
                       </select>
                     </div>
+                    {fieldErrors.customerId && (
+                      <span className="text-xs text-red-500">{fieldErrors.customerId}</span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-text-secondary">Socio Asignado (Opcional)</label>
@@ -175,22 +202,31 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     <label className="text-sm font-medium text-text-secondary">Monto del Préstamo</label>
                     <div className="relative">
                       <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <input type="number" name="amount" value={formData.amount} onChange={handleChange} onBlur={calculateSimulation} required className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="0.00" />
+                      <input type="number" name="amount" value={formData.amount} onChange={handleChange} onBlur={calculateSimulation} required className={`w-full bg-bg-base border rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:ring-1 transition-all ${fieldErrors.amount ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-subtle focus:border-blue-500 focus:ring-blue-500'}`} placeholder="0.00" />
                     </div>
+                    {fieldErrors.amount && (
+                      <span className="text-xs text-red-500">{fieldErrors.amount}</span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-text-secondary">Tasa de Interés Anual (%)</label>
                     <div className="relative">
                       <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <input type="number" name="interestRate" value={formData.interestRate} onChange={handleChange} onBlur={calculateSimulation} required className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="15" />
+                      <input type="number" name="interestRate" value={formData.interestRate} onChange={handleChange} onBlur={calculateSimulation} required className={`w-full bg-bg-base border rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:ring-1 transition-all ${fieldErrors.interestRate ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-subtle focus:border-blue-500 focus:ring-blue-500'}`} placeholder="15" />
                     </div>
+                    {fieldErrors.interestRate && (
+                      <span className="text-xs text-red-500">{fieldErrors.interestRate}</span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-text-secondary">Plazo (Meses)</label>
                     <div className="relative">
                       <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <input type="number" name="termMonths" value={formData.termMonths} onChange={handleChange} onBlur={calculateSimulation} required className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="12" />
+                      <input type="number" name="termMonths" value={formData.termMonths} onChange={handleChange} onBlur={calculateSimulation} required className={`w-full bg-bg-base border rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:ring-1 transition-all ${fieldErrors.termMonths ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-subtle focus:border-blue-500 focus:ring-blue-500'}`} placeholder="12" />
                     </div>
+                    {fieldErrors.termMonths && (
+                      <span className="text-xs text-red-500">{fieldErrors.termMonths}</span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-text-secondary">Frecuencia de Pago</label>
@@ -208,9 +244,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     <div className="relative">
                       <FileText size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                       <select name="lateFeeMode" value={formData.lateFeeMode} onChange={handleChange} className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
-                        <option value="simple_daily">Diario Simple</option>
-                        <option value="compound_daily">Diario Compuesto</option>
-                        <option value="fixed_fee">Cargo Fijo</option>
+                        <option value="SIMPLE">Diario Simple</option>
+                        <option value="COMPOUND">Diario Compuesto</option>
+                        <option value="FLAT">Cargo Fijo</option>
                       </select>
                     </div>
                   </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, Search, MoreVertical, Eye, Edit, Trash2, ShieldOff, ShieldCheck } from 'lucide-react';
 import { useUsers } from '../services/userService';
 import { usePaginationStore } from '../store/paginationStore';
+import { toast } from '../lib/toast';
 
 export default function Agents() {
   const { page, setPage, pageSize: limit } = usePaginationStore();
@@ -46,7 +47,7 @@ export default function Agents() {
         await reactivateUser.mutateAsync(agent.id);
       }
     } catch (error) {
-      alert('Error al cambiar el estado del agente');
+      toast.error({ title: 'Error al cambiar el estado del agente' });
     }
   };
 

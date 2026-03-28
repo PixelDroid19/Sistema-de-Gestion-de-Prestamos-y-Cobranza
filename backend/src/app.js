@@ -28,7 +28,42 @@ const createApp = ({
   if (helmet) {
     app.use(helmet());
   }
-  app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
+
+  // CORS configuration - use explicit whitelist only, never allow wildcard '*'
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').filter(Boolean) || [];
+  
+  if (allowedOrigins.length === 0) {
+    // In development without ALLOWED_ORIGINS, only allow localhost
+    if (process.env.NODE_ENV === 'development') {
+      allowedOrigins.push('http://localhost:3000');
+      allowedOrigins.push('http://127.0.0.1:3000');
+    } else {
+      // In production, require explicit ALLOWED_ORIGINS configuration
+      console.warn('WARNING: CORS is configured with no allowed origins. Set ALLOWED_ORIGINS environment variable.');
+    }
+  }
+
+  const corsOptions = {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Check if origin is in whitelist
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // Reject origins not in whitelist
+      callback(new Error(`Origin ${origin} is not allowed by CORS policy`));
+    },
+    credentials: true, // Allow cookies and authentication headers
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  };
+
+  app.use(cors(corsOptions));
   app.use(globalLimiter);
   app.use(express.json({ limit: '2mb' })); // Reduced limit for better security
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));

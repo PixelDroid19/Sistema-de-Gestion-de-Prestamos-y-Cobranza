@@ -1,6 +1,6 @@
 const { ValidationError } = require('../../../../utils/errorHandler');
 
-const UNSUPPORTED_LATE_FEE_MODES = new Set(['LINEAR', 'EFFECTIVE', 'SMART HYBRID']);
+const UNSUPPORTED_LATE_FEE_MODES = new Set(['SIMPLE_DAILY', 'COMPOUND_DAILY', 'FIXED_FEE']);
 
 const normalizeLateFeeMode = (mode) => (typeof mode === 'string' && mode.trim()
   ? mode.trim().toUpperCase()

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Search, MoreVertical, Eye, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { usePayments } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
+import { toast } from '../lib/toast';
 
 export default function Payouts() {
   const { page, setPage, pageSize: limit } = usePaginationStore();
@@ -67,9 +68,9 @@ export default function Payouts() {
       
       setShowPaymentModal(false);
       setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: 'cash' });
-      alert('Pago registrado exitosamente');
+      toast.success({ title: 'Pago registrado exitosamente' });
     } catch (error) {
-      alert('Error al registrar pago');
+      toast.error({ title: 'Error al registrar pago' });
     } finally {
       setIsSubmitting(false);
     }

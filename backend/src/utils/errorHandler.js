@@ -77,6 +77,32 @@ class ConflictError extends AppError {
 }
 
 /**
+ * Idempotent replay error - thrown when a duplicate idempotency key is detected
+ * and the original response should be returned instead of reprocessing.
+ * This is NOT an operational error - it's an expected case for idempotent replays.
+ */
+class IdempotentReplayError extends AppError {
+  constructor(message, cachedPayload = {}) {
+    super(message, 200); // Return 200 OK, not an error status
+    this.name = 'IdempotentReplayError';
+    this.cachedPayload = cachedPayload;
+    this.isOperational = true;
+  }
+}
+
+/**
+ * Account locked error - thrown when a user account is locked due to too many
+ * consecutive failed login attempts.
+ */
+class AccountLockedError extends AppError {
+  constructor(message = 'Account temporarily locked due to too many failed login attempts', lockoutDurationMinutes = 15) {
+    super(message, 423); // 423 Locked
+    this.name = 'AccountLockedError';
+    this.lockoutDurationMinutes = lockoutDurationMinutes;
+  }
+}
+
+/**
  * Build the JSON API error payload, including development diagnostics when enabled.
  * @param {Error & { statusCode?: number, errors?: Array<object> }} error
  * @param {import('express').Request} req
@@ -188,6 +214,26 @@ const globalErrorHandler = (err, req, res, next) => {
     error = new ValidationError(message);
   }
 
+  // Handle idempotent replay - return the cached response with 200 status
+  if (err.name === 'IdempotentReplayError') {
+    return res.status(200).json({
+      success: true,
+      data: err.cachedPayload,
+      idempotent: true,
+    });
+  }
+
+  // Handle CORS errors - origin not allowed
+  if (err.message && err.message.includes('is not allowed by CORS policy')) {
+    return res.status(403).json({
+      success: false,
+      error: {
+        message: 'Origin not allowed by CORS policy',
+        statusCode: 403,
+      },
+    });
+  }
+
   if (!error.statusCode) {
     error.statusCode = 500;
     error.message = 'Internal server error';
@@ -217,6 +263,8 @@ module.exports = {
   AuthorizationError,
   NotFoundError,
   ConflictError,
+  IdempotentReplayError,
+  AccountLockedError,
   asyncHandler,
   globalErrorHandler,
   notFoundHandler,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Settings2, CreditCard, Save } from 'lucide-react';
 import { useConfig } from '../services/configService';
+import { toast } from '../lib/toast';
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
@@ -24,8 +25,9 @@ export default function Settings() {
   const handleUpdateSetting = async (key: string, value: string) => {
     try {
       await updateSetting.mutateAsync({ key, value });
+      toast.success({ description: 'Configuración actualizada' });
     } catch (error) {
-      alert(`Error al actualizar configuración: ${getErrorMessage(error)}`);
+      toast.apiError(error, 'Error al actualizar configuración');
     }
   };
 
@@ -37,8 +39,9 @@ export default function Settings() {
         isActive: true
       });
       setNewPaymentMethod({ name: '', description: '', type: 'bank_transfer' });
+      toast.success({ description: 'Método de pago creado' });
     } catch (error) {
-      alert(`Error al crear método de pago: ${getErrorMessage(error)}`);
+      toast.apiError(error, 'Error al crear método de pago');
     }
   };
 

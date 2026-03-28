@@ -125,10 +125,101 @@ const summarizeSchedule = (schedule = []) => {
 
 const cloneSchedule = (schedule = []) => JSON.parse(JSON.stringify(schedule));
 
+/**
+ * Calculate late fee based on the specified mode.
+ *
+ * Modes:
+ * - SIMPLE: Daily percentage on overdue amount
+ *   Formula: overdueAmount * (annualRate / 100) * (daysOverdue / 365)
+ * - FLAT: Fixed amount per day
+ *   Formula: flatFeePerDay * daysOverdue
+ * - TIERED: Escalated rates over time
+ *   Tier 1 (days 1-30): base rate
+ *   Tier 2 (days 31-60): 1.5x base rate
+ *   Tier 3 (days 61+): 2x base rate
+ *
+ * @param {{
+ *   overdueAmount: number,
+ *   daysOverdue: number,
+ *   feeMode: 'SIMPLE' | 'FLAT' | 'TIERED',
+ *   annualRate?: number,
+ *   flatFeePerDay?: number,
+ *   baseRate?: number
+ * }} input
+ * @returns {number}
+ */
+const calculateLateFee = ({
+  overdueAmount,
+  daysOverdue,
+  feeMode,
+  annualRate = 0,
+  flatFeePerDay = 0,
+  baseRate = 0,
+}) => {
+  const principal = Number(overdueAmount) || 0;
+  const days = Number(daysOverdue) || 0;
+
+  if (principal <= 0 || days <= 0) {
+    return roundCurrency(0);
+  }
+
+  switch (String(feeMode).toUpperCase()) {
+    case 'SIMPLE': {
+      // Daily percentage on overdue amount
+      // Formula: overdueAmount * (annualRate / 100) * (daysOverdue / 365)
+      const annualDecimalRate = Number(annualRate) / 100;
+      const dailyRate = annualDecimalRate / 365;
+      const fee = principal * dailyRate * days;
+      return roundCurrency(fee);
+    }
+
+    case 'COMPOUND': {
+      // Compound daily rate: principal * (1 + dailyRate)^daysOverdue - principal
+      const annualDecimalRate = Number(annualRate) / 100;
+      const dailyRate = annualDecimalRate / 365;
+      const fee = principal * (Math.pow(1 + dailyRate, days) - 1);
+      return roundCurrency(fee);
+    }
+
+    case 'FLAT': {
+      // Fixed amount per day
+      // Formula: flatFeePerDay * daysOverdue
+      const dailyFee = Number(flatFeePerDay) || 0;
+      const fee = dailyFee * days;
+      return roundCurrency(fee);
+    }
+
+    case 'TIERED': {
+      // Escalated rates over time
+      // Tier 1 (days 1-30): base rate
+      // Tier 2 (days 31-60): 1.5x base rate
+      // Tier 3 (days 61+): 2x base rate
+      const baseDailyRate = (Number(baseRate) || 0) / 100 / 365;
+
+      // Determine which tier applies
+      let effectiveRate;
+      if (days <= 30) {
+        effectiveRate = baseDailyRate; // Tier 1: 1x base rate
+      } else if (days <= 60) {
+        effectiveRate = baseDailyRate * 1.5; // Tier 2: 1.5x base rate
+      } else {
+        effectiveRate = baseDailyRate * 2; // Tier 3: 2x base rate
+      }
+
+      const fee = principal * effectiveRate * days;
+      return roundCurrency(fee);
+    }
+
+    default:
+      return roundCurrency(0);
+  }
+};
+
 module.exports = {
   roundCurrency,
   calculateInstallmentAmount,
   buildAmortizationSchedule,
   summarizeSchedule,
   cloneSchedule,
+  calculateLateFee,
 };

@@ -1,4 +1,11 @@
 const BigNumberEngine = require('./BigNumberEngine');
+const {
+  calculateLateFee,
+  buildAmortizationSchedule,
+  summarizeSchedule,
+  roundCurrency,
+} = require('../../../modules/credits/application/creditFormulaHelpers');
+const { assertSupportedLateFeeMode } = require('../../../modules/credits/application/dag/lateFeeMode');
 
 const buildInitialScope = (contractVars = {}) => {
   const engine = BigNumberEngine.getInstance();
@@ -33,6 +40,13 @@ const buildInitialScope = (contractVars = {}) => {
       scope[key] = value;
     }
   }
+
+  // Add custom formula helpers to scope for DAG formula evaluation
+  scope.calculateLateFee = calculateLateFee;
+  scope.buildAmortizationSchedule = buildAmortizationSchedule;
+  scope.summarizeSchedule = summarizeSchedule;
+  scope.roundCurrency = roundCurrency;
+  scope.assertSupportedLateFeeMode = assertSupportedLateFeeMode;
 
   return scope;
 };

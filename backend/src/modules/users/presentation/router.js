@@ -53,6 +53,12 @@ const createUsersRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, message: 'User reactivated successfully', data: user });
   }));
 
+  // Unlock user account (admin only)
+  router.post('/:userId/unlock', asyncHandler(async (req, res) => {
+    const user = await useCases.unlockUser(req.params.userId);
+    res.json({ success: true, message: 'User account unlocked successfully', data: user });
+  }));
+
   return router;
 };
 

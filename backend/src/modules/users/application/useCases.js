@@ -2,6 +2,12 @@ const { ValidationError, NotFoundError, AuthorizationError, ConflictError } = re
 
 const VALID_ROLES = ['admin', 'customer', 'socio'];
 
+// Account lockout configuration
+const LOCKOUT_CONFIG = {
+  maxFailedAttempts: 5,
+  lockoutDurationMinutes: 15,
+};
+
 const sanitizeUser = (user) => ({
   id: user.id,
   name: user.name,
@@ -114,11 +120,29 @@ const createReactivateUser = ({ userRepository }) => async (userId) => {
   return sanitizeUser(updatedUser);
 };
 
+/**
+ * Create the use case that unlocks a user account (admin only)
+ */
+const createUnlockUser = ({ userRepository }) => async (userId) => {
+  const user = await userRepository.findById(userId);
+  if (!user) {
+    throw new NotFoundError('User');
+  }
+
+  const updatedUser = await userRepository.update(userId, {
+    failedLoginAttempts: 0,
+    lockedUntil: null,
+  });
+
+  return sanitizeUser(updatedUser);
+};
+
 module.exports = {
   createListUsers,
   createGetUserById,
   createUpdateUser,
   createDeactivateUser,
   createReactivateUser,
+  createUnlockUser,
   sanitizeUser,
 };

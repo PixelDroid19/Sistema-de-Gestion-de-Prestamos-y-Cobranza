@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { sequelize, Loan, Payment, GraphTopology, IdempotencyKey } = require('../../../models');
-const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
+const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError } = require('../../../utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
 const { CalculationEngine } = require('../../../core/domain/calculation/CalculationEngine');
 const { scopeToPlainObject } = require('../../../core/domain/calculation/scopeBuilder');
@@ -974,21 +974,51 @@ const createPaymentApplicationService = ({
       .update(`${loanId}${paymentAmount}${paymentDate}`)
       .digest('hex');
 
-    const existingKey = await IdempotencyKey.findOne({
-      where: { scope: 'payment', idempotencyKey },
-    });
-    if (existingKey && existingKey.status === 'completed') {
-      return {
-        ...existingKey.responsePayload,
-        idempotent: true,
-      };
-    }
-
     let previousBalance;
 
+    // Use SERIALIZABLE isolation to prevent race conditions on idempotency key handling
+    // The idempotency check and payment processing are wrapped in a single atomic transaction
     const result = await sequelize.transaction({
       isolationLevel: sequelize.constructor.Transaction.ISOLATION_LEVELS.SERIALIZABLE,
     }, async (tx) => {
+      // Step 1: Try to acquire lock on idempotency key row using SELECT FOR UPDATE
+      // This prevents concurrent requests from processing the same idempotency key simultaneously
+      const existingKey = await IdempotencyKey.findOne({
+        where: { scope: 'payment', idempotencyKey },
+        transaction: tx,
+        lock: true, // This generates SELECT ... FOR UPDATE
+      });
+
+      // Step 2: If key exists and is completed, return cached response (idempotent replay)
+      if (existingKey && existingKey.status === 'completed') {
+        // Rollback this transaction since we have nothing to do
+        throw new IdempotentReplayError('Payment already processed', existingKey.responsePayload);
+      }
+
+      // Step 3: Create or update idempotency key as 'pending' before processing
+      // Using upsert to handle both create and update cases atomically
+      if (existingKey) {
+        // Update existing key to pending (in case of stale pending from failed attempt)
+        await IdempotencyKey.update({
+          requestHash,
+          responsePayload: {},
+          status: 'pending',
+        }, {
+          where: { scope: 'payment', idempotencyKey },
+          transaction: tx,
+        });
+      } else {
+        await IdempotencyKey.create({
+          scope: 'payment',
+          idempotencyKey,
+          requestHash,
+          responsePayload: {},
+          createdByUserId: actorId,
+          status: 'pending',
+        }, { transaction: tx });
+      }
+
+      // Step 4: Process the payment
       const loan = await Loan.findByPk(loanId, {
         transaction: tx,
         lock: true,
@@ -1069,6 +1099,25 @@ const createPaymentApplicationService = ({
         },
       }, { transaction: tx });
 
+      // Step 5: Mark idempotency key as completed
+      await IdempotencyKey.update({
+        responsePayload: {
+          transactionId: tx.id,
+          status: 'APPLIED',
+          newBalance,
+          breakdown: {
+            capital,
+            interest,
+            penalty,
+          },
+          paymentId: payment.id,
+        },
+        status: 'completed',
+      }, {
+        where: { scope: 'payment', idempotencyKey },
+        transaction: tx,
+      });
+
       return {
         transactionId: tx.id,
         status: 'APPLIED',
@@ -1081,15 +1130,6 @@ const createPaymentApplicationService = ({
         paymentId: payment.id,
       };
     });
-
-    await IdempotencyKey.create({
-      scope: 'payment',
-      idempotencyKey,
-      requestHash,
-      responsePayload: result,
-      createdByUserId: actorId,
-      status: 'completed',
-    }, { logging: false });
 
     return result;
   };

@@ -3,6 +3,87 @@ const { APPLICATION_ROLES, normalizeApplicationRole } = require('../../shared/ro
 
 const PRIVILEGED_ROLES = new Set(['admin', 'socio']);
 
+// Progressive login delay configuration
+const LOGIN_DELAY_CONFIG = {
+  baseDelayMs: 100,        // Base delay: 100ms
+  maxDelayMs: 30000,      // Maximum delay cap: 30 seconds
+  maxAttempts: 10,         // After this many attempts, delay caps at max
+};
+
+// Password strength requirements
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_COMPLEXITY = {
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSpecialChars: false, // Optional
+};
+
+/**
+ * Calculate progressive login delay based on failed attempt count.
+ * Formula: min(baseDelayMs * 2^attempts, maxDelayMs)
+ * @param {number} attempts - Number of consecutive failed attempts
+ * @returns {number} Delay in milliseconds
+ */
+const calculateLoginDelay = (attempts) => {
+  if (attempts <= 0) return 0;
+  const delay = LOGIN_DELAY_CONFIG.baseDelayMs * Math.pow(2, attempts - 1);
+  return Math.min(delay, LOGIN_DELAY_CONFIG.maxDelayMs);
+};
+
+/**
+ * Validate password complexity and return strength indicator.
+ * @param {string} password - Password to validate
+ * @returns {{ valid: boolean, strength?: 'weak'|'medium'|'strong', errors?: string[] }}
+ */
+const validatePasswordStrength = (password) => {
+  const errors = [];
+
+  if (!password || typeof password !== 'string') {
+    return { valid: false, errors: ['Password is required'] };
+  }
+
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    errors.push(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long`);
+  }
+
+  if (PASSWORD_COMPLEXITY.requireUppercase && !/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+
+  if (PASSWORD_COMPLEXITY.requireLowercase && !/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+
+  if (PASSWORD_COMPLEXITY.requireNumbers && !/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+
+  if (PASSWORD_COMPLEXITY.requireSpecialChars && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  // Calculate strength
+  let strength = 'weak';
+  let score = 0;
+
+  if (password.length >= 10) score++;
+  if (password.length >= 12) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+
+  if (score >= 5) strength = 'strong';
+  else if (score >= 3) strength = 'medium';
+
+  return { valid: true, strength };
+};
+
 const buildRoleValidationError = () => {
   const error = new ValidationError('Please correct the following errors');
   error.errors = [
@@ -103,9 +184,11 @@ const createRegisterUser = ({
     throw new ConflictError('User with this email already exists');
   }
 
-  if (password.length < 6) {
-    const remaining = 6 - password.length;
-    throw new ValidationError(`Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.`);
+  const passwordValidation = validatePasswordStrength(password);
+  if (!passwordValidation.valid) {
+    const error = new ValidationError('Password does not meet requirements');
+    error.errors = passwordValidation.errors.map(msg => ({ field: 'password', message: msg }));
+    throw error;
   }
 
   const hashedPassword = await passwordHasher.hash(password);
@@ -159,18 +242,79 @@ const createRegisterUser = ({
 
 /**
  * Create the login use case that authenticates a user and returns a signed token.
+ * Implements progressive login delays and account lockout for security.
  * @param {{ userRepository: object, passwordHasher: object, tokenService: object }} dependencies
  * @returns {Function}
  */
 const createLoginUser = ({ userRepository, passwordHasher, tokenService }) => async ({ email, password }) => {
+  const { AccountLockedError } = require('../../../utils/errorHandler');
+  const { logSecurity } = require('../../../utils/logger');
+
+  const LOCKOUT_THRESHOLD = 5; // Lock after 5 consecutive failed attempts
+  const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
   const user = await userRepository.findByEmail(email);
   if (!user) {
+    // Don't reveal whether email exists - generic error message
     throw new AuthenticationError('Please enter correct email/password');
+  }
+
+  // Check if account is currently locked
+  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+    const remainingMinutes = Math.ceil((new Date(user.lockedUntil) - new Date()) / 60000);
+    logSecurity('auth.login.account_locked', {
+      userId: user.id,
+      email: user.email,
+      lockedUntil: user.lockedUntil,
+    });
+    const error = new AccountLockedError(
+      `Account temporarily locked due to too many failed login attempts. Try again in ${remainingMinutes} minute(s).`,
+      15
+    );
+    throw error;
   }
 
   const isPasswordValid = await passwordHasher.compare(password, user.password);
   if (!isPasswordValid) {
+    // Increment failed login attempts
+    const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
+    const updates = { failedLoginAttempts: newFailedAttempts };
+
+    // Lock the account if threshold reached
+    if (newFailedAttempts >= LOCKOUT_THRESHOLD) {
+      const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+      updates.lockedUntil = lockUntil;
+      logSecurity('auth.login.account_locked_threshold', {
+        userId: user.id,
+        email: user.email,
+        failedAttempts: newFailedAttempts,
+        lockedUntil: lockUntil,
+      });
+    } else {
+      logSecurity('auth.login.failed_attempt', {
+        userId: user.id,
+        email: user.email,
+        failedAttempts: newFailedAttempts,
+      });
+    }
+
+    await userRepository.update(user.id, updates);
+
+    // Apply progressive login delay
+    const delayMs = calculateLoginDelay(newFailedAttempts);
+    if (delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
     throw new AuthenticationError('Please enter correct email/password');
+  }
+
+  // Successful login - reset failed attempts and clear lockout
+  if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+    await userRepository.update(user.id, {
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
   }
 
   requireSupportedRole(user.role);
@@ -262,8 +406,11 @@ const createChangePassword = ({ userRepository, passwordHasher }) => async (user
     throw new ValidationError('Current password and next password are required');
   }
 
-  if (String(nextPassword).length < 6) {
-    throw new ValidationError('Password must be at least 6 characters long');
+  const passwordValidation = validatePasswordStrength(nextPassword);
+  if (!passwordValidation.valid) {
+    const error = new ValidationError('Password does not meet requirements');
+    error.errors = passwordValidation.errors.map(msg => ({ field: 'nextPassword', message: msg }));
+    throw error;
   }
 
   const isCurrentPasswordValid = await passwordHasher.compare(currentPassword, user.password);

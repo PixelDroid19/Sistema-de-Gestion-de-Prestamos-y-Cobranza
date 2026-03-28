@@ -46,7 +46,7 @@ test('createRegisterUser creates a customer-linked identity and token response',
   const result = await registerUser({
     name: 'Ana Customer',
     email: 'ana@example.com',
-    password: 'secret1',
+    password: 'Secret123',
     role: 'customer',
     phone: '+573001112233',
   });
@@ -98,7 +98,7 @@ test('createRegisterUser rejects privileged public signup even when validation i
     payload: {
       name: 'Ana Agent',
       email: 'agent@example.com',
-      password: 'secret1',
+      password: 'Secret123',
       role: 'agent',
       phone: '+573001112233',
     },
@@ -158,7 +158,7 @@ test('createRegisterUser allows trusted admins to create privileged admin accoun
     payload: {
       name: 'Ana Admin',
       email: 'admin@example.com',
-      password: 'secret1',
+      password: 'Secret123',
       role: 'admin',
     },
   });
@@ -206,7 +206,7 @@ test('createRegisterUser accepts admin registrationSource for privileged provisi
     payload: {
       name: 'Provisioned Admin',
       email: 'provisioned.admin@example.com',
-      password: 'secret1',
+      password: 'Secret123',
       role: 'admin',
     },
   });
@@ -251,7 +251,7 @@ test('createRegisterUser blocks non-admin actors from creating privileged accoun
     payload: {
       name: 'Ana Admin',
       email: 'admin@example.com',
-      password: 'secret1',
+      password: 'Secret123',
       role: 'admin',
     },
   }), AuthorizationError);
@@ -301,7 +301,7 @@ test('createRegisterUser links socio accounts to an associate record', async () 
     payload: {
       name: 'Ana Socio',
       email: 'socio@example.com',
-      password: 'secret1',
+      password: 'Secret123',
       role: 'socio',
       phone: '+573001112233',
       associateId: 14,
@@ -317,7 +317,10 @@ test('createLoginUser rejects an invalid password', async () => {
   const loginUser = createLoginUser({
     userRepository: {
       async findByEmail() {
-        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'customer', name: 'Ana' };
+        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'customer', name: 'Ana', failedLoginAttempts: 0, lockedUntil: null };
+      },
+      async update() {
+        return {};
       },
     },
     passwordHasher: {
@@ -339,7 +342,10 @@ test('createLoginUser normalizes legacy agent identities to admin during login',
   const loginUser = createLoginUser({
     userRepository: {
       async findByEmail() {
-        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Legacy Agent' };
+        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Legacy Agent', failedLoginAttempts: 0, lockedUntil: null };
+      },
+      async update() {
+        return {};
       },
     },
     passwordHasher: {
@@ -354,7 +360,7 @@ test('createLoginUser normalizes legacy agent identities to admin during login',
     },
   });
 
-  const result = await loginUser({ email: 'ana@example.com', password: 'secret1' });
+  const result = await loginUser({ email: 'ana@example.com', password: 'Secret1' });
 
   assert.deepEqual(result.user, {
     id: 9,
@@ -479,7 +485,7 @@ test('createChangePassword updates the stored password hash', async () => {
   const changePassword = createChangePassword({
     userRepository: {
       async findById() {
-        return { id: 8, password: 'hashed-current' };
+        return { id: 8, password: 'hashed-Current1' };
       },
       async update(id, payload) {
         updates.push({ id, payload });
@@ -488,8 +494,8 @@ test('createChangePassword updates the stored password hash', async () => {
     },
     passwordHasher: {
       async compare(candidate, hashed) {
-        return (candidate === 'current-secret' && hashed === 'hashed-current')
-          || (candidate === 'current-secret' && hashed === 'current-secret');
+        // Simulate: candidate matches hashed value
+        return candidate === 'Current1' && hashed === 'hashed-Current1';
       },
       async hash(password) {
         return `hashed:${password}`;
@@ -498,19 +504,19 @@ test('createChangePassword updates the stored password hash', async () => {
   });
 
   const result = await changePassword(8, {
-    currentPassword: 'current-secret',
-    nextPassword: 'next-secret',
+    currentPassword: 'Current1',
+    nextPassword: 'Newpass1',
   });
 
   assert.deepEqual(result, { success: true });
-  assert.deepEqual(updates, [{ id: 8, payload: { password: 'hashed:next-secret' } }]);
+  assert.deepEqual(updates, [{ id: 8, payload: { password: 'hashed:Newpass1' } }]);
 });
 
 test('createChangePassword rejects an invalid current password', async () => {
   const changePassword = createChangePassword({
     userRepository: {
       async findById() {
-        return { id: 8, password: 'hashed-current' };
+        return { id: 8, password: 'hashed-Current1' };
       },
       async update() {
         throw new Error('update should not be called');
@@ -528,6 +534,57 @@ test('createChangePassword rejects an invalid current password', async () => {
 
   await assert.rejects(() => changePassword(8, {
     currentPassword: 'wrong-secret',
-    nextPassword: 'next-secret',
+    nextPassword: 'Newpass1',
   }), AuthenticationError);
+});
+
+test('createChangePassword rejects weak passwords that do not meet complexity requirements', async () => {
+  const changePassword = createChangePassword({
+    userRepository: {
+      async findById() {
+        return { id: 8, password: 'hashed-Current1' };
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    },
+    passwordHasher: {
+      async compare() {
+        return true;
+      },
+      async hash() {
+        throw new Error('hash should not be called');
+      },
+    },
+  });
+
+  // Password too short
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: 'Current1',
+    nextPassword: 'Short1',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.ok(error.errors.some(e => e.message.includes('8 characters')));
+    return true;
+  });
+
+  // Password without uppercase
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: 'Current1',
+    nextPassword: 'newpassword1',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.ok(error.errors.some(e => e.message.includes('uppercase')));
+    return true;
+  });
+
+  // Password without number
+  await assert.rejects(() => changePassword(8, {
+    currentPassword: 'Current1',
+    nextPassword: 'NewPassword',
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.ok(error.errors.some(e => e.message.includes('number')));
+    return true;
+  });
 });

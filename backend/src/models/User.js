@@ -10,6 +10,9 @@ const User = sequelize.define('User', {
   role: { type: DataTypes.ENUM(...APPLICATION_ROLES), allowNull: false },
   associateId: { type: DataTypes.INTEGER, allowNull: true },
   isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  // Account lockout fields for security
+  failedLoginAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  lockedUntil: { type: DataTypes.DATE, allowNull: true }, // null means not locked
 }, {
   timestamps: true,
 });

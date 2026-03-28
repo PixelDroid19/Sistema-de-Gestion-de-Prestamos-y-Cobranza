@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Toaster } from './lib/toast';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -68,16 +69,29 @@ function MainLayout() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }
+    <>
+      <Toaster
+        position="top-center"
+        options={{
+          fill: "#f5f5f5",
+          roundness: 16,
+          styles: {
+            title: "text-gray-900!",
+            description: "text-gray-600!",
+          },
+        }}
       />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { useLoanById, useLoanDetails, useLoans } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
 import { useUsers } from '../services/userService';
 import { useSessionStore } from '../store/sessionStore';
+import { toast } from '../lib/toast';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
@@ -133,9 +134,9 @@ export default function CreditDetails() {
           asOfDate: payoffQuote.asOfDate,
           quotedTotal,
         });
-        alert('Crédito liquidado exitosamente');
+        toast.success({ title: 'Crédito liquidado exitosamente' });
       } catch (error) {
-        alert('Error al liquidar crédito');
+        toast.error({ title: 'Error al liquidar crédito' });
       }
     }
   };
@@ -146,7 +147,7 @@ export default function CreditDetails() {
       await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus });
       setShowStatusModal(false);
     } catch (error) {
-      alert('Error al actualizar estado');
+      toast.error({ title: 'Error al actualizar estado' });
     }
   };
 
@@ -156,23 +157,51 @@ export default function CreditDetails() {
       await assignRecovery.mutateAsync({ id: loanId, recoveryAssigneeId: parseInt(newAgent) });
       setShowAgentModal(false);
     } catch (error) {
-      alert('Error al asignar agente');
+      toast.error({ title: 'Error al asignar agente' });
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-start gap-4 mb-6">
         <button 
           onClick={() => navigate('/credits')}
           className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Crédito #{loan.id}</h1>
-          <p className="text-sm text-text-secondary">Cliente: {customerLabel} | Agente: {agentLabel}</p>
+        <div className="flex-1">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">Crédito #{loan.id}</h1>
+              <p className="text-sm text-text-secondary">Cliente: {customerLabel} | Agente: {agentLabel}</p>
+            </div>
+          </div>
+          
+          {/* Financial Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 p-4 bg-bg-base border border-border-subtle rounded-xl">
+            <div>
+              <p className="text-xs text-text-secondary">N° Total de Cuotas</p>
+              <p className="text-lg font-semibold text-text-primary">{loan.termMonths ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-secondary">Cuotas a Pagar</p>
+              <p className="text-lg font-semibold text-text-primary">{loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-secondary">Interés Total</p>
+              <p className="text-lg font-semibold text-text-primary">{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-secondary">Capital Amortizado</p>
+              <p className="text-lg font-semibold text-text-primary">{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-secondary">Capital Vivo</p>
+              <p className="text-lg font-semibold text-brand-primary">{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</p>
+            </div>
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <button 
@@ -249,28 +278,86 @@ export default function CreditDetails() {
           <div>
             <h2 className="text-lg font-bold text-text-primary mb-4">Calendario de Pagos</h2>
             {calendarEntries.length > 0 ? (
-              <div className="space-y-3">
-                {calendarEntries.map((installment: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center p-4 border border-border-subtle rounded-xl">
-                    <div>
-                      <p className="font-medium text-text-primary">Cuota {installment.installmentNumber}</p>
-                      <p className="text-sm text-text-secondary">Vence: {formatDate(installment.dueDate)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-text-primary">{formatCurrency(installment.scheduledPayment ?? installment.expectedAmount ?? installment.outstandingAmount)}</p>
-                      <p className={`text-xs ${installment.status === 'paid' ? 'text-status-success' : 'text-status-warning'}`}>
-                        {installment.status || 'Sin estado'}
-                      </p>
-                    </div>
+              <>
+                {/* Full Amortization Table */}
+                <div className="bg-bg-base rounded-xl border border-border-subtle overflow-hidden mb-4">
+                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-text-secondary bg-bg-surface sticky top-0 shadow-sm">
+                        <tr>
+                          <th className="py-3 px-4 text-center font-medium">N° Cuota</th>
+                          <th className="py-3 px-4 text-right font-medium">Cuota a Pagar</th>
+                          <th className="py-3 px-4 text-right font-medium">Interés</th>
+                          <th className="py-3 px-4 text-right font-medium">Capital Amort.</th>
+                          <th className="py-3 px-4 text-right font-medium">Capital Vivo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-subtle">
+                        {/* Initial balance row */}
+                        <tr className="bg-hover-bg/50">
+                          <td className="py-2 px-4 text-center text-text-secondary">0</td>
+                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
+                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
+                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
+                          <td className="py-2 px-4 text-right font-semibold text-text-primary">
+                            {formatCurrency(loan.amount)}
+                          </td>
+                        </tr>
+                        {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
+                          // Derive the components from the calendar entry data
+                          // Note: remainingPrincipal/remainingInterest in calendar entries are the payment components, not cumulative
+                          const scheduledPayment = installment.scheduledPayment ?? 0;
+                          const interestComponent = installment.remainingInterest ?? 0;
+                          const principalComponent = scheduledPayment - interestComponent;
+                          
+                          // Calculate running balance (Capital Vivo)
+                          const openingBalance = index === 0 
+                            ? Number(loan.amount) 
+                            : rows[index - 1].closingBalance;
+                          const closingBalance = Math.max(0, openingBalance - principalComponent);
+                          
+                          rows.push({
+                            installmentNumber: installment.installmentNumber,
+                            scheduledPayment,
+                            interestComponent,
+                            principalComponent,
+                            openingBalance,
+                            closingBalance,
+                            status: installment.status,
+                          });
+                          return rows;
+                        }, []).map((row: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-hover-bg transition-colors">
+                            <td className="py-2 px-4 text-center">{row.installmentNumber}</td>
+                            <td className="py-2 px-4 text-right font-medium text-blue-600 dark:text-blue-400">
+                              {formatCurrency(row.scheduledPayment)}
+                            </td>
+                            <td className="py-2 px-4 text-right text-amber-600 dark:text-amber-400">
+                              {formatCurrency(row.interestComponent)}
+                            </td>
+                            <td className="py-2 px-4 text-right text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(row.principalComponent)}
+                            </td>
+                            <td className="py-2 px-4 text-right font-medium">
+                              {formatCurrency(row.closingBalance)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {calendarSnapshot && (
+                        <tfoot className="bg-bg-base border-t border-border-subtle">
+                          <tr>
+                            <td colSpan={4} className="py-2 px-4 text-right font-medium text-text-secondary">Balance pendiente:</td>
+                            <td className="py-2 px-4 text-right font-bold text-brand-primary">
+                              {formatCurrency(calendarSnapshot.outstandingBalance)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
                   </div>
-                ))}
-                {calendarSnapshot && (
-                  <div className="flex justify-between items-center p-4 border border-border-subtle rounded-xl bg-bg-base">
-                    <span className="text-sm text-text-secondary">Balance pendiente</span>
-                    <span className="font-medium text-text-primary">{formatCurrency(calendarSnapshot.outstandingBalance)}</span>
-                  </div>
-                )}
-              </div>
+                </div>
+              </>
             ) : (
               <p className="text-text-secondary">No hay cuotas programadas.</p>
             )}

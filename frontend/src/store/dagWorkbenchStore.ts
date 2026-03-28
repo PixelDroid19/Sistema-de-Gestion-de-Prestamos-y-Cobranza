@@ -261,6 +261,13 @@ const DEFAULT_SCOPE_GRAPHS: Record<string, DagGraph> = {
         outputVar: 'overdueAmount',
       },
       {
+        id: 'annual_rate',
+        kind: 'constant',
+        label: 'Tasa Anual de Mora (%)',
+        description: 'Tasa anual para cálculo de mora (modo SIMPLE)',
+        outputVar: 'annualRate',
+      },
+      {
         id: 'fee_mode',
         kind: 'conditional',
         label: 'Tipo de Mora',
@@ -273,9 +280,9 @@ const DEFAULT_SCOPE_GRAPHS: Record<string, DagGraph> = {
         kind: 'formula',
         label: 'Cálculo de Mora',
         description: 'Calcula el monto de mora según el modo seleccionado',
-        formula: 'calculateLateFee({ overdueAmount, daysOverdue, feeMode })',
+        formula: 'calculateLateFee({ overdueAmount, daysOverdue, feeMode, annualRate })',
         outputVar: 'lateFeeAmount',
-        dependencies: ['days_overdue', 'overdue_amount', 'fee_mode'],
+        dependencies: ['days_overdue', 'overdue_amount', 'annual_rate', 'fee_mode'],
       },
       {
         id: 'output_fee',
@@ -289,6 +296,7 @@ const DEFAULT_SCOPE_GRAPHS: Record<string, DagGraph> = {
     edges: [
       { source: 'days_overdue', target: 'late_fee_calc' },
       { source: 'overdue_amount', target: 'late_fee_calc' },
+      { source: 'annual_rate', target: 'late_fee_calc' },
       { source: 'fee_mode', target: 'late_fee_calc' },
       { source: 'late_fee_calc', target: 'output_fee' },
     ],

@@ -220,3 +220,50 @@ test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {
     },
   );
 });
+
+test('assertWorkbenchAccess rejects non-admin roles with correct error message', async () => {
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: true },
+    dagGraphRepository: {
+      async getLatest() {
+        throw new Error('getLatest should not be called');
+      },
+      async saveVersion() {
+        throw new Error('saveVersion should not be called');
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        throw new Error('getLatest should not be called');
+      },
+    },
+    creditDomainService: {
+      async simulate() {
+        throw new Error('simulate should not be called');
+      },
+    },
+  });
+
+  // Test that customer role is rejected
+  await assert.rejects(
+    () => service.getSummary({ actor: { id: 2, role: 'customer' }, scopeKey: 'personal-loan' }),
+    (error) => {
+      assert.match(error.message, /Only admins can access/i);
+      assert.ok(!error.message.includes('agents'), 'Error message should not mention agents');
+      return true;
+    },
+  );
+
+  // Test that socio role is rejected
+  await assert.rejects(
+    () => service.loadGraph({ actor: { id: 3, role: 'socio' }, scopeKey: 'personal-loan' }),
+    (error) => {
+      assert.match(error.message, /Only admins can access/i);
+      assert.ok(!error.message.includes('agents'), 'Error message should not mention agents');
+      return true;
+    },
+  );
+});

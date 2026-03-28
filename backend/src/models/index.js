@@ -19,6 +19,7 @@ const FinancialProduct = require('./FinancialProduct');
 const GraphTopology = require('./GraphTopology');
 const OutboxEvent = require('./OutboxEvent');
 const ConfigEntry = require('./ConfigEntry');
+const RateLimitEntry = require('./RateLimitEntry');
 
 Loan.belongsTo(Customer, { foreignKey: 'customerId' });
 Customer.hasMany(Loan, { foreignKey: 'customerId' });
@@ -120,4 +121,5 @@ module.exports = {
   GraphTopology,
   OutboxEvent,
   ConfigEntry,
+  RateLimitEntry,
 };

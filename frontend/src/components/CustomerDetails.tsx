@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock } fro
 import { useCustomers, useCustomerDocuments } from '../services/customerService';
 import { useCustomerReports } from '../services/reportService';
 import { useLoans } from '../services/loanService';
+import { toast } from '../lib/toast';
 
 export default function CustomerDetails() {
   const { id } = useParams<{ id: string }>();
@@ -74,9 +75,9 @@ export default function CustomerDetails() {
     try {
       await uploadDocument.mutateAsync({ file, metadata: { documentType: docType } });
       setFile(null);
-      alert('Documento subido exitosamente');
+      toast.success({ title: 'Documento subido exitosamente' });
     } catch (error) {
-      alert('Error al subir documento');
+      toast.error({ title: 'Error al subir documento' });
     }
   };
 
@@ -85,7 +86,7 @@ export default function CustomerDetails() {
       try {
         await deleteDocument.mutateAsync(docId);
       } catch (error) {
-        alert('Error al eliminar');
+        toast.error({ title: 'Error al eliminar' });
       }
     }
   };

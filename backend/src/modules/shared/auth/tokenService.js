@@ -25,10 +25,17 @@ const normalizeTokenPayload = (payload) => {
  */
 const createJwtTokenService = ({ secret = process.env.JWT_SECRET, expiresIn = '24h' } = {}) => ({
   sign(payload) {
-    return jwt.sign(normalizeTokenPayload(payload), secret, { expiresIn });
+    return jwt.sign(normalizeTokenPayload(payload), secret, { 
+      expiresIn,
+      algorithm: 'HS256', // Explicitly specify the signing algorithm
+    });
   },
   verify(token) {
-    return normalizeTokenPayload(jwt.verify(token, secret));
+    // Explicitly specify allowed algorithms to prevent algorithm confusion attacks
+    // This prevents attackers from crafting tokens with 'none' algorithm or using HS256/HS384/HS512 interchangeably
+    return normalizeTokenPayload(jwt.verify(token, secret, {
+      algorithms: ['HS256'], // Only allow HS256 - reject 'none', 'HS384', 'HS512', 'RS256', etc.
+    }));
   },
 });
 

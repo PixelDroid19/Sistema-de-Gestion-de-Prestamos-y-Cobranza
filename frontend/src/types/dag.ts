@@ -319,4 +319,5 @@ export const FORMULA_HELPERS = [
   { name: 'summarizeSchedule', description: 'Resume la tabla en totales' },
   { name: 'assertSupportedLateFeeMode', description: 'Valida modo de mora' },
   { name: 'roundCurrency', description: 'Redondea a 2 decimales' },
+  { name: 'calculateLateFee', description: 'Calcula mora: SIMPLE/FLAT/TIERED' },
 ] as const;

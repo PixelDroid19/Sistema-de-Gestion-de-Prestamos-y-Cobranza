@@ -349,45 +349,100 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="pb-3 font-medium">ID Préstamo</th>
                   <th className="pb-3 font-medium">Cliente</th>
                   <th className="pb-3 font-medium">Monto</th>
+                  <th className="pb-3 font-medium">Tasa (TNA)</th>
+                  <th className="pb-3 font-medium">Cuota</th>
+                  <th className="pb-3 font-medium">Monto Pendiente</th>
+                  <th className="pb-3 font-medium">% Mora</th>
                   <th className="pb-3 font-medium">Estado</th>
                   <th className="pb-3 font-medium">Estado de Recuperación</th>
                   <th className="pb-3 font-medium">Agente Asignado</th>
+                  <th className="pb-3 font-medium">Fecha Creación</th>
                   <th className="pb-3 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {isLoading ? (
-                  <tr><td colSpan={7} className="py-4 text-center text-text-secondary">Cargando créditos...</td></tr>
+                {                isLoading ? (
+                  <tr><td colSpan={12} className="py-4 text-center text-text-secondary">Cargando créditos...</td></tr>
                 ) : isError ? (
-                  <tr><td colSpan={7} className="py-4 text-center text-red-500">Error al cargar créditos.</td></tr>
+                  <tr><td colSpan={12} className="py-4 text-center text-red-500">Error al cargar créditos.</td></tr>
                 ) : mockCreditsList.length === 0 ? (
-                  <tr><td colSpan={7} className="py-4 text-center text-text-secondary">No hay créditos registrados.</td></tr>
+                  <tr><td colSpan={12} className="py-4 text-center text-text-secondary">No hay créditos registrados.</td></tr>
                 ) : (
-                  mockCreditsList.map((credit: any) => (
-                    <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
-                      <td className="py-4 text-text-secondary font-mono">{String(credit.id).substring(0, 8)}</td>
-                      <td className="py-4 font-medium">{getCreditLabel(credit)}</td>
-                      <td className="py-4">{formatCurrency(credit.amount)}</td>
-                      <td className="py-4">
-                        <span className={`px-2 py-1 rounded text-xs ${credit.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : credit.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' : 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                          {getLoanStatusLabel(credit.status)}
-                        </span>
-                      </td>
-                      <td className="py-4">
-                          <span className={`px-2 py-1 rounded text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
-                           {getRecoveryStatusLabel(credit)}
+                  mockCreditsList.map((credit: any) => {
+                    // Calculate outstanding amount (principalOutstanding + interestOutstanding)
+                    const principalOutstanding = Number(credit.principalOutstanding) || 0;
+                    const interestOutstanding = Number(credit.interestOutstanding) || 0;
+                    const outstandingAmount = principalOutstanding + interestOutstanding;
+                    
+                    // Calculate delinquency percentage based on status
+                    const isDelinquent = credit.status === 'defaulted' || credit.status === 'overdue' || credit.recoveryStatus === 'overdue';
+                    const totalAmount = Number(credit.amount) || 0;
+                    const delinquencyPercentage = totalAmount > 0 && isDelinquent 
+                      ? (outstandingAmount / totalAmount) * 100 
+                      : 0;
+
+                    // Format creation date
+                    const creationDate = credit.createdAt 
+                      ? format(new Date(credit.createdAt), "dd/MM/yyyy", { locale: es })
+                      : '-';
+
+                    return (
+                      <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
+                        <td className="py-4 text-text-secondary font-mono">{String(credit.id).substring(0, 8)}</td>
+                        <td className="py-4 font-medium">{getCreditLabel(credit)}</td>
+                        <td className="py-4">{formatCurrency(credit.amount)}</td>
+                        <td className="py-4 text-text-secondary">
+                          {credit.interestRate ? `${Number(credit.interestRate).toFixed(2)}%` : '-'}
+                        </td>
+                        <td className="py-4 text-text-secondary">
+                          {credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}
+                        </td>
+                        <td className="py-4">
+                          {outstandingAmount > 0 ? (
+                            <span className={isDelinquent ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
+                              {formatCurrency(outstandingAmount)}
+                            </span>
+                          ) : (
+                            <span className="text-text-secondary">-</span>
+                          )}
+                        </td>
+                        <td className="py-4">
+                          {delinquencyPercentage > 0 ? (
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              delinquencyPercentage > 50 
+                                ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' 
+                                : delinquencyPercentage > 25 
+                                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                                  : 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300'
+                            }`}>
+                              {delinquencyPercentage.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-text-secondary">0%</span>
+                          )}
+                        </td>
+                        <td className="py-4">
+                          <span className={`px-2 py-1 rounded text-xs ${credit.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : credit.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' : 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
+                            {getLoanStatusLabel(credit.status)}
                           </span>
                         </td>
-                      <td className="py-4 text-text-secondary">{getAgentLabel(credit)}</td>
-                      <td className="py-4">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setCurrentView?.(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                          <button onClick={() => setActionModal({ isOpen: true, type: 'edit', data: credit })} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
-                          <button onClick={() => setActionModal({ isOpen: true, type: 'delete', data: credit })} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        <td className="py-4">
+                            <span className={`px-2 py-1 rounded text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
+                             {getRecoveryStatusLabel(credit)}
+                            </span>
+                          </td>
+                        <td className="py-4 text-text-secondary">{getAgentLabel(credit)}</td>
+                        <td className="py-4 text-text-secondary text-xs">{creationDate}</td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setCurrentView?.(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
+                            <button onClick={() => setActionModal({ isOpen: true, type: 'edit', data: credit })} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
+                            <button onClick={() => setActionModal({ isOpen: true, type: 'delete', data: credit })} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

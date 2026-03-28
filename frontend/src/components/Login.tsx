@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../services/authService';
+import { toast } from '../lib/toast';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function Login() {
       navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión');
+      toast.apiError(err, 'Error al iniciar sesión');
     }
   };
 

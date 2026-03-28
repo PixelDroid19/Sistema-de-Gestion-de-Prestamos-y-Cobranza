@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Lock, Save, Shield } from 'lucide-react';
 import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
+import { toast } from '../lib/toast';
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
@@ -46,16 +47,16 @@ export default function Profile() {
     e.preventDefault();
     try {
       await updateProfile.mutateAsync(formData);
-      alert('Perfil actualizado correctamente');
+      toast.success({ description: 'Perfil actualizado correctamente' });
     } catch (error) {
-      alert(`Error al actualizar el perfil: ${getErrorMessage(error)}`);
+      toast.apiError(error, 'Error al actualizar el perfil');
     }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Las contraseñas nuevas no coinciden');
+      toast.warning({ description: 'Las contraseñas nuevas no coinciden' });
       return;
     }
     try {
@@ -64,9 +65,9 @@ export default function Profile() {
         newPassword: passwordData.newPassword
       });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      alert('Contraseña actualizada correctamente');
+      toast.success({ description: 'Contraseña actualizada correctamente' });
     } catch (error) {
-      alert(`Error al cambiar la contraseña: ${getErrorMessage(error)}`);
+      toast.apiError(error, 'Error al cambiar la contraseña');
     }
   };
 

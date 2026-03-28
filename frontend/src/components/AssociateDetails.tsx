@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, TrendingUp, RefreshCw, Download } from 'lucide-react';
 import { useAssociateDetails, useAssociates } from '../services/associateService';
+import { toast } from '../lib/toast';
 
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
@@ -63,9 +64,9 @@ export default function AssociateDetails() {
       
       setShowModal(null);
       setAmount('');
-      alert('Operación registrada exitosamente');
+      toast.success({ title: 'Operación registrada exitosamente' });
     } catch (error) {
-      alert('Error al registrar la operación');
+      toast.error({ title: 'Error al registrar la operación' });
     } finally {
       setIsSubmitting(false);
     }

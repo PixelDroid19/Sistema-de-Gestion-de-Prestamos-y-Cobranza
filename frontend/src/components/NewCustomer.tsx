@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Briefcase, Loader2 } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
+import { toast } from '../lib/toast';
 
 export default function NewCustomer({ onBack }: { onBack: () => void }) {
   const { createCustomer } = useCustomers();
@@ -28,7 +29,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       onBack();
     } catch (error) {
       console.error('Error creating customer:', error);
-      // Handle error (e.g., show toast)
+      toast.apiError(error, 'Error al crear el cliente');
     } finally {
       setIsSubmitting(false);
     }

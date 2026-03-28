@@ -4,8 +4,24 @@ const {
   ValidationError,
 } = require('../../../../utils/errorHandler');
 const { logSecurity, logBusiness } = require('../../../../utils/logger');
+const BigNumberEngine = require('../../../../core/domain/calculation/BigNumberEngine');
+const { CalculationEngine } = require('../../../../core/domain/calculation/CalculationEngine');
 
 const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
+
+// Blocked patterns that could bypass formula validation
+const BLOCKED_FORMULA_PATTERNS = [
+  /import\s*\(/i,
+  /evaluate\s*\(/i,
+  /parse\s*\(/i,
+  /createUnit\s*\(/i,
+  /simplify\s*\(/i,
+  /derivative\s*\(/i,
+  /chain\s*\(/i,
+  /typed\s*\(/i,
+  /config\s*\(/i,
+  /importFrom\s*\(/i,
+];
 
 const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
 
@@ -15,6 +31,81 @@ const buildGraphSummary = ({ nodes, edges }) => ({
   outputCount: nodes.filter((node) => node.kind === 'output').length,
   formulaNodeCount: nodes.filter((node) => typeof node.formula === 'string' && node.formula.trim()).length,
 });
+
+/**
+ * Validate a formula string for dangerous patterns before saving.
+ * Logs validation errors for security monitoring.
+ * @param {string} formula - The formula string to validate
+ * @param {string} nodeId - The node ID for error reporting
+ * @returns {{ valid: boolean, error?: { field: string, message: string } }}
+ */
+const validateFormulaInput = (formula, nodeId) => {
+  if (!formula || typeof formula !== 'string') {
+    return { valid: true }; // No formula to validate
+  }
+
+  const trimmedFormula = formula.trim();
+  if (!trimmedFormula) {
+    return { valid: true }; // Empty formula is valid (optional field)
+  }
+
+  // Check for blocked patterns that could bypass the mathjs whitelist
+  for (const pattern of BLOCKED_FORMULA_PATTERNS) {
+    if (pattern.test(trimmedFormula)) {
+      logSecurity('dag.workbench.blocked_formula_pattern', {
+        nodeId,
+        formula: trimmedFormula.substring(0, 100),
+        pattern: pattern.toString(),
+      });
+      return {
+        valid: false,
+        error: {
+          field: `nodes.formula`,
+          message: `Node '${nodeId}': Blocked pattern detected in formula - potentially unsafe operation`,
+        },
+      };
+    }
+  }
+
+  // Validate formula syntax and function whitelist using BigNumberEngine
+  try {
+    BigNumberEngine.validateFormula(trimmedFormula);
+    return { valid: true };
+  } catch (validationError) {
+    logSecurity('dag.workbench.formula_validation_failed', {
+      nodeId,
+      formula: trimmedFormula.substring(0, 100),
+      error: validationError.message,
+    });
+    return {
+      valid: false,
+      error: {
+        field: `nodes.formula`,
+        message: `Node '${nodeId}': ${validationError.message}`,
+      },
+    };
+  }
+};
+
+/**
+ * Validate all formula nodes in a graph.
+ * @param {Array} nodes - Array of graph nodes
+ * @returns {Array} Array of validation errors
+ */
+const validateFormulaNodes = (nodes) => {
+  const errors = [];
+
+  for (const node of nodes) {
+    if (node.kind === 'formula' && node.formula) {
+      const result = validateFormulaInput(node.formula, node.id);
+      if (!result.valid && result.error) {
+        errors.push(result.error);
+      }
+    }
+  }
+
+  return errors;
+};
 
 const detectCycles = ({ nodes, incomingByTarget }) => {
   const visited = new Set();
@@ -110,6 +201,10 @@ const validateDagWorkbenchGraph = (graph = {}) => {
     errors.push({ field: 'edges', message: 'Graph contains circular dependencies' });
   }
 
+  // Validate formula nodes for dangerous patterns and syntax
+  const formulaErrors = validateFormulaNodes(nodes);
+  errors.push(...formulaErrors);
+
   if (!nodes.some((node) => node.kind === 'output')) {
     warnings.push({ field: 'nodes', message: 'Graph does not declare any output nodes' });
   }
@@ -124,7 +219,7 @@ const validateDagWorkbenchGraph = (graph = {}) => {
 
 const assertWorkbenchAccess = ({ actor, dagConfig, scopeKey }) => {
   if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
-    throw new AuthorizationError('Only admins and agents can access the DAG workbench');
+    throw new AuthorizationError('Only admins can access the DAG workbench');
   }
 
   if (!dagConfig?.workbenchEnabled) {
@@ -214,26 +309,41 @@ const createDagWorkbenchService = ({
       }
 
       const graphVersion = await dagGraphRepository.getLatest(normalizedScopeKey);
-      const execution = typeof creditDomainService.simulateDetailed === 'function'
-        ? await creditDomainService.simulateDetailed(simulationInput)
-        : { selectedSource: 'legacy', fallbackReason: null, parity: { passed: true, mismatches: [] }, result: await creditDomainService.simulate(simulationInput) };
+
+      // Execute the DAG graph using CalculationEngine, which properly evaluates
+      // formulas with calculateLateFee and other helpers available in scope
+      let dagExecution;
+      try {
+        dagExecution = CalculationEngine.execute(graph, simulationInput);
+      } catch (engineError) {
+        // If DAG execution fails, fall back to legacy simulation
+        const legacyResult = typeof creditDomainService.simulateDetailed === 'function'
+          ? await creditDomainService.simulateDetailed(simulationInput)
+          : { selectedSource: 'legacy', fallbackReason: null, parity: { passed: true, mismatches: [] }, result: await creditDomainService.simulate(simulationInput) };
+        dagExecution = {
+          selectedSource: 'legacy',
+          fallbackReason: 'dag_execution_failed',
+          result: legacyResult.result,
+          parity: { passed: false, mismatches: [{ scope: 'dag', field: 'execution', expected: 'success', actual: engineError.message }] },
+        };
+      }
 
       const latestSimulation = await dagSimulationSummaryRepository.save({
         scopeKey: normalizedScopeKey,
         graphVersionId: graphVersion?.id || null,
         createdByUserId: actor.id,
-        selectedSource: execution.selectedSource || 'legacy',
-        fallbackReason: execution.fallbackReason || null,
-        parity: execution.parity || { passed: true, mismatches: [] },
+        selectedSource: dagExecution.selectedSource || 'dag',
+        fallbackReason: dagExecution.fallbackReason || null,
+        parity: dagExecution.parity || { passed: true, mismatches: [] },
         simulationInput,
-        summary: execution.result?.summary || {},
-        schedulePreview: Array.isArray(execution.result?.schedule) ? execution.result.schedule.slice(0, 5) : [],
+        summary: dagExecution.result?.summary || dagExecution.result || {},
+        schedulePreview: Array.isArray(dagExecution.result?.schedule) ? dagExecution.result.schedule.slice(0, 5) : [],
       });
 
       return {
         graphVersion,
         validation,
-        simulation: execution.result,
+        simulation: dagExecution.result,
         summary: {
           latestGraph: graphVersion,
           latestSimulation,
@@ -357,5 +467,7 @@ const createDagWorkbenchService = ({
 module.exports = {
   normalizeScopeKey,
   validateDagWorkbenchGraph,
+  validateFormulaInput,
+  validateFormulaNodes,
   createDagWorkbenchService,
 };

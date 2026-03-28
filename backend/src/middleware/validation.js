@@ -189,11 +189,10 @@ const authValidation = {
 
     if (!password) {
       errors.push({ field: 'password', message: 'Password is required' });
-    } else if (password.length < 6) {
-      const remaining = 6 - password.length;
+    } else if (password.length < 8) {
       errors.push({ 
         field: 'password', 
-        message: `Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.` 
+        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.' 
       });
     }
 
@@ -226,11 +225,10 @@ const authValidation = {
 
     if (!password) {
       errors.push({ field: 'password', message: 'Password is required' });
-    } else if (password.length < 6) {
-      const remaining = 6 - password.length;
+    } else if (password.length < 8) {
       errors.push({
         field: 'password',
-        message: `Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.`,
+        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.',
       });
     }
 
@@ -415,11 +413,10 @@ const loanValidation = {
 
     if (!password) {
       errors.push({ field: 'password', message: 'Password is required' });
-    } else if (password.length < 6) {
-      const remaining = 6 - password.length;
+    } else if (password.length < 8) {
       errors.push({
         field: 'password',
-        message: `Password must be at least 6 characters long. Please add ${remaining} more character${remaining > 1 ? 's' : ''}.`,
+        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.',
       });
     }
 
