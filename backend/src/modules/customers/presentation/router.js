@@ -38,6 +38,14 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.json({ success: true, message: 'Customer deleted successfully' });
   }));
 
+  router.patch('/:id/restore', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const customer = await useCases.restoreCustomer({
+      actor: req.user,
+      customerId: req.params.id,
+    });
+    res.json({ success: true, data: { customer }, message: 'Customer restored successfully' });
+  }));
+
   router.get('/:id/documents', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
     const documents = await useCases.listCustomerDocuments({ actor: req.user, customerId: req.params.id });
     res.json({ success: true, count: documents.length, data: { documents } });

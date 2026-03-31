@@ -15,6 +15,9 @@ const {
   createCreateProfitDistribution,
   createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
+  createGetAssociateInstallments,
+  createPayAssociateInstallment,
+  createGetAssociateCalendar,
 } = require('../src/modules/associates/application/useCases');
 
 test('createListAssociates returns repository results in name order', async () => {
@@ -536,4 +539,162 @@ test('createCreateProportionalProfitDistribution prevents a near-concurrent dupl
     assert.match(error.message, /already being processed/);
     return true;
   });
+});
+
+test('createGetAssociateInstallments returns installments with totals', async () => {
+  const getInstallments = createGetAssociateInstallments({
+    associateRepository: {
+      async findInstallmentsByAssociateId(associateId) {
+        return [
+          { id: 1, installmentNumber: 1, amount: 100, dueDate: new Date('2026-01-01'), status: 'paid', paidAt: new Date('2026-01-15'), paidBy: 1, paidByUser: { id: 1, name: 'Admin' } },
+          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 3, installmentNumber: 3, amount: 100, dueDate: new Date('2026-03-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.equal(result.associateId, 12);
+  assert.equal(result.installments.length, 3);
+  assert.equal(result.totals.totalPaid, 100);
+  assert.equal(result.totals.totalPending, 200);
+});
+
+test('createGetAssociateInstallments rejects unauthorized socio accessing another associate', async () => {
+  const getInstallments = createGetAssociateInstallments({
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        throw new Error('should not be called');
+      },
+      async findById() {
+        return { id: 5, name: 'Partner One' };
+      },
+    },
+  });
+
+  await assert.rejects(() => getInstallments({
+    actor: { id: 9, role: 'socio', associateId: 5 },
+    associateId: 12,
+  }), AuthorizationError);
+});
+
+test('createPayAssociateInstallment marks installment as paid', async () => {
+  const payInstallment = createPayAssociateInstallment({
+    associateRepository: {
+      async findInstallmentsByAssociateId(associateId) {
+        return [
+          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date(), status: 'pending', toJSON: () => ({ id: 2, installmentNumber: 2, amount: 100, dueDate: new Date(), status: 'pending' }) },
+        ];
+      },
+      async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
+        assert.equal(associateId, 12);
+        assert.equal(installmentNumber, 2);
+        assert.equal(status, 'paid');
+        assert.equal(paidBy, 1);
+        return 1;
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  const result = await payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 2,
+    payload: {},
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.installment.status, 'paid');
+});
+
+test('createPayAssociateInstallment rejects already paid installment', async () => {
+  const payInstallment = createPayAssociateInstallment({
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 1, installmentNumber: 1, amount: 100, status: 'paid' },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  await assert.rejects(() => payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 1,
+    payload: {},
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Installment already paid');
+    return true;
+  });
+});
+
+test('createPayAssociateInstallment rejects non-existent installment', async () => {
+  const payInstallment = createPayAssociateInstallment({
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  await assert.rejects(() => payInstallment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    installmentNumber: 999,
+    payload: {},
+  }), NotFoundError);
+});
+
+test('createGetAssociateCalendar aggregates contributions, distributions, and installments', async () => {
+  const getCalendar = createGetAssociateCalendar({
+    associateRepository: {
+      async findCalendarEvents(associateId, startDate, endDate) {
+        assert.equal(associateId, 12);
+        return {
+          contributions: [
+            { id: 1, type: 'contribution', amount: 500, date: new Date('2026-01-15'), notes: 'Initial capital', createdBy: { id: 1, name: 'Admin' } },
+          ],
+          distributions: [
+            { id: 2, type: 'distribution', amount: 50, date: new Date('2026-02-01'), notes: 'Profit share', createdBy: { id: 1, name: 'Admin' }, loanId: null, Loan: null },
+          ],
+          installments: [
+            { id: 3, type: 'installment', installmentNumber: 1, amount: 100, dueDate: new Date('2026-03-01'), status: 'pending', paidAt: null },
+          ],
+        };
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  const result = await getCalendar({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+  });
+
+  assert.equal(result.associateId, 12);
+  assert.equal(result.events.length, 3);
+  assert.equal(result.summary.contributionCount, 1);
+  assert.equal(result.summary.distributionCount, 1);
+  assert.equal(result.summary.installmentCount, 1);
+  assert.equal(result.summary.pendingInstallments, 1);
 });

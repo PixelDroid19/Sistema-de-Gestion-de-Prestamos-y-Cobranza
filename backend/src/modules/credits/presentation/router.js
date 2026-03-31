@@ -117,22 +117,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
-  router.get('/recovery-roster', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listRecoveryRoster({ actor: req.user, pagination: req.pagination });
-
-    if (result?.pagination) {
-      res.json({ success: true, count: result.pagination.totalItems, data: { recoveryRoster: result.items, pagination: result.pagination } });
-      return;
-    }
-
-    res.json({ success: true, count: result.length, data: { recoveryRoster: result } });
-  }));
-
-  router.get('/recovery-roster/:recoveryAssigneeId/loans', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listLoansByRecoveryAssignee({ actor: req.user, recoveryAssigneeId: req.params.recoveryAssigneeId, pagination: req.pagination });
-    res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
-  }));
-
   router.post('/', authMiddleware(['customer', 'admin']), loanValidation.create, asyncHandler(async (req, res) => {
     const loan = await useCases.createLoan({ actor: req.user, payload: req.body });
     res.status(201).json({
@@ -148,11 +132,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.patch('/:id/status', authMiddleware(['admin']), loanValidation.updateStatus, asyncHandler(async (req, res) => {
     const loan = await useCases.updateLoanStatus({ actor: req.user, loanId: req.params.id, status: req.body.status });
     res.json({ success: true, message: `Loan status updated to ${req.body.status}`, data: { loan } });
-  }));
-
-  router.patch('/:id/recovery-assignment', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const loan = await useCases.assignRecoveryAssignee({ actor: req.user, loanId: req.params.id, recoveryAssigneeId: req.body.recoveryAssigneeId });
-    res.json({ success: true, message: 'Recovery assignment updated successfully', data: { loan } });
   }));
 
   router.patch('/:id/recovery-status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -283,6 +262,40 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.get('/:id', authMiddleware(), asyncHandler(async (req, res) => {
     const loan = await useCases.getLoanById({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, data: { loan } });
+  }));
+
+  router.get('/statistics', authMiddleware(), asyncHandler(async (req, res) => {
+    const statistics = await useCases.getLoanStatistics();
+    res.json({ success: true, data: { statistics } });
+  }));
+
+  router.get('/due-payments', authMiddleware(), asyncHandler(async (req, res) => {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ success: false, error: { message: 'date parameter is required' } });
+    }
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid date format' } });
+    }
+    const duePayments = await useCases.getDuePayments({ date: parsedDate });
+    res.json({ success: true, count: duePayments.length, data: { duePayments } });
+  }));
+
+  router.get('/search', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
+    const filters = {
+      status: req.query.status,
+      minAmount: req.query.minAmount ? Number(req.query.minAmount) : undefined,
+      maxAmount: req.query.maxAmount ? Number(req.query.maxAmount) : undefined,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    };
+    const result = await useCases.searchLoans({ filters, pagination: req.pagination });
+    if (result.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { loans: result.items, pagination: result.pagination } });
+      return;
+    }
+    res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
   return router;

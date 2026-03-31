@@ -10,7 +10,7 @@ test('authValidation.register accepts customer self-signup without phone', async
     body: {
       name: 'Ana Customer',
       email: 'ana@example.com',
-      password: 'secret1',
+      password: 'Secret12',
       role: 'customer',
     },
   }));
@@ -21,7 +21,7 @@ test('authValidation.register rejects privileged public roles with a clear role 
     body: {
       name: 'Ana Agent',
       email: 'agent@example.com',
-      password: 'secret1',
+      password: 'Secret12',
       role: 'agent',
       phone: '+573001112233',
     },
@@ -42,7 +42,7 @@ test('authValidation.adminRegister rejects legacy agent as an unsupported applic
     body: {
       name: 'Ana Agent',
       email: 'agent@example.com',
-      password: 'secret1',
+      password: 'Secret12',
       role: 'agent',
       phone: '+573001112233',
     },
@@ -62,7 +62,7 @@ test('authValidation.adminRegister accepts admin registration without a phone nu
     body: {
       name: 'Ana Admin',
       email: 'admin@example.com',
-      password: 'secret1',
+      password: 'Secret12',
       role: 'admin',
     },
   }));

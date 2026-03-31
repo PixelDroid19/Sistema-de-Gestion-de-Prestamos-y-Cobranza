@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { NotFoundError, ValidationError, globalErrorHandler } = require('../src/utils/errorHandler');
+const { NotFoundError, ValidationError, AuthorizationError, globalErrorHandler } = require('../src/utils/errorHandler');
 const { createAssociatesRouter } = require('../src/modules/associates/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
@@ -310,4 +310,153 @@ test('createAssociatesRouter surfaces proportional distribution validation and a
   });
 
   assert.equal(unauthorizedResponse.statusCode, 403);
+});
+
+test('createAssociatesRouter GET /:id/installments returns installments data', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateInstallments({ actor, associateId }) {
+        calls.push(['getAssociateInstallments', actor, associateId]);
+        return {
+          associateId: Number(associateId),
+          installments: [
+            { id: 1, installmentNumber: 1, amount: 100, dueDate: new Date('2026-01-01'), status: 'paid' },
+            { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-01'), status: 'pending' },
+          ],
+          totals: { totalPending: 100, totalPaid: 100, totalOverdue: 0 },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/12/installments',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.installments.associateId, 12);
+  assert.equal(response.body.data.installments.installments.length, 2);
+  assert.equal(response.body.data.installments.totals.totalPending, 100);
+});
+
+test('createAssociatesRouter POST /:id/installments/:installmentNumber/pay marks installment as paid', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async payAssociateInstallment({ actor, associateId, installmentNumber, payload }) {
+        calls.push(['payAssociateInstallment', actor, associateId, installmentNumber, payload]);
+        return {
+          success: true,
+          installment: {
+            id: 2,
+            installmentNumber: Number(installmentNumber),
+            amount: 100,
+            dueDate: new Date('2026-02-01'),
+            status: 'paid',
+            paidAt: new Date(),
+            paidBy: actor.id,
+          },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/12/installments/2/pay',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { paymentDate: '2026-02-15' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.installment.installment.status, 'paid');
+  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin' }, '12', '2', { paymentDate: '2026-02-15' }]);
+});
+
+test('createAssociatesRouter GET /:id/calendar-events returns calendar data', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateCalendar({ actor, associateId, startDate, endDate }) {
+        calls.push(['getAssociateCalendar', actor, associateId, startDate, endDate]);
+        return {
+          associateId: Number(associateId),
+          startDate,
+          endDate,
+          events: [
+            { id: 1, type: 'contribution', amount: 500, date: new Date('2026-01-15'), displayType: 'Aporte', displayAmount: '+500.00' },
+          ],
+          summary: { contributionCount: 1, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/12/calendar-events?startDate=2026-01-01&endDate=2026-12-31',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.calendar.associateId, 12);
+  assert.equal(response.body.data.calendar.events.length, 1);
+  assert.equal(response.body.data.calendar.summary.contributionCount, 1);
+});
+
+test('createAssociatesRouter rejects socio from accessing another associate installments', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateInstallments() {
+        throw new AuthorizationError('Socio users can only access their linked associate data');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/12/installments',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
+  });
+
+  assert.equal(response.statusCode, 403);
 });

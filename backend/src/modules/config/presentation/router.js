@@ -4,6 +4,12 @@ const { asyncHandler } = require('../../../utils/errorHandler');
 const createConfigRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
 
+  // Public endpoint - no auth required
+  router.get('/roles', asyncHandler(async (_req, res) => {
+    const roles = await useCases.listRoles();
+    res.json({ success: true, data: { roles } });
+  }));
+
   router.use(authMiddleware(['admin']));
 
   router.get('/payment-methods', asyncHandler(async (_req, res) => {

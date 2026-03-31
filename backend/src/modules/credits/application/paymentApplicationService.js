@@ -15,7 +15,7 @@ const PAYOFF_PAYMENT_TYPE = 'payoff';
 const PARTIAL_PAYMENT_TYPE = 'partial';
 const CAPITAL_PAYMENT_TYPE = 'capital';
 
-const INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
+const _INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
 const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
 
 /**

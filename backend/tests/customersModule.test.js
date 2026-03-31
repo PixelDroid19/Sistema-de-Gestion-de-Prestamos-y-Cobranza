@@ -7,6 +7,7 @@ const {
   createListCustomerDocuments,
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
+  createRestoreCustomer,
 } = require('../src/modules/customers/application/useCases');
 
 test('createListCustomers returns repository results in descending business order', async () => {
@@ -258,4 +259,69 @@ test('createDownloadCustomerDocument blocks customers from internal documents', 
   });
 
   await assert.rejects(() => downloadCustomerDocument({ actor: { id: 7, role: 'customer' }, customerId: 7, documentId: 10 }));
+});
+
+test('createRestoreCustomer restores a soft-deleted customer', async () => {
+  const restoreCustomer = createRestoreCustomer({
+    customerRepository: {
+      async findByIdIncludingDeleted(id) {
+        return { id, name: 'Test Customer', email: 'test@example.com', deletedAt: new Date() };
+      },
+      async restore(id) {
+        return 1;
+      },
+      async findById(id) {
+        return { id, name: 'Test Customer', email: 'test@example.com', deletedAt: null };
+      },
+    },
+  });
+
+  const customer = await restoreCustomer({ actor: { id: 1, role: 'admin' }, customerId: 5 });
+  assert.equal(customer.id, 5);
+  assert.equal(customer.deletedAt, null);
+});
+
+test('createRestoreCustomer throws NotFoundError for non-existent customer', async () => {
+  const restoreCustomer = createRestoreCustomer({
+    customerRepository: {
+      async findByIdIncludingDeleted() {
+        return null;
+      },
+    },
+  });
+
+  await assert.rejects(() => restoreCustomer({ actor: { id: 1, role: 'admin' }, customerId: 999 }), (error) => {
+    assert.equal(error.name, 'NotFoundError');
+    return true;
+  });
+});
+
+test('createRestoreCustomer throws AuthorizationError for non-admin actor', async () => {
+  const restoreCustomer = createRestoreCustomer({
+    customerRepository: {
+      async findByIdIncludingDeleted() {
+        return { id: 5, deletedAt: new Date() };
+      },
+    },
+  });
+
+  await assert.rejects(() => restoreCustomer({ actor: { id: 2, role: 'customer' }, customerId: 5 }), (error) => {
+    assert.equal(error.name, 'AuthorizationError');
+    return true;
+  });
+});
+
+test('createRestoreCustomer throws ValidationError for customer that is not deleted', async () => {
+  const restoreCustomer = createRestoreCustomer({
+    customerRepository: {
+      async findByIdIncludingDeleted(id) {
+        return { id, name: 'Test Customer', deletedAt: null };
+      },
+    },
+  });
+
+  await assert.rejects(() => restoreCustomer({ actor: { id: 1, role: 'admin' }, customerId: 5 }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    return true;
+  });
 });

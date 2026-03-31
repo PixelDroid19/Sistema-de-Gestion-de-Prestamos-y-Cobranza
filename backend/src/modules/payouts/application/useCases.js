@@ -4,6 +4,8 @@ const {
   evaluatePayoffEligibility,
   PAYABLE_LOAN_STATUSES,
 } = require('../../credits/application/paymentEligibility');
+const { Loan, Customer } = require('../../../models');
+const { VoucherService } = require('../domain/services/VoucherService');
 
 const normalizeAttachmentVisibility = (value) => {
   if (typeof value === 'boolean') {
@@ -265,6 +267,40 @@ const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, at
   };
 };
 
+/**
+ * Create the use case that generates a payment voucher PDF.
+ */
+const createGetPaymentVoucher = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId }) => {
+  // TASK-007: Fetch payment/credit/customer data
+  const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
+  if (!payment) {
+    throw new NotFoundError('Payment');
+  }
+
+  // TASK-008: Add authorization check using ensurePaymentDocumentAccess pattern
+  await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
+
+  // Fetch loan with customer data
+  const loan = await Loan.findByPk(payment.loanId, {
+    include: [{ model: Customer, as: 'Customer' }],
+  });
+
+  if (!loan) {
+    throw new NotFoundError('Loan');
+  }
+
+  const customer = loan.Customer || loan.customer;
+
+  // Generate PDF
+  const pdfBuffer = await VoucherService.generateVoucherPdf(payment, loan, customer);
+
+  return {
+    buffer: pdfBuffer,
+    paymentId: payment.id,
+    filename: `voucher-${payment.id}.pdf`,
+  };
+};
+
 module.exports = {
   createListPayments,
   createCreatePayment,
@@ -276,4 +312,5 @@ module.exports = {
   createListPaymentDocuments,
   createUploadPaymentDocument,
   createDownloadPaymentDocument,
+  createGetPaymentVoucher,
 };

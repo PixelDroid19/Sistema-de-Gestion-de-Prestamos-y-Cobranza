@@ -1,9 +1,34 @@
 const APPLICATION_ROLES = ['admin', 'customer', 'socio'];
-const LEGACY_APPLICATION_ROLE_ALIASES = {
-  agent: 'admin',
-};
 
-const normalizeApplicationRole = (role, { allowLegacyAliases = true } = {}) => {
+// Extended roles catalog with descriptions and default permissions
+const ROLES = [
+  {
+    id: 'SUPER_ADMIN',
+    name: 'Super Administrador',
+    description: 'Acceso completo al sistema sin restricciones',
+    defaultPermissions: [],
+  },
+  {
+    id: 'ADMINISTRATOR',
+    name: 'Administrador',
+    description: 'Acceso administrativo completo excepto configuración de sistema',
+    defaultPermissions: [],
+  },
+  {
+    id: 'PARTNER',
+    name: 'Socio',
+    description: 'Usuario asociado con participación en ganancias',
+    defaultPermissions: ['READ_CREDITOS', 'READ_REPORTES'],
+  },
+  {
+    id: 'CUSTOMER',
+    name: 'Cliente',
+    description: 'Usuario final con acceso a sus propios datos y créditos',
+    defaultPermissions: ['READ_MIS_CREDITOS', 'READ_MIS_PAGOS'],
+  },
+];
+
+const normalizeApplicationRole = (role) => {
   if (typeof role !== 'string') {
     return null;
   }
@@ -13,10 +38,6 @@ const normalizeApplicationRole = (role, { allowLegacyAliases = true } = {}) => {
     return null;
   }
 
-  if (allowLegacyAliases && LEGACY_APPLICATION_ROLE_ALIASES[normalizedRole]) {
-    return LEGACY_APPLICATION_ROLE_ALIASES[normalizedRole];
-  }
-
   if (APPLICATION_ROLES.includes(normalizedRole)) {
     return normalizedRole;
   }
@@ -24,12 +45,12 @@ const normalizeApplicationRole = (role, { allowLegacyAliases = true } = {}) => {
   return null;
 };
 
-const isApplicationRole = (role, options) => Boolean(normalizeApplicationRole(role, options));
-const isCanonicalApplicationRole = (role) => Boolean(normalizeApplicationRole(role, { allowLegacyAliases: false }));
+const isApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
+const isCanonicalApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
 
 module.exports = {
   APPLICATION_ROLES,
-  LEGACY_APPLICATION_ROLE_ALIASES,
+  ROLES,
   normalizeApplicationRole,
   isApplicationRole,
   isCanonicalApplicationRole,

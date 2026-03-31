@@ -1,8 +1,7 @@
-const { Op } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const {
   Loan,
   Customer,
-  Agent,
   Associate,
   Payment,
   DocumentAttachment,
@@ -13,15 +12,11 @@ const {
   ProfitDistribution,
   User,
 } = require('../../../models');
-const { paginateModel, buildPaginatedResult } = require('../../shared/pagination');
+const { paginateModel } = require('../../shared/pagination');
 
 const reportIncludes = [
   {
     model: Customer,
-    attributes: ['id', 'name', 'email', 'phone'],
-  },
-  {
-    model: Agent,
     attributes: ['id', 'name', 'email', 'phone'],
   },
   {
@@ -277,6 +272,96 @@ const reportRepository = {
       loans,
     };
   },
+
+  /**
+   * Get monthly earnings aggregation for a given year.
+   * Groups completed payments by month and calculates totals.
+   * @param {number} year - The year to aggregate
+   * @returns {Promise<Array<{month: string, totalEarnings: number, paymentCount: number}>>}
+   */
+  async getMonthlyEarnings(year) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const payments = await Payment.findAll({
+      attributes: [
+        [fn('DATE_TRUNC', 'month', col('paymentDate')), 'month'],
+        [fn('SUM', literal('principalApplied + interestApplied + penaltyApplied')), 'totalEarnings'],
+        [fn('COUNT', col('Payment.id')), 'paymentCount'],
+      ],
+      where: {
+        status: 'completed',
+        paymentDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+      },
+      group: [fn('DATE_TRUNC', 'month', col('paymentDate'))],
+      order: [[fn('DATE_TRUNC', 'month', col('paymentDate')), 'ASC']],
+      raw: true,
+    });
+
+    return payments.map((p) => ({
+      month: p.month ? new Date(p.month).toISOString().slice(0, 7) : null,
+      totalEarnings: parseFloat(p.totalEarnings) || 0,
+      paymentCount: parseInt(p.paymentCount, 10) || 0,
+    }));
+  },
+
+  /**
+   * Get performance metrics (totals, averages, counts) for a year.
+   * @param {number} year - The year to aggregate
+   * @returns {Promise<object>}
+   */
+  async getPerformanceMetrics(year) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const [earningsData, loansData, paymentsData] = await Promise.all([
+      Payment.findAll({
+        attributes: [
+          [fn('SUM', literal('principalApplied + interestApplied + penaltyApplied')), 'totalAmount'],
+          [fn('COUNT', col('Payment.id')), 'count'],
+        ],
+        where: {
+          status: 'completed',
+          paymentDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        raw: true,
+      }),
+      Loan.findAll({
+        attributes: [
+          [fn('COUNT', col('Loan.id')), 'totalLoans'],
+          [fn('SUM', col('amount')), 'totalAmount'],
+        ],
+        where: {
+          createdAt: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        raw: true,
+      }),
+      Payment.findAll({
+        attributes: [
+          [fn('SUM', col('interestApplied')), 'totalInterest'],
+          [fn('SUM', col('penaltyApplied')), 'totalPenalties'],
+        ],
+        where: {
+          status: 'completed',
+          paymentDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        raw: true,
+      }),
+    ]);
+
+    const earnings = earningsData[0] || {};
+    const loans = loansData[0] || {};
+    const payments = paymentsData[0] || {};
+
+    return {
+      totalEarnings: parseFloat(earnings.totalAmount) || 0,
+      totalInterest: parseFloat(payments.totalInterest) || 0,
+      totalPenalties: parseFloat(payments.totalPenalties) || 0,
+      paymentCount: parseInt(earnings.count, 10) || 0,
+      totalLoans: parseInt(loans.totalLoans, 10) || 0,
+      totalLoanAmount: parseFloat(loans.totalAmount) || 0,
+    };
+  },
 };
 
 /**
@@ -288,6 +373,58 @@ const paymentRepository = {
       where: { loanId },
       order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
     });
+  },
+
+  /**
+   * Sum interest applied from completed payments within a date range.
+   * @param {Date|null} fromDate - Start date (inclusive)
+   * @param {Date|null} toDate - End date (inclusive)
+   * @returns {Promise<number>}
+   */
+  async sumInterest(fromDate = null, toDate = null) {
+    const where = { status: 'completed' };
+    if (fromDate || toDate) {
+      where.paymentDate = {};
+      if (fromDate) where.paymentDate[Op.gte] = fromDate;
+      if (toDate) where.paymentDate[Op.lte] = toDate;
+    }
+
+    const result = await Payment.findAll({
+      attributes: [[fn('SUM', col('interestApplied')), 'totalInterest']],
+      where,
+      raw: true,
+    });
+
+    return parseFloat(result[0]?.totalInterest) || 0;
+  },
+
+  /**
+   * Get monthly interest breakdown for a given year.
+   * @param {number} year - The year to aggregate
+   * @returns {Promise<Array<{month: string, interest: number}>>}
+   */
+  async getMonthlyInterest(year) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const payments = await Payment.findAll({
+      attributes: [
+        [fn('DATE_TRUNC', 'month', col('paymentDate')), 'month'],
+        [fn('SUM', col('interestApplied')), 'interest'],
+      ],
+      where: {
+        status: 'completed',
+        paymentDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+      },
+      group: [fn('DATE_TRUNC', 'month', col('paymentDate'))],
+      order: [[fn('DATE_TRUNC', 'month', col('paymentDate')), 'ASC']],
+      raw: true,
+    });
+
+    return payments.map((p) => ({
+      month: p.month ? new Date(p.month).toISOString().slice(0, 7) : null,
+      interest: parseFloat(p.interest) || 0,
+    }));
   },
 };
 

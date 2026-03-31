@@ -11,9 +11,7 @@
 
 require('dotenv').config();
 
-const { sequelize, User, Loan, DagGraphVersion, RateLimitEntry } = require('../models');
-
-const MIGRATION_NAME = 'security-patch-001';
+const { sequelize } = require('../models');
 
 async function migrate() {
   console.log('🔒 Starting Security Patch Migration...\n');

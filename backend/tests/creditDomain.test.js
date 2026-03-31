@@ -31,7 +31,7 @@ test('loanValidation.simulate rejects unsupported late-fee modes', async () => {
       amount: 12000,
       interestRate: 12,
       termMonths: 12,
-      lateFeeMode: 'LINEAR',
+      lateFeeMode: 'SIMPLE_DAILY',
     },
   });
 
@@ -40,7 +40,7 @@ test('loanValidation.simulate rejects unsupported late-fee modes', async () => {
   assert.deepEqual(error.errors, [
     {
       field: 'lateFeeMode',
-      message: 'Late fee mode must not be one of: LINEAR, EFFECTIVE, SMART HYBRID',
+      message: 'Late fee mode must not be one of: SIMPLE_DAILY, COMPOUND_DAILY, FIXED_FEE',
     },
   ]);
 });

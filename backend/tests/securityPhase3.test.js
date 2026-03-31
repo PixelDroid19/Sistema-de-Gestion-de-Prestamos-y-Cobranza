@@ -1,4 +1,4 @@
-const { test, describe, beforeEach } = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { validateFormulaInput, validateFormulaNodes } = require('../src/modules/credits/application/dag/workbenchService');
@@ -191,7 +191,7 @@ describe('Password Strength Validation', () => {
     if (/[A-Z]/.test(password)) score++;
     if (/[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+    if (/[!@#$%^&*()_+\-={};'":\\|,.<>/?]/.test(password)) score++;
 
     if (score >= 5) strength = 'strong';
     else if (score >= 3) strength = 'medium';

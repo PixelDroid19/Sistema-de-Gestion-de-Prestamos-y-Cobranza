@@ -1,4 +1,4 @@
-const { test, beforeEach, afterEach, mock } = require('node:test');
+const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createOutboxRelayWorker } = require('../../src/workers/outboxRelayWorker');

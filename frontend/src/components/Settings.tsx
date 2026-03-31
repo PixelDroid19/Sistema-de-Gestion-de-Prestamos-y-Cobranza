@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Settings2, CreditCard, Save } from 'lucide-react';
+import { Settings2, CreditCard, Save, Shield } from 'lucide-react';
 import { useConfig } from '../services/configService';
 import { toast } from '../lib/toast';
+import PermissionsTab from './PermissionsTab';
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
@@ -17,7 +18,7 @@ const getErrorMessage = (error: unknown) => {
 
 export default function Settings() {
   const { settings, paymentMethods, isLoading, updateSetting, createPaymentMethod, deletePaymentMethod } = useConfig();
-  const [activeTab, setActiveTab] = useState<'general' | 'payment-methods'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'payment-methods' | 'permissions'>('general');
   const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', description: '', type: 'bank_transfer' });
 
   if (isLoading) return <div className="p-8 text-center text-text-secondary">Cargando configuración...</div>;
@@ -69,6 +70,14 @@ export default function Settings() {
         >
           <CreditCard size={16} /> Métodos de Pago
         </button>
+        <button
+          onClick={() => setActiveTab('permissions')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'permissions' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
+          }`}
+        >
+          <Shield size={16} /> Roles y Permisos
+        </button>
       </div>
 
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
@@ -95,6 +104,10 @@ export default function Settings() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'permissions' && (
+          <PermissionsTab />
         )}
 
         {activeTab === 'payment-methods' && (

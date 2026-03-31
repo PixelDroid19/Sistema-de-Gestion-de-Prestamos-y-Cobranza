@@ -174,9 +174,9 @@ test('createDagWorkbenchService persists fallback and parity metadata for workbe
 
   assert.equal(savedSummaries.length, 1);
   assert.equal(savedSummaries[0].selectedSource, 'legacy');
-  assert.equal(savedSummaries[0].fallbackReason, 'parity_mismatch');
+  assert.equal(savedSummaries[0].fallbackReason, 'dag_execution_failed');
   assert.equal(savedSummaries[0].parity.passed, false);
-  assert.equal(simulationResult.summary.latestSimulation.fallbackReason, 'parity_mismatch');
+  assert.equal(simulationResult.summary.latestSimulation.fallbackReason, 'dag_execution_failed');
   assert.equal(simulationResult.summary.latestSimulation.parity.passed, false);
 });
 

@@ -1,7 +1,18 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const User = require('../../../models/User');
 const Customer = require('../../../models/Customer');
 const Associate = require('../../../models/Associate');
+const RefreshToken = require('../../../models/RefreshToken');
+
+/**
+ * Hash a refresh token using SHA-256.
+ * @param {string} token
+ * @returns {string}
+ */
+const hashRefreshToken = (token) => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
 
 /**
  * Persistence ports for user identities and role-specific profile records.
@@ -78,9 +89,55 @@ const passwordHasher = {
   },
 };
 
+/**
+ * Repository for managing refresh tokens in the database.
+ */
+const refreshTokenRepository = {
+  async create({ tokenHash, userId, expiresAt }) {
+    return RefreshToken.create({
+      tokenHash,
+      userId,
+      expiresAt,
+      revokedAt: null,
+    });
+  },
+
+  findByTokenHash(tokenHash) {
+    return RefreshToken.findOne({ where: { tokenHash } });
+  },
+
+  findByUserId(userId) {
+    return RefreshToken.findAll({ where: { userId } });
+  },
+
+  async revoke(tokenHash) {
+    const token = await RefreshToken.findOne({ where: { tokenHash } });
+    if (!token) {
+      return null;
+    }
+    await token.update({ revokedAt: new Date() });
+    return token;
+  },
+
+  async revokeAllForUser(userId) {
+    const [updatedCount] = await RefreshToken.update(
+      { revokedAt: new Date() },
+      {
+        where: {
+          userId,
+          revokedAt: null,
+        },
+      }
+    );
+    return updatedCount;
+  },
+};
+
 module.exports = {
   userRepository,
   customerProfileRepository,
   associateProfileRepository,
   passwordHasher,
+  refreshTokenRepository,
+  hashRefreshToken,
 };

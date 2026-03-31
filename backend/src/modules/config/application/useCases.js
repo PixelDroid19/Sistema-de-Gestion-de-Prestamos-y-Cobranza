@@ -3,6 +3,7 @@ const {
   PAYMENT_METHOD_CATEGORY,
   BUSINESS_SETTING_CATEGORY,
 } = require('../infrastructure/repositories');
+const { ROLES } = require('../../shared/roles');
 
 const ADMIN_CATALOGS = {
   roles: ['admin', 'customer', 'socio'],
@@ -167,6 +168,15 @@ const createUpsertSetting = ({ configRepository }) => async (settingKey, { label
 
 const createListAdminCatalogs = () => async () => ADMIN_CATALOGS;
 
+/**
+ * Create the use case that returns the catalog of available roles.
+ * This is a public endpoint (no auth required).
+ * @returns {Function}
+ */
+const createListRoles = () => async () => {
+  return ROLES;
+};
+
 module.exports = {
   ADMIN_CATALOGS,
   createListPaymentMethods,
@@ -176,4 +186,5 @@ module.exports = {
   createListSettings,
   createUpsertSetting,
   createListAdminCatalogs,
+  createListRoles,
 };

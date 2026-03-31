@@ -7,6 +7,7 @@ const {
   createDeletePaymentMethod,
   createUpsertSetting,
   createListAdminCatalogs,
+  createListRoles,
 } = require('../src/modules/config/application/useCases');
 const { createConfigModule } = require('../src/modules/config');
 const { ConflictError, NotFoundError } = require('../src/utils/errorHandler');
@@ -184,4 +185,22 @@ test('createConfigModule consumes shared auth context and registers the config s
   assert.equal(moduleRegistration.name, 'config');
   assert.equal(moduleRegistration.basePath, '/api/config');
   assert.deepEqual(authMiddlewareRoles, ['admin']);
+});
+
+test('createListRoles returns the catalog of available roles', async () => {
+  const listRoles = createListRoles();
+  const roles = await listRoles();
+
+  assert.ok(Array.isArray(roles));
+  assert.ok(roles.length > 0);
+  
+  // Verify role structure
+  const customerRole = roles.find(r => r.id === 'CUSTOMER');
+  assert.ok(customerRole);
+  assert.equal(customerRole.name, 'Cliente');
+  assert.ok(Array.isArray(customerRole.defaultPermissions));
+  
+  const partnerRole = roles.find(r => r.id === 'PARTNER');
+  assert.ok(partnerRole);
+  assert.ok(partnerRole.defaultPermissions.includes('READ_CREDITOS'));
 });

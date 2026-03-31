@@ -19,8 +19,8 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Loans') {
     return {
-      id: {}, customerId: {}, associateId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
-      startDate: {}, endDate: {}, agentId: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
+      id: {}, customerId: {}, associateId: {}, dagGraphVersionId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
+      startDate: {}, endDate: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
       financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
     };
@@ -72,7 +72,7 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'DagGraphVersions') {
     return {
-      id: {}, scopeKey: {}, name: {}, version: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
+      id: {}, scopeKey: {}, name: {}, description: {}, version: {}, status: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -116,7 +116,14 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Users') {
     return {
-      id: {}, name: {}, email: {}, password: {}, role: {}, associateId: {}, isActive: {}, createdAt: {}, updatedAt: {},
+      id: {}, name: {}, email: {}, password: {}, role: {}, associateId: {}, isActive: {}, failedLoginAttempts: {}, lockedUntil: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'AuditLogs') {
+    return {
+      id: {}, userId: {}, userName: {}, action: {}, module: {}, entityId: {}, entityType: {},
+      previousData: {}, newData: {}, metadata: {}, ip: {}, userAgent: {}, timestamp: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -127,7 +134,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -166,10 +173,14 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(graphTopologies);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
+  assert.ok(requiredSchema.find((entry) => entry.tableName === 'AuditLogs'));
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
+  assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('failedLoginAttempts'));
+  assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('lockedUntil'));
   assert.ok(associates.columns.includes('email'));
   assert.ok(associates.columns.includes('participationPercentage'));
   assert.ok(loans.columns.includes('associateId'));
+  assert.ok(loans.columns.includes('dagGraphVersionId'));
   assert.ok(loans.columns.includes('financialProductId'));
   assert.ok(loans.columns.includes('closedAt'));
   assert.ok(loans.columns.includes('closureReason'));
@@ -187,6 +198,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(pushSubscriptions.columns.includes('providerKey'));
   assert.ok(pushSubscriptions.columns.includes('endpointHash'));
   assert.ok(dagGraphVersions.columns.includes('graphSummary'));
+  assert.ok(dagGraphVersions.columns.includes('description'));
+  assert.ok(dagGraphVersions.columns.includes('status'));
   assert.ok(dagSimulationSummaries.columns.includes('selectedSource'));
   assert.ok(financialProducts.columns.includes('penaltyRate'));
   assert.ok(graphTopologies.columns.includes('productId'));
@@ -274,7 +287,7 @@ test('syncDatabaseSchema verifies schema without altering tables by default', as
 
   assert.deepEqual(calls, []);
   assert.equal(result.mode, 'verify');
-  assert.deepEqual(result.tables, allTables);
+  assert.deepEqual(result.tables.slice().sort(), allTables.slice().sort());
 });
 
 test('syncDatabaseSchema alters schema only when alter mode is explicitly requested', async () => {

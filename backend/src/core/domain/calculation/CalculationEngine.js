@@ -2,7 +2,7 @@ const BigNumberEngine = require('./BigNumberEngine');
 const { TopologicalSorter, TopologicalCycleException } = require('./TopologicalSorter');
 const { FormulaCompiler } = require('./FormulaCompiler');
 const { buildInitialScope, scopeToPlainObject } = require('./scopeBuilder');
-const { createDagExecutionResult, createAmortizationBreakdown, createCalculationError } = require('./resultTypes');
+const { createDagExecutionResult, createAmortizationBreakdown } = require('./resultTypes');
 
 const CalculationEngine = {
   execute(graph, contractVars = {}) {
@@ -38,7 +38,7 @@ const CalculationEngine = {
 
     const phase5Evaluate = (compiledNodes, scope) => {
       const resultScope = { ...scope };
-      const engine = BigNumberEngine.getInstance();
+      const _engine = BigNumberEngine.getInstance();
 
       for (const compiledNode of compiledNodes) {
         if (!compiledNode.compiledFormula) {
@@ -49,7 +49,6 @@ const CalculationEngine = {
         }
 
         try {
-          const mathInstance = engine._getMathInstance();
           const nodeScope = { ...resultScope };
           const evaluated = compiledNode.compiledFormula.evaluate(nodeScope);
           resultScope[compiledNode.outputVar] = evaluated;

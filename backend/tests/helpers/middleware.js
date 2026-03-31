@@ -1,9 +1,9 @@
 const runMiddleware = (middleware, req = {}) => new Promise((resolve, reject) => {
   const normalizedReq = {
-    body: {},
-    params: {},
-    query: {},
-    headers: {},
+    body: req.body || {},
+    params: req.params || {},
+    query: req.query || {},
+    headers: req.headers || {},
     ...req,
   };
 
@@ -13,7 +13,9 @@ const runMiddleware = (middleware, req = {}) => new Promise((resolve, reject) =>
       return;
     }
 
-    resolve();
+    // Copy all properties from normalizedReq back to req so assertions on req work
+    Object.assign(req, normalizedReq);
+    resolve(req);
   });
 });
 

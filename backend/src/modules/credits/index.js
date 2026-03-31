@@ -16,10 +16,7 @@ const {
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,
-  createListLoansByRecoveryAssignee,
-  createListRecoveryRoster,
   createUpdateLoanStatus,
-  createAssignRecoveryAssignee,
   createUpdateRecoveryStatus,
   createDeleteLoan,
   createListLoanAttachments,
@@ -35,6 +32,9 @@ const {
   createUpdateLoanAlertStatus,
   createUpdatePromiseToPayStatus,
   createDownloadPromiseToPay,
+  createGetLoanStatistics,
+  createGetDuePayments,
+  createSearchLoans,
 } = require('./application/useCases');
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
@@ -42,15 +42,15 @@ const { createCreditsRouter } = require('./presentation/router');
 
 /**
  * Compose the credits module entrypoint from shared policy, services, and router seams.
+ * @param {{ sharedRuntime?: object, auditService?: object }} [options]
  * @returns {{ name: string, basePath: string, router: object }}
  */
-const createCreditsModule = ({ sharedRuntime } = {}) => {
+const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const {
     loanRepository,
     customerRepository,
-    recoveryAssignmentRepository,
-    userRepository,
+    _userRepository,
     attachmentRepository,
     alertRepository,
     promiseRepository,
@@ -79,27 +79,27 @@ const createCreditsModule = ({ sharedRuntime } = {}) => {
     deactivateDagWorkbenchGraph: createDeactivateDagWorkbenchGraph({ dagWorkbenchService }),
     deleteDagWorkbenchGraph: createDeleteDagWorkbenchGraph({ dagWorkbenchService }),
     getLoanById: createGetLoanById({ loanRepository, loanAccessPolicy, loanViewService }),
-    createLoan: createCreateLoan({ loanCreationService }),
+    createLoan: createCreateLoan({ loanCreationService, auditService }),
     listLoansByCustomer: createListLoansByCustomer({ customerRepository, loanRepository }),
-    listLoansByRecoveryAssignee: createListLoansByRecoveryAssignee({ recoveryAssignmentRepository, loanRepository }),
-    listRecoveryRoster: createListRecoveryRoster({ recoveryAssignmentRepository }),
-    updateLoanStatus: createUpdateLoanStatus({ loanRepository, loanAccessPolicy }),
-    assignRecoveryAssignee: createAssignRecoveryAssignee({ loanRepository, recoveryAssignmentRepository, userRepository, notificationPort }),
-    updateRecoveryStatus: createUpdateRecoveryStatus({ loanRepository, loanAccessPolicy, recoveryStatusGuard }),
-    deleteLoan: createDeleteLoan({ loanRepository, loanAccessPolicy }),
+    updateLoanStatus: createUpdateLoanStatus({ loanRepository, loanAccessPolicy, auditService }),
+    updateRecoveryStatus: createUpdateRecoveryStatus({ loanRepository, loanAccessPolicy, recoveryStatusGuard, auditService }),
+    deleteLoan: createDeleteLoan({ loanRepository, loanAccessPolicy, auditService }),
     listLoanAttachments: createListLoanAttachments({ attachmentRepository, loanAccessPolicy }),
-    createLoanAttachment: createCreateLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy }),
+    createLoanAttachment: createCreateLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy, auditService }),
     downloadLoanAttachment: createDownloadLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy }),
     listLoanAlerts: createListLoanAlerts({ alertRepository, loanAccessPolicy, loanViewService }),
     getPaymentCalendar: createGetPaymentCalendar({ alertRepository, loanAccessPolicy, loanViewService }),
     getPayoffQuote: createGetPayoffQuote({ loanAccessPolicy, loanViewService }),
-    executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService }),
+    executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService, auditService }),
     listPromisesToPay: createListPromisesToPay({ promiseRepository, loanAccessPolicy }),
-    createPromiseToPay: createCreatePromiseToPay({ promiseRepository, loanAccessPolicy }),
+    createPromiseToPay: createCreatePromiseToPay({ promiseRepository, loanAccessPolicy, auditService }),
     createLoanFollowUp: createCreateLoanFollowUp({ alertRepository, loanAccessPolicy, notificationPort }),
     updateLoanAlertStatus: createUpdateLoanAlertStatus({ alertRepository, loanAccessPolicy }),
-    updatePromiseToPayStatus: createUpdatePromiseToPayStatus({ promiseRepository, loanAccessPolicy, notificationPort }),
+    updatePromiseToPayStatus: createUpdatePromiseToPayStatus({ promiseRepository, loanAccessPolicy, notificationPort, auditService }),
     downloadPromiseToPay: createDownloadPromiseToPay({ promiseRepository, loanAccessPolicy }),
+    getLoanStatistics: createGetLoanStatistics({ loanRepository }),
+    getDuePayments: createGetDuePayments({ loanRepository, alertRepository, loanViewService }),
+    searchLoans: createSearchLoans({ loanRepository }),
   };
 
   return createModule({

@@ -70,11 +70,20 @@ export const useConfig = () => {
     },
   });
 
+  const getRoles = useQuery({
+    queryKey: ['config.roles'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/config/roles');
+      return data;
+    },
+  });
+
   return {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods),
     settings: toArray(getSettings.data?.data?.settings),
     catalogs: getCatalogs.data?.data?.catalogs,
-    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading,
+    roles: toArray(getRoles.data?.data?.roles),
+    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,

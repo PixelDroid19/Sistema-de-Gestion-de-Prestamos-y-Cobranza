@@ -88,6 +88,34 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     });
   }));
 
+  router.get('/:id/installments', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+    const result = await useCases.getAssociateInstallments({
+      actor: req.user,
+      associateId: req.params.id,
+    });
+    res.json({ success: true, data: { installments: result } });
+  }));
+
+  router.post('/:id/installments/:installmentNumber/pay', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.payAssociateInstallment({
+      actor: req.user,
+      associateId: req.params.id,
+      installmentNumber: req.params.installmentNumber,
+      payload: req.body,
+    });
+    res.json({ success: true, message: 'Installment marked as paid', data: { installment: result } });
+  }));
+
+  router.get('/:id/calendar-events', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+    const result = await useCases.getAssociateCalendar({
+      actor: req.user,
+      associateId: req.params.id,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
+    res.json({ success: true, data: { calendar: result } });
+  }));
+
   return router;
 };
 

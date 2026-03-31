@@ -19,11 +19,11 @@ import Associates from './components/Associates';
 import AssociateDetails from './components/AssociateDetails';
 import Payouts from './components/Payouts';
 import Notifications from './components/Notifications';
-import Agents from './components/Agents';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 import Profile from './components/Profile';
 import Login from './components/Login';
+import AuditLogPage from './components/AuditLogPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function MainLayout() {
@@ -55,10 +55,10 @@ function MainLayout() {
             <Route path="/associates/:id" element={<AssociateDetails />} />
             <Route path="/payouts" element={<Payouts />} />
             <Route path="/notifications" element={<Notifications />} />
-            <Route path="/agents" element={<Agents />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

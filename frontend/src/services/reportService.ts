@@ -122,3 +122,256 @@ export const useCreditReports = (loanId: number) => {
     isLoading: getCreditHistory.isLoading,
   };
 };
+
+// === Financial Analytics Hooks ===
+
+export const useCreditEarnings = () => {
+  const getCreditEarnings = useQuery({
+    queryKey: ['reports.creditEarnings'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/credit-earnings');
+      return data;
+    },
+  });
+
+  return {
+    data: getCreditEarnings.data?.data,
+    isLoading: getCreditEarnings.isLoading,
+    isError: getCreditEarnings.isError,
+    error: getCreditEarnings.error,
+  };
+};
+
+export const useInterestEarnings = (year?: number) => {
+  const getInterestEarnings = useQuery({
+    queryKey: ['reports.interestEarnings', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/interest-earnings', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getInterestEarnings.data?.data,
+    isLoading: getInterestEarnings.isLoading,
+    isError: getInterestEarnings.isError,
+    error: getInterestEarnings.error,
+  };
+};
+
+export const useMonthlyEarnings = (year?: number) => {
+  const getMonthlyEarnings = useQuery({
+    queryKey: ['reports.monthlyEarnings', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/monthly-earnings', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getMonthlyEarnings.data?.data,
+    isLoading: getMonthlyEarnings.isLoading,
+    isError: getMonthlyEarnings.isError,
+    error: getMonthlyEarnings.error,
+  };
+};
+
+export const useMonthlyInterest = (year?: number) => {
+  const getMonthlyInterest = useQuery({
+    queryKey: ['reports.monthlyInterest', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/monthly-interest', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getMonthlyInterest.data?.data,
+    isLoading: getMonthlyInterest.isLoading,
+    isError: getMonthlyInterest.isError,
+    error: getMonthlyInterest.error,
+  };
+};
+
+export const usePerformanceAnalysis = (year?: number) => {
+  const getPerformanceAnalysis = useQuery({
+    queryKey: ['reports.performanceAnalysis', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/performance-analysis', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getPerformanceAnalysis.data?.data,
+    isLoading: getPerformanceAnalysis.isLoading,
+    isError: getPerformanceAnalysis.isError,
+    error: getPerformanceAnalysis.error,
+  };
+};
+
+export const useExecutiveDashboard = () => {
+  const getExecutiveDashboard = useQuery({
+    queryKey: ['reports.executiveDashboard'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/executive-dashboard');
+      return data;
+    },
+  });
+
+  return {
+    data: getExecutiveDashboard.data?.data,
+    isLoading: getExecutiveDashboard.isLoading,
+    isError: getExecutiveDashboard.isError,
+    error: getExecutiveDashboard.error,
+  };
+};
+
+export const useComprehensiveAnalytics = (year?: number) => {
+  const getComprehensiveAnalytics = useQuery({
+    queryKey: ['reports.comprehensiveAnalytics', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/comprehensive-analytics', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getComprehensiveAnalytics.data?.data,
+    isLoading: getComprehensiveAnalytics.isLoading,
+    isError: getComprehensiveAnalytics.isError,
+    error: getComprehensiveAnalytics.error,
+  };
+};
+
+export const useComparativeAnalysis = (year?: number) => {
+  const getComparativeAnalysis = useQuery({
+    queryKey: ['reports.comparativeAnalysis', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/comparative-analysis', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getComparativeAnalysis.data?.data,
+    isLoading: getComparativeAnalysis.isLoading,
+    isError: getComparativeAnalysis.isError,
+    error: getComparativeAnalysis.error,
+  };
+};
+
+export const useForecastAnalysis = (year?: number) => {
+  const getForecastAnalysis = useQuery({
+    queryKey: ['reports.forecastAnalysis', year],
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/forecast-analysis', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getForecastAnalysis.data?.data,
+    isLoading: getForecastAnalysis.isLoading,
+    isError: getForecastAnalysis.isError,
+    error: getForecastAnalysis.error,
+  };
+};
+
+export const useNextMonthProjection = () => {
+  const getNextMonthProjection = useQuery({
+    queryKey: ['reports.nextMonthProjection'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/next-month-projection');
+      return data;
+    },
+  });
+
+  return {
+    data: getNextMonthProjection.data?.data,
+    isLoading: getNextMonthProjection.isLoading,
+    isError: getNextMonthProjection.isError,
+    error: getNextMonthProjection.error,
+  };
+};
+
+// Combined hook for financial analytics dashboard
+export const useFinancialAnalytics = (year?: number) => {
+  const creditEarnings = useCreditEarnings();
+  const interestEarnings = useInterestEarnings(year);
+  const monthlyEarnings = useMonthlyEarnings(year);
+  const monthlyInterest = useMonthlyInterest(year);
+  const performanceAnalysis = usePerformanceAnalysis(year);
+  const executiveDashboard = useExecutiveDashboard();
+  const comprehensiveAnalytics = useComprehensiveAnalytics(year);
+  const comparativeAnalysis = useComparativeAnalysis(year);
+  const forecastAnalysis = useForecastAnalysis(year);
+  const nextMonthProjection = useNextMonthProjection();
+
+  return {
+    creditEarnings,
+    interestEarnings,
+    monthlyEarnings,
+    monthlyInterest,
+    performanceAnalysis,
+    executiveDashboard,
+    comprehensiveAnalytics,
+    comparativeAnalysis,
+    forecastAnalysis,
+    nextMonthProjection,
+    isLoading:
+      creditEarnings.isLoading ||
+      interestEarnings.isLoading ||
+      monthlyEarnings.isLoading ||
+      monthlyInterest.isLoading ||
+      performanceAnalysis.isLoading ||
+      executiveDashboard.isLoading ||
+      comprehensiveAnalytics.isLoading ||
+      comparativeAnalysis.isLoading ||
+      forecastAnalysis.isLoading ||
+      nextMonthProjection.isLoading,
+  };
+};
+
+// === Export Functions ===
+
+export const exportCreditsExcel = async (): Promise<void> => {
+  const response = await apiClient.get('/reports/credits/excel', {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'credits-export.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+export const exportAssociatesExcel = async (): Promise<void> => {
+  const response = await apiClient.get('/reports/associates/excel', {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'associates-export.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};

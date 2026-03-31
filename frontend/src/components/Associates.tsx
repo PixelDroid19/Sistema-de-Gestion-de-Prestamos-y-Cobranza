@@ -1,11 +1,42 @@
-import React from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Download } from 'lucide-react';
 import { useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
+import { toast } from '../lib/toast';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { page, setPage, pageSize: limit } = usePaginationStore();
   const { data: associatesData, isLoading, isError } = useAssociates({ page, limit });
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportAssociatesExcel = async () => {
+    try {
+      setIsExporting(true);
+      const response = await fetch('/api/reports/associates/excel', {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to export associates');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'associates-export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success({ description: 'Associates exported successfully' });
+    } catch (error) {
+      toast.error({ description: 'Failed to export associates' });
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const associates = Array.isArray(associatesData?.data?.associates)
     ? associatesData.data.associates
@@ -38,9 +69,18 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           <h2 className="text-2xl font-semibold">Socios</h2>
           <p className="text-sm text-text-secondary mt-1">Administrar socios y sus relaciones con los préstamos.</p>
         </div>
-        <button className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
-          <Plus size={16} /> Nuevo Socio
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={handleExportAssociatesExcel}
+            disabled={isExporting}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+          >
+            <Download size={16} /> {isExporting ? 'Exportando...' : 'Exportar Excel'}
+          </button>
+          <button className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+            <Plus size={16} /> Nuevo Socio
+          </button>
+        </div>
       </div>
 
       <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">

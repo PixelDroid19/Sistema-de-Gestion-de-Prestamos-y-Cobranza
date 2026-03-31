@@ -27,7 +27,7 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   });
 
   if (!defaultProduct) {
-    throw new NotFoundError(`FinancialProduct \"${DEFAULT_FINANCIAL_PRODUCT_NAME}\"`);
+    throw new NotFoundError(`FinancialProduct "${DEFAULT_FINANCIAL_PRODUCT_NAME}"`);
   }
 
   return defaultProduct.id;

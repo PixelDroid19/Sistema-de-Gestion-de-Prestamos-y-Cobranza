@@ -1,4 +1,4 @@
-const { test, beforeEach, describe } = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { AccountLockedError } = require('../src/utils/errorHandler');
@@ -31,10 +31,6 @@ test('AccountLockedError defaults lockoutDurationMinutes to 15', () => {
 
 describe('createLoginUser with progressive delays and lockout', () => {
   const { createLoginUser } = require('../src/modules/auth/application/useCases');
-
-  // Test configuration constants
-  const LOCKOUT_THRESHOLD = 5;
-  const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
   test('rejects login for non-existent user with generic error', async () => {
     const loginUser = createLoginUser({

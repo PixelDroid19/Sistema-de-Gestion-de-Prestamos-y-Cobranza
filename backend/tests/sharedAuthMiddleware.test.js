@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { AuthenticationError, AuthorizationError } = require('../src/utils/errorHandler');
 const { createAuthMiddleware } = require('../src/modules/shared/auth');
-const { captureMiddlewareError, runMiddleware } = require('./helpers/middleware');
+const { captureMiddlewareError } = require('./helpers/middleware');
 
 test('createAuthMiddleware rejects requests without a bearer token', async () => {
   const auth = createAuthMiddleware({
@@ -61,7 +61,7 @@ test('createAuthMiddleware assigns req.user when verification succeeds', async (
   assert.deepEqual(req.user, { id: 7, role: 'admin' });
 });
 
-test('createAuthMiddleware normalizes legacy agent claims to admin access', async () => {
+test('createAuthMiddleware rejects legacy agent role', async () => {
   const auth = createAuthMiddleware({
     tokenService: {
       verify() {
@@ -71,18 +71,22 @@ test('createAuthMiddleware normalizes legacy agent claims to admin access', asyn
   });
 
   const req = { body: {}, params: {}, query: {}, headers: { authorization: 'Bearer valid-token' } };
-  await new Promise((resolve, reject) => {
-    auth(['admin'])(req, {}, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
+  try {
+    await new Promise((resolve, reject) => {
+      auth(['admin'])(req, {}, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-      resolve();
+        resolve();
+      });
     });
-  });
-
-  assert.deepEqual(req.user, { id: 14, role: 'admin' });
+    assert.fail('Should have rejected legacy agent role');
+  } catch (error) {
+    assert.equal(error.statusCode, 401);
+    assert.ok(error.message.includes('unsupported application role'), `Expected error message to contain 'unsupported application role', got: ${error.message}`);
+  }
 });
 
 test('createAuthMiddleware rejects unsupported role policies during setup', () => {

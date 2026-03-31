@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Filter, Calendar, ChevronLeft, ChevronRight, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, Filter, Calendar, ChevronLeft, ChevronRight, Eye, Edit, Trash2, Loader2, RotateCcw } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
 import { usePaginationStore } from '../store/paginationStore';
+import { toast } from '../lib/toast';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const { page, pageSize: limit, setPage } = usePaginationStore();
@@ -9,7 +10,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
-  const { data, isLoading, isError } = useCustomers({
+  const { data, isLoading, isError, restoreCustomer } = useCustomers({
     page,
     limit,
     search: searchTerm || undefined,
@@ -50,6 +51,18 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
 
   const handlePrevPage = () => setPage(Math.max(1, page - 1));
   const handleNextPage = () => setPage(Math.min(totalPages, page + 1));
+
+  const handleRestore = async (customerId: number) => {
+    if (!window.confirm('¿Está seguro de que desea restaurar este cliente?')) {
+      return;
+    }
+    try {
+      await restoreCustomer.mutateAsync(customerId);
+      toast.success({ description: 'Cliente restaurado exitosamente' });
+    } catch (error) {
+      toast.apiError(error, 'Error al restaurar el cliente');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -157,6 +170,13 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                       <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
                         <button className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
+                        <button 
+                          onClick={() => handleRestore(customer.id)} 
+                          className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" 
+                          title="Restaurar"
+                        >
+                          <RotateCcw size={16} />
+                        </button>
                         <button className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                       </div>
                     </td>

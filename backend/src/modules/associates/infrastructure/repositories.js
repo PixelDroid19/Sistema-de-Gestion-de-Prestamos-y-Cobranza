@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const {
   Associate,
   AssociateContribution,
+  AssociateInstallment,
   ProfitDistribution,
   IdempotencyKey,
   Loan,
@@ -142,6 +143,85 @@ const associateRepository = {
     return Associate.findOne({
       include: [{ model: User, as: 'portalUsers', where: { id: userId }, attributes: [] }],
     });
+  },
+  findInstallmentsByAssociateId(associateId) {
+    return AssociateInstallment.findAll({
+      where: { associateId },
+      include: [{ model: User, as: 'paidByUser', attributes: ['id', 'name', 'email', 'role'] }],
+      order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
+    });
+  },
+  updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
+    return AssociateInstallment.update(
+      { status, paidAt, paidBy },
+      {
+        where: {
+          associateId,
+          installmentNumber,
+        },
+      },
+    );
+  },
+  findCalendarEvents(associateId, startDate, endDate) {
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), 11, 31);
+
+    return Promise.all([
+      AssociateContribution.findAll({
+        where: {
+          associateId,
+          contributionDate: { [Op.between]: [start, end] },
+        },
+        include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
+        order: [['contributionDate', 'ASC']],
+      }),
+      ProfitDistribution.findAll({
+        where: {
+          associateId,
+          distributionDate: { [Op.between]: [start, end] },
+        },
+        include: [
+          { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] },
+          { model: Loan, attributes: ['id', 'amount', 'status'] },
+        ],
+        order: [['distributionDate', 'ASC']],
+      }),
+      AssociateInstallment.findAll({
+        where: {
+          associateId,
+          dueDate: { [Op.between]: [start, end] },
+        },
+        order: [['dueDate', 'ASC']],
+      }),
+    ]).then(([contributions, distributions, installments]) => ({
+      contributions: contributions.map((c) => ({
+        id: c.id,
+        type: 'contribution',
+        amount: c.amount,
+        date: c.contributionDate,
+        notes: c.notes,
+        createdBy: c.createdBy,
+      })),
+      distributions: distributions.map((d) => ({
+        id: d.id,
+        type: 'distribution',
+        amount: d.amount,
+        date: d.distributionDate,
+        notes: d.notes,
+        createdBy: d.createdBy,
+        loanId: d.loanId,
+        loan: d.Loan,
+      })),
+      installments: installments.map((i) => ({
+        id: i.id,
+        type: 'installment',
+        installmentNumber: i.installmentNumber,
+        amount: i.amount,
+        dueDate: i.dueDate,
+        status: i.status,
+        paidAt: i.paidAt,
+      })),
+    }));
   },
 };
 

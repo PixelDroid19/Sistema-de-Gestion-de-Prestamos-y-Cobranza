@@ -39,16 +39,6 @@ export const useLoans = (params?: { page?: number; limit?: number; search?: stri
     },
   });
 
-  const assignRecovery = useMutation({
-    mutationFn: async ({ id, recoveryAssigneeId }: { id: number; recoveryAssigneeId: number }) => {
-      const { data } = await apiClient.patch(`/loans/${id}/recovery-assignment`, { recoveryAssigneeId });
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.list'] });
-    },
-  });
-
   const deleteLoan = useMutation({
     mutationFn: async (id: number) => {
       const { data } = await apiClient.delete(`/loans/${id}`);
@@ -66,7 +56,6 @@ export const useLoans = (params?: { page?: number; limit?: number; search?: stri
     createLoan,
     simulateLoan,
     updateLoanStatus,
-    assignRecovery,
     deleteLoan,
   };
 };
@@ -162,5 +151,85 @@ export const useLoanById = (loanId: number) => {
       return data;
     },
     enabled: !!loanId,
+  });
+};
+
+export interface LoanStatistics {
+  counts: {
+    totalCredits: number;
+    activeCredits: number;
+    paidCredits: number;
+    overdueCredits: number;
+  };
+  amounts: {
+    totalLoanAmount: number;
+    totalCollected: number;
+    totalPending: number;
+    totalOverdue: number;
+  };
+  averages: {
+    averageLoanAmount: number;
+    averageTerm: number;
+    collectionRate: number;
+  };
+}
+
+export const useLoanStatistics = () => {
+  return useQuery({
+    queryKey: ['loans.statistics'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/loans/statistics');
+      return data;
+    },
+  });
+};
+
+export interface DuePayment {
+  creditId: number;
+  customerName: string;
+  installmentNumber: number;
+  amountDue: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
+export const useDuePayments = (date: string) => {
+  return useQuery({
+    queryKey: ['loans.duePayments', date],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/loans/due-payments', { params: { date } });
+      return data;
+    },
+    enabled: !!date,
+  });
+};
+
+export interface LoanSearchFilters {
+  status?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface LoanSearchResult {
+  loans: any[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}
+
+export const useSearchLoans = (filters: LoanSearchFilters, page: number = 1, pageSize: number = 25) => {
+  return useQuery({
+    queryKey: ['loans.search', filters, page, pageSize],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/loans/search', {
+        params: { ...filters, page, pageSize },
+      });
+      return data;
+    },
   });
 };

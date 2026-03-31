@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-import { usePayments } from '../services/paymentService';
+import { Plus, Search, MoreVertical, Eye, Edit, Trash2, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { usePayments, downloadVoucher } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 
@@ -45,6 +45,15 @@ export default function Payouts() {
     }
 
     return 'Pendiente';
+  };
+
+  const handleDownloadVoucher = async (paymentId: number) => {
+    try {
+      await downloadVoucher(paymentId);
+      toast.success({ title: 'Comprobante descargado' });
+    } catch (error) {
+      toast.error({ title: 'Error al descargar comprobante' });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,6 +147,13 @@ export default function Payouts() {
                     </td>
                     <td className="py-4">
                       <div className="flex items-center gap-2">
+                        <button 
+                          className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" 
+                          title="Descargar Comprobante"
+                          onClick={() => handleDownloadVoucher(payment.id)}
+                        >
+                          <FileText size={16} />
+                        </button>
                         <button className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
                         <button className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
                         <button className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>

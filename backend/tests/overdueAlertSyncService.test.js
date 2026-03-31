@@ -46,7 +46,6 @@ test('scheduler overdue sync stays idempotent across repeated runs', async () =>
     loanAlertModel,
     loanModel: {},
     customerModel: {},
-    agentModel: {},
     associateModel: {},
     userModel: {},
     documentAttachmentModel: {},
@@ -106,7 +105,7 @@ test('createCreditsInfrastructure builds overdue-sync loan queries with Sequeliz
       },
     },
     customerModel: {},
-    agentModel: {},
+
     associateModel: {},
     userModel: {},
     documentAttachmentModel: {},
@@ -141,7 +140,7 @@ test('syncOverdueInstallmentAlerts does not auto-resolve manual payment reminder
     loanAlertModel,
     loanModel: {},
     customerModel: {},
-    agentModel: {},
+
     associateModel: {},
     userModel: {},
     documentAttachmentModel: {},
@@ -179,7 +178,7 @@ test('syncOverdueInstallmentAlerts ignores manual reminders when creating overdu
     loanAlertModel,
     loanModel: {},
     customerModel: {},
-    agentModel: {},
+
     associateModel: {},
     userModel: {},
     documentAttachmentModel: {},
@@ -212,7 +211,7 @@ test('manual follow-up created through the use case stays active after overdue s
     loanAlertModel,
     loanModel: {},
     customerModel: {},
-    agentModel: {},
+
     associateModel: {},
     userModel: {},
     documentAttachmentModel: {},

@@ -15,6 +15,7 @@ const Customer = sequelize.define('Customer', {
   address: { type: DataTypes.STRING },
 }, {
   timestamps: true,
+  paranoid: true, // Enable paranoid mode for soft-delete with deletedAt
 });
 
 module.exports = Customer;

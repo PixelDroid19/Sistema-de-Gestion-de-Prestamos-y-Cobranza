@@ -326,119 +326,13 @@ test('createCreditsRouter POST /simulations preserves the legacy-compatible resp
   assert.deepEqual(calls, [['createSimulation', payload]]);
 });
 
-test('createCreditsRouter serves assignment and recovery contract responses', async () => {
-  const calls = [];
-  const router = createCreditsRouter({
-    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
-    attachmentUpload: noopAttachmentUpload,
-    loanValidation: noopLoanValidation,
-    useCases: {
-      async listLoans() {
-        throw new Error('listLoans should not be called');
-      },
-      async createSimulation() {
-        throw new Error('createSimulation should not be called');
-      },
-      async listLoansByCustomer() {
-        throw new Error('listLoansByCustomer should not be called');
-      },
-      async listLoansByRecoveryAssignee() {
-        throw new Error('listLoansByRecoveryAssignee should not be called');
-      },
-      async listRecoveryRoster() {
-        throw new Error('listRecoveryRoster should not be called');
-      },
-      async createLoan() {
-        throw new Error('createLoan should not be called');
-      },
-      async updateLoanStatus() {
-        throw new Error('updateLoanStatus should not be called');
-      },
-      async assignRecoveryAssignee(input) {
-        calls.push(['assignRecoveryAssignee', input]);
-        return {
-          id: Number(input.loanId),
-          status: 'defaulted',
-          recoveryStatus: 'assigned',
-          agentId: input.recoveryAssigneeId,
-        };
-      },
-      async updateRecoveryStatus(input) {
-        calls.push(['updateRecoveryStatus', input]);
-        return {
-          id: Number(input.loanId),
-          status: 'defaulted',
-          recoveryStatus: input.recoveryStatus,
-          agentId: 9,
-        };
-      },
-      async deleteLoan() {
-        throw new Error('deleteLoan should not be called');
-      },
-      async getLoanById() {
-        throw new Error('getLoanById should not be called');
-      },
-    },
-  });
-
-  const app = express();
-  app.use(express.json());
-  app.use(router);
-
-  activeServer = await listen(app);
-
-  const assignResponse = await requestJson(activeServer, {
-    method: 'PATCH',
-    path: '/22/recovery-assignment',
-    headers: { authorization: 'Bearer valid-token' },
-    body: { recoveryAssigneeId: 9 },
-  });
-  const recoveryResponse = await requestJson(activeServer, {
-    method: 'PATCH',
-    path: '/22/recovery-status',
-    headers: { authorization: 'Bearer valid-token' },
-    body: { recoveryStatus: 'contacted' },
-  });
-
-  assert.equal(assignResponse.statusCode, 200);
-  assert.deepEqual(assignResponse.body, {
-    success: true,
-    message: 'Recovery assignment updated successfully',
-    data: {
-      loan: {
-        id: 22,
-        status: 'defaulted',
-        recoveryStatus: 'assigned',
-        agentId: 9,
-      },
-    },
-  });
-  assert.equal(recoveryResponse.statusCode, 200);
-  assert.deepEqual(recoveryResponse.body, {
-    success: true,
-    message: 'Recovery status updated successfully',
-    data: {
-      loan: {
-        id: 22,
-        status: 'defaulted',
-        recoveryStatus: 'contacted',
-        agentId: 9,
-      },
-    },
-  });
-  assert.deepEqual(calls, [
-    ['assignRecoveryAssignee', { actor: { id: 1, role: 'admin' }, loanId: '22', recoveryAssigneeId: 9 }],
-    ['updateRecoveryStatus', { actor: { id: 1, role: 'admin' }, loanId: '22', recoveryStatus: 'contacted' }],
-  ]);
-});
-
 test('createCreditsRouter GET / scopes loans to the authenticated customer at runtime', async () => {
   const loanRepository = {
     async list() {
       return [
-        { id: 41, customerId: 7, agentId: 9, status: 'approved' },
-        { id: 42, customerId: 99, agentId: 7, status: 'pending' },
-        { id: 43, customerId: 7, agentId: 11, status: 'defaulted' },
+        { id: 41, customerId: 7, status: 'approved' },
+        { id: 42, customerId: 99, status: 'pending' },
+        { id: 43, customerId: 7, status: 'defaulted' },
       ];
     },
     async findById() {
@@ -467,8 +361,8 @@ test('createCreditsRouter GET / scopes loans to the authenticated customer at ru
     count: 2,
     data: {
       loans: [
-        { id: 41, customerId: 7, agentId: 9, status: 'approved' },
-        { id: 43, customerId: 7, agentId: 11, status: 'defaulted' },
+        { id: 41, customerId: 7, status: 'approved' },
+        { id: 43, customerId: 7, status: 'defaulted' },
       ],
       pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
     },
@@ -480,18 +374,18 @@ test('createCreditsRouter GET / returns all loans to admins at runtime', async (
     async listPage() {
       return {
         items: [
-          { id: 51, customerId: 7, agentId: 9, status: 'approved' },
-          { id: 52, customerId: 99, agentId: 7, status: 'pending' },
-          { id: 53, customerId: 18, agentId: null, status: 'defaulted' },
+          { id: 51, customerId: 7, status: 'approved' },
+          { id: 52, customerId: 99, status: 'pending' },
+          { id: 53, customerId: 18, status: 'defaulted' },
         ],
         pagination: { page: 1, pageSize: 25, totalItems: 3, totalPages: 1 },
       };
     },
     async list() {
       return [
-        { id: 51, customerId: 7, agentId: 9, status: 'approved' },
-        { id: 52, customerId: 99, agentId: 7, status: 'pending' },
-        { id: 53, customerId: 18, agentId: null, status: 'defaulted' },
+        { id: 51, customerId: 7, status: 'approved' },
+        { id: 52, customerId: 99, status: 'pending' },
+        { id: 53, customerId: 18, status: 'defaulted' },
       ];
     },
     async findById() {
@@ -520,9 +414,9 @@ test('createCreditsRouter GET / returns all loans to admins at runtime', async (
     count: 3,
     data: {
       loans: [
-        { id: 51, customerId: 7, agentId: 9, status: 'approved' },
-        { id: 52, customerId: 99, agentId: 7, status: 'pending' },
-        { id: 53, customerId: 18, agentId: null, status: 'defaulted' },
+        { id: 51, customerId: 7, status: 'approved' },
+        { id: 52, customerId: 99, status: 'pending' },
+        { id: 53, customerId: 18, status: 'defaulted' },
       ],
       pagination: { page: 1, pageSize: 25, totalItems: 3, totalPages: 1 },
     },
@@ -538,7 +432,6 @@ test('createCreditsRouter PATCH /:id/status lets an admin mutate loan status at 
       return {
         id: Number(loanId),
         customerId: 4,
-        agentId: 9,
         status: 'approved',
         recoveryStatus: null,
         termMonths: 12,
@@ -573,7 +466,6 @@ test('createCreditsRouter PATCH /:id/status lets an admin mutate loan status at 
       loan: {
         id: 32,
         customerId: 4,
-        agentId: 9,
         status: 'defaulted',
         recoveryStatus: 'pending',
         termMonths: 12,
@@ -589,7 +481,6 @@ test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardle
       return {
         id: Number(loanId),
         customerId: 4,
-        agentId: 21,
         status: 'rejected',
       };
     },
@@ -628,7 +519,6 @@ test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan a
       return {
         id: Number(loanId),
         customerId: 7,
-        agentId: null,
         status: 'rejected',
       };
     },
@@ -660,7 +550,6 @@ test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan a
   assert.deepEqual(destroyedLoan, {
     id: 81,
     customerId: 7,
-    agentId: null,
     status: 'rejected',
   });
 });

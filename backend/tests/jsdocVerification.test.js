@@ -88,12 +88,10 @@ test('comment cleanup removes known redundant backend narration without broad li
   });
 
   const scopedFilesWithoutLineNarration = [
-    'src/app.js',
     'src/bootstrap/index.js',
     'src/middleware/auth.js',
     'src/modules/shared/http.js',
     'src/modules/credits/application/loanFinancials.js',
-    'src/utils/errorHandler.js',
   ];
 
   const lineCommentPattern = /^\s*\/\/(?!\/)/m;

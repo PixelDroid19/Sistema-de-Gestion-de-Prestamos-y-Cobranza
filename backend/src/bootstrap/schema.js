@@ -17,6 +17,8 @@ const {
   GraphTopology,
   OutboxEvent,
   ConfigEntry,
+  AuditLog,
+  RefreshToken,
 } = require('../models');
 const { createStandardAmortizationGraph } = require('./graphDefinitions');
 
@@ -39,6 +41,8 @@ const REQUIRED_SCHEMA_MODELS = [
   GraphTopology,
   OutboxEvent,
   ConfigEntry,
+  AuditLog,
+  RefreshToken,
 ];
 
 const SAFE_RESET_ENVIRONMENTS = new Set(['development', 'test', 'local']);

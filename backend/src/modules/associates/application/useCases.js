@@ -6,6 +6,7 @@ const {
   AuthorizationError,
   ConflictError,
 } = require('../../../utils/errorHandler');
+const { withAudit } = require('../../audit/application/auditDecorator');
 
 const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(2));
 const formatCurrency = (value) => roundCurrency(value).toFixed(2);
@@ -284,19 +285,26 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination } 
 
 /**
  * Create the use case that validates unique associate contact details before creation.
- * @param {{ associateRepository: object }} dependencies
+ * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createCreateAssociate = ({ associateRepository }) => async (payload) => {
-  const normalizedPayload = normalizeAssociatePayload(payload);
+const createCreateAssociate = ({ associateRepository, auditService }) => {
+  const useCase = async (payload) => {
+    const normalizedPayload = normalizeAssociatePayload(payload);
 
-  await ensureUniqueAssociateContact({
-    associateRepository,
-    email: normalizedPayload.email,
-    phone: normalizedPayload.phone,
-  });
+    await ensureUniqueAssociateContact({
+      associateRepository,
+      email: normalizedPayload.email,
+      phone: normalizedPayload.phone,
+    });
 
-  return normalizeAssociateRecord(await associateRepository.create(normalizedPayload));
+    return normalizeAssociateRecord(await associateRepository.create(normalizedPayload));
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: (p) => p?.id, getEntityType: () => 'Associate' })(useCase);
+  }
+  return useCase;
 };
 
 /**
@@ -315,39 +323,53 @@ const createGetAssociateById = ({ associateRepository }) => async (associateId) 
 
 /**
  * Create the use case that updates an associate while preserving unique contact data.
- * @param {{ associateRepository: object }} dependencies
+ * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createUpdateAssociate = ({ associateRepository }) => async (associateId, payload) => {
-  const associate = await associateRepository.findById(associateId);
-  if (!associate) {
-    throw new NotFoundError('Associate');
+const createUpdateAssociate = ({ associateRepository, auditService }) => {
+  const useCase = async (associateId, payload) => {
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
+
+    const normalizedPayload = normalizeAssociatePayload(payload);
+
+    await ensureUniqueAssociateContact({
+      associateRepository,
+      email: normalizedPayload.email,
+      phone: normalizedPayload.phone,
+      excludeId: associate.id,
+    });
+
+    return normalizeAssociateRecord(await associateRepository.update(associate, normalizedPayload));
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'associates', getEntityId: (p) => p, getEntityType: () => 'Associate' })(useCase);
   }
-
-  const normalizedPayload = normalizeAssociatePayload(payload);
-
-  await ensureUniqueAssociateContact({
-    associateRepository,
-    email: normalizedPayload.email,
-    phone: normalizedPayload.phone,
-    excludeId: associate.id,
-  });
-
-  return normalizeAssociateRecord(await associateRepository.update(associate, normalizedPayload));
+  return useCase;
 };
 
 /**
  * Create the use case that deletes an associate after confirming the record exists.
- * @param {{ associateRepository: object }} dependencies
+ * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createDeleteAssociate = ({ associateRepository }) => async (associateId) => {
-  const associate = await associateRepository.findById(associateId);
-  if (!associate) {
-    throw new NotFoundError('Associate');
-  }
+const createDeleteAssociate = ({ associateRepository, auditService }) => {
+  const useCase = async (associateId) => {
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
 
-  await associateRepository.destroy(associate);
+    await associateRepository.destroy(associate);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'DELETE', module: 'associates', getEntityId: (p) => p, getEntityType: () => 'Associate' })(useCase);
+  }
+  return useCase;
 };
 
 const ensureAssociatePortalAccess = async ({ actor, associateRepository, associateId = null }) => {
@@ -410,250 +432,425 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
   };
 };
 
-const createCreateAssociateContribution = ({ associateRepository }) => async ({ actor, associateId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create associate contributions');
-  }
+const createCreateAssociateContribution = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, associateId, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can create associate contributions');
+    }
 
-  const associate = await associateRepository.findById(associateId);
-  if (!associate) {
-    throw new NotFoundError('Associate');
-  }
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
 
-  const amount = Number(payload.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new ValidationError('Contribution amount must be greater than 0');
-  }
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError('Contribution amount must be greater than 0');
+    }
 
-  return associateRepository.createContribution({
-    associateId: associate.id,
-    amount,
-    contributionDate: payload.contributionDate ? new Date(payload.contributionDate) : new Date(),
-    createdByUserId: actor.id,
-    notes: payload.notes ? String(payload.notes).trim() : null,
-  });
+    return associateRepository.createContribution({
+      associateId: associate.id,
+      amount,
+      contributionDate: payload.contributionDate ? new Date(payload.contributionDate) : new Date(),
+      createdByUserId: actor.id,
+      notes: payload.notes ? String(payload.notes).trim() : null,
+    });
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'AssociateContribution' })(useCase);
+  }
+  return useCase;
 };
 
-const createCreateProfitDistribution = ({ associateRepository }) => async ({ actor, associateId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create profit distributions');
-  }
+const createCreateProfitDistribution = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, associateId, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can create profit distributions');
+    }
 
-  const associate = await associateRepository.findById(associateId);
-  if (!associate) {
-    throw new NotFoundError('Associate');
-  }
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
 
-  const amount = Number(payload.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new ValidationError('Distribution amount must be greater than 0');
-  }
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError('Distribution amount must be greater than 0');
+    }
 
-  return associateRepository.createProfitDistribution({
-    associateId: associate.id,
-    loanId: payload.loanId || null,
-    amount,
-    distributionDate: payload.distributionDate ? new Date(payload.distributionDate) : new Date(),
-    createdByUserId: actor.id,
-    notes: payload.notes ? String(payload.notes).trim() : null,
-    basis: payload.basis && typeof payload.basis === 'object' ? payload.basis : {},
-  });
-};
-
-const createCreateAssociateReinvestment = ({ associateRepository }) => async ({ actor, associateId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create associate reinvestments');
-  }
-
-  const associate = await associateRepository.findById(associateId);
-  if (!associate) {
-    throw new NotFoundError('Associate');
-  }
-
-  const amount = Number(payload.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new ValidationError('Reinvestment amount must be greater than 0');
-  }
-
-  const operationDate = payload.reinvestmentDate ? new Date(payload.reinvestmentDate) : new Date();
-  if (Number.isNaN(operationDate.getTime())) {
-    throw new ValidationError('reinvestmentDate must be a valid date when provided');
-  }
-
-  return associateRepository.runInTransaction(async (transaction) => {
-    const note = payload.notes ? String(payload.notes).trim() : null;
-    const distribution = await associateRepository.createProfitDistribution({
+    return associateRepository.createProfitDistribution({
       associateId: associate.id,
       loanId: payload.loanId || null,
       amount,
-      distributionDate: operationDate,
+      distributionDate: payload.distributionDate ? new Date(payload.distributionDate) : new Date(),
       createdByUserId: actor.id,
-      notes: note,
-      basis: {
-        type: 'reinvestment',
-        reinvestment: true,
-        direction: 'distribution',
-      },
-    }, { transaction });
+      notes: payload.notes ? String(payload.notes).trim() : null,
+      basis: payload.basis && typeof payload.basis === 'object' ? payload.basis : {},
+    });
+  };
 
-    const contribution = await associateRepository.createContribution({
-      associateId: associate.id,
-      amount,
-      contributionDate: operationDate,
-      createdByUserId: actor.id,
-      notes: note,
-    }, { transaction });
-
-    return {
-      associate: normalizeAssociateRecord(associate),
-      reinvestment: {
-        amount: formatCurrency(amount),
-        reinvestmentDate: operationDate.toISOString(),
-        loanId: payload.loanId || null,
-        notes: note,
-      },
-      distribution: normalizeDistributionRecord(distribution),
-      contribution,
-    };
-  });
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'ProfitDistribution' })(useCase);
+  }
+  return useCase;
 };
 
-const createCreateProportionalProfitDistribution = ({ associateRepository }) => async ({ actor, idempotencyKey, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create proportional profit distributions');
-  }
+const createCreateAssociateReinvestment = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, associateId, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can create associate reinvestments');
+    }
 
-  const amountCents = parseCurrencyToCents(payload.amount);
-  const distributionDate = payload.distributionDate ? new Date(payload.distributionDate) : new Date();
+    const associate = await associateRepository.findById(associateId);
+    if (!associate) {
+      throw new NotFoundError('Associate');
+    }
 
-  if (Number.isNaN(distributionDate.getTime())) {
-    throw new ValidationError('distributionDate must be a valid date when provided');
-  }
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError('Reinvestment amount must be greater than 0');
+    }
 
-  const notes = payload.notes ? String(payload.notes).trim() : null;
-  const customBasis = payload.basis && typeof payload.basis === 'object' ? payload.basis : {};
-  const idempotencyPayload = buildProportionalIdempotencyPayload({
-    amountCents,
-    distributionDate,
-    notes,
-    basis: customBasis,
-  });
-  const requestHash = idempotencyKey
-    ? buildProportionalIdempotencyRequestHash(idempotencyPayload)
-    : null;
+    const operationDate = payload.reinvestmentDate ? new Date(payload.reinvestmentDate) : new Date();
+    if (Number.isNaN(operationDate.getTime())) {
+      throw new ValidationError('reinvestmentDate must be a valid date when provided');
+    }
 
-  const buildCreatedResult = ({ batchKey, eligibleAssociates, createdRows }) => serializeIdempotentDistributionResult({
-    batchKey,
-    idempotencyKey: idempotencyKey || null,
-    distributionDate: distributionDate.toISOString(),
-    declaredAmount: formatCurrency(amountCents / 100),
-    totalAllocatedAmount: formatCurrency(createdRows.reduce((sum, row) => sum + Number(row.amount || 0), 0)),
-    eligibleAssociateCount: eligibleAssociates.length,
-    createdRows: createdRows.map(normalizeDistributionRecord),
-  }, 'created');
-
-  const createDistributionBatch = async ({ transaction } = {}) => {
-    const eligibleAssociates = validateEligibleParticipationPool(
-      await associateRepository.listActiveAssociatesWithParticipation({ transaction }),
-    );
-    const allocations = allocateProportionalDistribution({ associates: eligibleAssociates, amountCents });
-    const batchKey = buildBatchKey({
-      actorId: actor.id,
-      distributionDate,
-      amountCents,
-      associateIds: eligibleAssociates.map((associate) => associate.id),
-    });
-    const createdRows = await associateRepository.createProfitDistributionBatch(
-      allocations.map((allocation) => ({
-        associateId: allocation.associate.id,
-        loanId: null,
-        amount: allocation.amountCents / 100,
-        distributionDate,
+    return associateRepository.runInTransaction(async (transaction) => {
+      const note = payload.notes ? String(payload.notes).trim() : null;
+      const distribution = await associateRepository.createProfitDistribution({
+        associateId: associate.id,
+        loanId: payload.loanId || null,
+        amount,
+        distributionDate: operationDate,
         createdByUserId: actor.id,
-        notes,
+        notes: note,
         basis: {
-          ...customBasis,
-          type: 'proportional-participation',
-          version: 1,
-          batchKey,
-          idempotencyKey: idempotencyKey || null,
-          participationPercentage: allocation.associate.participationPercentage,
-          sourceAmount: formatCurrency(amountCents / 100),
-          allocatedAmount: formatCurrency(allocation.amountCents / 100),
-          roundingAdjustment: formatCurrency(allocation.roundingAdjustmentCents / 100),
-          eligibleAssociateCount: eligibleAssociates.length,
-          manual: false,
+          type: 'reinvestment',
+          reinvestment: true,
+          direction: 'distribution',
         },
-      })),
-      { transaction },
+      }, { transaction });
+
+      const contribution = await associateRepository.createContribution({
+        associateId: associate.id,
+        amount,
+        contributionDate: operationDate,
+        createdByUserId: actor.id,
+        notes: note,
+      }, { transaction });
+
+      return {
+        associate: normalizeAssociateRecord(associate),
+        reinvestment: {
+          amount: formatCurrency(amount),
+          reinvestmentDate: operationDate.toISOString(),
+          loanId: payload.loanId || null,
+          notes: note,
+        },
+        distribution: normalizeDistributionRecord(distribution),
+        contribution,
+      };
+    });
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'AssociateReinvestment' })(useCase);
+  }
+  return useCase;
+};
+
+const createCreateProportionalProfitDistribution = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, idempotencyKey, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can create proportional profit distributions');
+    }
+
+    const amountCents = parseCurrencyToCents(payload.amount);
+    const distributionDate = payload.distributionDate ? new Date(payload.distributionDate) : new Date();
+
+    if (Number.isNaN(distributionDate.getTime())) {
+      throw new ValidationError('distributionDate must be a valid date when provided');
+    }
+
+    const notes = payload.notes ? String(payload.notes).trim() : null;
+    const customBasis = payload.basis && typeof payload.basis === 'object' ? payload.basis : {};
+    const idempotencyPayload = buildProportionalIdempotencyPayload({
+      amountCents,
+      distributionDate,
+      notes,
+      basis: customBasis,
+    });
+    const requestHash = idempotencyKey
+      ? buildProportionalIdempotencyRequestHash(idempotencyPayload)
+      : null;
+
+    const buildCreatedResult = ({ batchKey, eligibleAssociates, createdRows }) => serializeIdempotentDistributionResult({
+      batchKey,
+      idempotencyKey: idempotencyKey || null,
+      distributionDate: distributionDate.toISOString(),
+      declaredAmount: formatCurrency(amountCents / 100),
+      totalAllocatedAmount: formatCurrency(createdRows.reduce((sum, row) => sum + Number(row.amount || 0), 0)),
+      eligibleAssociateCount: eligibleAssociates.length,
+      createdRows: createdRows.map(normalizeDistributionRecord),
+    }, 'created');
+
+    const createDistributionBatch = async ({ transaction } = {}) => {
+      const eligibleAssociates = validateEligibleParticipationPool(
+        await associateRepository.listActiveAssociatesWithParticipation({ transaction }),
+      );
+      const allocations = allocateProportionalDistribution({ associates: eligibleAssociates, amountCents });
+      const batchKey = buildBatchKey({
+        actorId: actor.id,
+        distributionDate,
+        amountCents,
+        associateIds: eligibleAssociates.map((associate) => associate.id),
+      });
+      const createdRows = await associateRepository.createProfitDistributionBatch(
+        allocations.map((allocation) => ({
+          associateId: allocation.associate.id,
+          loanId: null,
+          amount: allocation.amountCents / 100,
+          distributionDate,
+          createdByUserId: actor.id,
+          notes,
+          basis: {
+            ...customBasis,
+            type: 'proportional-participation',
+            version: 1,
+            batchKey,
+            idempotencyKey: idempotencyKey || null,
+            participationPercentage: allocation.associate.participationPercentage,
+            sourceAmount: formatCurrency(amountCents / 100),
+            allocatedAmount: formatCurrency(allocation.amountCents / 100),
+            roundingAdjustment: formatCurrency(allocation.roundingAdjustmentCents / 100),
+            eligibleAssociateCount: eligibleAssociates.length,
+            manual: false,
+          },
+        })),
+        { transaction },
+      );
+
+      return buildCreatedResult({ batchKey, eligibleAssociates, createdRows });
+    };
+
+    if (!idempotencyKey) {
+      return createDistributionBatch();
+    }
+
+    const resolveExistingIdempotency = async () => {
+      const existingRecord = await associateRepository.findProportionalDistributionIdempotency({
+        actorId: actor.id,
+        idempotencyKey,
+      });
+
+      if (!existingRecord) {
+        return null;
+      }
+
+      if (existingRecord.requestHash !== requestHash) {
+        throw buildIdempotencyConflictError('Idempotency key has already been used with a different proportional distribution payload');
+      }
+
+      if (existingRecord.status === 'completed') {
+        return serializeIdempotentDistributionResult(existingRecord.responsePayload, 'replayed');
+      }
+
+      throw buildIdempotencyConflictError('A proportional distribution with this idempotency key is already being processed');
+    };
+
+    const existingResult = await resolveExistingIdempotency();
+    if (existingResult) {
+      return existingResult;
+    }
+
+    try {
+      return await associateRepository.runInTransaction(async (transaction) => {
+        await associateRepository.createProportionalDistributionIdempotency({
+          actorId: actor.id,
+          idempotencyKey,
+          requestHash,
+          status: 'pending',
+        }, { transaction });
+
+        const result = await createDistributionBatch({ transaction });
+
+        const idempotencyRecord = await associateRepository.findProportionalDistributionIdempotency({
+          actorId: actor.id,
+          idempotencyKey,
+          transaction,
+        });
+        await associateRepository.updateProportionalDistributionIdempotency(idempotencyRecord, {
+          status: 'completed',
+          responsePayload: result,
+        }, { transaction });
+
+        return result;
+      });
+    } catch (error) {
+      if (error?.name === 'SequelizeUniqueConstraintError') {
+        const replayedResult = await resolveExistingIdempotency();
+        if (replayedResult) {
+          return replayedResult;
+        }
+      }
+
+      throw error;
+    }
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'associates', getEntityId: () => null, getEntityType: () => 'ProportionalProfitDistribution' })(useCase);
+  }
+  return useCase;
+};
+
+/**
+ * Create the use case that retrieves installments for an associate.
+ * @param {{ associateRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createGetAssociateInstallments = ({ associateRepository }) => async ({ actor, associateId }) => {
+  await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+
+  const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
+
+  const totalPending = installments
+    .filter((i) => i.status === 'pending')
+    .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+
+  const totalPaid = installments
+    .filter((i) => i.status === 'paid')
+    .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+
+  const totalOverdue = installments
+    .filter((i) => i.status === 'pending' && new Date(i.dueDate) < new Date())
+    .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+
+  return {
+    associateId,
+    installments: installments.map((i) => ({
+      id: i.id,
+      installmentNumber: i.installmentNumber,
+      amount: Number(i.amount),
+      dueDate: i.dueDate,
+      status: i.status,
+      paidAt: i.paidAt,
+      paidBy: i.paidBy,
+      paidByUser: i.paidByUser,
+    })),
+    totals: {
+      totalPending: roundCurrency(totalPending),
+      totalPaid: roundCurrency(totalPaid),
+      totalOverdue: roundCurrency(totalOverdue),
+    },
+  };
+};
+
+/**
+ * Create the use case that marks an installment as paid.
+ * @param {{ associateRepository: object, auditService?: object }} dependencies
+ * @returns {Function}
+ */
+const createPayAssociateInstallment = ({ associateRepository, auditService }) => {
+  const useCase = async ({ actor, associateId, installmentNumber, payload }) => {
+    await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+
+    const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
+    const installment = installments.find(
+      (i) => Number(i.installmentNumber) === Number(installmentNumber),
     );
 
-    return buildCreatedResult({ batchKey, eligibleAssociates, createdRows });
+    if (!installment) {
+      throw new NotFoundError('Installment');
+    }
+
+    if (installment.status === 'paid') {
+      throw new ValidationError('Installment already paid');
+    }
+
+    const paymentDate = payload?.paymentDate ? new Date(payload.paymentDate) : new Date();
+    const paidBy = actor.id;
+
+    await associateRepository.updateInstallmentStatus(
+      associateId,
+      installmentNumber,
+      'paid',
+      paymentDate,
+      paidBy,
+    );
+
+    const updatedInstallment = {
+      ...installment.toJSON(),
+      status: 'paid',
+      paidAt: paymentDate,
+      paidBy,
+    };
+
+    return {
+      success: true,
+      installment: {
+        id: updatedInstallment.id,
+        installmentNumber: updatedInstallment.installmentNumber,
+        amount: Number(updatedInstallment.amount),
+        dueDate: updatedInstallment.dueDate,
+        status: updatedInstallment.status,
+        paidAt: updatedInstallment.paidAt,
+        paidBy: updatedInstallment.paidBy,
+      },
+    };
   };
 
-  if (!idempotencyKey) {
-    return createDistributionBatch();
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'AssociateInstallment' })(useCase);
   }
+  return useCase;
+};
 
-  const resolveExistingIdempotency = async () => {
-    const existingRecord = await associateRepository.findProportionalDistributionIdempotency({
-      actorId: actor.id,
-      idempotencyKey,
-    });
+/**
+ * Create the use case that retrieves calendar events for an associate.
+ * @param {{ associateRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, associateId, startDate, endDate }) => {
+  await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
 
-    if (!existingRecord) {
-      return null;
-    }
+  const events = await associateRepository.findCalendarEvents(associateId, startDate, endDate);
 
-    if (existingRecord.requestHash !== requestHash) {
-      throw buildIdempotencyConflictError('Idempotency key has already been used with a different proportional distribution payload');
-    }
+  const allEvents = [
+    ...events.contributions.map((c) => ({
+      ...c,
+      date: new Date(c.date),
+      displayType: 'Aporte',
+      displayAmount: `+${c.amount.toFixed(2)}`,
+    })),
+    ...events.distributions.map((d) => ({
+      ...d,
+      date: new Date(d.date),
+      displayType: 'Distribución',
+      displayAmount: `-${d.amount.toFixed(2)}`,
+    })),
+    ...events.installments.map((i) => ({
+      ...i,
+      date: new Date(i.dueDate),
+      displayType: 'Cuota',
+      displayAmount: i.status === 'paid' ? `✓ ${i.amount.toFixed(2)}` : i.amount.toFixed(2),
+    })),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    if (existingRecord.status === 'completed') {
-      return serializeIdempotentDistributionResult(existingRecord.responsePayload, 'replayed');
-    }
-
-    throw buildIdempotencyConflictError('A proportional distribution with this idempotency key is already being processed');
+  return {
+    associateId,
+    startDate: startDate || null,
+    endDate: endDate || null,
+    events: allEvents,
+    summary: {
+      contributionCount: events.contributions.length,
+      distributionCount: events.distributions.length,
+      installmentCount: events.installments.length,
+      pendingInstallments: events.installments.filter((i) => i.status === 'pending').length,
+    },
   };
-
-  const existingResult = await resolveExistingIdempotency();
-  if (existingResult) {
-    return existingResult;
-  }
-
-  try {
-    return await associateRepository.runInTransaction(async (transaction) => {
-      await associateRepository.createProportionalDistributionIdempotency({
-        actorId: actor.id,
-        idempotencyKey,
-        requestHash,
-        status: 'pending',
-      }, { transaction });
-
-      const result = await createDistributionBatch({ transaction });
-
-      const idempotencyRecord = await associateRepository.findProportionalDistributionIdempotency({
-        actorId: actor.id,
-        idempotencyKey,
-        transaction,
-      });
-      await associateRepository.updateProportionalDistributionIdempotency(idempotencyRecord, {
-        status: 'completed',
-        responsePayload: result,
-      }, { transaction });
-
-      return result;
-    });
-  } catch (error) {
-    if (error?.name === 'SequelizeUniqueConstraintError') {
-      const replayedResult = await resolveExistingIdempotency();
-      if (replayedResult) {
-        return replayedResult;
-      }
-    }
-
-    throw error;
-  }
 };
 
 module.exports = {
@@ -670,4 +867,7 @@ module.exports = {
   createCreateProfitDistribution,
   createCreateAssociateReinvestment,
   createCreateProportionalProfitDistribution,
+  createGetAssociateInstallments,
+  createPayAssociateInstallment,
+  createGetAssociateCalendar,
 };

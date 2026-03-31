@@ -131,6 +131,12 @@ const customerRepository = {
   findById(id) {
     return Customer.findByPk(id);
   },
+  findByIdIncludingDeleted(id) {
+    return Customer.findByPk(id, { paranoid: false });
+  },
+  restore(id) {
+    return Customer.restore({ where: { id } });
+  },
   findByDocumentNumber(documentNumber) {
     return Customer.findOne({ where: { documentNumber } });
   },

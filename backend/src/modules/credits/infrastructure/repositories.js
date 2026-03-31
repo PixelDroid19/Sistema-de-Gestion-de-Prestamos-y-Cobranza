@@ -2,7 +2,6 @@ const { Op, Sequelize } = require('sequelize');
 const {
   Loan,
   Customer,
-  Agent,
   Associate,
   User,
   DocumentAttachment,
@@ -13,7 +12,7 @@ const {
   DagSimulationSummary,
 } = require('../../../models');
 const { notificationService } = require('../../notifications/application/notificationService');
-const { createCreditSimulationService, simulateCredit } = require('../application/creditSimulationService');
+const { createCreditSimulationService } = require('../application/creditSimulationService');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('../application/creditFormulaHelpers');
@@ -81,13 +80,12 @@ const buildCustomerSummary = (loans = []) => {
 
 /**
  * Create the infrastructure ports consumed by the credits module composition seam.
- * @param {{ loanModel?: object, customerModel?: object, agentModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, creditSimulator?: Function, loanCreator?: Function, notifications?: object, attachmentStorage?: object }} [options]
+ * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, creditSimulator?: Function, loanCreator?: Function, notifications?: object, attachmentStorage?: object }} [options]
  * @returns {object}
  */
 const createCreditsInfrastructure = ({
   loanModel = Loan,
   customerModel = Customer,
-  agentModel = Agent,
   associateModel = Associate,
   userModel = User,
   documentAttachmentModel = DocumentAttachment,
@@ -109,7 +107,7 @@ const createCreditsInfrastructure = ({
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
 } = {}) => {
-  const loanIncludes = [customerModel, agentModel, associateModel];
+  const loanIncludes = [customerModel, associateModel];
 
   return {
     loanRepository: {
@@ -138,7 +136,7 @@ const createCreditsInfrastructure = ({
         return loanModel.findByPk(id, { include: loanIncludes });
       },
       listByCustomer(customerId) {
-        return loanModel.findAll({ where: { customerId }, include: [agentModel, associateModel], order: [['createdAt', 'DESC']] });
+        return loanModel.findAll({ where: { customerId }, include: [associateModel], order: [['createdAt', 'DESC']] });
       },
       listPageByCustomer({ customerId, page, pageSize }) {
         return paginateModel({
@@ -146,20 +144,7 @@ const createCreditsInfrastructure = ({
           page,
           pageSize,
           where: { customerId },
-          include: [agentModel, associateModel],
-          order: [['createdAt', 'DESC']],
-        });
-      },
-      listByRecoveryAssignee(recoveryAssigneeId) {
-        return loanModel.findAll({ where: { agentId: recoveryAssigneeId }, include: [customerModel, associateModel], order: [['createdAt', 'DESC']] });
-      },
-      listPageByRecoveryAssignee({ recoveryAssigneeId, page, pageSize }) {
-        return paginateModel({
-          model: loanModel,
-          page,
-          pageSize,
-          where: { agentId: recoveryAssigneeId },
-          include: [customerModel, associateModel],
+          include: [associateModel],
           order: [['createdAt', 'DESC']],
         });
       },
@@ -203,22 +188,6 @@ const createCreditsInfrastructure = ({
     customerRepository: {
       findById(id) {
         return customerModel.findByPk(id);
-      },
-    },
-    recoveryAssignmentRepository: {
-      list() {
-        return agentModel.findAll({ order: [['name', 'ASC']] });
-      },
-      listPage({ page, pageSize }) {
-        return paginateModel({
-          model: agentModel,
-          page,
-          pageSize,
-          order: [['name', 'ASC']],
-        });
-      },
-      findById(id) {
-        return agentModel.findByPk(id);
       },
     },
     userRepository: {
@@ -535,7 +504,6 @@ const createCreditsInfrastructure = ({
 const {
   loanRepository,
   customerRepository,
-  recoveryAssignmentRepository,
   userRepository,
   attachmentRepository,
   alertRepository,
@@ -553,7 +521,6 @@ module.exports = {
   createCreditsInfrastructure,
   loanRepository,
   customerRepository,
-  recoveryAssignmentRepository,
   userRepository,
   attachmentRepository,
   alertRepository,

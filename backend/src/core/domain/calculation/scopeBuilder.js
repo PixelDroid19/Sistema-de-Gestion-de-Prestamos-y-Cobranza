@@ -11,7 +11,7 @@ const buildInitialScope = (contractVars = {}) => {
   const engine = BigNumberEngine.getInstance();
   const scope = {};
 
-  const varNames = [
+  const _varNames = [
     'principal',
     'interestRate',
     'paymentAmount',

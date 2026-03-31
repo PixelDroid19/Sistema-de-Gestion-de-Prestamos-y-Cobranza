@@ -13,6 +13,7 @@ const {
   createListPaymentDocuments,
   createUploadPaymentDocument,
   createDownloadPaymentDocument,
+  createGetPaymentVoucher,
 } = require('./application/useCases');
 const { paymentRepository } = require('./infrastructure/repositories');
 const { createPayoutsRouter } = require('./presentation/router');
@@ -40,6 +41,7 @@ const createPayoutsModule = ({ sharedRuntime } = {}) => {
     listPaymentDocuments: createListPaymentDocuments({ paymentRepository, loanAccessPolicy }),
     uploadPaymentDocument: createUploadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),
     downloadPaymentDocument: createDownloadPaymentDocument({ paymentRepository, loanAccessPolicy, attachmentStorage }),
+    getPaymentVoucher: createGetPaymentVoucher({ paymentRepository, loanAccessPolicy }),
   };
 
   return createModule({

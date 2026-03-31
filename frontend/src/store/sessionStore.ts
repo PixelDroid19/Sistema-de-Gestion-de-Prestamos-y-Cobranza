@@ -11,22 +11,35 @@ interface User {
 }
 
 interface SessionState {
-  token: string | null;
+  // Access token - used for API requests (stored in memory for security)
+  accessToken: string | null;
+  // Refresh token - used to obtain new access tokens
+  refreshToken: string | null;
   user: User | null;
-  login: (token: string, user: User) => void;
+  // Login with token pair from login/refresh endpoints
+  login: (tokens: { accessToken: string; refreshToken: string; user: User }) => void;
+  // Update just the access token (after refresh)
+  updateAccessToken: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
 }
 
 export const useSessionStore = create<SessionState>()(
   persist(
     (set) => ({
-      token: null,
+      accessToken: null,
+      refreshToken: null,
       user: null,
-      login: (token, user) => set({ token, user }),
-      logout: () => set({ token: null, user: null }),
+      login: ({ accessToken, refreshToken, user }) => set({ accessToken, refreshToken, user }),
+      updateAccessToken: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      logout: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
       name: 'lendflow-session',
+      partialize: (state) => ({
+        refreshToken: state.refreshToken,
+        user: state.user,
+        // Don't persist accessToken for security - it should be short-lived
+      }),
     }
   )
 );

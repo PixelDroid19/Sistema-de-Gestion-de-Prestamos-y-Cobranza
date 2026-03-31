@@ -8,7 +8,7 @@ async function migrateLoansToDefaultProduct() {
   });
 
   if (!defaultProduct) {
-    throw new Error(`Product \"${DEFAULT_FINANCIAL_PRODUCT_NAME}\" not found. Run seed data first.`);
+    throw new Error(`Product "${DEFAULT_FINANCIAL_PRODUCT_NAME}" not found. Run seed data first.`);
   }
 
   const orphanedCount = await Loan.count({

@@ -52,6 +52,16 @@ export const useUsers = (params?: { page?: number; limit?: number; search?: stri
     },
   });
 
+  const registerWithPermissions = useMutation({
+    mutationFn: async (userData: { name: string; email: string; password: string; role: string; permissions?: string[] }) => {
+      const { data } = await apiClient.post('/auth/register-with-permissions', userData);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users.list'] });
+    },
+  });
+
   return {
     data: getUsers.data,
     isLoading: getUsers.isLoading,
@@ -59,5 +69,6 @@ export const useUsers = (params?: { page?: number; limit?: number; search?: stri
     updateUser,
     deactivateUser,
     reactivateUser,
+    registerWithPermissions,
   };
 };

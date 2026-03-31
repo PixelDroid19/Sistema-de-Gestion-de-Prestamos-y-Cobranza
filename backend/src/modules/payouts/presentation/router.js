@@ -135,6 +135,17 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.download(download.absolutePath, download.document.originalName);
   }));
 
+  // TASK-009: PDF voucher download endpoint
+  router.get('/:paymentId/voucher/pdf', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+    const voucher = await useCases.getPaymentVoucher({
+      actor: req.user,
+      paymentId: req.params.paymentId,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${voucher.filename}"`);
+    res.send(voucher.buffer);
+  }));
+
   return router;
 };
 

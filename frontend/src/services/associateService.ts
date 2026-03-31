@@ -42,6 +42,24 @@ export const useAssociateDetails = (associateId: number) => {
     enabled: !!associateId,
   });
 
+  const getInstallments = useQuery({
+    queryKey: ['associates.installments', associateId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/associates/${associateId}/installments`);
+      return data;
+    },
+    enabled: !!associateId,
+  });
+
+  const getCalendar = useQuery({
+    queryKey: ['associates.calendar', associateId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/associates/${associateId}/calendar-events`);
+      return data;
+    },
+    enabled: !!associateId,
+  });
+
   const createContribution = useMutation({
     mutationFn: async (contributionData: any) => {
       const { data } = await apiClient.post(`/associates/${associateId}/contributions`, contributionData);
@@ -72,11 +90,25 @@ export const useAssociateDetails = (associateId: number) => {
     },
   });
 
+  const payInstallment = useMutation({
+    mutationFn: async (installmentNumber: number) => {
+      const { data } = await apiClient.post(`/associates/${associateId}/installments/${installmentNumber}/pay`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['associates.installments', associateId] });
+      queryClient.invalidateQueries({ queryKey: ['associates.calendar', associateId] });
+    },
+  });
+
   return {
     portal: getPortal.data?.data?.portal,
+    installments: getInstallments.data?.data?.installments,
+    calendar: getCalendar.data?.data?.calendar,
     isLoading: getPortal.isLoading,
     createContribution,
     createDistribution,
     createReinvestment,
+    payInstallment,
   };
 };

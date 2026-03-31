@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check } from 'lucide-react';
+import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
-import { useLoans } from '../services/loanService';
+import { useLoans, useLoanStatistics } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
 import { SimulationResult } from '../types/simulation';
 import DAGWorkbench from './DAGWorkbench';
+import { toast } from '../lib/toast';
 
 const locales = {
   'es': es,
@@ -148,6 +149,50 @@ const myEventsList: InstallmentEvent[] = [
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const [activeTab, setActiveTab] = useState('list');
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Statistics hook
+  const { data: statisticsData } = useLoanStatistics();
+
+  const handleExportCreditsExcel = async () => {
+    try {
+      setIsExporting(true);
+      const response = await fetch('/api/reports/credits/excel', {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to export credits');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'credits-export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success({ description: 'Credits exported successfully' });
+    } catch (error) {
+      toast.error({ description: 'Failed to export credits' });
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Modal states
   const [actionModal, setActionModal] = useState<{ isOpen: boolean, type: 'view' | 'edit' | 'delete' | 'create', data: any }>({ isOpen: false, type: 'view', data: null });
@@ -203,12 +248,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     if (credit?.Customer?.name) return credit.Customer.name;
     if (credit?.customerName) return credit.customerName;
     return credit?.customerId ?? 'Sin cliente';
-  };
-
-  const getAgentLabel = (credit: any) => {
-    if (credit?.Agent?.name) return credit.Agent.name;
-    if (credit?.agentName) return credit.agentName;
-    return credit?.agentId || 'Sin asignar';
   };
 
   const getLoanStatusLabel = (status: string) => {
@@ -284,6 +323,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           <p className="text-sm text-text-secondary mt-1">Módulo central para originación, seguimiento y recuperación de préstamos.</p>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={handleExportCreditsExcel}
+            disabled={isExporting}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+          >
+            <Download size={16} /> {isExporting ? 'Exportando...' : 'Exportar Excel'}
+          </button>
           <button onClick={() => setActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
             <Calculator size={16} /> Simular
           </button>
@@ -325,22 +371,143 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {activeTab === 'list' && (
-        <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col gap-6">
+          {/* Statistics Widget */}
+          {statisticsData?.data?.statistics && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
+                <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 mb-1">
+                  <DollarSign size={14} /> Total Préstamos
+                </div>
+                <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                  {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
+                </div>
+              </div>
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-500/20">
+                <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 mb-1">
+                  <TrendingUp size={14} /> Cobrado
+                </div>
+                <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                  {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
+                </div>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-500/10 p-4 rounded-xl border border-amber-100 dark:border-amber-500/20">
+                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1">
+                  <AlertTriangle size={14} /> Mora
+                </div>
+                <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
+                  {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
+                </div>
+              </div>
+              <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
+                <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
+                  <Users size={14} /> Créditos Activos
+                </div>
+                <div className="text-xl font-bold">
+                  {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
             <div className="flex gap-3">
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <input 
                   type="text" 
-                  placeholder="Buscar por cliente o agente..." 
+                  placeholder="Buscar por cliente..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
                 />
               </div>
-              <button className="flex items-center gap-2 bg-bg-base border border-border-subtle px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${showFilters ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30' : 'bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary'}`}
+              >
                 <Filter size={16} /> Filtrar
               </button>
             </div>
+            <div className="text-sm text-text-secondary">
+              Total: {pagination?.totalItems ?? mockCreditsList.length} créditos
+            </div>
           </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="bg-bg-base rounded-xl border border-border-subtle p-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Estado</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({...filters, status: e.target.value})}
+                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  >
+                    <option value="">Todos</option>
+                    <option value="active">Activo</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="approved">Aprobado</option>
+                    <option value="defaulted">En Mora</option>
+                    <option value="closed">Cerrado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Monto Mínimo</label>
+                  <input
+                    type="number"
+                    value={filters.minAmount}
+                    onChange={(e) => setFilters({...filters, minAmount: e.target.value})}
+                    placeholder="0"
+                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Monto Máximo</label>
+                  <input
+                    type="number"
+                    value={filters.maxAmount}
+                    onChange={(e) => setFilters({...filters, maxAmount: e.target.value})}
+                    placeholder="Sin límite"
+                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Fecha Inicio</label>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Fecha Fin</label>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' })}
+                  className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary"
+                >
+                  Limpiar
+                </button>
+                <button
+                  onClick={() => {/* Apply filters - could trigger search */}}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -355,7 +522,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="pb-3 font-medium">% Mora</th>
                   <th className="pb-3 font-medium">Estado</th>
                   <th className="pb-3 font-medium">Estado de Recuperación</th>
-                  <th className="pb-3 font-medium">Agente Asignado</th>
                   <th className="pb-3 font-medium">Fecha Creación</th>
                   <th className="pb-3 font-medium">Acciones</th>
                 </tr>
@@ -431,7 +597,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                              {getRecoveryStatusLabel(credit)}
                             </span>
                           </td>
-                        <td className="py-4 text-text-secondary">{getAgentLabel(credit)}</td>
                         <td className="py-4 text-text-secondary text-xs">{creationDate}</td>
                         <td className="py-4">
                           <div className="flex items-center gap-2">

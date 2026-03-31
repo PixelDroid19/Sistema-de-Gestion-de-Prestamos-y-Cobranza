@@ -7,6 +7,7 @@ const {
   createListSettings,
   createUpsertSetting,
   createListAdminCatalogs,
+  createListRoles,
 } = require('./application/useCases');
 const { configRepository } = require('./infrastructure/repositories');
 const { createConfigRouter } = require('./presentation/router');
@@ -21,6 +22,7 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
     listSettings: createListSettings({ configRepository }),
     upsertSetting: createUpsertSetting({ configRepository }),
     listAdminCatalogs: createListAdminCatalogs(),
+    listRoles: createListRoles(),
   };
 
   return createModule({

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Users, Briefcase, UserPlus, CreditCard, DollarSign, BarChart, Settings, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,14 +14,21 @@ export default function Sidebar({ currentView, setCurrentView }: { currentView: 
 
   const { logout } = useSessionStore();
   const navigate = useNavigate();
+  
+  // Auto-scroll active nav item into view when currentView changes
+  useEffect(() => {
+    // Find the active button and scroll it into view
+    const sidebar = document.querySelector('aside');
+    if (sidebar) {
+      const activeButton = sidebar.querySelector('button[data-active="true"]');
+      if (activeButton) {
+        activeButton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [currentView]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const toggleMenu = (menu: string) => {
-    setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
+  const toggleMenu = (key: string) => {
+    setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -144,42 +151,38 @@ export default function Sidebar({ currentView, setCurrentView }: { currentView: 
           />
         </div>
 
-        {/* Agentes */}
-        <div className="mt-2">
-          <NavItem 
-            icon={<Briefcase size={20} />} 
-            active={currentView === 'agents'} 
-            onClick={() => setCurrentView('agents')} 
-            title="Agentes" 
-          />
-        </div>
-
       </nav>
 
       <div className="flex flex-col gap-2 w-full px-4 mt-auto pt-6">
+        <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title="Auditoría" />
         <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title="Configuración" />
-        <NavItem icon={<LogOut size={20} />} onClick={handleLogout} title="Cerrar Sesión" />
+        <NavItem icon={<LogOut size={20} />} onClick={logout} title="Cerrar Sesión" />
       </div>
     </aside>
   );
 }
 
-function NavItem({ icon, active, onClick, title }: { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string }>(({ icon, active, onClick, title }, ref) => {
   return (
     <button 
+      ref={ref}
       onClick={onClick}
+      data-active={active ? "true" : "false"}
       className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${active ? 'bg-hover-bg text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'}`}
     >
       {icon}
       <span className="font-medium text-sm">{title}</span>
     </button>
   );
-}
+});
+NavItem.displayName = 'NavItem';
 
 function SubNavItem({ active, onClick, title }: { active?: boolean; onClick?: () => void; title: string }) {
   return (
     <button 
       onClick={onClick}
+      data-active={active ? "true" : "false"}
       className={`w-full text-left py-2 px-3 rounded-lg transition-colors text-sm ${active ? 'bg-hover-bg text-text-primary font-medium' : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'}`}
     >
       {title}

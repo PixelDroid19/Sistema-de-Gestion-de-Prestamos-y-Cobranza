@@ -14,7 +14,6 @@ const Loan = sequelize.define('Loan', {
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'active', 'overdue', 'paid', 'cancelled', 'closed', 'defaulted'), defaultValue: 'pending' },
   startDate: { type: DataTypes.DATE },
   endDate: { type: DataTypes.DATE },
-  agentId: { type: DataTypes.INTEGER, allowNull: true }, // assigned agent for recovery
   emiSchedule: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }, // store EMI schedule as JSON
   installmentAmount: { type: DataTypes.FLOAT, allowNull: true },
   totalPayable: { type: DataTypes.FLOAT, allowNull: true },

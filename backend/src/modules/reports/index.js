@@ -16,6 +16,19 @@ const {
   createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
+  createGetCreditEarnings,
+  createGetInterestEarnings,
+  createGetMonthlyEarnings,
+  createGetMonthlyInterest,
+  createGetPerformanceAnalysis,
+  createGetExecutiveDashboard,
+  createGetComprehensiveAnalytics,
+  createGetComparativeAnalysis,
+  createGetForecastAnalysis,
+  createGetNextMonthProjection,
+  createExportCreditsExcel,
+  createGetCreditsSummary,
+  createExportAssociatesExcel,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { associateRepository } = require('../associates/infrastructure/repositories');
@@ -44,6 +57,21 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ reportRepository, associateRepository }),
     getCustomerProfitabilityReport: createGetCustomerProfitabilityReport({ reportRepository }),
     getLoanProfitabilityReport: createGetLoanProfitabilityReport({ reportRepository }),
+    // New financial analytics use cases
+    getCreditEarnings: createGetCreditEarnings({ reportRepository }),
+    getInterestEarnings: createGetInterestEarnings({ paymentRepository }),
+    getMonthlyEarnings: createGetMonthlyEarnings({ reportRepository }),
+    getMonthlyInterest: createGetMonthlyInterest({ paymentRepository }),
+    getPerformanceAnalysis: createGetPerformanceAnalysis({ reportRepository }),
+    getExecutiveDashboard: createGetExecutiveDashboard({ reportRepository, paymentRepository }),
+    getComprehensiveAnalytics: createGetComprehensiveAnalytics({ reportRepository, paymentRepository }),
+    getComparativeAnalysis: createGetComparativeAnalysis({ reportRepository }),
+    getForecastAnalysis: createGetForecastAnalysis({ reportRepository }),
+    getNextMonthProjection: createGetNextMonthProjection({ reportRepository }),
+    // Credits Excel export and summary
+    exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
+    getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
+    exportAssociatesExcel: createExportAssociatesExcel({ associateRepository, reportRepository }),
   };
 
   return createModule({

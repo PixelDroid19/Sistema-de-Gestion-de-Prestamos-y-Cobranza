@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, Edit2, UserPlus } from 'lucide-react';
+import { ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, Edit2, FileText } from 'lucide-react';
 import { useLoanById, useLoanDetails, useLoans } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
 import { useUsers } from '../services/userService';
 import { useSessionStore } from '../store/sessionStore';
+import { downloadVoucher } from '../services/paymentService';
 import { toast } from '../lib/toast';
 
 export default function CreditDetails() {
@@ -14,7 +15,7 @@ export default function CreditDetails() {
   const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payoff' | 'history'>('calendar');
   const { user } = useSessionStore();
 
-  const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus, assignRecovery } = useLoans();
+  const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus } = useLoans();
   const { data: loanData, isLoading: isLoadingLoanRecord } = useLoanById(loanId);
   const loans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
@@ -31,7 +32,6 @@ export default function CreditDetails() {
     : Array.isArray(usersData?.data)
       ? usersData.data
       : [];
-  const agents = users.filter((u: any) => u.role === 'agent');
 
   const formatDate = (value: unknown, withTime = false) => {
     if (!value) return 'Sin fecha';
@@ -93,15 +93,12 @@ export default function CreditDetails() {
   }, [history]);
 
   const customerLabel = loan?.Customer?.name || loan?.customerName || loan?.customerId || 'Sin cliente';
-  const agentLabel = loan?.Agent?.name || loan?.agentName || loan?.agentId || 'Sin asignar';
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
   const alertEntries = Array.isArray(alerts) ? alerts : [];
   const promiseEntries = Array.isArray(promises) ? promises : [];
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
-  const [showAgentModal, setShowAgentModal] = useState(false);
-  const [newAgent, setNewAgent] = useState('');
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
@@ -151,14 +148,21 @@ export default function CreditDetails() {
     }
   };
 
-  const handleAssignAgent = async () => {
-    if (!newAgent) return;
+  const handleDownloadVoucher = async (paymentId: number) => {
     try {
-      await assignRecovery.mutateAsync({ id: loanId, recoveryAssigneeId: parseInt(newAgent) });
-      setShowAgentModal(false);
+      await downloadVoucher(paymentId);
+      toast.success({ title: 'Comprobante descargado' });
     } catch (error) {
-      toast.error({ title: 'Error al asignar agente' });
+      toast.error({ title: 'Error al descargar comprobante' });
     }
+  };
+
+  const extractPaymentId = (eventId: string): number | null => {
+    if (eventId.startsWith('payment-')) {
+      const id = eventId.replace('payment-', '');
+      return Number(id);
+    }
+    return null;
   };
 
   return (
@@ -175,7 +179,7 @@ export default function CreditDetails() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold text-text-primary">Crédito #{loan.id}</h1>
-              <p className="text-sm text-text-secondary">Cliente: {customerLabel} | Agente: {agentLabel}</p>
+              <p className="text-sm text-text-secondary">Cliente: {customerLabel}</p>
             </div>
           </div>
           
@@ -204,13 +208,6 @@ export default function CreditDetails() {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <button 
-            onClick={() => setShowAgentModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm hover:bg-hover-bg transition-colors"
-          >
-            <UserPlus size={16} />
-            Asignar Agente
-          </button>
           <button 
             onClick={() => setShowStatusModal(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm hover:bg-hover-bg transition-colors"
@@ -444,16 +441,28 @@ export default function CreditDetails() {
               <p className="text-text-secondary">Cargando historial...</p>
             ) : historyEntries.length > 0 ? (
               <div className="space-y-3">
-                {historyEntries.map((event: any, index: number) => (
-                  <div key={event.id || index} className="flex gap-4 p-4 border border-border-subtle rounded-xl">
-                    <div className="w-2 h-full bg-border-strong rounded-full"></div>
-                    <div>
-                      <p className="font-medium text-text-primary">{event.action}</p>
-                      <p className="text-sm text-text-secondary">{event.description}</p>
-                      <p className="text-xs text-text-secondary mt-1">{formatDate(event.date, true)}</p>
+                {historyEntries.map((event: any, index: number) => {
+                  const paymentId = extractPaymentId(event.id);
+                  return (
+                    <div key={event.id || index} className="flex gap-4 p-4 border border-border-subtle rounded-xl">
+                      <div className="w-2 h-full bg-border-strong rounded-full"></div>
+                      <div className="flex-1">
+                        <p className="font-medium text-text-primary">{event.action}</p>
+                        <p className="text-sm text-text-secondary">{event.description}</p>
+                        <p className="text-xs text-text-secondary mt-1">{formatDate(event.date, true)}</p>
+                      </div>
+                      {paymentId && (
+                        <button
+                          onClick={() => handleDownloadVoucher(paymentId)}
+                          className="p-2 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                          title="Descargar Comprobante"
+                        >
+                          <FileText size={18} />
+                        </button>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-text-secondary">No hay historial disponible.</p>
@@ -486,27 +495,6 @@ export default function CreditDetails() {
         </div>
       )}
 
-      {showAgentModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-2xl w-full max-w-sm p-6 border border-border-subtle">
-            <h3 className="text-lg font-bold mb-4">Asignar Agente</h3>
-            <select 
-              value={newAgent}
-              onChange={(e) => setNewAgent(e.target.value)}
-              className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 mb-4"
-            >
-              <option value="">Seleccione un agente...</option>
-              {agents.map((agent: any) => (
-                <option key={agent.id} value={agent.id}>{agent.name || [agent.firstName, agent.lastName].filter(Boolean).join(' ') || agent.email || `#${agent.id}`}</option>
-              ))}
-            </select>
-            <div className="flex gap-3">
-              <button onClick={() => setShowAgentModal(false)} className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg">Cancelar</button>
-              <button onClick={handleAssignAgent} className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90">Asignar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

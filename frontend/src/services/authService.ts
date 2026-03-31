@@ -12,7 +12,9 @@ export const useAuth = () => {
       return data;
     },
     onSuccess: (data) => {
-      login(data.data.token, data.data.user);
+      // Login now receives token pair: { accessToken, refreshToken, user }
+      const { accessToken, refreshToken, user } = data.data;
+      login({ accessToken, refreshToken, user });
       queryClient.invalidateQueries({ queryKey: ['auth.profile'] });
     },
   });
@@ -23,7 +25,22 @@ export const useAuth = () => {
       return data;
     },
     onSuccess: (data) => {
-      login(data.data.token, data.data.user);
+      // Registration also returns token pair
+      const { accessToken, refreshToken, user } = data.data;
+      login({ accessToken, refreshToken, user });
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post('/auth/logout');
+    },
+    onSuccess: () => {
+      logout();
+    },
+    onError: () => {
+      // Still logout even if the server call fails
+      logout();
     },
   });
 
@@ -33,7 +50,7 @@ export const useAuth = () => {
       const { data } = await apiClient.get('/auth/profile');
       return data.data.user;
     },
-    enabled: !!useSessionStore.getState().token,
+    enabled: !!useSessionStore.getState().accessToken,
   });
 
   const updateProfile = useMutation({
@@ -56,10 +73,10 @@ export const useAuth = () => {
   return {
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,
-    logout,
+    logout: logoutMutation.mutateAsync,
     profile: profileQuery.data,
     isLoading: profileQuery.isLoading,
     updateProfile,
-    changePassword
+    changePassword,
   };
 };

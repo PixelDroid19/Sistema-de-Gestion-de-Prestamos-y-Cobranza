@@ -1,6 +1,7 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
 const { buildPaginatedResult } = require('../../shared/pagination');
+const { withAudit } = require('../../audit/application/auditDecorator');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
@@ -362,15 +363,22 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }
 
 /**
  * Create the use case that persists a new loan while enforcing customer self-service boundaries.
- * @param {{ loanCreationService: object }} dependencies
+ * @param {{ loanCreationService: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createCreateLoan = ({ loanCreationService }) => async ({ actor, payload }) => {
-  if (actor.role === 'customer' && Number(payload.customerId) !== actor.id) {
-    throw new AuthorizationError('You can only create loans for your own customer record');
-  }
+const createCreateLoan = ({ loanCreationService, auditService }) => {
+  const useCase = async ({ actor, payload }) => {
+    if (actor.role === 'customer' && Number(payload.customerId) !== actor.id) {
+      throw new AuthorizationError('You can only create loans for your own customer record');
+    }
 
-  return loanCreationService.create(payload);
+    return loanCreationService.create(payload);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'credits', getEntityId: (p) => p?.result?.id, getEntityType: () => 'Loan' })(useCase);
+  }
+  return useCase;
 };
 
 /**
@@ -401,192 +409,123 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
 };
 
 /**
- * Create the use case that lists loans assigned to a specific recovery owner.
- * @param {{ recoveryAssignmentRepository: object, loanRepository: object }} dependencies
- * @returns {Function}
- */
-const createListLoansByRecoveryAssignee = ({ recoveryAssignmentRepository, loanRepository }) => async ({ actor, recoveryAssigneeId, pagination }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can view assigned loan portfolios');
-  }
-
-  const recoveryAssignee = await recoveryAssignmentRepository.findById(recoveryAssigneeId);
-  if (!recoveryAssignee) {
-    throw new NotFoundError('Recovery assignee');
-  }
-
-  if (pagination) {
-    const result = await loanRepository.listPageByRecoveryAssignee({ recoveryAssigneeId, ...pagination });
-    return { recoveryAssignee, loans: result.items, pagination: result.pagination };
-  }
-
-  const loans = await loanRepository.listByRecoveryAssignee(recoveryAssigneeId);
-  return { loans, recoveryAssignee };
-};
-
-/**
- * Create the use case that lists available recovery roster entries.
- * @param {{ recoveryAssignmentRepository: object }} dependencies
- * @returns {Function}
- */
-const createListRecoveryRoster = ({ recoveryAssignmentRepository }) => async ({ actor, pagination }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can view the recovery roster');
-  }
-
-  if (pagination) {
-    return recoveryAssignmentRepository.listPage(pagination);
-  }
-
-  return recoveryAssignmentRepository.list();
-};
-
-/**
  * Create the use case that updates the primary loan lifecycle status.
- * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
+ * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy }) => async ({ actor, loanId, status }) => {
-  const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
-  if (!validStatuses.includes(status)) {
-    throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService }) => {
+  const useCase = async ({ actor, loanId, status }) => {
+    const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
+    if (!validStatuses.includes(status)) {
+      throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    const loan = loanAccessPolicy
+      ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
+      : await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    if (loan.status === 'closed' && status !== 'closed') {
+      throw new ValidationError('Cannot modify a closed loan');
+    }
+
+    if (loan.status === 'rejected' && status !== 'rejected') {
+      throw new ValidationError('Cannot modify a rejected loan');
+    }
+
+    loan.status = status;
+
+    if (status === 'approved') {
+      loan.startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + loan.termMonths);
+      loan.endDate = endDate;
+    }
+
+    if (status === 'defaulted') {
+      loan.recoveryStatus = 'pending';
+    }
+
+    return loanRepository.save(loan);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
-
-  const loan = loanAccessPolicy
-    ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
-    : await loanRepository.findById(loanId);
-
-  if (!loan) {
-    throw new NotFoundError('Loan');
-  }
-
-  if (loan.status === 'closed' && status !== 'closed') {
-    throw new ValidationError('Cannot modify a closed loan');
-  }
-
-  if (loan.status === 'rejected' && status !== 'rejected') {
-    throw new ValidationError('Cannot modify a rejected loan');
-  }
-
-  loan.status = status;
-
-  if (status === 'approved') {
-    loan.startDate = new Date();
-    const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + loan.termMonths);
-    loan.endDate = endDate;
-  }
-
-  if (status === 'defaulted') {
-    loan.recoveryStatus = 'pending';
-  }
-
-  return loanRepository.save(loan);
-};
-
-/**
- * Create the use case that assigns a recovery owner to a recoverable loan and emits a notification.
- * @param {{ loanRepository: object, recoveryAssignmentRepository: object, userRepository: object, notificationPort: object }} dependencies
- * @returns {Function}
- */
-const createAssignRecoveryAssignee = ({ loanRepository, recoveryAssignmentRepository, userRepository, notificationPort }) => async ({ actor, loanId, recoveryAssigneeId }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can assign recovery owners to loans');
-  }
-
-  const loan = await loanRepository.findById(loanId);
-  if (!loan) {
-    throw new NotFoundError('Loan');
-  }
-
-  const recoveryAssignee = await recoveryAssignmentRepository.findById(recoveryAssigneeId);
-  if (!recoveryAssignee) {
-    throw new NotFoundError('Recovery assignee');
-  }
-
-  if (!['approved', 'defaulted'].includes(loan.status)) {
-    throw new ValidationError('Can only assign recovery owners to approved or defaulted loans');
-  }
-
-  if (loan.agentId === recoveryAssigneeId) {
-    throw new ValidationError('This recovery owner is already assigned to this loan');
-  }
-
-  loan.agentId = recoveryAssigneeId;
-  loan.recoveryStatus = loan.status === 'defaulted' ? 'assigned' : 'pending';
-  const savedLoan = await loanRepository.save(loan);
-
-  const user = await userRepository.findRecoveryAssigneeUserByEmail(recoveryAssignee.email);
-  if (user) {
-    await notificationPort.sendRecoveryAssignment(user.id, {
-      loanId: savedLoan.id,
-      loanAmount: savedLoan.amount,
-      customerName: savedLoan.Customer?.name,
-      customerEmail: savedLoan.Customer?.email,
-      loanStatus: savedLoan.status,
-      recoveryStatus: savedLoan.recoveryStatus,
-      assignedBy: actor.id,
-      assignedAt: new Date().toISOString(),
-    });
-  }
-
-  return savedLoan;
+  return useCase;
 };
 
 /**
  * Create the use case that updates recovery state after policy and domain-guard validation.
- * @param {{ loanRepository: object, loanAccessPolicy?: object, recoveryStatusGuard?: object }} dependencies
+ * @param {{ loanRepository: object, loanAccessPolicy?: object, recoveryStatusGuard?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recoveryStatusGuard }) => async ({ actor, loanId, recoveryStatus }) => {
-  const validRecoveryStatuses = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
-  if (!validRecoveryStatuses.includes(recoveryStatus)) {
-    throw new ValidationError(`Invalid recovery status. Must be one of: ${validRecoveryStatuses.join(', ')}`);
+const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recoveryStatusGuard, auditService }) => {
+  const useCase = async ({ actor, loanId, recoveryStatus }) => {
+    const validRecoveryStatuses = ['pending', 'assigned', 'in_progress', 'contacted', 'negotiated', 'recovered', 'failed'];
+    if (!validRecoveryStatuses.includes(recoveryStatus)) {
+      throw new ValidationError(`Invalid recovery status. Must be one of: ${validRecoveryStatuses.join(', ')}`);
+    }
+
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can update recovery status');
+    }
+
+    const loan = loanAccessPolicy
+      ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
+      : await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    if (recoveryStatusGuard) {
+      recoveryStatusGuard.assertCanTransition({ loan, nextRecoveryStatus: recoveryStatus });
+    }
+
+    loan.recoveryStatus = recoveryStatus;
+    return loanRepository.save(loan);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
-
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can update recovery status');
-  }
-
-  const loan = loanAccessPolicy
-    ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
-    : await loanRepository.findById(loanId);
-
-  if (!loan) {
-    throw new NotFoundError('Loan');
-  }
-
-  if (recoveryStatusGuard) {
-    recoveryStatusGuard.assertCanTransition({ loan, nextRecoveryStatus: recoveryStatus });
-  }
-
-  loan.recoveryStatus = recoveryStatus;
-  return loanRepository.save(loan);
+  return useCase;
 };
 
 /**
  * Create the use case that deletes rejected loans after access checks succeed.
- * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
+ * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createDeleteLoan = ({ loanRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
-  if (actor.role === 'socio') {
-    throw new AuthorizationError('Socio users cannot delete loans');
+const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) => {
+  const useCase = async ({ actor, loanId }) => {
+    if (actor.role === 'socio') {
+      throw new AuthorizationError('Socio users cannot delete loans');
+    }
+
+    const loan = loanAccessPolicy
+      ? await loanAccessPolicy.findAuthorizedLoan({ actor, loanId })
+      : await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    if (loan.status !== 'rejected') {
+      throw new ValidationError('Only rejected loans can be deleted');
+    }
+
+    await loanRepository.destroy(loan);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'DELETE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
-
-  const loan = loanAccessPolicy
-    ? await loanAccessPolicy.findAuthorizedLoan({ actor, loanId })
-    : await loanRepository.findById(loanId);
-
-  if (!loan) {
-    throw new NotFoundError('Loan');
-  }
-
-  if (loan.status !== 'rejected') {
-    throw new ValidationError('Only rejected loans can be deleted');
-  }
-
-  await loanRepository.destroy(loan);
+  return useCase;
 };
 
 /**
@@ -607,34 +546,41 @@ const createListLoanAttachments = ({ attachmentRepository, loanAccessPolicy }) =
 
 /**
  * Create the use case that persists metadata for a newly uploaded loan attachment.
- * @param {{ attachmentRepository: object, attachmentStorage: object, loanAccessPolicy: object }} dependencies
+ * @param {{ attachmentRepository: object, attachmentStorage: object, loanAccessPolicy: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createCreateLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy }) => async ({ actor, loanId, file, metadata = {} }) => {
-  if (!file) {
-    throw new ValidationError('Attachment file is required');
-  }
+const createCreateLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy, auditService }) => {
+  const useCase = async ({ actor, loanId, file, metadata = {} }) => {
+    if (!file) {
+      throw new ValidationError('Attachment file is required');
+    }
 
-  try {
-    const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+    try {
+      const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
 
-    return await attachmentRepository.create({
-      loanId: loan.id,
-      uploadedByUserId: actor.id,
-      storageDisk: 'local',
-      storagePath: attachmentStorage.toRelativePath(file.path),
-      storedName: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
-      customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
-      category: metadata.category ? String(metadata.category).trim() : null,
-      description: metadata.description ? String(metadata.description).trim() : null,
-    });
-  } catch (error) {
-    await attachmentStorage.deleteByAbsolutePath(file.path);
-    throw error;
+      return await attachmentRepository.create({
+        loanId: loan.id,
+        uploadedByUserId: actor.id,
+        storageDisk: 'local',
+        storagePath: attachmentStorage.toRelativePath(file.path),
+        storedName: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+        category: metadata.category ? String(metadata.category).trim() : null,
+        description: metadata.description ? String(metadata.description).trim() : null,
+      });
+    } catch (error) {
+      await attachmentStorage.deleteByAbsolutePath(file.path);
+      throw error;
+    }
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'LoanAttachment' })(useCase);
   }
+  return useCase;
 };
 
 /**
@@ -688,19 +634,26 @@ const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({
   return loanViewService.getPayoffQuote(loan, asOfDate);
 };
 
-const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, clock = () => new Date() }) => async ({ actor, loanId, asOfDate, quotedTotal }) => {
-  if (actor?.role !== 'customer') {
-    throw new AuthorizationError('Only customers can execute payoff payments');
+const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, auditService, clock = () => new Date() }) => {
+  const useCase = async ({ actor, loanId, asOfDate, quotedTotal }) => {
+    if (actor?.role !== 'customer') {
+      throw new AuthorizationError('Only customers can execute payoff payments');
+    }
+
+    const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+
+    return paymentApplicationService.applyPayoff({
+      loanId: loan.id,
+      asOfDate,
+      quotedTotal,
+      paymentDate: clock(),
+    });
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'PAYOFF', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
-
-  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
-
-  return paymentApplicationService.applyPayoff({
-    loanId: loan.id,
-    asOfDate,
-    quotedTotal,
-    paymentDate: clock(),
-  });
+  return useCase;
 };
 
 const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
@@ -708,39 +661,46 @@ const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => asy
   return promiseRepository.expireBrokenPromises({ loanId: loan.id });
 };
 
-const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create promises to pay');
+const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, auditService }) => {
+  const useCase = async ({ actor, loanId, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can create promises to pay');
+    }
+
+    const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+    const promisedDate = new Date(payload.promisedDate);
+    if (Number.isNaN(promisedDate.getTime())) {
+      throw new ValidationError('Promised date is required');
+    }
+
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError('Promise amount must be greater than 0');
+    }
+
+    const now = new Date();
+    const statusHistory = [{
+      status: 'pending',
+      changedAt: now.toISOString(),
+      actorId: actor.id,
+    }];
+
+    return promiseRepository.create({
+      loanId: loan.id,
+      createdByUserId: actor.id,
+      promisedDate,
+      amount,
+      status: 'pending',
+      notes: payload.notes ? String(payload.notes).trim() : null,
+      statusHistory,
+      lastStatusChangedAt: now,
+    });
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'CREATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'PromiseToPay' })(useCase);
   }
-
-  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
-  const promisedDate = new Date(payload.promisedDate);
-  if (Number.isNaN(promisedDate.getTime())) {
-    throw new ValidationError('Promised date is required');
-  }
-
-  const amount = Number(payload.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new ValidationError('Promise amount must be greater than 0');
-  }
-
-  const now = new Date();
-  const statusHistory = [{
-    status: 'pending',
-    changedAt: now.toISOString(),
-    actorId: actor.id,
-  }];
-
-  return promiseRepository.create({
-    loanId: loan.id,
-    createdByUserId: actor.id,
-    promisedDate,
-    amount,
-    status: 'pending',
-    notes: payload.notes ? String(payload.notes).trim() : null,
-    statusHistory,
-    lastStatusChangedAt: now,
-  });
+  return useCase;
 };
 
 const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, payload }) => {
@@ -847,57 +807,64 @@ const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => a
   return alertRepository.save(alert);
 };
 
-const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, promiseId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can update promise statuses');
-  }
+const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
+  const useCase = async ({ actor, loanId, promiseId, payload }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can update promise statuses');
+    }
 
-  const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
-  const promise = await promiseRepository.findByIdForLoan({ loanId: loan.id, promiseId });
+    const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+    const promise = await promiseRepository.findByIdForLoan({ loanId: loan.id, promiseId });
 
-  if (!promise) {
-    throw new NotFoundError('Promise to pay');
-  }
+    if (!promise) {
+      throw new NotFoundError('Promise to pay');
+    }
 
-  const nextStatus = payload.status;
-  if (!['pending', 'kept', 'broken', 'cancelled'].includes(nextStatus)) {
-    throw new ValidationError('Promise status must be pending, kept, broken, or cancelled');
-  }
+    const nextStatus = payload.status;
+    if (!['pending', 'kept', 'broken', 'cancelled'].includes(nextStatus)) {
+      throw new ValidationError('Promise status must be pending, kept, broken, or cancelled');
+    }
 
-  const changedAt = new Date();
-  const history = Array.isArray(promise.statusHistory) ? [...promise.statusHistory] : [];
-  history.push({
-    status: nextStatus,
-    changedAt: changedAt.toISOString(),
-    actorId: actor.id,
-    note: payload.notes ? String(payload.notes).trim() : undefined,
-  });
-
-  promise.status = nextStatus;
-  promise.fulfilledPaymentId = payload.fulfilledPaymentId || promise.fulfilledPaymentId || null;
-  promise.lastStatusChangedAt = changedAt;
-  promise.statusHistory = history;
-  promise.notes = appendFollowUpNote(promise.notes, buildFollowUpNoteEntry({
-    actor,
-    note: payload.notes,
-    status: nextStatus,
-    kind: 'promise',
-    changedAt,
-  }));
-
-  const updatedPromise = await promiseRepository.save(promise);
-
-  if (payload.notifyCustomer !== false && loan.customerId) {
-    await notificationPort.sendPromiseStatus(loan.customerId, {
-      customerId: loan.customerId,
-      loanId: loan.id,
-      promiseId: updatedPromise.id,
-      status: updatedPromise.status,
-      fulfilledPaymentId: updatedPromise.fulfilledPaymentId,
+    const changedAt = new Date();
+    const history = Array.isArray(promise.statusHistory) ? [...promise.statusHistory] : [];
+    history.push({
+      status: nextStatus,
+      changedAt: changedAt.toISOString(),
+      actorId: actor.id,
+      note: payload.notes ? String(payload.notes).trim() : undefined,
     });
-  }
 
-  return updatedPromise;
+    promise.status = nextStatus;
+    promise.fulfilledPaymentId = payload.fulfilledPaymentId || promise.fulfilledPaymentId || null;
+    promise.lastStatusChangedAt = changedAt;
+    promise.statusHistory = history;
+    promise.notes = appendFollowUpNote(promise.notes, buildFollowUpNoteEntry({
+      actor,
+      note: payload.notes,
+      status: nextStatus,
+      kind: 'promise',
+      changedAt,
+    }));
+
+    const updatedPromise = await promiseRepository.save(promise);
+
+    if (payload.notifyCustomer !== false && loan.customerId) {
+      await notificationPort.sendPromiseStatus(loan.customerId, {
+        customerId: loan.customerId,
+        loanId: loan.id,
+        promiseId: updatedPromise.id,
+        status: updatedPromise.status,
+        fulfilledPaymentId: updatedPromise.fulfilledPaymentId,
+      });
+    }
+
+    return updatedPromise;
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.promiseId, getEntityType: () => 'PromiseToPay' })(useCase);
+  }
+  return useCase;
 };
 
 const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, promiseId }) => {
@@ -921,6 +888,155 @@ const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => 
   };
 };
 
+/**
+ * Create the use case that returns aggregated loan statistics.
+ * @param {{ loanRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createGetLoanStatistics = ({ loanRepository }) => async () => {
+  const loans = await loanRepository.list();
+
+  const totalCredits = loans.length;
+  const activeCredits = loans.filter((l) => ['approved', 'active'].includes(l.status)).length;
+  const paidCredits = loans.filter((l) => l.status === 'closed').length;
+  const overdueCredits = loans.filter((l) => l.status === 'defaulted' || l.recoveryStatus === 'overdue').length;
+
+  const totalLoanAmount = loans.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  const totalCollected = loans.reduce((sum, l) => sum + Number(l.totalPaid || 0), 0);
+  const totalPending = loans.reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
+  const totalOverdue = loans.filter((l) => l.status === 'defaulted' || l.recoveryStatus === 'overdue')
+    .reduce((sum, l) => sum + Number(l.principalOutstanding || 0) + Number(l.interestOutstanding || 0), 0);
+
+  const averageLoanAmount = totalCredits > 0 ? totalLoanAmount / totalCredits : 0;
+  const averageTerm = totalCredits > 0
+    ? loans.reduce((sum, l) => sum + Number(l.termMonths || 0), 0) / totalCredits
+    : 0;
+  const collectionRate = totalLoanAmount > 0 ? (totalCollected / totalLoanAmount) * 100 : 0;
+
+  return {
+    counts: {
+      totalCredits,
+      activeCredits,
+      paidCredits,
+      overdueCredits,
+    },
+    amounts: {
+      totalLoanAmount: roundCurrency(totalLoanAmount),
+      totalCollected: roundCurrency(totalCollected),
+      totalPending: roundCurrency(totalPending),
+      totalOverdue: roundCurrency(totalOverdue),
+    },
+    averages: {
+      averageLoanAmount: roundCurrency(averageLoanAmount),
+      averageTerm: Number(averageTerm.toFixed(1)),
+      collectionRate: Number(collectionRate.toFixed(2)),
+    },
+  };
+};
+
+/**
+ * Create the use case that returns installments due on or before a specified date.
+ * @param {{ loanRepository: object, alertRepository: object, loanViewService: object }} dependencies
+ * @returns {Function}
+ */
+const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService }) => async ({ date }) => {
+  const loans = await loanRepository.list();
+  const targetDate = new Date(date);
+  const now = new Date();
+  const duePayments = [];
+
+  for (const loan of loans) {
+    if (loan.status === 'closed' || loan.status === 'rejected') {
+      continue;
+    }
+
+    const { schedule } = loanViewService.getCanonicalLoanView(loan);
+    const alerts = await alertRepository.listByLoan(loan.id);
+
+    for (const installment of schedule) {
+      if (installment.status === 'annulled') {
+        continue;
+      }
+
+      const installmentDate = new Date(installment.dueDate);
+      if (installmentDate > targetDate) {
+        continue;
+      }
+
+      const outstandingAmount = roundCurrency((installment.remainingPrincipal || 0) + (installment.remainingInterest || 0));
+      if (outstandingAmount <= 0) {
+        continue;
+      }
+
+      const alert = alerts.find((a) => Number(a.installmentNumber) === Number(installment.installmentNumber));
+      const isOverdue = Boolean(alert) || installmentDate < now;
+      const daysOverdue = isOverdue
+        ? Math.floor((now.getTime() - installmentDate.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      duePayments.push({
+        creditId: loan.id,
+        customerName: loan.Customer?.name || loan.customerId || 'Unknown',
+        installmentNumber: installment.installmentNumber,
+        amountDue: roundCurrency(outstandingAmount),
+        dueDate: installment.dueDate,
+        daysOverdue,
+      });
+    }
+  }
+
+  return duePayments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+};
+
+/**
+ * Create the use case that searches loans with filters and pagination.
+ * @param {{ loanRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createSearchLoans = ({ loanRepository }) => async ({ filters = {}, pagination }) => {
+  const loans = await loanRepository.list();
+  let filteredLoans = loans;
+
+  if (filters.status) {
+    filteredLoans = filteredLoans.filter((l) => l.status === filters.status);
+  }
+
+  if (filters.minAmount !== undefined) {
+    filteredLoans = filteredLoans.filter((l) => Number(l.amount || 0) >= Number(filters.minAmount));
+  }
+
+  if (filters.maxAmount !== undefined) {
+    filteredLoans = filteredLoans.filter((l) => Number(l.amount || 0) <= Number(filters.maxAmount));
+  }
+
+  if (filters.startDate) {
+    const startDate = new Date(filters.startDate);
+    filteredLoans = filteredLoans.filter((l) => new Date(l.createdAt) >= startDate);
+  }
+
+  if (filters.endDate) {
+    const endDate = new Date(filters.endDate);
+    filteredLoans = filteredLoans.filter((l) => new Date(l.createdAt) <= endDate);
+  }
+
+  if (pagination) {
+    const offset = pagination.offset || 0;
+    const pageSize = pagination.pageSize || 25;
+    const items = filteredLoans.slice(offset, offset + pageSize);
+    return {
+      items,
+      pagination: {
+        page: pagination.page,
+        pageSize,
+        totalItems: filteredLoans.length,
+        totalPages: Math.ceil(filteredLoans.length / pageSize),
+      },
+    };
+  }
+
+  return filteredLoans;
+};
+
 module.exports = {
   createListLoans,
   createCreateSimulation,
@@ -937,10 +1053,7 @@ module.exports = {
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,
-  createListLoansByRecoveryAssignee,
-  createListRecoveryRoster,
   createUpdateLoanStatus,
-  createAssignRecoveryAssignee,
   createUpdateRecoveryStatus,
   createDeleteLoan,
   createListLoanAttachments,
@@ -956,4 +1069,7 @@ module.exports = {
   createUpdateLoanAlertStatus,
   createUpdatePromiseToPayStatus,
   createDownloadPromiseToPay,
+  createGetLoanStatistics,
+  createGetDuePayments,
+  createSearchLoans,
 };

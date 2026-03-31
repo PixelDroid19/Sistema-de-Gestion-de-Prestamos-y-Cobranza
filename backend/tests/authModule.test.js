@@ -7,6 +7,7 @@ const {
   createGetProfile,
   createUpdateProfile,
   createChangePassword,
+  createRegisterWithPermissions,
 } = require('../src/modules/auth/application/useCases');
 const { AuthenticationError, AuthorizationError, ConflictError, ValidationError } = require('../src/utils/errorHandler');
 
@@ -338,7 +339,7 @@ test('createLoginUser rejects an invalid password', async () => {
   await assert.rejects(() => loginUser({ email: 'ana@example.com', password: 'wrong-pass' }), AuthenticationError);
 });
 
-test('createLoginUser normalizes legacy agent identities to admin during login', async () => {
+test('createLoginUser rejects legacy agent role during login', async () => {
   const loginUser = createLoginUser({
     userRepository: {
       async findByEmail() {
@@ -360,15 +361,13 @@ test('createLoginUser normalizes legacy agent identities to admin during login',
     },
   });
 
-  const result = await loginUser({ email: 'ana@example.com', password: 'Secret1' });
-
-  assert.deepEqual(result.user, {
-    id: 9,
-    email: 'ana@example.com',
-    role: 'admin',
-    name: 'Ana Legacy Agent',
-  });
-  assert.equal(result.token, 'token:9:admin');
+  try {
+    await loginUser({ email: 'ana@example.com', password: 'Secret1' });
+    assert.fail('Should have rejected legacy agent role');
+  } catch (error) {
+    assert.equal(error.statusCode, 400);
+    assert.ok(error.errors[0].message.includes('Role must be one of'), `Expected error message to contain 'Role must be one of', got: ${error.errors[0].message}`);
+  }
 });
 
 test('createGetProfile returns the sanitized user profile', async () => {
@@ -585,6 +584,206 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.ok(error.errors.some(e => e.message.includes('number')));
+    return true;
+  });
+});
+
+test('createRegisterWithPermissions creates user with explicit permissions', async () => {
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create(payload) {
+        return { id: 25, ...payload };
+      },
+      async remove() {},
+    },
+    customerProfileRepository: {
+      async create(payload) {
+        return payload;
+      },
+    },
+    associateProfileRepository: {
+      async update() {
+        return {};
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+    userPermissionRepository: {
+      async grantBatch({ userId, permissionIds }) {
+        return permissionIds.map(id => ({ id, userId, permissionId: id }));
+      },
+    },
+    rolePermissionRepository: {
+      async findByRole() {
+        return [];
+      },
+    },
+    permissionRepository: {
+      async findAll() {
+        return [
+          { id: 1, name: 'READ_USERS' },
+          { id: 2, name: 'WRITE_USERS' },
+        ];
+      },
+    },
+  });
+
+  const result = await registerWithPermissions({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'John Admin',
+      email: 'john@example.com',
+      password: 'Secret123',
+      role: 'admin',
+      permissions: ['READ_USERS', 'WRITE_USERS'],
+    },
+  });
+
+  assert.equal(result.user.id, 25);
+  assert.equal(result.user.role, 'admin');
+  assert.deepEqual(result.permissions, ['READ_USERS', 'WRITE_USERS']);
+});
+
+test('createRegisterWithPermissions derives default permissions when not provided', async () => {
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create(payload) {
+        return { id: 26, ...payload };
+      },
+      async remove() {},
+      async update() {
+        return {};
+      },
+    },
+    customerProfileRepository: {
+      async create(payload) {
+        return payload;
+      },
+    },
+    associateProfileRepository: {
+      async update() {
+        return {};
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+    userPermissionRepository: {
+      async grantBatch({ userId, permissionIds }) {
+        return permissionIds.map(id => ({ id, userId, permissionId: id }));
+      },
+    },
+    rolePermissionRepository: {
+      async findByRole(role) {
+        if (role === 'socio') {
+          return [
+            { Permission: { id: 3, name: 'READ_CREDITOS' } },
+            { Permission: { id: 4, name: 'READ_REPORTES' } },
+          ];
+        }
+        return [];
+      },
+    },
+    permissionRepository: {
+      async findAll() {
+        return [
+          { id: 3, name: 'READ_CREDITOS' },
+          { id: 4, name: 'READ_REPORTES' },
+        ];
+      },
+    },
+  });
+
+  const result = await registerWithPermissions({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Jane Partner',
+      email: 'jane@example.com',
+      phone: '+573001112233',
+      associateId: 5,
+      password: 'Secret123',
+      role: 'socio',
+    },
+  });
+
+  assert.equal(result.user.id, 26);
+  assert.equal(result.user.role, 'socio');
+  assert.deepEqual(result.permissions, ['READ_CREDITOS', 'READ_REPORTES']);
+});
+
+test('createRegisterWithPermissions throws AuthorizationError for non-admin actor', async () => {
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {},
+    customerProfileRepository: {},
+    associateProfileRepository: {},
+    passwordHasher: {},
+    tokenService: {},
+    userPermissionRepository: {},
+    rolePermissionRepository: {},
+    permissionRepository: {},
+  });
+
+  await assert.rejects(() => registerWithPermissions({
+    actor: { id: 2, role: 'customer' },
+    payload: {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'Secret123',
+      role: 'admin',
+    },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    return true;
+  });
+});
+
+test('createRegisterWithPermissions throws ConflictError for duplicate email', async () => {
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {
+      async findByEmail() {
+        return { id: 5, email: 'existing@example.com' };
+      },
+    },
+    customerProfileRepository: {},
+    associateProfileRepository: {},
+    passwordHasher: {},
+    tokenService: {},
+    userPermissionRepository: {},
+    rolePermissionRepository: {},
+    permissionRepository: {},
+  });
+
+  await assert.rejects(() => registerWithPermissions({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Test User',
+      email: 'existing@example.com',
+      password: 'Secret123',
+      role: 'admin',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ConflictError);
     return true;
   });
 });

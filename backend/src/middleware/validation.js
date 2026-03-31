@@ -49,7 +49,7 @@ const validateEmail = (email) => {
  * @returns {boolean}
  */
 const validatePhone = (phone) => {
-  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+  const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
   return phoneRegex.test(phone);
 };
 
@@ -173,9 +173,9 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
 const authValidation = {
   /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
-    const { name, email, password, role, phone } = req.body;
+    const { name, email, password, role } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
+    const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -211,7 +211,7 @@ const authValidation = {
   adminRegister: (req, res, next) => {
     const { name, email, password, role, phone, associateId } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
+    const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -399,7 +399,7 @@ const loanValidation = {
   adminRegister: (req, res, next) => {
     const { name, email, password, role, phone, associateId } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role, { allowLegacyAliases: false });
+    const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -467,7 +467,7 @@ const paymentValidation = {
 const customerValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { name, email, phone, status, birthDate } = req.body;
+    const { name, email, phone } = req.body;
     const errors = [];
 
     if (!name || name.trim().length < 2) {

@@ -590,7 +590,7 @@ test('createExportRecoveryReport returns a CSV attachment contract', async () =>
   const exportRecoveryReport = createExportRecoveryReport({
     reportRepository: {
       async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, Agent: { name: 'Rafa' }, amount: 500, totalPaid: 500 }];
+        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
       },
     },
     paymentRepository: {
@@ -608,14 +608,14 @@ test('createExportRecoveryReport returns a CSV attachment contract', async () =>
   const exportFile = await exportRecoveryReport({ actor: { id: 1, role: 'admin' }, format: 'csv' });
 
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /recovered,7,Ana,Rafa/);
+  assert.match(exportFile.buffer.toString('utf8'), /recovered,7,Ana/);
 });
 
 test('createExportRecoveryReport returns a valid PDF attachment contract', async () => {
   const exportRecoveryReport = createExportRecoveryReport({
     reportRepository: {
       async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, Agent: { name: 'Rafa' }, amount: 500, totalPaid: 500 }];
+        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
       },
     },
     paymentRepository: {
@@ -641,7 +641,7 @@ test('createExportRecoveryReport returns a valid XLSX attachment contract', asyn
   const exportRecoveryReport = createExportRecoveryReport({
     reportRepository: {
       async listRecoveryLoans() {
-        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, Agent: { name: 'Rafa' }, amount: 500, totalPaid: 500 }];
+        return [{ id: 7, status: 'closed', recoveryStatus: 'recovered', Customer: { name: 'Ana' }, amount: 500, totalPaid: 500 }];
       },
     },
     paymentRepository: {

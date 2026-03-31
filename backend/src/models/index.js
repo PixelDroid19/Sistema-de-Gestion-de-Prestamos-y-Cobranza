@@ -1,6 +1,5 @@
 const sequelize = require('./database');
 const Customer = require('./Customer');
-const Agent = require('./Agent');
 const Associate = require('./Associate');
 const Loan = require('./Loan');
 const Payment = require('./Payment');
@@ -19,7 +18,12 @@ const FinancialProduct = require('./FinancialProduct');
 const GraphTopology = require('./GraphTopology');
 const OutboxEvent = require('./OutboxEvent');
 const ConfigEntry = require('./ConfigEntry');
-const RateLimitEntry = require('./RateLimitEntry');
+const Permission = require('./Permission');
+const RolePermission = require('./RolePermission');
+const UserPermission = require('./UserPermission');
+const AuditLog = require('./AuditLog');
+const RefreshToken = require('./RefreshToken');
+const AssociateInstallment = require('./AssociateInstallment');
 
 Loan.belongsTo(Customer, { foreignKey: 'customerId' });
 Customer.hasMany(Loan, { foreignKey: 'customerId' });
@@ -32,9 +36,6 @@ FinancialProduct.hasMany(Loan, { foreignKey: 'financialProductId', as: 'loans' }
 
 User.belongsTo(Associate, { foreignKey: 'associateId', as: 'associate' });
 Associate.hasMany(User, { foreignKey: 'associateId', as: 'portalUsers' });
-
-Loan.belongsTo(Agent, { foreignKey: 'agentId' });
-Agent.hasMany(Loan, { foreignKey: 'agentId' });
 
 Payment.belongsTo(Loan, { foreignKey: 'loanId' });
 Loan.hasMany(Payment, { foreignKey: 'loanId' });
@@ -87,6 +88,12 @@ Associate.hasMany(AssociateContribution, { foreignKey: 'associateId', as: 'contr
 AssociateContribution.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
 User.hasMany(AssociateContribution, { foreignKey: 'createdByUserId', as: 'createdContributions' });
 
+AssociateInstallment.belongsTo(Associate, { foreignKey: 'associateId' });
+Associate.hasMany(AssociateInstallment, { foreignKey: 'associateId', as: 'installments' });
+
+AssociateInstallment.belongsTo(User, { foreignKey: 'paidBy', as: 'paidByUser' });
+User.hasMany(AssociateInstallment, { foreignKey: 'paidBy', as: 'paidInstallments' });
+
 ProfitDistribution.belongsTo(Associate, { foreignKey: 'associateId' });
 Associate.hasMany(ProfitDistribution, { foreignKey: 'associateId', as: 'profitDistributions' });
 
@@ -99,10 +106,28 @@ User.hasMany(ProfitDistribution, { foreignKey: 'createdByUserId', as: 'createdPr
 IdempotencyKey.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
 User.hasMany(IdempotencyKey, { foreignKey: 'createdByUserId', as: 'createdIdempotencyKeys' });
 
+RolePermission.belongsTo(Permission, { foreignKey: 'permissionId' });
+Permission.hasMany(RolePermission, { foreignKey: 'permissionId' });
+
+RolePermission.belongsTo(User, { foreignKey: 'grantedBy', as: 'grantedByUser' });
+User.hasMany(RolePermission, { foreignKey: 'grantedBy', as: 'rolePermissions' });
+
+UserPermission.belongsTo(Permission, { foreignKey: 'permissionId' });
+Permission.hasMany(UserPermission, { foreignKey: 'permissionId' });
+
+UserPermission.belongsTo(User, { foreignKey: 'grantedBy', as: 'grantedByUser' });
+User.hasMany(UserPermission, { foreignKey: 'grantedBy', as: 'userPermissions' });
+
+AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
+
+// RefreshToken associations
+RefreshToken.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' });
+
 module.exports = {
   sequelize,
   Customer,
-  Agent,
   Associate,
   Loan,
   Payment,
@@ -111,6 +136,7 @@ module.exports = {
   LoanAlert,
   PromiseToPay,
   AssociateContribution,
+  AssociateInstallment,
   ProfitDistribution,
   IdempotencyKey,
   Notification,
@@ -121,5 +147,9 @@ module.exports = {
   GraphTopology,
   OutboxEvent,
   ConfigEntry,
-  RateLimitEntry,
+  Permission,
+  RolePermission,
+  UserPermission,
+  AuditLog,
+  RefreshToken,
 };

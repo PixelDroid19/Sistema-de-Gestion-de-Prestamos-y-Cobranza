@@ -7,8 +7,6 @@ const path = require('node:path');
 const {
   createListLoans,
   createCreateSimulation,
-  createAssignRecoveryAssignee,
-  createListRecoveryRoster,
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
   createDeleteLoan,
@@ -37,8 +35,8 @@ test('createListLoans scopes repository results through the shared access policy
     loanRepository: {
       async list() {
         return [
-          { id: 41, customerId: 7, agentId: 9 },
-          { id: 42, customerId: 99, agentId: 11 },
+          { id: 41, customerId: 7 },
+          { id: 42, customerId: 99 },
         ];
       },
     },
@@ -186,70 +184,6 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
   });
 });
 
-test('createAssignRecoveryAssignee updates the loan and emits a notification payload', async () => {
-  let sentNotification;
-  const assignRecoveryAssignee = createAssignRecoveryAssignee({
-    loanRepository: {
-      async findById() {
-        return {
-          id: 22,
-          amount: 8000,
-          status: 'defaulted',
-          recoveryStatus: 'pending',
-          agentId: null,
-          customerId: 7,
-          Customer: { name: 'Ana Customer', email: 'ana@example.com' },
-        };
-      },
-      async save(loan) {
-        return loan;
-      },
-    },
-    recoveryAssignmentRepository: {
-      async findById() {
-        return { id: 9, email: 'agent@example.com' };
-      },
-    },
-    userRepository: {
-      async findRecoveryAssigneeUserByEmail() {
-        return { id: 99, role: 'admin' };
-      },
-    },
-    notificationPort: {
-      async sendRecoveryAssignment(userId, payload) {
-        sentNotification = { userId, payload };
-      },
-    },
-  });
-
-  const loan = await assignRecoveryAssignee({ actor: { id: 1, role: 'admin' }, loanId: 22, recoveryAssigneeId: 9 });
-
-  assert.equal(loan.agentId, 9);
-  assert.equal(loan.recoveryStatus, 'assigned');
-  assert.equal(sentNotification.userId, 99);
-  assert.equal(sentNotification.payload.loanId, 22);
-});
-
-test('createListRecoveryRoster returns repository pagination results for admins', async () => {
-  const listRecoveryRoster = createListRecoveryRoster({
-    recoveryAssignmentRepository: {
-      async listPage() {
-        return {
-          items: [{ id: 9, name: 'Marta Reyes', email: 'marta@lendflow.test' }],
-          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
-        }
-      },
-    },
-  })
-
-  const result = await listRecoveryRoster({ actor: { id: 1, role: 'admin' }, pagination: { page: 1, pageSize: 25 } })
-
-  assert.deepEqual(result, {
-    items: [{ id: 9, name: 'Marta Reyes', email: 'marta@lendflow.test' }],
-    pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
-  })
-})
-
 test('createUpdateLoanStatus moves defaulted loans into pending recovery', async () => {
   const updateLoanStatus = createUpdateLoanStatus({
     loanRepository: {
@@ -311,7 +245,6 @@ test('createUpdateRecoveryStatus lets admins progress recovery', async () => {
           id: 32,
           status: 'defaulted',
           recoveryStatus: 'assigned',
-          agentId: 9,
           async save() {
             return this;
           },
@@ -369,7 +302,7 @@ test('createDeleteLoan rejects deletion of a foreign rejected loan before destro
 
 test('createDeleteLoan deletes an authorized rejected loan', async () => {
   let destroyedLoan = null;
-  const rejectedLoan = { id: 77, status: 'rejected', customerId: 7, agentId: 9 };
+  const rejectedLoan = { id: 77, status: 'rejected', customerId: 7 };
   const deleteLoan = createDeleteLoan({
     loanRepository: {
       async destroy(loan) {
@@ -427,7 +360,7 @@ test('createCreateLoanAttachment persists metadata for an authorized admin uploa
       async findAuthorizedMutationLoan({ actor, loanId }) {
         assert.equal(actor.id, 9);
         assert.equal(loanId, 22);
-        return { id: 22, agentId: 9 };
+        return { id: 22 };
       },
     },
     attachmentRepository: {
@@ -762,7 +695,7 @@ test('createCreatePromiseToPay records a pending promise with status history', a
   const createPromiseToPay = createCreatePromiseToPay({
     loanAccessPolicy: {
       async findAuthorizedMutationLoan() {
-        return { id: 22, agentId: 9 };
+        return { id: 22 };
       },
     },
     promiseRepository: {
@@ -788,7 +721,7 @@ test('createListPromisesToPay expires broken pending promises before returning h
   const listPromisesToPay = createListPromisesToPay({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
-        return { id: 22, agentId: 9 };
+        return { id: 22 };
       },
     },
     promiseRepository: {

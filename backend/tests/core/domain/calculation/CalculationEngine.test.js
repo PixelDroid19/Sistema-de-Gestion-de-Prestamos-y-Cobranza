@@ -1,4 +1,4 @@
-const { test, describe, beforeEach, afterEach } = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert');
 const { CalculationEngine } = require('../../../../src/core/domain/calculation/CalculationEngine');
 const { TopologicalCycleException } = require('../../../../src/core/domain/calculation/TopologicalSorter');

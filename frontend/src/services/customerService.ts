@@ -42,6 +42,16 @@ export const useCustomers = (params?: { page?: number; limit?: number; search?: 
     },
   });
 
+  const restoreCustomer = useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await apiClient.patch(`/customers/${id}/restore`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers.list'] });
+    },
+  });
+
   return {
     data: getCustomers.data,
     isLoading: getCustomers.isLoading,
@@ -49,6 +59,7 @@ export const useCustomers = (params?: { page?: number; limit?: number; search?: 
     createCustomer,
     updateCustomer,
     deleteCustomer,
+    restoreCustomer,
   };
 };
 

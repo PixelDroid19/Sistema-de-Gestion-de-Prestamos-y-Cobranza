@@ -59,7 +59,7 @@ const validatePasswordStrength = (password) => {
     errors.push('Password must contain at least one number');
   }
 
-  if (PASSWORD_COMPLEXITY.requireSpecialChars && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  if (PASSWORD_COMPLEXITY.requireSpecialChars && !/[!@#$%^&*()_+\-={};'":\\|,.<>/?]/.test(password)) {
     errors.push('Password must contain at least one special character');
   }
 
@@ -76,7 +76,7 @@ const validatePasswordStrength = (password) => {
   if (/[A-Z]/.test(password)) score++;
   if (/[a-z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
-  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-={};'":\\|,.<>/?]/.test(password)) score++;
 
   if (score >= 5) strength = 'strong';
   else if (score >= 3) strength = 'medium';
@@ -143,7 +143,7 @@ const requireSupportedRole = (role, options) => {
 
 /**
  * Create the registration use case for public customer signup and trusted admin provisioning.
- * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object, passwordHasher: object, tokenService: object }} dependencies
+ * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object, passwordHasher: object, tokenService: object, auditService?: object }} dependencies
  * @returns {Function}
  */
 const createRegisterUser = ({
@@ -152,6 +152,7 @@ const createRegisterUser = ({
   associateProfileRepository,
   passwordHasher,
   tokenService,
+  auditService,
 }) => async (input) => {
   const {
     actor,
@@ -232,6 +233,20 @@ const createRegisterUser = ({
     throw error;
   }
 
+  // Audit logging for user registration
+  if (auditService) {
+    await auditService.log({
+      actor,
+      action: 'CREATE',
+      module: 'AUTH',
+      entityId: String(user.id),
+      entityType: 'User',
+      newData: { email, role: normalizedRole, registrationSource },
+      metadata: { name },
+      req: input?.req,
+    });
+  }
+
   const sanitizedUser = sanitizeUser(user);
 
   return {
@@ -243,10 +258,10 @@ const createRegisterUser = ({
 /**
  * Create the login use case that authenticates a user and returns a signed token.
  * Implements progressive login delays and account lockout for security.
- * @param {{ userRepository: object, passwordHasher: object, tokenService: object }} dependencies
+ * @param {{ userRepository: object, passwordHasher: object, tokenService: object, refreshTokenRepository?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createLoginUser = ({ userRepository, passwordHasher, tokenService }) => async ({ email, password }) => {
+const createLoginUser = ({ userRepository, passwordHasher, tokenService, refreshTokenRepository, auditService }) => async ({ email, password, req }) => {
   const { AccountLockedError } = require('../../../utils/errorHandler');
   const { logSecurity } = require('../../../utils/logger');
 
@@ -320,9 +335,47 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService }) => as
   requireSupportedRole(user.role);
   const sanitizedUser = sanitizeUser(user);
 
+  // Generate token pair if tokenService supports it, otherwise fall back to legacy sign
+  let accessToken, refreshToken;
+  if (tokenService.generateTokenPair) {
+    const tokens = tokenService.generateTokenPair(user.id, user.role);
+    accessToken = tokens.accessToken;
+    refreshToken = tokens.refreshToken;
+  } else {
+    // Legacy fallback for backwards compatibility
+    accessToken = tokenService.sign({ id: user.id, role: user.role });
+    refreshToken = null;
+  }
+
+  // Store refresh token if repository is available
+  if (refreshTokenRepository && refreshToken) {
+    const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
+    const expiresAt = require('../../shared/auth/tokenService').calculateRefreshTokenExpiry();
+    await refreshTokenRepository.create({
+      tokenHash,
+      userId: user.id,
+      expiresAt,
+    });
+  }
+
+  // Audit logging for successful login
+  if (auditService) {
+    await auditService.log({
+      actor: { id: user.id, name: user.name, role: user.role },
+      action: 'LOGIN',
+      module: 'AUTH',
+      entityId: String(user.id),
+      entityType: 'User',
+      metadata: { email: user.email },
+      req,
+    });
+  }
+
   return {
     user: sanitizedUser,
-    token: tokenService.sign({ id: user.id, role: sanitizedUser.role }),
+    accessToken,
+    refreshToken,
+    expiresIn: 900, // 15 minutes in seconds
   };
 };
 
@@ -390,13 +443,13 @@ const createUpdateProfile = ({
 
 /**
  * Create the password change use case for authenticated users.
- * @param {{ userRepository: object, passwordHasher: object }} dependencies
+ * @param {{ userRepository: object, passwordHasher: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createChangePassword = ({ userRepository, passwordHasher }) => async (userId, {
+const createChangePassword = ({ userRepository, passwordHasher, auditService }) => async (userId, {
   currentPassword,
   nextPassword,
-}) => {
+}, { req } = {}) => {
   const user = await userRepository.findById(userId);
   if (!user) {
     throw new NotFoundError('User');
@@ -426,7 +479,251 @@ const createChangePassword = ({ userRepository, passwordHasher }) => async (user
   const hashedPassword = await passwordHasher.hash(nextPassword);
   await userRepository.update(userId, { password: hashedPassword });
 
+  // Audit logging for password change
+  if (auditService) {
+    await auditService.log({
+      actor: { id: user.id, name: user.name, role: user.role },
+      action: 'UPDATE',
+      module: 'AUTH',
+      entityId: String(user.id),
+      entityType: 'User',
+      previousData: { passwordChanged: false },
+      newData: { passwordChanged: true },
+      req,
+    });
+  }
+
   return { success: true };
+};
+
+/**
+ * Create the refresh token use case that rotates refresh tokens.
+ * On successful refresh, the old token is revoked and a new token pair is issued.
+ * @param {{ tokenService: object, refreshTokenRepository: object, userRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createRefreshToken = ({ tokenService, refreshTokenRepository, userRepository }) => async ({ refreshToken }) => {
+  // Verify the incoming refresh token
+  const { userId } = await tokenService.verifyRefreshToken(refreshToken);
+
+  // Revoke the old refresh token (rotation)
+  const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
+  await refreshTokenRepository.revoke(tokenHash);
+
+  // Get the user to include roles in the new access token
+  const user = await userRepository.findById(userId);
+  if (!user) {
+    throw new NotFoundError('User');
+  }
+
+  // Generate new token pair
+  const { accessToken, refreshToken: newRefreshToken } = tokenService.generateTokenPair(userId, user.role);
+
+  // Hash and store the new refresh token
+  const newTokenHash = require('../infrastructure/repositories').hashRefreshToken(newRefreshToken);
+  const expiresAt = require('../../shared/auth/tokenService').calculateRefreshTokenExpiry();
+  
+  await refreshTokenRepository.create({
+    tokenHash: newTokenHash,
+    userId,
+    expiresAt,
+  });
+
+  return {
+    accessToken,
+    refreshToken: newRefreshToken,
+    expiresIn: 900, // 15 minutes in seconds
+  };
+};
+
+/**
+ * Create the revoke refresh token use case.
+ * Revokes a specific refresh token by its hash.
+ * @param {{ refreshTokenRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createRevokeRefreshToken = ({ refreshTokenRepository }) => async ({ refreshToken }) => {
+  const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
+  const revoked = await refreshTokenRepository.revoke(tokenHash);
+  
+  if (!revoked) {
+    throw new NotFoundError('Refresh token');
+  }
+
+  return { success: true };
+};
+
+/**
+ * Create the registration use case that creates a user with explicit or default permissions.
+ * Requires PERMISSIONS_ASSIGN permission (admin-only).
+ * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object, passwordHasher: object, tokenService: object, userPermissionRepository: object, rolePermissionRepository: object, permissionRepository: object, auditService?: object }} dependencies
+ * @returns {Function}
+ */
+const createRegisterWithPermissions = ({
+  userRepository,
+  customerProfileRepository,
+  associateProfileRepository,
+  passwordHasher,
+  tokenService,
+  userPermissionRepository,
+  rolePermissionRepository,
+  permissionRepository,
+  auditService,
+}) => async ({ actor, payload }) => {
+  const { name, email, password, role, permissions: explicitPermissions, phone } = payload;
+
+  // Validate actor has PERMISSIONS_ASSIGN permission
+  if (!actor || actor.role !== 'admin') {
+    const { AuthorizationError } = require('../../../utils/errorHandler');
+    throw new AuthorizationError('PERMISSIONS_ASSIGN permission required');
+  }
+
+  const normalizedRole = requireSupportedRole(role, { allowLegacyAliases: false });
+  if (!normalizedRole) {
+    throw buildSupportedRolesError();
+  }
+
+  // Check for email conflicts
+  const existingUser = await userRepository.findByEmail(email);
+  if (existingUser) {
+    throw new ConflictError('User with this email already exists');
+  }
+
+  // Validate password
+  const passwordValidation = validatePasswordStrength(password);
+  if (!passwordValidation.valid) {
+    const error = new ValidationError('Password does not meet requirements');
+    error.errors = passwordValidation.errors.map(msg => ({ field: 'password', message: msg }));
+    throw error;
+  }
+
+  // Determine permissions to assign
+  let permissionsToAssign = [];
+  if (explicitPermissions && Array.isArray(explicitPermissions) && explicitPermissions.length > 0) {
+    // Use explicitly provided permissions - validate they exist
+    const allPermissions = await permissionRepository.findAll();
+    const validPermissionNames = new Set(allPermissions.map(p => p.name));
+    
+    const invalidPerms = explicitPermissions.filter(p => !validPermissionNames.has(p));
+    if (invalidPerms.length > 0) {
+      const error = new ValidationError('Invalid permissions');
+      error.errors = [{ field: 'permissions', message: `Invalid permissions: ${invalidPerms.join(', ')}` }];
+      throw error;
+    }
+    
+    permissionsToAssign = explicitPermissions;
+  } else {
+    // Derive default permissions from role
+    const rolePermissions = await rolePermissionRepository.findByRole(normalizedRole);
+    permissionsToAssign = rolePermissions.map(rp => rp.Permission?.name).filter(Boolean);
+  }
+
+  // Create user
+  const hashedPassword = await passwordHasher.hash(password);
+  const user = await userRepository.create({ 
+    name, 
+    email, 
+    password: hashedPassword, 
+    role: normalizedRole 
+  });
+
+  try {
+    // Create role-specific profile
+    if (normalizedRole === 'customer') {
+      await customerProfileRepository.create({
+        id: user.id,
+        name,
+        email,
+        phone: phone || '',
+        address: '',
+      });
+    }
+
+    if (normalizedRole === 'socio') {
+      if (!phone) {
+        throw new ValidationError('Phone number is required for socio registration');
+      }
+      if (!payload.associateId) {
+        throw new ValidationError('Associate link is required for socio registration');
+      }
+      const linkedAssociate = await associateProfileRepository.update(payload.associateId, { name, email, ...(phone !== undefined ? { phone } : {}) });
+      if (!linkedAssociate) {
+        throw new NotFoundError('Associate');
+      }
+      await userRepository.update(user.id, { associateId: payload.associateId });
+      user.associateId = payload.associateId;
+    }
+
+    // Grant permissions in batch
+    if (permissionsToAssign.length > 0) {
+      const allPermissions = await permissionRepository.findAll();
+      const permissionNameToId = new Map(allPermissions.map(p => [p.name, p.id]));
+      
+      const permissionIds = permissionsToAssign
+        .map(name => permissionNameToId.get(name))
+        .filter(id => id !== undefined);
+
+      if (permissionIds.length > 0) {
+        await userPermissionRepository.grantBatch({
+          userId: user.id,
+          permissionIds,
+          grantedBy: actor.id,
+        });
+      }
+    }
+
+    // Audit logging
+    if (auditService) {
+      await auditService.log({
+        actor,
+        action: 'CREATE',
+        module: 'AUTH',
+        entityId: String(user.id),
+        entityType: 'User',
+        newData: { email, role: normalizedRole, permissions: permissionsToAssign },
+        metadata: { name },
+        req: payload?.req,
+      });
+    }
+
+    const sanitizedUser = sanitizeUser(user);
+    return {
+      user: sanitizedUser,
+      permissions: permissionsToAssign,
+    };
+  } catch (error) {
+    // Rollback user creation if anything fails
+    await userRepository.remove(user.id);
+    throw error;
+  }
+};
+
+/**
+ * Create the revoke all user tokens use case.
+ * Revokes all refresh tokens for a specific user (used on logout).
+ * @param {{ refreshTokenRepository: object, auditService?: object }} dependencies
+ * @returns {Function}
+ */
+const createRevokeAllUserTokens = ({ refreshTokenRepository, auditService }) => async (userId, { req } = {}) => {
+  // Get user info before revoking tokens for audit logging
+  const user = req?.user || (userId ? await require('../../users/infrastructure/repositories').userRepository.findById(userId) : null);
+
+  const revokedCount = await refreshTokenRepository.revokeAllForUser(userId);
+
+  // Audit logging for logout (revoke all tokens)
+  if (auditService && user) {
+    await auditService.log({
+      actor: { id: user.id, name: user.name, role: user.role },
+      action: 'LOGOUT',
+      module: 'AUTH',
+      entityId: String(user.id),
+      entityType: 'User',
+      metadata: { tokensRevoked: revokedCount },
+      req,
+    });
+  }
+
+  return { revokedCount };
 };
 
 module.exports = {
@@ -436,4 +733,8 @@ module.exports = {
   createGetProfile,
   createUpdateProfile,
   createChangePassword,
+  createRefreshToken,
+  createRevokeRefreshToken,
+  createRevokeAllUserTokens,
+  createRegisterWithPermissions,
 };

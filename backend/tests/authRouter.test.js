@@ -211,6 +211,140 @@ test('createAuthRouter serves admin registration through the trusted flow contra
   ]);
 });
 
+test('createAuthRouter serves refresh token endpoint', async () => {
+  const calls = [];
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async registerUser() {
+        throw new Error('register should not be called');
+      },
+      async loginUser() {
+        throw new Error('login should not be called');
+      },
+      async refreshToken({ refreshToken }) {
+        calls.push(['refreshToken', refreshToken]);
+        return {
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+          expiresIn: 900,
+        };
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const refreshResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/refresh',
+    body: { refreshToken: 'old-refresh-token-123' },
+  });
+
+  assert.equal(refreshResponse.statusCode, 200);
+  assert.deepEqual(refreshResponse.body, {
+    success: true,
+    data: {
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+      expiresIn: 900,
+    },
+  });
+  assert.deepEqual(calls, [['refreshToken', 'old-refresh-token-123']]);
+});
+
+test('createAuthRouter refresh token requires refresh token in body', async () => {
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async refreshToken() {
+        throw new Error('refreshToken should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const refreshResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/refresh',
+    body: {},
+  });
+
+  assert.equal(refreshResponse.statusCode, 400);
+  assert.deepEqual(refreshResponse.body, {
+    success: false,
+    error: { message: 'Refresh token is required' },
+  });
+});
+
+test('createAuthRouter serves logout endpoint', async () => {
+  const calls = [];
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async registerUser() {
+        throw new Error('register should not be called');
+      },
+      async loginUser() {
+        throw new Error('login should not be called');
+      },
+      async revokeAllUserTokens(userId) {
+        calls.push(['revokeAllUserTokens', userId]);
+        return { revokedCount: 3 };
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const logoutResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/logout',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(logoutResponse.statusCode, 200);
+  assert.deepEqual(logoutResponse.body, {
+    success: true,
+    message: 'Logged out successfully',
+  });
+  assert.deepEqual(calls, [['revokeAllUserTokens', 7]]);
+});
+
 test('createAuthRouter serves profile read and update happy paths', async () => {
   const calls = [];
   const router = createAuthRouter({

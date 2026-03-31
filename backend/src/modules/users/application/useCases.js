@@ -1,12 +1,6 @@
-const { ValidationError, NotFoundError, AuthorizationError, ConflictError } = require('../../../utils/errorHandler');
+const { ValidationError, NotFoundError, ConflictError } = require('../../../utils/errorHandler');
 
 const VALID_ROLES = ['admin', 'customer', 'socio'];
-
-// Account lockout configuration
-const LOCKOUT_CONFIG = {
-  maxFailedAttempts: 5,
-  lockoutDurationMinutes: 15,
-};
 
 const sanitizeUser = (user) => ({
   id: user.id,
