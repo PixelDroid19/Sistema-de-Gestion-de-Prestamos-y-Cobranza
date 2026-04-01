@@ -20,6 +20,88 @@ const normalizeAttachmentVisibility = (value) => {
   return false;
 };
 
+const SIGNATURE_LENGTH = 12;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIGNATURE_PREFIX = Buffer.from([0xff, 0xd8, 0xff]);
+const WEBP_SIGNATURE_RIFF = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+const WEBP_SIGNATURE_WEBP = Buffer.from([0x57, 0x45, 0x42, 0x50]);
+const PDF_SIGNATURE = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
+
+const startsWithSignature = (buffer, signature) => (
+  Buffer.isBuffer(buffer) && buffer.length >= signature.length && buffer.subarray(0, signature.length).equals(signature)
+);
+
+const hasWebpSignature = (buffer) => (
+  Buffer.isBuffer(buffer)
+  && buffer.length >= 12
+  && buffer.subarray(0, 4).equals(WEBP_SIGNATURE_RIFF)
+  && buffer.subarray(8, 12).equals(WEBP_SIGNATURE_WEBP)
+);
+
+const isValidAttachmentSignature = (buffer, mimetype) => {
+  if (!Buffer.isBuffer(buffer) || typeof mimetype !== 'string') {
+    return false;
+  }
+
+  if (mimetype === 'application/pdf') {
+    return startsWithSignature(buffer, PDF_SIGNATURE);
+  }
+  if (mimetype === 'image/png') {
+    return startsWithSignature(buffer, PNG_SIGNATURE);
+  }
+  if (mimetype === 'image/jpeg') {
+    return startsWithSignature(buffer, JPEG_SIGNATURE_PREFIX);
+  }
+  if (mimetype === 'image/webp') {
+    return hasWebpSignature(buffer);
+  }
+
+  return false;
+};
+
+const getMinimumSignatureLength = (mimetype) => {
+  if (mimetype === 'image/webp') {
+    return 12;
+  }
+  if (mimetype === 'application/pdf') {
+    return PDF_SIGNATURE.length;
+  }
+  if (mimetype === 'image/png') {
+    return PNG_SIGNATURE.length;
+  }
+  if (mimetype === 'image/jpeg') {
+    return JPEG_SIGNATURE_PREFIX.length;
+  }
+  return 1;
+};
+
+const validateAttachmentFileSignature = async (file, fsModule) => {
+  if (!file?.path || typeof file.mimetype !== 'string') {
+    throw new ValidationError('Attachment file metadata is invalid');
+  }
+
+  let handle;
+  try {
+    handle = await fsModule.open(file.path, 'r');
+    const buffer = Buffer.alloc(SIGNATURE_LENGTH);
+    const { bytesRead } = await handle.read(buffer, 0, SIGNATURE_LENGTH, 0);
+
+    const minimumSignatureLength = getMinimumSignatureLength(file.mimetype);
+
+    if (bytesRead < minimumSignatureLength) {
+      throw new ValidationError('Attachment file is unreadable or too small for the declared file type');
+    }
+
+    const header = buffer.subarray(0, bytesRead);
+
+    if (!isValidAttachmentSignature(header, file.mimetype)) {
+      throw new ValidationError('Attachment content does not match the declared file type');
+    }
+  } finally {
+    await handle?.close();
+  }
+};
+
 const escapePdfText = (value) => String(value)
   .replaceAll('\\', '\\\\')
   .replaceAll('(', '\\(')
@@ -549,13 +631,21 @@ const createListLoanAttachments = ({ attachmentRepository, loanAccessPolicy }) =
  * @param {{ attachmentRepository: object, attachmentStorage: object, loanAccessPolicy: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createCreateLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy, auditService }) => {
+const createCreateLoanAttachment = ({
+  attachmentRepository,
+  attachmentStorage,
+  loanAccessPolicy,
+  auditService,
+  fsModule = require('node:fs/promises'),
+}) => {
   const useCase = async ({ actor, loanId, file, metadata = {} }) => {
     if (!file) {
       throw new ValidationError('Attachment file is required');
     }
 
     try {
+      await validateAttachmentFileSignature(file, fsModule);
+
       const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
 
       return await attachmentRepository.create({
@@ -1107,4 +1197,6 @@ module.exports = {
   createGetDuePayments,
   createSearchLoans,
   createUpdateLateFeeRate,
+  isValidAttachmentSignature,
+  validateAttachmentFileSignature,
 };

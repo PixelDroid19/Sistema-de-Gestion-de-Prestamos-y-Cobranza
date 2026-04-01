@@ -376,6 +376,19 @@ test('createCreateLoanAttachment persists metadata for an authorized admin uploa
       },
       async deleteByAbsolutePath() {},
     },
+    fsModule: {
+      async open(filePath) {
+        assert.equal(filePath, '/tmp/loan-proof.pdf');
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('%PDF-1.7');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
   });
 
   const attachment = await createLoanAttachment({
@@ -409,6 +422,104 @@ test('createCreateLoanAttachment persists metadata for an authorized admin uploa
     category: 'contract',
     description: 'Signed contract',
   });
+});
+
+test('createLoanAttachment rejects mismatched attachment file signatures', async () => {
+  let deletedPath = null;
+  const createLoanAttachment = createCreateLoanAttachment({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22 };
+      },
+    },
+    attachmentRepository: {
+      async create() {
+        throw new Error('attachmentRepository.create should not be called when signature is invalid');
+      },
+    },
+    attachmentStorage: {
+      toRelativePath() {
+        return 'loan-proof.pdf';
+      },
+      async deleteByAbsolutePath(filePath) {
+        deletedPath = filePath;
+      },
+    },
+    fsModule: {
+      async open() {
+        return {
+          async read(buffer, offset, length) {
+            const signature = Buffer.from('NOTPDF!!');
+            signature.copy(buffer, offset, 0, Math.min(length, signature.length));
+            return { bytesRead: Math.min(length, signature.length), buffer };
+          },
+          async close() {},
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => createLoanAttachment({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    file: {
+      path: '/tmp/loan-proof.pdf',
+      filename: 'loan-proof.pdf',
+      originalname: 'Loan Proof.pdf',
+      mimetype: 'application/pdf',
+      size: 2048,
+    },
+  }), /does not match the declared file type/i);
+
+  assert.equal(deletedPath, '/tmp/loan-proof.pdf');
+});
+
+test('createLoanAttachment rejects unreadable or too-small files for declared signature', async () => {
+  let deletedPath = null;
+  const createLoanAttachment = createCreateLoanAttachment({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22 };
+      },
+    },
+    attachmentRepository: {
+      async create() {
+        throw new Error('attachmentRepository.create should not be called when signature bytes are insufficient');
+      },
+    },
+    attachmentStorage: {
+      toRelativePath() {
+        return 'loan-proof.pdf';
+      },
+      async deleteByAbsolutePath(filePath) {
+        deletedPath = filePath;
+      },
+    },
+    fsModule: {
+      async open() {
+        return {
+          async read() {
+            return { bytesRead: 4 };
+          },
+          async close() {},
+        };
+      },
+    },
+  });
+
+  await assert.rejects(() => createLoanAttachment({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    file: {
+      path: '/tmp/loan-proof.pdf',
+      filename: 'loan-proof.pdf',
+      originalname: 'Loan Proof.pdf',
+      mimetype: 'image/webp',
+      size: 4,
+    },
+  }), /unreadable or too small/i);
+
+  assert.equal(deletedPath, '/tmp/loan-proof.pdf');
 });
 
 test('createDownloadLoanAttachment blocks customers from internal-only files', async () => {
