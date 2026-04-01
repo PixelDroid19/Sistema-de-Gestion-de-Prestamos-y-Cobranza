@@ -18,6 +18,30 @@ test('validateEnvironment rejects missing required variables', () => {
   }), /JWT_SECRET/);
 });
 
+test('validateEnvironment rejects insecure default JWT secret in production', () => {
+  assert.throws(() => validateEnvironment({
+    DB_NAME: 'lendflow',
+    DB_USER: 'postgres',
+    DB_PASSWORD: 'secret',
+    DB_HOST: 'localhost',
+    DB_PORT: '5432',
+    JWT_SECRET: 'changeme',
+    NODE_ENV: 'production',
+  }), /insecure default value/i);
+});
+
+test('validateEnvironment allows insecure default JWT secret outside production', () => {
+  assert.doesNotThrow(() => validateEnvironment({
+    DB_NAME: 'lendflow',
+    DB_USER: 'postgres',
+    DB_PASSWORD: 'secret',
+    DB_HOST: 'localhost',
+    DB_PORT: '5432',
+    JWT_SECRET: 'changeme',
+    NODE_ENV: 'development',
+  }));
+});
+
 test('bootstrap authenticates infrastructure, syncs schema, and returns module registry', async () => {
   const calls = [];
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];

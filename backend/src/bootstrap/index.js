@@ -8,6 +8,7 @@ const { createOverdueAlertSyncService } = require('../modules/credits/applicatio
 const { createOverdueAlertScheduler } = require('../modules/credits/application/overdueAlertScheduler');
 
 const REQUIRED_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'JWT_SECRET'];
+const UNSAFE_JWT_SECRETS = new Set(['changeme', 'replace_me', 'default', 'secret', 'password', 'jwt_secret']);
 
 let sharedOverdueAlertScheduler = null;
 
@@ -20,6 +21,15 @@ const validateEnvironment = (env = process.env) => {
 
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+
+  const jwtSecret = String(env.JWT_SECRET || '').trim();
+  const normalizedSecret = jwtSecret.toLowerCase();
+  const isUnsafeSecret = UNSAFE_JWT_SECRETS.has(normalizedSecret);
+  const isProductionLike = String(env.NODE_ENV || '').toLowerCase() === 'production';
+
+  if (isUnsafeSecret && isProductionLike) {
+    throw new Error('JWT_SECRET uses an insecure default value and must be replaced in production');
   }
 };
 
