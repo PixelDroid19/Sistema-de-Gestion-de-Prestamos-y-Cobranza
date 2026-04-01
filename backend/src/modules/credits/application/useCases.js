@@ -993,6 +993,40 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
  * @param {{ loanRepository: object }} dependencies
  * @returns {Function}
  */
+/**
+ * Create the use case that updates the annual late fee rate for a loan.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
+ * @returns {Function}
+ */
+const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditService }) => {
+  const useCase = async ({ actor, loanId, lateFeeRate }) => {
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can update late fee rates');
+    }
+
+    const parsedRate = parseFloat(lateFeeRate);
+    if (Number.isNaN(parsedRate) || parsedRate < 0 || parsedRate > 100) {
+      throw new ValidationError('Late fee rate must be a number between 0 and 100');
+    }
+
+    const loan = loanAccessPolicy
+      ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
+      : await loanRepository.findById(loanId);
+
+    if (!loan) {
+      throw new NotFoundError('Loan');
+    }
+
+    loan.annualLateFeeRate = parsedRate;
+    return loanRepository.save(loan);
+  };
+
+  if (auditService) {
+    return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
+  }
+  return useCase;
+};
+
 const createSearchLoans = ({ loanRepository }) => async ({ filters = {}, pagination }) => {
   const loans = await loanRepository.list();
   let filteredLoans = loans;
@@ -1072,4 +1106,5 @@ module.exports = {
   createGetLoanStatistics,
   createGetDuePayments,
   createSearchLoans,
+  createUpdateLateFeeRate,
 };

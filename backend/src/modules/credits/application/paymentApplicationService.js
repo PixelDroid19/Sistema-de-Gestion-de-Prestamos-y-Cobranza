@@ -940,6 +940,41 @@ const createPaymentApplicationService = ({
     });
   };
 
+  /**
+   * Update the payment method of an existing non-reconciled payment.
+   * Only admins can update payment methods.
+   */
+  const updatePaymentMethod = async ({ loanId, paymentId, paymentMethod, actor }) => {
+    if (actor?.role !== 'admin') {
+      throw new AuthorizationError('Only admins can update payment methods');
+    }
+
+    const VALID_PAYMENT_METHODS = ['cash', 'transfer', 'card', 'check', 'other'];
+    if (paymentMethod && !VALID_PAYMENT_METHODS.includes(paymentMethod)) {
+      throw new ValidationError(`Invalid payment method. Must be one of: ${VALID_PAYMENT_METHODS.join(', ')}`);
+    }
+
+    return sequelizeInstance.transaction(async (transaction) => {
+      const payment = await paymentModel.findOne({
+        where: { id: paymentId, loanId },
+        transaction,
+      });
+
+      if (!payment) {
+        throw new NotFoundError('Payment');
+      }
+
+      if (payment.status === 'reconciled') {
+        throw new ValidationError('Cannot update payment method for reconciled payments');
+      }
+
+      payment.paymentMethod = paymentMethod;
+      await payment.save({ transaction });
+
+      return payment;
+    });
+  };
+
   const generateIdempotencyKey = (loanId, paymentAmount, paymentDate) => {
     const hash = crypto.createHash('sha256');
     hash.update(`${loanId}:${paymentAmount}:${paymentDate}`);
@@ -1141,6 +1176,7 @@ const createPaymentApplicationService = ({
     applyPayoff,
     annulInstallment,
     processPayment,
+    updatePaymentMethod,
   };
 };
 

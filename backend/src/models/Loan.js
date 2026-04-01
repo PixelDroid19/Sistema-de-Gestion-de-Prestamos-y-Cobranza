@@ -22,6 +22,7 @@ const Loan = sequelize.define('Loan', {
   interestOutstanding: { type: DataTypes.FLOAT, allowNull: true },
   lastPaymentDate: { type: DataTypes.DATE, allowNull: true },
   lateFeeMode: { type: DataTypes.STRING, allowNull: false, defaultValue: 'NONE' },
+  annualLateFeeRate: { type: DataTypes.FLOAT, allowNull: true }, // Annual late fee rate percentage (0-100)
   financialSnapshot: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   financialBlock: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   closedAt: { type: DataTypes.DATE, allowNull: true },

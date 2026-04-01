@@ -39,14 +39,15 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   const getCustomerName = (customer: any) => {
-    if (customer?.name) return customer.name;
-
-    const composedName = [customer?.firstName, customer?.lastName]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
-    return composedName || customer?.email || `Cliente ${customer?.id}`;
+    let name = customer?.name || '';
+    if (!name) {
+      name = [customer?.firstName, customer?.lastName].filter(Boolean).join(' ').trim();
+    }
+    name = name || customer?.email || '';
+    if (name) {
+      name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+    }
+    return name || `Cliente #${customer?.id || 'N/A'}`;
   };
 
   const handlePrevPage = () => setPage(Math.max(1, page - 1));

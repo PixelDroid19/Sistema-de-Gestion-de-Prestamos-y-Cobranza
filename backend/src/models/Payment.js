@@ -16,6 +16,7 @@ const Payment = sequelize.define('Payment', {
   remainingBalanceAfterPayment: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   allocationBreakdown: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
   paymentMetadata: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+  paymentMethod: { type: DataTypes.STRING, allowNull: true }, // Payment method used (e.g., 'cash', 'transfer', 'card')
   installmentNumber: { type: DataTypes.INTEGER, allowNull: true }, // For installment payments
   annulledFromInstallment: { type: DataTypes.INTEGER, allowNull: true }, // For annulled payments, reference to original installment
 }, {

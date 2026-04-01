@@ -1,189 +1,286 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
 import { useNavigate } from 'react-router-dom';
 
-export default function Sidebar({ currentView, setCurrentView }: { currentView: string, setCurrentView: (v: string) => void }) {
+export default function Sidebar({ 
+  currentView, 
+  setCurrentView,
+  isCollapsed,
+  setIsCollapsed,
+  isMobileOpen,
+  setIsMobileOpen
+}: { 
+  currentView: string, 
+  setCurrentView: (v: string) => void,
+  isCollapsed: boolean,
+  setIsCollapsed: (v: boolean) => void,
+  isMobileOpen: boolean,
+  setIsMobileOpen: (v: boolean) => void
+}) {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
-    clientes: true,
-    creditos: true,
-    socios: true,
+    clientes: false,
+    creditos: false,
+    socios: false,
   });
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
-
   const { logout } = useSessionStore();
-  const navigate = useNavigate();
   
-  // Auto-scroll active nav item into view when currentView changes
+  // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
-    // Find the active button and scroll it into view
-    const sidebar = document.querySelector('aside');
-    if (sidebar) {
-      const activeButton = sidebar.querySelector('button[data-active="true"]');
-      if (activeButton) {
-        activeButton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+    if (isCollapsed) {
+       setOpenMenus({ clientes: false, creditos: false, socios: false });
     }
-  }, [currentView]);
+  }, [isCollapsed]);
 
   const toggleMenu = (key: string) => {
+    if (isCollapsed) {
+      setIsCollapsed(false);
+    }
     setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
-    <aside className="w-64 bg-bg-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-y-auto">
-      <div className="mb-8 px-6 cursor-pointer flex items-center gap-3" onClick={() => setCurrentView('dashboard')}>
-        <div className="w-10 h-10 bg-text-primary rounded-xl flex items-center justify-center text-bg-base font-bold text-xl shrink-0">
-          U
-        </div>
-        <span className="font-bold text-lg tracking-tight text-text-primary">LendingSys</span>
-      </div>
-      
-      <nav className="flex-1 flex flex-col gap-2 w-full px-4">
-        <NavItem 
-          icon={<LayoutDashboard size={20} />} 
-          active={currentView === 'dashboard'} 
-          onClick={() => setCurrentView('dashboard')} 
-          title="Dashboard" 
+    <>
+      {/* Mobile Backdrop */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
+          onClick={() => setIsMobileOpen(false)}
         />
+      )}
 
-        {/* Clientes */}
-        <div className="mt-2">
-          <div className={`flex items-center rounded-xl transition-colors ${isCustomersView ? 'bg-hover-bg text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'}`}>
-            <button
-              onClick={() => setCurrentView('customers')}
-              className="flex flex-1 items-center gap-3 p-3 text-left"
-            >
-              <Users size={20} />
-              <span className="font-medium text-sm">Clientes</span>
-            </button>
-            <button
-              onClick={() => toggleMenu('clientes')}
-              className="p-3"
-              aria-label={openMenus['clientes'] ? 'Ocultar submenu de clientes' : 'Mostrar submenu de clientes'}
-            >
-              {openMenus['clientes'] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
+      {/* Sidebar Container */}
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        bg-bg-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-y-auto
+        transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
+        ${isCollapsed ? 'w-20' : 'w-64'}
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        {/* Header / Logo */}
+        <div className={`flex items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView('dashboard')}>
+            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm transition-transform group-hover:scale-105">
+              L
+            </div>
+            {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">LendFlow</span>}
           </div>
           
-          {openMenus['clientes'] && (
-            <div className="flex flex-col gap-1 mt-1 ml-4 pl-4 border-l border-border-strong">
-              <SubNavItem 
-                active={isCustomersView} 
-                onClick={() => setCurrentView('customers')} 
-                title="Ver clientes" 
-              />
-              <SubNavItem 
-                active={currentView === 'customers-new'} 
-                onClick={() => setCurrentView('customers-new')} 
-                title="Nuevo cliente" 
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Créditos */}
-        <div className="mt-2">
+          {/* Botón cerrar (Solo Móvil) */}
           <button 
-            onClick={() => toggleMenu('creditos')}
-            className="w-full flex items-center justify-between p-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
+            className="md:hidden p-2 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
+            onClick={() => setIsMobileOpen(false)}
           >
-            <div className="flex items-center gap-3">
-              <CreditCard size={20} />
-              <span className="font-medium text-sm">Créditos</span>
-            </div>
-            {openMenus['creditos'] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <X size={20} />
           </button>
-          
-          {openMenus['creditos'] && (
-            <div className="flex flex-col gap-1 mt-1 ml-4 pl-4 border-l border-border-strong">
-              <SubNavItem 
-                active={currentView === 'credits'} 
-                onClick={() => setCurrentView('credits')} 
-                title="Ver créditos" 
-              />
-              <SubNavItem 
-                active={currentView === 'credits-new'} 
-                onClick={() => setCurrentView('credits-new')} 
-                title="Nuevo crédito" 
-              />
-              <SubNavItem 
-                active={currentView === 'reports'} 
-                onClick={() => setCurrentView('reports')} 
-                title="Reportes" 
-              />
-            </div>
-          )}
         </div>
-
-        {/* Socios */}
-        <div className="mt-2">
-          <button 
-            onClick={() => toggleMenu('socios')}
-            className="w-full flex items-center justify-between p-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <UserPlus size={20} />
-              <span className="font-medium text-sm">Socios</span>
-            </div>
-            {openMenus['socios'] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-          
-          {openMenus['socios'] && (
-            <div className="flex flex-col gap-1 mt-1 ml-4 pl-4 border-l border-border-strong">
-              <SubNavItem 
-                active={currentView === 'associates'} 
-                onClick={() => setCurrentView('associates')} 
-                title="Ver socios" 
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Pagos */}
-        <div className="mt-2">
+        
+        {/* Navegación Principal */}
+        <nav className="flex-1 flex flex-col gap-1.5 w-full px-3">
           <NavItem 
-            icon={<DollarSign size={20} />} 
-            active={currentView === 'payouts'} 
-            onClick={() => setCurrentView('payouts')} 
-            title="Detalles de Pagos" 
+            icon={<LayoutDashboard size={20} />} 
+            active={currentView === 'dashboard'} 
+            onClick={() => setCurrentView('dashboard')} 
+            title="Dashboard" 
+            isCollapsed={isCollapsed}
           />
+
+          {/* Menú Clientes */}
+          <div className="mt-1">
+            <button 
+              onClick={() => toggleMenu('clientes')}
+              data-active={isCollapsed && isCustomersView ? "true" : "false"}
+              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                isCollapsed ? 'justify-center' : 'justify-between gap-3'
+              } ${
+                isCustomersView && isCollapsed
+                  ? 'bg-hover-bg text-brand-primary font-medium' 
+                  : isCustomersView 
+                    ? 'text-brand-primary font-medium' 
+                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+              }`}
+              title={isCollapsed ? "Clientes" : undefined}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`${isCustomersView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                  <Users size={20} />
+                </div>
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">Clientes</span>}
+              </div>
+              {!isCollapsed && (
+                <div className={`transition-transform duration-200 ${openMenus['clientes'] ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={16} />
+                </div>
+              )}
+              {isCustomersView && isCollapsed && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+              )}
+            </button>
+            
+            {openMenus['clientes'] && !isCollapsed && (
+              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                <SubNavItem active={currentView === 'customers'} onClick={() => setCurrentView('customers')} title="Directorio" />
+                <SubNavItem active={currentView === 'customers-new'} onClick={() => setCurrentView('customers-new')} title="Nuevo Cliente" />
+              </div>
+            )}
+          </div>
+
+          {/* Menú Créditos */}
+          <div className="mt-1">
+            <button 
+              onClick={() => toggleMenu('creditos')}
+              data-active={isCollapsed && (currentView.startsWith('credit') || currentView === 'reports') ? "true" : "false"}
+              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                isCollapsed ? 'justify-center' : 'justify-between gap-3'
+              } ${
+                (currentView.startsWith('credit') || currentView === 'reports') && isCollapsed
+                  ? 'bg-hover-bg text-brand-primary font-medium' 
+                  : (currentView.startsWith('credit') || currentView === 'reports')
+                    ? 'text-brand-primary font-medium' 
+                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+              }`}
+              title={isCollapsed ? "Créditos" : undefined}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`${(currentView.startsWith('credit') || currentView === 'reports') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                  <CreditCard size={20} />
+                </div>
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">Créditos</span>}
+              </div>
+              {!isCollapsed && (
+                <div className={`transition-transform duration-200 ${openMenus['creditos'] ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={16} />
+                </div>
+              )}
+              {(currentView.startsWith('credit') || currentView === 'reports') && isCollapsed && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+              )}
+            </button>
+            
+            {openMenus['creditos'] && !isCollapsed && (
+              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                <SubNavItem active={currentView === 'credits'} onClick={() => setCurrentView('credits')} title="Cartera Activa" />
+                <SubNavItem active={currentView === 'credits-new'} onClick={() => setCurrentView('credits-new')} title="Originación" />
+                <SubNavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} title="Reportes" />
+              </div>
+            )}
+          </div>
+
+          {/* Menú Socios */}
+          <div className="mt-1">
+            <button 
+              onClick={() => toggleMenu('socios')}
+              data-active={isCollapsed && currentView.startsWith('associate') ? "true" : "false"}
+              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                isCollapsed ? 'justify-center' : 'justify-between gap-3'
+              } ${
+                currentView.startsWith('associate') && isCollapsed
+                  ? 'bg-hover-bg text-brand-primary font-medium' 
+                  : currentView.startsWith('associate')
+                    ? 'text-brand-primary font-medium' 
+                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+              }`}
+              title={isCollapsed ? "Socios" : undefined}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`${currentView.startsWith('associate') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                  <UserPlus size={20} />
+                </div>
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">Socios</span>}
+              </div>
+              {!isCollapsed && (
+                <div className={`transition-transform duration-200 ${openMenus['socios'] ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={16} />
+                </div>
+              )}
+              {currentView.startsWith('associate') && isCollapsed && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+              )}
+            </button>
+            
+            {openMenus['socios'] && !isCollapsed && (
+              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                <SubNavItem active={currentView === 'associates'} onClick={() => setCurrentView('associates')} title="Gestión de Socios" />
+              </div>
+            )}
+          </div>
+
+          {/* Pagos Directos */}
+          <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
+            <NavItem 
+              icon={<DollarSign size={20} />} 
+              active={currentView === 'payouts'} 
+              onClick={() => setCurrentView('payouts')} 
+              title="Historial de Pagos" 
+              isCollapsed={isCollapsed}
+            />
+          </div>
+
+        </nav>
+
+        {/* Footer Sidebar (Ajustes y Colapso) */}
+        <div className="flex flex-col gap-1 w-full px-3 mt-auto pt-6 border-t border-border-subtle">
+          <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title="Auditoría" isCollapsed={isCollapsed} />
+          <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title="Configuración" isCollapsed={isCollapsed} />
+          <NavItem icon={<LogOut size={20} />} onClick={logout} title="Cerrar Sesión" isCollapsed={isCollapsed} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" />
+          
+          {/* Botón Colapsar (Solo Escritorio) */}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden md:flex mt-4 w-full items-center justify-center p-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
+            title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+          </button>
         </div>
-
-      </nav>
-
-      <div className="flex flex-col gap-2 w-full px-4 mt-auto pt-6">
-        <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title="Auditoría" />
-        <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title="Configuración" />
-        <NavItem icon={<LogOut size={20} />} onClick={logout} title="Cerrar Sesión" />
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string }>(({ icon, active, onClick, title }, ref) => {
+// Subcomponente de Ítem de Navegación Principal
+const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string, isCollapsed?: boolean, className?: string }>(({ icon, active, onClick, title, isCollapsed, className }, ref) => {
   return (
     <button 
       ref={ref}
       onClick={onClick}
+      title={isCollapsed ? title : undefined}
       data-active={active ? "true" : "false"}
-      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${active ? 'bg-hover-bg text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'}`}
+      className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+        isCollapsed ? 'justify-center' : 'justify-start gap-3'
+      } ${
+        active 
+          ? 'bg-hover-bg text-brand-primary font-medium' 
+          : className || 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+      }`}
     >
-      {icon}
-      <span className="font-medium text-sm">{title}</span>
+      <div className={`${active ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+        {icon}
+      </div>
+      {!isCollapsed && <span className="text-sm whitespace-nowrap">{title}</span>}
+      
+      {/* Indicador lateral sutil */}
+      {active && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+      )}
     </button>
   );
 });
 NavItem.displayName = 'NavItem';
 
+// Subcomponente de Ítem Anidado
 function SubNavItem({ active, onClick, title }: { active?: boolean; onClick?: () => void; title: string }) {
   return (
     <button 
       onClick={onClick}
       data-active={active ? "true" : "false"}
-      className={`w-full text-left py-2 px-3 rounded-lg transition-colors text-sm ${active ? 'bg-hover-bg text-text-primary font-medium' : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'}`}
+      className={`w-full flex items-center text-left py-2 px-3 rounded-lg transition-colors text-sm relative group ${
+        active 
+          ? 'text-brand-primary font-medium bg-brand-primary/5' 
+          : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+      }`}
     >
       {title}
     </button>

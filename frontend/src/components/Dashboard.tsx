@@ -35,11 +35,25 @@ export default function Dashboard() {
   const summary = dashboardData?.summary || {};
   const collections = dashboardData?.collections || {};
   const recentLoans = Array.isArray(dashboardData?.recentActivity?.loans) ? dashboardData.recentActivity.loans : [];
-  const chartData = recentLoans.slice(0, 6).map((loan: any, index: number) => ({
-    name: `C${index + 1}`,
-    value: Number(loan.amount || 0),
-    recovered: Number(loan.totalPaid || 0),
-  }));
+  
+  const chartData = recentLoans.slice(0, 6).reverse().map((loan: any) => {
+    // Extraer un nombre significativo del cliente o usar el ID del crédito
+    let customerName = loan.Customer?.name || loan.customerName || '';
+    
+    // Limpiar nombres de prueba generados por seeds o QA ignorando mayúsculas/minúsculas en cualquier parte del string
+    if (customerName) {
+      customerName = customerName.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+    }
+
+    // Si después de limpiar se queda vacío o es muy corto, usa el ID del crédito para que siempre se vea profesional
+    const shortName = customerName && customerName.length > 2 ? customerName.split(' ')[0] : `Crédito #${loan.id}`;
+    
+    return {
+      name: shortName,
+      Desembolsado: Number(loan.amount || 0),
+      Recuperado: Number(loan.totalPaid || 0),
+    };
+  });
 
   const formatCurrency = (value: number | string | undefined) => {
     const amount = Number(value || 0);
@@ -179,7 +193,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} />
-                  <Tooltip />
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
                   <Bar dataKey="recovered" fill="#10b981" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="value" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>

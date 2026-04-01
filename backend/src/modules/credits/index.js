@@ -35,6 +35,7 @@ const {
   createGetLoanStatistics,
   createGetDuePayments,
   createSearchLoans,
+  createUpdateLateFeeRate,
 } = require('./application/useCases');
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
@@ -100,6 +101,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     getLoanStatistics: createGetLoanStatistics({ loanRepository }),
     getDuePayments: createGetDuePayments({ loanRepository, alertRepository, loanViewService }),
     searchLoans: createSearchLoans({ loanRepository }),
+    updateLateFeeRate: createUpdateLateFeeRate({ loanRepository, loanAccessPolicy, auditService }),
   };
 
   return createModule({

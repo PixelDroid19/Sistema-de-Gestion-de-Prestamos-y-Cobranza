@@ -1,6 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 
+// Payment method options
+export const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'transfer', label: 'Transferencia' },
+  { value: 'card', label: 'Tarjeta' },
+  { value: 'check', label: 'Cheque' },
+  { value: 'other', label: 'Otro' },
+] as const;
+
+export type PaymentMethod = typeof PAYMENT_METHODS[number]['value'];
+
+// Capital payment strategy
+export const CAPITAL_STRATEGIES = [
+  { value: 'reduce_term', label: 'Reducir plazo' },
+  { value: 'reduce_payment', label: 'Reducir cuota' },
+] as const;
+
+export type CapitalStrategy = typeof CAPITAL_STRATEGIES[number]['value'];
+
 export const useLoans = (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
   const queryClient = useQueryClient();
 
@@ -130,6 +149,69 @@ export const useLoanDetails = (loanId: number) => {
     },
   });
 
+  const recordPayment = useMutation({
+    mutationFn: async (paymentData: { paymentAmount: number; paymentDate: string; paymentMethod?: string }) => {
+      const { data } = await apiClient.post(`/payments/process`, {
+        loanId,
+        ...paymentData,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
+      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+    },
+  });
+
+  const annulInstallment = useMutation({
+    mutationFn: async ({ installmentNumber, reason }: { installmentNumber: number; reason?: string }) => {
+      const { data } = await apiClient.post(`/loans/${loanId}/installments/${installmentNumber}/annul`, {
+        reason,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
+      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+    },
+  });
+
+  const updatePaymentMethod = useMutation({
+    mutationFn: async ({ paymentId, paymentMethod }: { paymentId: number; paymentMethod: string }) => {
+      const { data } = await apiClient.patch(`/loans/${loanId}/payments/${paymentId}`, {
+        paymentMethod,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+    },
+  });
+
+  const recordCapitalPayment = useMutation({
+    mutationFn: async (paymentData: { amount: number; paymentDate?: string; strategy?: CapitalStrategy }) => {
+      const { data } = await apiClient.post(`/payments/capital`, {
+        loanId,
+        ...paymentData,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
+      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+    },
+  });
+
+  const updateLateFeeRate = useMutation({
+    mutationFn: async (lateFeeRate: number) => {
+      const { data } = await apiClient.patch(`/loans/${loanId}/late-fee-rate`, { lateFeeRate });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+    },
+  });
+
   return {
     calendar: getCalendar.data?.data?.calendar?.entries ?? [],
     calendarSnapshot: getCalendar.data?.data?.calendar?.snapshot,
@@ -140,6 +222,11 @@ export const useLoanDetails = (loanId: number) => {
     createPromise,
     createFollowUp,
     executePayoff,
+    recordPayment,
+    annulInstallment,
+    updatePaymentMethod,
+    recordCapitalPayment,
+    updateLateFeeRate,
   };
 };
 

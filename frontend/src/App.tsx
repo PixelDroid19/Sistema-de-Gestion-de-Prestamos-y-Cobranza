@@ -30,16 +30,26 @@ function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentView = location.pathname.substring(1) || 'dashboard';
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [isMobileOpen, setIsMobileOpen] = React.useState(false);
 
   const setCurrentView = (view: string) => {
     navigate(`/${view}`);
+    setIsMobileOpen(false);
   };
 
   return (
     <div className="flex h-screen w-full bg-bg-base text-text-primary overflow-hidden font-sans">
-      <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
+      <Sidebar 
+        currentView={currentView} 
+        setCurrentView={setCurrentView} 
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
+      />
       <div className="flex flex-col flex-1 min-w-0">
-        <Header setCurrentView={setCurrentView} />
+        <Header setCurrentView={setCurrentView} toggleMobileSidebar={() => setIsMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 bg-bg-base">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

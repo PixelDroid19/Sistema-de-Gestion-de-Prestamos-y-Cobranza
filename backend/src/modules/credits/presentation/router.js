@@ -264,6 +264,46 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { loan } });
   }));
 
+  // Update payment method (admin only, not reconciled)
+  router.patch('/:loanId/payments/:paymentId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const payment = await paymentApplicationService.updatePaymentMethod({
+      loanId: req.params.loanId,
+      paymentId: req.params.paymentId,
+      paymentMethod: req.body.paymentMethod,
+      actor: req.user,
+    });
+    res.json({ success: true, message: 'Payment method updated successfully', data: { payment } });
+  }));
+
+  // Annul installment (admin only)
+  router.post('/:loanId/installments/:installmentNumber/annul', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await paymentApplicationService.annulInstallment({
+      loanId: req.params.loanId,
+      actor: req.user,
+      reason: req.body.reason,
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Installment annulled successfully',
+      data: {
+        payment: result.payment,
+        annulment: result.annulment,
+        loan: result.loan,
+      },
+    });
+  }));
+
+  // Update late fee rate
+  router.patch('/:loanId/late-fee-rate', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const { lateFeeRate } = req.body;
+    const loan = await useCases.updateLateFeeRate({
+      actor: req.user,
+      loanId: req.params.loanId,
+      lateFeeRate,
+    });
+    res.json({ success: true, message: 'Late fee rate updated successfully', data: { loan } });
+  }));
+
   router.get('/statistics', authMiddleware(), asyncHandler(async (req, res) => {
     const statistics = await useCases.getLoanStatistics();
     res.json({ success: true, data: { statistics } });

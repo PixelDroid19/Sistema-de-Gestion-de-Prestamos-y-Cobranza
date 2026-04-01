@@ -22,7 +22,7 @@ const buildDescribedTable = (tableName) => {
       id: {}, customerId: {}, associateId: {}, dagGraphVersionId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
       startDate: {}, endDate: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
-      financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
+      annualLateFeeRate: {}, financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -47,6 +47,12 @@ const buildDescribedTable = (tableName) => {
   if (tableName === 'ConfigEntries') {
     return {
       id: {}, category: {}, key: {}, label: {}, value: {}, isActive: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'refresh_tokens') {
+    return {
+      id: {}, tokenHash: {}, userId: {}, expiresAt: {}, revokedAt: {}, createdAt: {},
     };
   }
 
@@ -130,11 +136,11 @@ const buildDescribedTable = (tableName) => {
   return {
     id: {}, loanId: {}, amount: {}, paymentDate: {}, status: {}, principalApplied: {}, interestApplied: {},
     penaltyApplied: {}, paymentType: {}, overpaymentAmount: {}, remainingBalanceAfterPayment: {}, allocationBreakdown: {}, paymentMetadata: {},
-    installmentNumber: {}, annulledFromInstallment: {}, createdAt: {}, updatedAt: {},
+    paymentMethod: {}, installmentNumber: {}, annulledFromInstallment: {}, createdAt: {}, updatedAt: {},
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();

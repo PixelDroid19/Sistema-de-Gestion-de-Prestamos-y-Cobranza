@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, Edit2, FileText } from 'lucide-react';
-import { useLoanById, useLoanDetails, useLoans } from '../services/loanService';
+import { 
+  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, 
+  Edit2, FileText, DollarSign, ShieldAlert, Percent, History, 
+  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity
+} from 'lucide-react';
+import { useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
 import { useUsers } from '../services/userService';
 import { useSessionStore } from '../store/sessionStore';
@@ -24,7 +28,7 @@ export default function CreditDetails() {
       : [];
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
 
-  const { calendar, calendarSnapshot, alerts, promises, payoffQuote, isLoading: isLoadingDetails, executePayoff } = useLoanDetails(loanId);
+  const { calendar, calendarSnapshot, alerts, promises, payoffQuote, isLoading: isLoadingDetails, executePayoff, recordPayment, annulInstallment, updatePaymentMethod, recordCapitalPayment, updateLateFeeRate } = useLoanDetails(loanId);
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
   const { data: usersData } = useUsers({ limit: 100 });
   const users = Array.isArray(usersData?.data?.users)
@@ -37,7 +41,7 @@ export default function CreditDetails() {
     if (!value) return 'Sin fecha';
     const date = new Date(String(value));
     if (Number.isNaN(date.getTime())) return 'Sin fecha';
-    return withTime ? date.toLocaleString() : date.toLocaleDateString();
+    return withTime ? date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : date.toLocaleDateString('es-ES', { dateStyle: 'medium' });
   };
 
   const formatCurrency = (value: unknown) => {
@@ -49,26 +53,27 @@ export default function CreditDetails() {
     }).format(Number.isFinite(numericValue) ? numericValue : 0);
   };
 
-  const statusLabel = useMemo(() => {
-    switch (loan?.status) {
+  const getStatusInfo = (status: string) => {
+    switch (status) {
       case 'active':
-        return 'Activo';
+        return { label: 'Activo', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' };
       case 'approved':
-        return 'Aprobado';
+        return { label: 'Aprobado', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
       case 'completed':
       case 'closed':
-        return 'Completado';
+        return { label: 'Completado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'defaulted':
-        return 'En mora';
+        return { label: 'En mora', className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200 dark:border-red-500/30' };
       case 'pending':
-        return 'Pendiente';
+        return { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' };
       case 'rejected':
-        return 'Rechazado';
+        return { label: 'Rechazado', className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
       default:
-        return loan?.status || 'Sin estado';
+        return { label: status || 'Sin estado', className: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
-  }, [loan?.status]);
+  };
 
+  const statusInfo = getStatusInfo(loan?.status);
   const promiseDate = (promise: any) => promise?.promisedDate || promise?.promiseDate || promise?.createdAt;
 
   const historyEntries = useMemo(() => {
@@ -82,17 +87,23 @@ export default function CreditDetails() {
         action: `Pago ${payment.paymentType || 'registrado'}`,
         description: `Monto: ${formatCurrency(payment.amount)}`,
         date: payment.paymentDate || payment.createdAt,
+        type: 'payment',
       })),
       ...payoffHistory.map((event: any) => ({
         id: `payoff-${event.id ?? event.createdAt ?? Math.random()}`,
-        action: 'Liquidacion ejecutada',
+        action: 'Liquidación ejecutada',
         description: `Monto: ${formatCurrency(event.amount ?? event.quotedTotal)}`,
         date: event.paymentDate || event.createdAt,
+        type: 'payoff',
       })),
-    ].filter((entry) => entry.date);
+    ].filter((entry) => entry.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history]);
 
-  const customerLabel = loan?.Customer?.name || loan?.customerName || loan?.customerId || 'Sin cliente';
+  let customerLabel = loan?.Customer?.name || loan?.customerName || '';
+  if (customerLabel) {
+    customerLabel = customerLabel.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+  }
+  customerLabel = customerLabel || (loan?.customerId ? `Cliente #${loan.customerId}` : 'Sin cliente');
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
   const alertEntries = Array.isArray(alerts) ? alerts : [];
   const promiseEntries = Array.isArray(promises) ? promises : [];
@@ -100,32 +111,67 @@ export default function CreditDetails() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
 
+  // Modals state
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
+
+  const [showAnnulModal, setShowAnnulModal] = useState(false);
+  const [annulInstallmentNumber, setAnnulInstallmentNumber] = useState<number | null>(null);
+  const [annulReason, setAnnulReason] = useState('');
+
+  const [showEditPaymentMethodModal, setShowEditPaymentMethodModal] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editingPaymentReconciled, setEditingPaymentReconciled] = useState(false);
+  const [newPaymentMethod, setNewPaymentMethod] = useState<PaymentMethod>('transfer');
+
+  const [showCapitalModal, setShowCapitalModal] = useState(false);
+  const [capitalAmount, setCapitalAmount] = useState('');
+  const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>('transfer');
+  const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
+
+  const [showLateFeeModal, setShowLateFeeModal] = useState(false);
+  const [lateFeeRate, setLateFeeRate] = useState('');
+
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
-      <div className="p-8 text-center text-text-secondary">
-        <p>ID de credito invalido.</p>
-        <button onClick={() => navigate('/credits')} className="mt-4 text-brand-primary">Volver a creditos</button>
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+        <h2 className="text-xl font-semibold text-text-primary mb-2">ID de crédito inválido</h2>
+        <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
+          ← Volver a créditos
+        </button>
       </div>
     );
   }
 
   if (isLoadingLoans || isLoadingLoanRecord || isLoadingDetails) {
-    return <div className="p-8 text-center text-text-secondary">Cargando detalles del crédito...</div>;
-  }
-
-  if (!loan) {
     return (
-      <div className="p-8 text-center text-text-secondary">
-        <p>Crédito no encontrado.</p>
-        <button onClick={() => navigate('/credits')} className="mt-4 text-brand-primary">Volver a créditos</button>
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-text-secondary font-medium">Cargando detalles del crédito...</p>
       </div>
     );
   }
 
+  if (!loan) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <FileText className="w-12 h-12 text-text-secondary opacity-50 mb-4" />
+        <h2 className="text-xl font-semibold text-text-primary mb-2">Crédito no encontrado</h2>
+        <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
+          ← Volver a créditos
+        </button>
+      </div>
+    );
+  }
+
+  // Action Handlers
   const handlePayoff = async () => {
     if (!payoffQuote) return;
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
-    if (window.confirm(`¿Confirmar liquidacion por ${formatCurrency(quotedTotal)}?`)) {
+    if (window.confirm(`¿Confirmar liquidación por ${formatCurrency(quotedTotal)}?`)) {
       try {
         await executePayoff.mutateAsync({
           asOfDate: payoffQuote.asOfDate,
@@ -143,6 +189,7 @@ export default function CreditDetails() {
     try {
       await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus });
       setShowStatusModal(false);
+      toast.success({ title: 'Estado actualizado correctamente' });
     } catch (error) {
       toast.error({ title: 'Error al actualizar estado' });
     }
@@ -157,6 +204,87 @@ export default function CreditDetails() {
     }
   };
 
+  const handleRecordPayment = async () => {
+    const amount = parseFloat(paymentAmount);
+    if (!amount || amount <= 0) {
+      toast.error({ title: 'Ingrese un monto válido' });
+      return;
+    }
+    try {
+      await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod });
+      setShowRecordPaymentModal(false);
+      setPaymentAmount('');
+      toast.success({ title: 'Pago registrado exitosamente' });
+    } catch (error: any) {
+      toast.error({ title: 'Error al registrar pago', description: error?.message || 'Intente nuevamente' });
+    }
+  };
+
+  const handleAnnulInstallment = async () => {
+    if (!annulInstallmentNumber) {
+      toast.error({ title: 'Seleccione una cuota para anular' });
+      return;
+    }
+    try {
+      await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined });
+      setShowAnnulModal(false);
+      setAnnulInstallmentNumber(null);
+      setAnnulReason('');
+      toast.success({ title: 'Cuota anulada exitosamente' });
+    } catch (error: any) {
+      toast.error({ title: 'Error al anular cuota', description: error?.message || 'Intente nuevamente' });
+    }
+  };
+
+  const handleUpdatePaymentMethod = async () => {
+    if (!editingPaymentId) return;
+    try {
+      await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
+      setShowEditPaymentMethodModal(false);
+      setEditingPaymentId(null);
+      toast.success({ title: 'Método de pago actualizado' });
+    } catch (error: any) {
+      toast.error({ title: 'Error al actualizar método', description: error?.message || 'Intente nuevamente' });
+    }
+  };
+
+  const handleRecordCapital = async () => {
+    const amount = parseFloat(capitalAmount);
+    if (!amount || amount <= 0) {
+      toast.error({ title: 'Ingrese un monto válido' });
+      return;
+    }
+    try {
+      await recordCapitalPayment.mutateAsync({ amount, strategy: capitalStrategy });
+      setShowCapitalModal(false);
+      setCapitalAmount('');
+      toast.success({ title: 'Aporte de capital registrado' });
+    } catch (error: any) {
+      toast.error({ title: 'Error al registrar aporte', description: error?.message || 'Intente nuevamente' });
+    }
+  };
+
+  const handleUpdateLateFeeRate = async () => {
+    const rate = parseFloat(lateFeeRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error({ title: 'La tasa debe estar entre 0 y 100' });
+      return;
+    }
+    try {
+      await updateLateFeeRate.mutateAsync(rate);
+      setShowLateFeeModal(false);
+      setLateFeeRate('');
+      toast.success({ title: 'Tasa de mora actualizada' });
+    } catch (error: any) {
+      toast.error({ title: 'Error al actualizar tasa', description: error?.message || 'Intente nuevamente' });
+    }
+  };
+
+  const openAnnulModal = (installmentNumber: number) => {
+    setAnnulInstallmentNumber(installmentNumber);
+    setShowAnnulModal(true);
+  };
+
   const extractPaymentId = (eventId: string): number | null => {
     if (eventId.startsWith('payment-')) {
       const id = eventId.replace('payment-', '');
@@ -165,331 +293,633 @@ export default function CreditDetails() {
     return null;
   };
 
+  const TabButton = ({ id, icon: Icon, label, badge }: { id: typeof activeTab, icon: any, label: string, badge?: number }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`relative flex items-center gap-2 px-5 py-4 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
+        activeTab === id 
+          ? 'text-brand-primary' 
+          : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg/50 rounded-t-xl'
+      }`}
+    >
+      <Icon size={18} className={activeTab === id ? 'text-brand-primary' : 'text-text-secondary opacity-70'} />
+      {label}
+      {badge !== undefined && badge > 0 && (
+        <span className={`ml-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold ${
+          activeTab === id ? 'bg-brand-primary text-white' : 'bg-border-strong text-text-primary'
+        }`}>
+          {badge}
+        </span>
+      )}
+      {activeTab === id && (
+        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--color-brand-primary),0.5)]" />
+      )}
+    </button>
+  );
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-6">
-        <button 
-          onClick={() => navigate('/credits')}
-          className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-text-primary">Crédito #{loan.id}</h1>
-              <p className="text-sm text-text-secondary">Cliente: {customerLabel}</p>
+    <div className="max-w-6xl mx-auto space-y-8 pb-12 animate-in fade-in duration-300">
+      
+      {/* Top Section: Header & Summary in a single clean card */}
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-border-subtle">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <button 
+                onClick={() => navigate('/credits')}
+                className="p-2 mt-0.5 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors group"
+              >
+                <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
+              </button>
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold text-text-primary tracking-tight leading-none">Crédito #{loan.id}</h1>
+                  <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${statusInfo.className}`}>
+                    {statusInfo.label}
+                  </span>
+                </div>
+                <p className="text-sm text-text-secondary flex items-center gap-1.5">
+                  <FileText size={14} className="opacity-70" />
+                  Cliente: <span className="font-medium text-text-primary">{customerLabel}</span>
+                </p>
+              </div>
             </div>
-          </div>
-          
-          {/* Financial Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 p-4 bg-bg-base border border-border-subtle rounded-xl">
-            <div>
-              <p className="text-xs text-text-secondary">N° Total de Cuotas</p>
-              <p className="text-lg font-semibold text-text-primary">{loan.termMonths ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Cuotas a Pagar</p>
-              <p className="text-lg font-semibold text-text-primary">{loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Interés Total</p>
-              <p className="text-lg font-semibold text-text-primary">{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Capital Amortizado</p>
-              <p className="text-lg font-semibold text-text-primary">{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Capital Vivo</p>
-              <p className="text-lg font-semibold text-brand-primary">{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {user?.role !== 'customer' && (
+                <>
+                  <button
+                    onClick={() => setShowRecordPaymentModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-brand-primary/90 hover:shadow-md transition-all"
+                  >
+                    <DollarSign size={16} /> Registrar Pago
+                  </button>
+                  <button
+                    onClick={() => setShowCapitalModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
+                  >
+                    <Layers size={16} /> Aporte Capital
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLateFeeRate(String(loan.annualLateFeeRate || ''));
+                      setShowLateFeeModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
+                  >
+                    <Percent size={16} /> Tasa Mora
+                  </button>
+                </>
+              )}
+              <button 
+                onClick={() => setShowStatusModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
+                title="Cambiar estado del crédito"
+              >
+                <Edit2 size={16} /> Estado
+              </button>
             </div>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          <button 
-            onClick={() => setShowStatusModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm hover:bg-hover-bg transition-colors"
-          >
-            <Edit2 size={16} />
-            Cambiar Estado
-          </button>
-          <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-            loan.status === 'active' ? 'bg-status-success-bg text-status-success' :
-            loan.status === 'completed' || loan.status === 'closed' ? 'bg-status-info-bg text-status-info' :
-            'bg-status-warning-bg text-status-warning'
-          }`}>
-            {statusLabel}
-          </span>
+
+        {/* Financial Summary */}
+        <div className="bg-bg-base/50 p-6 md:px-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Cuotas Totales</p>
+            <p className="text-xl font-bold text-text-primary truncate">{loan.termMonths ?? '—'}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Cuotas a Pagar</p>
+            <p className="text-xl font-bold text-text-primary truncate">{loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Interés Total</p>
+            <p className="text-xl font-bold text-text-primary truncate" title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Capital Amortizado</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate" title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</p>
+          </div>
+          <div className="lg:border-l border-border-strong lg:pl-6 min-w-0 md:col-span-2 lg:col-span-1">
+            <p className="text-xs font-bold text-brand-primary mb-1.5 uppercase tracking-wide flex items-center gap-1 truncate">
+              <Activity size={12} className="shrink-0" /> Capital Vivo
+            </p>
+            <p className="text-2xl font-black text-brand-primary tracking-tight leading-none truncate" title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</p>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border-subtle overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('calendar')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
-            activeTab === 'calendar' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <Calendar size={16} /> Calendario
-        </button>
-        <button
-          onClick={() => setActiveTab('alerts')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
-            activeTab === 'alerts' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <Bell size={16} /> Alertas
-        </button>
-        <button
-          onClick={() => setActiveTab('promises')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
-            activeTab === 'promises' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <Clock size={16} /> Promesas de Pago
-        </button>
-        <button
-          onClick={() => setActiveTab('payoff')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
-            activeTab === 'payoff' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <CreditCard size={16} /> Liquidación
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
-            activeTab === 'history' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <CheckCircle size={16} /> Historial
-        </button>
-      </div>
+      {/* Main Content Area */}
+      <div className="space-y-6">
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-border-subtle overflow-x-auto hide-scrollbar">
+          <TabButton id="calendar" icon={Calendar} label="Calendario" />
+          <TabButton id="alerts" icon={Bell} label="Alertas" badge={alertEntries.length} />
+          <TabButton id="promises" icon={Clock} label="Promesas" badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />
+          <TabButton id="payoff" icon={CreditCard} label="Liquidación" />
+          <TabButton id="history" icon={Activity} label="Historial" />
+        </div>
 
-      {/* Content */}
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        {activeTab === 'calendar' && (
-          <div>
-            <h2 className="text-lg font-bold text-text-primary mb-4">Calendario de Pagos</h2>
-            {calendarEntries.length > 0 ? (
-              <>
-                {/* Full Amortization Table */}
-                <div className="bg-bg-base rounded-xl border border-border-subtle overflow-hidden mb-4">
-                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="text-xs text-text-secondary bg-bg-surface sticky top-0 shadow-sm">
+        <div className="pt-2">
+          {/* TAB: CALENDAR */}
+          {activeTab === 'calendar' && (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {calendarEntries.length > 0 ? (
+                <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                      <thead className="text-xs text-text-secondary uppercase bg-hover-bg/50 border-b border-border-subtle">
                         <tr>
-                          <th className="py-3 px-4 text-center font-medium">N° Cuota</th>
-                          <th className="py-3 px-4 text-right font-medium">Cuota a Pagar</th>
-                          <th className="py-3 px-4 text-right font-medium">Interés</th>
-                          <th className="py-3 px-4 text-right font-medium">Capital Amort.</th>
-                          <th className="py-3 px-4 text-right font-medium">Capital Vivo</th>
+                          <th className="py-4 px-6 font-semibold text-center w-16">N°</th>
+                          <th className="py-4 px-6 font-semibold text-right">Cuota a Pagar</th>
+                          <th className="py-4 px-6 font-semibold text-right">Interés</th>
+                          <th className="py-4 px-6 font-semibold text-right">Amortización</th>
+                          <th className="py-4 px-6 font-semibold text-right">Capital Vivo</th>
+                          <th className="py-4 px-6 font-semibold text-center w-32">Estado</th>
+                          {user?.role !== 'customer' && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-subtle">
                         {/* Initial balance row */}
-                        <tr className="bg-hover-bg/50">
-                          <td className="py-2 px-4 text-center text-text-secondary">0</td>
-                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
-                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
-                          <td className="py-2 px-4 text-right text-text-secondary">-</td>
-                          <td className="py-2 px-4 text-right font-semibold text-text-primary">
+                        <tr className="bg-bg-base/30">
+                          <td className="py-3 px-6 text-center text-text-secondary font-medium">0</td>
+                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
+                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
+                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
+                          <td className="py-3 px-6 text-right font-bold text-text-primary">
                             {formatCurrency(loan.amount)}
                           </td>
+                          <td className="py-3 px-6"></td>
+                          {user?.role !== 'customer' && <td></td>}
                         </tr>
-                        {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
-                          // Derive the components from the calendar entry data
-                          // Note: remainingPrincipal/remainingInterest in calendar entries are the payment components, not cumulative
-                          const scheduledPayment = installment.scheduledPayment ?? 0;
-                          const interestComponent = installment.remainingInterest ?? 0;
-                          const principalComponent = scheduledPayment - interestComponent;
-                          
-                          // Calculate running balance (Capital Vivo)
-                          const openingBalance = index === 0 
-                            ? Number(loan.amount) 
-                            : rows[index - 1].closingBalance;
-                          const closingBalance = Math.max(0, openingBalance - principalComponent);
-                          
-                          rows.push({
-                            installmentNumber: installment.installmentNumber,
-                            scheduledPayment,
-                            interestComponent,
-                            principalComponent,
-                            openingBalance,
-                            closingBalance,
-                            status: installment.status,
-                          });
-                          return rows;
-                        }, []).map((row: any, idx: number) => (
-                          <tr key={idx} className="hover:bg-hover-bg transition-colors">
-                            <td className="py-2 px-4 text-center">{row.installmentNumber}</td>
-                            <td className="py-2 px-4 text-right font-medium text-blue-600 dark:text-blue-400">
-                              {formatCurrency(row.scheduledPayment)}
+                      {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
+                        const scheduledPayment = installment.scheduledPayment ?? 0;
+                        const interestComponent = installment.remainingInterest ?? 0;
+                        const principalComponent = scheduledPayment - interestComponent;
+                        const openingBalance = index === 0 ? Number(loan.amount) : rows[index - 1].closingBalance;
+                        const closingBalance = Math.max(0, openingBalance - principalComponent);
+                        
+                        rows.push({
+                          installmentNumber: installment.installmentNumber,
+                          scheduledPayment, interestComponent, principalComponent, openingBalance, closingBalance,
+                          status: installment.status,
+                        });
+                        return rows;
+                      }, []).map((row: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-hover-bg/50 transition-colors group">
+                          <td className="py-3 px-5 text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                          <td className="py-3 px-5 text-right font-medium text-text-primary">
+                            {formatCurrency(row.scheduledPayment)}
+                          </td>
+                          <td className="py-3 px-5 text-right text-text-secondary">
+                            {formatCurrency(row.interestComponent)}
+                          </td>
+                          <td className="py-3 px-5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                            {formatCurrency(row.principalComponent)}
+                          </td>
+                          <td className="py-3 px-5 text-right font-medium text-text-primary">
+                            {formatCurrency(row.closingBalance)}
+                          </td>
+                          <td className="py-3 px-5 text-center">
+                            <span className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium w-full ${
+                              row.status === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' :
+                              row.status === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
+                              row.status === 'partial' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
+                              row.status === 'annulled' ? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300' :
+                              'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}>
+                              {row.status === 'paid' ? 'Pagada' : row.status === 'overdue' ? 'Vencida' : row.status === 'partial' ? 'Parcial' : row.status === 'annulled' ? 'Anulada' : 'Pendiente'}
+                            </span>
+                          </td>
+                          {user?.role !== 'customer' && (
+                            <td className="py-3 px-5 text-center">
+                              {(row.status === 'pending' || row.status === 'overdue') && (
+                                <button
+                                  onClick={() => openAnnulModal(row.installmentNumber)}
+                                  className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                  title="Anular cuota"
+                                >
+                                  <ShieldAlert size={16} />
+                                </button>
+                              )}
                             </td>
-                            <td className="py-2 px-4 text-right text-amber-600 dark:text-amber-400">
-                              {formatCurrency(row.interestComponent)}
-                            </td>
-                            <td className="py-2 px-4 text-right text-emerald-600 dark:text-emerald-400">
-                              {formatCurrency(row.principalComponent)}
-                            </td>
-                            <td className="py-2 px-4 text-right font-medium">
-                              {formatCurrency(row.closingBalance)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      {calendarSnapshot && (
-                        <tfoot className="bg-bg-base border-t border-border-subtle">
-                          <tr>
-                            <td colSpan={4} className="py-2 px-4 text-right font-medium text-text-secondary">Balance pendiente:</td>
-                            <td className="py-2 px-4 text-right font-bold text-brand-primary">
-                              {formatCurrency(calendarSnapshot.outstandingBalance)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                    {calendarSnapshot && (
+                      <tfoot className="bg-bg-base border-t border-border-strong">
+                        <tr>
+                          <td colSpan={4} className="py-4 px-5 text-right text-text-secondary">Balance pendiente total:</td>
+                          <td className="py-4 px-5 text-right font-bold text-brand-primary text-base">
+                            {formatCurrency(calendarSnapshot.outstandingBalance)}
+                          </td>
+                          <td colSpan={user?.role !== 'customer' ? 2 : 1}></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
                   </div>
                 </div>
-              </>
-            ) : (
-              <p className="text-text-secondary">No hay cuotas programadas.</p>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="text-center py-12">
+                  <Calendar className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">No hay cuotas programadas para este crédito.</p>
+                </div>
+              )}
+            </div>
+          )}
 
-        {activeTab === 'alerts' && (
-          <div>
-            <h2 className="text-lg font-bold text-text-primary mb-4">Alertas del Crédito</h2>
-            {alertEntries.length > 0 ? (
-              <div className="space-y-3">
-                {alertEntries.map((alert: any, index: number) => (
-                  <div key={index} className="p-4 border border-border-subtle rounded-xl bg-status-warning-bg">
-                    <p className="font-medium text-status-warning">{alert.type || alert.alertType}</p>
-                    <p className="text-sm mt-1 text-text-secondary">{alert.message || `Cuota ${alert.installmentNumber} con saldo ${formatCurrency(alert.outstandingAmount)}`}</p>
-                    <p className="text-xs mt-2 text-text-secondary">{formatDate(alert.createdAt, true)}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-text-secondary">No hay alertas activas.</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'promises' && (
-          <div>
-            <h2 className="text-lg font-bold text-text-primary mb-4">Promesas de Pago</h2>
-            {promiseEntries.length > 0 ? (
-              <div className="space-y-3">
-                {promiseEntries.map((promise: any, index: number) => (
-                  <div key={index} className="p-4 border border-border-subtle rounded-xl flex justify-between items-center">
-                    <div>
-                      <p className="font-medium text-text-primary">Monto: {formatCurrency(promise.amount)}</p>
-                      <p className="text-sm text-text-secondary">Para: {formatDate(promiseDate(promise))}</p>
-                    </div>
-                    <span className="px-2 py-1 bg-bg-base rounded-md text-xs font-medium text-text-secondary">
-                      {promise.status || 'Sin estado'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-text-secondary">No hay promesas de pago registradas.</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'payoff' && (
-          <div>
-            <h2 className="text-lg font-bold text-text-primary mb-4">Liquidación Total</h2>
-            {payoffQuote ? (
-               <div className="p-6 border border-brand-primary/20 bg-brand-primary/5 rounded-xl max-w-md">
-                 <div className="flex justify-between mb-2">
-                   <span className="text-text-secondary">Fecha de cálculo:</span>
-                    <span className="font-medium text-text-primary">{formatDate(payoffQuote.asOfDate)}</span>
-                  </div>
-                  <div className="flex justify-between mb-4 border-b border-border-subtle pb-4">
-                    <span className="text-text-secondary">Principal restante:</span>
-                    <span className="font-medium text-text-primary">{formatCurrency(payoffQuote.outstandingPrincipal ?? payoffQuote.principalBalance)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-6">
-                    <span className="text-lg font-medium text-text-primary">Total a pagar:</span>
-                    <span className="text-2xl font-bold text-brand-primary">{formatCurrency(payoffQuote.total ?? payoffQuote.totalPayoffAmount)}</span>
-                  </div>
-                 <button 
-                   onClick={handlePayoff}
-                   disabled={user?.role !== 'customer'}
-                   className="w-full py-3 bg-brand-primary text-white rounded-xl font-medium hover:bg-brand-primary/90 transition-colors"
-                 >
-                   {user?.role === 'customer' ? 'Ejecutar Liquidacion' : 'Disponible solo para clientes'}
-                 </button>
-               </div>
-            ) : (
-              <p className="text-text-secondary">No se pudo generar la cotización de liquidación.</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div>
-            <h2 className="text-lg font-bold text-text-primary mb-4">Historial de Transacciones</h2>
-            {isLoadingHistory ? (
-              <p className="text-text-secondary">Cargando historial...</p>
-            ) : historyEntries.length > 0 ? (
-              <div className="space-y-3">
-                {historyEntries.map((event: any, index: number) => {
-                  const paymentId = extractPaymentId(event.id);
-                  return (
-                    <div key={event.id || index} className="flex gap-4 p-4 border border-border-subtle rounded-xl">
-                      <div className="w-2 h-full bg-border-strong rounded-full"></div>
-                      <div className="flex-1">
-                        <p className="font-medium text-text-primary">{event.action}</p>
-                        <p className="text-sm text-text-secondary">{event.description}</p>
-                        <p className="text-xs text-text-secondary mt-1">{formatDate(event.date, true)}</p>
+          {/* TAB: ALERTS */}
+          {activeTab === 'alerts' && (
+            <div className="animate-in fade-in duration-300 max-w-3xl">
+              {alertEntries.length > 0 ? (
+                <div className="space-y-4">
+                  {alertEntries.map((alert: any, index: number) => (
+                    <div key={index} className="flex gap-4 pb-4 border-b border-border-subtle last:border-0">
+                      <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <p className="font-medium text-text-primary">{alert.type || alert.alertType}</p>
+                        <p className="text-sm text-text-secondary mt-1">
+                          {alert.message || `Cuota ${alert.installmentNumber} con saldo ${formatCurrency(alert.outstandingAmount)}`}
+                        </p>
+                        <p className="text-xs text-text-secondary mt-2">{formatDate(alert.createdAt, true)}</p>
                       </div>
-                      {paymentId && (
-                        <button
-                          onClick={() => handleDownloadVoucher(paymentId)}
-                          className="p-2 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-                          title="Descargar Comprobante"
-                        >
-                          <FileText size={18} />
-                        </button>
-                      )}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-text-secondary">No hay historial disponible.</p>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <CheckCircle className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">No hay alertas activas para este crédito.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: PROMISES */}
+          {activeTab === 'promises' && (
+            <div className="animate-in fade-in duration-300">
+              {promiseEntries.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {promiseEntries.map((promise: any, index: number) => {
+                    const isKept = promise.status === 'kept';
+                    const isBroken = promise.status === 'broken';
+                    const isPending = promise.status === 'pending';
+                    
+                    return (
+                      <div key={index} className="p-5 border border-border-subtle rounded-xl bg-bg-surface">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="text-sm text-text-secondary mb-1">Monto Prometido</p>
+                            <p className="text-xl font-medium text-text-primary">{formatCurrency(promise.amount)}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            isKept ? 'bg-emerald-100 text-emerald-700' :
+                            isBroken ? 'bg-red-100 text-red-700' :
+                            isPending ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {isKept ? 'Cumplida' : isBroken ? 'Incumplida' : isPending ? 'Pendiente' : 'Cancelada'}
+                          </span>
+                        </div>
+                        
+                        <p className="text-sm text-text-secondary flex items-center gap-2 mb-4">
+                          <Calendar size={16} />
+                          <span>Para el {formatDate(promiseDate(promise))}</span>
+                        </p>
+
+                        {promise.notes && (
+                          <div className="text-sm text-text-secondary bg-bg-base p-3 rounded-lg mb-4">
+                            {promise.notes}
+                          </div>
+                        )}
+
+                        {promise.statusHistory && promise.statusHistory.length > 0 && (
+                          <details className="group">
+                            <summary className="text-sm text-brand-primary cursor-pointer hover:underline list-none flex items-center gap-1">
+                              <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> Historial
+                            </summary>
+                            <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
+                              {promise.statusHistory.slice().reverse().map((entry: any, hi: number) => (
+                                <div key={hi} className="text-sm">
+                                  <span className="text-text-primary">{
+                                    entry.status === 'kept' ? 'Cumplida' :
+                                    entry.status === 'broken' ? 'Incumplida' :
+                                    entry.status === 'cancelled' ? 'Cancelada' :
+                                    entry.status === 'pending' ? 'Pendiente' : entry.status
+                                  }</span>
+                                  <span className="text-text-secondary ml-2">{formatDate(entry.changedAt, true)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Clock className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">No hay compromisos de pago registrados.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: PAYOFF */}
+          {activeTab === 'payoff' && (
+            <div className="animate-in fade-in duration-300">
+              {payoffQuote ? (
+                <div className="max-w-md border border-border-subtle rounded-xl p-6 bg-bg-surface">
+                  <h3 className="text-lg font-medium text-text-primary mb-1">Cotización de Liquidación</h3>
+                  <p className="text-sm text-text-secondary mb-6">Válida al {formatDate(payoffQuote.asOfDate)}</p>
+                    
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-secondary">Capital restante:</span>
+                      <span className="text-text-primary">{formatCurrency(payoffQuote.outstandingPrincipal ?? payoffQuote.principalBalance)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-secondary">Intereses a la fecha:</span>
+                      <span className="text-text-primary">{formatCurrency(payoffQuote.accruedInterest ?? 0)}</span>
+                    </div>
+                    {Number(payoffQuote.lateFees) > 0 && (
+                      <div className="flex justify-between text-sm text-amber-600">
+                        <span>Cargos por mora:</span>
+                        <span>{formatCurrency(payoffQuote.lateFees)}</span>
+                      </div>
+                    )}
+                    
+                    <div className="pt-4 border-t border-border-subtle flex justify-between items-end">
+                      <span className="font-medium text-text-primary">Total a Pagar</span>
+                      <span className="text-2xl font-bold text-brand-primary">{formatCurrency(payoffQuote.total ?? payoffQuote.totalPayoffAmount)}</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handlePayoff}
+                    disabled={user?.role !== 'customer'}
+                    className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                      user?.role === 'customer' 
+                        ? 'bg-text-primary text-bg-base hover:bg-text-secondary' 
+                        : 'bg-bg-base border border-border-subtle text-text-secondary cursor-not-allowed'
+                    }`}
+                  >
+                    {user?.role === 'customer' ? 'Confirmar Liquidación' : 'Acción reservada para clientes'}
+                  </button>
+                </div>
+              ) : (
+                 <div className="text-center py-12">
+                  <Info className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">No se pudo generar la cotización de liquidación.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: HISTORY */}
+          {activeTab === 'history' && (
+            <div className="animate-in fade-in duration-300 max-w-3xl">
+              {isLoadingHistory ? (
+                <p className="text-text-secondary">Cargando historial...</p>
+              ) : historyEntries.length > 0 ? (
+                <div className="space-y-6">
+                  {historyEntries.map((event: any, index: number) => {
+                    const paymentId = extractPaymentId(event.id);
+                    const isPayment = event.type === 'payment';
+                    return (
+                      <div key={event.id || index} className="flex gap-4">
+                        <div className={`mt-1 p-2 rounded-full h-fit ${isPayment ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {isPayment ? <DollarSign size={16} /> : <CreditCard size={16} />}
+                        </div>
+                        <div className="flex-1 pb-6 border-b border-border-subtle last:border-0">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-text-primary">{event.action}</p>
+                              <p className="text-sm text-text-secondary mt-1">{event.description}</p>
+                              <p className="text-xs text-text-secondary mt-2 flex items-center gap-1">
+                                <Clock size={12} /> {formatDate(event.date, true)}
+                              </p>
+                            </div>
+                            {paymentId && (
+                              <button
+                                onClick={() => handleDownloadVoucher(paymentId)}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors border border-border-subtle"
+                              >
+                                <FileText size={16} /> Recibo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Activity className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">Aún no hay transacciones registradas.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* --- MODALS --- */}
+      {/* ... keeping modals logic as is, but ensuring their classes are correct */}
+      
+      {/* Modal: Change Status */}
       {showStatusModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-2xl w-full max-w-sm p-6 border border-border-subtle">
-            <h3 className="text-lg font-bold mb-4">Cambiar Estado</h3>
-            <select 
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 mb-4"
-            >
-              <option value="">Seleccione un estado...</option>
-              <option value="active">Activo</option>
-              <option value="approved">Aprobado</option>
-              <option value="completed">Completado</option>
-              <option value="defaulted">En Mora (Defaulted)</option>
-              <option value="rejected">Rechazado</option>
-            </select>
-            <div className="flex gap-3">
-              <button onClick={() => setShowStatusModal(false)} className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg">Cancelar</button>
-              <button onClick={handleUpdateStatus} className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90">Guardar</button>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Cambiar Estado</h3>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm text-text-secondary mb-2">Nuevo Estado</label>
+              <select 
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
+              >
+                <option value="">Seleccione un estado...</option>
+                <option value="active">Activo</option>
+                <option value="approved">Aprobado</option>
+                <option value="completed">Completado</option>
+                <option value="defaulted">En Mora (Defaulted)</option>
+                <option value="rejected">Rechazado</option>
+              </select>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={() => setShowStatusModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleUpdateStatus} disabled={!newStatus} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Record Payment */}
+      {showRecordPaymentModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Registrar Pago</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Monto a pagar</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
+                    placeholder="0.00" min="0" step="0.01"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Método</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
+                  >
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method.value} value={method.value}>{method.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={() => setShowRecordPaymentModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleRecordPayment} disabled={!paymentAmount || parseFloat(paymentAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Annul Installment */}
+      {showAnnulModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+             <div className="p-6 border-b border-border-subtle bg-red-50 dark:bg-red-500/10">
+              <h3 className="text-lg font-medium text-red-600 dark:text-red-400">Anular Cuota #{annulInstallmentNumber}</h3>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-text-secondary mb-4">Esta acción marcará la cuota como anulada y recalculará el calendario. No se puede deshacer.</p>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
+                <textarea
+                  value={annulReason}
+                  onChange={(e) => setAnnulReason(e.target.value)}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 resize-none"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={() => { setShowAnnulModal(false); setAnnulInstallmentNumber(null); }} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleAnnulInstallment} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Confirmar Anulación</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Capital Contribution */}
+      {showCapitalModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Aporte de Capital</h3>
+            </div>
+            <div className="p-6 space-y-4">
+               <div>
+                <label className="block text-sm text-text-secondary mb-1">Monto de aporte</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
+                  <input
+                    type="number"
+                    value={capitalAmount}
+                    onChange={(e) => setCapitalAmount(e.target.value)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
+                    placeholder="0.00" min="0" step="0.01"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Método</label>
+                  <select
+                    value={capitalMethod}
+                    onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
+                  >
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method.value} value={method.value}>{method.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Estrategia</label>
+                  <select
+                    value={capitalStrategy}
+                    onChange={(e) => setCapitalStrategy(e.target.value as CapitalStrategy)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
+                  >
+                    {CAPITAL_STRATEGIES.map((strategy) => (
+                      <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={() => setShowCapitalModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleRecordCapital} disabled={!capitalAmount || parseFloat(capitalAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Aporte</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Late Fee Rate */}
+      {showLateFeeModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
+             <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Tasa de Mora Anual</h3>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={lateFeeRate}
+                  onChange={(e) => setLateFeeRate(e.target.value)}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg pl-3 pr-8 py-2 outline-none focus:border-text-primary"
+                  placeholder="0.00" min="0" max="100" step="0.01"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={() => setShowLateFeeModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleUpdateLateFeeRate} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar</button>
             </div>
           </div>
         </div>

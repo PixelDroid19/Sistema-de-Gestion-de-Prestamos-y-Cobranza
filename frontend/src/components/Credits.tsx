@@ -245,9 +245,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const pagination = loansData?.data?.pagination || loansData?.meta;
 
   const getCreditLabel = (credit: any) => {
-    if (credit?.Customer?.name) return credit.Customer.name;
-    if (credit?.customerName) return credit.customerName;
-    return credit?.customerId ?? 'Sin cliente';
+    let name = credit?.Customer?.name || credit?.customerName || '';
+    if (name) {
+      name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+    }
+    return name || (credit?.customerId ? `Cliente #${credit.customerId}` : 'Sin cliente');
   };
 
   const getLoanStatusLabel = (status: string) => {
