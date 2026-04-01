@@ -31,6 +31,10 @@ const validateEnvironment = (env = process.env) => {
   if (isUnsafeSecret && isProductionLike) {
     throw new Error('JWT_SECRET uses an insecure default value and must be replaced in production');
   }
+
+  if (isProductionLike && jwtSecret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters in production');
+  }
 };
 
 /**

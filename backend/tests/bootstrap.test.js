@@ -42,6 +42,18 @@ test('validateEnvironment allows insecure default JWT secret outside production'
   }));
 });
 
+test('validateEnvironment rejects too-short JWT secrets in production', () => {
+  assert.throws(() => validateEnvironment({
+    DB_NAME: 'lendflow',
+    DB_USER: 'postgres',
+    DB_PASSWORD: 'secret',
+    DB_HOST: 'localhost',
+    DB_PORT: '5432',
+    JWT_SECRET: 'short-secret',
+    NODE_ENV: 'production',
+  }), /at least 32 characters/i);
+});
+
 test('bootstrap authenticates infrastructure, syncs schema, and returns module registry', async () => {
   const calls = [];
   const modules = [{ name: 'auth', basePath: '/api/auth', router: {} }];
