@@ -3,9 +3,10 @@ import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Cale
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLoans, useLoanStatistics } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
+import { useSessionStore } from '../store/sessionStore';
 import { apiClient } from '../api/client';
 import { SimulationResult } from '../types/simulation';
 import DAGWorkbench from './DAGWorkbench';
@@ -165,12 +166,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics();
 
+  // Query client for refetching
+  const queryClient = useQueryClient();
+
   const handleExportCreditsExcel = async () => {
     try {
       setIsExporting(true);
       const response = await fetch('/api/reports/credits/excel', {
         headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+          Authorization: `Bearer ${useSessionStore.getState().accessToken}`,
         },
       });
       if (!response.ok) {
@@ -502,7 +506,20 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   Limpiar
                 </button>
                 <button
-                  onClick={() => {/* Apply filters - could trigger search */}}
+                  onClick={() => {
+                    // Apply filters - refetch with filter params
+                    const params = new URLSearchParams();
+                    if (filters.status) params.append('status', filters.status);
+                    if (filters.minAmount) params.append('minAmount', filters.minAmount);
+                    if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
+                    if (filters.startDate) params.append('startDate', filters.startDate);
+                    if (filters.endDate) params.append('endDate', filters.endDate);
+                    if (searchQuery) params.append('search', searchQuery);
+                    // Reset to page 1 and trigger refetch by updating page
+                    setPage(1);
+                    // Trigger refetch by invalidating the query
+                    queryClient.invalidateQueries({ queryKey: ['loans'] });
+                  }}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                 >
                   Aplicar

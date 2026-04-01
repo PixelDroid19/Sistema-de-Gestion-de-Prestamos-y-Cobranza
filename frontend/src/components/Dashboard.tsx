@@ -193,7 +193,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip formatter={(value) => value != null ? formatCurrency(Number(value)) : ''} />
                   <Bar dataKey="recovered" fill="#10b981" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="value" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>

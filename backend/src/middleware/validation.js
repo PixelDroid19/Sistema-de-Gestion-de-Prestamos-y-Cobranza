@@ -726,8 +726,8 @@ const notificationValidation = {
       }
     }
 
-    if (channel === 'mobile' && !deviceToken) {
-      errors.push({ field: 'deviceToken', message: 'Mobile subscriptions require a deviceToken' });
+    if (channel === 'mobile' && !deviceToken && !endpoint) {
+      errors.push({ field: 'deviceToken', message: 'Mobile subscriptions require a deviceToken or endpoint' });
     }
 
     if (errors.length > 0) {
