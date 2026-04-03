@@ -24,6 +24,7 @@ import Settings from './components/Settings';
 import Profile from './components/Profile';
 import Login from './components/Login';
 import AuditLogPage from './components/AuditLogPage';
+import NewAssociate from './components/NewAssociate';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function MainLayout() {
@@ -53,7 +54,14 @@ function MainLayout() {
         <main className="flex-1 overflow-y-auto p-6 bg-bg-base">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route
+              path="/dashboard"
+              element={(
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Dashboard />
+                </ProtectedRoute>
+              )}
+            />
             <Route path="/customers" element={<Customers setCurrentView={setCurrentView} />} />
             <Route path="/customers/:id" element={<CustomerDetails />} />
             <Route path="/customers-new" element={<NewCustomer onBack={() => setCurrentView('customers')} />} />
@@ -62,7 +70,9 @@ function MainLayout() {
             <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
             <Route path="/credits/:id" element={<CreditDetails />} />
             <Route path="/associates" element={<Associates setCurrentView={setCurrentView} />} />
+            <Route path="/associates-new" element={<NewAssociate onBack={() => setCurrentView('associates')} />} />
             <Route path="/associates/:id" element={<AssociateDetails />} />
+            
             <Route path="/payouts" element={<Payouts />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/reports" element={<Reports />} />

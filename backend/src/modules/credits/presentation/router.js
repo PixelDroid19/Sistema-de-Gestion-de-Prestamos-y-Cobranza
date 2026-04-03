@@ -2,6 +2,7 @@ const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { createPaymentRouter } = require('./paymentRouter');
 const { attachPagination } = require('../../../middleware/validation');
+const { sendBufferDownload, sendPathDownload } = require('../../shared/http');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
@@ -224,9 +225,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       promiseId: req.params.promiseId,
     });
 
-    res.setHeader('Content-Type', download.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${download.fileName}"`);
-    res.send(download.buffer);
+    sendBufferDownload(res, download);
   }));
 
   router.post('/:id/attachments', authMiddleware(['admin']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
@@ -251,7 +250,10 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       attachmentId: req.params.attachmentId,
     });
 
-    res.download(download.absolutePath, download.attachment.originalName);
+    sendPathDownload(res, {
+      absolutePath: download.absolutePath,
+      fileName: download.attachment.originalName,
+    });
   }));
 
   router.delete('/:id', authMiddleware(['customer', 'admin']), asyncHandler(async (req, res) => {
@@ -279,6 +281,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.post('/:loanId/installments/:installmentNumber/annul', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await paymentApplicationService.annulInstallment({
       loanId: req.params.loanId,
+      installmentNumber: req.params.installmentNumber,
       actor: req.user,
       reason: req.body.reason,
     });

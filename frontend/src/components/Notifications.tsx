@@ -1,18 +1,7 @@
 import React from 'react';
 import { Bell, CheckCircle2, Trash2 } from 'lucide-react';
 import { useNotifications } from '../services/notificationService';
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-
-  return 'Ocurrio un error inesperado.';
-};
+import { getSafeErrorText } from '../services/safeErrorMessages';
 
 const formatNotificationDate = (value: unknown) => {
   if (!value) {
@@ -70,7 +59,9 @@ export default function Notifications() {
         {isLoading ? (
           <div className="p-4 text-center text-text-secondary">Cargando notificaciones...</div>
         ) : isError ? (
-          <div className="p-4 text-center text-red-500">Error: {getErrorMessage(error)}</div>
+          <div className="p-4 text-center text-red-500">
+            {getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })}
+          </div>
         ) : notifications.length === 0 ? (
           <div className="p-4 text-center text-text-secondary">No tienes notificaciones.</div>
         ) : (

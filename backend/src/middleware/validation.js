@@ -126,6 +126,53 @@ const pushParticipationPercentageError = (errors, field = 'participationPercenta
   });
 };
 
+const pushNameValidation = ({ errors, name, required }) => {
+  if (required && (!name || String(name).trim().length < 2)) {
+    errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+    return;
+  }
+
+  if (!required && name !== undefined && String(name).trim().length < 2) {
+    errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+  }
+};
+
+const pushEmailValidation = ({ errors, email, required }) => {
+  if (required && !email) {
+    errors.push({ field: 'email', message: 'Email is required' });
+    return;
+  }
+
+  if (email !== undefined && email !== null && email !== '' && !validateEmail(email)) {
+    errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+  }
+};
+
+const pushPhoneValidation = ({ errors, phone, required }) => {
+  if (required && (!phone || !validatePhone(phone))) {
+    errors.push({ field: 'phone', message: 'Valid phone number is required' });
+    return;
+  }
+
+  if (!required && phone !== undefined && !validatePhone(phone)) {
+    errors.push({ field: 'phone', message: 'Valid phone number is required' });
+  }
+};
+
+const pushActiveInactiveStatusValidation = ({ errors, status }) => {
+  if (status !== undefined && !['active', 'inactive'].includes(status)) {
+    errors.push({ field: 'status', message: 'Status must be active or inactive' });
+  }
+};
+
+const pushParticipationValidation = ({ req, errors, participationPercentage }) => {
+  if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
+    errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
+  } else if (!validateParticipationPercentage(participationPercentage)) {
+    pushParticipationPercentageError(errors);
+  }
+};
+
 const validateOptionalDateInput = (value) => {
   if (value === undefined || value === null || value === '') {
     return true;
@@ -470,19 +517,9 @@ const customerValidation = {
     const { name, email, phone } = req.body;
     const errors = [];
 
-    if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (!phone || !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
-    }
+    pushNameValidation({ errors, name, required: true });
+    pushEmailValidation({ errors, email, required: true });
+    pushPhoneValidation({ errors, phone, required: true });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -507,21 +544,10 @@ const customerValidation = {
     } = req.body;
     const errors = [];
 
-    if (name !== undefined && String(name).trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (email !== undefined && !validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (phone !== undefined && !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
-    }
-
-    if (status !== undefined && !['active', 'inactive'].includes(status)) {
-      errors.push({ field: 'status', message: 'Status must be active or inactive' });
-    }
+    pushNameValidation({ errors, name, required: false });
+    pushEmailValidation({ errors, email, required: false });
+    pushPhoneValidation({ errors, phone, required: false });
+    pushActiveInactiveStatusValidation({ errors, status });
 
     if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
       const parsedBirthDate = new Date(`${String(birthDate).trim()}T00:00:00.000Z`);
@@ -570,29 +596,11 @@ const associateValidation = {
     } = req.body;
     const errors = [];
 
-    if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (!phone || !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
-    }
-
-    if (status && !['active', 'inactive'].includes(status)) {
-      errors.push({ field: 'status', message: 'Status must be active or inactive' });
-    }
-
-    if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
-      errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
-    } else if (!validateParticipationPercentage(participationPercentage)) {
-      pushParticipationPercentageError(errors);
-    }
+    pushNameValidation({ errors, name, required: true });
+    pushEmailValidation({ errors, email, required: true });
+    pushPhoneValidation({ errors, phone, required: true });
+    pushActiveInactiveStatusValidation({ errors, status });
+    pushParticipationValidation({ req, errors, participationPercentage });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -612,27 +620,11 @@ const associateValidation = {
     } = req.body;
     const errors = [];
 
-    if (name !== undefined && name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (email !== undefined && !validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (phone !== undefined && !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
-    }
-
-    if (status !== undefined && !['active', 'inactive'].includes(status)) {
-      errors.push({ field: 'status', message: 'Status must be active or inactive' });
-    }
-
-    if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
-      errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
-    } else if (!validateParticipationPercentage(participationPercentage)) {
-      pushParticipationPercentageError(errors);
-    }
+    pushNameValidation({ errors, name, required: false });
+    pushEmailValidation({ errors, email, required: false });
+    pushPhoneValidation({ errors, phone, required: false });
+    pushActiveInactiveStatusValidation({ errors, status });
+    pushParticipationValidation({ req, errors, participationPercentage });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));

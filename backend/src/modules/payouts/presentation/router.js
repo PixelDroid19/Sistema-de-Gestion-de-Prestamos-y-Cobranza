@@ -1,6 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { attachPagination } = require('../../../middleware/validation');
+const { sendBufferDownload, sendPathDownload } = require('../../shared/http');
 
 const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();
@@ -63,6 +64,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     const result = await useCases.annulInstallment({
       actor: req.user,
       loanId: req.params.loanId,
+      installmentNumber: req.body?.installmentNumber,
       reason: req.body?.reason,
     });
     res.status(201).json({
@@ -132,7 +134,10 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       paymentId: req.params.paymentId,
       documentId: req.params.documentId,
     });
-    res.download(download.absolutePath, download.document.originalName);
+    sendPathDownload(res, {
+      absolutePath: download.absolutePath,
+      fileName: download.document.originalName,
+    });
   }));
 
   // TASK-009: PDF voucher download endpoint
@@ -141,9 +146,11 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       actor: req.user,
       paymentId: req.params.paymentId,
     });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${voucher.filename}"`);
-    res.send(voucher.buffer);
+    sendBufferDownload(res, {
+      contentType: 'application/pdf',
+      fileName: voucher.filename,
+      buffer: voucher.buffer,
+    });
   }));
 
   return router;

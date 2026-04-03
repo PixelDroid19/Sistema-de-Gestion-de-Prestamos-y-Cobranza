@@ -47,6 +47,69 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: { catalogs } });
   }));
 
+  // TNA Rates
+  router.get('/tna-rates', asyncHandler(async (_req, res) => {
+    const tnaRates = await useCases.listTnaRates();
+    res.json({ success: true, data: { tnaRates } });
+  }));
+
+  router.post('/tna-rates', asyncHandler(async (req, res) => {
+    const tnaRate = await useCases.createTnaRate(req.body);
+    res.status(201).json({ success: true, message: 'TNA rate created successfully', data: { tnaRate } });
+  }));
+
+  router.put('/tna-rates/:id', asyncHandler(async (req, res) => {
+    const tnaRate = await useCases.updateTnaRate(req.params.id, req.body);
+    res.json({ success: true, message: 'TNA rate updated successfully', data: { tnaRate } });
+  }));
+
+  router.delete('/tna-rates/:id', asyncHandler(async (req, res) => {
+    const result = await useCases.deleteTnaRate(req.params.id);
+    res.json({ success: true, message: 'TNA rate deleted successfully', data: result });
+  }));
+
+  // Late Fee Policies
+  router.get('/late-fee-policies', asyncHandler(async (_req, res) => {
+    const policies = await useCases.listLateFeePolicies();
+    res.json({ success: true, data: { lateFeePolicies: policies } });
+  }));
+
+  router.post('/late-fee-policies', asyncHandler(async (req, res) => {
+    const policy = await useCases.createLateFeePolicy(req.body);
+    res.status(201).json({ success: true, message: 'Late fee policy created successfully', data: { lateFeePolicy: policy } });
+  }));
+
+  router.put('/late-fee-policies/:id', asyncHandler(async (req, res) => {
+    const policy = await useCases.updateLateFeePolicy(req.params.id, req.body);
+    res.json({ success: true, message: 'Late fee policy updated successfully', data: { lateFeePolicy: policy } });
+  }));
+
+  router.delete('/late-fee-policies/:id', asyncHandler(async (req, res) => {
+    const result = await useCases.deleteLateFeePolicy(req.params.id);
+    res.json({ success: true, message: 'Late fee policy deleted successfully', data: result });
+  }));
+
+  // Interest Nodes
+  router.get('/interest-nodes', asyncHandler(async (_req, res) => {
+    const nodes = await useCases.listInterestNodes();
+    res.json({ success: true, data: { interestNodes: nodes } });
+  }));
+
+  router.post('/interest-nodes', asyncHandler(async (req, res) => {
+    const node = await useCases.createInterestNode(req.body);
+    res.status(201).json({ success: true, message: 'Interest node created successfully', data: { interestNode: node } });
+  }));
+
+  router.put('/interest-nodes/:id', asyncHandler(async (req, res) => {
+    const node = await useCases.updateInterestNode(req.params.id, req.body);
+    res.json({ success: true, message: 'Interest node updated successfully', data: { interestNode: node } });
+  }));
+
+  router.delete('/interest-nodes/:id', asyncHandler(async (req, res) => {
+    const result = await useCases.deleteInterestNode(req.params.id);
+    res.json({ success: true, message: 'Interest node deleted successfully', data: result });
+  }));
+
   return router;
 };
 

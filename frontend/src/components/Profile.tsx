@@ -4,18 +4,6 @@ import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
 
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-
-  return 'Ocurrio un error inesperado.';
-};
-
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
   const { user } = useSessionStore();
@@ -49,7 +37,8 @@ export default function Profile() {
       await updateProfile.mutateAsync(formData);
       toast.success({ description: 'Perfil actualizado correctamente' });
     } catch (error) {
-      toast.apiError(error, 'Error al actualizar el perfil');
+      console.error('[profile] updateProfile failed', error);
+      toast.apiErrorSafe(error, { domain: 'auth', action: 'profile.update' });
     }
   };
 
@@ -67,7 +56,8 @@ export default function Profile() {
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       toast.success({ description: 'Contraseña actualizada correctamente' });
     } catch (error) {
-      toast.apiError(error, 'Error al cambiar la contraseña');
+      console.error('[profile] changePassword failed', error);
+      toast.apiErrorSafe(error, { domain: 'auth', action: 'password.change' });
     }
   };
 

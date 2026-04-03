@@ -1,14 +1,5 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
 const { calculateTrend, calculateMovingAverage, calculateChangePercent } = require('./statistics');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access financial reports');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
-const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+const { ensureAdmin, formatMoney, mapMonthlySeries } = require('../reportHelpers');
 
 /**
  * Create use case: Get Performance Analysis
@@ -16,26 +7,17 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
  * GET /api/reports/performance-analysis?year={year}
  */
 const createGetPerformanceAnalysis = ({ reportRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can access financial reports');
 
   const targetYear = year || new Date().getFullYear();
   const metrics = await reportRepository.getPerformanceMetrics(targetYear);
   const monthlyData = await reportRepository.getMonthlyEarnings(targetYear);
 
-  // Build monthly earnings map
-  const earningsByMonth = {};
-  monthlyData.forEach((m) => {
-    if (m.month) {
-      earningsByMonth[m.month] = m.totalEarnings;
-    }
-  });
-
-  // Calculate monthly metrics with trends
-  const monthlyPerformance = MONTHS.map((m) => {
-    const monthKey = `${targetYear}-${m}`;
-    const totalEarnings = earningsByMonth[monthKey] || 0;
-    return { month: monthKey, totalEarnings };
-  });
+  const monthlyPerformance = mapMonthlySeries({
+    year: targetYear,
+    rows: monthlyData,
+    valueKey: 'totalEarnings',
+  }).map((entry) => ({ month: entry.month, totalEarnings: entry.value }));
 
   const earningsValues = monthlyPerformance.map((m) => m.totalEarnings);
   const movingAverages = calculateMovingAverage(earningsValues, 3);

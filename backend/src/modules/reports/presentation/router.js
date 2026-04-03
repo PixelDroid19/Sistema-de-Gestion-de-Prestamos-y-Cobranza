@@ -2,6 +2,7 @@ const express = require('express');
 const XLSX = require('xlsx');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { attachPagination } = require('../../../middleware/validation');
+const { sendBufferDownload } = require('../../shared/http');
 
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
@@ -29,9 +30,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/customer-history/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerHistory({ actor: req.user, customerId: req.params.customerId, format });
-    res.setHeader('Content-Type', exportFile.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
-    res.send(exportFile.buffer);
+    sendBufferDownload(res, exportFile);
   }));
 
   router.get('/customer-credit-profile/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -41,9 +40,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/customer-credit-profile/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId, format });
-    res.setHeader('Content-Type', exportFile.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
-    res.send(exportFile.buffer);
+    sendBufferDownload(res, exportFile);
   }));
 
   router.get('/profitability/customers', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
@@ -65,9 +62,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/recovery/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'csv').toLowerCase();
     const exportFile = await useCases.exportRecoveryReport({ actor: req.user, format });
-    res.setHeader('Content-Type', exportFile.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
-    res.send(exportFile.buffer);
+    sendBufferDownload(res, exportFile);
   }));
 
   router.get('/credit-history/loan/:loanId', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
@@ -78,9 +73,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/credit-history/loan/:loanId/export', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId, format });
-    res.setHeader('Content-Type', exportFile.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
-    res.send(exportFile.buffer);
+    sendBufferDownload(res, exportFile);
   }));
 
   router.get('/associates/profitability/:associateId', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
@@ -100,9 +93,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       associateId: req.params.associateId,
       format,
     });
-    res.setHeader('Content-Type', exportFile.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
-    res.send(exportFile.buffer);
+    sendBufferDownload(res, exportFile);
   }));
 
   // === Financial Analytics Routes ===
@@ -154,9 +145,11 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Credits');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="credits-export.xlsx"');
-    res.send(buffer);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: 'credits-export.xlsx',
+      buffer,
+    });
   }));
 
   router.get('/credits/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -169,9 +162,35 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Associates');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="associates-export.xlsx"');
-    res.send(buffer);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: 'associates-export.xlsx',
+      buffer,
+    });
+  }));
+
+  // === Enhanced Reports: Payouts and Payment Schedule ===
+
+  // GET /reports/payouts - List all payouts across credits (admin only)
+  router.get('/payouts', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    res.json(await useCases.getPayoutsReport({
+      actor: req.user,
+      pagination: req.pagination,
+      filters: {
+        fromDate: req.query.fromDate,
+        toDate: req.query.toDate,
+        status: req.query.status,
+        paymentType: req.query.paymentType,
+      },
+    }));
+  }));
+
+  // GET /reports/payment-schedule/:loanId - Get amortization schedule for a specific loan
+  router.get('/payment-schedule/:loanId', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
+    res.json(await useCases.getPaymentSchedule({
+      actor: req.user,
+      loanId: parseInt(req.params.loanId, 10),
+    }));
   }));
 
   return router;

@@ -1,14 +1,5 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
 const { calculateTrend, calculateMovingAverage, calculateChangePercent } = require('./statistics');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access financial reports');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
-const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+const { ensureAdmin, formatMoney, mapMonthlySeries } = require('../reportHelpers');
 
 /**
  * Create use case: Get Comprehensive Analytics
@@ -16,32 +7,28 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
  * GET /api/reports/comprehensive-analytics?year={year}
  */
 const createGetComprehensiveAnalytics = ({ reportRepository, paymentRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can access financial reports');
 
   const targetYear = year || new Date().getFullYear();
   const metrics = await reportRepository.getPerformanceMetrics(targetYear);
   const monthlyEarnings = await reportRepository.getMonthlyEarnings(targetYear);
   const monthlyInterest = await paymentRepository.getMonthlyInterest(targetYear);
 
-  // Build monthly maps
-  const earningsByMonth = {};
-  monthlyEarnings.forEach((m) => {
-    if (m.month) earningsByMonth[m.month] = m.totalEarnings;
-  });
-
-  const interestByMonth = {};
-  monthlyInterest.forEach((m) => {
-    if (m.month) interestByMonth[m.month] = m.interest;
-  });
+  const earningsSeries = mapMonthlySeries({ year: targetYear, rows: monthlyEarnings, valueKey: 'totalEarnings' });
+  const interestSeries = mapMonthlySeries({ year: targetYear, rows: monthlyInterest, valueKey: 'interest' });
+  const interestByMonth = interestSeries.reduce((map, entry) => {
+    map[entry.month] = entry.value;
+    return map;
+  }, {});
 
   // Calculate YoY change
   const prevYearMetrics = await reportRepository.getPerformanceMetrics(targetYear - 1);
 
-  const months = MONTHS.map((m) => {
-    const monthKey = `${targetYear}-${m}`;
+  const months = earningsSeries.map((entry) => {
+    const monthKey = entry.month;
     return {
       month: monthKey,
-      totalEarnings: earningsByMonth[monthKey] || 0,
+      totalEarnings: entry.value,
       totalInterest: interestByMonth[monthKey] || 0,
     };
   });

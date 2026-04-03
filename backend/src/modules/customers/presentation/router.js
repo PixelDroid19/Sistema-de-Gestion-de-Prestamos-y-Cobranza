@@ -1,6 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { attachPagination } = require('../../../middleware/validation');
+const { sendPathDownload } = require('../../shared/http');
 
 const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentUpload, useCases }) => {
   const router = express.Router();
@@ -67,7 +68,10 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
       customerId: req.params.id,
       documentId: req.params.documentId,
     });
-    res.download(download.absolutePath, download.document.originalName);
+    sendPathDownload(res, {
+      absolutePath: download.absolutePath,
+      fileName: download.document.originalName,
+    });
   }));
 
   router.delete('/:id/documents/:documentId', authMiddleware(['admin']), asyncHandler(async (req, res) => {

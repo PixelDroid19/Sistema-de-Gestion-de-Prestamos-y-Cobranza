@@ -29,6 +29,8 @@ const {
   createExportCreditsExcel,
   createGetCreditsSummary,
   createExportAssociatesExcel,
+  createGetPayoutsReport,
+  createGetPaymentSchedule,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { associateRepository } = require('../associates/infrastructure/repositories');
@@ -72,6 +74,9 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
     getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
     exportAssociatesExcel: createExportAssociatesExcel({ associateRepository, reportRepository }),
+    // Enhanced reports - payouts and payment schedule
+    getPayoutsReport: createGetPayoutsReport({ reportRepository, paymentRepository }),
+    getPaymentSchedule: createGetPaymentSchedule({ loanAccessPolicy }),
   };
 
   return createModule({

@@ -11,13 +11,25 @@ import { useUsers } from '../services/userService';
 import { useSessionStore } from '../store/sessionStore';
 import { downloadVoucher } from '../services/paymentService';
 import { toast } from '../lib/toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { useOperationalActions } from './hooks/useOperationalActions';
+import { useOperationalModalState } from './hooks/useOperationalModalState';
+import { invalidateAfterPayment, invalidateAfterPromiseOrFollowUp } from '../services/operationalInvalidation';
+import { tTerm } from '../i18n/terminology';
+import { useSafeMutationAction } from './hooks/useSafeMutationAction';
+import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constants/loanStates';
+import { getPaymentTypeLabel } from '../constants/paymentTypes';
+import { confirmDanger } from '../lib/confirmModal';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const loanId = Number(id);
   const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payoff' | 'history'>('calendar');
   const { user } = useSessionStore();
+  const { executeGuardedAction } = useOperationalActions(queryClient);
+  const operationalModal = useOperationalModalState();
 
   const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus } = useLoans();
   const { data: loanData, isLoading: isLoadingLoanRecord } = useLoanById(loanId);
@@ -28,9 +40,9 @@ export default function CreditDetails() {
       : [];
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
 
-  const { calendar, calendarSnapshot, alerts, promises, payoffQuote, isLoading: isLoadingDetails, executePayoff, recordPayment, annulInstallment, updatePaymentMethod, recordCapitalPayment, updateLateFeeRate } = useLoanDetails(loanId);
+  const { calendar, calendarSnapshot, alerts, promises, payoffQuote, isLoading: isLoadingDetails, createPromise, createFollowUp, executePayoff, recordPayment, annulInstallment, updatePaymentMethod, recordCapitalPayment, updateLateFeeRate } = useLoanDetails(loanId);
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
-  const { data: usersData } = useUsers({ limit: 100 });
+  const { data: usersData } = useUsers({ pageSize: 100 });
   const users = Array.isArray(usersData?.data?.users)
     ? usersData.data.users
     : Array.isArray(usersData?.data)
@@ -84,14 +96,14 @@ export default function CreditDetails() {
     return [
       ...payments.map((payment: any) => ({
         id: `payment-${payment.id ?? payment.createdAt ?? Math.random()}`,
-        action: `Pago ${payment.paymentType || 'registrado'}`,
+        action: `Pago ${getPaymentTypeLabel(payment.paymentType)}`,
         description: `Monto: ${formatCurrency(payment.amount)}`,
         date: payment.paymentDate || payment.createdAt,
         type: 'payment',
       })),
       ...payoffHistory.map((event: any) => ({
         id: `payoff-${event.id ?? event.createdAt ?? Math.random()}`,
-        action: 'Liquidación ejecutada',
+        action: 'Pago total aplicado',
         description: `Monto: ${formatCurrency(event.amount ?? event.quotedTotal)}`,
         date: event.paymentDate || event.createdAt,
         type: 'payoff',
@@ -112,10 +124,14 @@ export default function CreditDetails() {
   const [newStatus, setNewStatus] = useState('');
 
   // Modals state
-  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
+  const [selectedInstallmentNumber, setSelectedInstallmentNumber] = useState<number | null>(null);
+  const [promiseAmount, setPromiseAmount] = useState('');
+  const [promiseDateInput, setPromiseDateInput] = useState(new Date().toISOString().slice(0, 10));
+  const [promiseNotes, setPromiseNotes] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   const [showAnnulModal, setShowAnnulModal] = useState(false);
   const [annulInstallmentNumber, setAnnulInstallmentNumber] = useState<number | null>(null);
@@ -133,6 +149,18 @@ export default function CreditDetails() {
 
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
+
+  const { run: runPayoff } = useSafeMutationAction<{ asOfDate: string; quotedTotal: number }>({
+    action: async (payload) => executePayoff.mutateAsync(payload),
+    errorContext: { domain: 'credits', action: 'generic' },
+    successMessage: 'Crédito liquidado exitosamente',
+  });
+
+  const { run: runDownloadVoucher } = useSafeMutationAction<number>({
+    action: async (paymentId) => downloadVoucher(paymentId),
+    errorContext: { domain: 'payments', action: 'generic' },
+    successMessage: 'Comprobante descargado',
+  });
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
@@ -171,37 +199,36 @@ export default function CreditDetails() {
   const handlePayoff = async () => {
     if (!payoffQuote) return;
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
-    if (window.confirm(`¿Confirmar liquidación por ${formatCurrency(quotedTotal)}?`)) {
-      try {
-        await executePayoff.mutateAsync({
-          asOfDate: payoffQuote.asOfDate,
-          quotedTotal,
-        });
-        toast.success({ title: 'Crédito liquidado exitosamente' });
-      } catch (error) {
-        toast.error({ title: 'Error al liquidar crédito' });
-      }
-    }
+    const confirmed = await confirmDanger({
+      title: tTerm('confirm.payoff.title'),
+      message: tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)),
+      confirmLabel: tTerm('confirm.payoff.confirm'),
+    });
+    if (!confirmed) return;
+    await runPayoff({
+      asOfDate: payoffQuote.asOfDate,
+      quotedTotal,
+    });
   };
 
   const handleUpdateStatus = async () => {
     if (!newStatus) return;
-    try {
-      await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus });
-      setShowStatusModal(false);
-      toast.success({ title: 'Estado actualizado correctamente' });
-    } catch (error) {
-      toast.error({ title: 'Error al actualizar estado' });
-    }
+    await executeGuardedAction({
+      action: 'credit.status.update',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      run: async () => {
+        await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+        setShowStatusModal(false);
+      },
+      successMessage: 'Estado actualizado correctamente',
+    });
   };
 
   const handleDownloadVoucher = async (paymentId: number) => {
-    try {
-      await downloadVoucher(paymentId);
-      toast.success({ title: 'Comprobante descargado' });
-    } catch (error) {
-      toast.error({ title: 'Error al descargar comprobante' });
-    }
+    await runDownloadVoucher(paymentId);
   };
 
   const handleRecordPayment = async () => {
@@ -210,14 +237,39 @@ export default function CreditDetails() {
       toast.error({ title: 'Ingrese un monto válido' });
       return;
     }
-    try {
-      await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod });
-      setShowRecordPaymentModal(false);
-      setPaymentAmount('');
-      toast.success({ title: 'Pago registrado exitosamente' });
-    } catch (error: any) {
-      toast.error({ title: 'Error al registrar pago', description: error?.message || 'Intente nuevamente' });
+    const installment = operationalModal.payload?.installment;
+    const installmentNumber = installment?.installmentNumber ?? selectedInstallmentNumber;
+
+    if (!installmentNumber) {
+      toast.error({ title: 'No se pudo resolver la cuota seleccionada. Reintente desde la fila correspondiente.' });
+      return;
     }
+
+    await executeGuardedAction({
+      action: 'installment.pay',
+      context: {
+        role: user?.role,
+        permissions: user?.permissions,
+        loanStatus: loan?.status,
+        installmentStatus: installment?.status,
+      },
+      confirmationMessage: `¿Confirmar pago de cuota #${installmentNumber} por ${formatCurrency(amount)}?`,
+      run: async () => {
+        await recordPayment.mutateAsync({
+          paymentAmount: amount,
+          paymentDate,
+          paymentMethod,
+          installmentNumber,
+        });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPayment(queryClient, { loanId });
+        operationalModal.closeModal();
+        setPaymentAmount('');
+        setSelectedInstallmentNumber(null);
+      },
+      successMessage: 'Pago registrado exitosamente',
+    });
   };
 
   const handleAnnulInstallment = async () => {
@@ -225,27 +277,126 @@ export default function CreditDetails() {
       toast.error({ title: 'Seleccione una cuota para anular' });
       return;
     }
-    try {
-      await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined });
-      setShowAnnulModal(false);
-      setAnnulInstallmentNumber(null);
-      setAnnulReason('');
-      toast.success({ title: 'Cuota anulada exitosamente' });
-    } catch (error: any) {
-      toast.error({ title: 'Error al anular cuota', description: error?.message || 'Intente nuevamente' });
-    }
+    await executeGuardedAction({
+      action: 'installment.annul',
+      context: {
+        role: user?.role,
+        permissions: user?.permissions,
+        loanStatus: loan?.status,
+        installmentStatus: operationalModal.payload?.installment?.status,
+      },
+      run: async () => {
+        await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPayment(queryClient, { loanId });
+        setShowAnnulModal(false);
+        setAnnulInstallmentNumber(null);
+        setAnnulReason('');
+      },
+      successMessage: 'Cuota anulada exitosamente',
+    });
   };
 
   const handleUpdatePaymentMethod = async () => {
     if (!editingPaymentId) return;
-    try {
-      await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
-      setShowEditPaymentMethodModal(false);
-      setEditingPaymentId(null);
-      toast.success({ title: 'Método de pago actualizado' });
-    } catch (error: any) {
-      toast.error({ title: 'Error al actualizar método', description: error?.message || 'Intente nuevamente' });
+    await executeGuardedAction({
+      action: 'installment.editPaymentMethod',
+      context: {
+        role: user?.role,
+        permissions: user?.permissions,
+        loanStatus: loan?.status,
+        installmentStatus: operationalModal.payload?.installment?.status,
+      },
+      run: async () => {
+        await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPayment(queryClient, { loanId });
+        setShowEditPaymentMethodModal(false);
+        operationalModal.closeModal();
+        setEditingPaymentId(null);
+      },
+      successMessage: 'Método de pago actualizado',
+    });
+  };
+
+  const handleCreatePromise = async () => {
+    const amount = parseFloat(promiseAmount);
+    const installment = operationalModal.payload?.installment;
+    const installmentNumber = installment?.installmentNumber;
+
+    if (!installmentNumber) {
+      toast.error({ title: 'No se pudo resolver la cuota para la promesa.' });
+      return;
     }
+
+    if (!amount || amount <= 0) {
+      toast.error({ title: 'Ingrese un monto válido para la promesa.' });
+      return;
+    }
+
+    await executeGuardedAction({
+      action: 'installment.promise',
+      context: {
+        role: user?.role,
+        permissions: user?.permissions,
+        loanStatus: loan?.status,
+        installmentStatus: installment?.status,
+      },
+      run: async () => {
+        await createPromise.mutateAsync({
+          amount,
+          promisedDate: promiseDateInput,
+          notes: promiseNotes || undefined,
+          installmentNumber,
+        });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+        operationalModal.closeModal();
+        setPromiseAmount('');
+        setPromiseNotes('');
+      },
+      successMessage: 'Promesa registrada correctamente',
+    });
+  };
+
+  const handleCreateFollowUp = async () => {
+    const installment = operationalModal.payload?.installment;
+    const installmentNumber = installment?.installmentNumber;
+
+    if (!installmentNumber) {
+      toast.error({ title: 'No se pudo resolver la cuota para seguimiento.' });
+      return;
+    }
+
+    if (!followUpNotes.trim()) {
+      toast.error({ title: 'Ingrese una nota de seguimiento.' });
+      return;
+    }
+
+    await executeGuardedAction({
+      action: 'installment.followUp',
+      context: {
+        role: user?.role,
+        permissions: user?.permissions,
+        loanStatus: loan?.status,
+        installmentStatus: installment?.status,
+      },
+      run: async () => {
+        await createFollowUp.mutateAsync({
+          notes: followUpNotes,
+          installmentNumber,
+        });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+        operationalModal.closeModal();
+        setFollowUpNotes('');
+      },
+      successMessage: 'Seguimiento registrado correctamente',
+    });
   };
 
   const handleRecordCapital = async () => {
@@ -254,14 +405,19 @@ export default function CreditDetails() {
       toast.error({ title: 'Ingrese un monto válido' });
       return;
     }
-    try {
-      await recordCapitalPayment.mutateAsync({ amount, strategy: capitalStrategy });
-      setShowCapitalModal(false);
-      setCapitalAmount('');
-      toast.success({ title: 'Aporte de capital registrado' });
-    } catch (error: any) {
-      toast.error({ title: 'Error al registrar aporte', description: error?.message || 'Intente nuevamente' });
-    }
+    await executeGuardedAction({
+      action: 'capital.payment',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      run: async () => {
+        await recordCapitalPayment.mutateAsync({ amount, strategy: capitalStrategy });
+      },
+      onSuccess: async () => {
+        await invalidateAfterPayment(queryClient, { loanId });
+        setShowCapitalModal(false);
+        setCapitalAmount('');
+      },
+      successMessage: 'Aporte de capital registrado',
+    });
   };
 
   const handleUpdateLateFeeRate = async () => {
@@ -270,20 +426,83 @@ export default function CreditDetails() {
       toast.error({ title: 'La tasa debe estar entre 0 y 100' });
       return;
     }
-    try {
-      await updateLateFeeRate.mutateAsync(rate);
-      setShowLateFeeModal(false);
-      setLateFeeRate('');
-      toast.success({ title: 'Tasa de mora actualizada' });
-    } catch (error: any) {
-      toast.error({ title: 'Error al actualizar tasa', description: error?.message || 'Intente nuevamente' });
-    }
+    await executeGuardedAction({
+      action: 'lateFee.update',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      run: async () => {
+        await updateLateFeeRate.mutateAsync(rate);
+      },
+      onSuccess: async () => {
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+        setShowLateFeeModal(false);
+        setLateFeeRate('');
+      },
+      successMessage: 'Tasa de mora actualizada',
+    });
   };
 
   const openAnnulModal = (installmentNumber: number) => {
     setAnnulInstallmentNumber(installmentNumber);
     setShowAnnulModal(true);
   };
+
+  const openInstallmentPayment = (row: any) => {
+    if (!row?.installmentNumber) {
+      toast.error({ title: 'No se pudo identificar la cuota.' });
+      return;
+    }
+
+    setSelectedInstallmentNumber(row.installmentNumber);
+    setPaymentAmount(String(row.scheduledPayment ?? ''));
+    operationalModal.openModal('record-payment', {
+      loanId,
+      installment: {
+        installmentId: row.installmentNumber,
+        installmentNumber: row.installmentNumber,
+        amount: row.scheduledPayment,
+        status: row.status,
+      },
+    });
+  };
+
+  const openPromiseFromInstallment = (row: any) => {
+    if (!row?.installmentNumber) {
+      toast.error({ title: 'No se pudo identificar la cuota para promesa.' });
+      return;
+    }
+
+    operationalModal.openModal('create-promise', {
+      loanId,
+      installment: {
+        installmentId: row.installmentNumber,
+        installmentNumber: row.installmentNumber,
+        amount: row.scheduledPayment,
+        status: row.status,
+      },
+    });
+    setPromiseAmount(String(row.scheduledPayment ?? ''));
+  };
+
+  const openFollowUpFromInstallment = (row: any) => {
+    if (!row?.installmentNumber) {
+      toast.error({ title: 'No se pudo identificar la cuota para seguimiento.' });
+      return;
+    }
+
+    operationalModal.openModal('create-follow-up', {
+      loanId,
+      installment: {
+        installmentId: row.installmentNumber,
+        installmentNumber: row.installmentNumber,
+        amount: row.scheduledPayment,
+        status: row.status,
+      },
+    });
+  };
+
+  const isRecordPaymentModalOpen = operationalModal.is('record-payment');
+  const isPromiseModalOpen = operationalModal.is('create-promise');
+  const isFollowUpModalOpen = operationalModal.is('create-follow-up');
 
   const extractPaymentId = (eventId: string): number | null => {
     if (eventId.startsWith('payment-')) {
@@ -349,16 +568,16 @@ export default function CreditDetails() {
               {user?.role !== 'customer' && (
                 <>
                   <button
-                    onClick={() => setShowRecordPaymentModal(true)}
+                    onClick={() => operationalModal.openModal('record-payment', { loanId })}
                     className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-brand-primary/90 hover:shadow-md transition-all"
                   >
-                    <DollarSign size={16} /> Registrar Pago
+                    <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
                   </button>
                   <button
                     onClick={() => setShowCapitalModal(true)}
                     className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
                   >
-                    <Layers size={16} /> Aporte Capital
+                    <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
                   </button>
                   <button
                     onClick={() => {
@@ -367,7 +586,7 @@ export default function CreditDetails() {
                     }}
                     className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
                   >
-                    <Percent size={16} /> Tasa Mora
+                    <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
                   </button>
                 </>
               )}
@@ -413,11 +632,11 @@ export default function CreditDetails() {
       <div className="space-y-6">
         {/* Navigation Tabs */}
         <div className="flex border-b border-border-subtle overflow-x-auto hide-scrollbar">
-          <TabButton id="calendar" icon={Calendar} label="Calendario" />
-          <TabButton id="alerts" icon={Bell} label="Alertas" badge={alertEntries.length} />
-          <TabButton id="promises" icon={Clock} label="Promesas" badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />
-          <TabButton id="payoff" icon={CreditCard} label="Liquidación" />
-          <TabButton id="history" icon={Activity} label="Historial" />
+          <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
+          <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />
+          <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />
+          <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />
+          <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
         </div>
 
         <div className="pt-2">
@@ -493,15 +712,40 @@ export default function CreditDetails() {
                           </td>
                           {user?.role !== 'customer' && (
                             <td className="py-3 px-5 text-center">
-                              {(row.status === 'pending' || row.status === 'overdue') && (
-                                <button
-                                  onClick={() => openAnnulModal(row.installmentNumber)}
-                                  className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                                  title="Anular cuota"
-                                >
-                                  <ShieldAlert size={16} />
-                                </button>
-                              )}
+                              <div className="flex items-center justify-center gap-2">
+                                {(row.status === 'pending' || row.status === 'overdue') && (
+                                  <>
+                                    <button
+                                      onClick={() => openInstallmentPayment(row)}
+                                      className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                      title="Registrar pago de cuota"
+                                    >
+                                      <DollarSign size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => openPromiseFromInstallment(row)}
+                                      className="p-1.5 text-text-secondary hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors"
+                                      title="Crear compromiso de pago"
+                                    >
+                                      <Clock size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => openFollowUpFromInstallment(row)}
+                                      className="p-1.5 text-text-secondary hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                      title="Crear seguimiento"
+                                    >
+                                      <Bell size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => openAnnulModal(row.installmentNumber)}
+                                      className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                      title="Anular cuota"
+                                    >
+                                      <ShieldAlert size={16} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>
@@ -633,7 +877,7 @@ export default function CreditDetails() {
             <div className="animate-in fade-in duration-300">
               {payoffQuote ? (
                 <div className="max-w-md border border-border-subtle rounded-xl p-6 bg-bg-surface">
-                  <h3 className="text-lg font-medium text-text-primary mb-1">Cotización de Liquidación</h3>
+                  <h3 className="text-lg font-medium text-text-primary mb-1">Cotización de pago total</h3>
                   <p className="text-sm text-text-secondary mb-6">Válida al {formatDate(payoffQuote.asOfDate)}</p>
                     
                   <div className="space-y-4 mb-6">
@@ -667,13 +911,13 @@ export default function CreditDetails() {
                         : 'bg-bg-base border border-border-subtle text-text-secondary cursor-not-allowed'
                     }`}
                   >
-                    {user?.role === 'customer' ? 'Confirmar Liquidación' : 'Acción reservada para clientes'}
+                    {user?.role === 'customer' ? 'Confirmar pago total' : 'Acción reservada para clientes'}
                   </button>
                 </div>
               ) : (
                  <div className="text-center py-12">
                   <Info className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No se pudo generar la cotización de liquidación.</p>
+                  <p className="text-text-secondary">No se pudo generar la cotización de pago total.</p>
                 </div>
               )}
             </div>
@@ -746,11 +990,11 @@ export default function CreditDetails() {
                 className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
               >
                 <option value="">Seleccione un estado...</option>
-                <option value="active">Activo</option>
-                <option value="approved">Aprobado</option>
-                <option value="completed">Completado</option>
-                <option value="defaulted">En Mora (Defaulted)</option>
-                <option value="rejected">Rechazado</option>
+                {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {LOAN_STATUS_LABELS[status]}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
@@ -762,13 +1006,18 @@ export default function CreditDetails() {
       )}
 
       {/* Modal: Record Payment */}
-      {showRecordPaymentModal && (
+      {isRecordPaymentModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
             <div className="p-6 border-b border-border-subtle">
               <h3 className="text-lg font-medium text-text-primary">Registrar Pago</h3>
             </div>
             <div className="p-6 space-y-4">
+              {selectedInstallmentNumber && (
+                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
+                  Pago aplicado a cuota #{selectedInstallmentNumber}
+                </div>
+              )}
               <div>
                 <label className="block text-sm text-text-secondary mb-1">Monto a pagar</label>
                 <div className="relative">
@@ -807,8 +1056,78 @@ export default function CreditDetails() {
               </div>
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={() => setShowRecordPaymentModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
               <button onClick={handleRecordPayment} disabled={!paymentAmount || parseFloat(paymentAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Promise from installment */}
+      {isPromiseModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Crear Promesa de Pago</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Monto prometido</label>
+                <input
+                  type="number"
+                  value={promiseAmount}
+                  onChange={(e) => setPromiseAmount(e.target.value)}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Fecha comprometida</label>
+                <input
+                  type="date"
+                  value={promiseDateInput}
+                  onChange={(e) => setPromiseDateInput(e.target.value)}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Notas</label>
+                <textarea
+                  value={promiseNotes}
+                  onChange={(e) => setPromiseNotes(e.target.value)}
+                  rows={3}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleCreatePromise} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar Promesa</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Follow-up from installment */}
+      {isFollowUpModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Registrar Seguimiento</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Detalle</label>
+                <textarea
+                  value={followUpNotes}
+                  onChange={(e) => setFollowUpNotes(e.target.value)}
+                  rows={4}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
+              <button onClick={handleCreateFollowUp} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar Seguimiento</button>
             </div>
           </div>
         </div>

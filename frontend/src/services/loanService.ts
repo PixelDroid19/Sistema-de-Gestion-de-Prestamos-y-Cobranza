@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
+import {
+  invalidateAfterDelete,
+  invalidateAfterPayment,
+  invalidateAfterPromiseOrFollowUp,
+} from './operationalInvalidation';
 
 // Payment method options
 export const PAYMENT_METHODS = [
@@ -20,11 +26,11 @@ export const CAPITAL_STRATEGIES = [
 
 export type CapitalStrategy = typeof CAPITAL_STRATEGIES[number]['value'];
 
-export const useLoans = (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
+export const useLoans = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
   const queryClient = useQueryClient();
 
   const getLoans = useQuery({
-    queryKey: ['loans.list', params],
+    queryKey: queryKeys.loans.list(params),
     queryFn: async () => {
       const { data } = await apiClient.get('/loans', { params });
       return data;
@@ -37,7 +43,7 @@ export const useLoans = (params?: { page?: number; limit?: number; search?: stri
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.list'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot });
     },
   });
 
@@ -54,7 +60,7 @@ export const useLoans = (params?: { page?: number; limit?: number; search?: stri
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.list'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot });
     },
   });
 
@@ -64,7 +70,7 @@ export const useLoans = (params?: { page?: number; limit?: number; search?: stri
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.list'] });
+      invalidateAfterDelete(queryClient, { loansParams: params });
     },
   });
 
@@ -84,7 +90,7 @@ export const useLoanDetails = (loanId: number) => {
   const asOfDate = new Date().toISOString().slice(0, 10);
 
   const getCalendar = useQuery({
-    queryKey: ['loans.calendar', loanId],
+    queryKey: queryKeys.loans.calendar(loanId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/loans/${loanId}/calendar`);
       return data;
@@ -93,7 +99,7 @@ export const useLoanDetails = (loanId: number) => {
   });
 
   const getAlerts = useQuery({
-    queryKey: ['loans.alerts', loanId],
+    queryKey: queryKeys.loans.alerts(loanId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/loans/${loanId}/alerts`);
       return data;
@@ -102,7 +108,7 @@ export const useLoanDetails = (loanId: number) => {
   });
 
   const getPromises = useQuery({
-    queryKey: ['loans.promises', loanId],
+    queryKey: queryKeys.loans.promises(loanId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/loans/${loanId}/promises`);
       return data;
@@ -116,7 +122,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.promises', loanId] });
+      invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
     },
   });
 
@@ -125,10 +131,13 @@ export const useLoanDetails = (loanId: number) => {
       const { data } = await apiClient.post(`/loans/${loanId}/follow-ups`, followUpData);
       return data;
     },
+    onSuccess: () => {
+      invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+    },
   });
 
   const getPayoffQuote = useQuery({
-    queryKey: ['loans.payoffQuote', loanId, asOfDate],
+    queryKey: queryKeys.loans.payoffQuote(loanId, asOfDate),
     queryFn: async () => {
       const { data } = await apiClient.get(`/loans/${loanId}/payoff-quote`, {
         params: { asOfDate },
@@ -144,13 +153,12 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.list'] });
-      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
   const recordPayment = useMutation({
-    mutationFn: async (paymentData: { paymentAmount: number; paymentDate: string; paymentMethod?: string }) => {
+    mutationFn: async (paymentData: { paymentAmount: number; paymentDate: string; paymentMethod?: string; installmentNumber?: number }) => {
       const { data } = await apiClient.post(`/payments/process`, {
         loanId,
         ...paymentData,
@@ -158,8 +166,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
-      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
@@ -171,8 +178,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
-      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
@@ -184,7 +190,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
@@ -197,8 +203,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.calendar', loanId] });
-      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
@@ -208,7 +213,7 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loans.detail', loanId] });
+      invalidateAfterPayment(queryClient, { loanId });
     },
   });
 
@@ -232,7 +237,7 @@ export const useLoanDetails = (loanId: number) => {
 
 export const useLoanById = (loanId: number) => {
   return useQuery({
-    queryKey: ['loans.detail', loanId],
+    queryKey: queryKeys.loans.detail(loanId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/loans/${loanId}`);
       return data;
@@ -263,7 +268,7 @@ export interface LoanStatistics {
 
 export const useLoanStatistics = () => {
   return useQuery({
-    queryKey: ['loans.statistics'],
+    queryKey: queryKeys.loans.statistics,
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/statistics');
       return data;
@@ -282,7 +287,7 @@ export interface DuePayment {
 
 export const useDuePayments = (date: string) => {
   return useQuery({
-    queryKey: ['loans.duePayments', date],
+    queryKey: queryKeys.loans.duePayments(date),
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/due-payments', { params: { date } });
       return data;

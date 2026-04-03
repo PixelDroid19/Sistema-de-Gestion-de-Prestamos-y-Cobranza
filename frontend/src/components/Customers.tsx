@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Filter, Calendar, ChevronLeft, ChevronRight, Eye, Edit, Trash2, Loader2, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Search, MoreVertical, Filter, Calendar, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
+import { tTerm } from '../i18n/terminology';
+import { confirmDanger } from '../lib/confirmModal';
+import TableShell from './shared/TableShell';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
-  const { page, pageSize: limit, setPage } = usePaginationStore();
+  const { page, pageSize, setPage } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
   const { data, isLoading, isError, restoreCustomer } = useCustomers({
     page,
-    limit,
+    pageSize,
     search: searchTerm || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
@@ -50,18 +53,19 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     return name || `Cliente #${customer?.id || 'N/A'}`;
   };
 
-  const handlePrevPage = () => setPage(Math.max(1, page - 1));
-  const handleNextPage = () => setPage(Math.min(totalPages, page + 1));
-
   const handleRestore = async (customerId: number) => {
-    if (!window.confirm('¿Está seguro de que desea restaurar este cliente?')) {
-      return;
-    }
+    const confirmed = await confirmDanger({
+      title: tTerm('confirm.customer.restore.title'),
+      message: tTerm('confirm.customer.restore.message'),
+      confirmLabel: tTerm('confirm.customer.restore.confirm'),
+    });
+    if (!confirmed) return;
     try {
       await restoreCustomer.mutateAsync(customerId);
-      toast.success({ description: 'Cliente restaurado exitosamente' });
+      toast.success({ description: tTerm('customers.toast.restore.success') });
     } catch (error) {
-      toast.apiError(error, 'Error al restaurar el cliente');
+      console.error('[customers] restoreCustomer failed', error);
+      toast.apiErrorSafe(error, { domain: 'customers', action: 'customer.restore' });
     }
   };
 
@@ -69,14 +73,14 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     <div className="flex flex-col gap-6 h-full">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold">Clientes</h2>
-          <p className="text-sm text-text-secondary mt-1">Administrar repositorio y perfiles de clientes.</p>
+          <h2 className="text-2xl font-semibold">{tTerm('customers.module.title')}</h2>
+          <p className="text-sm text-text-secondary mt-1">{tTerm('customers.module.subtitle')}</p>
         </div>
         <button 
           onClick={() => setCurrentView && setCurrentView('customers-new')}
           className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
         >
-          <Plus size={16} /> Nuevo Cliente
+          <Plus size={16} /> {tTerm('customers.cta.new')}
         </button>
       </div>
 
@@ -93,7 +97,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             />
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Filtra la lista por estado del cliente">
               <Filter size={14} className="text-text-secondary" />
               <select 
                 value={statusFilter}
@@ -106,7 +110,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 <option value="pending">Pendiente</option>
               </select>
             </div>
-            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Acota clientes por fecha de registro">
               <Calendar size={14} className="text-text-secondary" />
               <select 
                 value={dateFilter}
@@ -123,20 +127,31 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           </div>
         </div>
 
-        <div className="overflow-x-auto flex-1">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 animate-spin text-text-secondary" />
+        <TableShell
+          isLoading={isLoading}
+          isError={isError}
+          hasData={customers.length > 0}
+          loadingContent={
+            <div className="flex items-center justify-center h-64 text-text-secondary">
+              Cargando clientes...
             </div>
-          ) : isError ? (
-            <div className="flex items-center justify-center h-64 text-red-500">
-              Error al cargar los clientes.
-            </div>
-          ) : customers.length === 0 ? (
+          }
+          errorContent={<div className="flex items-center justify-center h-64 text-red-500">Error al cargar los clientes.</div>}
+          emptyContent={
             <div className="flex flex-col items-center justify-center h-64 text-text-secondary">
               <p>No se encontraron clientes.</p>
             </div>
-          ) : (
+          }
+          recordsLabel="registros"
+          pagination={{
+            page,
+            pageSize,
+            totalItems,
+            totalPages,
+            onPrev: () => setPage(Math.max(1, page - 1)),
+            onNext: () => setPage(Math.min(totalPages, page + 1)),
+          }}
+        >
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
@@ -174,7 +189,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                         <button 
                           onClick={() => handleRestore(customer.id)} 
                           className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" 
-                          title="Restaurar"
+                          title={tTerm('customers.cta.restore')}
                         >
                           <RotateCcw size={16} />
                         </button>
@@ -185,62 +200,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-
-        {/* Pagination */}
-        {!isLoading && !isError && customers.length > 0 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-border-subtle">
-            <span className="text-sm text-text-secondary">
-              Mostrando {(page - 1) * limit + 1} a {Math.min(page * limit, totalItems)} de {totalItems} registros
-            </span>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={handlePrevPage} 
-                disabled={page === 1}
-                className="p-2 rounded-lg bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
-                  if (
-                    p === 1 || 
-                    p === totalPages || 
-                    (p >= page - 1 && p <= page + 1)
-                  ) {
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setPage(p)}
-                        className={`w-8 h-8 rounded-lg text-sm flex items-center justify-center transition-colors ${
-                          page === p 
-                            ? 'bg-text-primary text-bg-base font-medium' 
-                            : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  } else if (
-                    p === page - 2 || 
-                    p === page + 2
-                  ) {
-                    return <span key={p} className="text-text-secondary px-1">...</span>;
-                  }
-                  return null;
-                })}
-              </div>
-              <button 
-                onClick={handleNextPage}
-                disabled={page === totalPages}
-                className="p-2 rounded-lg bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
+        </TableShell>
       </div>
     </div>
   );

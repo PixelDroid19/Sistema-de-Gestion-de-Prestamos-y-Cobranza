@@ -1,14 +1,5 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
 const { calculateForecast } = require('./statistics');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access financial reports');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
-const _MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+const { ensureAdmin, formatMoney } = require('../reportHelpers');
 
 /**
  * Create use case: Get Next Month Projection
@@ -16,7 +7,7 @@ const _MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11
  * GET /api/reports/next-month-projection
  */
 const createGetNextMonthProjection = ({ reportRepository }) => async ({ actor }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can access financial reports');
 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth(); // 0-indexed

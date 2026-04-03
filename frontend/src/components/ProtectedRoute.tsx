@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { apiClient } from '../api/client';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     queryKey: ['auth.restoreSession'],
     queryFn: async () => {
       try {
-        const response = await axios.post('/api/auth/refresh', { refreshToken });
+        const response = await apiClient.post('/auth/refresh', { refreshToken });
         const newAccessToken = response.data.data.accessToken;
         const newRefreshToken = response.data.data.refreshToken;
         updateAccessToken(newAccessToken, newRefreshToken);
@@ -58,4 +58,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   return <>{children}</>;
 };
-

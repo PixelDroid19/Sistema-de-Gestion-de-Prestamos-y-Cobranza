@@ -1,12 +1,4 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can export credits data');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
+const { ensureAdmin, formatMoney } = require('../reportHelpers');
 
 const formatIsoDate = (value) => {
   if (!value) {
@@ -23,7 +15,7 @@ const formatIsoDate = (value) => {
  * GET /api/reports/credits/excel
  */
 const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can export credits data');
 
   const loans = await reportRepository.listOutstandingLoans();
 

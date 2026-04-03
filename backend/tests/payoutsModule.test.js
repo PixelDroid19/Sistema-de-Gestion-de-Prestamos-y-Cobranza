@@ -407,13 +407,14 @@ test('createAnnulInstallment uses mutation access policy and delegates to the se
     clock: () => new Date('2026-03-21T00:00:00.000Z'),
   });
 
-  const result = await annulInstallment({ actor: { id: 9, role: 'admin' }, loanId: 12 });
+  const result = await annulInstallment({ actor: { id: 9, role: 'admin' }, loanId: 12, installmentNumber: 2 });
 
   assert.equal(result.payment.id, 300);
   assert.deepEqual(serviceInput, {
     loanId: 12,
     actor: { id: 9, role: 'admin' },
     reason: undefined,
+    installmentNumber: 2,
     paymentDate: new Date('2026-03-21T00:00:00.000Z'),
   });
 });

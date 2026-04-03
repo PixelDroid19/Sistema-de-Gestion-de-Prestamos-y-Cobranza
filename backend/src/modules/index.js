@@ -9,6 +9,7 @@ const { createUsersModule } = require('./users');
 const { createConfigModule } = require('./config');
 const { createPermissionsModule } = require('./permissions');
 const { createAuditModule } = require('./audit');
+const { createCreditSimulatorModule } = require('./credit-simulator');
 const { createSharedRuntime } = require('../bootstrap/sharedRuntime');
 const { auditService } = require('./audit/domain/services');
 
@@ -24,6 +25,7 @@ const buildModuleRegistry = ({ sharedRuntime = createSharedRuntime() } = {}) => 
   createAssociatesModule({ sharedRuntime, auditService }),
   createCustomersModule({ sharedRuntime, auditService }),
   createCreditsModule({ sharedRuntime, auditService }),
+  createCreditSimulatorModule({ sharedRuntime }),
   createPayoutsModule({ sharedRuntime }),
   createReportsModule({ sharedRuntime }),
   createNotificationsModule({ sharedRuntime }),

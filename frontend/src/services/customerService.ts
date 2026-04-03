@@ -1,56 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../api/client';
+import { API_BASE_URL, apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
+import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useCustomers = (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
-  const queryClient = useQueryClient();
-
-  const getCustomers = useQuery({
-    queryKey: ['customers.list', params],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/customers', { params });
-      return data;
-    },
+export const useCustomers = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+  const getCustomers = useCrudListQuery(queryKeys.customers.list(params), async () => {
+    const { data } = await apiClient.get('/customers', { params });
+    return data;
   });
 
-  const createCustomer = useMutation({
-    mutationFn: async (customerData: any) => {
-      const { data } = await apiClient.post('/customers', customerData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.list'] });
-    },
-  });
+  const createCustomer = useInvalidatingMutation(async (customerData: any) => {
+    const { data } = await apiClient.post('/customers', customerData);
+    return data;
+  }, queryKeys.customers.all);
 
-  const updateCustomer = useMutation({
-    mutationFn: async ({ id, ...customerData }: any) => {
-      const { data } = await apiClient.patch(`/customers/${id}`, customerData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.list'] });
-    },
-  });
+  const updateCustomer = useInvalidatingMutation(async ({ id, ...customerData }: any) => {
+    const { data } = await apiClient.patch(`/customers/${id}`, customerData);
+    return data;
+  }, queryKeys.customers.all);
 
-  const deleteCustomer = useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.delete(`/customers/${id}`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.list'] });
-    },
-  });
+  const deleteCustomer = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.delete(`/customers/${id}`);
+    return data;
+  }, queryKeys.customers.all);
 
-  const restoreCustomer = useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.patch(`/customers/${id}/restore`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.list'] });
-    },
-  });
+  const restoreCustomer = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.patch(`/customers/${id}/restore`);
+    return data;
+  }, queryKeys.customers.all);
 
   return {
     data: getCustomers.data,
@@ -67,7 +44,7 @@ export const useCustomerDocuments = (customerId: number) => {
   const queryClient = useQueryClient();
 
   const getDocuments = useQuery({
-    queryKey: ['customers.documents', customerId],
+    queryKey: queryKeys.customers.documents(customerId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/customers/${customerId}/documents`);
       return data;
@@ -88,7 +65,7 @@ export const useCustomerDocuments = (customerId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.documents', customerId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.documents(customerId) });
     },
   });
 
@@ -98,12 +75,12 @@ export const useCustomerDocuments = (customerId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers.documents', customerId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.documents(customerId) });
     },
   });
 
   const downloadDocumentUrl = (documentId: number) => {
-    return `${apiClient.defaults.baseURL}/customers/${customerId}/documents/${documentId}/download`;
+    return `${API_BASE_URL}/customers/${customerId}/documents/${documentId}/download`;
   };
 
   return {

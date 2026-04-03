@@ -822,7 +822,7 @@ const createPaymentApplicationService = ({
    * Annul the nearest pending or overdue installment.
    * Only the nearest cancellable installment can be annulled (accounting integrity rule).
    */
-  const annulInstallment = async ({ loanId, actor, reason, paymentDate = clock() }) => {
+  const annulInstallment = async ({ loanId, actor, reason, installmentNumber = null, paymentDate = clock() }) => {
     if (actor?.role !== 'admin') {
       throw new AuthorizationError('Only admins can annul installments');
     }
@@ -843,15 +843,52 @@ const createPaymentApplicationService = ({
       const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
       const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
 
+      const requestedInstallmentNumber = installmentNumber === null || installmentNumber === undefined
+        ? null
+        : Number(installmentNumber);
+
+      if (requestedInstallmentNumber !== null && (!Number.isInteger(requestedInstallmentNumber) || requestedInstallmentNumber <= 0)) {
+        throw new ValidationError('installmentNumber must be a positive integer when provided');
+      }
+
       // Find the nearest cancellable installment
       // Must be pending or overdue, not already paid, partial, or annulled
-      const cancellableRow = schedule.find((row) => {
+      const nearestCancellableRow = schedule.find((row) => {
         const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
         return outstanding > 0 && CANCELLABLE_STATUSES.has(row.status);
       });
 
-      if (!cancellableRow) {
+      if (!nearestCancellableRow) {
         throw new ValidationError('No cancellable installments found. All installments may already be paid or annulled.');
+      }
+
+      let cancellableRow = nearestCancellableRow;
+
+      if (requestedInstallmentNumber !== null) {
+        const requestedRow = schedule.find((row) => Number(row.installmentNumber) === requestedInstallmentNumber);
+
+        if (!requestedRow) {
+          throw new ValidationError(`Installment #${requestedInstallmentNumber} does not exist for this loan`);
+        }
+
+        if (requestedRow.status === 'annulled') {
+          throw new ValidationError(`Installment #${requestedInstallmentNumber} is already annulled`);
+        }
+
+        const requestedOutstanding = roundCurrency((requestedRow.remainingPrincipal || 0) + (requestedRow.remainingInterest || 0));
+        if (requestedOutstanding <= 0 || requestedRow.status === 'paid') {
+          throw new ValidationError(`Installment #${requestedInstallmentNumber} is already paid and cannot be annulled`);
+        }
+
+        if (!CANCELLABLE_STATUSES.has(requestedRow.status)) {
+          throw new ValidationError(`Installment #${requestedInstallmentNumber} cannot be annulled because it is in status '${requestedRow.status}'. Only pending or overdue installments can be annulled.`);
+        }
+
+        if (Number(requestedRow.installmentNumber) !== Number(nearestCancellableRow.installmentNumber)) {
+          throw new ValidationError(`Cannot annul installment #${requestedInstallmentNumber}. Only the nearest pending or overdue installment (#${nearestCancellableRow.installmentNumber}) can be annulled.`);
+        }
+
+        cancellableRow = requestedRow;
       }
 
       // Validate this is the nearest one (no paid/partial installments before it)

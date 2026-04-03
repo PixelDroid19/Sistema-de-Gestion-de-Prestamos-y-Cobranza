@@ -1,24 +1,21 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
-const { buildPaginatedResult } = require('../../shared/pagination');
+const { buildPaginatedResult, paginateArray } = require('../../shared/pagination');
 const { withAudit } = require('../../audit/application/auditDecorator');
+const {
+  normalizeAttachmentVisibility,
+  ensureUploadedFile,
+  withUploadCleanup,
+  toTrimmedOrNull,
+  buildStoredFileFields,
+  ensureDocumentExists,
+  resolveDocumentDownload,
+} = require('../../shared/documentOperations');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
   PAYABLE_LOAN_STATUSES,
 } = require('./paymentEligibility');
-
-const normalizeAttachmentVisibility = (value) => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
-  }
-
-  return false;
-};
 
 const SIGNATURE_LENGTH = 12;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -353,14 +350,7 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
     : loans;
 
   if (pagination) {
-    const offset = pagination.offset || 0;
-    const items = visibleLoans.slice(offset, offset + pagination.pageSize);
-    const result = buildPaginatedResult({
-      items,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      totalItems: visibleLoans.length,
-    });
+    const result = paginateArray({ items: visibleLoans, pagination });
     return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
 
@@ -639,32 +629,26 @@ const createCreateLoanAttachment = ({
   fsModule = require('node:fs/promises'),
 }) => {
   const useCase = async ({ actor, loanId, file, metadata = {} }) => {
-    if (!file) {
-      throw new ValidationError('Attachment file is required');
-    }
+    ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
 
-    try {
+    return withUploadCleanup({
+      file,
+      attachmentStorage,
+      task: async () => {
       await validateAttachmentFileSignature(file, fsModule);
 
       const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
 
-      return await attachmentRepository.create({
-        loanId: loan.id,
-        uploadedByUserId: actor.id,
-        storageDisk: 'local',
-        storagePath: attachmentStorage.toRelativePath(file.path),
-        storedName: file.filename,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
-        category: metadata.category ? String(metadata.category).trim() : null,
-        description: metadata.description ? String(metadata.description).trim() : null,
-      });
-    } catch (error) {
-      await attachmentStorage.deleteByAbsolutePath(file.path);
-      throw error;
-    }
+        return attachmentRepository.create({
+          loanId: loan.id,
+          uploadedByUserId: actor.id,
+          ...buildStoredFileFields({ file, attachmentStorage }),
+          customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+          category: toTrimmedOrNull(metadata.category),
+          description: toTrimmedOrNull(metadata.description),
+        });
+      },
+    });
   };
 
   if (auditService) {
@@ -682,19 +666,15 @@ const createDownloadLoanAttachment = ({ attachmentRepository, attachmentStorage,
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const attachment = await attachmentRepository.findByIdForLoan({ loanId: loan.id, attachmentId });
 
-  if (!attachment) {
-    throw new NotFoundError('Attachment');
-  }
+  ensureDocumentExists(attachment, 'Attachment');
 
   if (actor.role === 'customer' && !attachment.customerVisible) {
     throw new AuthorizationError('You do not have access to this attachment');
   }
 
-  await attachmentStorage.assertExists(attachment.storagePath);
-
   return {
     attachment,
-    absolutePath: attachmentStorage.resolveAbsolutePath(attachment.storagePath),
+    absolutePath: await resolveDocumentDownload({ attachmentStorage, storagePath: attachment.storagePath }),
   };
 };
 
@@ -1144,18 +1124,7 @@ const createSearchLoans = ({ loanRepository }) => async ({ filters = {}, paginat
   }
 
   if (pagination) {
-    const offset = pagination.offset || 0;
-    const pageSize = pagination.pageSize || 25;
-    const items = filteredLoans.slice(offset, offset + pageSize);
-    return {
-      items,
-      pagination: {
-        page: pagination.page,
-        pageSize,
-        totalItems: filteredLoans.length,
-        totalPages: Math.ceil(filteredLoans.length / pageSize),
-      },
-    };
+    return paginateArray({ items: filteredLoans, pagination });
   }
 
   return filteredLoans;

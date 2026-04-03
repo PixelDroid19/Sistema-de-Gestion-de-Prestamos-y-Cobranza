@@ -21,6 +21,7 @@ import {
   ValidationResult,
   NodeKind,
 } from '../types/dag';
+import { getSafeErrorText } from '../services/safeErrorMessages';
 
 // Type describing our internal React Flow Node's structured data
 export type RFNodeData = {
@@ -644,7 +645,11 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
           });
         }
       } else {
-        set({ error: typeof errMsg === 'string' ? errMsg : 'Error cargando el grafo', isLoading: false });
+        console.error('[dag] loadGraph failed', err);
+        set({
+          error: getSafeErrorText(err, { domain: 'dag', action: 'dag.load' }),
+          isLoading: false,
+        });
       }
     }
   },
@@ -701,10 +706,18 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
             }
           });
         } else {
-          set({ error: err.message || 'Error guardando el grafo', isSaving: false });
+          console.error('[dag] saveGraph failed', err);
+          set({
+            error: getSafeErrorText(err, { domain: 'dag', action: 'dag.save' }),
+            isSaving: false,
+          });
         }
       } catch {
-        set({ error: err.message || 'Error guardando el grafo', isSaving: false });
+        console.error('[dag] saveGraph failed', err);
+        set({
+          error: getSafeErrorText(err, { domain: 'dag', action: 'dag.save' }),
+          isSaving: false,
+        });
       }
     }
   },
@@ -737,7 +750,11 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         isSimulating: false 
       });
     } catch (err: any) {
-      set({ error: err.message || 'Error ejecutando la simulación', isSimulating: false });
+      console.error('[dag] simulateGraph failed', err);
+      set({
+        error: getSafeErrorText(err, { domain: 'dag', action: 'dag.simulate' }),
+        isSimulating: false,
+      });
     }
   },
 
@@ -761,7 +778,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       const { scopeKey } = get();
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
-      set({ error: err.response?.data?.error?.message || err.message || 'Error activating graph' });
+      console.error('[dag] activateGraph failed', err);
+      set({ error: getSafeErrorText(err, { domain: 'dag', action: 'dag.save' }) });
     }
   },
 
@@ -772,7 +790,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       const { scopeKey } = get();
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
-      set({ error: err.response?.data?.error?.message || err.message || 'Error deactivating graph' });
+      console.error('[dag] deactivateGraph failed', err);
+      set({ error: getSafeErrorText(err, { domain: 'dag', action: 'dag.save' }) });
     }
   },
 
@@ -783,7 +802,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       const { scopeKey } = get();
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
-      set({ error: err.response?.data?.error?.message || err.message || 'Error deleting graph' });
+      console.error('[dag] deleteGraph failed', err);
+      set({ error: getSafeErrorText(err, { domain: 'dag', action: 'dag.save' }) });
     }
   },
 
@@ -817,7 +837,11 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         isLoading: false,
       });
     } catch (err: any) {
-      set({ error: err.message || 'Error loading graph', isLoading: false });
+      console.error('[dag] selectGraph failed', err);
+      set({
+        error: getSafeErrorText(err, { domain: 'dag', action: 'dag.load' }),
+        isLoading: false,
+      });
     }
   },
 }));

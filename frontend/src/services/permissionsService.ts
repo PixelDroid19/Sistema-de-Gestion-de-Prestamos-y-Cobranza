@@ -1,11 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { useInvalidatingMutation } from './crudHooks';
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
 export const usePermissions = () => {
-  const queryClient = useQueryClient();
-
   const getPermissions = useQuery({
     queryKey: ['permissions.list'],
     queryFn: async () => {
@@ -22,8 +21,6 @@ export const usePermissions = () => {
 };
 
 export const usePermissionsByModule = (module: string) => {
-  const queryClient = useQueryClient();
-
   const getPermissionsByModule = useQuery({
     queryKey: ['permissions.byModule', module],
     queryFn: async () => {
@@ -41,8 +38,6 @@ export const usePermissionsByModule = (module: string) => {
 };
 
 export const useMyPermissions = () => {
-  const queryClient = useQueryClient();
-
   const getMyPermissions = useQuery({
     queryKey: ['permissions.myPermissions'],
     queryFn: async () => {
@@ -59,8 +54,6 @@ export const useMyPermissions = () => {
 };
 
 export const useMyPermissionsSummary = () => {
-  const queryClient = useQueryClient();
-
   const getMyPermissionsSummary = useQuery({
     queryKey: ['permissions.myPermissionsSummary'],
     queryFn: async () => {
@@ -77,8 +70,6 @@ export const useMyPermissionsSummary = () => {
 };
 
 export const useUserPermissions = (userId: string) => {
-  const queryClient = useQueryClient();
-
   const getUserPermissions = useQuery({
     queryKey: ['permissions.user', userId],
     queryFn: async () => {
@@ -96,62 +87,33 @@ export const useUserPermissions = (userId: string) => {
 };
 
 export const useGrantPermission = () => {
-  const queryClient = useQueryClient();
-
-  const grantPermission = useMutation({
-    mutationFn: async (payload: { userId: string; permission: string; module?: string }) => {
-      const { data } = await apiClient.post('/permissions/grant', payload);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions.list'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissions'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissionsSummary'] });
-    },
-  });
+  const grantPermission = useInvalidatingMutation(async (payload: { userId: string; permission: string; module?: string }) => {
+    const { data } = await apiClient.post('/permissions/grant', payload);
+    return data;
+  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary']]);
 
   return { grantPermission };
 };
 
 export const useGrantBatchPermissions = () => {
-  const queryClient = useQueryClient();
-
-  const grantBatchPermissions = useMutation({
-    mutationFn: async (payload: { userId: string; permissions: Array<{ permission: string; module?: string }> }) => {
-      const { data } = await apiClient.post('/permissions/grant/batch', payload);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions.list'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissions'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissionsSummary'] });
-    },
-  });
+  const grantBatchPermissions = useInvalidatingMutation(async (payload: { userId: string; permissions: Array<{ permission: string; module?: string }> }) => {
+    const { data } = await apiClient.post('/permissions/grant/batch', payload);
+    return data;
+  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary']]);
 
   return { grantBatchPermissions };
 };
 
 export const useRevokePermission = () => {
-  const queryClient = useQueryClient();
-
-  const revokePermission = useMutation({
-    mutationFn: async (payload: { userId: string; permission: string; module?: string }) => {
-      const { data } = await apiClient.post('/permissions/revoke', payload);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permissions.list'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissions'] });
-      queryClient.invalidateQueries({ queryKey: ['permissions.myPermissionsSummary'] });
-    },
-  });
+  const revokePermission = useInvalidatingMutation(async (payload: { userId: string; permission: string; module?: string }) => {
+    const { data } = await apiClient.post('/permissions/revoke', payload);
+    return data;
+  }, [['permissions.list'], ['permissions.myPermissions'], ['permissions.myPermissionsSummary']]);
 
   return { revokePermission };
 };
 
 export const useCheckPermission = () => {
-  const queryClient = useQueryClient();
-
   const checkPermission = useMutation({
     mutationFn: async (payload: { permission: string; module?: string }) => {
       const { data } = await apiClient.post('/permissions/check', payload);

@@ -6,18 +6,15 @@ const {
 } = require('../../credits/application/paymentEligibility');
 const { Loan, Customer } = require('../../../models');
 const { VoucherService } = require('../domain/services/VoucherService');
-
-const normalizeAttachmentVisibility = (value) => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
-  }
-
-  return false;
-};
+const {
+  normalizeAttachmentVisibility,
+  ensureUploadedFile,
+  withUploadCleanup,
+  toTrimmedOrNull,
+  buildStoredFileFields,
+  ensureDocumentExists,
+  resolveDocumentDownload,
+} = require('../../shared/documentOperations');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
 
@@ -134,7 +131,7 @@ const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolic
 /**
  * Create the use case that annuls the nearest pending or overdue installment.
  */
-const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason }) => {
+const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason, installmentNumber }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can annul installments');
   }
@@ -145,6 +142,7 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
     loanId: loan.id,
     actor,
     reason,
+    installmentNumber,
     paymentDate: clock(),
   });
 };
@@ -214,36 +212,30 @@ const createListPaymentDocuments = ({ paymentRepository, loanAccessPolicy }) => 
 };
 
 const createUploadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, file, metadata = {} }) => {
-  if (!file) {
-    throw new ValidationError('Attachment file is required');
-  }
+  ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
 
   if (actor?.role !== 'admin') {
     await attachmentStorage.deleteByAbsolutePath(file.path);
     throw new AuthorizationError('Only admins can upload payment documents');
   }
 
-  try {
-    const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
-    await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId: payment.loanId });
+  return withUploadCleanup({
+    file,
+    attachmentStorage,
+    task: async () => {
+      const payment = await ensurePaymentDocumentAccess({ actor, paymentRepository, paymentId });
+      await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId: payment.loanId });
 
-    return await paymentRepository.createDocument({
-      paymentId: payment.id,
-      uploadedByUserId: actor.id,
-      storageDisk: 'local',
-      storagePath: attachmentStorage.toRelativePath(file.path),
-      storedName: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
-      customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
-      category: metadata.category ? String(metadata.category).trim() : null,
-      description: metadata.description ? String(metadata.description).trim() : null,
-    });
-  } catch (error) {
-    await attachmentStorage.deleteByAbsolutePath(file.path);
-    throw error;
-  }
+      return paymentRepository.createDocument({
+        paymentId: payment.id,
+        uploadedByUserId: actor.id,
+        ...buildStoredFileFields({ file, attachmentStorage }),
+        customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+        category: toTrimmedOrNull(metadata.category),
+        description: toTrimmedOrNull(metadata.description),
+      });
+    },
+  });
 };
 
 const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, documentId }) => {
@@ -251,19 +243,15 @@ const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, at
   await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
   const document = await paymentRepository.findDocument({ paymentId: payment.id, documentId });
 
-  if (!document) {
-    throw new NotFoundError('Document');
-  }
+  ensureDocumentExists(document, 'Document');
 
   if (actor.role === 'customer' && !document.customerVisible) {
     throw new AuthorizationError('You do not have access to this document');
   }
 
-  await attachmentStorage.assertExists(document.storagePath);
-
   return {
     document,
-    absolutePath: attachmentStorage.resolveAbsolutePath(document.storagePath),
+    absolutePath: await resolveDocumentDownload({ attachmentStorage, storagePath: document.storagePath }),
   };
 };
 

@@ -30,8 +30,28 @@ const success = (res, data, message, statusCode = 200, extra = {}) => respond(re
  */
 const created = (res, data, message = 'Created successfully', extra = {}) => success(res, data, message, 201, extra);
 
+/**
+ * Send a buffer as a file download response.
+ * @param {import('express').Response} res
+ * @param {{ contentType: string, fileName: string, buffer: Buffer }} file
+ */
+const sendBufferDownload = (res, { contentType, fileName, buffer }) => {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.send(buffer);
+};
+
+/**
+ * Send a filesystem path as a file download response.
+ * @param {import('express').Response} res
+ * @param {{ absolutePath: string, fileName: string }} file
+ */
+const sendPathDownload = (res, { absolutePath, fileName }) => res.download(absolutePath, fileName);
+
 module.exports = {
   respond,
   success,
   created,
+  sendBufferDownload,
+  sendPathDownload,
 };

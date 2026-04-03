@@ -304,6 +304,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     method: 'POST',
     path: '/annul/15',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { installmentNumber: 2 },
   });
 
   assert.equal(partialResponse.statusCode, 201);
@@ -312,7 +313,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
     ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60 }],
-    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', reason: undefined }],
+    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined }],
   ]);
 });
 

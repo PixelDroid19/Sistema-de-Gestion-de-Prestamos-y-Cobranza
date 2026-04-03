@@ -1,7 +1,12 @@
 const XLSX = require('xlsx');
 const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
 const { normalizeDistributionRecord } = require('../../associates/application/useCases');
-const { buildPaginationMeta } = require('../../shared/pagination');
+const { buildPaginationMeta, paginateArray } = require('../../shared/pagination');
+const {
+  ensureAdmin,
+  formatMoney,
+  parseDateRange,
+} = require('./reportHelpers');
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -107,26 +112,108 @@ const formatIsoDate = (value) => {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 };
 
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access reports');
-  }
-};
-
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 
 const PROFITABILITY_PAYMENT_STATUSES = new Set(['completed']);
 
-const formatMoney = (value) => Number(value || 0).toFixed(2);
+const toMonthKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
 
-const parseDateRange = ({ fromDate, toDate } = {}) => {
-  const parsedFromDate = fromDate ? new Date(fromDate) : null;
-  const parsedToDate = toDate ? new Date(toDate) : null;
+const buildMonthKeysInRange = ({ startDate, endDate }) => {
+  const keys = [];
+  const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
 
-  return {
-    fromDate: parsedFromDate && !Number.isNaN(parsedFromDate.getTime()) ? parsedFromDate : null,
-    toDate: parsedToDate && !Number.isNaN(parsedToDate.getTime()) ? parsedToDate : null,
-  };
+  while (cursor.getTime() <= end.getTime()) {
+    keys.push(toMonthKey(cursor));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return keys;
+};
+
+const pickLoanDisbursementDate = (loan) => (
+  loan?.disbursedAt
+  || loan?.disbursementDate
+  || loan?.approvedAt
+  || loan?.startDate
+  || loan?.createdAt
+);
+
+const buildMonthlyPerformanceSeries = ({ loans = [], payments = [], minMonths = 12 }) => {
+  const now = new Date();
+  const activityDates = [];
+
+  loans.forEach((loan) => {
+    const rawDate = pickLoanDisbursementDate(loan);
+    if (!rawDate) return;
+    const date = new Date(rawDate);
+    if (Number.isNaN(date.getTime())) return;
+    activityDates.push(date);
+  });
+
+  payments
+    .filter((payment) => !payment?.status || payment.status === 'completed')
+    .forEach((payment) => {
+      const rawDate = payment?.paymentDate || payment?.createdAt;
+      if (!rawDate) return;
+      const date = new Date(rawDate);
+      if (Number.isNaN(date.getTime())) return;
+      activityDates.push(date);
+    });
+
+  const rollingStart = new Date(now.getFullYear(), now.getMonth() - (minMonths - 1), 1);
+  const earliestActivity = activityDates.length > 0
+    ? activityDates.reduce((earliest, date) => (date.getTime() < earliest.getTime() ? date : earliest), activityDates[0])
+    : null;
+
+  const startDate = earliestActivity
+    ? new Date(Math.min(rollingStart.getTime(), new Date(earliestActivity.getFullYear(), earliestActivity.getMonth(), 1).getTime()))
+    : rollingStart;
+
+  const monthKeys = buildMonthKeysInRange({
+    startDate,
+    endDate: now,
+  });
+  const monthsSet = new Set(monthKeys);
+  const disbursedByMonth = {};
+  const recoveredByMonth = {};
+
+  loans.forEach((loan) => {
+    const rawDate = pickLoanDisbursementDate(loan);
+    if (!rawDate) return;
+    const date = new Date(rawDate);
+    if (Number.isNaN(date.getTime())) return;
+
+    const key = toMonthKey(date);
+    if (!monthsSet.has(key)) return;
+
+    disbursedByMonth[key] = (disbursedByMonth[key] || 0) + Number(loan?.amount || 0);
+  });
+
+  payments
+    .filter((payment) => !payment?.status || payment.status === 'completed')
+    .forEach((payment) => {
+      const rawDate = payment?.paymentDate || payment?.createdAt;
+      if (!rawDate) return;
+
+      const date = new Date(rawDate);
+      if (Number.isNaN(date.getTime())) return;
+
+      const key = toMonthKey(date);
+      if (!monthsSet.has(key)) return;
+
+      recoveredByMonth[key] = (recoveredByMonth[key] || 0) + Number(payment?.amount || 0);
+    });
+
+  return monthKeys.map((month) => ({
+    month,
+    disbursed: Number((disbursedByMonth[month] || 0).toFixed(2)),
+    recovered: Number((recoveredByMonth[month] || 0).toFixed(2)),
+  }));
 };
 
 const buildCustomerHistoryTimeline = (history) => ([
@@ -365,8 +452,9 @@ const paginateCollection = (items, pagination) => {
     return { items, pagination: null };
   }
 
+  const normalized = paginateArray({ items, pagination: { ...pagination, offset: 0 } });
   return {
-    items: items.slice(0, pagination.pageSize),
+    items: normalized.items,
     pagination: buildPaginationMeta({
       page: pagination.page,
       pageSize: pagination.pageSize,
@@ -491,6 +579,10 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
 
   try {
     const dashboard = await reportRepository.getDashboardSummary();
+    const monthlyPerformance = buildMonthlyPerformanceSeries({
+      loans: dashboard.loans || [],
+      payments: dashboard.payments || [],
+    });
     const loansWithDetails = await buildLoansWithDetails({
       loans: dashboard.loans || [],
       paymentRepository,
@@ -513,6 +605,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
           totalRecoveredAmount: totalRecoveredAmount.toFixed(2),
           totalOutstandingAmount: totalOutstandingAmount.toFixed(2),
         },
+        monthlyPerformance,
         collections: {
           overdueAlerts: (dashboard.alerts || []).length,
           pendingPromises: (dashboard.promises || []).filter((promise) => promise.status === 'pending').length,
@@ -1094,4 +1187,7 @@ module.exports = {
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
   createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
   createExportAssociatesExcel: require('./useCases/createExportAssociatesExcel').createExportAssociatesExcel,
+  // Enhanced reports use cases
+  createGetPayoutsReport: require('./useCases/createGetPayoutsReport').createGetPayoutsReport,
+  createGetPaymentSchedule: require('./useCases/createGetPaymentSchedule').createGetPaymentSchedule,
 };

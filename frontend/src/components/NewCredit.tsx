@@ -7,8 +7,8 @@ import { toast } from '../lib/toast';
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { createLoan, simulateLoan } = useLoans();
-  const { data: customersData } = useCustomers({ limit: 100 });
-  const { data: associatesData } = useAssociates({ limit: 100 });
+  const { data: customersData } = useCustomers({ pageSize: 100 });
+  const { data: associatesData } = useAssociates({ pageSize: 100 });
   
   const customers = Array.isArray(customersData?.data?.customers)
     ? customersData.data.customers
@@ -74,7 +74,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         setSimulation(result?.data?.simulation);
       } catch (error: any) {
         console.error('Error in simulation', error);
-        toast.apiError(error, 'Error calculando la simulación. Verifica los datos ingresados.');
+        toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.simulate' });
       } finally {
         setIsSimulating(false);
       }
@@ -111,7 +111,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         // Show toast for validation errors
         toast.validationErrors(validationErrors);
       } else {
-        toast.apiError(error, 'Error al crear el crédito. Por favor intenta de nuevo.');
+        toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.create' });
       }
     } finally {
       setIsSubmitting(false);

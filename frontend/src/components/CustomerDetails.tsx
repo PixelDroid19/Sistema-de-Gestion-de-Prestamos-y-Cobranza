@@ -5,13 +5,15 @@ import { useCustomers, useCustomerDocuments } from '../services/customerService'
 import { useCustomerReports } from '../services/reportService';
 import { useLoans } from '../services/loanService';
 import { toast } from '../lib/toast';
+import { tTerm } from '../i18n/terminology';
+import { confirmDanger } from '../lib/confirmModal';
 
 export default function CustomerDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const customerId = Number(id);
 
-  const { data: customersData } = useCustomers({ limit: 100 });
+  const { data: customersData } = useCustomers({ pageSize: 100 });
   const customers = Array.isArray(customersData?.data?.customers)
     ? customersData.data.customers
     : Array.isArray(customersData?.data)
@@ -21,7 +23,7 @@ export default function CustomerDetails() {
 
   const { documents, uploadDocument, deleteDocument, downloadDocumentUrl } = useCustomerDocuments(customerId);
   const { history, creditProfile } = useCustomerReports(customerId);
-  const { data: loansData } = useLoans({ limit: 100 });
+  const { data: loansData } = useLoans({ pageSize: 100 });
 
   const loans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
@@ -75,19 +77,23 @@ export default function CustomerDetails() {
     try {
       await uploadDocument.mutateAsync({ file, metadata: { documentType: docType } });
       setFile(null);
-      toast.success({ title: 'Documento subido exitosamente' });
+      toast.success({ title: tTerm('customerDetails.toast.document.upload.success') });
     } catch (error) {
-      toast.error({ title: 'Error al subir documento' });
+      toast.error({ title: tTerm('customerDetails.toast.document.upload.error') });
     }
   };
 
   const handleDeleteDoc = async (docId: number) => {
-    if (window.confirm('¿Seguro que desea eliminar este documento?')) {
-      try {
-        await deleteDocument.mutateAsync(docId);
-      } catch (error) {
-        toast.error({ title: 'Error al eliminar' });
-      }
+    const confirmed = await confirmDanger({
+      title: tTerm('confirm.document.delete.title'),
+      message: tTerm('confirm.document.delete.message'),
+      confirmLabel: tTerm('confirm.document.delete.confirm'),
+    });
+    if (!confirmed) return;
+    try {
+      await deleteDocument.mutateAsync(docId);
+    } catch (error) {
+      toast.error({ title: tTerm('customerDetails.toast.document.delete.error') });
     }
   };
 

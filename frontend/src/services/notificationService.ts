@@ -1,28 +1,26 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { useInvalidatingMutation } from './crudHooks';
+
+const notificationQueryKeys = {
+  list: ['notifications.list'] as const,
+};
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
 export const useNotifications = () => {
-  const queryClient = useQueryClient();
-
   const getNotifications = useQuery({
-    queryKey: ['notifications.list'],
+    queryKey: notificationQueryKeys.list,
     queryFn: async () => {
       const { data } = await apiClient.get('/notifications');
       return data;
     },
   });
 
-  const markAsRead = useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.put(`/notifications/${id}/read`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications.list'] });
-    },
-  });
+  const markAsRead = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.put(`/notifications/${id}/read`);
+    return data;
+  }, notificationQueryKeys.list);
 
   return {
     data: getNotifications.data,

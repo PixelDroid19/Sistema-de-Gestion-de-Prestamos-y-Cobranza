@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { useSessionStore } from '../store/sessionStore';
 
+const authQueryKeys = {
+  profile: ['auth.profile'] as const,
+};
+
 export const useAuth = () => {
   const queryClient = useQueryClient();
   const { login, logout } = useSessionStore();
@@ -15,7 +19,7 @@ export const useAuth = () => {
       // Login now receives token pair: { accessToken, refreshToken, user }
       const { accessToken, refreshToken, user } = data.data;
       login({ accessToken, refreshToken, user });
-      queryClient.invalidateQueries({ queryKey: ['auth.profile'] });
+      queryClient.invalidateQueries({ queryKey: authQueryKeys.profile });
     },
   });
 
@@ -45,7 +49,7 @@ export const useAuth = () => {
   });
 
   const profileQuery = useQuery({
-    queryKey: ['auth.profile'],
+    queryKey: authQueryKeys.profile,
     queryFn: async () => {
       const { data } = await apiClient.get('/auth/profile');
       return data.data.user;
@@ -59,7 +63,7 @@ export const useAuth = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auth.profile'] });
+      queryClient.invalidateQueries({ queryKey: authQueryKeys.profile });
     }
   });
 

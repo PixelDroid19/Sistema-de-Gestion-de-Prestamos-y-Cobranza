@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList, X, PanelLeftClose, PanelLeftOpen, Calculator } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
 import { useNavigate } from 'react-router-dom';
+import { tTerm } from '../i18n/terminology';
 
 export default function Sidebar({ 
   currentView, 
@@ -83,7 +84,7 @@ export default function Sidebar({
             icon={<LayoutDashboard size={20} />} 
             active={currentView === 'dashboard'} 
             onClick={() => setCurrentView('dashboard')} 
-            title="Dashboard" 
+            title={tTerm('sidebar.dashboard')} 
             isCollapsed={isCollapsed}
           />
 
@@ -101,13 +102,13 @@ export default function Sidebar({
                     ? 'text-brand-primary font-medium' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
               }`}
-              title={isCollapsed ? "Clientes" : undefined}
+              title={isCollapsed ? tTerm('sidebar.customers') : undefined}
             >
               <div className="flex items-center gap-3">
                 <div className={`${isCustomersView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <Users size={20} />
                 </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">Clientes</span>}
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.customers')}</span>}
               </div>
               {!isCollapsed && (
                 <div className={`transition-transform duration-200 ${openMenus['clientes'] ? 'rotate-180' : ''}`}>
@@ -121,8 +122,18 @@ export default function Sidebar({
             
             {openMenus['clientes'] && !isCollapsed && (
               <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
-                <SubNavItem active={currentView === 'customers'} onClick={() => setCurrentView('customers')} title="Directorio" />
-                <SubNavItem active={currentView === 'customers-new'} onClick={() => setCurrentView('customers-new')} title="Nuevo Cliente" />
+                <SubNavItem
+                  active={currentView === 'customers'}
+                  onClick={() => setCurrentView('customers')}
+                  title={tTerm('sidebar.customers.directory')}
+                  tooltip="Consulta y busca clientes registrados"
+                />
+                <SubNavItem
+                  active={currentView === 'customers-new'}
+                  onClick={() => setCurrentView('customers-new')}
+                  title={tTerm('sidebar.customers.new')}
+                  tooltip="Registra un cliente por primera vez"
+                />
               </div>
             )}
           </div>
@@ -141,13 +152,13 @@ export default function Sidebar({
                     ? 'text-brand-primary font-medium' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
               }`}
-              title={isCollapsed ? "Créditos" : undefined}
+              title={isCollapsed ? tTerm('sidebar.credits') : undefined}
             >
               <div className="flex items-center gap-3">
                 <div className={`${(currentView.startsWith('credit') || currentView === 'reports') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <CreditCard size={20} />
                 </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">Créditos</span>}
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.credits')}</span>}
               </div>
               {!isCollapsed && (
                 <div className={`transition-transform duration-200 ${openMenus['creditos'] ? 'rotate-180' : ''}`}>
@@ -161,9 +172,25 @@ export default function Sidebar({
             
             {openMenus['creditos'] && !isCollapsed && (
               <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
-                <SubNavItem active={currentView === 'credits'} onClick={() => setCurrentView('credits')} title="Cartera Activa" />
-                <SubNavItem active={currentView === 'credits-new'} onClick={() => setCurrentView('credits-new')} title="Originación" />
-                <SubNavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} title="Reportes" />
+                <SubNavItem
+                  active={currentView === 'credits'}
+                  onClick={() => setCurrentView('credits')}
+                  title={tTerm('sidebar.credits.portfolio')}
+                  tooltip="Creditos en curso con saldo o cuotas pendientes"
+                />
+                <SubNavItem
+                  active={currentView === 'credits-new'}
+                  onClick={() => setCurrentView('credits-new')}
+                  title={tTerm('sidebar.credits.origination')}
+                  tooltip="Crear y registrar un credito nuevo"
+                />
+                <SubNavItem
+                  active={currentView === 'reports'}
+                  onClick={() => setCurrentView('reports')}
+                  title={tTerm('sidebar.credits.reports')}
+                  tooltip="Indicadores de cartera, mora y recaudo"
+                />
+                
               </div>
             )}
           </div>
@@ -182,13 +209,13 @@ export default function Sidebar({
                     ? 'text-brand-primary font-medium' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
               }`}
-              title={isCollapsed ? "Socios" : undefined}
+              title={isCollapsed ? tTerm('sidebar.associates') : undefined}
             >
               <div className="flex items-center gap-3">
                 <div className={`${currentView.startsWith('associate') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <UserPlus size={20} />
                 </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">Socios</span>}
+                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.associates')}</span>}
               </div>
               {!isCollapsed && (
                 <div className={`transition-transform duration-200 ${openMenus['socios'] ? 'rotate-180' : ''}`}>
@@ -202,7 +229,7 @@ export default function Sidebar({
             
             {openMenus['socios'] && !isCollapsed && (
               <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
-                <SubNavItem active={currentView === 'associates'} onClick={() => setCurrentView('associates')} title="Gestión de Socios" />
+                <SubNavItem active={currentView === 'associates'} onClick={() => setCurrentView('associates')} title={tTerm('sidebar.associates.management')} />
               </div>
             )}
           </div>
@@ -213,7 +240,8 @@ export default function Sidebar({
               icon={<DollarSign size={20} />} 
               active={currentView === 'payouts'} 
               onClick={() => setCurrentView('payouts')} 
-              title="Historial de Pagos" 
+              title={tTerm('sidebar.payouts')} 
+              tooltip="Registra pagos, consulta recibos y seguimiento de cobranza"
               isCollapsed={isCollapsed}
             />
           </div>
@@ -222,9 +250,9 @@ export default function Sidebar({
 
         {/* Footer Sidebar (Ajustes y Colapso) */}
         <div className="flex flex-col gap-1 w-full px-3 mt-auto pt-6 border-t border-border-subtle">
-          <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title="Auditoría" isCollapsed={isCollapsed} />
-          <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title="Configuración" isCollapsed={isCollapsed} />
-          <NavItem icon={<LogOut size={20} />} onClick={logout} title="Cerrar Sesión" isCollapsed={isCollapsed} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" />
+          <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />
+          <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />
+          <NavItem icon={<LogOut size={20} />} onClick={logout} title={tTerm('sidebar.logout')} isCollapsed={isCollapsed} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" />
           
           {/* Botón Colapsar (Solo Escritorio) */}
           <button 
@@ -241,12 +269,12 @@ export default function Sidebar({
 }
 
 // Subcomponente de Ítem de Navegación Principal
-const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string, isCollapsed?: boolean, className?: string }>(({ icon, active, onClick, title, isCollapsed, className }, ref) => {
+const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string, tooltip?: string, isCollapsed?: boolean, className?: string }>(({ icon, active, onClick, title, tooltip, isCollapsed, className }, ref) => {
   return (
     <button 
       ref={ref}
       onClick={onClick}
-      title={isCollapsed ? title : undefined}
+      title={isCollapsed ? title : tooltip}
       data-active={active ? "true" : "false"}
       className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
         isCollapsed ? 'justify-center' : 'justify-start gap-3'
@@ -271,10 +299,11 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
 NavItem.displayName = 'NavItem';
 
 // Subcomponente de Ítem Anidado
-function SubNavItem({ active, onClick, title }: { active?: boolean; onClick?: () => void; title: string }) {
+function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onClick?: () => void; title: string; tooltip?: string }) {
   return (
     <button 
       onClick={onClick}
+      title={tooltip}
       data-active={active ? "true" : "false"}
       className={`w-full flex items-center text-left py-2 px-3 rounded-lg transition-colors text-sm relative group ${
         active 

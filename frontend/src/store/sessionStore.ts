@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 interface User {
   id: number;
@@ -8,6 +8,7 @@ interface User {
   role: 'admin' | 'customer' | 'socio';
   phone?: string;
   associateId?: number;
+  permissions?: string[];
 }
 
 interface SessionState {
@@ -35,6 +36,7 @@ export const useSessionStore = create<SessionState>()(
     }),
     {
       name: 'lendflow-session',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         refreshToken: state.refreshToken,
         user: state.user,

@@ -1,26 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
+import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useAssociates = (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
-  const queryClient = useQueryClient();
-
-  const getAssociates = useQuery({
-    queryKey: ['associates.list', params],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/associates', { params });
-      return data;
-    },
+export const useAssociates = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+  const getAssociates = useCrudListQuery(queryKeys.associates.list(params), async () => {
+    const { data } = await apiClient.get('/associates', { params });
+    return data;
   });
 
-  const createAssociate = useMutation({
-    mutationFn: async (associateData: any) => {
-      const { data } = await apiClient.post('/associates', associateData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['associates.list'] });
-    },
-  });
+  const createAssociate = useInvalidatingMutation(async (associateData: any) => {
+    const { data } = await apiClient.post('/associates', associateData);
+    return data;
+  }, queryKeys.associates.all);
 
   return {
     data: getAssociates.data,
@@ -34,7 +26,7 @@ export const useAssociateDetails = (associateId: number) => {
   const queryClient = useQueryClient();
 
   const getPortal = useQuery({
-    queryKey: ['associates.portal', associateId],
+    queryKey: queryKeys.associates.portal(associateId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/associates/${associateId}/portal`);
       return data;
@@ -43,7 +35,7 @@ export const useAssociateDetails = (associateId: number) => {
   });
 
   const getInstallments = useQuery({
-    queryKey: ['associates.installments', associateId],
+    queryKey: queryKeys.associates.installments(associateId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/associates/${associateId}/installments`);
       return data;
@@ -52,7 +44,7 @@ export const useAssociateDetails = (associateId: number) => {
   });
 
   const getCalendar = useQuery({
-    queryKey: ['associates.calendar', associateId],
+    queryKey: queryKeys.associates.calendar(associateId),
     queryFn: async () => {
       const { data } = await apiClient.get(`/associates/${associateId}/calendar-events`);
       return data;
@@ -66,7 +58,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['associates.portal', associateId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
     },
   });
 
@@ -76,7 +68,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['associates.portal', associateId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
     },
   });
 
@@ -86,7 +78,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['associates.portal', associateId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
     },
   });
 
@@ -96,16 +88,17 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['associates.installments', associateId] });
-      queryClient.invalidateQueries({ queryKey: ['associates.calendar', associateId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
 
   return {
     portal: getPortal.data?.data?.portal,
     installments: getInstallments.data?.data?.installments,
+    contributions: getPortal.data?.data?.portal?.contributions,
     calendar: getCalendar.data?.data?.calendar,
-    isLoading: getPortal.isLoading,
+    isLoading: getPortal.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
     createDistribution,
     createReinvestment,

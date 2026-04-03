@@ -1,4 +1,5 @@
 const { AuthorizationError } = require('../../../../utils/errorHandler');
+const { ensureAdminOrSocio, formatMoney } = require('../reportHelpers');
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -20,14 +21,6 @@ const normalizeDistributionRecord = (distribution) => {
   };
 };
 
-const ensureAdminOrSocio = (actor) => {
-  if (actor.role !== 'admin' && actor.role !== 'socio') {
-    throw new AuthorizationError('Only admins and socios can export associates data');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
-
 const formatIsoDate = (value) => {
   if (!value) {
     return 'N/A';
@@ -43,7 +36,7 @@ const formatIsoDate = (value) => {
  * GET /api/reports/associates/excel
  */
 const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor }) => {
-  ensureAdminOrSocio(actor);
+  ensureAdminOrSocio(actor, 'Only admins and socios can export associates data');
 
   // Admin can export all, socio can only export self
   let associateIds;

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, TrendingUp, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Wallet, TrendingUp, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
 import { useAssociateDetails, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
+import ContributionModal from './ContributionModal';
+import InstallmentsModal from './InstallmentsModal';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
@@ -11,7 +13,7 @@ export default function AssociateDetails() {
   const navigate = useNavigate();
   const associateId = Number(id);
 
-  const { data: associatesData } = useAssociates({ limit: 100 });
+  const { data: associatesData } = useAssociates({ pageSize: 100 });
   const associates = Array.isArray(associatesData?.data?.associates)
     ? associatesData.data.associates
     : Array.isArray(associatesData?.data)
@@ -19,10 +21,12 @@ export default function AssociateDetails() {
       : [];
   const associate = associates.find((a: any) => Number(a.id) === associateId);
 
-  const { portal, installments, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
+  const { portal, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<'contribution' | 'distribution' | 'reinvestment' | null>(null);
+  const [showContributionsModal, setShowContributionsModal] = useState(false);
+  const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -303,6 +307,12 @@ export default function AssociateDetails() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowContributionsModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+            <History size={16} /> Aportaciones
+          </button>
+          <button onClick={() => setShowInstallmentsModal(true)} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
+            <Clock size={16} /> Cuotas
+          </button>
           <button onClick={() => setShowModal('contribution')} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
             <Wallet size={16} /> Aportar
           </button>
@@ -397,6 +407,26 @@ export default function AssociateDetails() {
             </form>
           </div>
         </div>
+      )}
+
+      {showContributionsModal && contributions !== undefined && (
+        <ContributionModal
+          contributions={contributions}
+          isLoading={false}
+          associateId={associateId}
+          onAddContribution={async (data) => {
+            await createContribution.mutateAsync(data);
+          }}
+          onClose={() => setShowContributionsModal(false)}
+        />
+      )}
+
+      {showInstallmentsModal && (
+        <InstallmentsModal
+          installments={installments}
+          isLoading={false}
+          onClose={() => setShowInstallmentsModal(false)}
+        />
       )}
     </div>
   );

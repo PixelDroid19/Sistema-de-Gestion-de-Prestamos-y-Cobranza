@@ -1,17 +1,14 @@
 const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
 const { withAudit } = require('../../audit/application/auditDecorator');
-
-const normalizeAttachmentVisibility = (value) => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
-  }
-
-  return false;
-};
+const {
+  normalizeAttachmentVisibility,
+  ensureUploadedFile,
+  withUploadCleanup,
+  toTrimmedOrNull,
+  buildStoredFileFields,
+  ensureDocumentExists,
+  resolveDocumentDownload,
+} = require('../../shared/documentOperations');
 
 const enrichCustomersWithLoanSummaries = async ({ customerRepository, result }) => {
   if (typeof customerRepository.attachLoanSummaries !== 'function') {
@@ -162,35 +159,29 @@ const createListCustomerDocuments = ({ customerRepository }) => async ({ actor, 
 
 const createUploadCustomerDocument = ({ customerRepository, attachmentStorage, auditService }) => {
   const useCase = async ({ actor, customerId, file, metadata = {} }) => {
-    if (!file) {
-      throw new ValidationError('Attachment file is required');
-    }
+    ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
 
     if (actor.role !== 'admin') {
       await attachmentStorage.deleteByAbsolutePath(file.path);
       throw new AuthorizationError('Only admins can upload customer documents');
     }
 
-    try {
+    return withUploadCleanup({
+      file,
+      attachmentStorage,
+      task: async () => {
       const customer = await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
 
-      return await customerRepository.createDocument({
-        customerId: customer.id,
-        uploadedByUserId: actor.id,
-        storageDisk: 'local',
-        storagePath: attachmentStorage.toRelativePath(file.path),
-        storedName: file.filename,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
-        category: metadata.category ? String(metadata.category).trim() : null,
-        description: metadata.description ? String(metadata.description).trim() : null,
-      });
-    } catch (error) {
-      await attachmentStorage.deleteByAbsolutePath(file.path);
-      throw error;
-    }
+        return customerRepository.createDocument({
+          customerId: customer.id,
+          uploadedByUserId: actor.id,
+          ...buildStoredFileFields({ file, attachmentStorage }),
+          customerVisible: normalizeAttachmentVisibility(metadata.customerVisible),
+          category: toTrimmedOrNull(metadata.category),
+          description: toTrimmedOrNull(metadata.description),
+        });
+      },
+    });
   };
 
   if (auditService) {
@@ -203,19 +194,15 @@ const createDownloadCustomerDocument = ({ customerRepository, attachmentStorage 
   await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
   const document = await customerRepository.findDocument({ customerId, documentId });
 
-  if (!document) {
-    throw new NotFoundError('Document');
-  }
+  ensureDocumentExists(document, 'Document');
 
   if (actor.role === 'customer' && !document.customerVisible) {
     throw new AuthorizationError('You do not have access to this document');
   }
 
-  await attachmentStorage.assertExists(document.storagePath);
-
   return {
     document,
-    absolutePath: attachmentStorage.resolveAbsolutePath(document.storagePath),
+    absolutePath: await resolveDocumentDownload({ attachmentStorage, storagePath: document.storagePath }),
   };
 };
 
@@ -228,9 +215,7 @@ const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage, a
     await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
     const document = await customerRepository.findDocument({ customerId, documentId });
 
-    if (!document) {
-      throw new NotFoundError('Document');
-    }
+    ensureDocumentExists(document, 'Document');
 
     const absolutePath = attachmentStorage.resolveAbsolutePath(document.storagePath);
     await attachmentStorage.deleteByAbsolutePath(absolutePath);

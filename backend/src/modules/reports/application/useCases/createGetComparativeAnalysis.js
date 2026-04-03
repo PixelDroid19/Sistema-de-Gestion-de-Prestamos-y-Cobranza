@@ -1,13 +1,5 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
 const { calculateChangePercent } = require('./statistics');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access financial reports');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
+const { ensureAdmin, formatMoney } = require('../reportHelpers');
 
 /**
  * Create use case: Get Comparative Analysis
@@ -15,7 +7,7 @@ const formatMoney = (value) => Number(value || 0).toFixed(2);
  * GET /api/reports/comparative-analysis?year={year}
  */
 const createGetComparativeAnalysis = ({ reportRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can access financial reports');
 
   const targetYear = year || new Date().getFullYear();
   const currentMetrics = await reportRepository.getPerformanceMetrics(targetYear);

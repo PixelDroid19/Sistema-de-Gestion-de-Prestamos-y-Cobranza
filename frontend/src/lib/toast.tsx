@@ -13,6 +13,7 @@
  */
 
 import { sileo, Toaster } from 'sileo';
+import { getSafeErrorMessage, type SafeErrorContext } from '../services/safeErrorMessages';
 
 // =============================================================================
 // Types
@@ -129,24 +130,38 @@ export const toast = {
   },
 
   /**
-   * API error toast - extracts message from error response
-   * Use for: Axios/fetch error responses
+   * API error toast - safe by default (no backend leakage)
+   * Use for: HTTP client error responses
    */
-  apiError: (error: any, fallbackMessage = 'Error de conexión') => {
+  apiError: (error: unknown, fallbackMessage = 'No se pudo completar la operación') => {
+    const safeMessage = getSafeErrorMessage(error, {
+      domain: 'generic',
+      fallbackMessage,
+    });
+
+    return sileo.error({
+      title: safeMessage.title,
+      description: safeMessage.description,
+      duration: 6000,
+    });
+  },
+
+  /**
+   * API error toast with contextual safe messaging
+   */
+  apiErrorSafe: (error: unknown, context?: SafeErrorContext) => {
     // Try to extract validation errors
-    const validationErrors = error?.response?.data?.error?.validationErrors;
+    const typedError = error as { response?: { data?: { error?: { validationErrors?: ValidationError[] } } } };
+    const validationErrors = typedError?.response?.data?.error?.validationErrors;
     if (validationErrors && Array.isArray(validationErrors)) {
       return toast.validationErrors(validationErrors);
     }
 
-    // Try to extract simple error message
-    const message = error?.response?.data?.error?.message 
-      || error?.message 
-      || fallbackMessage;
+    const safeMessage = getSafeErrorMessage(error, context);
 
     return sileo.error({
-      title: 'Error',
-      description: message,
+      title: safeMessage.title,
+      description: safeMessage.description,
       duration: 6000,
     });
   },

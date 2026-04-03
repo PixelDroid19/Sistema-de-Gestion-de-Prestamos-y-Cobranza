@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../services/authService';
 import { toast } from '../lib/toast';
+import { getSafeErrorText } from '../services/safeErrorMessages';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,8 +21,9 @@ export default function Login() {
       await login({ email, password });
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión');
-      toast.apiError(err, 'Error al iniciar sesión');
+      console.error('[auth] login failed', err);
+      setError(getSafeErrorText(err, { domain: 'auth', action: 'login' }));
+      toast.apiErrorSafe(err, { domain: 'auth', action: 'login' });
     }
   };
 

@@ -25,7 +25,8 @@ export default function UserPermissionsTable({ onManagePermissions }: UserPermis
       await revokePermission.mutateAsync({ userId, permission, module });
       toast.success({ description: 'PermisoRevocado' });
     } catch (error) {
-      toast.apiError(error, 'Error al revocar permiso');
+      console.error('[permissions] revokePermission failed', error);
+      toast.apiErrorSafe(error, { domain: 'users', action: 'permission.revoke' });
     }
   };
 
@@ -34,7 +35,8 @@ export default function UserPermissionsTable({ onManagePermissions }: UserPermis
       await grantPermission.mutateAsync({ userId, permission, module });
       toast.success({ description: 'Permiso concedido' });
     } catch (error) {
-      toast.apiError(error, 'Error al conceder permiso');
+      console.error('[permissions] grantPermission failed', error);
+      toast.apiErrorSafe(error, { domain: 'users', action: 'permission.grant' });
     }
   };
 

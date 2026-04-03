@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Briefcase, Loader2 } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
-import { toast } from '../lib/toast';
+import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 
 export default function NewCustomer({ onBack }: { onBack: () => void }) {
   const { createCustomer } = useCustomers();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -15,6 +14,11 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     email: '',
     address: ''
   });
+  const { isSubmitting, run } = useCreateEntitySubmit({
+    mutate: (payload: typeof formData) => createCustomer.mutateAsync(payload),
+    errorContext: { domain: 'customers', action: 'customer.create' },
+    onSuccess: onBack,
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -23,16 +27,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await createCustomer.mutateAsync(formData);
-      onBack();
-    } catch (error) {
-      console.error('Error creating customer:', error);
-      toast.apiError(error, 'Error al crear el cliente');
-    } finally {
-      setIsSubmitting(false);
-    }
+    await run(formData);
   };
 
   return (

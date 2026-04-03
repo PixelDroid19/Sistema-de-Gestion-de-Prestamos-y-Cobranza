@@ -1,66 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from './queryKeys';
+import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useUsers = (params?: { page?: number; limit?: number; search?: string; role?: string }) => {
-  const queryClient = useQueryClient();
-
-  const getUsers = useQuery({
-    queryKey: ['users.list', params],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/users', { params });
-      return data;
-    },
+export const useUsers = (params?: { page?: number; pageSize?: number; search?: string; role?: string }) => {
+  const getUsers = useCrudListQuery(queryKeys.users.list(params), async () => {
+    const { data } = await apiClient.get('/users', { params });
+    return data;
   });
 
-  const createUser = useMutation({
-    mutationFn: async (userData: any) => {
-      const { data } = await apiClient.post('/users', userData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-    },
-  });
+  const updateUser = useInvalidatingMutation(async ({ id, ...userData }: any) => {
+    const { data } = await apiClient.put(`/users/${id}`, userData);
+    return data;
+  }, queryKeys.users.all);
 
-  const updateUser = useMutation({
-    mutationFn: async ({ id, ...userData }: any) => {
-      const { data } = await apiClient.put(`/users/${id}`, userData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-    },
-  });
+  const deactivateUser = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.post(`/users/${id}/deactivate`);
+    return data;
+  }, queryKeys.users.all);
 
-  const deactivateUser = useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.post(`/users/${id}/deactivate`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-    },
-  });
+  const reactivateUser = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.post(`/users/${id}/reactivate`);
+    return data;
+  }, queryKeys.users.all);
 
-  const reactivateUser = useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.post(`/users/${id}/reactivate`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-    },
-  });
-
-  const registerWithPermissions = useMutation({
-    mutationFn: async (userData: { name: string; email: string; password: string; role: string; permissions?: string[] }) => {
-      const { data } = await apiClient.post('/auth/register-with-permissions', userData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-    },
-  });
+  const registerWithPermissions = useInvalidatingMutation(async (userData: { name: string; email: string; password: string; role: string; permissions?: string[] }) => {
+    const { data } = await apiClient.post('/auth/register-with-permissions', userData);
+    return data;
+  }, queryKeys.users.all);
 
   return {
     data: getUsers.data,

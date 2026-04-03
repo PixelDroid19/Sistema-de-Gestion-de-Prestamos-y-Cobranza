@@ -754,3 +754,153 @@ test('annulInstallment excludes annulled installments from outstanding snapshot 
   assert.equal(savedLoan.financialSnapshot.nextInstallment.installmentNumber, 2);
   assert.equal(savedPayment.allocationBreakdown[0].previousStatus, 'overdue');
 });
+
+test('annulInstallment respects requested installment number when it matches nearest cancellable installment', async () => {
+  let savedPayment;
+
+  const loan = {
+    id: 45,
+    status: 'active',
+    recoveryStatus: 'assigned',
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-01-15T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 110,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-02-15T00:00:00.000Z',
+        remainingPrincipal: 90,
+        remainingInterest: 9,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 99,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annul-selected' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 992, ...payload };
+  });
+
+  const result = await createPaymentApplicationService({ loanViewService }).annulInstallment({
+    loanId: 45,
+    actor: { id: 99, role: 'admin' },
+    installmentNumber: 1,
+    reason: 'Ajuste operativo',
+    paymentDate: '2026-01-20T00:00:00.000Z',
+  });
+
+  assert.equal(result.annulment.installmentNumber, 1);
+  assert.equal(savedPayment.installmentNumber, 1);
+  assert.equal(savedPayment.paymentMetadata.annulment.installmentNumber, 1);
+  assert.equal(savedPayment.paymentMetadata.annulment.reason, 'Ajuste operativo');
+});
+
+test('annulInstallment blocks requested installment when it is not the nearest cancellable one', async () => {
+  const loan = {
+    id: 46,
+    status: 'active',
+    recoveryStatus: 'assigned',
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-01-15T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-02-15T00:00:00.000Z',
+        remainingPrincipal: 90,
+        remainingInterest: 9,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annul-invalid-selected' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).annulInstallment({
+    loanId: 46,
+    actor: { id: 99, role: 'admin' },
+    installmentNumber: 2,
+    paymentDate: '2026-01-20T00:00:00.000Z',
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.match(error.message, /only the nearest pending or overdue installment/i);
+    assert.match(error.message, /#1/i);
+    return true;
+  });
+});
+
+test('updatePaymentMethod updates method for non-reconciled payments and preserves guard for reconciled ones', async () => {
+  const service = createPaymentApplicationService({ loanViewService });
+
+  const editablePayment = {
+    id: 700,
+    loanId: 50,
+    status: 'completed',
+    paymentMethod: 'cash',
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-update-method' }));
+  mock.method(models.Payment, 'findOne', async ({ where }) => {
+    if (where.id === 701) {
+      return { id: 701, loanId: 50, status: 'reconciled' };
+    }
+    return editablePayment;
+  });
+
+  const updated = await service.updatePaymentMethod({
+    loanId: 50,
+    paymentId: 700,
+    paymentMethod: 'transfer',
+    actor: { id: 1, role: 'admin' },
+  });
+
+  assert.equal(updated.paymentMethod, 'transfer');
+
+  await assert.rejects(() => service.updatePaymentMethod({
+    loanId: 50,
+    paymentId: 701,
+    paymentMethod: 'cash',
+    actor: { id: 1, role: 'admin' },
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.match(error.message, /reconciled/i);
+    return true;
+  });
+});

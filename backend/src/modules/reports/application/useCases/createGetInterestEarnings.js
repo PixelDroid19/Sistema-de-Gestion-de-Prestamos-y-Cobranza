@@ -1,12 +1,4 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
-
-const ensureAdmin = (actor) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access financial reports');
-  }
-};
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
+const { ensureAdmin, formatMoney } = require('../reportHelpers');
 
 /**
  * Create use case: Get Interest Earnings Report
@@ -14,7 +6,7 @@ const formatMoney = (value) => Number(value || 0).toFixed(2);
  * GET /api/reports/interest-earnings
  */
 const createGetInterestEarnings = ({ paymentRepository }) => async ({ actor, year }) => {
-  ensureAdmin(actor);
+  ensureAdmin(actor, 'Only admins can access financial reports');
 
   const targetYear = year || new Date().getFullYear();
   const monthlyInterest = await paymentRepository.getMonthlyInterest(targetYear);

@@ -1,5 +1,36 @@
 const winston = require('winston');
 
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'currentPassword',
+  'newPassword',
+  'refreshToken',
+  'accessToken',
+  'token',
+  'authorization',
+  'cookie',
+  'deviceToken',
+]);
+
+const sanitizeSensitive = (value) => {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeSensitive);
+  }
+
+  return Object.entries(value).reduce((acc, [key, val]) => {
+    if (SENSITIVE_KEYS.has(String(key))) {
+      acc[key] = '[REDACTED]';
+    } else {
+      acc[key] = sanitizeSensitive(val);
+    }
+    return acc;
+  }, {});
+};
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -61,7 +92,7 @@ const logError = (error, req) => {
     statusCode: error.statusCode,
     path: req?.path,
     method: req?.method,
-    body: req?.body,
+    body: sanitizeSensitive(req?.body),
     params: req?.params,
     query: req?.query,
     user: req?.user?.id

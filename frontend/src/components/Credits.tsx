@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle, Save } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLoans, useLoanStatistics } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
-import { useSessionStore } from '../store/sessionStore';
 import { apiClient } from '../api/client';
 import { SimulationResult } from '../types/simulation';
 import DAGWorkbench from './DAGWorkbench';
 import { toast } from '../lib/toast';
+import { downloadCreditReport, exportCreditsExcel } from '../services/reportService';
+import { useSessionStore } from '../store/sessionStore';
+import { useOperationalActions } from './hooks/useOperationalActions';
+import { invalidateAfterDelete, invalidateAfterReport } from '../services/operationalInvalidation';
+import { tTerm } from '../i18n/terminology';
+import { queryKeys } from '../services/queryKeys';
+import { LOAN_STATUS_LABELS } from '../constants/loanStates';
+import { getChipClassName } from '../constants/uiChips';
 
 const locales = {
   'es': es,
@@ -165,41 +172,24 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics();
+  const { user } = useSessionStore();
 
   // Query client for refetching
   const queryClient = useQueryClient();
+  const { executeGuardedAction } = useOperationalActions(queryClient);
 
   const handleExportCreditsExcel = async () => {
     try {
       setIsExporting(true);
-      const response = await fetch('/api/reports/credits/excel', {
-        headers: {
-          Authorization: `Bearer ${useSessionStore.getState().accessToken}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to export credits');
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'credits-export.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success({ description: 'Credits exported successfully' });
+      await exportCreditsExcel();
+      toast.success({ description: tTerm('credits.toast.export.success') });
     } catch (error) {
-      toast.error({ description: 'Failed to export credits' });
+      toast.error({ description: tTerm('credits.toast.export.error') });
       console.error('Export error:', error);
     } finally {
       setIsExporting(false);
     }
   };
-
-  // Modal states
-  const [actionModal, setActionModal] = useState<{ isOpen: boolean, type: 'view' | 'edit' | 'delete' | 'create', data: any }>({ isOpen: false, type: 'view', data: null });
 
   // Simulator states
   const [simParams, setSimParams] = useState({
@@ -208,6 +198,36 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     frequency: 12, // 12 = Mensual
     installments: 12
   });
+
+  // Saved scenarios for comparison
+  const [savedScenarios, setSavedScenarios] = useState<Array<{
+    id: string;
+    name: string;
+    params: typeof simParams;
+    results: typeof simResults;
+    createdAt: Date;
+  }>>([]);
+
+  const [scenarioComparison, setScenarioComparison] = useState(false);
+  const [scenarioName, setScenarioName] = useState('');
+
+  const handleSaveScenario = () => {
+    if (!simResults) return;
+    const newScenario = {
+      id: Date.now().toString(),
+      name: scenarioName || `Escenario ${savedScenarios.length + 1}`,
+      params: { ...simParams },
+      results: simResults,
+      createdAt: new Date(),
+    };
+    setSavedScenarios(prev => [...prev.slice(-2), newScenario]); // Keep max 3 scenarios
+    setScenarioName('');
+    toast.success({ description: 'Escenario guardado para comparación' });
+  };
+
+  const handleDeleteScenario = (id: string) => {
+    setSavedScenarios(prev => prev.filter(s => s.id !== id));
+  };
 
   // Transformar parámetros al formato que espera el API
   const apiParams = {
@@ -218,7 +238,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   // Simulator: obtener datos del backend
   const { data: simulationData, isLoading: isSimulating } = useQuery({
-    queryKey: ['loans.simulation', apiParams],
+    queryKey: queryKeys.loans.simulation(apiParams),
     queryFn: () => fetchSimulation(apiParams),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
@@ -238,8 +258,50 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }))
   } : null;
 
-  const { page, setPage, pageSize: limit } = usePaginationStore();
-  const { data: loansData, isLoading, isError } = useLoans({ page, limit });
+  const { page, setPage, pageSize } = usePaginationStore();
+  const { data: loansData, isLoading, isError, deleteLoan } = useLoans({ page, pageSize });
+
+  const handleDeleteCredit = async (credit: any) => {
+    await executeGuardedAction({
+      action: 'credit.delete',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
+      confirmationMessage: `¿Eliminar el crédito #${credit?.id} de ${getCreditLabel(credit)}? Esta acción no se puede deshacer.`,
+      run: async () => {
+        await deleteLoan.mutateAsync(Number(credit.id));
+      },
+      onSuccess: async () => {
+        await invalidateAfterDelete(queryClient, {
+          loanId: Number(credit.id),
+          loansParams: { page, pageSize },
+        });
+      },
+      successMessage: 'Crédito eliminado correctamente',
+    });
+  };
+
+  const handleDownloadReport = async (credit: any) => {
+    await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
+      run: async () => {
+        await downloadCreditReport(Number(credit.id));
+      },
+      onSuccess: async () => {
+        await invalidateAfterReport(queryClient, { loanId: Number(credit.id), loansParams: { page, pageSize } });
+      },
+      successMessage: 'Reporte descargado',
+    });
+  };
+
+  const handleNavigatePayouts = async (credit: any) => {
+    await executeGuardedAction({
+      action: 'credit.payouts.navigate',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
+      run: async () => {
+        setCurrentView?.('payouts');
+      },
+    });
+  };
 
   const mockCreditsList = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
@@ -257,22 +319,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   };
 
   const getLoanStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Activo';
-      case 'pending':
-        return 'Pendiente';
-      case 'approved':
-        return 'Aprobado';
-      case 'rejected':
-        return 'Rechazado';
-      case 'defaulted':
-        return 'En mora';
-      case 'closed':
-        return 'Cerrado';
-      default:
-        return status;
-    }
+    return LOAN_STATUS_LABELS[status as keyof typeof LOAN_STATUS_LABELS] || status;
   };
 
   const getRecoveryStatusLabel = (credit: any) => {
@@ -325,8 +372,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     <div className="flex flex-col gap-6 h-full">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold">Gestión de Créditos</h2>
-          <p className="text-sm text-text-secondary mt-1">Módulo central para originación, seguimiento y recuperación de préstamos.</p>
+          <h2 className="text-2xl font-semibold">{tTerm('credits.module.title')}</h2>
+          <p className="text-sm text-text-secondary mt-1">{tTerm('credits.module.subtitle')}</p>
         </div>
         <div className="flex gap-3">
           <button 
@@ -334,16 +381,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             disabled={isExporting}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
           >
-            <Download size={16} /> {isExporting ? 'Exportando...' : 'Exportar Excel'}
+            <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
           </button>
           <button onClick={() => setActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
-            <Calculator size={16} /> Simular
+            <Calculator size={16} /> {tTerm('credits.cta.simulate')}
           </button>
           <button 
             onClick={() => setCurrentView?.('credits-new')}
             className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
           >
-            <Plus size={16} /> Nuevo Crédito
+            <Plus size={16} /> {tTerm('credits.cta.new')}
           </button>
         </div>
       </div>
@@ -353,24 +400,28 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <button 
           onClick={() => setActiveTab('list')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          title="Creditos vigentes con saldo o cuotas pendientes"
         >
-          Préstamos Activos
+          Creditos vigentes
         </button>
         <button 
           onClick={() => setActiveTab('calendar')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'calendar' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          title="Calendario de cuotas pagadas, pendientes y vencidas"
         >
           <CalendarIcon size={16} /> Calendario
         </button>
         <button 
           onClick={() => setActiveTab('simulation')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          title="Simula cuota, interes total y cronograma estimado"
         >
           Simulación
         </button>
         <button 
           onClick={() => setActiveTab('workbench')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          title="Herramienta tecnica para flujos y escenarios DAG"
         >
           <Calculator size={16} /> Workbench DAG
         </button>
@@ -518,7 +569,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     // Reset to page 1 and trigger refetch by updating page
                     setPage(1);
                     // Trigger refetch by invalidating the query
-                    queryClient.invalidateQueries({ queryKey: ['loans'] });
+                    queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot });
                   }}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                 >
@@ -537,10 +588,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="pb-3 font-medium">Monto</th>
                   <th className="pb-3 font-medium">Tasa (TNA)</th>
                   <th className="pb-3 font-medium">Cuota</th>
-                  <th className="pb-3 font-medium">Monto Pendiente</th>
-                  <th className="pb-3 font-medium">% Mora</th>
+                  <th className="pb-3 font-medium" title="Capital e interes aun no pagados">Monto Pendiente</th>
+                  <th className="pb-3 font-medium" title="Porcentaje vencido sobre el monto total del credito">% Mora</th>
                   <th className="pb-3 font-medium">Estado</th>
-                  <th className="pb-3 font-medium">Estado de Recuperación</th>
+                  <th className="pb-3 font-medium" title="Situacion de cobro: al dia, pendiente, en mora o recuperado">Estado de Recuperación</th>
                   <th className="pb-3 font-medium">Fecha Creación</th>
                   <th className="pb-3 font-medium">Acciones</th>
                 </tr>
@@ -607,12 +658,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           )}
                         </td>
                         <td className="py-4">
-                          <span className={`px-2 py-1 rounded text-xs ${credit.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : credit.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' : 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
+                          <span className={`px-2 py-1 rounded text-xs ${credit.status === 'active' ? getChipClassName('success') : credit.status === 'pending' ? getChipClassName('warning') : getChipClassName('info')}`}>
                             {getLoanStatusLabel(credit.status)}
                           </span>
                         </td>
                         <td className="py-4">
-                            <span className={`px-2 py-1 rounded text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
+                            <span className={`px-2 py-1 rounded text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
                              {getRecoveryStatusLabel(credit)}
                             </span>
                           </td>
@@ -620,8 +671,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <td className="py-4">
                           <div className="flex items-center gap-2">
                             <button onClick={() => setCurrentView?.(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                            <button onClick={() => setActionModal({ isOpen: true, type: 'edit', data: credit })} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
-                            <button onClick={() => setActionModal({ isOpen: true, type: 'delete', data: credit })} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                            <button onClick={() => handleNavigatePayouts(credit)} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Ir a pagos"><DollarSign size={16} /></button>
+                            <button onClick={() => handleDownloadReport(credit)} className="p-1.5 text-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors" title="Descargar reporte"><FileText size={16} /></button>
+                            <button onClick={() => handleDeleteCredit(credit)} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>
@@ -636,7 +688,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {loansData && (
             <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
               <div>
-                Mostrando {((page - 1) * limit) + 1} a {Math.min(page * limit, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
+                Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
               </div>
               <div className="flex gap-2">
                 <button 
@@ -799,7 +851,115 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <div className="bg-bg-surface rounded-2xl p-6 flex flex-col gap-6">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium">Simulador de Crédito Avanzado</h3>
+            {savedScenarios.length > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setScenarioComparison(!scenarioComparison)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    scenarioComparison
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30'
+                  }`}
+                >
+                  {scenarioComparison ? 'Ocultar Comparación' : 'Comparar Escenarios'}
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Scenario Comparison View */}
+          {scenarioComparison && savedScenarios.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-6">
+              <h4 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+                <TrendingUp size={18} />
+                Comparación de Escenarios
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                {/* Current simulation */}
+                {simResults && (
+                  <div className="bg-white dark:bg-bg-surface rounded-xl p-4 border-2 border-blue-300 dark:border-blue-500">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-medium text-sm">Simulación Actual</p>
+                        <p className="text-xs text-text-secondary">Parámetros actuales</p>
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded text-xs">Actual</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">Monto:</span>
+                        <span className="font-medium">{formatCurrency(simParams.principal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">TNA:</span>
+                        <span className="font-medium">{simParams.tna}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">Cuotas:</span>
+                        <span className="font-medium">{simParams.installments}</span>
+                      </div>
+                      <div className="border-t border-border-subtle pt-2 mt-2">
+                        <div className="flex justify-between">
+                          <span className="text-text-secondary">Cuota:</span>
+                          <span className="font-bold text-blue-600">{formatCurrency(simResults.pmt)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-secondary">Total Interés:</span>
+                          <span className="font-medium text-amber-600">{formatCurrency(simResults.totalInterest)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Saved scenarios */}
+                {savedScenarios.map((scenario) => (
+                  <div key={scenario.id} className="bg-white dark:bg-bg-surface rounded-xl p-4 border border-border-subtle">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-medium text-sm">{scenario.name}</p>
+                        <p className="text-xs text-text-secondary">
+                          {formatCurrency(scenario.params.principal)} · {scenario.params.tna}% · {scenario.params.installments} cuotas
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteScenario(scenario.id)}
+                        className="text-text-secondary hover:text-red-500 p-1"
+                        title="Eliminar"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">Monto:</span>
+                        <span className="font-medium">{formatCurrency(scenario.params.principal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">TNA:</span>
+                        <span className="font-medium">{scenario.params.tna}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">Cuotas:</span>
+                        <span className="font-medium">{scenario.params.installments}</span>
+                      </div>
+                      {scenario.results && (
+                        <div className="border-t border-border-subtle pt-2 mt-2">
+                          <div className="flex justify-between">
+                            <span className="text-text-secondary">Cuota:</span>
+                            <span className="font-bold text-blue-600">{formatCurrency(scenario.results.pmt)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-text-secondary">Total Interés:</span>
+                            <span className="font-medium text-amber-600">{formatCurrency(scenario.results.totalInterest)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Inputs */}
@@ -850,6 +1010,33 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   onChange={(e) => setSimParams({...simParams, installments: Number(e.target.value)})}
                   className="w-full bg-bg-surface border border-border-strong rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Save Scenario Section */}
+              <div className="border-t border-border-subtle pt-4 mt-4">
+                <h5 className="text-sm font-medium mb-3">Guardar Escenario</h5>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={scenarioName}
+                    onChange={(e) => setScenarioName(e.target.value)}
+                    placeholder="Nombre del escenario..."
+                    className="flex-1 bg-bg-surface border border-border-strong rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleSaveScenario}
+                    disabled={!simResults}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Guardar escenario para comparar"
+                  >
+                    <Save size={16} />
+                  </button>
+                </div>
+                {savedScenarios.length > 0 && (
+                  <p className="text-xs text-text-secondary mt-2">
+                    {savedScenarios.length} escenario{savedScenarios.length > 1 ? 's' : ''} guardado{savedScenarios.length > 1 ? 's' : ''} · Máx. 3
+                  </p>
+                )}
               </div>
             </div>
 
@@ -967,97 +1154,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         </div>
       )}
 
-      {/* Action Modals */}
-      {actionModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-bg-surface w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-border-subtle flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-border-subtle flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-text-primary">
-                {actionModal.type === 'create' ? 'Crear Nuevo Crédito' :
-                 actionModal.type === 'view' ? 'Detalles del Crédito' :
-                 actionModal.type === 'edit' ? 'Editar Crédito' : 'Eliminar Crédito'}
-              </h3>
-              <button
-                onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })}
-                className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto">
-              {actionModal.type === 'delete' ? (
-                <div className="text-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-4">
-                    <AlertCircle size={24} />
-                  </div>
-                  <h4 className="text-lg font-medium mb-2">¿Estás seguro?</h4>
-                  <p className="text-text-secondary mb-6">
-                     Esta acción eliminará permanentemente el crédito <strong>{actionModal.data?.id}</strong> de {getCreditLabel(actionModal.data)}. Esta acción no se puede deshacer.
-                  </p>
-                  <div className="flex gap-3">
-                    <button onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })} className="flex-1 px-4 py-2 border border-border-strong rounded-lg font-medium hover:bg-hover-bg">Cancelar</button>
-                    <button onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">Eliminar</button>
-                  </div>
-                </div>
-              ) : actionModal.type === 'view' ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-text-secondary">ID Préstamo</label>
-                      <div className="font-medium">{actionModal.data?.id}</div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary">Cliente</label>
-                      <div className="font-medium">{getCreditLabel(actionModal.data)}</div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary">Monto</label>
-                      <div className="font-medium">{formatCurrency(actionModal.data?.amount || 0)}</div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary">Estado</label>
-                      <div>
-                        <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">{actionModal.data?.status}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-border-subtle flex justify-end">
-                    <button onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })} className="px-4 py-2 bg-bg-base border border-border-strong rounded-lg font-medium hover:bg-hover-bg">Cerrar</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-text-secondary mb-1">Cliente</label>
-                    <input type="text" defaultValue={getCreditLabel(actionModal.data) || ''} className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Nombre del cliente" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-text-secondary mb-1">Monto del Préstamo</label>
-                    <input type="number" defaultValue={actionModal.data?.amount || ''} className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. 5000000" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-text-secondary mb-1">Tasa (TNA %)</label>
-                      <input type="number" defaultValue={60} className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-text-secondary mb-1">Cuotas</label>
-                      <input type="number" defaultValue={12} className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-border-subtle flex justify-end gap-3">
-                    <button onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })} className="px-4 py-2 bg-bg-base border border-border-strong rounded-lg font-medium hover:bg-hover-bg">Cancelar</button>
-                    <button onClick={() => setActionModal({ isOpen: false, type: 'view', data: null })} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
-                      {actionModal.type === 'create' ? 'Crear Crédito' : 'Guardar Cambios'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

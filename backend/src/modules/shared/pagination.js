@@ -43,8 +43,10 @@ const parsePaginationQuery = (
     }
   }
 
-  if (!isBlank(source.pageSize)) {
-    const parsedPageSize = parsePositiveInteger(source.pageSize);
+  const rawPageSize = !isBlank(source.pageSize) ? source.pageSize : source.limit;
+
+  if (!isBlank(rawPageSize)) {
+    const parsedPageSize = parsePositiveInteger(rawPageSize);
     if (!parsedPageSize) {
       errors.push({ field: 'pageSize', message: 'pageSize must be a positive integer' });
     } else if (parsedPageSize > maxPageSize) {
@@ -77,6 +79,22 @@ const buildPaginatedResult = ({ items, page, pageSize, totalItems }) => ({
   items,
   pagination: buildPaginationMeta({ page, pageSize, totalItems }),
 });
+
+const paginateArray = ({ items = [], pagination }) => {
+  if (!pagination) {
+    return { items, pagination: null };
+  }
+
+  const offset = pagination.offset || 0;
+  const pageSize = pagination.pageSize;
+
+  return buildPaginatedResult({
+    items: items.slice(offset, offset + pageSize),
+    page: pagination.page,
+    pageSize,
+    totalItems: items.length,
+  });
+};
 
 const paginateModel = async ({
   model,
@@ -120,5 +138,6 @@ module.exports = {
   parsePaginationQuery,
   buildPaginationMeta,
   buildPaginatedResult,
+  paginateArray,
   paginateModel,
 };

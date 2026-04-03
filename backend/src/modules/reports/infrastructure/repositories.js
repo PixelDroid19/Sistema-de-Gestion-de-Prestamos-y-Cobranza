@@ -426,6 +426,34 @@ const paymentRepository = {
       interest: parseFloat(p.interest) || 0,
     }));
   },
+
+  /**
+   * List all payouts (completed payments) across all loans with optional filtering and pagination.
+   * @param {object} options - Query options
+   * @returns {Promise<{items: Array, pagination: object|null}>}
+   */
+  async listPayoutsReport({ pagination, ...where }) {
+    const queryOptions = {
+      where,
+      include: [
+        { model: Loan, attributes: ['id', 'amount', 'status'] },
+      ],
+      order: [['paymentDate', 'DESC'], ['createdAt', 'DESC'], ['id', 'DESC']],
+    };
+
+    if (pagination) {
+      const { paginateModel } = require('../../shared/pagination');
+      return paginateModel({
+        model: Payment,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...queryOptions,
+      });
+    }
+
+    const items = await Payment.findAll(queryOptions);
+    return { items };
+  },
 };
 
 module.exports = {

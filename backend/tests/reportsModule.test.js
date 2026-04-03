@@ -302,8 +302,8 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
     reportRepository: {
       async getDashboardSummary() {
         return {
-          loans: [{ id: 1, status: 'active', amount: 1200, recoveryStatus: 'pending' }],
-          payments: [{ id: 2, amount: 100 }],
+          loans: [{ id: 1, status: 'active', amount: 1200, recoveryStatus: 'pending', disbursedAt: '2024-01-15T00:00:00.000Z' }],
+          payments: [{ id: 2, amount: 100, status: 'completed', paymentDate: '2024-02-10T00:00:00.000Z' }],
           alerts: [{ id: 3, status: 'active' }],
           promises: [{ id: 4, status: 'pending' }],
           notifications: [{ id: 5, isRead: false }],
@@ -327,6 +327,9 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   assert.equal(summary.data.summary.totalLoans, 1);
   assert.equal(summary.data.collections.overdueAlerts, 1);
   assert.equal(summary.data.collections.unreadNotifications, 1);
+  assert.ok(summary.data.monthlyPerformance.length >= 12);
+  assert.equal(summary.data.monthlyPerformance.some((entry) => entry.month === '2024-01'), true);
+  assert.equal(summary.data.monthlyPerformance.some((entry) => entry.month === '2024-02'), true);
 
   const degradedGetDashboardSummary = createGetDashboardSummary({
     reportRepository: {

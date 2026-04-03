@@ -1,12 +1,25 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePayments, downloadVoucher } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
+import { useSessionStore } from '../store/sessionStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { useOperationalActions } from './hooks/useOperationalActions';
+import { resolveOperationalGuard } from '../services/operationalGuards';
+import { useNavigate } from 'react-router-dom';
+import { tTerm } from '../i18n/terminology';
+import { requestInput } from '../lib/confirmModal';
+import TableShell from './shared/TableShell';
+import { getChipClassName } from '../constants/uiChips';
 
 export default function Payouts() {
-  const { page, setPage, pageSize: limit } = usePaginationStore();
-  const { data: paymentsData, isLoading, isError, createPayment, createPartialPayment, createCapitalPayment } = usePayments({ page, limit });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useSessionStore();
+  const { executeGuardedAction } = useOperationalActions(queryClient);
+  const { page, setPage, pageSize } = usePaginationStore();
+  const { data: paymentsData, isLoading, isError, createPayment, createPartialPayment, createCapitalPayment, updatePaymentMetadata } = usePayments({ page, pageSize });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
   const [formData, setFormData] = useState({
@@ -16,6 +29,9 @@ export default function Payouts() {
     method: 'cash'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const role = user?.role;
+  const permissions = user?.permissions;
 
   const payments = Array.isArray(paymentsData?.data?.payments)
     ? paymentsData.data.payments
@@ -48,55 +64,116 @@ export default function Payouts() {
   };
 
   const handleDownloadVoucher = async (paymentId: number) => {
-    try {
-      await downloadVoucher(paymentId);
-      toast.success({ title: 'Comprobante descargado' });
-    } catch (error) {
-      toast.error({ title: 'Error al descargar comprobante' });
+    await executeGuardedAction({
+      action: 'payout.voucher.download',
+      context: { role, permissions },
+      run: async () => {
+        await downloadVoucher(paymentId);
+      },
+      successMessage: tTerm('payouts.toast.voucher.success'),
+    });
+  };
+
+  const handleViewCredit = async (loanId?: number) => {
+    if (!loanId) {
+      toast.error({ title: tTerm('payouts.toast.loanNotFound') });
+      return;
     }
+
+    await executeGuardedAction({
+      action: 'payout.credit.view',
+      context: { role, permissions },
+      run: async () => {
+        navigate(`/credits/${loanId}`);
+      },
+    });
+  };
+
+  const handleEditPayment = async (payment: any) => {
+    const reference = await requestInput({
+      title: tTerm('prompt.payment.reference.title'),
+      message: tTerm('prompt.payment.reference.message'),
+      label: tTerm('prompt.payment.reference.label'),
+      placeholder: tTerm('prompt.payment.reference.placeholder'),
+      defaultValue: payment?.paymentMetadata?.reference || '',
+      confirmLabel: tTerm('prompt.payment.reference.confirm'),
+      cancelLabel: tTerm('prompt.payment.reference.cancel'),
+    });
+
+    if (reference === null) {
+      return;
+    }
+
+    await executeGuardedAction({
+      action: 'payout.metadata.edit',
+      context: { role, permissions, paymentStatus: payment?.status },
+      run: async () => {
+        await updatePaymentMetadata.mutateAsync({
+          paymentId: Number(payment.id),
+          payload: {
+            loanId: payment?.loanId,
+            paymentMetadata: {
+              ...(payment?.paymentMetadata || {}),
+              reference,
+            },
+          },
+        });
+      },
+      successMessage: tTerm('payouts.toast.edit.success'),
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        loanId: parseInt(formData.loanId),
-        paymentAmount: parseFloat(formData.amount),
-        paymentDate: new Date(formData.paymentDate).toISOString(),
-        paymentMethod: formData.method
-      };
 
-      if (paymentType === 'regular') {
-        await createPayment.mutateAsync(payload);
-      } else if (paymentType === 'partial') {
-        await createPartialPayment.mutateAsync(payload);
-      } else if (paymentType === 'capital') {
-        await createCapitalPayment.mutateAsync(payload);
-      }
-      
-      setShowPaymentModal(false);
-      setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: 'cash' });
-      toast.success({ title: 'Pago registrado exitosamente' });
-    } catch (error) {
-      toast.error({ title: 'Error al registrar pago' });
-    } finally {
+    setIsSubmitting(true);
+
+    const payload = {
+      loanId: parseInt(formData.loanId),
+      paymentAmount: parseFloat(formData.amount),
+      paymentDate: new Date(formData.paymentDate).toISOString(),
+      paymentMethod: formData.method
+    };
+
+    const wasExecuted = await executeGuardedAction({
+      action: 'payout.register',
+      context: { role, permissions, payoutType: paymentType },
+      run: async () => {
+        if (paymentType === 'regular') {
+          await createPayment.mutateAsync(payload);
+        } else if (paymentType === 'partial') {
+          await createPartialPayment.mutateAsync(payload);
+        } else if (paymentType === 'capital') {
+          await createCapitalPayment.mutateAsync(payload);
+        }
+      },
+      onSuccess: () => {
+        setShowPaymentModal(false);
+        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: 'cash' });
+      },
+      successMessage: tTerm('payouts.toast.register.success'),
+    });
+
+    if (!wasExecuted) {
       setIsSubmitting(false);
+      return;
     }
+
+    setIsSubmitting(false);
   };
 
   return (
     <div className="flex flex-col gap-6 h-full">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold">Pagos y Cobranza</h2>
-          <p className="text-sm text-text-secondary mt-1">Consulta global de pagos y aplicación de cuotas.</p>
+          <h2 className="text-2xl font-semibold">{tTerm('payouts.module.title')}</h2>
+          <p className="text-sm text-text-secondary mt-1">{tTerm('payouts.module.subtitle')}</p>
         </div>
         <button 
           onClick={() => setShowPaymentModal(true)}
           className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
         >
-          <Plus size={16} /> Registrar Pago
+          <Plus size={16} /> {tTerm('payouts.cta.recordPayment')}
         </button>
       </div>
 
@@ -112,7 +189,23 @@ export default function Payouts() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <TableShell
+          isLoading={isLoading}
+          isError={isError}
+          hasData={payments.length > 0}
+          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando pagos...</div>}
+          errorContent={<div className="py-4 text-center text-red-500">Error al cargar pagos.</div>}
+          emptyContent={<div className="py-4 text-center text-text-secondary">No hay pagos registrados.</div>}
+          recordsLabel="pagos"
+          pagination={pagination ? {
+            page,
+            pageSize,
+            totalItems: pagination?.totalItems ?? pagination?.total ?? 0,
+            totalPages: pagination?.totalPages ?? 1,
+            onPrev: () => setPage(page - 1),
+            onNext: () => setPage(page + 1),
+          } : undefined}
+        >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
@@ -126,80 +219,86 @@ export default function Payouts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {isLoading ? (
-                <tr><td colSpan={7} className="py-4 text-center text-text-secondary">Cargando pagos...</td></tr>
-              ) : isError ? (
-                <tr><td colSpan={7} className="py-4 text-center text-red-500">Error al cargar pagos.</td></tr>
-              ) : payments.length === 0 ? (
-                <tr><td colSpan={7} className="py-4 text-center text-text-secondary">No hay pagos registrados.</td></tr>
-              ) : (
-                payments.map((payment: any) => (
-                  <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
-                    <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
-                    <td className="py-4 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-mono">{payment.loanId}</td>
-                    <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
-                    <td className="py-4 font-medium">${Number(payment.amount ?? 0).toLocaleString()}</td>
-                    <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
-                    <td className="py-4">
-                      <span className={`px-2 py-1 rounded text-xs ${formatPaymentStatus(payment) === 'Aplicado' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'}`}>
-                        {formatPaymentStatus(payment)}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex items-center gap-2">
-                        <button 
-                          className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" 
-                          title="Descargar Comprobante"
-                          onClick={() => handleDownloadVoucher(payment.id)}
-                        >
-                          <FileText size={16} />
-                        </button>
-                        <button className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                        <button className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
-                        <button className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              {payments.map((payment: any) => (
+                <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
+                  <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
+                  <td className="py-4 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-mono">{payment.loanId}</td>
+                  <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
+                  <td className="py-4 font-medium">${Number(payment.amount ?? 0).toLocaleString()}</td>
+                  <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
+                  <td className="py-4">
+                    <span className={`px-2 py-1 rounded text-xs ${formatPaymentStatus(payment) === 'Aplicado' ? getChipClassName('success') : getChipClassName('warning')}`}>
+                      {formatPaymentStatus(payment)}
+                    </span>
+                  </td>
+                  <td className="py-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                        title="Descargar Comprobante"
+                        onClick={() => handleDownloadVoucher(payment.id)}
+                      >
+                        <FileText size={16} />
+                      </button>
+                      {(() => {
+                        const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
+                        const editGuard = resolveOperationalGuard('payout.metadata.edit', {
+                          role,
+                          permissions,
+                          paymentStatus: payment?.status,
+                        });
+                        const deleteGuard = resolveOperationalGuard('payout.delete', {
+                          role,
+                          permissions,
+                          paymentStatus: payment?.status,
+                        });
+
+                        return (
+                          <>
+                            <button
+                              className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
+                              onClick={() => handleViewCredit(Number(payment.loanId))}
+                              disabled={!viewGuard.executable || !viewGuard.visible}
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button
+                              className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={editGuard.executable ? 'Editar metadata del pago' : (editGuard.reason || 'Acción no disponible')}
+                              onClick={() => handleEditPayment(payment)}
+                              disabled={!editGuard.executable || !editGuard.visible}
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={deleteGuard.reason || 'Eliminar'}
+                              onClick={() => toast.error({ title: deleteGuard.reason || 'Acción no disponible' })}
+                              disabled={!deleteGuard.executable || !deleteGuard.visible}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        </div>
-        
-        {/* Pagination Controls */}
-        {paymentsData && pagination && (
-          <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
-            <div>
-              Mostrando {((page - 1) * limit) + 1} a {Math.min(page * limit, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} pagos
-            </div>
-            <div className="flex gap-2">
-              <button 
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <button 
-                disabled={page === (pagination?.totalPages ?? 1)}
-                onClick={() => setPage(page + 1)}
-                className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
+        </TableShell>
       </div>
 
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
-            <h3 className="text-xl font-bold mb-4">Registrar Nuevo Pago</h3>
+            <h3 className="text-xl font-bold mb-4">{tTerm('payouts.cta.recordPayment')}</h3>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Tipo de Pago</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1" title="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal">Tipo de Pago</label>
                 <select 
                   value={paymentType}
                   onChange={(e) => setPaymentType(e.target.value as any)}
