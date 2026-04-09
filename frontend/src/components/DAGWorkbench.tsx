@@ -43,38 +43,49 @@ import {
 } from 'lucide-react';
 import { useDagStore, AppNode, AppEdge, RFNodeData } from '../store/dagWorkbenchStore';
 import type { DagWorkbenchState } from '../store/dagWorkbenchStore';
-import type { NodeKind, DagNode, DAG_SCOPES } from '../types/dag';
+import type { NodeKind } from '../types/dag';
+import { DAG_SCOPES } from '../types/dag';
+import DagNodeContent from './dag/DagNodeContent';
+import FormulaNodeEditor from './dag/FormulaNodeEditor';
+import { tTerm } from '../i18n/terminology';
 
 // =============================================================================
 // CUSTOM NODE COMPONENT
 // =============================================================================
 
-const nodeKindConfig: Record<NodeKind, { color: string; icon: React.ReactNode; label: string }> = {
+const nodeKindConfig: Record<NodeKind, { color: string; icon: React.ReactNode; labelKey: 'dag.nodeKind.formula' | 'dag.nodeKind.output' | 'dag.nodeKind.constant' | 'dag.nodeKind.conditional' | 'dag.nodeKind.lookup' }> = {
   formula: { 
     color: 'bg-blue-500 ', 
     icon: <Calculator size={14} />, 
-    label: 'Fórmula' 
+    labelKey: 'dag.nodeKind.formula' 
   },
   output: { 
     color: 'bg-emerald-500 ', 
     icon: <FileText size={14} />, 
-    label: 'Salida' 
+    labelKey: 'dag.nodeKind.output' 
   },
   constant: { 
     color: 'bg-amber-500 ', 
     icon: <Hash size={14} />, 
-    label: 'Constante' 
+    labelKey: 'dag.nodeKind.constant' 
   },
   conditional: { 
     color: 'bg-purple-500 ', 
     icon: <GitBranch size={14} />, 
-    label: 'Condicional' 
+    labelKey: 'dag.nodeKind.conditional' 
   },
   lookup: { 
     color: 'bg-rose-500 ', 
     icon: <Search size={14} />, 
-    label: 'Búsqueda' 
+    labelKey: 'dag.nodeKind.lookup' 
   },
+};
+
+const scopeLabelByKey: Record<string, 'dag.scope.creditSimulation' | 'dag.scope.paymentCalculation' | 'dag.scope.lateFeeCalculation' | 'dag.scope.amortization'> = {
+  'credit-simulation': 'dag.scope.creditSimulation',
+  'payment-calculation': 'dag.scope.paymentCalculation',
+  'late-fee-calculation': 'dag.scope.lateFeeCalculation',
+  amortization: 'dag.scope.amortization',
 };
 
 const DagNodeComponent = ({ data, selected }: any) => {
@@ -94,23 +105,17 @@ const DagNodeComponent = ({ data, selected }: any) => {
       {/* Header */}
       <div className={`${config.color} text-white px-3 py-1.5 flex items-center gap-2`}>
         <span className="flex-shrink-0">{config.icon}</span>
-        <span className="text-xs font-medium truncate flex-1">{data.label || config.label}</span>
+         <span className="text-xs font-medium truncate flex-1">{data.label || tTerm(config.labelKey)}</span>
         <span className="text-[10px] opacity-80 uppercase">{data.kind}</span>
       </div>
       
       {/* Body */}
-      <div className="px-3 py-2">
-        {data.description && (
-          <p className="text-[10px] text-text-secondary  mb-1.5 line-clamp-2">
-            {data.description}
-          </p>
-        )}
-        {data.formula && (
-          <code className="text-[9px] bg-bg-base  px-1.5 py-0.5 rounded block truncate">
-            {data.formula}
-          </code>
-        )}
-      </div>
+      <DagNodeContent
+        kind={data.kind as NodeKind}
+        label={data.label}
+        description={data.description}
+        formula={data.formula}
+      />
       
       {/* Handles */}
       <Handle
@@ -145,7 +150,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onAddNode }) => {
   return (
     <div className="bg-bg-surface  rounded-lg border border-border-subtle p-3">
       <h4 className="text-xs font-semibold text-text-secondary  mb-2">
-        AGREGAR NODOS
+        {tTerm('dag.palette.title')}
       </h4>
       <div className="space-y-1.5">
         {kinds.map((kind) => {
@@ -164,7 +169,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onAddNode }) => {
               <span className={`${config.color} text-white p-1 rounded text-[10px]`}>
                 {config.icon}
               </span>
-              <span className="text-xs font-medium">{config.label}</span>
+               <span className="text-xs font-medium">{tTerm(config.labelKey)}</span>
             </button>
           );
         })}
@@ -180,19 +185,21 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onAddNode }) => {
 interface PropertiesPanelProps {
   selectedNode: AppNode | null;
   onUpdateNode: (id: string, data: Partial<RFNodeData>) => void;
+  onUpdateFormulaNode: (id: string, data: { description: string; formula: string }) => void;
   onDeleteNode: (id: string) => void;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   selectedNode,
   onUpdateNode,
+  onUpdateFormulaNode,
   onDeleteNode,
 }) => {
   if (!selectedNode) {
     return (
       <div className="bg-bg-surface  rounded-lg border border-border-subtle p-4">
         <p className="text-xs text-text-secondary  text-center">
-          Selecciona un nodo para ver sus propiedades
+          {tTerm('dag.properties.empty')}
         </p>
       </div>
     );
@@ -203,25 +210,27 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   return (
     <div className="bg-bg-surface  rounded-lg border border-border-subtle overflow-hidden">
       <div className="px-3 py-2 border-b border-border-subtle bg-bg-base ">
-        <h4 className="text-xs font-semibold">PROPIEDADES</h4>
+        <h4 className="text-xs font-semibold">{tTerm('dag.properties.title')}</h4>
       </div>
       
       <div className="p-3 space-y-3">
         {/* Kind Badge */}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-text-secondary ">Tipo</span>
+           <span className="text-[10px] text-text-secondary ">{tTerm('dag.properties.type')}</span>
           <span className={`
             px-2 py-0.5 rounded text-[10px] font-medium text-white
             ${nodeKindConfig[data.kind as NodeKind]?.color || 'bg-gray-500'}
           `}>
-            {nodeKindConfig[data.kind as NodeKind]?.label || data.kind}
+            {nodeKindConfig[data.kind as NodeKind]?.labelKey
+              ? tTerm(nodeKindConfig[data.kind as NodeKind].labelKey)
+              : data.kind}
           </span>
         </div>
         
         {/* Label */}
         <div>
           <label className="block text-[10px] text-text-secondary  mb-1">
-            Etiqueta
+            {tTerm('dag.properties.label')}
           </label>
           <input
             type="text"
@@ -233,14 +242,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               text-text-primary 
               focus:outline-none focus:ring-1 focus:ring-blue-500
             "
-            placeholder="Nombre del nodo..."
+            placeholder={tTerm('dag.properties.labelPlaceholder')}
           />
         </div>
         
         {/* Description */}
         <div>
           <label className="block text-[10px] text-text-secondary  mb-1">
-            Descripción
+            {tTerm('dag.properties.description')}
           </label>
           <textarea
             value={data.description}
@@ -252,36 +261,26 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               text-text-primary 
               focus:outline-none focus:ring-1 focus:ring-blue-500
             "
-            placeholder="Descripción del nodo..."
+            placeholder={tTerm('dag.properties.descriptionPlaceholder')}
           />
         </div>
         
         {/* Formula */}
         {data.kind === 'formula' && (
-          <div>
-            <label className="block text-[10px] text-text-secondary  mb-1">
-              Fórmula
-            </label>
-            <textarea
-              value={data.formula}
-              onChange={(e) => onUpdateNode(id, { formula: e.target.value })}
-              rows={3}
-              className="
-                w-full text-[10px] font-mono px-2 py-1.5 rounded border resize-none
-                bg-bg-base  border-border-subtle 
-                text-text-primary 
-                focus:outline-none focus:ring-1 focus:ring-blue-500
-              "
-              placeholder="input.amount * rate"
-            />
-          </div>
+          <FormulaNodeEditor
+            nodeId={id}
+            label={data.label}
+            description={data.description}
+            formula={data.formula}
+            onCommit={onUpdateFormulaNode}
+          />
         )}
         
         {/* Output Variable */}
         {data.kind === 'output' && (
           <div>
             <label className="block text-[10px] text-text-secondary  mb-1">
-              Variable de Salida
+              {tTerm('dag.properties.outputVariable')}
             </label>
             <input
               type="text"
@@ -293,7 +292,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 text-text-primary 
                 focus:outline-none focus:ring-1 focus:ring-blue-500
               "
-              placeholder="result"
+               placeholder={tTerm('dag.properties.outputPlaceholder')}
             />
           </div>
         )}
@@ -301,12 +300,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         {/* Dependencies Info */}
         <div>
           <label className="block text-[10px] text-text-secondary  mb-1">
-            Dependencias
+            {tTerm('dag.properties.dependencies')}
           </label>
           <div className="text-[10px] font-mono text-text-secondary  bg-bg-base  px-2 py-1.5 rounded border border-border-subtle ">
             {((data.metadata?.dependencies as string[]) || []).length 
               ? ((data.metadata?.dependencies as string[]) || []).join(' → ') 
-              : '(ninguna)'}
+              : tTerm('dag.properties.dependenciesNone')}
           </div>
         </div>
         
@@ -321,7 +320,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           "
         >
           <Trash2 size={12} />
-          Eliminar Nodo
+          {tTerm('dag.properties.deleteNode')}
         </button>
       </div>
     </div>
@@ -355,7 +354,7 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({
           transition-colors
         "
       >
-        <span className="text-xs font-semibold">VALIDACIÓN</span>
+         <span className="text-xs font-semibold">{tTerm('dag.validation.title')}</span>
         {isValidating ? (
           <Loader2 size={14} className="animate-spin text-blue-500" />
         ) : validation ? (
@@ -373,7 +372,7 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({
         <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
           {validation.errors.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[10px] font-semibold text-red-500">Errores:</span>
+               <span className="text-[10px] font-semibold text-red-500">{tTerm('dag.validation.errors')}</span>
               {validation.errors.map((err, i) => (
                 <div key={i} className="text-[10px] text-red-400 bg-red-500/10 px-2 py-1 rounded">
                   {err.field}: {err.message}
@@ -384,7 +383,7 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({
           
           {validation.warnings.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[10px] font-semibold text-amber-500">Advertencias:</span>
+               <span className="text-[10px] font-semibold text-amber-500">{tTerm('dag.validation.warnings')}</span>
               {validation.warnings.map((warn, i) => (
                 <div key={i} className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
                   {warn.field}: {warn.message}
@@ -395,16 +394,16 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({
           
           {validation.valid && validation.errors.length === 0 && (
             <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-              ✓ Grafo válido
+               {tTerm('dag.validation.valid')}
             </div>
           )}
           
           <div className="pt-1 border-t border-border-subtle">
             <div className="text-[10px] text-text-secondary  grid grid-cols-2 gap-1">
-              <span>Nodos:</span> <span className="font-medium">{validation.summary.nodeCount}</span>
-              <span>Edges:</span> <span className="font-medium">{validation.summary.edgeCount}</span>
-              <span>Outputs:</span> <span className="font-medium">{validation.summary.outputCount}</span>
-              <span>Fórmulas:</span> <span className="font-medium">{validation.summary.formulaNodeCount}</span>
+               <span>{tTerm('dag.validation.summary.nodes')}</span> <span className="font-medium">{validation.summary.nodeCount}</span>
+               <span>{tTerm('dag.validation.summary.edges')}</span> <span className="font-medium">{validation.summary.edgeCount}</span>
+               <span>{tTerm('dag.validation.summary.outputs')}</span> <span className="font-medium">{validation.summary.outputCount}</span>
+               <span>{tTerm('dag.validation.summary.formulas')}</span> <span className="font-medium">{validation.summary.formulaNodeCount}</span>
             </div>
           </div>
         </div>
@@ -449,7 +448,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
           transition-colors
         "
       >
-        <span className="text-xs font-semibold">SIMULACIÓN</span>
+         <span className="text-xs font-semibold">{tTerm('dag.simulation.title')}</span>
         {isSimulating ? (
           <Loader2 size={14} className="animate-spin text-blue-500" />
         ) : simulationResult ? (
@@ -470,7 +469,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-[10px] text-text-secondary  mb-1">
-              Monto
+               {tTerm('dag.simulation.input.amount')}
             </label>
             <input
               type="number"
@@ -486,7 +485,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
           </div>
           <div>
             <label className="block text-[10px] text-text-secondary  mb-1">
-              Tasa (%)
+               {tTerm('dag.simulation.input.rate')}
             </label>
             <input
               type="number"
@@ -502,7 +501,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
           </div>
           <div>
             <label className="block text-[10px] text-text-secondary  mb-1">
-              Plazo (meses)
+               {tTerm('dag.simulation.input.term')}
             </label>
             <input
               type="number"
@@ -518,7 +517,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
           </div>
           <div>
             <label className="block text-[10px] text-text-secondary  mb-1">
-              Modo Mora
+               {tTerm('dag.simulation.input.lateFeeMode')}
             </label>
             <select
               value={simulationInput.lateFeeMode}
@@ -530,9 +529,9 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
                 focus:outline-none focus:ring-1 focus:ring-blue-500
               "
             >
-              <option value="SIMPLE">SIMPLE</option>
-              <option value="FLAT">FLAT</option>
-              <option value="TIERED">TIERED</option>
+              <option value="SIMPLE">{tTerm('dag.simulation.input.lateFeeMode.option.simple')}</option>
+              <option value="FLAT">{tTerm('dag.simulation.input.lateFeeMode.option.flat')}</option>
+              <option value="TIERED">{tTerm('dag.simulation.input.lateFeeMode.option.tiered')}</option>
             </select>
           </div>
         </div>
@@ -540,20 +539,20 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
         {/* Results */}
         {simulationResult && (
           <div className="space-y-2 pt-2 border-t border-border-subtle">
-            <span className="text-[10px] font-semibold text-emerald-500">RESULTADOS</span>
+             <span className="text-[10px] font-semibold text-emerald-500">{tTerm('dag.simulation.resultsTitle')}</span>
             
             <div className="grid grid-cols-2 gap-1 text-[10px]">
-              <span className="text-text-secondary ">Cuota:</span>
+               <span className="text-text-secondary ">{tTerm('dag.simulation.result.installment')}</span>
               <span className="font-semibold text-blue-500">
                 {formatCurrency(simulationResult.summary.installmentAmount)}
               </span>
               
-              <span className="text-text-secondary ">Total Intereses:</span>
+               <span className="text-text-secondary ">{tTerm('dag.simulation.result.totalInterest')}</span>
               <span className="font-semibold text-amber-500">
                 {formatCurrency(simulationResult.summary.totalInterest)}
               </span>
               
-              <span className="text-text-secondary ">Total a Pagar:</span>
+               <span className="text-text-secondary ">{tTerm('dag.simulation.result.totalPayable')}</span>
               <span className="font-semibold">
                 {formatCurrency(simulationResult.summary.totalPayable)}
               </span>
@@ -563,7 +562,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
             {simulationResult.schedule.length > 0 && (
               <div className="mt-2">
                 <span className="text-[10px] font-semibold text-text-secondary  block mb-1">
-                  PRIMERAS 3 CUOTAS
+                   {tTerm('dag.simulation.result.firstInstallments')}
                 </span>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {simulationResult.schedule.slice(0, 3).map((row) => (
@@ -630,7 +629,7 @@ const DAGWorkbenchContent: React.FC = () => {
 
   const handleAddNode = useCallback((kind: NodeKind) => {
     const id = `${kind}_${Date.now()}`;
-    const label = nodeKindConfig[kind]?.label || kind;
+    const label = nodeKindConfig[kind]?.labelKey ? tTerm(nodeKindConfig[kind].labelKey) : kind;
     const newNode: AppNode = {
       id,
       type: 'dagNode',
@@ -641,7 +640,7 @@ const DAGWorkbenchContent: React.FC = () => {
       data: {
         id,
         kind,
-        label: `Nuevo ${label}`,
+        label: `${tTerm('dag.node.newPrefix')} ${label}`,
         description: '',
         formula: kind === 'formula' ? '' : '',
         outputVar: kind === 'output' ? 'result' : '',
@@ -663,6 +662,23 @@ const DAGWorkbenchContent: React.FC = () => {
     }));
   }, []);
 
+  const handleUpdateFormulaNode = useCallback((id: string, data: { description: string; formula: string }) => {
+    useDagStore.setState((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                description: data.description,
+                formula: data.formula,
+              },
+            }
+          : n
+      ),
+    }));
+  }, []);
+
   const handleDeleteNode = useCallback((id: string) => {
     useDagStore.setState((state) => ({
       nodes: state.nodes.filter((n) => n.id !== id),
@@ -674,13 +690,6 @@ const DAGWorkbenchContent: React.FC = () => {
   const handleSave = useCallback(async () => {
     await saveGraph(graphName);
   }, [saveGraph, graphName]);
-
-  const scopes = [
-    { key: 'credit-simulation', label: 'Simulación de Crédito' },
-    { key: 'payment-calculation', label: 'Cálculo de Pagos' },
-    { key: 'late-fee-calculation', label: 'Cálculo de Mora' },
-    { key: 'amortization', label: 'Amortización' },
-  ];
 
   return (
     <div className="h-full flex flex-col bg-bg-base ">
@@ -697,13 +706,15 @@ const DAGWorkbenchContent: React.FC = () => {
             "
           >
             <Settings size={12} />
-            {scopes.find(s => s.key === scopeKey)?.label || scopeKey}
+            {scopeLabelByKey[scopeKey]
+              ? tTerm(scopeLabelByKey[scopeKey])
+              : scopeKey}
             <ChevronRight size={12} className={`transition-transform ${showScopeSelect ? 'rotate-90' : ''}`} />
           </button>
           
           {showScopeSelect && (
             <div className="absolute top-full left-0 mt-1 w-48 bg-bg-surface  border border-border-subtle  rounded-lg shadow-xl z-50">
-              {scopes.map((scope) => (
+              {DAG_SCOPES.map((scope) => (
                 <button
                   key={scope.key}
                   onClick={() => {
@@ -716,7 +727,9 @@ const DAGWorkbenchContent: React.FC = () => {
                     ${scope.key === scopeKey ? 'text-blue-500 font-semibold' : 'text-text-primary '}
                   `}
                 >
-                  {scope.label}
+                  {scopeLabelByKey[scope.key]
+                    ? tTerm(scopeLabelByKey[scope.key])
+                    : scope.key}
                 </button>
               ))}
             </div>
@@ -748,7 +761,7 @@ const DAGWorkbenchContent: React.FC = () => {
           "
         >
           <AlertCircle size={12} />
-          Validar
+          {tTerm('dag.actions.validate')}
         </button>
         
         <button
@@ -761,7 +774,7 @@ const DAGWorkbenchContent: React.FC = () => {
           "
         >
           {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-          Guardar
+          {tTerm('dag.actions.save')}
         </button>
         
         <button
@@ -774,7 +787,7 @@ const DAGWorkbenchContent: React.FC = () => {
           "
         >
           {isSimulating ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-          Simular
+          {tTerm('dag.actions.simulate')}
         </button>
       </div>
 
@@ -800,9 +813,13 @@ const DAGWorkbenchContent: React.FC = () => {
           
           {/* Node count info */}
           <div className="mt-4 text-[10px] text-text-secondary  space-y-1">
-            <div>Nodos: {nodes.length}</div>
-            <div>Edges: {edges.length}</div>
-            {graphName && <div>Versión: {useDagStore.getState().graphVersion?.version || 'Nueva'}</div>}
+            <div>{tTerm('dag.metrics.nodes')} {nodes.length}</div>
+            <div>{tTerm('dag.metrics.edges')} {edges.length}</div>
+            {graphName && (
+              <div>
+                {tTerm('dag.metrics.version')} {useDagStore.getState().graphVersion?.version || tTerm('dag.metrics.versionNew')}
+              </div>
+            )}
           </div>
         </div>
 
@@ -865,9 +882,9 @@ const DAGWorkbenchContent: React.FC = () => {
                   }
                 `}
               >
-                {tab === 'properties' && 'Props'}
-                {tab === 'validation' && 'Validar'}
-                {tab === 'simulation' && 'Simular'}
+                {tab === 'properties' && tTerm('dag.tabs.properties')}
+                {tab === 'validation' && tTerm('dag.tabs.validation')}
+                {tab === 'simulation' && tTerm('dag.tabs.simulation')}
               </button>
             ))}
           </div>
@@ -878,6 +895,7 @@ const DAGWorkbenchContent: React.FC = () => {
               <PropertiesPanel
                 selectedNode={selectedNode}
                 onUpdateNode={handleUpdateNode}
+                onUpdateFormulaNode={handleUpdateFormulaNode}
                 onDeleteNode={handleDeleteNode}
               />
             )}
