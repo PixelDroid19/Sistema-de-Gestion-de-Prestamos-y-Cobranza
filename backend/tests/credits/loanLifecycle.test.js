@@ -18,6 +18,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary', 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async (id) => ({ id, name: 'Associate Test' }));
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.DagGraphVersion, 'findOne', async () => null);
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 77, ...payload };
@@ -51,6 +52,12 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
+    if (where?.status === 'active') {
+      return { id: 501, scopeKey: 'credit-simulation', status: 'active' };
+    }
+    return { id: 501, scopeKey: 'credit-simulation', status: 'active' };
+  });
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 88, ...payload };
@@ -88,6 +95,7 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
   });
 
   assert.equal(createdLoan.id, 88);
+  assert.equal(persistedPayload.dagGraphVersionId, 501);
   assert.equal(persistedPayload.installmentAmount, 90);
   assert.equal(persistedPayload.totalPayable, 90);
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 90);
@@ -100,6 +108,12 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy f
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
+    if (where?.status === 'active') {
+      return { id: 700, scopeKey: 'credit-simulation', status: 'active' };
+    }
+    return { id: 700, scopeKey: 'credit-simulation', status: 'active' };
+  });
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 89, ...payload };
@@ -139,6 +153,56 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy f
 
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 100);
   assert.equal(persistedPayload.installmentAmount, 100);
+});
+
+test('createLoanFromCanonicalDataFactory rejects new credits when formula history exists but no version is active', async () => {
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
+    if (where?.status === 'active') {
+      return null;
+    }
+
+    return { id: 901, scopeKey: 'credit-simulation', status: 'inactive', version: 4 };
+  });
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    calculationService: {
+      calculate() {
+        return {
+          mode: 'primary',
+          selectedSource: 'dag',
+          result: {
+            lateFeeMode: 'NONE',
+            schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
+            summary: {
+              installmentAmount: 90,
+              totalPayable: 90,
+              totalPaid: 0,
+              outstandingPrincipal: 80,
+              outstandingInterest: 10,
+              outstandingBalance: 90,
+              outstandingInstallments: 1,
+            },
+          },
+        };
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLoan({
+      customerId: 1,
+      amount: 90,
+      interestRate: 12,
+      termMonths: 1,
+    }),
+    (error) => {
+      assert.match(error.message, /no active formula version/i);
+      return true;
+    },
+  );
 });
 
 test('getCanonicalLoanView rebuilds legacy schedules without leaking through root services', () => {

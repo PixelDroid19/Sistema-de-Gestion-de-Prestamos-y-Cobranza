@@ -43,7 +43,7 @@ describe('FormulaNodeEditor behavior', () => {
     });
   });
 
-  it('shows backend-aligned error when draft uses disallowed function', () => {
+  it('shows backend-aligned error when draft uses an unknown helper', () => {
     const onCommit = vi.fn();
 
     render(
@@ -57,7 +57,7 @@ describe('FormulaNodeEditor behavior', () => {
     );
 
     fireEvent.change(screen.getByLabelText(tTerm('dag.nodeEdit.formula.technicalLabel')), {
-      target: { value: 'assertSupportedLateFeeMode(lateFeeMode)' },
+      target: { value: 'unsupportedHelper(outstandingPrincipal)' },
     });
 
     expect(screen.getByText(tTerm('dag.nodeEdit.formula.validation.disallowedFunction'))).toBeInTheDocument();

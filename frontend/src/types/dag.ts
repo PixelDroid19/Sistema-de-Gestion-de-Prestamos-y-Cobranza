@@ -4,7 +4,7 @@
 // ENUMS
 // =============================================================================
 export type NodeKind = 'formula' | 'output' | 'constant' | 'conditional' | 'lookup';
-export type LateFeeMode = 'SIMPLE' | 'FLAT' | 'TIERED';
+export type LateFeeMode = 'NONE' | 'SIMPLE' | 'COMPOUND' | 'FLAT' | 'TIERED';
 export type InstallmentStatus = 'pending' | 'paid' | 'partial' | 'overdue' | 'annulled';
 
 // =============================================================================

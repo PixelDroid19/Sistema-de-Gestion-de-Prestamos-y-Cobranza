@@ -97,23 +97,168 @@ test('createDagWorkbenchService saves, loads, simulates, and summarizes scoped g
   });
 
   const actor = { id: 1, role: 'admin' };
-  const saveResult = await service.saveGraph({ actor, scopeKey: 'personal-loan', name: 'Personal Loan', graph: buildGraph() });
-  const loadResult = await service.loadGraph({ actor, scopeKey: 'personal-loan' });
+  const saveResult = await service.saveGraph({ actor, scopeKey: 'credit-simulation', name: 'Personal Loan', graph: buildGraph() });
+  const loadResult = await service.loadGraph({ actor, scopeKey: 'credit-simulation' });
   const simulationResult = await service.simulateGraph({
     actor,
-    scopeKey: 'personal-loan',
+    scopeKey: 'credit-simulation',
     graph: buildGraph(),
     simulationInput: { amount: 1000, interestRate: 12, termMonths: 12 },
   });
-  const summaryResult = await service.getSummary({ actor, scopeKey: 'personal-loan' });
+  const summaryResult = await service.getSummary({ actor, scopeKey: 'credit-simulation' });
 
-  assert.equal(saveResult.graphVersion.scopeKey, 'personal-loan');
+  assert.equal(saveResult.graphVersion.scopeKey, 'credit-simulation');
+  assert.equal(saveResult.graphVersion.status, 'active');
   assert.equal(saveResult.validation.valid, true);
   assert.equal(loadResult.graphVersion.name, 'Personal Loan');
   assert.equal(simulationResult.simulation.summary.totalPayable, 1012);
   assert.equal(simulationResult.summary.latestSimulation.selectedSource, 'legacy');
   assert.equal(summaryResult.latestGraph.version, 1);
   assert.equal(summaryResult.latestSimulation.selectedSource, 'legacy');
+});
+
+test('createDagWorkbenchService saves subsequent formula versions as inactive until explicitly activated', async () => {
+  const savedGraphs = [
+    {
+      id: 'credit-simulation:v1',
+      scopeKey: 'credit-simulation',
+      version: 1,
+      status: 'active',
+      name: 'Version base',
+      graph: buildGraph(),
+    },
+  ];
+
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: true },
+    dagGraphRepository: {
+      async getLatest(scopeKey) {
+        return savedGraphs
+          .filter((graph) => graph.scopeKey === scopeKey)
+          .sort((left, right) => right.version - left.version)[0] || null;
+      },
+      async saveVersion(record) {
+        const nextRecord = {
+          id: `${record.scopeKey}:v${savedGraphs.length + 1}`,
+          version: savedGraphs.length + 1,
+          createdAt: '2026-03-22T00:00:00.000Z',
+          updatedAt: '2026-03-22T00:00:00.000Z',
+          ...record,
+        };
+        savedGraphs.push(nextRecord);
+        return nextRecord;
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        return null;
+      },
+    },
+    creditDomainService: {
+      simulateDetailed() {
+        throw new Error('simulateDetailed should not be called');
+      },
+    },
+  });
+
+  const result = await service.saveGraph({
+    actor: { id: 1, role: 'admin' },
+    scopeKey: 'credit-simulation',
+    name: 'Version candidata',
+    graph: buildGraph(),
+  });
+
+  assert.equal(result.graphVersion.version, 2);
+  assert.equal(result.graphVersion.status, 'inactive');
+});
+
+test('createDagWorkbenchService activates a formula version without leaving previous versions active', async () => {
+  const graphs = [
+    { id: 1, scopeKey: 'credit-simulation', version: 1, status: 'active', name: 'Version 1' },
+    { id: 2, scopeKey: 'credit-simulation', version: 2, status: 'inactive', name: 'Version 2' },
+  ];
+
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: true },
+    dagGraphRepository: {
+      async findById(id) {
+        return graphs.find((graph) => graph.id === id) || null;
+      },
+      async activateVersion(id) {
+        graphs.forEach((graph) => {
+          if (graph.scopeKey === 'credit-simulation') {
+            graph.status = graph.id === id ? 'active' : 'inactive';
+          }
+        });
+        return graphs.find((graph) => graph.id === id) || null;
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        return null;
+      },
+    },
+    creditDomainService: {
+      simulateDetailed() {
+        throw new Error('simulateDetailed should not be called');
+      },
+    },
+  });
+
+  const result = await service.activateGraph({ actor: { id: 1, role: 'admin' }, graphId: 2 });
+
+  assert.equal(result.graph.id, 2);
+  assert.deepEqual(
+    graphs.map((graph) => ({ id: graph.id, status: graph.status })),
+    [
+      { id: 1, status: 'inactive' },
+      { id: 2, status: 'active' },
+    ],
+  );
+});
+
+test('createDagWorkbenchService rejects deactivating the only active version in a scope', async () => {
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: true },
+    dagGraphRepository: {
+      async findById(id) {
+        return { id, scopeKey: 'credit-simulation', version: 3, status: 'active', name: 'Version 3' };
+      },
+      async countActiveByScopeKey() {
+        return 1;
+      },
+      async deactivateVersion() {
+        throw new Error('deactivateVersion should not be called');
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        return null;
+      },
+    },
+    creditDomainService: {
+      simulateDetailed() {
+        throw new Error('simulateDetailed should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => service.deactivateGraph({ actor: { id: 1, role: 'admin' }, graphId: 3 }),
+    (error) => {
+      assert.match(error.message, /only active formula/i);
+      return true;
+    },
+  );
 });
 
 test('createDagWorkbenchService persists fallback and parity metadata for workbench simulations', async () => {
@@ -167,7 +312,7 @@ test('createDagWorkbenchService persists fallback and parity metadata for workbe
 
   const simulationResult = await service.simulateGraph({
     actor: { id: 1, role: 'admin' },
-    scopeKey: 'personal-loan',
+    scopeKey: 'credit-simulation',
     graph: buildGraph(),
     simulationInput: { amount: 1000, interestRate: 12, termMonths: 12 },
   });
@@ -186,7 +331,7 @@ test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {
       mode: 'shadow',
       workbenchEnabled: true,
       isScopeEnabled(scopeKey) {
-        return scopeKey === 'personal-loan';
+        return false;
       },
     },
     dagGraphRepository: {
@@ -213,9 +358,9 @@ test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {
   });
 
   await assert.rejects(
-    () => service.getSummary({ actor: { id: 2, role: 'admin' }, scopeKey: 'auto-loan' }),
+    () => service.getSummary({ actor: { id: 2, role: 'admin' }, scopeKey: 'credit-simulation' }),
     (error) => {
-      assert.match(error.message, /not enabled for scope 'auto-loan'/i);
+      assert.match(error.message, /not enabled for scope 'credit-simulation'/i);
       return true;
     },
   );
@@ -249,7 +394,7 @@ test('assertWorkbenchAccess rejects non-admin roles with correct error message',
 
   // Test that customer role is rejected
   await assert.rejects(
-    () => service.getSummary({ actor: { id: 2, role: 'customer' }, scopeKey: 'personal-loan' }),
+    () => service.getSummary({ actor: { id: 2, role: 'customer' }, scopeKey: 'credit-simulation' }),
     (error) => {
       assert.match(error.message, /Only admins can access/i);
       assert.ok(!error.message.includes('agents'), 'Error message should not mention agents');
@@ -259,7 +404,7 @@ test('assertWorkbenchAccess rejects non-admin roles with correct error message',
 
   // Test that socio role is rejected
   await assert.rejects(
-    () => service.loadGraph({ actor: { id: 3, role: 'socio' }, scopeKey: 'personal-loan' }),
+    () => service.loadGraph({ actor: { id: 3, role: 'socio' }, scopeKey: 'credit-simulation' }),
     (error) => {
       assert.match(error.message, /Only admins can access/i);
       assert.ok(!error.message.includes('agents'), 'Error message should not mention agents');

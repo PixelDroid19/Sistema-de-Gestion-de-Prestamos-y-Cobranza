@@ -40,14 +40,14 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           description: 'Cantidad de cuotas del credito.',
           outputVar: 'termMonths',
         },
-        {
-          id: 'input_late_fee_mode',
-          kind: 'conditional',
-          label: 'Modo de mora',
-          description: 'Valida el modo de mora antes de calcular el cronograma.',
-          formula: 'assertSupportedLateFeeMode(lateFeeMode)',
-          outputVar: 'lateFeeMode',
-        },
+      {
+        id: 'input_late_fee_mode',
+        kind: 'conditional',
+        label: 'Modo de mora',
+        description: 'Valida el modo de mora antes de calcular el cronograma (SIMPLE, COMPOUND, FLAT, TIERED).',
+        formula: 'assertSupportedLateFeeMode(lateFeeMode)',
+        outputVar: 'lateFeeMode',
+      },
         {
           id: 'amortization_schedule',
           kind: 'formula',

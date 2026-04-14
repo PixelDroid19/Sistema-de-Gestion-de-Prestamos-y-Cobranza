@@ -125,30 +125,6 @@ export const useConfig = () => {
     return data;
   }, queryKeys.config.lateFeePolicies);
 
-  // Interest Nodes
-  const getInterestNodes = useQuery({
-    queryKey: queryKeys.config.interestNodes,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/interest-nodes');
-      return data;
-    },
-  });
-
-  const createInterestNode = useInvalidatingMutation(async (nodeData: any) => {
-    const { data } = await apiClient.post('/config/interest-nodes', nodeData);
-    return data;
-  }, queryKeys.config.interestNodes);
-
-  const updateInterestNode = useInvalidatingMutation(async ({ id, ...nodeData }: any) => {
-    const { data } = await apiClient.put(`/config/interest-nodes/${id}`, nodeData);
-    return data;
-  }, queryKeys.config.interestNodes);
-
-  const deleteInterestNode = useInvalidatingMutation(async (id: number) => {
-    const { data } = await apiClient.delete(`/config/interest-nodes/${id}`);
-    return data;
-  }, queryKeys.config.interestNodes);
-
   return {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
     settings: toArray(getSettings.data?.data?.settings),
@@ -156,8 +132,7 @@ export const useConfig = () => {
     roles: toArray(getRoles.data?.data?.roles),
     tnaRates: toArray(getTnaRates.data?.data?.tnaRates),
     lateFeePolicies: toArray(getLateFeePolicies.data?.data?.lateFeePolicies),
-    interestNodes: toArray(getInterestNodes.data?.data?.interestNodes),
-    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading || getTnaRates.isLoading || getLateFeePolicies.isLoading || getInterestNodes.isLoading,
+    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading || getTnaRates.isLoading || getLateFeePolicies.isLoading,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
@@ -168,8 +143,5 @@ export const useConfig = () => {
     createLateFeePolicy,
     updateLateFeePolicy,
     deleteLateFeePolicy,
-    createInterestNode,
-    updateInterestNode,
-    deleteInterestNode,
   };
 };

@@ -49,6 +49,7 @@ const ALLOWED_FORMULA_FUNCTIONS = new Set([
   'im',
   'fix',
   'gamma',
+  'assertSupportedLateFeeMode',
   'calculateLateFee',
   'buildAmortizationSchedule',
   'summarizeSchedule',

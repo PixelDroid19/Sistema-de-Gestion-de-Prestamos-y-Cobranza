@@ -48,6 +48,7 @@ import DagNodeContent from './dag/DagNodeContent';
 import FormulaNodeEditor from './dag/FormulaNodeEditor';
 import { tTerm } from '../i18n/terminology';
 import { dagService } from '../services/dagService';
+import { confirmDanger } from '../lib/confirmModal';
 
 // =============================================================================
 // CUSTOM NODE COMPONENT
@@ -134,6 +135,164 @@ const DagNodeComponent = ({ data, selected }: any) => {
 
 const nodeTypes: NodeTypes = {
   dagNode: DagNodeComponent,
+};
+
+const graphStatusConfig: Record<'active' | 'inactive' | 'archived', { label: string; className: string }> = {
+  active: {
+    label: 'Activa',
+    className: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  },
+  inactive: {
+    label: 'Inactiva',
+    className: 'bg-amber-100 text-amber-700 border border-amber-200',
+  },
+  archived: {
+    label: 'Archivada',
+    className: 'bg-slate-100 text-slate-700 border border-slate-200',
+  },
+};
+
+const getGraphStatusMeta = (status?: string) => {
+  const normalizedStatus = String(status || 'inactive').toLowerCase() as 'active' | 'inactive' | 'archived';
+  return graphStatusConfig[normalizedStatus] || graphStatusConfig.inactive;
+};
+
+type FormulaVersionHistoryProps = {
+  graphList: Array<{ id: number; name: string; version: number; status: string; usageCount?: number | string }>;
+  currentGraphId: number | null;
+  isLoading: boolean;
+  pendingGraphActionId: number | null;
+  onRefresh: () => Promise<void>;
+  onSelect: (graphId: number) => Promise<void>;
+  onActivate: (graphId: number) => Promise<void>;
+  onDeactivate: (graphId: number) => Promise<void>;
+  onDelete: (graphId: number) => Promise<void>;
+};
+
+const FormulaVersionHistory: React.FC<FormulaVersionHistoryProps> = ({
+  graphList,
+  currentGraphId,
+  isLoading,
+  pendingGraphActionId,
+  onRefresh,
+  onSelect,
+  onActivate,
+  onDeactivate,
+  onDelete,
+}) => {
+  return (
+    <div className="mt-4 bg-bg-surface rounded-lg border border-border-subtle p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h4 className="text-xs font-semibold text-text-primary">Versiones</h4>
+          <p className="mt-1 text-[10px] leading-4 text-text-secondary">
+            Guardar crea una nueva versión. Solo la versión activa se usa en créditos nuevos.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          className="px-2 py-1 text-[10px] rounded border border-border-subtle bg-bg-base hover:bg-hover-bg"
+        >
+          Recargar
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-3 flex items-center gap-2 text-[10px] text-text-secondary">
+          <Loader2 size={12} className="animate-spin" />
+          Cargando historial...
+        </div>
+      ) : graphList.length === 0 ? (
+        <p className="mt-3 text-[10px] text-text-secondary">
+          Aún no hay versiones guardadas para este alcance.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2 max-h-[420px] overflow-y-auto pr-1">
+          {graphList.map((graph) => {
+            const usageCount = Number(graph.usageCount || 0);
+            const statusMeta = getGraphStatusMeta(graph.status);
+            const isSelected = currentGraphId === graph.id;
+            const isPending = pendingGraphActionId === graph.id;
+
+            return (
+              <div
+                key={graph.id}
+                className={`rounded-lg border p-2.5 transition-colors ${
+                  isSelected
+                    ? 'border-blue-300 bg-blue-50/70'
+                    : 'border-border-subtle bg-bg-base'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-text-primary truncate" title={graph.name}>
+                      {graph.name}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-medium text-text-secondary">v{graph.version}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusMeta.className}`}>
+                        {statusMeta.label}
+                      </span>
+                      {isSelected && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                          En edición
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[10px] text-text-secondary">
+                      {usageCount > 0
+                        ? `${usageCount} crédito${usageCount === 1 ? '' : 's'} usan esta versión`
+                        : 'Sin créditos asociados todavía'}
+                    </p>
+                  </div>
+                  {isPending && <Loader2 size={12} className="animate-spin text-text-secondary shrink-0 mt-0.5" />}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void onSelect(graph.id)}
+                    className="px-2 py-1 text-[10px] rounded border border-border-subtle hover:bg-hover-bg"
+                  >
+                    Abrir
+                  </button>
+                  {graph.status === 'active' ? (
+                    <button
+                      type="button"
+                      onClick={() => void onDeactivate(graph.id)}
+                      disabled={isPending}
+                      className="px-2 py-1 text-[10px] rounded border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                    >
+                      Desactivar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void onActivate(graph.id)}
+                      disabled={isPending}
+                      className="px-2 py-1 text-[10px] rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      Activar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void onDelete(graph.id)}
+                    disabled={isPending || usageCount > 0}
+                    title={usageCount > 0 ? 'No se puede eliminar una versión usada por créditos' : 'Eliminar versión'}
+                    className="px-2 py-1 text-[10px] rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // =============================================================================
@@ -530,6 +689,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({
               "
             >
               <option value="SIMPLE">{tTerm('dag.simulation.input.lateFeeMode.option.simple')}</option>
+              <option value="COMPOUND">{tTerm('dag.simulation.input.lateFeeMode.option.compound')}</option>
               <option value="FLAT">{tTerm('dag.simulation.input.lateFeeMode.option.flat')}</option>
               <option value="TIERED">{tTerm('dag.simulation.input.lateFeeMode.option.tiered')}</option>
             </select>
@@ -594,6 +754,9 @@ const DAGWorkbenchContent: React.FC = () => {
     edges,
     selectedNodeId,
     scopeKey,
+    graphVersion,
+    graphList,
+    isLoadingGraphList,
     graphName,
     isLoading,
     isSaving,
@@ -608,15 +771,21 @@ const DAGWorkbenchContent: React.FC = () => {
     setSelectedNodeId,
     setGraphName,
     loadGraph,
+    loadGraphList,
     validateGraph,
     saveGraph,
     simulateGraph,
     setSimulationInput,
+    activateGraph,
+    deactivateGraph,
+    deleteGraph,
+    selectGraph,
   } = useDagStore();
 
   const [rightPanel, setRightPanel] = useState<'properties' | 'validation' | 'simulation'>('properties');
   const [showScopeSelect, setShowScopeSelect] = useState(false);
   const [scopes, setScopes] = useState<DagWorkbenchScope[]>([]);
+  const [pendingGraphActionId, setPendingGraphActionId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -725,6 +894,72 @@ const DAGWorkbenchContent: React.FC = () => {
     await saveGraph(graphName);
   }, [saveGraph, graphName]);
 
+  const handleRefreshGraphList = useCallback(async () => {
+    await loadGraphList(scopeKey);
+  }, [loadGraphList, scopeKey]);
+
+  const handleActivateGraph = useCallback(async (graphId: number) => {
+    const confirmed = await confirmDanger({
+      title: 'Activar fórmula',
+      message: 'La versión activa se aplicará únicamente a créditos nuevos. Los créditos existentes conservarán su versión original.',
+      confirmLabel: 'Activar versión',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPendingGraphActionId(graphId);
+    try {
+      await activateGraph(graphId);
+    } finally {
+      setPendingGraphActionId(null);
+    }
+  }, [activateGraph]);
+
+  const handleDeactivateGraph = useCallback(async (graphId: number) => {
+    const confirmed = await confirmDanger({
+      title: 'Desactivar fórmula',
+      message: 'Esta versión dejará de estar disponible para créditos nuevos. Asegúrate de tener otra versión activa antes de continuar.',
+      confirmLabel: 'Desactivar versión',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPendingGraphActionId(graphId);
+    try {
+      await deactivateGraph(graphId);
+    } finally {
+      setPendingGraphActionId(null);
+    }
+  }, [deactivateGraph]);
+
+  const handleDeleteGraph = useCallback(async (graphId: number) => {
+    const confirmed = await confirmDanger({
+      title: 'Eliminar versión',
+      message: 'Solo se eliminarán versiones sin uso histórico. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar versión',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPendingGraphActionId(graphId);
+    try {
+      await deleteGraph(graphId);
+    } finally {
+      setPendingGraphActionId(null);
+    }
+  }, [deleteGraph]);
+
+  const currentGraphStatusMeta = useMemo(
+    () => getGraphStatusMeta(graphVersion?.status),
+    [graphVersion?.status],
+  );
+
   return (
     <div className="h-full flex flex-col bg-bg-base ">
       {/* Header Toolbar */}
@@ -781,6 +1016,15 @@ const DAGWorkbenchContent: React.FC = () => {
             focus:outline-none focus:ring-1 focus:ring-blue-500
           "
         />
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium text-text-secondary">
+            {graphVersion ? `v${graphVersion.version}` : 'Borrador'}
+          </span>
+          <span className={`px-2 py-1 rounded text-[10px] font-medium ${currentGraphStatusMeta.className}`}>
+            {graphVersion ? currentGraphStatusMeta.label : 'Sin publicar'}
+          </span>
+        </div>
 
         <div className="flex-1" />
 
@@ -841,7 +1085,7 @@ const DAGWorkbenchContent: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Node Palette */}
-        <div className="w-48 flex-shrink-0 p-3 border-r border-border-subtle overflow-y-auto">
+        <div className="w-64 flex-shrink-0 p-3 border-r border-border-subtle overflow-y-auto">
           <NodePalette onAddNode={handleAddNode} />
           
           {/* Node count info */}
@@ -854,6 +1098,18 @@ const DAGWorkbenchContent: React.FC = () => {
               </div>
             )}
           </div>
+
+          <FormulaVersionHistory
+            graphList={graphList}
+            currentGraphId={graphVersion?.id ?? null}
+            isLoading={isLoadingGraphList}
+            pendingGraphActionId={pendingGraphActionId}
+            onRefresh={handleRefreshGraphList}
+            onSelect={selectGraph}
+            onActivate={handleActivateGraph}
+            onDeactivate={handleDeactivateGraph}
+            onDelete={handleDeleteGraph}
+          />
         </div>
 
         {/* Canvas - React Flow */}

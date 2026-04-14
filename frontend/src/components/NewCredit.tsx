@@ -31,7 +31,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     interestRate: '',
     termMonths: '',
     lateFeeMode: 'SIMPLE',
-    paymentFrequency: 'monthly'
   });
 
   const [simulation, setSimulation] = useState<any>(null);
@@ -69,7 +68,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           interestRate: rate,
           termMonths: months,
           lateFeeMode: formData.lateFeeMode,
-          paymentFrequency: formData.paymentFrequency
         });
         setSimulation(result?.data?.simulation);
       } catch (error: any) {
@@ -92,7 +90,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         interestRate: parseFloat(formData.interestRate),
         termMonths: parseInt(formData.termMonths),
         lateFeeMode: formData.lateFeeMode,
-        paymentFrequency: formData.paymentFrequency
       });
       onBack();
     } catch (error: any) {
@@ -229,26 +226,19 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     )}
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-text-secondary">Frecuencia de Pago</label>
-                    <div className="relative">
-                      <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <select name="paymentFrequency" value={formData.paymentFrequency} onChange={handleChange} className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
-                        <option value="monthly">Mensual</option>
-                        <option value="biweekly">Quincenal</option>
-                        <option value="weekly">Semanal</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-text-secondary">Modo de Mora</label>
                     <div className="relative">
                       <FileText size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                       <select name="lateFeeMode" value={formData.lateFeeMode} onChange={handleChange} className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer">
-                        <option value="SIMPLE">Diario Simple</option>
-                        <option value="COMPOUND">Diario Compuesto</option>
-                        <option value="FLAT">Cargo Fijo</option>
+                        <option value="SIMPLE">Interés simple</option>
+                        <option value="COMPOUND">Interés compuesto</option>
+                        <option value="FLAT">Cargo fijo</option>
+                        <option value="TIERED">Escalonado</option>
                       </select>
                     </div>
+                    <p className="text-xs text-text-secondary">
+                      La originación usa el cronograma mensual definido por la fórmula activa del workbench.
+                    </p>
                   </div>
                 </div>
               </div>

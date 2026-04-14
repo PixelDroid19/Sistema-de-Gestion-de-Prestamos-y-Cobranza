@@ -1,5 +1,5 @@
 const { Loan, Customer, Associate, FinancialProduct, DagGraphVersion } = require('../../../models');
-const { NotFoundError } = require('../../../utils/errorHandler');
+const { NotFoundError, ValidationError } = require('../../../utils/errorHandler');
 const { simulateCredit } = require('../application/creditSimulationService');
 const { buildFinancialSnapshot } = require('../application/loanFinancials');
 
@@ -39,21 +39,26 @@ const resolveDagGraphVersionId = async ({ dagGraphVersionModel, scopeKey = DEFAU
     return null;
   }
 
-  const activeGraph = await dagGraphVersionModel.findOne({
-    where: { scopeKey, status: 'active' },
-    order: [['version', 'DESC'], ['createdAt', 'DESC']],
-  });
+  const [activeGraph, latestGraph] = await Promise.all([
+    dagGraphVersionModel.findOne({
+      where: { scopeKey, status: 'active' },
+      order: [['version', 'DESC'], ['createdAt', 'DESC']],
+    }),
+    dagGraphVersionModel.findOne({
+      where: { scopeKey },
+      order: [['version', 'DESC'], ['createdAt', 'DESC']],
+    }),
+  ]);
 
   if (activeGraph) {
     return activeGraph.id;
   }
 
-  const latestGraph = await dagGraphVersionModel.findOne({
-    where: { scopeKey },
-    order: [['version', 'DESC'], ['createdAt', 'DESC']],
-  });
+  if (!latestGraph) {
+    return null;
+  }
 
-  return latestGraph?.id || null;
+  throw new ValidationError(`No active formula version is configured for scope '${scopeKey}'. Activate one before creating new credits.`);
 };
 
 /**

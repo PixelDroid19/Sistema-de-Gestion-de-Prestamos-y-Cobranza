@@ -107,7 +107,15 @@ const createCreditsInfrastructure = ({
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
 } = {}) => {
-  const loanIncludes = [customerModel, associateModel];
+  const loanIncludes = [
+    customerModel,
+    associateModel,
+    {
+      model: dagGraphVersionModel,
+      as: 'dagGraph',
+      attributes: ['id', 'scopeKey', 'name', 'version', 'status', 'createdAt', 'updatedAt'],
+    },
+  ];
 
   return {
     loanRepository: {
@@ -136,7 +144,7 @@ const createCreditsInfrastructure = ({
         return loanModel.findByPk(id, { include: loanIncludes });
       },
       listByCustomer(customerId) {
-        return loanModel.findAll({ where: { customerId }, include: [associateModel], order: [['createdAt', 'DESC']] });
+        return loanModel.findAll({ where: { customerId }, include: [associateModel, loanIncludes[2]], order: [['createdAt', 'DESC']] });
       },
       listPageByCustomer({ customerId, page, pageSize }) {
         return paginateModel({
@@ -431,12 +439,58 @@ const createCreditsInfrastructure = ({
         const count = await loanModel.count({ where: { dagGraphVersionId: id } });
         return count;
       },
+      countByScopeKey(scopeKey) {
+        return dagGraphVersionModel.count({ where: { scopeKey } });
+      },
+      countActiveByScopeKey(scopeKey) {
+        return dagGraphVersionModel.count({ where: { scopeKey, status: 'active' } });
+      },
       async updateStatus(id, status) {
         const graph = await dagGraphVersionModel.findByPk(id);
         if (!graph) return null;
         graph.status = status;
         await graph.save();
         return graph;
+      },
+      async activateVersion(id) {
+        const activated = await dagGraphVersionModel.sequelize.transaction(async (transaction) => {
+          const targetGraph = await dagGraphVersionModel.findByPk(id, { transaction });
+          if (!targetGraph) {
+            return null;
+          }
+
+          await dagGraphVersionModel.update(
+            { status: 'inactive' },
+            {
+              where: {
+                scopeKey: targetGraph.scopeKey,
+                status: 'active',
+                id: { [Op.ne]: targetGraph.id },
+              },
+              transaction,
+            },
+          );
+
+          targetGraph.status = 'active';
+          await targetGraph.save({ transaction });
+          return targetGraph.id;
+        });
+
+        if (!activated) {
+          return null;
+        }
+
+        return this.findById(activated);
+      },
+      async deactivateVersion(id) {
+        const graph = await dagGraphVersionModel.findByPk(id);
+        if (!graph) {
+          return null;
+        }
+
+        graph.status = 'inactive';
+        await graph.save();
+        return this.findById(id);
       },
       async deleteGraph(id) {
         const graph = await dagGraphVersionModel.findByPk(id);
@@ -447,7 +501,7 @@ const createCreditsInfrastructure = ({
       async saveVersion(payload) {
         const latest = await this.getLatest(payload.scopeKey);
         const version = Number(latest?.version || 0) + 1;
-        return dagGraphVersionModel.create({ ...payload, version, status: payload.status || 'active' });
+        return dagGraphVersionModel.create({ ...payload, version, status: payload.status || 'inactive' });
       },
     },
     dagSimulationSummaryRepository: {

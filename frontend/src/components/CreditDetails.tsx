@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
-  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table
+  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
 } from 'lucide-react';
 import { useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
@@ -72,11 +72,17 @@ export default function CreditDetails() {
         return { label: 'Activo', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' };
       case 'approved':
         return { label: 'Aprobado', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
+      case 'overdue':
+        return { label: 'Vencido', className: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' };
+      case 'paid':
+        return { label: 'Pagado', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' };
       case 'completed':
       case 'closed':
         return { label: 'Completado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'defaulted':
         return { label: 'En mora', className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200 dark:border-red-500/30' };
+      case 'cancelled':
+        return { label: 'Cancelado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'pending':
         return { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' };
       case 'rejected':
@@ -596,6 +602,15 @@ export default function CreditDetails() {
                   <FileText size={14} className="opacity-70" />
                   Cliente: <span className="font-medium text-text-primary">{customerLabel}</span>
                 </p>
+                {loan?.dagGraph && (
+                  <p className="mt-2 text-sm text-text-secondary flex items-center gap-1.5">
+                    <GitBranch size={14} className="opacity-70" />
+                    Fórmula aplicada:
+                    <span className="font-medium text-text-primary">
+                      {loan.dagGraph.name} (v{loan.dagGraph.version})
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
 

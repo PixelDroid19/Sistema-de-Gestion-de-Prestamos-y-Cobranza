@@ -57,7 +57,6 @@ export const queryKeys = {
     roles: ['config.roles'] as const,
     tnaRates: ['config.tnaRates'] as const,
     lateFeePolicies: ['config.lateFeePolicies'] as const,
-    interestNodes: ['config.interestNodes'] as const,
   },
   loans: {
     all: ['loans'] as const,

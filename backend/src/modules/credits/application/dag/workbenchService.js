@@ -276,12 +276,14 @@ const createDagWorkbenchService = ({
         error.errors = validation.errors;
         throw error;
       }
+      const latestGraph = await dagGraphRepository.getLatest(normalizedScopeKey);
       const graphVersion = await dagGraphRepository.saveVersion({
         scopeKey: normalizedScopeKey,
         name: String(name || 'Untitled DAG Graph').trim() || 'Untitled DAG Graph',
         graph,
         graphSummary: validation.summary,
         validation,
+        status: latestGraph ? 'inactive' : 'active',
         createdByUserId: actor.id,
       });
 
@@ -290,6 +292,7 @@ const createDagWorkbenchService = ({
         scopeKey: normalizedScopeKey,
         actorId: actor.id,
         version: graphVersion.version,
+        status: graphVersion.status,
       });
 
       return { graphVersion, validation };
@@ -402,12 +405,14 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      const updated = await dagGraphRepository.updateStatus(graphId, 'active');
+      const updated = await dagGraphRepository.activateVersion(graphId);
       
       logSecurity('dag.graph.activated', {
         graphId,
         actorId: actor.id,
         name: graph.name,
+        scopeKey: graph.scopeKey,
+        version: graph.version,
       });
 
       return { graph: updated };
@@ -426,12 +431,21 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      const updated = await dagGraphRepository.updateStatus(graphId, 'inactive');
+      if (graph.status === 'active') {
+        const activeCount = await dagGraphRepository.countActiveByScopeKey(graph.scopeKey);
+        if (activeCount <= 1) {
+          throw new ValidationError('Cannot deactivate the only active formula for this scope. Activate another version first.');
+        }
+      }
+
+      const updated = await dagGraphRepository.deactivateVersion(graphId);
       
       logSecurity('dag.graph.deactivated', {
         graphId,
         actorId: actor.id,
         name: graph.name,
+        scopeKey: graph.scopeKey,
+        version: graph.version,
       });
 
       return { graph: updated };
@@ -454,6 +468,12 @@ const createDagWorkbenchService = ({
       if (usageCount > 0) {
         throw new ValidationError(`Cannot delete formula: ${usageCount} credit(s) are using it. Deactivate it instead.`);
       }
+      if (graph.status === 'active') {
+        const activeCount = await dagGraphRepository.countActiveByScopeKey(graph.scopeKey);
+        if (activeCount <= 1) {
+          throw new ValidationError('Cannot delete the only active formula for this scope. Activate another version first.');
+        }
+      }
 
       await dagGraphRepository.deleteGraph(graphId);
 
@@ -461,6 +481,8 @@ const createDagWorkbenchService = ({
         graphId,
         actorId: actor.id,
         name: graph.name,
+        scopeKey: graph.scopeKey,
+        version: graph.version,
       });
 
       return { deleted: true };

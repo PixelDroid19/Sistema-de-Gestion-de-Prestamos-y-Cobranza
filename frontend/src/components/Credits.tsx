@@ -49,6 +49,12 @@ interface InstallmentEvent {
   arrears: number;
 }
 
+const getInitialCreditsTab = () => (
+  typeof window !== 'undefined' && window.location.hash === '#workbench'
+    ? 'workbench'
+    : 'list'
+);
+
 // Función para obtener simulación del backend
 const fetchSimulation = async (params: {
   amount: number;
@@ -66,7 +72,7 @@ const fetchSimulation = async (params: {
  * via operational guards that delegate to the backend DAG engine.
  */
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
-  const [activeTab, setActiveTab] = useState('list');
+  const [activeTab, setActiveTab] = useState(getInitialCreditsTab);
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -97,6 +103,21 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   // Query client for refetching
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
+
+  const updateActiveTab = (nextTab: string) => {
+    setActiveTab(nextTab);
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (nextTab === 'workbench') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#workbench`);
+      return;
+    }
+
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+  };
 
   const handleExportCreditsExcel = async () => {
     try {
@@ -461,7 +482,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           >
             <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
           </button>
-          <button onClick={() => setActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
+          <button onClick={() => updateActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
             <Calculator size={16} /> {tTerm('credits.cta.simulate')}
           </button>
           <button 
@@ -476,28 +497,28 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       {/* Tabs */}
       <div className="flex gap-6 border-b border-border-subtle">
         <button 
-          onClick={() => setActiveTab('list')}
+          onClick={() => updateActiveTab('list')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Creditos vigentes con saldo o cuotas pendientes"
         >
           Creditos vigentes
         </button>
         <button 
-          onClick={() => setActiveTab('calendar')}
+          onClick={() => updateActiveTab('calendar')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'calendar' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Calendario de cuotas pagadas, pendientes y vencidas"
         >
           <CalendarIcon size={16} /> Calendario
         </button>
         <button 
-          onClick={() => setActiveTab('simulation')}
+          onClick={() => updateActiveTab('simulation')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Simula cuota, interes total y cronograma estimado"
         >
           Simulación
         </button>
         <button 
-          onClick={() => setActiveTab('workbench')}
+          onClick={() => updateActiveTab('workbench')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Herramienta tecnica para flujos y escenarios DAG"
         >

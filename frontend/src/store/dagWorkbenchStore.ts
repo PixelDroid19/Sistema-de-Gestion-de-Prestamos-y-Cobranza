@@ -90,287 +90,6 @@ export interface DagWorkbenchState {
 }
 
 // =============================================================================
-// DEFAULT TEMPLATE GRAPHS — represent the REAL system formulas
-// =============================================================================
-
-const DEFAULT_SCOPE_GRAPHS: Record<string, DagGraph> = {
-  'credit-simulation': {
-    nodes: [
-      {
-        id: 'input_amount',
-        kind: 'constant',
-        label: 'Monto del Préstamo',
-        description: 'Capital solicitado por el cliente',
-        outputVar: 'amount',
-      },
-      {
-        id: 'input_rate',
-        kind: 'constant',
-        label: 'Tasa de Interés Anual',
-        description: 'Tasa de interés anual en porcentaje',
-        outputVar: 'interestRate',
-      },
-      {
-        id: 'input_term',
-        kind: 'constant',
-        label: 'Plazo (Meses)',
-        description: 'Duración del préstamo en meses',
-        outputVar: 'termMonths',
-      },
-      {
-        id: 'monthly_rate',
-        kind: 'formula',
-        label: 'Tasa Mensual',
-        description: 'Convierte la tasa anual a mensual',
-        formula: 'interestRate / 100 / 12',
-        outputVar: 'monthlyRate',
-        dependencies: ['input_rate'],
-      },
-      {
-        id: 'installment_calc',
-        kind: 'formula',
-        label: 'Cálculo de Cuota Fija',
-        description: 'Fórmula de cuota fija (sistema francés): P × r × (1+r)^n / ((1+r)^n − 1)',
-        formula: '(amount * monthlyRate * (1 + monthlyRate)^termMonths) / ((1 + monthlyRate)^termMonths - 1)',
-        outputVar: 'installmentAmount',
-        dependencies: ['input_amount', 'monthly_rate', 'input_term'],
-      },
-      {
-        id: 'late_fee_mode',
-        kind: 'conditional',
-        label: 'Modo de Mora',
-        description: 'Valida que el modo de mora sea soportado (SIMPLE, FLAT, TIERED)',
-        formula: 'assertSupportedLateFeeMode(lateFeeMode)',
-        outputVar: 'lateFeeMode',
-      },
-      {
-        id: 'amortization',
-        kind: 'formula',
-        label: 'Tabla de Amortización',
-        description: 'Genera cronograma completo: capital, interés, saldo por cuota',
-        formula: 'buildAmortizationSchedule({ amount, interestRate, termMonths, startDate })',
-        outputVar: 'schedule',
-        dependencies: ['installment_calc', 'late_fee_mode'],
-      },
-      {
-        id: 'summary',
-        kind: 'formula',
-        label: 'Resumen Financiero',
-        description: 'Totales: capital, interés, monto total a pagar, saldo pendiente',
-        formula: 'summarizeSchedule(schedule)',
-        outputVar: 'summary',
-        dependencies: ['amortization'],
-      },
-      {
-        id: 'output_result',
-        kind: 'output',
-        label: 'Resultado de Simulación',
-        description: 'Salida final: cronograma + resumen + modo de mora',
-        outputVar: 'result',
-        dependencies: ['amortization', 'summary', 'late_fee_mode'],
-      },
-    ],
-    edges: [
-      { source: 'input_rate', target: 'monthly_rate' },
-      { source: 'input_amount', target: 'installment_calc' },
-      { source: 'monthly_rate', target: 'installment_calc' },
-      { source: 'input_term', target: 'installment_calc' },
-      { source: 'installment_calc', target: 'amortization' },
-      { source: 'late_fee_mode', target: 'amortization' },
-      { source: 'amortization', target: 'summary' },
-      { source: 'amortization', target: 'output_result' },
-      { source: 'summary', target: 'output_result' },
-      { source: 'late_fee_mode', target: 'output_result' },
-    ],
-  },
-  'payment-calculation': {
-    nodes: [
-      {
-        id: 'loan_balance',
-        kind: 'constant',
-        label: 'Saldo del Préstamo',
-        description: 'Saldo actual del capital pendiente',
-        outputVar: 'outstandingPrincipal',
-      },
-      {
-        id: 'interest_due',
-        kind: 'formula',
-        label: 'Interés Devengado',
-        description: 'Interés acumulado pendiente de pago',
-        formula: 'outstandingPrincipal * monthlyRate',
-        outputVar: 'interestDue',
-        dependencies: ['loan_balance'],
-      },
-      {
-        id: 'payment_amount',
-        kind: 'constant',
-        label: 'Monto del Pago',
-        description: 'Monto total que el cliente paga',
-        outputVar: 'paymentAmount',
-      },
-      {
-        id: 'allocation',
-        kind: 'formula',
-        label: 'Distribución del Pago',
-        description: 'Asigna pago primero a interés, luego a capital',
-        formula: 'allocatePayment({ paymentAmount, interestDue, outstandingPrincipal })',
-        outputVar: 'allocation',
-        dependencies: ['payment_amount', 'interest_due', 'loan_balance'],
-      },
-      {
-        id: 'new_balance',
-        kind: 'formula',
-        label: 'Nuevo Saldo',
-        description: 'Saldo actualizado después del pago',
-        formula: 'outstandingPrincipal - allocation.principalPaid',
-        outputVar: 'newBalance',
-        dependencies: ['allocation'],
-      },
-      {
-        id: 'output_payment',
-        kind: 'output',
-        label: 'Resultado del Pago',
-        description: 'Detalle de aplicación del pago',
-        outputVar: 'paymentResult',
-        dependencies: ['allocation', 'new_balance'],
-      },
-    ],
-    edges: [
-      { source: 'loan_balance', target: 'interest_due' },
-      { source: 'payment_amount', target: 'allocation' },
-      { source: 'interest_due', target: 'allocation' },
-      { source: 'loan_balance', target: 'allocation' },
-      { source: 'allocation', target: 'new_balance' },
-      { source: 'allocation', target: 'output_payment' },
-      { source: 'new_balance', target: 'output_payment' },
-    ],
-  },
-  'late-fee-calculation': {
-    nodes: [
-      {
-        id: 'days_overdue',
-        kind: 'constant',
-        label: 'Días de Atraso',
-        description: 'Número de días vencidos sin pago',
-        outputVar: 'daysOverdue',
-      },
-      {
-        id: 'overdue_amount',
-        kind: 'constant',
-        label: 'Monto Vencido',
-        description: 'Capital + interés de cuotas vencidas',
-        outputVar: 'overdueAmount',
-      },
-      {
-        id: 'annual_rate',
-        kind: 'constant',
-        label: 'Tasa Anual de Mora (%)',
-        description: 'Tasa anual para cálculo de mora (modo SIMPLE)',
-        outputVar: 'annualRate',
-      },
-      {
-        id: 'fee_mode',
-        kind: 'conditional',
-        label: 'Tipo de Mora',
-        description: 'Selecciona cálculo: SIMPLE (% diario), FLAT (monto fijo), TIERED (escalonado)',
-        formula: 'assertSupportedLateFeeMode(lateFeeMode)',
-        outputVar: 'feeMode',
-      },
-      {
-        id: 'late_fee_calc',
-        kind: 'formula',
-        label: 'Cálculo de Mora',
-        description: 'Calcula el monto de mora según el modo seleccionado',
-        formula: 'calculateLateFee({ overdueAmount, daysOverdue, feeMode, annualRate })',
-        outputVar: 'lateFeeAmount',
-        dependencies: ['days_overdue', 'overdue_amount', 'annual_rate', 'fee_mode'],
-      },
-      {
-        id: 'output_fee',
-        kind: 'output',
-        label: 'Resultado de Mora',
-        description: 'Monto total de mora aplicable',
-        outputVar: 'lateFeeResult',
-        dependencies: ['late_fee_calc'],
-      },
-    ],
-    edges: [
-      { source: 'days_overdue', target: 'late_fee_calc' },
-      { source: 'overdue_amount', target: 'late_fee_calc' },
-      { source: 'annual_rate', target: 'late_fee_calc' },
-      { source: 'fee_mode', target: 'late_fee_calc' },
-      { source: 'late_fee_calc', target: 'output_fee' },
-    ],
-  },
-  'amortization': {
-    nodes: [
-      {
-        id: 'principal',
-        kind: 'constant',
-        label: 'Capital',
-        description: 'Monto principal del préstamo',
-        outputVar: 'amount',
-      },
-      {
-        id: 'rate',
-        kind: 'constant',
-        label: 'Tasa Anual',
-        description: 'Tasa de interés anual (%)',
-        outputVar: 'interestRate',
-      },
-      {
-        id: 'term',
-        kind: 'constant',
-        label: 'Plazo',
-        description: 'Número de cuotas mensuales',
-        outputVar: 'termMonths',
-      },
-      {
-        id: 'schedule_gen',
-        kind: 'formula',
-        label: 'Generar Cronograma',
-        description: 'buildAmortizationSchedule: genera cronograma cuota por cuota',
-        formula: 'buildAmortizationSchedule({ amount, interestRate, termMonths })',
-        outputVar: 'schedule',
-        dependencies: ['principal', 'rate', 'term'],
-      },
-      {
-        id: 'schedule_summary',
-        kind: 'formula',
-        label: 'Resumir Cronograma',
-        description: 'summarizeSchedule: total capital, interés, monto a pagar',
-        formula: 'summarizeSchedule(schedule)',
-        outputVar: 'summary',
-        dependencies: ['schedule_gen'],
-      },
-      {
-        id: 'output_amort',
-        kind: 'output',
-        label: 'Amortización Completa',
-        description: 'Cronograma + resumen financiero',
-        outputVar: 'amortizationResult',
-        dependencies: ['schedule_gen', 'schedule_summary'],
-      },
-    ],
-    edges: [
-      { source: 'principal', target: 'schedule_gen' },
-      { source: 'rate', target: 'schedule_gen' },
-      { source: 'term', target: 'schedule_gen' },
-      { source: 'schedule_gen', target: 'schedule_summary' },
-      { source: 'schedule_gen', target: 'output_amort' },
-      { source: 'schedule_summary', target: 'output_amort' },
-    ],
-  },
-};
-
-const DEFAULT_SCOPE_NAMES: Record<string, string> = {
-  'credit-simulation': 'Simulación de Crédito',
-  'payment-calculation': 'Cálculo de Pagos',
-  'late-fee-calculation': 'Cálculo de Mora',
-  'amortization': 'Amortización',
-};
-
-// =============================================================================
 // Helpers for conversion
 // =============================================================================
 
@@ -617,6 +336,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         validation: graphVersion.validation || null,
         isLoading: false 
       });
+      await get().loadGraphList(scopeKey);
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message;
       if (err?.response?.status === 404 || (typeof errMsg === 'string' && errMsg.includes('not found'))) {
@@ -639,6 +359,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
               isLoading: false,
               error: null,
             });
+            await get().loadGraphList(scopeKey);
             return;
           }
         } catch (scopeError) {
@@ -653,6 +374,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
           validation: null,
           isLoading: false,
         });
+        await get().loadGraphList(scopeKey);
       } else {
         console.error('[dag] loadGraph failed', err);
         set({
@@ -699,6 +421,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         isSaving: false,
         validation: graphVersion?.validation
       });
+      await get().loadGraphList(scopeKey);
     } catch (err: any) {
       try {
         // Try to parse validation errors from response
@@ -782,9 +505,12 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
 
   activateGraph: async (graphId: number) => {
     try {
-      await dagService.updateGraphStatus(graphId, 'active');
+      const response = await dagService.updateGraphStatus(graphId, 'active');
       // Refresh the graph list
       const { scopeKey } = get();
+      if (get().graphVersion?.id === graphId) {
+        set({ graphVersion: response.data?.graph || get().graphVersion });
+      }
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
       console.error('[dag] activateGraph failed', err);
@@ -794,9 +520,12 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
 
   deactivateGraph: async (graphId: number) => {
     try {
-      await dagService.updateGraphStatus(graphId, 'inactive');
+      const response = await dagService.updateGraphStatus(graphId, 'inactive');
       // Refresh the graph list
       const { scopeKey } = get();
+      if (get().graphVersion?.id === graphId) {
+        set({ graphVersion: response.data?.graph || get().graphVersion });
+      }
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
       console.error('[dag] deactivateGraph failed', err);
@@ -809,6 +538,9 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       await dagService.deleteGraph(graphId);
       // Refresh the graph list
       const { scopeKey } = get();
+      if (get().graphVersion?.id === graphId) {
+        set({ graphVersion: null });
+      }
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
       console.error('[dag] deleteGraph failed', err);
@@ -837,6 +569,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       const { nodes, edges } = convertGraphToRFState(dagGraph, updateFn);
 
       set({
+        scopeKey: graphVersion.scopeKey || get().scopeKey,
         graphVersion,
         graphName: graphVersion.name || 'Grafo Cargado',
         nodes,

@@ -79,6 +79,7 @@ const TERMINOLOGY = {
   'dag.simulation.input.term': 'Plazo (meses)',
   'dag.simulation.input.lateFeeMode': 'Modo de mora',
   'dag.simulation.input.lateFeeMode.option.simple': 'SIMPLE',
+  'dag.simulation.input.lateFeeMode.option.compound': 'COMPOUND',
   'dag.simulation.input.lateFeeMode.option.flat': 'FLAT',
   'dag.simulation.input.lateFeeMode.option.tiered': 'TIERED',
   'dag.simulation.resultsTitle': 'Resultados',

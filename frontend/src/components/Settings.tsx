@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Settings2, CreditCard, Save, Shield, Percent, AlertTriangle, GitBranch } from 'lucide-react';
 import { useConfig } from '../services/configService';
 import { toast } from '../lib/toast';
@@ -7,15 +8,14 @@ import { confirmDanger } from '../lib/confirmModal';
 import PermissionsTab from './PermissionsTab';
 
 export default function Settings() {
-  const { settings, paymentMethods, tnaRates, lateFeePolicies, interestNodes, isLoading, updateSetting, createPaymentMethod, deletePaymentMethod, createTnaRate, updateTnaRate, deleteTnaRate, createLateFeePolicy, updateLateFeePolicy, deleteLateFeePolicy, createInterestNode, updateInterestNode, deleteInterestNode } = useConfig();
-  const [activeTab, setActiveTab] = useState<'general' | 'payment-methods' | 'permissions' | 'tna-rates' | 'late-fees' | 'interest-nodes'>('general');
+  const navigate = useNavigate();
+  const { settings, paymentMethods, tnaRates, lateFeePolicies, isLoading, updateSetting, createPaymentMethod, deletePaymentMethod, createTnaRate, updateTnaRate, deleteTnaRate, createLateFeePolicy, updateLateFeePolicy, deleteLateFeePolicy } = useConfig();
+  const [activeTab, setActiveTab] = useState<'general' | 'payment-methods' | 'permissions' | 'tna-rates' | 'late-fees' | 'formula-workbench'>('general');
   const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', description: '', type: 'bank_transfer' });
   const [newTnaRate, setNewTnaRate] = useState({ key: '', label: '', value: '', minValue: '', maxValue: '', effectiveDate: '', description: '' });
   const [editingTnaRate, setEditingTnaRate] = useState<any>(null);
   const [newLateFee, setNewLateFee] = useState({ key: '', label: '', gracePeriodDays: '', penaltyRate: '', penaltyType: 'percentage', maxPenaltyAmount: '', description: '' });
   const [editingLateFee, setEditingLateFee] = useState<any>(null);
-  const [newInterestNode, setNewInterestNode] = useState<{ key: string; label: string; nodeType: string; parentNodeId: number | null; description: string }>({ key: '', label: '', nodeType: 'workspace', parentNodeId: null, description: '' });
-  const [editingInterestNode, setEditingInterestNode] = useState<any>(null);
 
   if (isLoading) return <div className="p-8 text-center text-text-secondary">Cargando configuración...</div>;
 
@@ -122,41 +122,6 @@ export default function Settings() {
     }
   };
 
-  const handleCreateInterestNode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await createInterestNode.mutateAsync({
-        ...newInterestNode,
-        parentNodeId: newInterestNode.parentNodeId ? Number(newInterestNode.parentNodeId) : null,
-      });
-      setNewInterestNode({ key: '', label: '', nodeType: 'workspace', parentNodeId: null, description: '' });
-      toast.success({ description: 'Nodo de interés creado' });
-    } catch (error) {
-      console.error('[settings] createInterestNode failed', error);
-      toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-    }
-  };
-
-  const handleUpdateInterestNode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingInterestNode) return;
-    try {
-      await updateInterestNode.mutateAsync({
-        id: editingInterestNode.id,
-        label: editingInterestNode.label,
-        nodeType: editingInterestNode.nodeType,
-        parentNodeId: editingInterestNode.parentNodeId ? Number(editingInterestNode.parentNodeId) : null,
-        description: editingInterestNode.description,
-        isActive: editingInterestNode.isActive,
-      });
-      setEditingInterestNode(null);
-      toast.success({ description: 'Nodo de interés actualizado' });
-    } catch (error) {
-      console.error('[settings] updateInterestNode failed', error);
-      toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-6 h-full pb-8">
       <div>
@@ -206,12 +171,12 @@ export default function Settings() {
           <AlertTriangle size={16} /> Multas por Mora
         </button>
         <button
-          onClick={() => setActiveTab('interest-nodes')}
+          onClick={() => setActiveTab('formula-workbench')}
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'interest-nodes' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
+            activeTab === 'formula-workbench' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
           }`}
         >
-          <GitBranch size={16} /> Nodos
+          <GitBranch size={16} /> Fórmulas y Nodos
         </button>
       </div>
 
@@ -464,83 +429,54 @@ export default function Settings() {
           </div>
         )}
 
-        {activeTab === 'interest-nodes' && (
+        {activeTab === 'formula-workbench' && (
           <div>
-            <h3 className="font-medium text-lg mb-4">Nodos de Interés (Workspaces)</h3>
-            
-            <form onSubmit={editingInterestNode ? handleUpdateInterestNode : handleCreateInterestNode} className="mb-8 p-4 border border-border-subtle bg-bg-base rounded-xl flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-xs text-text-secondary mb-1">Clave</label>
-                <input required type="text" disabled={!!editingInterestNode} value={editingInterestNode ? editingInterestNode.key : newInterestNode.key} onChange={e => editingInterestNode ? setEditingInterestNode({...editingInterestNode, key: e.target.value}) : setNewInterestNode({...newInterestNode, key: e.target.value})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm" placeholder="Ej: workspace-central" />
-              </div>
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-xs text-text-secondary mb-1">Nombre</label>
-                <input required type="text" value={editingInterestNode ? editingInterestNode.label : newInterestNode.label} onChange={e => editingInterestNode ? setEditingInterestNode({...editingInterestNode, label: e.target.value}) : setNewInterestNode({...newInterestNode, label: e.target.value})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm" placeholder="Ej: Workspace Central" />
-              </div>
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-xs text-text-secondary mb-1">Tipo</label>
-                <select value={editingInterestNode ? editingInterestNode.nodeType : newInterestNode.nodeType} onChange={e => editingInterestNode ? setEditingInterestNode({...editingInterestNode, nodeType: e.target.value}) : setNewInterestNode({...newInterestNode, nodeType: e.target.value})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm">
-                  <option value="workspace">Workspace</option>
-                  <option value="rate_group">Grupo de Tasas</option>
-                  <option value="fee_group">Grupo de Comisiones</option>
-                </select>
-              </div>
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-xs text-text-secondary mb-1">Nodo Padre (ID)</label>
-                <input type="number" value={editingInterestNode ? String(editingInterestNode.parentNodeId ?? '') : String(newInterestNode.parentNodeId ?? '')} onChange={e => editingInterestNode ? setEditingInterestNode({...editingInterestNode, parentNodeId: e.target.value ? Number(e.target.value) : null}) : setNewInterestNode({...newInterestNode, parentNodeId: e.target.value ? Number(e.target.value) : null})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm" placeholder="Opcional" />
-              </div>
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-xs text-text-secondary mb-1">Descripción</label>
-                <input type="text" value={editingInterestNode ? editingInterestNode.description : newInterestNode.description} onChange={e => editingInterestNode ? setEditingInterestNode({...editingInterestNode, description: e.target.value}) : setNewInterestNode({...newInterestNode, description: e.target.value})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm" placeholder="Descripción opcional" />
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" className="bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-                  <Save size={16} /> {editingInterestNode ? 'Actualizar' : 'Agregar'}
-                </button>
-                {editingInterestNode && (
-                  <button type="button" onClick={() => setEditingInterestNode(null)} className="bg-bg-base border border-border-subtle text-text-secondary px-4 py-2 rounded-lg text-sm font-medium">
-                    Cancelar
-                  </button>
-                )}
-              </div>
-            </form>
+            <h3 className="font-medium text-lg mb-4">Workbench de Fórmulas</h3>
 
-            <div className="space-y-3">
-              {interestNodes.map((node: any) => (
-                <div key={node.id} className="flex justify-between items-center p-4 border border-border-subtle rounded-xl">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <p className="font-medium">{node.label}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded ${node.nodeType === 'workspace' ? 'bg-blue-100 text-blue-600' : node.nodeType === 'rate_group' ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-600'}`}>
-                        {node.nodeType === 'workspace' ? 'Workspace' : node.nodeType === 'rate_group' ? 'Grupo Tasas' : 'Grupo Comisiones'}
-                      </span>
-                      {node.parentNodeId && <span className="text-xs bg-text-secondary/10 text-text-secondary px-2 py-0.5 rounded">Padre: {node.parentNodeId}</span>}
-                      {!node.isActive && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded">Inactivo</span>}
-                    </div>
-                    <p className="text-xs text-text-secondary">Clave: {node.key}</p>
-                    {node.description && <p className="text-xs text-text-secondary mt-1">{node.description}</p>}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditingInterestNode(node)} className="text-brand-primary hover:text-brand-primary/80 text-sm font-medium">Editar</button>
-                    <button 
-                      onClick={async () => {
-                        const confirmed = await confirmDanger({
-                          title: tTerm('confirm.interestNode.delete.title'),
-                          message: tTerm('confirm.interestNode.delete.message'),
-                          confirmLabel: tTerm('confirm.interestNode.delete.confirm'),
-                        });
-                        if (confirmed) deleteInterestNode.mutateAsync(node.id);
-                      }}
-                      className="text-red-500 hover:text-red-700 text-sm font-medium"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
+            <div className="rounded-2xl border border-border-subtle bg-bg-base p-6 space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm text-text-secondary">
+                  La edición de nodos y fórmulas vive en un único lugar para evitar duplicaciones entre frontend y backend.
+                </p>
+                <p className="text-sm text-text-secondary">
+                  Cada guardado crea una nueva versión, las fórmulas usadas por créditos existentes no se eliminan y solo la versión activa aplica a créditos nuevos.
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-border-subtle bg-bg-surface p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">Versionado</p>
+                  <p className="mt-2 text-sm text-text-secondary">
+                    Las fórmulas se guardan como versiones nuevas para conservar trazabilidad histórica.
+                  </p>
                 </div>
-              ))}
-              {interestNodes.length === 0 && (
-                <p className="text-text-secondary">No hay nodos de interés configurados.</p>
-              )}
+                <div className="rounded-xl border border-border-subtle bg-bg-surface p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">Rollout seguro</p>
+                  <p className="mt-2 text-sm text-text-secondary">
+                    Activar una versión cambia únicamente la originación futura, nunca recalcula créditos existentes.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border-subtle bg-bg-surface p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">Historial de uso</p>
+                  <p className="mt-2 text-sm text-text-secondary">
+                    Las versiones con créditos asociados quedan protegidas contra borrado para mantener consistencia operativa.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate('/credits#workbench')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-medium text-bg-base hover:opacity-90"
+                >
+                  <GitBranch size={16} />
+                  Abrir Workbench DAG
+                </button>
+                <p className="text-xs text-text-secondary">
+                  Ruta recomendada: Operación de créditos → Workbench DAG.
+                </p>
+              </div>
             </div>
           </div>
         )}
