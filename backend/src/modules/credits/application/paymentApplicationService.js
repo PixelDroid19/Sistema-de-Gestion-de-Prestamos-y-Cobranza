@@ -1196,7 +1196,7 @@ const createPaymentApplicationService = ({
     } catch (error) {
       if (error instanceof IdempotentReplayError) {
         return {
-          ...error.payload,
+          ...error.cachedPayload,
           idempotent: true,
         };
       }

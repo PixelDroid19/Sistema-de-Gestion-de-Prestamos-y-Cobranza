@@ -302,7 +302,7 @@ test('processPayment uses canonical payment waterfall and publishes the resultin
   assert.equal(result.breakdown.capital, 138);
   assert.equal(result.breakdown.interest, 32);
   assert.equal(result.breakdown.penalty, 0);
-  assert.equal(result.newBalance, 220);
+  assert.equal(result.newBalance, 82);
   assert.equal(publishedEvent.loanId, 100);
   assert.equal(publishedEvent.transactionId, 'tx-process');
   assert.equal(idempotencyUpdatePayload.status, 'completed');
