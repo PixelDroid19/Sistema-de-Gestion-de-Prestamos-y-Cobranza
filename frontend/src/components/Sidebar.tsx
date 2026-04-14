@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, Log
 import { useSessionStore } from '../store/sessionStore';
 import { useNavigate } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
+import { getDefaultRouteForUser } from '../constants/appAccess';
 
 export default function Sidebar({ 
   currentView, 
@@ -26,7 +27,11 @@ export default function Sidebar({
   });
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
-  const { logout } = useSessionStore();
+  const { user, logout } = useSessionStore();
+  const isAdmin = user?.role === 'admin';
+  const isCustomer = user?.role === 'customer';
+  const isSocio = user?.role === 'socio';
+  const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
   
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
@@ -62,7 +67,7 @@ export default function Sidebar({
       `}>
         {/* Header / Logo */}
         <div className={`flex items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView('dashboard')}>
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView(homeView)}>
             <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm transition-transform group-hover:scale-105">
               L
             </div>
@@ -80,15 +85,18 @@ export default function Sidebar({
         
         {/* Navegación Principal */}
         <nav className="flex-1 flex flex-col gap-1.5 w-full px-3">
-          <NavItem 
-            icon={<LayoutDashboard size={20} />} 
-            active={currentView === 'dashboard'} 
-            onClick={() => setCurrentView('dashboard')} 
-            title={tTerm('sidebar.dashboard')} 
-            isCollapsed={isCollapsed}
-          />
+          {isAdmin && (
+            <NavItem 
+              icon={<LayoutDashboard size={20} />} 
+              active={currentView === 'dashboard'} 
+              onClick={() => setCurrentView('dashboard')} 
+              title={tTerm('sidebar.dashboard')} 
+              isCollapsed={isCollapsed}
+            />
+          )}
 
           {/* Menú Clientes */}
+          {isAdmin && (
           <div className="mt-1">
             <button 
               onClick={() => toggleMenu('clientes')}
@@ -137,8 +145,10 @@ export default function Sidebar({
               </div>
             )}
           </div>
+          )}
 
           {/* Menú Créditos */}
+          {(isAdmin || isCustomer) && (
           <div className="mt-1">
             <button 
               onClick={() => toggleMenu('creditos')}
@@ -178,18 +188,22 @@ export default function Sidebar({
                   title={tTerm('sidebar.credits.portfolio')}
                   tooltip="Creditos en curso con saldo o cuotas pendientes"
                 />
-                <SubNavItem
-                  active={currentView === 'credits-new'}
-                  onClick={() => setCurrentView('credits-new')}
-                  title={tTerm('sidebar.credits.origination')}
-                  tooltip="Crear y registrar un credito nuevo"
-                />
-                <SubNavItem
-                  active={currentView === 'reports'}
-                  onClick={() => setCurrentView('reports')}
-                  title={tTerm('sidebar.credits.reports')}
-                  tooltip="Indicadores de cartera, mora y recaudo"
-                />
+                {isAdmin && (
+                  <>
+                    <SubNavItem
+                      active={currentView === 'credits-new'}
+                      onClick={() => setCurrentView('credits-new')}
+                      title={tTerm('sidebar.credits.origination')}
+                      tooltip="Crear y registrar un credito nuevo"
+                    />
+                    <SubNavItem
+                      active={currentView === 'reports'}
+                      onClick={() => setCurrentView('reports')}
+                      title={tTerm('sidebar.credits.reports')}
+                      tooltip="Indicadores de cartera, mora y recaudo"
+                    />
+                  </>
+                )}
                 <SubNavItem
                   active={currentView === 'simulator'}
                   onClick={() => setCurrentView('simulator')}
@@ -200,8 +214,10 @@ export default function Sidebar({
               </div>
             )}
           </div>
+          )}
 
           {/* Menú Socios */}
+          {(isAdmin || isSocio) && (
           <div className="mt-1">
             <button 
               onClick={() => toggleMenu('socios')}
@@ -235,12 +251,18 @@ export default function Sidebar({
             
             {openMenus['socios'] && !isCollapsed && (
               <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
-                <SubNavItem active={currentView === 'associates'} onClick={() => setCurrentView('associates')} title={tTerm('sidebar.associates.management')} />
+                <SubNavItem
+                  active={currentView === 'associates' || currentView.startsWith('associates/')}
+                  onClick={() => setCurrentView(isSocio && Number.isFinite(Number(user?.associateId)) ? `associates/${Number(user?.associateId)}` : 'associates')}
+                  title={isSocio ? 'Mi portal' : tTerm('sidebar.associates.management')}
+                />
               </div>
             )}
           </div>
+          )}
 
           {/* Pagos Directos */}
+          {isAdmin && (
           <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
             <NavItem 
               icon={<DollarSign size={20} />} 
@@ -251,13 +273,25 @@ export default function Sidebar({
               isCollapsed={isCollapsed}
             />
           </div>
+          )}
+
+          <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
+            <NavItem 
+              icon={<CreditCard size={20} />} 
+              active={currentView === 'notifications'} 
+              onClick={() => setCurrentView('notifications')} 
+              title="Notificaciones" 
+              isCollapsed={isCollapsed}
+            />
+          </div>
 
         </nav>
 
         {/* Footer Sidebar (Ajustes y Colapso) */}
         <div className="flex flex-col gap-1 w-full px-3 mt-auto pt-6 border-t border-border-subtle">
-          <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />
-          <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />
+          {isAdmin && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
+          {isAdmin && <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />}
+          <NavItem icon={<Settings size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />
           <NavItem icon={<LogOut size={20} />} onClick={logout} title={tTerm('sidebar.logout')} isCollapsed={isCollapsed} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" />
           
           {/* Botón Colapsar (Solo Escritorio) */}

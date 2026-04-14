@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { getDefaultRouteForUser } from '../constants/appAccess';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -53,7 +54,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   // Verificar permisos basados en roles
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultRouteForUser(user)} replace />;
   }
 
   return <>{children}</>;

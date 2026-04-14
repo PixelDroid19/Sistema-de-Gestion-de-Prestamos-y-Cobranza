@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Bell, ChevronDown, ChevronLeft, ChevronRight, Sun, Moon, Menu } from 'lucide-react';
+import { useSessionStore } from '../store/sessionStore';
+import { useUnreadNotificationsCount } from '../services/notificationService';
+import { getDefaultRouteForUser } from '../constants/appAccess';
 
 export default function Header({ setCurrentView, toggleMobileSidebar }: { setCurrentView: (v: string) => void, toggleMobileSidebar?: () => void }) {
   const [isDark, setIsDark] = useState(true);
+  const { user } = useSessionStore();
+  const { unreadCount } = useUnreadNotificationsCount();
 
   useEffect(() => {
     // Check initial theme
@@ -28,6 +33,21 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
     }
   };
 
+  const displayDate = new Intl.DateTimeFormat('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date());
+
+  const userLabel = user?.name?.trim() || 'Usuario';
+  const userHandle = user?.email || 'sin-correo';
+  const roleLabel = user?.role === 'admin'
+    ? 'Administrador'
+    : user?.role === 'socio'
+      ? 'Socio'
+      : 'Cliente';
+  const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
+
   return (
     <header className="h-16 md:h-20 flex items-center justify-between px-4 md:px-6 border-b border-border-subtle shrink-0 bg-bg-surface z-10">
       <div className="flex items-center gap-3">
@@ -40,7 +60,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
             <Menu size={24} />
           </button>
         )}
-        <div className="flex items-center gap-2 cursor-pointer hidden sm:flex" onClick={() => setCurrentView('dashboard')}>
+        <div className="flex items-center gap-2 cursor-pointer hidden sm:flex" onClick={() => setCurrentView(homeView)}>
           <span className="font-semibold text-lg">Sistema de Préstamos</span>
           <ChevronDown size={16} className="text-text-secondary hidden md:block" />
         </div>
@@ -72,12 +92,14 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
           className="flex items-center gap-2 bg-bg-surface px-4 py-2 rounded-full text-sm hover:bg-hover-bg transition-colors border border-border-subtle"
         >
           <Bell size={16} className="text-text-secondary" />
-          <span className="hidden sm:inline">3 nuevos</span>
+          <span className="hidden sm:inline">
+            {unreadCount > 0 ? `${unreadCount} nuevas` : 'Sin novedades'}
+          </span>
         </button>
 
         <div className="items-center gap-3 bg-bg-surface px-4 py-2 rounded-full text-sm hidden lg:flex border border-border-subtle">
           <button className="text-text-secondary hover:text-text-primary"><ChevronLeft size={16} /></button>
-          <span>Hoy, 8 Abr</span>
+          <span>{displayDate}</span>
           <button className="text-text-secondary hover:text-text-primary"><ChevronRight size={16} /></button>
         </div>
 
@@ -85,10 +107,10 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
           <img src="https://i.pravatar.cc/150?u=admin" alt="User" className="w-9 h-9 md:w-10 md:h-10 rounded-full border border-border-strong" />
           <div className="flex flex-col hidden sm:flex">
             <div className="flex items-center gap-1">
-              <span className="text-sm font-medium">Administrador</span>
+              <span className="text-sm font-medium">{roleLabel}</span>
               <ChevronDown size={14} className="text-text-secondary" />
             </div>
-            <span className="text-xs text-text-secondary">@admin</span>
+            <span className="text-xs text-text-secondary">{userLabel} · {userHandle}</span>
           </div>
         </div>
       </div>

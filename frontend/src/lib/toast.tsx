@@ -13,6 +13,7 @@
  */
 
 import { sileo, Toaster } from 'sileo';
+import { extractValidationErrors } from '../services/apiErrors';
 import { getSafeErrorMessage, type SafeErrorContext } from '../services/safeErrorMessages';
 
 // =============================================================================
@@ -150,9 +151,7 @@ export const toast = {
    * API error toast with contextual safe messaging
    */
   apiErrorSafe: (error: unknown, context?: SafeErrorContext) => {
-    // Try to extract validation errors
-    const typedError = error as { response?: { data?: { error?: { validationErrors?: ValidationError[] } } } };
-    const validationErrors = typedError?.response?.data?.error?.validationErrors;
+    const validationErrors = extractValidationErrors(error);
     if (validationErrors && Array.isArray(validationErrors)) {
       return toast.validationErrors(validationErrors);
     }

@@ -268,13 +268,14 @@ export interface LoanStatistics {
   };
 }
 
-export const useLoanStatistics = () => {
+export const useLoanStatistics = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.loans.statistics,
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/statistics');
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 };
 

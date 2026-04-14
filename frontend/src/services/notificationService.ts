@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { useInvalidatingMutation } from './crudHooks';
+import { queryKeys } from './queryKeys';
 
 const notificationQueryKeys = {
   list: ['notifications.list'] as const,
+  unreadCount: queryKeys.notifications.unreadCount,
 };
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
@@ -29,5 +31,20 @@ export const useNotifications = () => {
     isError: getNotifications.isError,
     error: getNotifications.error,
     markAsRead,
+  };
+};
+
+export const useUnreadNotificationsCount = () => {
+  const getUnreadCount = useQuery({
+    queryKey: notificationQueryKeys.unreadCount,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/notifications/unread-count');
+      return data;
+    },
+  });
+
+  return {
+    unreadCount: Number(getUnreadCount.data?.data?.count ?? getUnreadCount.data?.count ?? 0),
+    isLoading: getUnreadCount.isLoading,
   };
 };

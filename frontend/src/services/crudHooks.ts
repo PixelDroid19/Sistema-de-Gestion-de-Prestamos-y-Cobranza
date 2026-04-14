@@ -3,10 +3,15 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 type QueryFactory<TData> = () => Promise<TData>;
 type MutationFactory<TVariables, TResult> = (variables: TVariables) => Promise<TResult>;
 
-export const useCrudListQuery = <TData>(queryKey: QueryKey, queryFn: QueryFactory<TData>) => {
+export const useCrudListQuery = <TData>(
+  queryKey: QueryKey,
+  queryFn: QueryFactory<TData>,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey,
     queryFn,
+    enabled: options?.enabled,
   });
 };
 

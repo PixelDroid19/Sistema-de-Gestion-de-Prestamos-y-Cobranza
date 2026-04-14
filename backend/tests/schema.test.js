@@ -13,6 +13,25 @@ const {
 } = require('../src/bootstrap/schema');
 
 const buildDescribedTable = (tableName) => {
+  if (tableName === 'Customers') {
+    return {
+      id: {},
+      name: {},
+      email: {},
+      phone: {},
+      status: {},
+      documentNumber: {},
+      occupation: {},
+      birthDate: {},
+      department: {},
+      city: {},
+      address: {},
+      createdAt: {},
+      updatedAt: {},
+      deletedAt: {},
+    };
+  }
+
   if (tableName === 'Associates') {
     return { id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, participationPercentage: {}, notes: {}, createdAt: {}, updatedAt: {} };
   }
@@ -134,7 +153,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();

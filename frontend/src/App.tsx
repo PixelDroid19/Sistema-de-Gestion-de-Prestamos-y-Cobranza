@@ -8,26 +8,55 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Toaster } from './lib/toast';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import Customers from './components/Customers';
-import CustomerDetails from './components/CustomerDetails';
-import NewCustomer from './components/NewCustomer';
-import Credits from './components/Credits';
-import NewCredit from './components/NewCredit';
-import CreditDetails from './components/CreditDetails';
-import Associates from './components/Associates';
-import AssociateDetails from './components/AssociateDetails';
-import Payouts from './components/Payouts';
-import Notifications from './components/Notifications';
-import Reports from './components/Reports';
-import Settings from './components/Settings';
-import Profile from './components/Profile';
-import Login from './components/Login';
-import AuditLogPage from './components/AuditLogPage';
-import NewAssociate from './components/NewAssociate';
-import CreditSimulator from './components/CreditSimulator';
-import PaymentSchedule from './components/PaymentSchedule';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useSessionStore } from './store/sessionStore';
+import { getDefaultRouteForUser } from './constants/appAccess';
+
+const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const Customers = React.lazy(() => import('./components/Customers'));
+const CustomerDetails = React.lazy(() => import('./components/CustomerDetails'));
+const NewCustomer = React.lazy(() => import('./components/NewCustomer'));
+const Credits = React.lazy(() => import('./components/Credits'));
+const NewCredit = React.lazy(() => import('./components/NewCredit'));
+const CreditDetails = React.lazy(() => import('./components/CreditDetails'));
+const Associates = React.lazy(() => import('./components/Associates'));
+const AssociateDetails = React.lazy(() => import('./components/AssociateDetails'));
+const Payouts = React.lazy(() => import('./components/Payouts'));
+const Notifications = React.lazy(() => import('./components/Notifications'));
+const Reports = React.lazy(() => import('./components/Reports'));
+const Settings = React.lazy(() => import('./components/Settings'));
+const Profile = React.lazy(() => import('./components/Profile'));
+const Login = React.lazy(() => import('./components/Login'));
+const AuditLogPage = React.lazy(() => import('./components/AuditLogPage'));
+const NewAssociate = React.lazy(() => import('./components/NewAssociate'));
+const CreditSimulator = React.lazy(() => import('./components/CreditSimulator'));
+const PaymentSchedule = React.lazy(() => import('./components/PaymentSchedule'));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center">
+      <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+        Cargando módulo...
+      </div>
+    </div>
+  );
+}
+
+function RoleHomeRedirect() {
+  const { user } = useSessionStore();
+  return <Navigate to={getDefaultRouteForUser(user)} replace />;
+}
+
+function AssociatesLandingRoute({ setCurrentView }: { setCurrentView: (view: string) => void }) {
+  const { user } = useSessionStore();
+
+  if (user?.role === 'socio') {
+    return <Navigate to={getDefaultRouteForUser(user)} replace />;
+  }
+
+  return <Associates setCurrentView={setCurrentView} />;
+}
 
 function MainLayout() {
   const location = useLocation();
@@ -54,37 +83,39 @@ function MainLayout() {
       <div className="flex flex-col flex-1 min-w-0">
         <Header setCurrentView={setCurrentView} toggleMobileSidebar={() => setIsMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 bg-bg-base">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/dashboard"
-              element={(
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              )}
-            />
-            <Route path="/customers" element={<Customers setCurrentView={setCurrentView} />} />
-            <Route path="/customers/:id" element={<CustomerDetails />} />
-            <Route path="/customers-new" element={<NewCustomer onBack={() => setCurrentView('customers')} />} />
-            <Route path="/credits" element={<Credits setCurrentView={setCurrentView} />} />
-            <Route path="/credits-new" element={<NewCredit onBack={() => setCurrentView('credits')} />} />
-            <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
-            <Route path="/credits/:id" element={<CreditDetails />} />
-            <Route path="/credits/:id/schedule" element={<PaymentSchedule />} />
-            <Route path="/associates" element={<Associates setCurrentView={setCurrentView} />} />
-            <Route path="/associates-new" element={<NewAssociate onBack={() => setCurrentView('associates')} />} />
-            <Route path="/associates/:id" element={<AssociateDetails />} />
-            
-            <Route path="/payouts" element={<Payouts />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/simulator" element={<CreditSimulator />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/audit-log" element={<AuditLogPage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+          <React.Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<RoleHomeRedirect />} />
+              <Route
+                path="/dashboard"
+                element={(
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Dashboard />
+                  </ProtectedRoute>
+                )}
+              />
+              <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin']}><Customers setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/customers/:id" element={<ProtectedRoute allowedRoles={['admin']}><CustomerDetails /></ProtectedRoute>} />
+              <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
+              <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
+              <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><CreditDetails /></ProtectedRoute>} />
+              <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><PaymentSchedule /></ProtectedRoute>} />
+              <Route path="/associates" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociatesLandingRoute setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/associates-new" element={<ProtectedRoute allowedRoles={['admin']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
+              <Route path="/associates/:id" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociateDetails /></ProtectedRoute>} />
+              
+              <Route path="/payouts" element={<ProtectedRoute allowedRoles={['admin']}><Payouts /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Notifications /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+              <Route path="/simulator" element={<ProtectedRoute allowedRoles={['admin']}><CreditSimulator /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><AuditLogPage /></ProtectedRoute>} />
+              <Route path="*" element={<RoleHomeRedirect />} />
+            </Routes>
+          </React.Suspense>
         </main>
       </div>
     </div>
@@ -105,17 +136,19 @@ export default function App() {
           },
         }}
       />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <React.Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </React.Suspense>
     </>
   );
 }

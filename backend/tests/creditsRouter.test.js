@@ -74,6 +74,16 @@ const createUseCases = (overrides) => ({
   ...overrides,
 });
 
+const createPaymentApplicationServiceStub = (overrides = {}) => ({
+  async updatePaymentMethod() {
+    throw new Error('updatePaymentMethod should not be called');
+  },
+  async annulInstallment() {
+    throw new Error('annulInstallment should not be called');
+  },
+  ...overrides,
+});
+
 const noopAttachmentUpload = {
   single() {
     return (req, res, next) => next();
@@ -254,6 +264,86 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
     ['listLoans', { actor: { id: 2, role: 'admin' }, pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['createLoan', { actor: { id: 2, role: 'admin' }, payload: createPayload }],
     ['getLoanById', { actor: { id: 2, role: 'admin' }, loanId: '44' }],
+  ]);
+});
+
+test('createCreditsRouter delegates payment method edits and installment annulments through paymentApplicationService', async () => {
+  const calls = [];
+  const paymentApplicationService = createPaymentApplicationServiceStub({
+    async updatePaymentMethod(input) {
+      calls.push(['updatePaymentMethod', input]);
+      return { id: 91, paymentMethod: input.paymentMethod, loanId: Number(input.loanId) };
+    },
+    async annulInstallment(input) {
+      calls.push(['annulInstallment', input]);
+      return {
+        payment: { id: 77 },
+        annulment: { installmentNumber: Number(input.installmentNumber), reason: input.reason || null },
+        loan: { id: Number(input.loanId), status: 'active' },
+      };
+    },
+  });
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({}),
+    paymentApplicationService,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const updateResponse = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/41/payments/91',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { paymentMethod: 'transfer' },
+  });
+
+  const annulResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/41/installments/3/annul',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { reason: 'Cliente reestructurado' },
+  });
+
+  assert.equal(updateResponse.statusCode, 200);
+  assert.deepEqual(updateResponse.body, {
+    success: true,
+    message: 'Payment method updated successfully',
+    data: {
+      payment: { id: 91, paymentMethod: 'transfer', loanId: 41 },
+    },
+  });
+
+  assert.equal(annulResponse.statusCode, 201);
+  assert.deepEqual(annulResponse.body, {
+    success: true,
+    message: 'Installment annulled successfully',
+    data: {
+      payment: { id: 77 },
+      annulment: { installmentNumber: 3, reason: 'Cliente reestructurado' },
+      loan: { id: 41, status: 'active' },
+    },
+  });
+
+  assert.deepEqual(calls, [
+    ['updatePaymentMethod', {
+      loanId: '41',
+      paymentId: '91',
+      paymentMethod: 'transfer',
+      actor: { id: 2, role: 'admin' },
+    }],
+    ['annulInstallment', {
+      loanId: '41',
+      installmentNumber: '3',
+      actor: { id: 2, role: 'admin' },
+      reason: 'Cliente reestructurado',
+    }],
   ]);
 });
 

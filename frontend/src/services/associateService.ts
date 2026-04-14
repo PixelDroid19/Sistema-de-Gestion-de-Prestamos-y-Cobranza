@@ -3,11 +3,14 @@ import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useAssociates = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+export const useAssociates = (
+  params?: { page?: number; pageSize?: number; search?: string; status?: string },
+  options?: { enabled?: boolean },
+) => {
   const getAssociates = useCrudListQuery(queryKeys.associates.list(params), async () => {
     const { data } = await apiClient.get('/associates', { params });
     return data;
-  });
+  }, { enabled: options?.enabled });
 
   const createAssociate = useInvalidatingMutation(async (associateData: any) => {
     const { data } = await apiClient.post('/associates', associateData);

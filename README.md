@@ -158,6 +158,7 @@ Valores opcionales comunes:
 ```env
 PORT=5000
 NODE_ENV=development
+ALLOWED_ORIGINS=http://localhost:3000
 DB_RESET_ON_BOOT=false
 LOG_LEVEL=info
 WEB_PUSH_VAPID_PUBLIC_KEY=
@@ -168,6 +169,7 @@ WEB_PUSH_VAPID_SUBJECT=
 Notas:
 
 - El backend usa variables `DB_*` individuales.
+- `ALLOWED_ORIGINS` debe configurarse explicitamente en produccion con la o las URLs del frontend separadas por comas.
 - `DB_RESET_ON_BOOT=true` solo debe usarse en escenarios locales de reinicio.
 - Las claves de web push son opcionales; si faltan, ese canal queda deshabilitado.
 

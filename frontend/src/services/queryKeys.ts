@@ -77,6 +77,11 @@ export const queryKeys = {
     listRoot: ['payments.list'] as const,
     list: (params?: PaymentListParams) => ['payments.list', params ?? {}] as const,
   },
+  notifications: {
+    all: ['notifications'] as const,
+    list: ['notifications.list'] as const,
+    unreadCount: ['notifications.unreadCount'] as const,
+  },
   reports: {
     all: ['reports'] as const,
     dashboard: ['reports.dashboard'] as const,

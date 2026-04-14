@@ -1,4 +1,5 @@
 const {
+  Customer,
   Associate,
   Loan,
   Payment,
@@ -20,7 +21,10 @@ const {
   RefreshToken,
 } = require('../models');
 
+// The required schema models are ordered to respect foreign-key dependencies
+// (e.g. Customers must exist before Loans which reference them).
 const REQUIRED_SCHEMA_MODELS = [
+  Customer,
   Associate,
   Loan,
   Payment,

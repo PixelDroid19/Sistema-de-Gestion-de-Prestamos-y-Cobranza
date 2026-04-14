@@ -109,7 +109,13 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
   return createModule({
     name: 'credits',
     basePath: '/api/loans',
-    router: createCreditsRouter({ authMiddleware, attachmentUpload, loanValidation, useCases }),
+    router: createCreditsRouter({
+      authMiddleware,
+      attachmentUpload,
+      loanValidation,
+      useCases,
+      paymentApplicationService,
+    }),
   });
 };
 

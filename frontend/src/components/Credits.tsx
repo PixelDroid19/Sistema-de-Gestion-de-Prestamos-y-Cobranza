@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle, Save } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -95,16 +95,28 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     endDate: '',
     search: '',
   });
+  const { user } = useSessionStore();
+  const isAdmin = user?.role === 'admin';
 
   // Statistics hook
-  const { data: statisticsData } = useLoanStatistics();
-  const { user } = useSessionStore();
+  const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
 
   // Query client for refetching
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
 
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'workbench') {
+      setActiveTab('list');
+    }
+  }, [activeTab, isAdmin]);
+
   const updateActiveTab = (nextTab: string) => {
+    if (nextTab === 'workbench' && !isAdmin) {
+      setActiveTab('list');
+      return;
+    }
+
     setActiveTab(nextTab);
 
     if (typeof window === 'undefined') {
@@ -475,22 +487,26 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           <p className="text-sm text-text-secondary mt-1">{tTerm('credits.module.subtitle')}</p>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={handleExportCreditsExcel}
-            disabled={isExporting}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
-          >
-            <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={handleExportCreditsExcel}
+              disabled={isExporting}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
+            </button>
+          )}
           <button onClick={() => updateActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
             <Calculator size={16} /> {tTerm('credits.cta.simulate')}
           </button>
-          <button 
-            onClick={() => setCurrentView?.('credits-new')}
-            className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
-          >
-            <Plus size={16} /> {tTerm('credits.cta.new')}
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={() => setCurrentView?.('credits-new')}
+              className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+            >
+              <Plus size={16} /> {tTerm('credits.cta.new')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -517,13 +533,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         >
           Simulación
         </button>
-        <button 
-          onClick={() => updateActiveTab('workbench')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Herramienta tecnica para flujos y escenarios DAG"
-        >
-          <Calculator size={16} /> Workbench DAG
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => updateActiveTab('workbench')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+            title="Herramienta tecnica para flujos y escenarios DAG"
+          >
+            <Calculator size={16} /> Workbench DAG
+          </button>
+        )}
       </div>
 
       {activeTab === 'list' && (

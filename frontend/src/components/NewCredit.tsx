@@ -4,11 +4,13 @@ import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
+import { extractValidationErrors } from '../services/apiErrors';
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { createLoan, simulateLoan } = useLoans();
   const { data: customersData } = useCustomers({ pageSize: 100 });
   const { data: associatesData } = useAssociates({ pageSize: 100 });
+  const formId = 'new-credit-form';
   
   const customers = Array.isArray(customersData?.data?.customers)
     ? customersData.data.customers
@@ -59,27 +61,30 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     const amount = parseFloat(formData.amount) || 0;
     const rate = parseFloat(formData.interestRate) || 0;
     const months = parseInt(formData.termMonths) || 0;
-    
-    if (amount > 0 && rate > 0 && months > 0) {
-      setIsSimulating(true);
-      try {
-        const result = await simulateLoan.mutateAsync({
-          amount,
-          interestRate: rate,
-          termMonths: months,
-          lateFeeMode: formData.lateFeeMode,
-        });
-        setSimulation(result?.data?.simulation);
-      } catch (error: any) {
-        console.error('Error in simulation', error);
-        toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.simulate' });
-      } finally {
-        setIsSimulating(false);
-      }
+
+    if (amount <= 0 || rate <= 0 || months <= 0) {
+      setSimulation(null);
+      return;
+    }
+
+    setIsSimulating(true);
+    try {
+      const result = await simulateLoan.mutateAsync({
+        amount,
+        interestRate: rate,
+        termMonths: months,
+        lateFeeMode: formData.lateFeeMode,
+      });
+      setSimulation(result?.data?.simulation ?? null);
+    } catch (error: any) {
+      console.error('Error in simulation', error);
+      toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.simulate' });
+    } finally {
+      setIsSimulating(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
@@ -91,21 +96,18 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         termMonths: parseInt(formData.termMonths),
         lateFeeMode: formData.lateFeeMode,
       });
+      toast.success({ description: 'Crédito registrado correctamente.' });
       onBack();
     } catch (error: any) {
       console.error('Error creating loan:', error);
-      
-      // Extract validation errors from backend response
-      const validationErrors = error?.response?.data?.error?.validationErrors;
-      if (validationErrors && Array.isArray(validationErrors)) {
-        // Set inline field errors
+
+      const validationErrors = extractValidationErrors(error);
+      if (validationErrors.length > 0) {
         const fieldErrs: Record<string, string> = {};
         validationErrors.forEach((err: any) => {
           fieldErrs[err.field] = err.message;
         });
         setFieldErrors(fieldErrs);
-        
-        // Show toast for validation errors
         toast.validationErrors(validationErrors);
       } else {
         toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.create' });
@@ -136,13 +138,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             Cancelar
           </button>
           <button 
-            type="button" 
-            onClick={handleSubmit} 
+            type="submit"
+            form={formId}
             disabled={isSubmitting}
             className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-colors shadow-sm disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Aprobar Crédito
+            Registrar Crédito
           </button>
         </div>
       </div>
@@ -152,7 +154,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           
           {/* Left Column - Form */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-6">
               {/* Section 1: Client */}
               <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
                 <h3 className="text-lg font-medium mb-6 flex items-center gap-2 border-b border-border-subtle pb-4">
@@ -265,27 +267,27 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               <div className="space-y-4">
                 <div className="flex justify-between items-center py-3 border-b border-border-subtle">
                   <span className="text-sm text-text-secondary">Capital</span>
-                  <span className="font-medium text-text-primary">{formatCurrency(simulation?.summary?.principal || 0)}</span>
+                  <span className="font-medium text-text-primary">{formatCurrency(simulation?.summary?.totalPrincipal || Number(formData.amount) || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center py-3 border-b border-border-subtle">
                   <span className="text-sm text-text-secondary">Interés Total</span>
                   <span className="font-medium text-text-primary">{formatCurrency(simulation?.summary?.totalInterest || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center py-3 border-b border-border-subtle">
-                  <span className="text-sm text-text-secondary">Tasa Efectiva (APR)</span>
-                  <span className="font-medium text-text-primary">{simulation?.summary?.apr || 0}%</span>
+                  <span className="text-sm text-text-secondary">Tasa Anual</span>
+                  <span className="font-medium text-text-primary">{formData.interestRate || 0}%</span>
                 </div>
                 <div className="flex justify-between items-center py-3 border-b border-border-subtle">
                   <span className="text-sm text-text-secondary">Número de Cuotas</span>
-                  <span className="font-medium text-text-primary">{simulation?.summary?.numberOfPayments || 0}</span>
+                  <span className="font-medium text-text-primary">{simulation?.schedule?.length || Number(formData.termMonths) || 0}</span>
                 </div>
                 <div className="flex justify-between items-center py-4 bg-brand-primary/5 -mx-6 px-6 mt-6 mb-2 border-y border-brand-primary/10">
                   <span className="font-medium text-brand-primary">Cuota Estimada</span>
-                  <span className="text-xl font-bold text-brand-primary">{formatCurrency(simulation?.summary?.estimatedInstallment || 0)}</span>
+                  <span className="text-xl font-bold text-brand-primary">{formatCurrency(simulation?.summary?.installmentAmount || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
                   <span className="font-medium text-text-primary">Total a Pagar</span>
-                  <span className="text-lg font-bold text-text-primary">{formatCurrency(simulation?.summary?.totalPayment || 0)}</span>
+                  <span className="text-lg font-bold text-text-primary">{formatCurrency(simulation?.summary?.totalPayable || 0)}</span>
                 </div>
               </div>
 
