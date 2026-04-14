@@ -257,6 +257,68 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   ]);
 });
 
+test('createCreditsRouter keeps static routes above /:id to avoid shadowing', async () => {
+  const calls = [];
+
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getLoanStatistics() {
+        calls.push('getLoanStatistics');
+        return { totalLoans: 3 };
+      },
+      async getDuePayments({ date }) {
+        calls.push(['getDuePayments', date.toISOString().slice(0, 10)]);
+        return [{ loanId: 99, dueDate: date.toISOString().slice(0, 10) }];
+      },
+      async searchLoans() {
+        calls.push('searchLoans');
+        return [];
+      },
+      async getLoanById() {
+        throw new Error('getLoanById should not be called for static routes');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const statisticsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/statistics',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  const duePaymentsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/due-payments?date=2026-04-10',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  const searchResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/search',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(statisticsResponse.statusCode, 200);
+  assert.equal(statisticsResponse.body.data.statistics.totalLoans, 3);
+  assert.equal(duePaymentsResponse.statusCode, 200);
+  assert.equal(duePaymentsResponse.body.count, 1);
+  assert.equal(searchResponse.statusCode, 200);
+  assert.deepEqual(calls, [
+    'getLoanStatistics',
+    ['getDuePayments', '2026-04-10'],
+    'searchLoans',
+  ]);
+});
+
 test('createCreditsRouter POST /simulations preserves the legacy-compatible response while shadow comparison runs behind the use-case seam', async () => {
   const calls = [];
   const simulation = {
@@ -714,9 +776,14 @@ test('createCreditsRouter returns 404 when the backing attachment file is missin
   assert.equal(body.success, false);
   assert.equal(body.error.message, 'Attachment file not found');
   assert.equal(body.error.statusCode, 404);
-  assert.equal(body.error.path, '/16/attachments/1/download');
-  assert.equal(body.error.method, 'GET');
-  assert.ok(typeof body.error.timestamp === 'string');
+
+  // Development diagnostics are only present when NODE_ENV=development
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  if (isDevelopment) {
+    assert.equal(body.error.path, '/16/attachments/1/download');
+    assert.equal(body.error.method, 'GET');
+    assert.ok(typeof body.error.timestamp === 'string');
+  }
 });
 
 test('createCreditsRouter serves alert, calendar, and promise contracts', async () => {

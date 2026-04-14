@@ -56,6 +56,18 @@ const createListPaymentMethods = ({ configRepository }) => async () => {
   return entries.map(buildPaymentMethod);
 };
 
+const createListPaymentMethodsLegacy = ({ configRepository }) => async () => {
+  const entries = await configRepository.listByCategory(PAYMENT_METHOD_CATEGORY);
+  return entries.map((entry) => ({
+    id: entry.id,
+    name: entry.label,
+    key: entry.key,
+    active: entry.isActive !== false,
+    requiresReference: Boolean(entry.value?.requiresReference),
+    description: entry.value?.description || '',
+  }));
+};
+
 const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key, description, requiresReference, isActive }) => {
   const normalizedLabel = requireText(label, 'label');
   const normalizedKey = normalizeKey(key || normalizedLabel);
@@ -190,6 +202,7 @@ const buildTnaRate = (entry) => ({
   maxValue: entry.value?.maxValue ?? null,
   effectiveDate: entry.value?.effectiveDate ?? null,
   description: entry.value?.description || '',
+  metadata: entry.value?.metadata || {},
   isActive: entry.isActive !== false,
   createdAt: entry.createdAt,
   updatedAt: entry.updatedAt,
@@ -278,6 +291,69 @@ const buildLateFeePolicy = (entry) => ({
 const createListLateFeePolicies = ({ configRepository }) => async () => {
   const entries = await configRepository.listByCategory(LATE_FEE_POLICY_CATEGORY);
   return entries.map(buildLateFeePolicy);
+};
+
+const resolveLateFeePolicyForUser = ({ configRepository }) => async ({ userId }) => {
+  const userSpecific = await configRepository.findActiveByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, `user-${userId}`);
+  if (userSpecific) {
+    return {
+      source: 'user',
+      policy: buildLateFeePolicy(userSpecific),
+    };
+  }
+
+  const entries = await configRepository.listActiveByCategory(LATE_FEE_POLICY_CATEGORY);
+  const fallback = entries[0] || null;
+
+  return {
+    source: fallback ? 'default' : null,
+    policy: fallback ? buildLateFeePolicy(fallback) : null,
+  };
+};
+
+const createGetTnaRateStats = ({ configRepository }) => async () => {
+  const entries = await configRepository.listByCategory(TNA_RATE_CATEGORY);
+  const rates = entries.map(buildTnaRate);
+  const numericRates = rates
+    .map((rate) => Number(rate.value))
+    .filter((value) => Number.isFinite(value));
+
+  const stats = {
+    total: rates.length,
+    active: rates.filter((rate) => rate.isActive).length,
+    min: numericRates.length > 0 ? Math.min(...numericRates) : null,
+    max: numericRates.length > 0 ? Math.max(...numericRates) : null,
+    average: numericRates.length > 0
+      ? Number((numericRates.reduce((sum, value) => sum + value, 0) / numericRates.length).toFixed(4))
+      : null,
+  };
+
+  return {
+    stats,
+    rates,
+  };
+};
+
+const createFindTnaRatesByUser = ({ configRepository }) => async ({ userId }) => {
+  const entries = await configRepository.listByCategory(TNA_RATE_CATEGORY);
+  const normalizedUserId = Number(userId);
+
+  const rates = entries
+    .map(buildTnaRate)
+    .filter((rate) => {
+      const audience = rate?.metadata?.userIds;
+      if (!Array.isArray(audience) || audience.length === 0) {
+        return true;
+      }
+
+      return audience.some((value) => Number(value) === normalizedUserId);
+    });
+
+  return {
+    userId: normalizedUserId,
+    rates,
+    count: rates.length,
+  };
 };
 
 const createCreateLateFeePolicy = ({ configRepository }) => async ({ key, label, gracePeriodDays, penaltyRate, penaltyType, maxPenaltyAmount, description }) => {
@@ -420,6 +496,7 @@ const createDeleteInterestNode = ({ configRepository }) => async (id) => {
 module.exports = {
   ADMIN_CATALOGS,
   createListPaymentMethods,
+  createListPaymentMethodsLegacy,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
@@ -432,6 +509,7 @@ module.exports = {
   createUpdateTnaRate,
   createDeleteTnaRate,
   createListLateFeePolicies,
+  resolveLateFeePolicyForUser,
   createCreateLateFeePolicy,
   createUpdateLateFeePolicy,
   createDeleteLateFeePolicy,
@@ -439,4 +517,6 @@ module.exports = {
   createCreateInterestNode,
   createUpdateInterestNode,
   createDeleteInterestNode,
+  createGetTnaRateStats,
+  createFindTnaRatesByUser,
 };

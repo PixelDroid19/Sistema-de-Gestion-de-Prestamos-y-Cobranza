@@ -14,11 +14,34 @@ export const useAssociates = (params?: { page?: number; pageSize?: number; searc
     return data;
   }, queryKeys.associates.all);
 
+  const updateAssociate = useInvalidatingMutation(async ({ id, ...associateData }: any) => {
+    const { data } = await apiClient.patch(`/associates/${id}`, associateData);
+    return data;
+  }, queryKeys.associates.all);
+
+  const deleteAssociate = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.delete(`/associates/${id}`);
+    return data;
+  }, queryKeys.associates.all);
+
+  const restoreAssociate = useInvalidatingMutation(async (id: number) => {
+    try {
+      const { data } = await apiClient.patch(`/associates/${id}/restore`);
+      return data;
+    } catch {
+      const { data } = await apiClient.patch(`/associates/${id}`, { status: 'active' });
+      return data;
+    }
+  }, queryKeys.associates.all);
+
   return {
     data: getAssociates.data,
     isLoading: getAssociates.isLoading,
     isError: getAssociates.isError,
     createAssociate,
+    updateAssociate,
+    deleteAssociate,
+    restoreAssociate,
   };
 };
 

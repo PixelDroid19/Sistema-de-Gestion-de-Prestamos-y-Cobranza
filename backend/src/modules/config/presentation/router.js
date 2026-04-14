@@ -17,6 +17,11 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: { paymentMethods } });
   }));
 
+  router.get('/pmconfig', asyncHandler(async (_req, res) => {
+    const paymentMethods = await useCases.listPaymentMethodsLegacy();
+    res.json({ success: true, data: { paymentMethods } });
+  }));
+
   router.post('/payment-methods', asyncHandler(async (req, res) => {
     const paymentMethod = await useCases.createPaymentMethod(req.body);
     res.status(201).json({ success: true, message: 'Payment method created successfully', data: { paymentMethod } });
@@ -53,6 +58,16 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: { tnaRates } });
   }));
 
+  router.get('/tna-rates/stats', asyncHandler(async (_req, res) => {
+    const result = await useCases.getTnaRateStats();
+    res.json({ success: true, data: result });
+  }));
+
+  router.get('/tna-rates/user/:id', asyncHandler(async (req, res) => {
+    const result = await useCases.findTnaRatesByUser({ userId: req.params.id });
+    res.json({ success: true, data: result });
+  }));
+
   router.post('/tna-rates', asyncHandler(async (req, res) => {
     const tnaRate = await useCases.createTnaRate(req.body);
     res.status(201).json({ success: true, message: 'TNA rate created successfully', data: { tnaRate } });
@@ -87,6 +102,17 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
   router.delete('/late-fee-policies/:id', asyncHandler(async (req, res) => {
     const result = await useCases.deleteLateFeePolicy(req.params.id);
     res.json({ success: true, message: 'Late fee policy deleted successfully', data: result });
+  }));
+
+  router.post('/late-fee/resolve', asyncHandler(async (req, res) => {
+    const userId = req.body?.userId || req.user?.id;
+    const result = await useCases.resolveLateFeePolicyForUser({ userId });
+    res.json({ success: true, data: result });
+  }));
+
+  router.get('/late-fee/user/:id', asyncHandler(async (req, res) => {
+    const result = await useCases.resolveLateFeePolicyForUser({ userId: req.params.id });
+    res.json({ success: true, data: result });
   }));
 
   // Interest Nodes

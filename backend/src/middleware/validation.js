@@ -43,6 +43,32 @@ const validateEmail = (email) => {
   return emailRegex.test(email);
 };
 
+const LEGACY_ROLE_ID_TO_ROLE = {
+  SUPER_ADMIN: 'admin',
+  ADMINISTRATOR: 'admin',
+  PARTNER: 'socio',
+  CUSTOMER: 'customer',
+};
+
+const mapRoleIdsToRole = (roleIds) => {
+  if (!Array.isArray(roleIds)) {
+    return null;
+  }
+
+  for (const roleId of roleIds) {
+    if (typeof roleId !== 'string') {
+      continue;
+    }
+
+    const mappedRole = LEGACY_ROLE_ID_TO_ROLE[roleId.trim().toUpperCase()];
+    if (mappedRole) {
+      return mappedRole;
+    }
+  }
+
+  return null;
+};
+
 /**
  * Validate an E.164-like phone number payload.
  * @param {string} phone
@@ -220,9 +246,10 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
 const authValidation = {
   /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, roleIds } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role);
+    const roleFromRoleIds = mapRoleIdsToRole(roleIds);
+    const normalizedRole = normalizeApplicationRole(role || roleFromRoleIds);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -256,9 +283,10 @@ const authValidation = {
 
   /** @type {import('express').RequestHandler} */
   adminRegister: (req, res, next) => {
-    const { name, email, password, role, phone, associateId } = req.body;
+    const { name, email, password, role, roleIds, phone, associateId } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role);
+    const roleFromRoleIds = mapRoleIdsToRole(roleIds);
+    const normalizedRole = normalizeApplicationRole(role || roleFromRoleIds);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -300,12 +328,15 @@ const authValidation = {
 
   /** @type {import('express').RequestHandler} */
   login: (req, res, next) => {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
     const errors = [];
 
-    if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!validateEmail(email)) {
+    const normalizedEmail = typeof email === 'string' ? email.trim() : '';
+    const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+
+    if (!normalizedEmail && !normalizedUsername) {
+      errors.push({ field: 'email', message: 'Email or username is required' });
+    } else if (normalizedEmail && !validateEmail(normalizedEmail)) {
       errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
     }
 

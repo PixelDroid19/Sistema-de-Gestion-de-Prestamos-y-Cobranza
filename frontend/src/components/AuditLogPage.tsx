@@ -37,36 +37,32 @@ export default function AuditLogPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
+    <div className="flex flex-col gap-6 h-full">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Track all significant business actions in the system
-          </p>
+          <h2 className="text-2xl font-semibold">Auditoría</h2>
+          <p className="text-sm text-text-secondary mt-1">Trazabilidad de acciones críticas del sistema.</p>
         </div>
       </div>
 
-      {/* Stats Overview */}
       {!statsLoading && auditStats.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {auditStats.slice(0, 4).map((stat) => (
-            <div key={stat.module} className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm font-medium text-gray-500 uppercase">
+            <div key={stat.module} className="bg-bg-surface border border-border-subtle rounded-2xl p-4">
+              <div className="text-sm font-medium text-text-secondary uppercase">
                 {stat.module}
               </div>
               <div className="mt-2 flex items-baseline">
-                <span className="text-2xl font-semibold text-gray-900">
+                <span className="text-2xl font-semibold text-text-primary">
                   {stat.totalCount}
                 </span>
-                <span className="ml-2 text-sm text-gray-500">events</span>
+                <span className="ml-2 text-sm text-text-secondary">eventos</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {Object.entries(stat.actions).slice(0, 3).map(([action, count]) => (
                   <span
                     key={action}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bg-base text-text-secondary"
                   >
                     {action}: {count}
                   </span>
@@ -77,10 +73,8 @@ export default function AuditLogPage() {
         </div>
       )}
 
-      {/* Filters */}
       <AuditFilters onFilter={handleFilter} onReset={handleReset} />
 
-      {/* Table */}
       <AuditTable
         logs={logs}
         pagination={pagination}
@@ -89,7 +83,6 @@ export default function AuditLogPage() {
         onPageChange={handlePageChange}
       />
 
-      {/* Detail Modal */}
       <AuditDetailModal
         auditLog={selectedLog}
         onClose={() => setSelectedLog(null)}

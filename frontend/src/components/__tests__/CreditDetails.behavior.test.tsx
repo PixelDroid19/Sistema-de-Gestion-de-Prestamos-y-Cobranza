@@ -7,6 +7,7 @@ const mockRecordPayment = vi.fn();
 const mockCreatePromise = vi.fn();
 const mockCreateFollowUp = vi.fn();
 const mockAnnulInstallment = vi.fn();
+const mockUpdatePaymentMethod = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 
 vi.mock('react-router-dom', async () => {
@@ -27,7 +28,27 @@ vi.mock('../../services/userService', () => ({
 }));
 
 vi.mock('../../services/reportService', () => ({
-  useCreditReports: () => ({ history: { data: { history: { payments: [], payoffHistory: [] } } }, isLoading: false }),
+  useCreditReports: () => ({
+    history: {
+      data: {
+        history: {
+          payments: [
+            {
+              id: 9001,
+              amount: 250000,
+              paymentDate: '2026-03-10T00:00:00.000Z',
+              paymentType: 'installment',
+              paymentMethod: 'transfer',
+              status: 'completed',
+              reconciled: false,
+            },
+          ],
+          payoffHistory: [],
+        },
+      },
+    },
+    isLoading: false,
+  }),
 }));
 
 const mockInvalidateAfterPayment = vi.fn().mockResolvedValue(undefined);
@@ -102,7 +123,7 @@ vi.mock('../../services/loanService', () => {
       executePayoff: { mutateAsync: vi.fn() },
       recordPayment: { mutateAsync: mockRecordPayment },
       annulInstallment: { mutateAsync: mockAnnulInstallment },
-      updatePaymentMethod: { mutateAsync: vi.fn() },
+      updatePaymentMethod: { mutateAsync: mockUpdatePaymentMethod },
       recordCapitalPayment: { mutateAsync: vi.fn() },
       updateLateFeeRate: { mutateAsync: vi.fn() },
     }),
@@ -123,12 +144,6 @@ describe('CreditDetails behavioral parity scenarios', () => {
     vi.clearAllMocks();
     mockConfirmDanger.mockResolvedValue(true);
   });
-
-  vi.mock('../../lib/confirmModal', () => ({
-    confirmDanger: vi.fn(() => Promise.resolve(true)),
-    confirm: vi.fn(() => Promise.resolve(true)),
-    requestInput: vi.fn(() => Promise.resolve('test reference')),
-  }));
 
   it('executes installment payment action with installment context', async () => {
     renderCreditDetails();
@@ -228,5 +243,21 @@ describe('CreditDetails behavioral parity scenarios', () => {
         description: expect.stringContaining('nearest cancellable installment'),
       }),
     );
+  });
+
+  it('edits payment method from history with confirmation', async () => {
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    fireEvent.click(screen.getByRole('button', { name: /Método/i }));
+    fireEvent.change(screen.getByLabelText('Nuevo método'), { target: { value: 'cash' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => {
+      expect(mockUpdatePaymentMethod).toHaveBeenCalledWith({
+        paymentId: 9001,
+        paymentMethod: 'cash',
+      });
+    });
   });
 });

@@ -1,6 +1,7 @@
 const { createModule, resolveAuthContext } = require('../shared');
 const {
   createListPaymentMethods,
+  createListPaymentMethodsLegacy,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
@@ -13,6 +14,7 @@ const {
   createUpdateTnaRate,
   createDeleteTnaRate,
   createListLateFeePolicies,
+  resolveLateFeePolicyForUser,
   createCreateLateFeePolicy,
   createUpdateLateFeePolicy,
   createDeleteLateFeePolicy,
@@ -20,6 +22,8 @@ const {
   createCreateInterestNode,
   createUpdateInterestNode,
   createDeleteInterestNode,
+  createGetTnaRateStats,
+  createFindTnaRatesByUser,
 } = require('./application/useCases');
 const { configRepository } = require('./infrastructure/repositories');
 const { createConfigRouter } = require('./presentation/router');
@@ -28,6 +32,7 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     listPaymentMethods: createListPaymentMethods({ configRepository }),
+    listPaymentMethodsLegacy: createListPaymentMethodsLegacy({ configRepository }),
     createPaymentMethod: createCreatePaymentMethod({ configRepository }),
     updatePaymentMethod: createUpdatePaymentMethod({ configRepository }),
     deletePaymentMethod: createDeletePaymentMethod({ configRepository }),
@@ -36,10 +41,13 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
     listAdminCatalogs: createListAdminCatalogs(),
     listRoles: createListRoles(),
     listTnaRates: createListTnaRates({ configRepository }),
+    getTnaRateStats: createGetTnaRateStats({ configRepository }),
+    findTnaRatesByUser: createFindTnaRatesByUser({ configRepository }),
     createTnaRate: createCreateTnaRate({ configRepository }),
     updateTnaRate: createUpdateTnaRate({ configRepository }),
     deleteTnaRate: createDeleteTnaRate({ configRepository }),
     listLateFeePolicies: createListLateFeePolicies({ configRepository }),
+    resolveLateFeePolicyForUser: resolveLateFeePolicyForUser({ configRepository }),
     createLateFeePolicy: createCreateLateFeePolicy({ configRepository }),
     updateLateFeePolicy: createUpdateLateFeePolicy({ configRepository }),
     deleteLateFeePolicy: createDeleteLateFeePolicy({ configRepository }),

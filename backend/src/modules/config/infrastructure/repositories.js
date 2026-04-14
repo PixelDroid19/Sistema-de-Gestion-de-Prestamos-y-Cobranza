@@ -24,6 +24,15 @@ const configRepository = {
     return entries.map(serializeConfigEntry);
   },
 
+  async listActiveByCategory(category) {
+    const entries = await ConfigEntry.findAll({
+      where: { category, isActive: true },
+      order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']],
+    });
+
+    return entries.map(serializeConfigEntry);
+  },
+
   async findPaymentMethodById(id) {
     const entry = await ConfigEntry.findOne({
       where: { id, category: PAYMENT_METHOD_CATEGORY },
@@ -40,6 +49,15 @@ const configRepository = {
   async findByCategoryAndKey(category, key) {
     const entry = await ConfigEntry.findOne({
       where: { category, key },
+    });
+
+    return serializeConfigEntry(entry);
+  },
+
+  async findActiveByCategoryAndKey(category, key) {
+    const entry = await ConfigEntry.findOne({
+      where: { category, key, isActive: true },
+      order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']],
     });
 
     return serializeConfigEntry(entry);

@@ -110,7 +110,7 @@ class AccountLockedError extends AppError {
  */
 const formatErrorResponse = (error, req) => {
   const isDevelopment = process.env.NODE_ENV === 'development';
-  
+
   const errorResponse = {
     success: false,
     error: {
@@ -121,8 +121,8 @@ const formatErrorResponse = (error, req) => {
         ? { denialReasons: error.denialReasons }
         : {}),
       ...(isDevelopment && { stack: error.stack }),
-      ...(isDevelopment && { path: req.path }),
-      ...(isDevelopment && { method: req.method }),
+      ...(isDevelopment && { path: req?.path }),
+      ...(isDevelopment && { method: req?.method }),
       ...(isDevelopment && { timestamp: new Date().toISOString() })
     }
   };

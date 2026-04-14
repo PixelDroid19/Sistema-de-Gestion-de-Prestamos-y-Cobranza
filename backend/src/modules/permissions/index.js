@@ -44,7 +44,11 @@ const createPermissionsModule = ({ sharedRuntime } = {}) => {
       userPermissionRepository,
       userRepository,
     }),
-    revokePermission: createRevokePermission({ userPermissionRepository }),
+    revokePermission: createRevokePermission({
+      permissionRepository,
+      userPermissionRepository,
+      userRepository,
+    }),
     checkPermission: createCheckPermission({
       permissionRepository,
       userPermissionRepository,

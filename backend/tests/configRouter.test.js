@@ -35,6 +35,10 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
         calls.push(['listPaymentMethods']);
         return [{ id: 11, label: 'Transferencia', key: 'transferencia', isActive: true, requiresReference: true, description: '' }];
       },
+      async listPaymentMethodsLegacy() {
+        calls.push(['listPaymentMethodsLegacy']);
+        return [{ id: 11, nombre: 'Transferencia', activo: true }];
+      },
       async createPaymentMethod(payload) {
         calls.push(['createPaymentMethod', payload]);
         return { id: 12, ...payload };
@@ -58,6 +62,18 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
       async listAdminCatalogs() {
         calls.push(['listAdminCatalogs']);
         return { roles: ['admin', 'customer', 'socio'] };
+      },
+      async resolveLateFeePolicyForUser({ userId }) {
+        calls.push(['resolveLateFeePolicyForUser', userId]);
+        return { userId: Number(userId), source: 'global', policy: { id: 3, dailyRate: '2.50' } };
+      },
+      async getTnaRateStats() {
+        calls.push(['getTnaRateStats']);
+        return { totalRates: 2, activeRates: 1 };
+      },
+      async findTnaRatesByUser({ userId }) {
+        calls.push(['findTnaRatesByUser', userId]);
+        return { userId: Number(userId), tnaRates: [{ id: 10, annualRate: '48.00' }] };
       },
     },
   }));
@@ -99,11 +115,37 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     path: '/settings',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
+  const legacyPaymentMethodsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/pmconfig',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
   const saveSettingResponse = await requestJson(activeServer, {
     method: 'PUT',
     path: '/settings/company-name',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' },
+  });
+  const lateFeeResolveResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/late-fee/resolve',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { userId: 44 },
+  });
+  const lateFeeByUserResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/late-fee/user/45',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const tnaStatsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/tna-rates/stats',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const tnaByUserResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/tna-rates/user/99',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const catalogsResponse = await requestJson(activeServer, {
     method: 'GET',
@@ -116,7 +158,12 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   assert.equal(updateResponse.statusCode, 200);
   assert.equal(deleteResponse.statusCode, 200);
   assert.equal(settingsResponse.statusCode, 200);
+  assert.equal(legacyPaymentMethodsResponse.statusCode, 200);
   assert.equal(saveSettingResponse.statusCode, 200);
+  assert.equal(lateFeeResolveResponse.statusCode, 200);
+  assert.equal(lateFeeByUserResponse.statusCode, 200);
+  assert.equal(tnaStatsResponse.statusCode, 200);
+  assert.equal(tnaByUserResponse.statusCode, 200);
   assert.equal(catalogsResponse.statusCode, 200);
 
   assert.deepEqual(listResponse.body, {
@@ -128,7 +175,36 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   assert.equal(createResponse.body.message, 'Payment method created successfully');
   assert.equal(updateResponse.body.message, 'Payment method updated successfully');
   assert.equal(deleteResponse.body.message, 'Payment method deleted successfully');
+  assert.deepEqual(legacyPaymentMethodsResponse.body, {
+    success: true,
+    data: {
+      paymentMethods: [{ id: 11, nombre: 'Transferencia', activo: true }],
+    },
+  });
   assert.equal(saveSettingResponse.body.message, 'Setting saved successfully');
+  assert.deepEqual(lateFeeResolveResponse.body, {
+    success: true,
+    data: {
+      userId: 44,
+      source: 'global',
+      policy: { id: 3, dailyRate: '2.50' },
+    },
+  });
+  assert.equal(lateFeeByUserResponse.body.data.userId, 45);
+  assert.deepEqual(tnaStatsResponse.body, {
+    success: true,
+    data: {
+      totalRates: 2,
+      activeRates: 1,
+    },
+  });
+  assert.deepEqual(tnaByUserResponse.body, {
+    success: true,
+    data: {
+      userId: 99,
+      tnaRates: [{ id: 10, annualRate: '48.00' }],
+    },
+  });
   assert.deepEqual(catalogsResponse.body, {
     success: true,
     data: {
@@ -141,7 +217,12 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     ['updatePaymentMethod', '12', { label: 'Transferencia editada', isActive: false }],
     ['deletePaymentMethod', '12'],
     ['listSettings'],
+    ['listPaymentMethodsLegacy'],
     ['upsertSetting', 'company-name', { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' }],
+    ['resolveLateFeePolicyForUser', 44],
+    ['resolveLateFeePolicyForUser', '45'],
+    ['getTnaRateStats'],
+    ['findTnaRatesByUser', '99'],
     ['listAdminCatalogs'],
   ]);
 });

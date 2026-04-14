@@ -4,6 +4,7 @@ import type { GuardedAction } from '../../services/operationalGuards';
 import { resolveOperationalGuard } from '../../services/operationalGuards';
 import { getSafeOperationalGuardMessage, getSafeOperationalMessage } from '../../services/operationalErrorMessages';
 import { tTerm } from '../../i18n/terminology';
+import { confirmDanger } from '../../lib/confirmModal';
 
 type ActionContext = {
   role?: string;
@@ -11,6 +12,7 @@ type ActionContext = {
   loanStatus?: string;
   installmentStatus?: string;
   paymentStatus?: string;
+  paymentReconciled?: boolean;
   payoutType?: 'regular' | 'partial' | 'capital';
 };
 
@@ -49,6 +51,7 @@ export const useOperationalActions = (_queryClient: QueryClient) => {
       loanStatus: options.context.loanStatus,
       installmentStatus: options.context.installmentStatus,
       paymentStatus: options.context.paymentStatus,
+      paymentReconciled: options.context.paymentReconciled,
       payoutType: options.context.payoutType,
     });
 
@@ -63,7 +66,6 @@ export const useOperationalActions = (_queryClient: QueryClient) => {
     }
 
     if (options.confirmationMessage) {
-      const { confirmDanger } = await import('../../lib/confirmModal');
       const confirmed = await confirmDanger({
         title: tTerm('confirm.installment.title'),
         message: options.confirmationMessage,

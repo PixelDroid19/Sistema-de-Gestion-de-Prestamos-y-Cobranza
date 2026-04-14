@@ -40,6 +40,7 @@ const {
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
 const { createCreditsRouter } = require('./presentation/router');
+const { listDagWorkbenchScopes } = require('./application/dag/scopeRegistry');
 
 /**
  * Compose the credits module entrypoint from shared policy, services, and router seams.
@@ -69,6 +70,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),
     createSimulation: createCreateSimulation({ creditDomainService }),
+    listDagWorkbenchScopes: async () => ({ scopes: listDagWorkbenchScopes() }),
     loadDagWorkbenchGraph: createLoadDagWorkbenchGraph({ dagWorkbenchService }),
     saveDagWorkbenchGraph: createSaveDagWorkbenchGraph({ dagWorkbenchService }),
     validateDagWorkbenchGraph: createValidateDagWorkbenchGraph({ dagWorkbenchService }),

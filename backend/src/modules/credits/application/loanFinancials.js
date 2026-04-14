@@ -115,7 +115,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const accrualAnchor = resolveAccrualAnchor({ loan, schedule, asOfDate: normalizedAsOfDate });
   const accruedDays = countElapsedAccrualDays({ anchorDate: accrualAnchor.date, asOfDate: normalizedAsOfDate });
   const accruedInterest = roundCurrency(
-    outstandingPrincipal * (Number(loan.interestRate || 0) / 100) * (accruedDays / 365),
+    futurePrincipal * (Number(loan.interestRate || 0) / 100) * (accruedDays / 365),
   );
   const total = roundCurrency(
     overdue.overduePrincipal

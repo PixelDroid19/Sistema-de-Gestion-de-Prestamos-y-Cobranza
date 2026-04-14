@@ -8,12 +8,12 @@ import { confirmDanger } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
-  const { page, pageSize, setPage } = usePaginationStore();
+  const { page, pageSize, setPage, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
-  const { data, isLoading, isError, restoreCustomer } = useCustomers({
+  const { data, isLoading, isError, restoreCustomer, updateCustomer, deleteCustomer } = useCustomers({
     page,
     pageSize,
     search: searchTerm || undefined,
@@ -66,6 +66,55 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     } catch (error) {
       console.error('[customers] restoreCustomer failed', error);
       toast.apiErrorSafe(error, { domain: 'customers', action: 'customer.restore' });
+    }
+  };
+
+  const handleDelete = async (customer: any) => {
+    const customerId = Number(customer?.id);
+    if (!Number.isFinite(customerId)) return;
+
+    const confirmed = await confirmDanger({
+      title: 'Eliminar cliente',
+      message: `¿Está seguro de eliminar a ${getCustomerName(customer)}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+    });
+    if (!confirmed) return;
+
+    try {
+      await deleteCustomer.mutateAsync(customerId);
+      toast.success({ description: 'Cliente eliminado correctamente' });
+    } catch (error) {
+      console.error('[customers] deleteCustomer failed', error);
+      toast.apiErrorSafe(error, { domain: 'customers' });
+    }
+  };
+
+  const handleToggleStatus = async (customer: any) => {
+    const customerId = Number(customer?.id);
+    if (!Number.isFinite(customerId)) return;
+
+    const currentStatus = customer?.status === 'active' ? 'active' : 'inactive';
+    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+    const confirmed = await confirmDanger({
+      title: nextStatus === 'inactive' ? 'Desactivar cliente' : 'Reactivar cliente',
+      message: nextStatus === 'inactive'
+        ? `¿Desea desactivar a ${getCustomerName(customer)}?`
+        : `¿Desea reactivar a ${getCustomerName(customer)}?`,
+      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : 'Reactivar',
+    });
+    if (!confirmed) return;
+
+    try {
+      await updateCustomer.mutateAsync({ id: customerId, status: nextStatus });
+      toast.success({
+        description: nextStatus === 'inactive'
+          ? 'Cliente desactivado correctamente'
+          : 'Cliente reactivado correctamente',
+      });
+    } catch (error) {
+      console.error('[customers] updateCustomer status failed', error);
+      toast.apiErrorSafe(error, { domain: 'customers' });
     }
   };
 
@@ -150,6 +199,10 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             totalPages,
             onPrev: () => setPage(Math.max(1, page - 1)),
             onNext: () => setPage(Math.min(totalPages, page + 1)),
+            onPageSizeChange: (nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            },
           }}
         >
             <table className="w-full text-sm text-left">
@@ -185,15 +238,27 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     <td className="py-4">
                       <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                        <button className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
+                        <button
+                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)}
+                          className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit size={16} />
+                        </button>
                         <button 
-                          onClick={() => handleRestore(customer.id)} 
+                          onClick={() => (customer.status === 'inactive' ? handleRestore(customer.id) : handleToggleStatus(customer))}
                           className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" 
-                          title={tTerm('customers.cta.restore')}
+                          title={customer.status === 'inactive' ? tTerm('customers.cta.restore') : 'Desactivar'}
                         >
                           <RotateCcw size={16} />
                         </button>
-                        <button className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                        <button
+                          onClick={() => handleDelete(customer)}
+                          className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>

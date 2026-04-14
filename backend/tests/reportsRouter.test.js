@@ -468,3 +468,109 @@ test('createReportsRouter limits associate export routes to admin and socio role
 
   assert.equal(response.status, 403);
 });
+
+test('createReportsRouter exposes legacy-compatible comparative, earnings, and file export aliases', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getComparativeAnalysis(input) {
+        calls.push(['getComparativeAnalysis', input.year]);
+        return { success: true, data: { year: input.year || 2026, comparison: [] } };
+      },
+      async getMonthlyEarnings(input) {
+        calls.push(['getMonthlyEarnings', input.year]);
+        return { success: true, data: { year: input.year || 2026, months: [{ month: 1, net: '100.00' }] } };
+      },
+      async getInterestEarnings(input) {
+        calls.push(['getInterestEarnings', input.year]);
+        return { success: true, data: { byMonth: [{ month: 1, interest: '20.00' }], totalInterest: '20.00' } };
+      },
+      async exportAssociateProfitabilityReport() {
+        calls.push(['exportAssociateProfitabilityReport']);
+        return {
+          fileName: 'associate-7-profitability.xlsx',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          buffer: Buffer.from('PKtest', 'utf8'),
+        };
+      },
+      async exportRecoveryReport() {
+        calls.push(['exportRecoveryReport']);
+        return {
+          fileName: 'recovery-report.csv',
+          contentType: 'text/csv; charset=utf-8',
+          buffer: Buffer.from('header\nvalue', 'utf8'),
+        };
+      },
+      async exportCreditsExcel() {
+        calls.push(['exportCreditsExcel']);
+        return {
+          success: true,
+          data: {
+            rows: [{ creditId: 44, customer: 'Ana', outstanding: '300.00' }],
+          },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const comparativeResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/comparative-analysis',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { year: '2025' },
+  });
+  const earningsResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/earnings-report',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { year: '2024' },
+  });
+  const partnerReportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/partner-report/7?format=xlsx`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const legacyRecoveryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/file/reports/recovery/export?format=csv`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const legacyCreditsExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/file/reports/credits/excel`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(comparativeResponse.statusCode, 200);
+  assert.equal(comparativeResponse.body.success, true);
+  assert.equal(comparativeResponse.body.data.year, 2025);
+
+  assert.equal(earningsResponse.statusCode, 200);
+  assert.deepEqual(earningsResponse.body, {
+    success: true,
+    data: {
+      year: 2024,
+      monthlyEarnings: [{ month: 1, net: '100.00' }],
+      interestEarnings: [{ month: 1, interest: '20.00' }],
+      totalInterest: '20.00',
+    },
+  });
+
+  assert.equal(partnerReportResponse.status, 200);
+  assert.equal((await partnerReportResponse.arrayBuffer()).byteLength > 0, true);
+
+  assert.equal(legacyRecoveryExportResponse.status, 200);
+  assert.match(await legacyRecoveryExportResponse.text(), /header/);
+
+  assert.equal(legacyCreditsExportResponse.status, 200);
+  assert.equal((await legacyCreditsExportResponse.arrayBuffer()).byteLength > 0, true);
+
+  assert.deepEqual(calls, [
+    ['getComparativeAnalysis', 2025],
+    ['getMonthlyEarnings', 2024],
+    ['getInterestEarnings', 2024],
+    ['exportAssociateProfitabilityReport'],
+    ['exportRecoveryReport'],
+    ['exportCreditsExcel'],
+  ]);
+});

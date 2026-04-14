@@ -6,6 +6,7 @@ const {
 const { logSecurity, logBusiness } = require('../../../../utils/logger');
 const BigNumberEngine = require('../../../../core/domain/calculation/BigNumberEngine');
 const { CalculationEngine } = require('../../../../core/domain/calculation/CalculationEngine');
+const { getDagWorkbenchScopeDefinition, normalizeScopeKey } = require('./scopeRegistry');
 
 const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
 
@@ -22,8 +23,6 @@ const BLOCKED_FORMULA_PATTERNS = [
   /config\s*\(/i,
   /importFrom\s*\(/i,
 ];
-
-const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
 
 const buildGraphSummary = ({ nodes, edges }) => ({
   nodeCount: nodes.length,
@@ -236,6 +235,11 @@ const assertScopeKey = (scopeKey) => {
   if (!normalizedScopeKey) {
     throw new ValidationError('scopeKey is required');
   }
+
+  if (!getDagWorkbenchScopeDefinition(normalizedScopeKey)) {
+    throw new ValidationError(`Unsupported DAG workbench scope '${normalizedScopeKey}'`);
+  }
+
   return normalizedScopeKey;
 };
 

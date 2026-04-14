@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle, Save } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLoans, useLoanStatistics } from '../services/loanService';
+import { useLoans, useLoanStatistics, useSearchLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
 import { SimulationResult } from '../types/simulation';
@@ -18,6 +18,7 @@ import { tTerm } from '../i18n/terminology';
 import { queryKeys } from '../services/queryKeys';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName } from '../constants/uiChips';
+import { resolveOperationalGuard } from '../services/operationalGuards';
 
 const locales = {
   'es': es,
@@ -33,6 +34,7 @@ const localizer = dateFnsLocalizer({
 
 interface InstallmentEvent {
   id: string;
+  loanId: number;
   title: string;
   start: Date;
   end: Date;
@@ -57,103 +59,12 @@ const fetchSimulation = async (params: {
   return data.data.simulation;
 };
 
-// Generamos fechas relativas al mes actual (Marzo 2026 según el contexto)
-const currentYear = new Date().getFullYear();
-const currentMonth = new Date().getMonth();
-
-const myEventsList: InstallmentEvent[] = [
-  {
-    id: '1',
-    title: 'Cuota 1/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth - 2, 15, 10, 0),
-    end: new Date(currentYear, currentMonth - 2, 15, 11, 0),
-    type: 'paid',
-    clientName: 'Juan Pérez',
-    installmentNumber: 1,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 100000,
-    amortizedCapital: 125650.82,
-    remainingCapital: 1874349.18,
-    arrears: 0,
-  },
-  {
-    id: '2',
-    title: 'Cuota 2/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth - 1, 15, 10, 0),
-    end: new Date(currentYear, currentMonth - 1, 15, 11, 0),
-    type: 'paid',
-    clientName: 'Juan Pérez',
-    installmentNumber: 2,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 93717.46,
-    amortizedCapital: 131933.36,
-    remainingCapital: 1742415.82,
-    arrears: 0,
-  },
-  {
-    id: '3',
-    title: 'Cuota 3/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth, 15, 10, 0), // Vencida
-    end: new Date(currentYear, currentMonth, 15, 11, 0),
-    type: 'overdue',
-    clientName: 'Juan Pérez',
-    installmentNumber: 3,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 87120.79,
-    amortizedCapital: 138530.03,
-    remainingCapital: 1603885.79,
-    arrears: 15420.50, // Mora
-  },
-  {
-    id: '4',
-    title: 'Cuota 4/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth + 1, 15, 10, 0),
-    end: new Date(currentYear, currentMonth + 1, 15, 11, 0),
-    type: 'pending',
-    clientName: 'Juan Pérez',
-    installmentNumber: 4,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 80194.29,
-    amortizedCapital: 145456.53,
-    remainingCapital: 1458429.26,
-    arrears: 0,
-  },
-  {
-    id: '5',
-    title: 'Cuota 5/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth + 2, 15, 10, 0),
-    end: new Date(currentYear, currentMonth + 2, 15, 11, 0),
-    type: 'pending',
-    clientName: 'Juan Pérez',
-    installmentNumber: 5,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 72921.46,
-    amortizedCapital: 152729.36,
-    remainingCapital: 1305699.90,
-    arrears: 0,
-  },
-  {
-    id: '6',
-    title: 'Cuota 6/12 - Juan Pérez',
-    start: new Date(currentYear, currentMonth + 3, 15, 10, 0),
-    end: new Date(currentYear, currentMonth + 3, 15, 11, 0),
-    type: 'pending',
-    clientName: 'Juan Pérez',
-    installmentNumber: 6,
-    totalInstallments: 12,
-    amountToPay: 225650.82,
-    interest: 65284.99,
-    amortizedCapital: 160365.82,
-    remainingCapital: 1145334.08,
-    arrears: 0,
-  }
-];
-
+/**
+ * Credits page displays the loan portfolio with filtering, search,
+ * calendar view, and simulation capabilities. Provides actions for
+ * payment registration, promises, follow-ups, and installment annulment
+ * via operational guards that delegate to the backend DAG engine.
+ */
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const [activeTab, setActiveTab] = useState('list');
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
@@ -169,6 +80,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     endDate: '',
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCreditIds, setSelectedCreditIds] = useState<number[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState({
+    status: '',
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: '',
+    search: '',
+  });
 
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics();
@@ -258,8 +178,80 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }))
   } : null;
 
-  const { page, setPage, pageSize } = usePaginationStore();
-  const { data: loansData, isLoading, isError, deleteLoan } = useLoans({ page, pageSize });
+  const { page, setPage, pageSize, setPageSize } = usePaginationStore();
+
+  const hasAppliedAdvancedFilters = Boolean(
+    appliedFilters.minAmount
+    || appliedFilters.maxAmount
+    || appliedFilters.startDate
+    || appliedFilters.endDate
+  );
+
+  const parsedSearchFilters = {
+    status: appliedFilters.status || undefined,
+    minAmount: appliedFilters.minAmount ? Number(appliedFilters.minAmount) : undefined,
+    maxAmount: appliedFilters.maxAmount ? Number(appliedFilters.maxAmount) : undefined,
+    startDate: appliedFilters.startDate || undefined,
+    endDate: appliedFilters.endDate || undefined,
+    search: appliedFilters.search || undefined,
+  };
+
+  const {
+    data: searchedLoansData,
+    isLoading: isSearchLoading,
+    isError: isSearchError,
+  } = useSearchLoans(parsedSearchFilters, page, pageSize);
+
+  const {
+    data: defaultLoansData,
+    isLoading: isDefaultLoading,
+    isError: isDefaultError,
+    deleteLoan,
+  } = useLoans({
+    page,
+    pageSize,
+    search: appliedFilters.search || undefined,
+    status: appliedFilters.status || undefined,
+  });
+
+  const loansData = hasAppliedAdvancedFilters ? searchedLoansData : defaultLoansData;
+  const isLoading = hasAppliedAdvancedFilters ? isSearchLoading : isDefaultLoading;
+  const isError = hasAppliedAdvancedFilters ? isSearchError : isDefaultError;
+
+  const creditsList = Array.isArray(loansData?.data?.loans)
+    ? loansData.data.loans
+    : Array.isArray(loansData?.data)
+      ? loansData.data
+      : [];
+
+  const calendarLoanIds = useMemo<number[]>(
+    () => creditsList
+      .map((loan: any) => Number(loan?.id))
+      .filter((loanId: number): loanId is number => Number.isFinite(loanId))
+      .slice(0, 25),
+    [creditsList],
+  );
+
+  const { data: rawCalendarEvents, isLoading: isCalendarLoading } = useQuery({
+    queryKey: ['credits.calendar.events', calendarLoanIds],
+    enabled: activeTab === 'calendar' && calendarLoanIds.length > 0,
+    queryFn: async () => {
+      const requests = await Promise.allSettled(
+        calendarLoanIds.map(async (loanId) => {
+          const { data } = await apiClient.get(`/loans/${loanId}/calendar`);
+          const entries = Array.isArray(data?.data?.calendar?.entries) ? data.data.calendar.entries : [];
+          return {
+            loanId,
+            entries,
+          };
+        }),
+      );
+
+      return requests
+        .filter((request): request is PromiseFulfilledResult<{ loanId: number; entries: any[] }> => request.status === 'fulfilled')
+        .map((request) => request.value);
+    },
+  });
 
   const handleDeleteCredit = async (credit: any) => {
     await executeGuardedAction({
@@ -303,12 +295,97 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     });
   };
 
-  const mockCreditsList = Array.isArray(loansData?.data?.loans)
-    ? loansData.data.loans
-    : Array.isArray(loansData?.data)
-      ? loansData.data
-      : [];
-  const pagination = loansData?.data?.pagination || loansData?.meta;
+  const toggleSelectedCredit = (creditId: number) => {
+    setSelectedCreditIds((prev) => {
+      if (prev.includes(creditId)) {
+        return prev.filter((id) => id !== creditId);
+      }
+      return [...prev, creditId];
+    });
+  };
+
+  const handleToggleSelectAllVisible = () => {
+    const visibleIds = creditsList.map((credit: any) => Number(credit?.id)).filter((id: number) => Number.isFinite(id));
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id: number) => selectedCreditIds.includes(id));
+    setSelectedCreditIds(allSelected ? [] : visibleIds);
+  };
+
+  const handleDownloadSelectedReports = async () => {
+    if (selectedCreditIds.length === 0) return;
+
+    for (const creditId of selectedCreditIds) {
+      await executeGuardedAction({
+        action: 'credit.report.download',
+        context: { role: user?.role, permissions: user?.permissions },
+        run: async () => {
+          await downloadCreditReport(creditId);
+        },
+      });
+    }
+
+    toast.success({ description: `Se procesaron ${selectedCreditIds.length} reportes seleccionados.` });
+  };
+
+   const pagination = loansData?.data?.pagination || loansData?.pagination || loansData?.meta;
+
+  const toNumber = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const parseDueDate = (value: unknown): Date | null => {
+    if (!value) return null;
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const calendarEvents = useMemo<InstallmentEvent[]>(() => {
+    const now = new Date();
+    const loansById = new Map(
+      creditsList.map((loan: any) => [Number(loan?.id), loan]),
+    );
+
+    const events = (rawCalendarEvents ?? []).flatMap(({ loanId, entries }) => {
+      const loan: any = loansById.get(loanId);
+      let customerName = loan?.Customer?.name || loan?.customerName || '';
+      if (customerName) {
+        customerName = customerName.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+      }
+      const normalizedCustomerName = customerName || (loan?.customerId ? `Cliente #${loan.customerId}` : `Crédito #${loanId}`);
+      const totalInstallments = Number(loan?.termMonths) || Number(loan?.totalInstallments) || 0;
+
+      return entries
+        .map((entry: any, index: number): InstallmentEvent | null => {
+          const dueDate = parseDueDate(entry?.dueDate || entry?.paymentDate || entry?.date);
+          if (!dueDate) return null;
+
+          const rawStatus = String(entry?.status || '').toLowerCase();
+          const hasLateFee = toNumber(entry?.lateFeeDue ?? entry?.lateFee ?? entry?.arrears) > 0;
+          const isPaid = rawStatus === 'paid' || rawStatus === 'settled';
+          const isOverdue = !isPaid && (rawStatus === 'overdue' || rawStatus === 'defaulted' || (dueDate.getTime() < now.getTime() && hasLateFee));
+
+          return {
+            id: `${loanId}-${entry?.installmentNumber ?? index}`,
+            loanId,
+            title: `Cuota ${entry?.installmentNumber ?? index + 1}${totalInstallments > 0 ? `/${totalInstallments}` : ''} - ${normalizedCustomerName}`,
+            start: dueDate,
+            end: new Date(dueDate.getTime() + 60 * 60 * 1000),
+            type: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
+            clientName: normalizedCustomerName,
+            installmentNumber: Number(entry?.installmentNumber) || index + 1,
+            totalInstallments: totalInstallments || Number(entry?.totalInstallments) || 0,
+            amountToPay: toNumber(entry?.scheduledPayment ?? entry?.amount ?? entry?.paymentAmount),
+            interest: toNumber(entry?.interestComponent ?? entry?.interest),
+            amortizedCapital: toNumber(entry?.principalComponent ?? entry?.principalPaid),
+            remainingCapital: toNumber(entry?.remainingBalance ?? entry?.outstandingPrincipal),
+            arrears: toNumber(entry?.lateFeeDue ?? entry?.lateFee ?? entry?.arrears),
+          };
+        })
+        .filter((event): event is InstallmentEvent => event !== null);
+    });
+
+    return events.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [creditsList, rawCalendarEvents]);
 
   const getCreditLabel = (credit: any) => {
     let name = credit?.Customer?.name || credit?.customerName || '';
@@ -324,8 +401,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   const getRecoveryStatusLabel = (credit: any) => {
     if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return 'En Mora';
-    if (credit?.recoveryStatus === 'pending') return 'Pendiente';
+    if (credit?.recoveryStatus === 'pending') return 'En Curso';
     if (credit?.recoveryStatus === 'recovered') return 'Recuperado';
+    if (credit?.recoveryStatus === 'active') return 'Activo';
     if (credit?.recoveryStatus) return credit.recoveryStatus;
     return 'Al Día';
   };
@@ -487,9 +565,29 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </button>
             </div>
             <div className="text-sm text-text-secondary">
-              Total: {pagination?.totalItems ?? mockCreditsList.length} créditos
+              Total: {pagination?.totalItems ?? creditsList.length} créditos
             </div>
           </div>
+
+          {selectedCreditIds.length > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm">
+              <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadSelectedReports}
+                  className="px-3 py-1 rounded border border-border-subtle hover:bg-hover-bg"
+                >
+                  Descargar reportes
+                </button>
+                <button
+                  onClick={() => setSelectedCreditIds([])}
+                  className="px-3 py-1 rounded border border-border-subtle hover:bg-hover-bg"
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Filter Panel */}
           {showFilters && (
@@ -551,25 +649,27 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button
-                  onClick={() => setFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' })}
+                  onClick={() => {
+                    setFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' });
+                    setSearchQuery('');
+                    setAppliedFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '', search: '' });
+                    setPage(1);
+                  }}
                   className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary"
                 >
                   Limpiar
                 </button>
                 <button
                   onClick={() => {
-                    // Apply filters - refetch with filter params
-                    const params = new URLSearchParams();
-                    if (filters.status) params.append('status', filters.status);
-                    if (filters.minAmount) params.append('minAmount', filters.minAmount);
-                    if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
-                    if (filters.startDate) params.append('startDate', filters.startDate);
-                    if (filters.endDate) params.append('endDate', filters.endDate);
-                    if (searchQuery) params.append('search', searchQuery);
-                    // Reset to page 1 and trigger refetch by updating page
+                    setAppliedFilters({
+                      status: filters.status,
+                      minAmount: filters.minAmount,
+                      maxAmount: filters.maxAmount,
+                      startDate: filters.startDate,
+                      endDate: filters.endDate,
+                      search: searchQuery,
+                    });
                     setPage(1);
-                    // Trigger refetch by invalidating the query
-                    queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot });
                   }}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                 >
@@ -583,28 +683,36 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
-                  <th className="pb-3 font-medium">ID Préstamo</th>
+                  <th className="pb-3 font-medium w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos los créditos visibles"
+                      checked={creditsList.length > 0 && creditsList.every((credit: any) => selectedCreditIds.includes(Number(credit?.id)))}
+                      onChange={handleToggleSelectAllVisible}
+                    />
+                  </th>
+                  <th className="pb-3 font-medium">ID</th>
                   <th className="pb-3 font-medium">Cliente</th>
-                  <th className="pb-3 font-medium">Monto</th>
-                  <th className="pb-3 font-medium">Tasa (TNA)</th>
-                  <th className="pb-3 font-medium">Cuota</th>
-                  <th className="pb-3 font-medium" title="Capital e interes aun no pagados">Monto Pendiente</th>
-                  <th className="pb-3 font-medium" title="Porcentaje vencido sobre el monto total del credito">% Mora</th>
+                  <th className="pb-3 font-medium">Capital</th>
+                  <th className="pb-3 font-medium">Tasa Anual</th>
+                  <th className="pb-3 font-medium">Cuota Estimada</th>
+                  <th className="pb-3 font-medium">Saldo Pendiente</th>
+                  <th className="pb-3 font-medium">% Mora</th>
                   <th className="pb-3 font-medium">Estado</th>
-                  <th className="pb-3 font-medium" title="Situacion de cobro: al dia, pendiente, en mora o recuperado">Estado de Recuperación</th>
-                  <th className="pb-3 font-medium">Fecha Creación</th>
+                  <th className="pb-3 font-medium">Situación</th>
+                  <th className="pb-3 font-medium">Fecha Inicio</th>
                   <th className="pb-3 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {                isLoading ? (
-                  <tr><td colSpan={12} className="py-4 text-center text-text-secondary">Cargando créditos...</td></tr>
+                  <tr><td colSpan={11} className="py-4 text-center text-text-secondary">Cargando créditos...</td></tr>
                 ) : isError ? (
-                  <tr><td colSpan={12} className="py-4 text-center text-red-500">Error al cargar créditos.</td></tr>
-                ) : mockCreditsList.length === 0 ? (
-                  <tr><td colSpan={12} className="py-4 text-center text-text-secondary">No hay créditos registrados.</td></tr>
+                  <tr><td colSpan={11} className="py-4 text-center text-red-500">Error al cargar créditos.</td></tr>
+                ) : creditsList.length === 0 ? (
+                  <tr><td colSpan={11} className="py-4 text-center text-text-secondary">No hay créditos registrados.</td></tr>
                 ) : (
-                  mockCreditsList.map((credit: any) => {
+                  creditsList.map((credit: any) => {
                     // Calculate outstanding amount (principalOutstanding + interestOutstanding)
                     const principalOutstanding = Number(credit.principalOutstanding) || 0;
                     const interestOutstanding = Number(credit.interestOutstanding) || 0;
@@ -624,6 +732,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
                     return (
                       <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
+                        <td className="py-4">
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar crédito ${credit.id}`}
+                            checked={selectedCreditIds.includes(Number(credit.id))}
+                            onChange={() => toggleSelectedCredit(Number(credit.id))}
+                          />
+                        </td>
                         <td className="py-4 text-text-secondary font-mono">{String(credit.id).substring(0, 8)}</td>
                         <td className="py-4 font-medium">{getCreditLabel(credit)}</td>
                         <td className="py-4">{formatCurrency(credit.amount)}</td>
@@ -669,11 +785,81 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           </td>
                         <td className="py-4 text-text-secondary text-xs">{creationDate}</td>
                         <td className="py-4">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentView?.(`credits/${credit.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                            <button onClick={() => handleNavigatePayouts(credit)} className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Ir a pagos"><DollarSign size={16} /></button>
-                            <button onClick={() => handleDownloadReport(credit)} className="p-1.5 text-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors" title="Descargar reporte"><FileText size={16} /></button>
-                            <button onClick={() => handleDeleteCredit(credit)} className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                              const paymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                              const promiseGuard = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                              const followUpGuard = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+                              const annulGuard = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+
+                              const getActionTitle = (guard: { executable: boolean; reason?: string }, actionKey: string) => {
+                                if (!guard.executable) return guard.reason || tTerm('credits.action.unavailable' as any);
+                                const keyMap: Record<string, any> = {
+                                  'credit.view': 'credits.action.viewDetails',
+                                  'installment.pay': 'credits.action.registerPayment',
+                                  'installment.promise': 'credits.action.createPromise',
+                                  'installment.followUp': 'credits.action.createFollowUp',
+                                  'installment.annul': 'credits.action.annulInstallment',
+                                };
+                                return tTerm(keyMap[actionKey] as any);
+                              };
+
+                              return (
+                                <>
+                                  {viewGuard.visible && (
+                                    <button
+                                      onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                                      disabled={!viewGuard.executable}
+                                      className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={getActionTitle(viewGuard, 'credit.view')}
+                                    >
+                                      <Eye size={16} />
+                                    </button>
+                                  )}
+                                  {paymentGuard.visible && (
+                                    <button
+                                      onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                                      disabled={!paymentGuard.executable}
+                                      className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={getActionTitle(paymentGuard, 'installment.pay')}
+                                    >
+                                      <DollarSign size={16} />
+                                    </button>
+                                  )}
+                                  {promiseGuard.visible && (
+                                    <button
+                                      onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                                      disabled={!promiseGuard.executable}
+                                      className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={getActionTitle(promiseGuard, 'installment.promise')}
+                                    >
+                                      <Clock size={16} />
+                                    </button>
+                                  )}
+                                  {followUpGuard.visible && (
+                                    <button
+                                      onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                                      disabled={!followUpGuard.executable}
+                                      className="p-1.5 text-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={getActionTitle(followUpGuard, 'installment.followUp')}
+                                    >
+                                      <CalendarIcon size={16} />
+                                    </button>
+                                  )}
+                                  {annulGuard.visible && (
+                                    <button
+                                      onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                                      disabled={!annulGuard.executable}
+                                      className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={getActionTitle(annulGuard, 'installment.annul')}
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -687,8 +873,23 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {/* Pagination Controls */}
           {loansData && (
             <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
-              <div>
+              <div className="flex items-center gap-4">
                 Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
+                <label className="flex items-center gap-2">
+                  <span>Filas por página</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setPage(1);
+                    }}
+                    className="bg-bg-base border border-border-subtle rounded px-2 py-1 text-text-primary"
+                  >
+                    {[10, 25, 50, 100].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div className="flex gap-2">
                 <button 
@@ -725,9 +926,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             </div>
           </div>
           <div className="flex-1">
+            {isCalendarLoading ? (
+              <div className="h-full flex items-center justify-center text-text-secondary">Cargando calendario de créditos...</div>
+            ) : (
             <Calendar
               localizer={localizer}
-              events={myEventsList}
+              events={calendarEvents}
               startAccessor="start"
               endAccessor="end"
               style={{ height: '100%' }}
@@ -747,7 +951,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               onSelectEvent={(event) => setSelectedEvent(event as InstallmentEvent)}
               className="dark:text-text-primary"
             />
+            )}
           </div>
+
+          {!isCalendarLoading && calendarEvents.length === 0 && (
+            <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
+              No hay cuotas para mostrar en el calendario con los créditos cargados.
+            </div>
+          )}
 
           {/* Modal de Detalles del Evento */}
           {selectedEvent && (
@@ -836,7 +1047,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     Cerrar
                   </button>
                   {selectedEvent.type !== 'paid' && (
-                    <button className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                    <button
+                      onClick={() => {
+                        setSelectedEvent(null);
+                        setCurrentView?.(`credits/${selectedEvent.loanId}`);
+                      }}
+                      className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
                       Registrar Pago
                     </button>
                   )}

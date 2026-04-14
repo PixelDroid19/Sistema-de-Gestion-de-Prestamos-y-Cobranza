@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { TrendingUp, Users, DollarSign, AlertCircle, Download, Calendar, Wallet, CalendarClock } from 'lucide-react';
-import { useReports, usePayoutsReport, usePaymentSchedule, exportDashboardSummary } from '../services/reportService';
+import { useReports, usePayoutsReport, usePaymentSchedule, exportDashboardSummary, exportContextualReport, useFinancialAnalytics } from '../services/reportService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
@@ -9,6 +9,7 @@ import { getChipClassName } from '../constants/uiChips';
 import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
+import { resolveOperationalGuard } from '../services/operationalGuards';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
@@ -30,15 +31,27 @@ export default function Reports() {
   // Payouts report state
   const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string }>({});
   const [payoutPage, setPayoutPage] = useState(1);
-  const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, 20);
+  const [payoutPageSize, setPayoutPageSize] = useState(20);
+  const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, payoutPageSize);
 
   // Payment schedule state
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
-  const { schedule, summary: scheduleSummary, loan: scheduleLoan, isLoading: isScheduleLoading } = usePaymentSchedule(selectedLoanId);
+  const {
+    schedule,
+    summary: scheduleSummary,
+    loan: scheduleLoan,
+    isLoading: isScheduleLoading,
+    refetch: refetchSchedule,
+  } = usePaymentSchedule(selectedLoanId);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'outstanding' | 'profitability' | 'payouts' | 'schedule'>('dashboard');
   const [chartRange, setChartRange] = useState<'last6' | 'year' | 'historical'>('last6');
   const [isExporting, setIsExporting] = useState(false);
+  const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
+  const [reportType, setReportType] = useState<'credits' | 'payouts'>('credits');
+  const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
+
+  const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
 
   const metrics = dashboardData?.metrics || {
     totalActiveLoans: 0,
@@ -81,6 +94,61 @@ export default function Reports() {
   );
   const statusData = statusBreakdown ?? [];
   const profitabilityData = profitabilityItems ?? [];
+  const advancedPerformance = performanceAnalysis?.data as any;
+  const advancedForecast = forecastAnalysis?.data as any;
+  const advancedProjection = nextMonthProjection?.data as any;
+
+  const advancedMetrics = useMemo(() => {
+    const collectionEfficiency = Number(
+      advancedPerformance?.collectionEfficiency
+      ?? advancedPerformance?.efficiency
+      ?? advancedPerformance?.summary?.collectionEfficiency
+      ?? 0,
+    );
+
+    const delinquencyTrend = Number(
+      advancedForecast?.delinquencyTrend
+      ?? advancedForecast?.riskTrend
+      ?? advancedForecast?.summary?.delinquencyTrend
+      ?? 0,
+    );
+
+    const projectedCollections = Number(
+      advancedProjection?.projectedCollections
+      ?? advancedProjection?.projectedRecovered
+      ?? advancedProjection?.summary?.projectedCollections
+      ?? 0,
+    );
+
+    return {
+      collectionEfficiency: Number.isFinite(collectionEfficiency) ? collectionEfficiency : 0,
+      delinquencyTrend: Number.isFinite(delinquencyTrend) ? delinquencyTrend : 0,
+      projectedCollections: Number.isFinite(projectedCollections) ? projectedCollections : 0,
+    };
+  }, [advancedForecast, advancedPerformance, advancedProjection]);
+
+  const advancedTrendSeries = useMemo(() => {
+    const rawSeries =
+      (Array.isArray(advancedPerformance?.monthlyTrend) && advancedPerformance.monthlyTrend)
+      || (Array.isArray(advancedForecast?.monthlyTrend) && advancedForecast.monthlyTrend)
+      || (Array.isArray(advancedForecast?.trend) && advancedForecast.trend)
+      || [];
+
+    return rawSeries.map((item: any, index: number) => ({
+      period: item?.month || item?.period || `P${index + 1}`,
+      recovered: Number(item?.recovered ?? item?.collections ?? item?.value ?? 0),
+      arrears: Number(item?.arrears ?? item?.overdue ?? item?.risk ?? 0),
+    }));
+  }, [advancedForecast, advancedPerformance]);
+
+  const reportExportGuard = resolveOperationalGuard('credit.report.download', {
+    role: user?.role,
+    permissions: user?.permissions,
+  });
+
+  const hasInvalidRange = Boolean(
+    reportRange.fromDate && reportRange.toDate && reportRange.fromDate > reportRange.toDate,
+  );
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -91,6 +159,22 @@ export default function Reports() {
         await exportDashboardSummary();
       },
       successMessage: tTerm('reports.toast.export.success'),
+    });
+    setIsExporting(false);
+  };
+
+  const handleExportContextualReport = async () => {
+    setIsExporting(true);
+    await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: user?.permissions },
+      run: async () => {
+        await exportContextualReport(reportType, {
+          fromDate: reportRange.fromDate || undefined,
+          toDate: reportRange.toDate || undefined,
+        });
+      },
+      successMessage: reportType === 'credits' ? 'Reporte de créditos exportado' : 'Reporte de pagos exportado',
     });
     setIsExporting(false);
   };
@@ -114,15 +198,71 @@ export default function Reports() {
           <h2 className="text-2xl font-semibold">{tTerm('reports.module.title')}</h2>
           <p className="text-sm text-text-secondary mt-1">{tTerm('reports.module.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleExportReport}
-          disabled={isExporting}
-          className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
-        </button>
+        {reportExportGuard.visible && (
+          <button
+            type="button"
+            onClick={handleExportReport}
+            disabled={isExporting || !reportExportGuard.executable}
+            title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
+            className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
+          </button>
+        )}
       </div>
+
+      {reportExportGuard.visible && (
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label htmlFor="report-type" className="block text-xs text-text-secondary mb-1">Tipo de reporte</label>
+            <select
+              id="report-type"
+              value={reportType}
+              onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts')}
+              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="credits">Créditos por rango</option>
+              <option value="payouts">Pagos por rango</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="report-from" className="block text-xs text-text-secondary mb-1">Desde</label>
+            <input
+              id="report-from"
+              type="date"
+              value={reportRange.fromDate}
+              onChange={(event) => setReportRange((prev) => ({ ...prev, fromDate: event.target.value }))}
+              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="report-to" className="block text-xs text-text-secondary mb-1">Hasta</label>
+            <input
+              id="report-to"
+              type="date"
+              value={reportRange.toDate}
+              onChange={(event) => setReportRange((prev) => ({ ...prev, toDate: event.target.value }))}
+              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={handleExportContextualReport}
+              disabled={isExporting || hasInvalidRange || !reportExportGuard.executable}
+              title={hasInvalidRange ? 'El rango de fechas es inválido.' : (reportExportGuard.executable ? 'Exportar reporte contextual' : (reportExportGuard.reason || 'Acción no disponible'))}
+              className="w-full flex items-center justify-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download size={16} /> {isExporting ? 'Exportando...' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
+            </button>
+          </div>
+        </div>
+        {hasInvalidRange && (
+          <p className="mt-2 text-sm text-red-600">La fecha "Desde" no puede ser mayor que "Hasta".</p>
+        )}
+      </div>
+      )}
 
       <div className="flex gap-6 border-b border-border-subtle">
         <button 
@@ -349,8 +489,20 @@ export default function Reports() {
       )}
 
       {activeTab === 'profitability' && (
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-          <h3 className="font-medium mb-6">Rentabilidad por Cliente</h3>
+        <div className="flex flex-col gap-6">
+          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+              <h3 className="font-medium">Rentabilidad por Cliente</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-secondary">Año analítico</span>
+                <input
+                  type="number"
+                  value={analyticsYear}
+                  onChange={(event) => setAnalyticsYear(Number(event.target.value) || new Date().getFullYear())}
+                  className="w-28 bg-bg-base border border-border-subtle rounded-lg px-3 py-1.5 text-sm"
+                />
+              </div>
+            </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
@@ -379,6 +531,48 @@ export default function Reports() {
                 )}
               </tbody>
             </table>
+          </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
+              <p className="text-sm text-text-secondary">Eficiencia de cobranza</p>
+              <p className="text-2xl font-semibold mt-1">{advancedMetrics.collectionEfficiency.toFixed(2)}%</p>
+            </div>
+            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
+              <p className="text-sm text-text-secondary">Tendencia de mora</p>
+              <p className="text-2xl font-semibold mt-1">{advancedMetrics.delinquencyTrend.toFixed(2)}%</p>
+            </div>
+            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
+              <p className="text-sm text-text-secondary">Cobro proyectado próximo mes</p>
+              <p className="text-2xl font-semibold mt-1">${advancedMetrics.projectedCollections.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
+            <h4 className="font-medium mb-4">Tendencia avanzada de recuperación y mora</h4>
+            {advancedTrendSeries.length > 0 ? (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={advancedTrendSeries}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
+                    <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="recovered" stroke="#10b981" strokeWidth={2} dot={false} name="Recuperado" />
+                    <Line type="monotone" dataKey="arrears" stroke="#ef4444" strokeWidth={2} dot={false} name="Mora" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border-subtle bg-bg-base p-6 text-sm text-text-secondary text-center">
+                No hay series avanzadas para el año seleccionado.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -441,6 +635,21 @@ export default function Reports() {
                     className="bg-bg-base text-sm text-text-primary rounded-lg px-3 py-2 border border-border-subtle focus:outline-none"
                   />
                 </div>
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <span>Filas</span>
+                  <select
+                    value={payoutPageSize}
+                    onChange={(event) => {
+                      setPayoutPageSize(Number(event.target.value));
+                      setPayoutPage(1);
+                    }}
+                    className="bg-bg-base text-sm text-text-primary rounded-lg px-2 py-2 border border-border-subtle focus:outline-none"
+                  >
+                    {[10, 20, 50, 100].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -494,7 +703,7 @@ export default function Reports() {
             {payoutPagination && payoutPagination.totalPages > 1 && (
               <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
                 <div>
-                  Mostrando {(payoutPage - 1) * 20 + 1} a {Math.min(payoutPage * 20, payoutPagination.totalItems)} de {payoutPagination.totalItems} pagos
+                  Mostrando {(payoutPage - 1) * payoutPageSize + 1} a {Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems)} de {payoutPagination.totalItems} pagos
                 </div>
                 <div className="flex gap-2">
                   <button 
@@ -532,7 +741,9 @@ export default function Reports() {
                 className="bg-bg-base text-sm text-text-primary rounded-lg px-4 py-2 border border-border-subtle focus:outline-none w-64"
               />
               <button
-                onClick={() => {/* Trigger refetch by toggling */}}
+                onClick={() => {
+                  void refetchSchedule();
+                }}
                 disabled={!selectedLoanId || isScheduleLoading}
                 className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
               >

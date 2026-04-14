@@ -6,10 +6,16 @@ import { toast } from '../lib/toast';
 import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
+import { confirmDanger } from '../lib/confirmModal';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
-  const { page, setPage, pageSize } = usePaginationStore();
-  const { data: associatesData, isLoading, isError } = useAssociates({ page, pageSize });
+  const { page, setPage, pageSize, setPageSize } = usePaginationStore();
+  const [searchTerm, setSearchTerm] = useState('');
+  const { data: associatesData, isLoading, isError, updateAssociate, deleteAssociate, restoreAssociate } = useAssociates({
+    page,
+    pageSize,
+    search: searchTerm || undefined,
+  });
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportAssociatesExcel = async () => {
@@ -49,6 +55,59 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       .join('');
   };
 
+  const handleDelete = async (associate: any) => {
+    const associateId = Number(associate?.id);
+    if (!Number.isFinite(associateId)) return;
+
+    const confirmed = await confirmDanger({
+      title: 'Eliminar socio',
+      message: `¿Está seguro de eliminar a ${getAssociateName(associate)}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+    });
+    if (!confirmed) return;
+
+    try {
+      await deleteAssociate.mutateAsync(associateId);
+      toast.success({ description: 'Socio eliminado correctamente' });
+    } catch (error) {
+      console.error('[associates] deleteAssociate failed', error);
+      toast.apiErrorSafe(error, { domain: 'associates' });
+    }
+  };
+
+  const handleToggleStatus = async (associate: any) => {
+    const associateId = Number(associate?.id);
+    if (!Number.isFinite(associateId)) return;
+
+    const currentStatus = associate?.status === 'active' ? 'active' : 'inactive';
+    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+    const confirmed = await confirmDanger({
+      title: nextStatus === 'inactive' ? 'Desactivar socio' : 'Reactivar socio',
+      message: nextStatus === 'inactive'
+        ? `¿Desea desactivar a ${getAssociateName(associate)}?`
+        : `¿Desea reactivar a ${getAssociateName(associate)}?`,
+      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : 'Reactivar',
+    });
+    if (!confirmed) return;
+
+    try {
+      if (nextStatus === 'active') {
+        await restoreAssociate.mutateAsync(associateId);
+      } else {
+        await updateAssociate.mutateAsync({ id: associateId, status: nextStatus });
+      }
+      toast.success({
+        description: nextStatus === 'inactive'
+          ? 'Socio desactivado correctamente'
+          : 'Socio reactivado correctamente',
+      });
+    } catch (error) {
+      console.error('[associates] updateAssociate status failed', error);
+      toast.apiErrorSafe(error, { domain: 'associates' });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 h-full">
       <div className="flex justify-between items-center">
@@ -77,6 +136,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             <input 
               type="text" 
               placeholder="Buscar socios..." 
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
           </div>
@@ -97,6 +161,10 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             totalPages: pagination?.totalPages ?? 1,
             onPrev: () => setPage(page - 1),
             onNext: () => setPage(page + 1),
+            onPageSizeChange: (nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            },
           } : undefined}
         >
           <table className="w-full text-sm text-left">
@@ -124,8 +192,27 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   <td className="py-4">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setCurrentView(`associates/${associate.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
-                      <button className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
-                      <button className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                      <button
+                        onClick={() => setCurrentView(`associates/${associate.id}`)}
+                        className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                        title="Editar"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleStatus(associate)}
+                        className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors"
+                        title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(associate)}
+                        className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -178,6 +178,54 @@ test('E2E: admin can grant permission to user', async () => {
   assert.equal(grantedPermission.permissionId, 5);
 });
 
+test('E2E: admin can grant permission using permission name payload', async () => {
+  setupMockUsers();
+
+  let grantedPermission = null;
+
+  const useCases = createMockUseCases({
+    grantPermission: mock.fn(({ actor, targetUserId, permissionId, permission }) => {
+      if (actor.role !== 'admin') {
+        const error = new Error('Only admin can grant permissions');
+        error.name = 'AuthorizationError';
+        error.statusCode = 403;
+        throw error;
+      }
+
+      grantedPermission = { targetUserId, permissionId, permission };
+      return Promise.resolve({
+        userId: targetUserId,
+        permissionId: permissionId ?? 77,
+        permission: permission ?? 'CREDITS_VIEW_ALL',
+      });
+    }),
+  });
+
+  const allowAuth = () => (req, res, next) => {
+    req.user = { id: 1, role: 'admin' };
+    next();
+  };
+
+  const router = createPermissionsRouter({ authMiddleware: allowAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/grant',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { userId: 10, permission: 'CREDITS_VIEW_ALL' },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(grantedPermission.targetUserId, 10);
+  assert.equal(grantedPermission.permission, 'CREDITS_VIEW_ALL');
+});
+
 test('E2E: user can access after grant', async () => {
   setupMockUsers();
 
@@ -269,6 +317,50 @@ test('E2E: admin can revoke permission', async () => {
   assert.equal(response.body.message, 'Permission revoked successfully');
   assert.equal(revokedPermission.targetUserId, 7);
   assert.equal(revokedPermission.permissionId, 5);
+});
+
+test('E2E: admin can revoke permission using permission name payload', async () => {
+  setupMockUsers();
+
+  let revokedPermission = null;
+
+  const useCases = createMockUseCases({
+    revokePermission: mock.fn(({ actor, targetUserId, permissionId, permission }) => {
+      if (actor.role !== 'admin') {
+        const error = new Error('Only admin can revoke permissions');
+        error.name = 'AuthorizationError';
+        error.statusCode = 403;
+        throw error;
+      }
+
+      revokedPermission = { targetUserId, permissionId, permission };
+      return Promise.resolve({ success: true, revoked: true });
+    }),
+  });
+
+  const allowAuth = () => (req, res, next) => {
+    req.user = { id: 1, role: 'admin' };
+    next();
+  };
+
+  const router = createPermissionsRouter({ authMiddleware: allowAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/revoke',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { userId: 7, permission: 'CREDITS_VIEW_ALL' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(revokedPermission.targetUserId, 7);
+  assert.equal(revokedPermission.permission, 'CREDITS_VIEW_ALL');
 });
 
 test('E2E: user gets denied after revoke', async () => {

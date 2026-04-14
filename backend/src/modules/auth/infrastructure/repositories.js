@@ -21,6 +21,23 @@ const userRepository = {
   findByEmail(email) {
     return User.findOne({ where: { email } });
   },
+  findByName(name) {
+    return User.findOne({ where: { name } });
+  },
+  async findByLoginIdentifier(identifier) {
+    if (typeof identifier !== 'string' || !identifier.trim()) {
+      return null;
+    }
+
+    const normalizedIdentifier = identifier.trim();
+
+    const byEmail = await User.findOne({ where: { email: normalizedIdentifier } });
+    if (byEmail) {
+      return byEmail;
+    }
+
+    return User.findOne({ where: { name: normalizedIdentifier } });
+  },
   findById(id) {
     return User.findByPk(id);
   },

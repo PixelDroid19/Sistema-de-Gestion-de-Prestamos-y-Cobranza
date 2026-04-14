@@ -25,6 +25,8 @@ import Profile from './components/Profile';
 import Login from './components/Login';
 import AuditLogPage from './components/AuditLogPage';
 import NewAssociate from './components/NewAssociate';
+import CreditSimulator from './components/CreditSimulator';
+import PaymentSchedule from './components/PaymentSchedule';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function MainLayout() {
@@ -69,6 +71,7 @@ function MainLayout() {
             <Route path="/credits-new" element={<NewCredit onBack={() => setCurrentView('credits')} />} />
             <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
             <Route path="/credits/:id" element={<CreditDetails />} />
+            <Route path="/credits/:id/schedule" element={<PaymentSchedule />} />
             <Route path="/associates" element={<Associates setCurrentView={setCurrentView} />} />
             <Route path="/associates-new" element={<NewAssociate onBack={() => setCurrentView('associates')} />} />
             <Route path="/associates/:id" element={<AssociateDetails />} />
@@ -76,6 +79,7 @@ function MainLayout() {
             <Route path="/payouts" element={<Payouts />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/simulator" element={<CreditSimulator />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/audit-log" element={<AuditLogPage />} />

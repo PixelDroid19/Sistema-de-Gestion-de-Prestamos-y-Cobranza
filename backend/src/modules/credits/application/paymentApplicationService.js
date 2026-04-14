@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { sequelize, Loan, Payment, GraphTopology, IdempotencyKey } = require('../../../models');
 const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError } = require('../../../utils/errorHandler');
-const { cloneSchedule, roundCurrency, summarizeSchedule } = require('./creditFormulaHelpers');
+const { cloneSchedule, roundCurrency, summarizeSchedule, calculateLateFee } = require('./creditFormulaHelpers');
 const { CalculationEngine } = require('../../../core/domain/calculation/CalculationEngine');
 const { scopeToPlainObject } = require('../../../core/domain/calculation/scopeBuilder');
 const {
@@ -35,6 +35,42 @@ const isInstallmentOverdue = (row, asOfDate = new Date()) => {
 const normalizeScheduleStatuses = (schedule, asOfDate = new Date()) => {
   schedule.forEach((row) => updateRowStatus(row, asOfDate));
   return schedule;
+};
+
+/**
+ * Calculate the late fee for an overdue installment row.
+ * Uses the loan's lateFeeMode and annualLateFeeRate.
+ * @param {object} row - Installment row
+ * @param {object} loan - Loan entity
+ * @param {Date} asOfDate - Date to calculate against
+ * @returns {number} Late fee amount (rounded)
+ */
+const calculateInstallmentLateFee = (row, loan, asOfDate = new Date()) => {
+  if (row.status === 'paid' || row.status === 'annulled') {
+    return 0;
+  }
+  const dueDate = new Date(row.dueDate);
+  if (dueDate >= asOfDate) {
+    return 0;
+  }
+
+  const daysOverdue = Math.floor((asOfDate.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000));
+  if (daysOverdue <= 0) return 0;
+
+  const overdueAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+  if (overdueAmount <= 0) return 0;
+
+  // Late fee is calculated on the interest portion of the overdue installment
+  const overdueInterestAmount = roundCurrency(row.remainingInterest || 0);
+  const annualRate = Number(loan.annualLateFeeRate || 0);
+  const feeMode = String(loan.lateFeeMode || 'SIMPLE').toUpperCase();
+
+  return calculateLateFee({
+    overdueAmount: overdueInterestAmount > 0 ? overdueInterestAmount : overdueAmount,
+    daysOverdue,
+    feeMode,
+    annualRate,
+  });
 };
 
 /**
@@ -282,7 +318,7 @@ const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principal
 /**
  * Build capital payment payload (reduces principal directly)
  */
-const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot }) => ({
+const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot, strategy }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -293,7 +329,10 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   overpaymentAmount: 0,
   remainingBalanceAfterPayment: snapshot.outstandingBalance,
   allocationBreakdown: [],
-  paymentMetadata: { capital_reduction: true },
+  paymentMetadata: {
+    capital_reduction: true,
+    strategy: strategy || 'REDUCE_TIME',
+  },
 });
 
 /**
@@ -322,7 +361,7 @@ const createPaymentApplicationService = ({
    */
   const applyPayment = async ({ loanId, amount, paymentDate = clock() }) => {
     return sequelizeInstance.transaction(async (transaction) => {
-      const loan = await loanModel.findByPk(loanId, { transaction });
+      const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
       if (!loan) {
         throw new NotFoundError('Loan');
@@ -353,7 +392,7 @@ const createPaymentApplicationService = ({
       });
 
       if (hasOverdue) {
-        // Penalizaciones por mora: iterate overdue installments and pay interest first
+        // Penalizaciones por mora: iterate overdue installments and pay late fees first, then interest, then principal
         for (const row of schedule) {
           if (remainingPayment <= 0) break;
 
@@ -363,14 +402,20 @@ const createPaymentApplicationService = ({
             continue;
           }
 
-          // Penalizaciones por mora: interest portion first (includes accrued late fees)
+          // Penalizaciones por mora: calculate and collect late fee first
+          const lateFee = calculateInstallmentLateFee(row, loan, now);
+          const applyLateFee = Math.min(remainingPayment, lateFee);
+          penaltyApplied = roundCurrency(penaltyApplied + applyLateFee);
+          remainingPayment = roundCurrency(remainingPayment - applyLateFee);
+
+          // Intereses normales: interest portion next
           const applyInterest = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
           row.paidInterest = roundCurrency((row.paidInterest || 0) + applyInterest);
           row.remainingInterest = roundCurrency((row.remainingInterest || 0) - applyInterest);
           remainingPayment = roundCurrency(remainingPayment - applyInterest);
           totalInterestApplied = roundCurrency(totalInterestApplied + applyInterest);
 
-          // Intereses normales: then principal
+          // Capital de la cuota: then principal
           const applyPrincipal = Math.min(remainingPayment, roundCurrency(row.remainingPrincipal || 0));
           row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + applyPrincipal);
           row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - applyPrincipal);
@@ -380,7 +425,7 @@ const createPaymentApplicationService = ({
           row.paidTotal = roundCurrency((row.paidTotal || 0) + applyInterest + applyPrincipal);
           updateRowStatus(row, now);
 
-          if (!targetInstallment && (row.paidPrincipal > 0 || row.paidInterest > 0)) {
+          if (!targetInstallment && (row.paidPrincipal > 0 || row.paidInterest > 0 || applyLateFee > 0)) {
             targetInstallment = row.installmentNumber;
           }
 
@@ -388,6 +433,7 @@ const createPaymentApplicationService = ({
             installmentNumber: row.installmentNumber,
             interestApplied: applyInterest,
             principalApplied: applyPrincipal,
+            lateFeeApplied: applyLateFee,
             remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0)),
             status: row.status,
             bucket: 'overdue',
@@ -434,6 +480,7 @@ const createPaymentApplicationService = ({
             installmentNumber: row.installmentNumber,
             interestApplied: applyInterest,
             principalApplied: applyPrincipal,
+            lateFeeApplied: 0,
             remainingInstallmentBalance: roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0)),
             status: row.status,
             bucket: 'scheduled',
@@ -540,7 +587,7 @@ const createPaymentApplicationService = ({
    */
   const applyPartialPayment = async ({ loanId, amount, paymentDate = clock() }) => {
     return sequelizeInstance.transaction(async (transaction) => {
-      const loan = await loanModel.findByPk(loanId, { transaction });
+      const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
       if (!loan) {
         throw new NotFoundError('Loan');
@@ -566,12 +613,19 @@ const createPaymentApplicationService = ({
       let totalInterestApplied = 0;
 
       if (hasOverdue) {
-        // Penalizaciones por mora: pay overdue installments first
+        // Penalizaciones por mora: pay late fees on overdue installments first
+        let penaltyAppliedPartial = 0;
         for (const row of schedule) {
           if (remainingPayment <= 0) break;
 
           const outstanding = roundCurrency((row.remainingInterest || 0) + (row.remainingPrincipal || 0));
           if (outstanding <= 0 || row.status !== 'overdue') continue;
+
+          // Late fee first
+          const lateFee = calculateInstallmentLateFee(row, loan, now);
+          const applyLateFee = Math.min(remainingPayment, lateFee);
+          penaltyAppliedPartial = roundCurrency(penaltyAppliedPartial + applyLateFee);
+          remainingPayment = roundCurrency(remainingPayment - applyLateFee);
 
           // Interest first (penalty + normal interest)
           const interestToApply = Math.min(remainingPayment, roundCurrency(row.remainingInterest || 0));
@@ -594,28 +648,26 @@ const createPaymentApplicationService = ({
 
       // If still have payment left and not fully allocated, apply to current/future installments
       if (remainingPayment > 0) {
-        // Find first non-paid, non-annulled installment not already processed
-        const targetRow = schedule.find((row) => {
-          const outstanding = (row.remainingPrincipal || 0) + (row.remainingInterest || 0);
-          return outstanding > 0 && row.status !== 'annulled' && row.status !== 'overdue';
-        });
+        // Iterate through all non-paid, non-annulled installments and carry forward excess
+        for (const row of schedule) {
+          if (remainingPayment <= 0) break;
 
-        if (targetRow) {
           const installmentOutstanding = roundCurrency(
-            (targetRow.remainingInterest || 0) + (targetRow.remainingPrincipal || 0)
+            (row.remainingInterest || 0) + (row.remainingPrincipal || 0)
           );
+          if (installmentOutstanding <= 0 || row.status === 'annulled' || row.status === 'overdue') continue;
 
           const cappedAmount = Math.min(remainingPayment, installmentOutstanding);
 
-          const interestToApply = Math.min(cappedAmount, roundCurrency(targetRow.remainingInterest || 0));
+          const interestToApply = Math.min(cappedAmount, roundCurrency(row.remainingInterest || 0));
           const principalToApply = roundCurrency(cappedAmount - interestToApply);
 
-          targetRow.paidInterest = roundCurrency((targetRow.paidInterest || 0) + interestToApply);
-          targetRow.remainingInterest = roundCurrency((targetRow.remainingInterest || 0) - interestToApply);
-          targetRow.paidPrincipal = roundCurrency((targetRow.paidPrincipal || 0) + principalToApply);
-          targetRow.remainingPrincipal = roundCurrency((targetRow.remainingPrincipal || 0) - principalToApply);
-          targetRow.paidTotal = roundCurrency((targetRow.paidTotal || 0) + interestToApply + principalToApply);
-          updateRowStatus(targetRow, now);
+          row.paidInterest = roundCurrency((row.paidInterest || 0) + interestToApply);
+          row.remainingInterest = roundCurrency((row.remainingInterest || 0) - interestToApply);
+          row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + principalToApply);
+          row.remainingPrincipal = roundCurrency((row.remainingPrincipal || 0) - principalToApply);
+          row.paidTotal = roundCurrency((row.paidTotal || 0) + interestToApply + principalToApply);
+          updateRowStatus(row, now);
 
           totalInterestApplied = roundCurrency(totalInterestApplied + interestToApply);
           totalPrincipalApplied = roundCurrency(totalPrincipalApplied + principalToApply);
@@ -661,9 +713,9 @@ const createPaymentApplicationService = ({
   /**
    * Apply a capital payment (reduces debt principal directly)
    */
-  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock() }) => {
+  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), strategy = 'REDUCE_TIME' }) => {
     return sequelizeInstance.transaction(async (transaction) => {
-      const loan = await loanModel.findByPk(loanId, { transaction });
+      const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
       if (!loan) {
         throw new NotFoundError('Loan');
@@ -719,6 +771,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         principalApplied: principalReduction,
         snapshot,
+        strategy,
       }), { transaction });
 
       return {
@@ -728,6 +781,8 @@ const createPaymentApplicationService = ({
           amount: principalReduction,
           principalApplied: principalReduction,
           remainingPrincipalOutstanding: snapshot.outstandingPrincipal,
+          strategyRequested: strategy,
+          strategyApplied: 'REDUCE_TIME',
         },
       };
     });
@@ -738,7 +793,7 @@ const createPaymentApplicationService = ({
    */
   const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock() }) => {
     return sequelizeInstance.transaction(async (transaction) => {
-      const loan = await loanModel.findByPk(loanId, { transaction });
+      const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
       if (!loan) {
         throw new NotFoundError('Loan');
@@ -828,7 +883,7 @@ const createPaymentApplicationService = ({
     }
 
     return sequelizeInstance.transaction(async (transaction) => {
-      const loan = await loanModel.findByPk(loanId, { transaction });
+      const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
       if (!loan) {
         throw new NotFoundError('Loan');
@@ -1069,25 +1124,46 @@ const createPaymentApplicationService = ({
 
       // Step 3: Create or update idempotency key as 'pending' before processing
       // Using upsert to handle both create and update cases atomically
-      if (existingKey) {
-        // Update existing key to pending (in case of stale pending from failed attempt)
-        await IdempotencyKey.update({
-          requestHash,
-          responsePayload: {},
-          status: 'pending',
-        }, {
-          where: { scope: 'payment', idempotencyKey },
-          transaction: tx,
-        });
-      } else {
-        await IdempotencyKey.create({
-          scope: 'payment',
-          idempotencyKey,
-          requestHash,
-          responsePayload: {},
-          createdByUserId: actorId,
-          status: 'pending',
-        }, { transaction: tx });
+      // If another concurrent request already created this key, we'll detect it below
+      try {
+        if (existingKey) {
+          // Update existing key to pending (in case of stale pending from failed attempt)
+          await IdempotencyKey.update({
+            requestHash,
+            responsePayload: {},
+            status: 'pending',
+          }, {
+            where: { scope: 'payment', idempotencyKey },
+            transaction: tx,
+          });
+        } else {
+          await IdempotencyKey.create({
+            scope: 'payment',
+            idempotencyKey,
+            requestHash,
+            responsePayload: {},
+            createdByUserId: actorId,
+            status: 'pending',
+          }, { transaction: tx });
+        }
+      } catch (err) {
+        // Handle unique constraint violation from concurrent request
+        if (err.name === 'SequelizeUniqueConstraintError') {
+          // Another request already created this key - fetch and return its completed response
+          const completedKey = await IdempotencyKey.findOne({
+            where: { scope: 'payment', idempotencyKey },
+            transaction: tx,
+            lock: true,
+          });
+
+          if (completedKey && completedKey.status === 'completed') {
+            throw new IdempotentReplayError('Payment already processed by another request', completedKey.responsePayload);
+          }
+
+          // If still pending from another request, wait for it to complete
+          throw new ValidationError('Payment with this idempotency key is currently being processed');
+        }
+        throw err;
       }
 
       // Step 4: Process the payment

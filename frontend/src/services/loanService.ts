@@ -145,6 +145,8 @@ export const useLoanDetails = (loanId: number) => {
       return data;
     },
     enabled: !!loanId,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const executePayoff = useMutation({
@@ -297,6 +299,7 @@ export const useDuePayments = (date: string) => {
 };
 
 export interface LoanSearchFilters {
+  search?: string;
   status?: string;
   minAmount?: number;
   maxAmount?: number;

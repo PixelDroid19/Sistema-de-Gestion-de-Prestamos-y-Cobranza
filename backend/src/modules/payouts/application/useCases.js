@@ -114,7 +114,7 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
 /**
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
-const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount }) => {
+const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, strategy }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can create capital reduction payments');
   }
@@ -124,6 +124,37 @@ const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolic
   return paymentApplicationService.applyCapitalPayment({
     loanId: loan.id,
     amount,
+    paymentDate: clock(),
+    strategy,
+  });
+};
+
+const createCalculateTotalDebt = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const quote = loanViewService.getPayoffQuote(loan, asOfDate || new Date().toISOString().slice(0, 10));
+
+  return {
+    loanId: loan.id,
+    asOfDate: quote.asOfDate,
+    totalDebt: quote.total,
+    payoffQuote: quote,
+  };
+};
+
+const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanViewService, clock = () => new Date() }) => async ({
+  actor,
+  loanId,
+  asOfDate,
+  quotedTotal,
+}) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const effectiveAsOfDate = asOfDate || new Date().toISOString().slice(0, 10);
+  const effectiveQuotedTotal = quotedTotal || loanViewService.getPayoffQuote(loan, effectiveAsOfDate).total;
+
+  return paymentApplicationService.applyPayoff({
+    loanId: loan.id,
+    asOfDate: effectiveAsOfDate,
+    quotedTotal: effectiveQuotedTotal,
     paymentDate: clock(),
   });
 };
@@ -294,6 +325,8 @@ module.exports = {
   createCreatePayment,
   createCreatePartialPayment,
   createCreateCapitalPayment,
+  createCalculateTotalDebt,
+  createPayTotalDebt,
   createAnnulInstallment,
   createUpdatePaymentMetadata,
   createListPaymentsByLoan,

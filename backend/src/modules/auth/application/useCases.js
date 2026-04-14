@@ -112,6 +112,50 @@ const normalizeRegisterInput = (input) => {
   };
 };
 
+const LEGACY_ROLE_ALIAS_MAP = {
+  SUPER_ADMIN: 'admin',
+  ADMINISTRATOR: 'admin',
+  PARTNER: 'socio',
+  CUSTOMER: 'customer',
+};
+
+const normalizeLegacyRoleId = (roleId) => {
+  if (typeof roleId !== 'string') {
+    return null;
+  }
+
+  const normalizedRoleId = roleId.trim().toUpperCase();
+  return LEGACY_ROLE_ALIAS_MAP[normalizedRoleId] || null;
+};
+
+const deriveRoleFromRoleIds = (roleIds) => {
+  if (!Array.isArray(roleIds) || roleIds.length === 0) {
+    return null;
+  }
+
+  for (const roleId of roleIds) {
+    const mappedRole = normalizeLegacyRoleId(roleId);
+    if (mappedRole) {
+      return mappedRole;
+    }
+  }
+
+  return null;
+};
+
+const normalizeLoginCredentials = (credentials = {}) => {
+  const email = typeof credentials.email === 'string' ? credentials.email.trim() : '';
+  const username = typeof credentials.username === 'string' ? credentials.username.trim() : '';
+  const identifier = email || username;
+
+  return {
+    ...credentials,
+    email,
+    username,
+    identifier,
+  };
+};
+
 const sanitizeUser = (user) => ({
   id: user.id,
   name: user.name,
@@ -164,15 +208,17 @@ const createRegisterUser = ({
     email,
     password,
     role,
+    roleIds,
     phone,
   } = payload;
+  const resolvedRole = role || deriveRoleFromRoleIds(roleIds);
   const isPublicRegistration = registrationSource === 'public';
 
-  if (isPublicRegistration && normalizeApplicationRole(role) !== 'customer') {
+  if (isPublicRegistration && normalizeApplicationRole(resolvedRole) !== 'customer') {
     throw buildRoleValidationError();
   }
 
-  const normalizedRole = requireSupportedRole(role, { allowLegacyAliases: false });
+  const normalizedRole = requireSupportedRole(resolvedRole, { allowLegacyAliases: false });
 
   const isPrivilegedRole = PRIVILEGED_ROLES.has(normalizedRole);
 
@@ -261,16 +307,20 @@ const createRegisterUser = ({
  * @param {{ userRepository: object, passwordHasher: object, tokenService: object, refreshTokenRepository?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
-const createLoginUser = ({ userRepository, passwordHasher, tokenService, refreshTokenRepository, auditService }) => async ({ email, password, req }) => {
+const createLoginUser = ({ userRepository, passwordHasher, tokenService, refreshTokenRepository, auditService }) => async (credentials = {}) => {
   const { AccountLockedError } = require('../../../utils/errorHandler');
   const { logSecurity } = require('../../../utils/logger');
+
+  const { email, username, identifier, password, req } = normalizeLoginCredentials(credentials);
 
   const LOCKOUT_THRESHOLD = 5; // Lock after 5 consecutive failed attempts
   const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-  const user = await userRepository.findByEmail(email);
+  const user = typeof userRepository.findByLoginIdentifier === 'function'
+    ? await userRepository.findByLoginIdentifier(identifier)
+    : await userRepository.findByEmail(email || username);
   if (!user) {
-    // Don't reveal whether email exists - generic error message
+    // Don't reveal whether identifier exists - generic error message
     throw new AuthenticationError('Please enter correct email/password');
   }
 
@@ -366,7 +416,11 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
       module: 'AUTH',
       entityId: String(user.id),
       entityType: 'User',
-      metadata: { email: user.email },
+      metadata: {
+        email: user.email,
+        loginIdentifier: identifier,
+        loginMethod: username && !email ? 'username' : 'email',
+      },
       req,
     });
   }

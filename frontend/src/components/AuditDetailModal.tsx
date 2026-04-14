@@ -19,19 +19,18 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="px-6 py-4 border-b border-border-subtle flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Audit Log Details</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-xl font-semibold text-text-primary">Detalle de auditoría</h2>
+            <p className="text-sm text-text-secondary mt-1">
               {auditLog.module} - {auditLog.action}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-text-secondary hover:text-text-primary transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -39,24 +38,22 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
           </button>
         </div>
 
-        {/* Content */}
         <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-          {/* Metadata Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Log ID</p>
-              <p className="text-sm text-gray-900 font-mono">{auditLog.id}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">ID de evento</p>
+              <p className="text-sm text-text-primary font-mono">{auditLog.id}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">User</p>
-              <p className="text-sm text-gray-900">{auditLog.userName || 'System'}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Usuario</p>
+              <p className="text-sm text-text-primary">{auditLog.userName || 'Sistema'}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">User ID</p>
-              <p className="text-sm text-gray-900">{auditLog.userId || 'N/A'}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">ID de usuario</p>
+              <p className="text-sm text-text-primary">{auditLog.userId || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Action</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Acción</p>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 auditLog.action === 'DELETE' ? 'bg-red-100 text-red-800' :
                 auditLog.action === 'CREATE' ? 'bg-green-100 text-green-800' :
@@ -68,72 +65,66 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
               </span>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Module</p>
-              <p className="text-sm text-gray-900">{auditLog.module}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Módulo</p>
+              <p className="text-sm text-text-primary">{auditLog.module}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Timestamp</p>
-              <p className="text-sm text-gray-900">{formatDate(auditLog.timestamp)}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Fecha</p>
+              <p className="text-sm text-text-primary">{formatDate(auditLog.timestamp)}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Entity ID</p>
-              <p className="text-sm text-gray-900 font-mono">{auditLog.entityId || 'N/A'}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">ID de entidad</p>
+              <p className="text-sm text-text-primary font-mono">{auditLog.entityId || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Entity Type</p>
-              <p className="text-sm text-gray-900">{auditLog.entityType || 'N/A'}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Tipo de entidad</p>
+              <p className="text-sm text-text-primary">{auditLog.entityType || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">IP Address</p>
-              <p className="text-sm text-gray-900 font-mono">{auditLog.ip || 'N/A'}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase">Dirección IP</p>
+              <p className="text-sm text-text-primary font-mono">{auditLog.ip || 'N/A'}</p>
             </div>
           </div>
 
-          {/* User Agent */}
           <div className="mb-6">
-            <p className="text-xs font-medium text-gray-500 uppercase mb-1">User Agent</p>
-            <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded font-mono text-xs break-all">
+            <p className="text-xs font-medium text-text-secondary uppercase mb-1">User agent</p>
+            <p className="text-sm text-text-primary bg-bg-base p-2 rounded font-mono text-xs break-all">
               {auditLog.userAgent || 'N/A'}
             </p>
           </div>
 
-          {/* Data Comparison */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Previous Data */}
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Previous Data</p>
+              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Datos previos</p>
               <pre className="bg-red-50 text-red-800 p-3 rounded text-xs overflow-x-auto">
                 {formatJson(auditLog.previousData)}
               </pre>
             </div>
 
-            {/* New Data */}
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">New Data</p>
+              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Datos nuevos</p>
               <pre className="bg-green-50 text-green-800 p-3 rounded text-xs overflow-x-auto">
                 {formatJson(auditLog.newData)}
               </pre>
             </div>
           </div>
 
-          {/* Metadata */}
           {auditLog.metadata && (
             <div className="mt-4">
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Metadata</p>
-              <pre className="bg-gray-50 text-gray-800 p-3 rounded text-xs overflow-x-auto">
+              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Metadatos</p>
+              <pre className="bg-bg-base text-text-primary p-3 rounded text-xs overflow-x-auto">
                 {formatJson(auditLog.metadata)}
               </pre>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end">
+        <div className="px-6 py-3 border-t border-border-subtle bg-bg-base flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg hover:bg-hover-bg"
           >
-            Close
+            Cerrar
           </button>
         </div>
       </div>

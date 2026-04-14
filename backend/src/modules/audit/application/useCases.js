@@ -1,4 +1,4 @@
-const { ValidationError } = require('../../../utils/errorHandler');
+const { ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { AUDIT_MODULES, AUDIT_ACTIONS } = require('../../../models/AuditLog');
 
 /**
@@ -9,7 +9,7 @@ const { AUDIT_MODULES, AUDIT_ACTIONS } = require('../../../models/AuditLog');
 const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} }) => {
   // Only admin users can access audit logs
   if (!actor || actor.role !== 'admin') {
-    throw new ValidationError('Only admin users can access audit logs');
+    throw new AuthorizationError('Only admin users can access audit logs');
   }
 
   const {
@@ -67,7 +67,7 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
 const createGetAuditStats = ({ auditService }) => async ({ actor, dateFrom, dateTo }) => {
   // Only admin users can access audit stats
   if (!actor || actor.role !== 'admin') {
-    throw new ValidationError('Only admin users can access audit statistics');
+    throw new AuthorizationError('Only admin users can access audit statistics');
   }
 
   const stats = await auditService.getStats({ dateFrom, dateTo });

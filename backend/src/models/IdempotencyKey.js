@@ -12,9 +12,17 @@ const IdempotencyKey = sequelize.define('IdempotencyKey', {
 }, {
   timestamps: true,
   indexes: [
+    // Unique constraint per scope + idempotency key (prevents cross-user TOCTOU race condition)
     {
       unique: true,
+      fields: ['scope', 'idempotencyKey'],
+    },
+    // Secondary index for user-specific lookups
+    {
       fields: ['scope', 'createdByUserId', 'idempotencyKey'],
+    },
+    {
+      fields: ['status'],
     },
   ],
 });

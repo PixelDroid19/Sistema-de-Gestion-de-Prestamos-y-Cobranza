@@ -1,6 +1,6 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
-const { buildPaginatedResult, paginateArray } = require('../../shared/pagination');
+const { paginateArray } = require('../../shared/pagination');
 const { withAudit } = require('../../audit/application/auditDecorator');
 const {
   normalizeAttachmentVisibility,
@@ -485,9 +485,21 @@ const createListLoansByCustomer = ({ customerRepository, loanRepository }) => as
  * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
+const LOAN_STATUS_TRANSITIONS = {
+  pending: ['approved', 'rejected'],
+  approved: ['active', 'rejected', 'defaulted'],
+  rejected: [], // Terminal state
+  active: ['overdue', 'closed', 'defaulted'],
+  overdue: ['active', 'closed', 'defaulted'],
+  paid: ['closed'],
+  closed: [], // Terminal state
+  defaulted: ['closed', 'active'], // Can recover from defaulted
+  cancelled: [], // Terminal state (set by annulment)
+};
+
 const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService }) => {
   const useCase = async ({ actor, loanId, status }) => {
-    const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
+    const validStatuses = ['pending', 'approved', 'rejected', 'active', 'overdue', 'paid', 'closed', 'defaulted', 'cancelled'];
     if (!validStatuses.includes(status)) {
       throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
@@ -498,6 +510,14 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService
 
     if (!loan) {
       throw new NotFoundError('Loan');
+    }
+
+    const allowedTransitions = LOAN_STATUS_TRANSITIONS[loan.status] || [];
+    if (!allowedTransitions.includes(status)) {
+      throw new ValidationError(
+        `Cannot transition loan from '${loan.status}' to '${status}'. `
+        + `Allowed transitions: ${allowedTransitions.length > 0 ? allowedTransitions.join(', ') : 'none (terminal state)'}`
+      );
     }
 
     if (loan.status === 'closed' && status !== 'closed') {
@@ -519,6 +539,11 @@ const createUpdateLoanStatus = ({ loanRepository, loanAccessPolicy, auditService
 
     if (status === 'defaulted') {
       loan.recoveryStatus = 'pending';
+    }
+
+    if (status === 'closed') {
+      loan.closedAt = loan.closedAt || new Date();
+      loan.recoveryStatus = 'recovered';
     }
 
     return loanRepository.save(loan);

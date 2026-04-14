@@ -130,6 +130,29 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
+  router.post('/comparative-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const requestedYear = req.body?.year;
+    const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
+    res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear }));
+  }));
+
+  router.post('/earnings-report', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const requestedYear = req.body?.year;
+    const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
+    const earnings = await useCases.getMonthlyEarnings({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear });
+    const interest = await useCases.getInterestEarnings({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear });
+
+    res.json({
+      success: true,
+      data: {
+        year: earnings?.data?.year || (Number.isNaN(parsedYear) ? new Date().getFullYear() : parsedYear),
+        monthlyEarnings: earnings?.data?.months || [],
+        interestEarnings: interest?.data?.byMonth || [],
+        totalInterest: interest?.data?.totalInterest || '0.00',
+      },
+    });
+  }));
+
   router.get('/forecast-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     res.json(await useCases.getForecastAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
@@ -165,6 +188,35 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       fileName: 'associates-export.xlsx',
+      buffer,
+    });
+  }));
+
+  router.get('/partner-report/:associateId', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const exportFile = await useCases.exportAssociateProfitabilityReport({
+      actor: req.user,
+      associateId: req.params.associateId,
+      format,
+    });
+    sendBufferDownload(res, exportFile);
+  }));
+
+  router.get('/file/reports/recovery/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'csv').toLowerCase();
+    const exportFile = await useCases.exportRecoveryReport({ actor: req.user, format });
+    sendBufferDownload(res, exportFile);
+  }));
+
+  router.get('/file/reports/credits/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const exportData = await useCases.exportCreditsExcel({ actor: req.user });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Credits');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: 'credits-export.xlsx',
       buffer,
     });
   }));

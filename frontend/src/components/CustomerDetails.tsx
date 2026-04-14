@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock, DollarSign, TrendingUp, Calendar, AlertTriangle, CreditCard } from 'lucide-react';
 import { useCustomers, useCustomerDocuments } from '../services/customerService';
 import { useCustomerReports } from '../services/reportService';
 import { useLoans } from '../services/loanService';
@@ -8,6 +8,11 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 
+/**
+ * CustomerDetails displays a customer's profile, documents, loan history,
+ * and credit history timeline. Provides document management and navigation
+ * to individual loan details.
+ */
 export default function CustomerDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -42,6 +47,14 @@ export default function CustomerDetails() {
       ? history.timeline
       : [];
 
+  // Calculate loan statistics
+  const activeLoans = customerLoans.filter((l: any) => l.status === 'active' || l.status === 'ACTIVE');
+  const completedLoans = customerLoans.filter((l: any) => l.status === 'closed' || l.status === 'CLOSED' || l.status === 'completed');
+  const overdueLoans = customerLoans.filter((l: any) => l.status === 'overdue' || l.status === 'OVERDUE' || l.daysLate > 0);
+  const totalDisbursed = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
+  const totalPaid = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.totalPaid) || 0), 0);
+  const totalOutstanding = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.principalOutstanding) || Number(l.amount) - Number(l.totalPaid) || 0), 0);
+
   const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'loans' | 'history'>('profile');
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('identification');
@@ -60,6 +73,47 @@ export default function CustomerDetails() {
   const formatLoanId = (value: unknown) => {
     const rawId = value == null ? '' : String(value);
     return rawId ? rawId.slice(0, 8) : 'N/A';
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
+    }).format(value || 0);
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('es-CO', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getLoanStatusBadge = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
+      'active': { label: 'Activo', className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+      'ACTIVE': { label: 'Activo', className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+      'closed': { label: 'Cerrado', className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+      'CLOSED': { label: 'Cerrado', className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+      'overdue': { label: 'Vencido', className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      'OVERDUE': { label: 'Vencido', className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      'pending': { label: 'Pendiente', className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+      'PENDING': { label: 'Pendiente', className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+    };
+
+    const config = statusMap[status] || {
+      label: status,
+      className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400',
+    };
+
+    return (
+      <span className={`px-2 py-1 rounded-md text-xs font-medium ${config.className}`}>
+        {config.label}
+      </span>
+    );
   };
 
   if (!customer) {
@@ -242,20 +296,87 @@ export default function CustomerDetails() {
 
         {activeTab === 'loans' && (
           <div>
-            <h3 className="font-bold mb-4">Préstamos Activos e Históricos</h3>
+            {/* Loan Statistics */}
+            <div className="mb-6 p-4 bg-bg-base border border-border-subtle rounded-xl">
+              <h4 className="text-sm font-medium text-text-secondary mb-4">Resumen de Cartera</h4>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-blue-50 dark:bg-blue-500/10 rounded-lg p-3">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Total Préstamos</p>
+                  <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{customerLoans.length}</p>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg p-3">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Activos</p>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{activeLoans.length}</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-500/10 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Completados</p>
+                  <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{completedLoans.length}</p>
+                </div>
+                <div className="bg-red-50 dark:bg-red-500/10 rounded-lg p-3">
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-1">Vencidos</p>
+                  <p className="text-lg font-bold text-red-700 dark:text-red-300">{overdueLoans.length}</p>
+                </div>
+                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-lg p-3">
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Total Desembolsado</p>
+                  <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalDisbursed)}</p>
+                </div>
+              </div>
+            </div>
+
+            <h3 className="font-bold mb-4">Detalle de Préstamos</h3>
             <div className="space-y-3">
               {customerLoans.map((loan: any) => (
-                <div key={loan.id} className="flex justify-between items-center p-4 border border-border-subtle rounded-xl cursor-pointer hover:bg-hover-bg" onClick={() => navigate(`/credits/${loan.id}`)}>
-                  <div>
-                    <p className="font-medium">Crédito #{formatLoanId(loan.id)}</p>
-                    <p className="text-sm text-text-secondary">${loan.amount} • {loan.termMonths} meses</p>
+                <div
+                  key={loan.id}
+                  className="p-4 border border-border-subtle rounded-xl hover:bg-hover-bg cursor-pointer transition-colors"
+                  onClick={() => navigate(`/credits/${loan.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CreditCard size={16} className="text-text-secondary" />
+                        <p className="font-medium">Crédito #{formatLoanId(loan.id)}</p>
+                        {getLoanStatusBadge(loan.status)}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-text-secondary mt-3">
+                        <div>
+                          <p className="text-text-secondary">Monto</p>
+                          <p className="font-medium text-text-primary">{formatCurrency(loan.amount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-text-secondary">Tasa</p>
+                          <p className="font-medium text-text-primary">{loan.interestRate}%</p>
+                        </div>
+                        <div>
+                          <p className="text-text-secondary">Plazo</p>
+                          <p className="font-medium text-text-primary">{loan.termMonths} meses</p>
+                        </div>
+                        <div>
+                          <p className="text-text-secondary">Fecha Inicio</p>
+                          <p className="font-medium text-text-primary">{formatDate(loan.startDate)}</p>
+                        </div>
+                      </div>
+                      {loan.daysLate > 0 && (
+                        <div className="flex items-center gap-1 mt-2 text-xs text-red-600 dark:text-red-400">
+                          <AlertTriangle size={12} />
+                          <span>{loan.daysLate} días vencido</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-text-secondary mb-1">Saldo Pendiente</p>
+                      <p className="text-lg font-bold text-text-primary">{formatCurrency(loan.principalOutstanding || loan.amount - loan.totalPaid || 0)}</p>
+                      <p className="text-xs text-text-secondary mt-2">Pagado: {formatCurrency(loan.totalPaid || 0)}</p>
+                    </div>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs ${loan.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-600'}`}>
-                    {loan.status}
-                  </span>
                 </div>
               ))}
-              {customerLoans.length === 0 && <p className="text-center text-text-secondary py-4">No tiene préstamos registrados.</p>}
+              {customerLoans.length === 0 && (
+                <div className="text-center py-12 text-text-secondary">
+                  <CreditCard size={48} className="mx-auto mb-3 opacity-30" />
+                  <p>No tiene préstamos registrados.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

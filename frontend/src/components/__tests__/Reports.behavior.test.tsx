@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import Reports from '../Reports';
 
 const mockExportDashboardSummary = vi.fn().mockResolvedValue(undefined);
+const mockExportContextualReport = vi.fn().mockResolvedValue(undefined);
 const mockToastError = vi.fn();
 
 let currentUser = {
@@ -34,9 +35,15 @@ let reportsState = {
 
 vi.mock('../../services/reportService', () => ({
   useReports: () => reportsState,
+  useFinancialAnalytics: () => ({
+    performanceAnalysis: { data: null, isLoading: false },
+    forecastAnalysis: { data: null, isLoading: false },
+    nextMonthProjection: { data: null, isLoading: false },
+  }),
   usePayoutsReport: () => ({ payouts: [], summary: null, pagination: null, isLoading: false }),
   usePaymentSchedule: () => ({ schedule: [], summary: null, loan: null, isLoading: false }),
   exportDashboardSummary: (...args: unknown[]) => mockExportDashboardSummary(...args),
+  exportContextualReport: (...args: unknown[]) => mockExportContextualReport(...args),
 }));
 
 vi.mock('../../store/sessionStore', () => ({
@@ -136,16 +143,10 @@ describe('Reports behavioral parity scenarios', () => {
 
     renderReports();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
-
     await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
       expect(mockExportDashboardSummary).not.toHaveBeenCalled();
-      expect(mockToastError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Acción no disponible',
-          description: 'Verifica permisos y estado de la operación antes de intentar nuevamente.',
-        }),
-      );
+      expect(mockToastError).not.toHaveBeenCalled();
     });
   });
 
@@ -181,6 +182,22 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByRole('heading', { name: 'Reportes y analítica' })).toBeInTheDocument();
   });
 
+  it('exports contextual report by selected type and date range', async () => {
+    renderReports();
+
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-01-31' } });
+    fireEvent.change(screen.getByLabelText('Tipo de reporte'), { target: { value: 'payouts' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar pagos' }));
+
+    await waitFor(() => {
+      expect(mockExportContextualReport).toHaveBeenCalledWith('payouts', {
+        fromDate: '2026-01-01',
+        toDate: '2026-01-31',
+      });
+    });
+  });
+
   it('shows clear scope messaging when KPI totals and selected chart range diverge', () => {
     reportsState = {
       ...reportsState,
@@ -205,11 +222,11 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent?.includes('Alcance gráfico: El gráfico refleja únicamente el rango seleccionado. Rango actual del gráfico: Últimos 6 meses.') === true)).toBeInTheDocument();
     expect(screen.getByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'year' } });
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'year' } });
 
     expect(screen.getByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'historical' } });
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'historical' } });
 
     expect(screen.queryByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).not.toBeInTheDocument();
   });

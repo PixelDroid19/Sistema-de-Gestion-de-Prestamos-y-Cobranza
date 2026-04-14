@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Plus, Search, Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePayments, downloadVoucher } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
@@ -9,16 +9,16 @@ import { useOperationalActions } from './hooks/useOperationalActions';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { useNavigate } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
-import { requestInput } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
+import { PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
 
 export default function Payouts() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
-  const { page, setPage, pageSize } = usePaginationStore();
+  const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const { data: paymentsData, isLoading, isError, createPayment, createPartialPayment, createCapitalPayment, updatePaymentMetadata } = usePayments({ page, pageSize });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
@@ -29,9 +29,19 @@ export default function Payouts() {
     method: 'cash'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [showEditMethodModal, setShowEditMethodModal] = useState(false);
+  const [editedMethod, setEditedMethod] = useState<PaymentMethod>('transfer');
+  const [editedReference, setEditedReference] = useState('');
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<number[]>([]);
 
   const role = user?.role;
   const permissions = user?.permissions;
+
+  const canRegisterPayout = useMemo(
+    () => resolveOperationalGuard('payout.register', { role, permissions, payoutType: paymentType }),
+    [permissions, paymentType, role],
+  );
 
   const payments = Array.isArray(paymentsData?.data?.payments)
     ? paymentsData.data.payments
@@ -39,6 +49,13 @@ export default function Payouts() {
       ? paymentsData.data
       : [];
   const pagination = paymentsData?.data?.pagination ?? paymentsData?.pagination ?? paymentsData?.meta;
+
+  const selectedPayments = useMemo(
+    () => payments.filter((payment: any) => selectedPaymentIds.includes(Number(payment.id))),
+    [payments, selectedPaymentIds],
+  );
+
+  const allVisibleSelected = payments.length > 0 && selectedPayments.length === payments.length;
 
   const formatPaymentDate = (payment: any) => {
     const rawDate = payment?.paymentDate ?? payment?.date ?? payment?.createdAt;
@@ -52,7 +69,7 @@ export default function Payouts() {
   };
 
   const formatPaymentMethod = (payment: any) => {
-    return payment?.paymentMetadata?.method || payment?.method || payment?.paymentMethod || 'Sin metodo';
+    return payment?.paymentMetadata?.method || payment?.method || payment?.paymentMethod || 'Sin método';
   };
 
   const formatPaymentStatus = (payment: any) => {
@@ -90,36 +107,93 @@ export default function Payouts() {
   };
 
   const handleEditPayment = async (payment: any) => {
-    const reference = await requestInput({
-      title: tTerm('prompt.payment.reference.title'),
-      message: tTerm('prompt.payment.reference.message'),
-      label: tTerm('prompt.payment.reference.label'),
-      placeholder: tTerm('prompt.payment.reference.placeholder'),
-      defaultValue: payment?.paymentMetadata?.reference || '',
-      confirmLabel: tTerm('prompt.payment.reference.confirm'),
-      cancelLabel: tTerm('prompt.payment.reference.cancel'),
+    const editGuard = resolveOperationalGuard('payout.metadata.edit', {
+      role,
+      permissions,
+      paymentStatus: payment?.status,
+      paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
     });
 
-    if (reference === null) {
+    if (!editGuard.executable) {
+      toast.error({ title: editGuard.reason || 'Acción no disponible' });
       return;
     }
 
+    const normalizedMethod = String(payment?.paymentMethod || payment?.method || 'transfer').toLowerCase();
+    const hasMethod = PAYMENT_METHODS.some((method) => method.value === normalizedMethod);
+    setEditedMethod((hasMethod ? normalizedMethod : 'transfer') as PaymentMethod);
+    setEditedReference(payment?.paymentMetadata?.reference || '');
+    setEditingPayment(payment);
+    setShowEditMethodModal(true);
+  };
+
+  const handleSavePaymentMethod = async () => {
+    if (!editingPayment) return;
+
     await executeGuardedAction({
       action: 'payout.metadata.edit',
-      context: { role, permissions, paymentStatus: payment?.status },
+      context: {
+        role,
+        permissions,
+        paymentStatus: editingPayment?.status,
+        paymentReconciled: Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled),
+      },
+      confirmationMessage: '¿Confirmar cambio de método de pago?',
       run: async () => {
         await updatePaymentMetadata.mutateAsync({
-          paymentId: Number(payment.id),
+          paymentId: Number(editingPayment.id),
           payload: {
-            loanId: payment?.loanId,
+            loanId: editingPayment?.loanId,
+            paymentMethod: editedMethod,
             paymentMetadata: {
-              ...(payment?.paymentMetadata || {}),
-              reference,
+              ...(editingPayment?.paymentMetadata || {}),
+              reference: editedReference,
             },
           },
         });
       },
-      successMessage: tTerm('payouts.toast.edit.success'),
+      onSuccess: () => {
+        setShowEditMethodModal(false);
+        setEditingPayment(null);
+      },
+      successMessage: 'Método de pago actualizado',
+    });
+  };
+
+  const handleToggleSelection = (paymentId: number, checked: boolean) => {
+    setSelectedPaymentIds((previous) => {
+      if (checked) {
+        if (previous.includes(paymentId)) return previous;
+        return [...previous, paymentId];
+      }
+      return previous.filter((id) => id !== paymentId);
+    });
+  };
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (!checked) {
+      setSelectedPaymentIds([]);
+      return;
+    }
+
+    setSelectedPaymentIds(payments.map((payment: any) => Number(payment.id)).filter((value: number) => Number.isFinite(value)));
+  };
+
+  const handleBulkDownloadVouchers = async () => {
+    if (selectedPayments.length === 0) {
+      toast.error({ title: 'Seleccione al menos un pago para descargar comprobantes.' });
+      return;
+    }
+
+    await executeGuardedAction({
+      action: 'payout.voucher.download',
+      context: { role, permissions },
+      run: async () => {
+        await Promise.all(
+          selectedPayments.map((payment: any) => downloadVoucher(Number(payment.id))),
+        );
+      },
+      successMessage: `${selectedPayments.length} comprobante(s) descargado(s)`,
     });
   };
 
@@ -171,13 +245,39 @@ export default function Payouts() {
         </div>
         <button 
           onClick={() => setShowPaymentModal(true)}
-          className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+          disabled={!canRegisterPayout.executable}
+          title={canRegisterPayout.executable ? 'Registrar pago' : canRegisterPayout.reason}
+          className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={16} /> {tTerm('payouts.cta.recordPayment')}
         </button>
       </div>
 
-      <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
+        <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
+        {selectedPayments.length > 0 && (
+          <div className="mb-4 rounded-lg border border-border-subtle bg-bg-base px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-sm text-text-secondary">
+              {selectedPayments.length} pago(s) seleccionado(s)
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBulkDownloadVouchers}
+                className="px-3 py-1.5 text-sm rounded-lg bg-text-primary text-bg-base hover:opacity-90"
+              >
+                Descargar comprobantes
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPaymentIds([])}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border-subtle hover:bg-hover-bg"
+              >
+                Limpiar selección
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between items-center mb-6">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
@@ -204,11 +304,24 @@ export default function Payouts() {
             totalPages: pagination?.totalPages ?? 1,
             onPrev: () => setPage(page - 1),
             onNext: () => setPage(page + 1),
+            onPageSizeChange: (nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            },
           } : undefined}
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
+                <th className="pb-3 font-medium w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Seleccionar todos los pagos"
+                    checked={allVisibleSelected}
+                    onChange={(event) => handleToggleSelectAll(event.target.checked)}
+                    className="rounded border-border-subtle"
+                  />
+                </th>
                 <th className="pb-3 font-medium">Recibo ID</th>
                 <th className="pb-3 font-medium">Préstamo ID</th>
                 <th className="pb-3 font-medium">Fecha</th>
@@ -221,6 +334,15 @@ export default function Payouts() {
             <tbody className="divide-y divide-border-subtle">
               {payments.map((payment: any) => (
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
+                  <td className="py-4">
+                    <input
+                      type="checkbox"
+                      aria-label={`Seleccionar pago ${payment.id}`}
+                      checked={selectedPaymentIds.includes(Number(payment.id))}
+                      onChange={(event) => handleToggleSelection(Number(payment.id), event.target.checked)}
+                      className="rounded border-border-subtle"
+                    />
+                  </td>
                   <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
                   <td className="py-4 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-mono">{payment.loanId}</td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
@@ -246,6 +368,7 @@ export default function Payouts() {
                           role,
                           permissions,
                           paymentStatus: payment?.status,
+                          paymentReconciled: Boolean(payment?.reconciled || payment?.isReconciled || payment?.paymentMetadata?.reconciled),
                         });
                         const deleteGuard = resolveOperationalGuard('payout.delete', {
                           role,
@@ -255,30 +378,36 @@ export default function Payouts() {
 
                         return (
                           <>
-                            <button
-                              className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
-                              onClick={() => handleViewCredit(Number(payment.loanId))}
-                              disabled={!viewGuard.executable || !viewGuard.visible}
-                            >
-                              <Eye size={16} />
-                            </button>
-                            <button
-                              className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={editGuard.executable ? 'Editar metadata del pago' : (editGuard.reason || 'Acción no disponible')}
-                              onClick={() => handleEditPayment(payment)}
-                              disabled={!editGuard.executable || !editGuard.visible}
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={deleteGuard.reason || 'Eliminar'}
-                              onClick={() => toast.error({ title: deleteGuard.reason || 'Acción no disponible' })}
-                              disabled={!deleteGuard.executable || !deleteGuard.visible}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {viewGuard.visible && (
+                              <button
+                                className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
+                                onClick={() => handleViewCredit(Number(payment.loanId))}
+                                disabled={!viewGuard.executable}
+                              >
+                                <Eye size={16} />
+                              </button>
+                            )}
+                            {editGuard.visible && (
+                              <button
+                                className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={editGuard.executable ? 'Editar método de pago real' : (editGuard.reason || 'Acción no disponible')}
+                                onClick={() => handleEditPayment(payment)}
+                                disabled={!editGuard.executable}
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {deleteGuard.visible && (
+                              <button
+                                className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={deleteGuard.reason || 'Eliminar'}
+                                onClick={() => toast.error({ title: deleteGuard.reason || 'Acción no disponible' })}
+                                disabled={!deleteGuard.executable}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </>
                         );
                       })()}
@@ -376,6 +505,65 @@ export default function Payouts() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showEditMethodModal && editingPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
+            <h3 className="text-xl font-bold mb-2">Editar método de pago</h3>
+            <p className="text-sm text-text-secondary mb-4">Pago #{editingPayment.id}</p>
+            {Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled) && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                El pago está conciliado y no puede modificarse.
+              </div>
+            )}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
+                <select
+                  value={editedMethod}
+                  onChange={(event) => setEditedMethod(event.target.value as PaymentMethod)}
+                  disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
+                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {PAYMENT_METHODS.map((method) => (
+                    <option key={method.value} value={method.value}>{method.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Referencia de conciliación (opcional)</label>
+                <input
+                  value={editedReference}
+                  onChange={(event) => setEditedReference(event.target.value)}
+                  placeholder="Ej: REF-123"
+                  disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
+                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditMethodModal(false);
+                  setEditingPayment(null);
+                }}
+                className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePaymentMethod}
+                disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
+                className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Guardar cambios
+              </button>
+            </div>
           </div>
         </div>
       )}

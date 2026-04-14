@@ -142,14 +142,14 @@ export default function Sidebar({
           <div className="mt-1">
             <button 
               onClick={() => toggleMenu('creditos')}
-              data-active={isCollapsed && (currentView.startsWith('credit') || currentView === 'reports') ? "true" : "false"}
+              data-active={isCollapsed && (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator') ? "true" : "false"}
               className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
                 isCollapsed ? 'justify-center' : 'justify-between gap-3'
               } ${
-                (currentView.startsWith('credit') || currentView === 'reports') && isCollapsed
-                  ? 'bg-hover-bg text-brand-primary font-medium' 
-                  : (currentView.startsWith('credit') || currentView === 'reports')
-                    ? 'text-brand-primary font-medium' 
+                (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator') && isCollapsed
+                  ? 'bg-hover-bg text-brand-primary font-medium'
+                  : (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator')
+                    ? 'text-brand-primary font-medium'
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
               }`}
               title={isCollapsed ? tTerm('sidebar.credits') : undefined}
@@ -190,7 +190,13 @@ export default function Sidebar({
                   title={tTerm('sidebar.credits.reports')}
                   tooltip="Indicadores de cartera, mora y recaudo"
                 />
-                
+                <SubNavItem
+                  active={currentView === 'simulator'}
+                  onClick={() => setCurrentView('simulator')}
+                  title="Simulador de Crédito"
+                  tooltip="Calcula cuotas y genera tablas de amortización"
+                />
+
               </div>
             )}
           </div>

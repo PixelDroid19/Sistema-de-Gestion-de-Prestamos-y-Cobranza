@@ -298,7 +298,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     method: 'POST',
     path: '/capital',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { loanId: 15, amount: 60 },
+    body: { loanId: 15, amount: 60, strategy: 'REDUCE_QUOTA' },
   });
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
@@ -312,8 +312,71 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(annulResponse.statusCode, 201);
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
-    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60 }],
+    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, strategy: 'REDUCE_QUOTA' }],
     ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined }],
+  ]);
+  assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');
+  assert.equal(capitalResponse.body.data.strategyApplied, 'REDUCE_TIME');
+});
+
+test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compatibility routes', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      createCapitalPayment: unexpectedUseCase('createCapitalPayment'),
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+      async calculateTotalDebt(payload) {
+        calls.push(['calculateTotalDebt', payload]);
+        return {
+          loanId: 44,
+          asOfDate: payload.asOfDate,
+          totalDebt: 955.12,
+          payoffQuote: { total: 955.12 },
+        };
+      },
+      async payTotalDebt(payload) {
+        calls.push(['payTotalDebt', payload]);
+        return {
+          payment: { id: 300, amount: payload.quotedTotal || 955.12, paymentType: 'payoff' },
+          loan: { id: Number(payload.loanId), status: 'closed' },
+          allocation: { payoff: { total: payload.quotedTotal || 955.12 } },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const calculateResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/calculate-total-debt',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    body: { loanId: 44, asOfDate: '2026-04-01' },
+  });
+
+  const payResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/pay-total-debt',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    body: { loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12 },
+  });
+
+  assert.equal(calculateResponse.statusCode, 200);
+  assert.equal(payResponse.statusCode, 201);
+  assert.deepEqual(calls, [
+    ['calculateTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01' }],
+    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12 }],
   ]);
 });
 

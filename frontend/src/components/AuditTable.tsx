@@ -34,6 +34,22 @@ const getActionColor = (action: string) => {
   }
 };
 
+const getActionLabel = (action: string) => {
+  const labels: Record<string, string> = {
+    CREATE: 'Creación',
+    UPDATE: 'Actualización',
+    DELETE: 'Eliminación',
+    LOGIN: 'Inicio de sesión',
+    LOGOUT: 'Cierre de sesión',
+    APPROVE: 'Aprobación',
+    REJECT: 'Rechazo',
+    EXPORT: 'Exportación',
+    IMPORT: 'Importación',
+  };
+
+  return labels[action] || action;
+};
+
 export default function AuditTable({
   logs,
   pagination,
@@ -43,88 +59,88 @@ export default function AuditTable({
 }: AuditTableProps) {
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-        <p className="mt-2 text-gray-500">Loading audit logs...</p>
+        <p className="mt-2 text-text-secondary">Cargando auditoría...</p>
       </div>
     );
   }
 
   if (logs.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
-        <p className="text-gray-500">No audit logs found matching your criteria.</p>
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-8 text-center">
+        <p className="text-text-secondary">No se encontraron eventos con los filtros aplicados.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-bg-surface border border-border-subtle rounded-2xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full">
+          <thead className="bg-bg-base border-b border-border-subtle">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Timestamp
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Fecha
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                User
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Usuario
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Action
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Acción
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Module
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Módulo
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Entity
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Entidad
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                IP Address
+              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
+                IP
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+              <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
+                Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-border-subtle">
             {logs.map((log) => (
-              <tr key={log.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+              <tr key={log.id} className="hover:bg-hover-bg transition-colors">
+                <td className="px-4 py-3 text-sm text-text-primary whitespace-nowrap">
                   {formatDate(log.timestamp)}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-text-primary">
                   {log.userName || (
-                    <span className="text-gray-400 italic">System</span>
+                    <span className="text-text-secondary italic">Sistema</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-sm whitespace-nowrap">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
-                    {log.action}
+                    {getActionLabel(log.action)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-text-primary">
                   {log.module}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-text-primary">
                   <div>
                     {log.entityType && <span className="font-medium">{log.entityType}</span>}
                     {log.entityId && (
-                      <span className="text-gray-500 ml-1 font-mono text-xs">
+                      <span className="text-text-secondary ml-1 font-mono text-xs">
                         #{log.entityId}
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500 font-mono">
+                <td className="px-4 py-3 text-sm text-text-secondary font-mono">
                   {log.ip || 'N/A'}
                 </td>
                 <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
                   <button
                     onClick={() => onViewDetails(log)}
-                    className="text-blue-600 hover:text-blue-900 font-medium text-xs"
+                    className="text-brand-primary hover:text-brand-primary/80 font-medium text-xs"
                   >
-                    View Details
+                    Ver detalle
                   </button>
                 </td>
               </tr>
@@ -135,26 +151,26 @@ export default function AuditTable({
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-5 00">
-            Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{' '}
-            {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} of{' '}
-            {pagination.totalItems} entries
+        <div className="px-4 py-3 bg-bg-base border-t border-border-subtle flex items-center justify-between">
+          <div className="text-sm text-text-secondary">
+            Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a{' '}
+            {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de{' '}
+            {pagination.totalItems} eventos
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-hover-bg"
             >
-              Previous
+              Anterior
             </button>
             <button
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages}
-              className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-hover-bg"
             >
-              Next
+              Siguiente
             </button>
           </div>
         </div>

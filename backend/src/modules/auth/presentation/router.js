@@ -2,6 +2,7 @@ const express = require('express');
 const { asyncHandler } = require('../../../utils/errorHandler');
 const { presentAuthResult, presentProfile } = require('./presenter');
 const { authLimiter } = require('../../../middleware/rateLimiter');
+const { attachPagination } = require('../../../middleware/validation');
 
 const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   const router = express.Router();
@@ -28,6 +29,23 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   router.post('/login', authLimiter, authValidation.login, asyncHandler(async (req, res) => {
     const result = await useCases.loginUser(req.body);
     res.json(presentAuthResult('Login successful', result));
+  }));
+
+  router.get('/users', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const result = await useCases.listUsers({ pagination: req.pagination });
+    if (result?.pagination) {
+      res.json({
+        success: true,
+        count: result.pagination.totalItems,
+        data: {
+          users: result.items,
+          pagination: result.pagination,
+        },
+      });
+      return;
+    }
+
+    res.json({ success: true, count: result.length, data: result });
   }));
 
   // Refresh token endpoint - exchanges old refresh token for new token pair

@@ -1,5 +1,6 @@
 # Node modules and lock files (extra safety)
 backend/node_modules/
+backend/.qwen/
 frontend/node_modules/
 backend/package-lock.json
 backend/pnpm-lock.yaml

@@ -1,6 +1,3 @@
-const { CalculationEngine } = require('../../../core/domain/calculation/CalculationEngine');
-const { scopeToPlainObject } = require('../../../core/domain/calculation/scopeBuilder');
-
 /**
  * Calculate loan using the DAG calculation engine.
  * Supports both French (compound) and simple interest methods.
@@ -75,9 +72,6 @@ const calculateLoan = (input) => {
 const buildAmortizationSchedule = ({ principal, term, interestRate, monthlyRate, monthlyPayment, paymentMethod }) => {
   const schedule = [];
   let balance = principal;
-  let totalPrincipalPaid = 0;
-  let totalInterestPaid = 0;
-
   for (let period = 1; period <= term; period++) {
     let interestPayment;
     let principalPayment;
@@ -100,9 +94,6 @@ const buildAmortizationSchedule = ({ principal, term, interestRate, monthlyRate,
 
     balance -= principalPayment;
     if (balance < 0) balance = 0;
-
-    totalPrincipalPaid += principalPayment;
-    totalInterestPaid += interestPayment;
 
     schedule.push({
       period,

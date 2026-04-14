@@ -16,14 +16,20 @@ interface Permission {
 }
 
 export default function UserPermissionsTable({ onManagePermissions }: UserPermissionsTableProps) {
-  const { data: users, isLoading: isLoadingUsers } = useUsers();
+  const { data: usersData, isLoading: isLoadingUsers } = useUsers();
   const { revokePermission } = useRevokePermission();
   const { grantPermission } = useGrantPermission();
+
+  const users = Array.isArray(usersData?.data?.users)
+    ? usersData.data.users
+    : Array.isArray(usersData?.data)
+      ? usersData.data
+      : [];
 
   const handleRevoke = async (userId: string, permission: string, module?: string) => {
     try {
       await revokePermission.mutateAsync({ userId, permission, module });
-      toast.success({ description: 'PermisoRevocado' });
+      toast.success({ description: 'Permiso revocado' });
     } catch (error) {
       console.error('[permissions] revokePermission failed', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'permission.revoke' });

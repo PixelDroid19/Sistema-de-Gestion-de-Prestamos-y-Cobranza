@@ -1,6 +1,7 @@
 const { createModule } = require('../modules/shared/contracts');
 const { createAuthContext } = require('../modules/shared/auth');
 const { notificationService } = require('../modules/notifications/application/notificationService');
+const { createPermissionServiceForMiddleware } = require('../modules/permissions/infrastructure/permissionServiceInfrastructure');
 
 const createPortsRegistry = (seed = {}) => {
   const registry = new Map(Object.entries(seed));
@@ -33,7 +34,7 @@ const createPortsRegistry = (seed = {}) => {
  * @returns {{ authContext: object, tokenService: object, authMiddleware: Function, contracts: object, notificationService: object, registerModulePorts: Function, getModulePorts: Function, listModulePorts: Function }}
  */
 const createSharedRuntime = ({
-  authContext = createAuthContext(),
+  authContext = createAuthContext({ permissionService: createPermissionServiceForMiddleware() }),
   notificationService: notifications = notificationService,
 } = {}) => {
   const portsRegistry = createPortsRegistry();

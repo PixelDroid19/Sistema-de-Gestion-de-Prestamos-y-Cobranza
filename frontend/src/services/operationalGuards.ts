@@ -29,6 +29,7 @@ type GuardInput = {
   loanStatus?: string;
   installmentStatus?: string;
   paymentStatus?: string;
+  paymentReconciled?: boolean;
   payoutType?: 'regular' | 'partial' | 'capital';
 };
 
@@ -113,6 +114,12 @@ const canOperateInstallment = (
   return { visible: true, executable: true };
 };
 
+const isReconciledPaymentStatus = (status?: string): boolean => {
+  if (!status) return false;
+  const normalized = status.toLowerCase();
+  return normalized.includes('reconcil') || normalized === 'bank_reconciled';
+};
+
 const canRegisterPayout = (
   role: OperationalRole | undefined,
   payoutType: GuardInput['payoutType'],
@@ -158,6 +165,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
   const loanStatus = input.loanStatus;
   const installmentStatus = input.installmentStatus;
   const paymentStatus = input.paymentStatus;
+  const paymentReconciled = Boolean(input.paymentReconciled) || isReconciledPaymentStatus(paymentStatus);
   const payoutType = input.payoutType;
 
   if (!hasRequiredPermission(permissions, action)) {
@@ -182,6 +190,13 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'installment.pay':
       return canOperateInstallment(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
+      if (paymentReconciled) {
+        return {
+          visible: true,
+          executable: false,
+          reason: 'No se puede editar el método de pago porque el pago ya está conciliado.',
+        };
+      }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'edición de método de pago');
     case 'installment.promise':
       return canOperateInstallment(role, loanStatus, installmentStatus, 'promesas de pago');
@@ -218,6 +233,13 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'payout.metadata.edit':
       if (role !== 'admin') {
         return { visible: false, executable: false, reason: 'Solo administradores pueden editar pagos.' };
+      }
+      if (paymentReconciled) {
+        return {
+          visible: true,
+          executable: false,
+          reason: 'No se puede editar el método de pago porque el pago está conciliado.',
+        };
       }
       if (paymentStatus === 'annulled') {
         return { visible: true, executable: false, reason: 'No se puede editar un pago anulado.' };

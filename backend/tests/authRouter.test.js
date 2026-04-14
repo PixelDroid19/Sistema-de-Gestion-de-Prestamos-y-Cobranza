@@ -134,6 +134,68 @@ test('createAuthRouter serves register and login contract responses', async () =
   ]);
 });
 
+test('createAuthRouter accepts username login payloads for legacy compatibility', async () => {
+  const calls = [];
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async registerUser() {
+        throw new Error('registerUser should not be called');
+      },
+      async loginUser(payload) {
+        calls.push(['loginUser', payload]);
+        return {
+          token: 'login-token',
+          user: {
+            id: 31,
+            name: 'Ana User',
+            email: 'ana.user@example.com',
+            role: 'customer',
+          },
+        };
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
+      async listUsers() {
+        throw new Error('listUsers should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const loginResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/login',
+    body: {
+      username: 'ana.user',
+      password: 'secret123',
+    },
+  });
+
+  assert.equal(loginResponse.statusCode, 200);
+  assert.equal(loginResponse.body.success, true);
+  assert.deepEqual(calls, [[
+    'loginUser',
+    {
+      username: 'ana.user',
+      password: 'secret123',
+    },
+  ]]);
+});
+
 test('createAuthRouter serves admin registration through the trusted flow contract', async () => {
   const calls = [];
   const adminAwareAuth = () => (req, res, next) => {
@@ -447,4 +509,59 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
     ['updateProfile', 7, { name: 'Ana Maria', email: 'ana.maria@example.com' }],
     ['changePassword', 7, { currentPassword: 'current-secret', nextPassword: 'next-secret' }],
   ]);
+});
+
+test('createAuthRouter exposes /users alias with users module response shape', async () => {
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: () => (req, res, next) => {
+      req.user = { id: 1, role: 'admin' };
+      next();
+    },
+    useCases: {
+      async registerUser() {
+        throw new Error('registerUser should not be called');
+      },
+      async loginUser() {
+        throw new Error('loginUser should not be called');
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
+      async listUsers() {
+        return {
+          items: [{ id: 4, email: 'user@example.com', role: 'customer' }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/users',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    count: 1,
+    data: {
+      users: [{ id: 4, email: 'user@example.com', role: 'customer' }],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    },
+  });
 });

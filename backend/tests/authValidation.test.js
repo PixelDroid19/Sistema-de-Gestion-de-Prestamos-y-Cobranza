@@ -67,3 +67,25 @@ test('authValidation.adminRegister accepts admin registration without a phone nu
     },
   }));
 });
+
+test('authValidation.login accepts username-only legacy payloads', async () => {
+  await assert.doesNotReject(() => runMiddleware(authValidation.login, {
+    body: {
+      username: 'ana.user',
+      password: 'Secret12',
+    },
+  }));
+});
+
+test('authValidation.adminRegister accepts legacy roleIds payloads', async () => {
+  await assert.doesNotReject(() => runMiddleware(authValidation.adminRegister, {
+    body: {
+      name: 'Ana Partner',
+      email: 'partner@example.com',
+      password: 'Secret12',
+      roleIds: ['PARTNER'],
+      phone: '+573001112233',
+      associateId: 77,
+    },
+  }));
+});

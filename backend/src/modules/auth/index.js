@@ -12,6 +12,8 @@ const {
   createRevokeAllUserTokens,
   createRegisterWithPermissions,
 } = require('./application/useCases');
+const { createListUsers } = require('../users/application/useCases');
+const { userRepository: usersRepository } = require('../users/infrastructure/repositories');
 const {
   userRepository,
   customerProfileRepository,
@@ -65,6 +67,7 @@ const createAuthModule = ({ sharedRuntime, auditService } = {}) => {
       permissionRepository,
       auditService,
     }),
+    listUsers: createListUsers({ userRepository: usersRepository }),
   };
 
   return createModule({

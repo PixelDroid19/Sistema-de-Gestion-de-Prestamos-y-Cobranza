@@ -60,6 +60,7 @@ const createUseCases = (overrides) => ({
   updateLoanAlertStatus: unexpectedUseCase('updateLoanAlertStatus'),
   updatePromiseToPayStatus: unexpectedUseCase('updatePromiseToPayStatus'),
   downloadPromiseToPay: unexpectedUseCase('downloadPromiseToPay'),
+  listDagWorkbenchScopes: unexpectedUseCase('listDagWorkbenchScopes'),
   loadDagWorkbenchGraph: unexpectedUseCase('loadDagWorkbenchGraph'),
   saveDagWorkbenchGraph: unexpectedUseCase('saveDagWorkbenchGraph'),
   validateDagWorkbenchGraph: unexpectedUseCase('validateDagWorkbenchGraph'),
@@ -84,12 +85,24 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
     summary: { totalPayable: 1012 },
     schedule: [{ installmentNumber: 1, scheduledPayment: 84.33 }],
   };
+  const scopes = [{
+    key: 'credit-simulation',
+    label: 'Simulacion de credito',
+    defaultName: 'Formula base de simulacion de credito',
+    helpers: [{ name: 'buildAmortizationSchedule' }],
+    simulationInput: { amount: 1000, interestRate: 12, termMonths: 12, lateFeeMode: 'SIMPLE' },
+    defaultGraph: graphVersion.graph,
+  }];
 
   const router = createCreditsRouter({
     authMiddleware: allowAuth({ id: 1, role: 'admin' }),
     attachmentUpload: noopAttachmentUpload,
     loanValidation: noopLoanValidation,
     useCases: createUseCases({
+      async listDagWorkbenchScopes(input) {
+        calls.push(['listDagWorkbenchScopes', input]);
+        return { scopes };
+      },
       async loadDagWorkbenchGraph(input) {
         calls.push(['loadDagWorkbenchGraph', input]);
         return { graphVersion };
@@ -129,6 +142,11 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   app.use(router);
   activeServer = await listen(app);
 
+  const scopesResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/workbench/scopes',
+    headers: { authorization: 'Bearer valid-token' },
+  });
   const loadResponse = await requestJson(activeServer, {
     method: 'GET',
     path: '/workbench/graph?scope=personal-loan',
@@ -158,6 +176,8 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
     headers: { authorization: 'Bearer valid-token' },
   });
 
+  assert.equal(scopesResponse.statusCode, 200);
+  assert.equal(scopesResponse.body.data.scopes[0].key, 'credit-simulation');
   assert.equal(loadResponse.statusCode, 200);
   assert.equal(loadResponse.body.data.graph.version, 1);
   assert.equal(saveResponse.statusCode, 201);
@@ -169,6 +189,7 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   assert.equal(summaryResponse.statusCode, 200);
   assert.equal(summaryResponse.body.data.summary.latestSimulation.selectedSource, 'legacy');
   assert.deepEqual(calls, [
+    ['listDagWorkbenchScopes', { actor: { id: 1, role: 'admin' } }],
     ['loadDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan' }],
     ['saveDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan', name: 'Personal Loan', graph: graphVersion.graph }],
     ['validateDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan', graph: graphVersion.graph }],

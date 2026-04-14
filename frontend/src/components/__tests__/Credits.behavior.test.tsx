@@ -6,6 +6,7 @@ const mockDeleteLoan = vi.fn().mockResolvedValue(undefined);
 const mockInvalidateAfterDelete = vi.fn().mockResolvedValue(undefined);
 const mockSetCurrentView = vi.fn();
 const mockToastError = vi.fn();
+const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 
 type SessionUser = {
   id: number;
@@ -61,12 +62,18 @@ vi.mock('../../services/operationalInvalidation', () => ({
   invalidateAfterReport: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../lib/confirmModal', () => ({
+  confirmDanger: (...args: unknown[]) => mockConfirmDanger(...args),
+  confirm: vi.fn(() => Promise.resolve(true)),
+  requestInput: vi.fn(() => Promise.resolve('test reference')),
+}));
+
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => ({ user: currentUser }),
 }));
 
 vi.mock('../../store/paginationStore', () => ({
-  usePaginationStore: () => ({ page: 1, pageSize: 25, setPage: vi.fn() }),
+  usePaginationStore: () => ({ page: 1, pageSize: 25, setPage: vi.fn(), setPageSize: vi.fn() }),
 }));
 
 vi.mock('../../lib/toast', () => ({
@@ -115,6 +122,16 @@ vi.mock('../../services/loanService', () => ({
     isError: false,
     deleteLoan: { mutateAsync: mockDeleteLoan },
   }),
+  useSearchLoans: () => ({
+    data: {
+      data: {
+        loans: [],
+        pagination: { totalItems: 0, totalPages: 1 },
+      },
+    },
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 const renderCredits = () => {
@@ -131,42 +148,35 @@ describe('Credits behavioral parity scenarios', () => {
     vi.clearAllMocks();
     currentUser = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] };
     vi.stubGlobal('confirm', vi.fn(() => true));
+    mockConfirmDanger.mockResolvedValue(true);
   });
 
-  vi.mock('../../lib/confirmModal', () => ({
-    confirmDanger: vi.fn(() => Promise.resolve(true)),
-    confirm: vi.fn(() => Promise.resolve(true)),
-    requestInput: vi.fn(() => Promise.resolve('test reference')),
-  }));
-
-  it('executes delete action and invalidates list surface', async () => {
+  it('executes view details action and navigates to credit detail', async () => {
     renderCredits();
 
     expect(screen.getByRole('heading', { name: 'Operación de créditos' })).toBeInTheDocument();
     expect(screen.queryByText('Gestión de Créditos')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTitle('Eliminar'));
+    const viewButton = screen.getByTitle('Ver detalles del crédito');
+    fireEvent.click(viewButton);
 
     await waitFor(() => {
-      expect(mockDeleteLoan).toHaveBeenCalledWith(77);
-      expect(mockInvalidateAfterDelete).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ loanId: 77, loansParams: { page: 1, pageSize: 25 } }),
-      );
+      expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');
     });
   });
 
-  it('blocks ineligible delete action with guard feedback', async () => {
+  it('allows all roles to view credit details', async () => {
     currentUser = { id: 2, name: 'Socio', email: 'socio@test.com', role: 'socio', permissions: ['*'] };
     renderCredits();
 
-    fireEvent.click(screen.getByTitle('Eliminar'));
+    const viewButton = screen.getByTitle('Ver detalles del crédito');
+    expect(viewButton).toBeInTheDocument();
+    expect(viewButton).not.toBeDisabled();
 
-    expect(mockDeleteLoan).not.toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Solo administradores pueden eliminar créditos.',
-      }),
-    );
+    fireEvent.click(viewButton);
+
+    await waitFor(() => {
+      expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');
+    });
   });
 });

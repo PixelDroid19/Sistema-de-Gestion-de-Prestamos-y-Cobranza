@@ -217,6 +217,58 @@ test('createRegisterUser accepts admin registrationSource for privileged provisi
   assert.equal(agentProfileCreateCalls, 0);
 });
 
+test('createRegisterUser accepts legacy roleIds payloads for socio provisioning', async () => {
+  let linkedAssociateId = null;
+
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async create(payload) {
+        return { id: 88, ...payload };
+      },
+      async update() {
+        return {};
+      },
+      async remove() {},
+    },
+    customerProfileRepository: { async create() {} },
+    associateProfileRepository: {
+      async update(id) {
+        linkedAssociateId = id;
+        return { id };
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Legacy Partner',
+      email: 'legacy.partner@example.com',
+      password: 'Secret123',
+      roleIds: ['PARTNER'],
+      phone: '+573001112233',
+      associateId: 61,
+    },
+  });
+
+  assert.equal(result.user.role, 'socio');
+  assert.equal(linkedAssociateId, 61);
+});
+
 test('createRegisterUser blocks non-admin actors from creating privileged accounts in trusted flows', async () => {
   const registerUser = createRegisterUser({
     userRepository: {
@@ -368,6 +420,42 @@ test('createLoginUser rejects legacy agent role during login', async () => {
     assert.equal(error.statusCode, 400);
     assert.ok(error.errors[0].message.includes('Role must be one of'), `Expected error message to contain 'Role must be one of', got: ${error.errors[0].message}`);
   }
+});
+
+test('createLoginUser accepts username when email is not provided', async () => {
+  const loginUser = createLoginUser({
+    userRepository: {
+      async findByLoginIdentifier(identifier) {
+        assert.equal(identifier, 'ana.user');
+        return {
+          id: 19,
+          name: 'ana.user',
+          email: 'ana.user@example.com',
+          password: 'hashed-password',
+          role: 'customer',
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        };
+      },
+      async update() {
+        return {};
+      },
+    },
+    passwordHasher: {
+      async compare() {
+        return true;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await loginUser({ username: 'ana.user', password: 'Secret123' });
+  assert.equal(result.user.id, 19);
+  assert.equal(result.user.role, 'customer');
 });
 
 test('createGetProfile returns the sanitized user profile', async () => {

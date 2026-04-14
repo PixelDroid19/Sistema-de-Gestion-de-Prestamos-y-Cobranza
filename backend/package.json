@@ -6,7 +6,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "build": "echo 'No build step required for Node.js backend'",
-    "test": "node --test",
+    "test": "set NODE_ENV=test&& node --test",
     "db:reset-local": "node scripts/resetLocalDb.js",
     "lint": "eslint . --ext .js,.cjs",
     "lint:fix": "npm run lint -- --fix"

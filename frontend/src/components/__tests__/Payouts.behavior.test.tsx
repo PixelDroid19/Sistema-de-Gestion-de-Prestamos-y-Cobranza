@@ -6,7 +6,7 @@ const mockCreatePayment = vi.fn().mockResolvedValue(undefined);
 const mockCreatePartialPayment = vi.fn().mockResolvedValue(undefined);
 const mockCreateCapitalPayment = vi.fn().mockResolvedValue(undefined);
 const mockUpdatePaymentMetadata = vi.fn().mockResolvedValue(undefined);
-const mockRequestInput = vi.fn().mockResolvedValue('REF-123');
+const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 
 let currentUser = {
   id: 1,
@@ -29,7 +29,7 @@ vi.mock('../../store/sessionStore', () => ({
 }));
 
 vi.mock('../../store/paginationStore', () => ({
-  usePaginationStore: () => ({ page: 1, pageSize: 20, setPage: vi.fn() }),
+  usePaginationStore: () => ({ page: 1, pageSize: 20, setPage: vi.fn(), setPageSize: vi.fn() }),
 }));
 
 vi.mock('../../services/paymentService', () => ({
@@ -44,6 +44,10 @@ vi.mock('../../services/paymentService', () => ({
             paymentDate: '2026-03-01T00:00:00.000Z',
             paymentMethod: 'transfer',
             status: 'completed',
+            reconciled: false,
+            paymentMetadata: {
+              reference: 'REF-OLD',
+            },
           },
         ],
         pagination: { totalItems: 1, totalPages: 1 },
@@ -59,10 +63,6 @@ vi.mock('../../services/paymentService', () => ({
   downloadVoucher: vi.fn(),
 }));
 
-vi.mock('../../lib/confirmModal', () => ({
-  requestInput: (...args: unknown[]) => mockRequestInput(...args),
-}));
-
 const mockToastError = vi.fn();
 
 vi.mock('../../lib/toast', () => ({
@@ -70,6 +70,10 @@ vi.mock('../../lib/toast', () => ({
     error: (...args: unknown[]) => mockToastError(...args),
     success: vi.fn(),
   },
+}));
+
+vi.mock('../../lib/confirmModal', () => ({
+  confirmDanger: (...args: unknown[]) => mockConfirmDanger(...args),
 }));
 
 const renderPayouts = () => {
@@ -84,7 +88,7 @@ const renderPayouts = () => {
 describe('Payouts behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequestInput.mockResolvedValue('REF-123');
+    mockConfirmDanger.mockResolvedValue(true);
     currentUser = {
       id: 1,
       name: 'Admin',
@@ -97,20 +101,11 @@ describe('Payouts behavioral parity scenarios', () => {
   it('blocks regular payout registration for non-customer users', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
-
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+    const button = screen.getByRole('button', { name: 'Registrar pago' });
+    expect(button).toBeDisabled();
 
     await waitFor(() => {
       expect(mockCreatePayment).not.toHaveBeenCalled();
-      expect(mockToastError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Acción no disponible',
-        }),
-      );
     });
   });
 
@@ -153,26 +148,19 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(mockCreateCapitalPayment).not.toHaveBeenCalled();
   });
 
-  it('uses reusable prompt flow to edit payment metadata', async () => {
+  it('edits payment method with confirmation modal flow', async () => {
     renderPayouts();
 
-    fireEvent.click(screen.getByTitle('Editar metadata del pago'));
-
-    await waitFor(() => {
-      expect(mockRequestInput).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Referencia de conciliación',
-          message: 'Actualice la referencia para el pago seleccionado.',
-          label: 'Referencia de conciliación (opcional)',
-        }),
-      );
-    });
+    fireEvent.click(screen.getByTitle('Editar método de pago real'));
+    fireEvent.change(screen.getByPlaceholderText('Ej: REF-123'), { target: { value: 'REF-123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
     await waitFor(() => {
       expect(mockUpdatePaymentMetadata).toHaveBeenCalledWith(
         expect.objectContaining({
           paymentId: 55,
           payload: expect.objectContaining({
+            paymentMethod: 'transfer',
             paymentMetadata: expect.objectContaining({
               reference: 'REF-123',
             }),
@@ -180,5 +168,14 @@ describe('Payouts behavioral parity scenarios', () => {
         }),
       );
     });
+  });
+
+  it('allows multi-selection visibility for payout rows', async () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByLabelText('Seleccionar pago 55'));
+
+    expect(screen.getByText('1 pago(s) seleccionado(s)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Descargar comprobantes' })).toBeInTheDocument();
   });
 });

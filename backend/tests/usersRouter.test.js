@@ -17,7 +17,7 @@ const allowAuth = (user = { id: 1, role: 'admin' }) => () => (req, res, next) =>
   next();
 };
 
-test('createUsersRouter serves list, read, update, deactivate, and reactivate contracts', async () => {
+test('createUsersRouter serves list, read, update, deactivate, reactivate, and unlock contracts', async () => {
   const calls = [];
   const router = createUsersRouter({
     authMiddleware: allowAuth(),
@@ -45,6 +45,10 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
         calls.push(['reactivateUser', userId]);
         return { id: Number(userId), isActive: true };
       },
+      async unlockUser(userId) {
+        calls.push(['unlockUser', userId]);
+        return { id: Number(userId), failedLoginAttempts: 0, lockedUntil: null };
+      },
     },
   });
 
@@ -64,6 +68,7 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
   });
   const deactivateResponse = await requestJson(activeServer, { method: 'POST', path: '/7/deactivate', headers: { authorization: 'Bearer valid-token' } });
   const reactivateResponse = await requestJson(activeServer, { method: 'POST', path: '/7/reactivate', headers: { authorization: 'Bearer valid-token' } });
+  const unlockResponse = await requestJson(activeServer, { method: 'POST', path: '/7/unlock', headers: { authorization: 'Bearer valid-token' } });
 
   assert.equal(listResponse.statusCode, 200);
    assert.deepEqual(listResponse.body, {
@@ -78,12 +83,14 @@ test('createUsersRouter serves list, read, update, deactivate, and reactivate co
   assert.equal(updateResponse.statusCode, 200);
   assert.equal(deactivateResponse.statusCode, 200);
   assert.equal(reactivateResponse.statusCode, 200);
+  assert.equal(unlockResponse.statusCode, 200);
   assert.deepEqual(calls, [
     ['listUsers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['getUserById', '7'],
     ['updateUser', '7', { role: 'admin' }],
     ['deactivateUser', '7'],
     ['reactivateUser', '7'],
+    ['unlockUser', '7'],
   ]);
 });
 
@@ -105,6 +112,9 @@ test('createUsersRouter blocks self-deactivation at the HTTP contract', async ()
       },
       async reactivateUser() {
         throw new Error('reactivateUser should not be called');
+      },
+      async unlockUser() {
+        throw new Error('unlockUser should not be called');
       },
     },
   });

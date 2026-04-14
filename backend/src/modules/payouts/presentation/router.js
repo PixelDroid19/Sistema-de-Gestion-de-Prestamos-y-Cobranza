@@ -47,7 +47,11 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create capital reduction payment (admin only)
   router.post('/capital', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.createCapitalPayment({ actor: req.user, ...req.body });
+    const result = await useCases.createCapitalPayment({
+      actor: req.user,
+      ...req.body,
+      strategy: req.body?.strategy,
+    });
     res.status(201).json({
       success: true,
       message: 'Capital reduction payment created successfully',
@@ -55,6 +59,35 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
         payment: result.payment,
         allocation: result.allocation,
         loan: result.loan,
+        strategy: req.body?.strategy || 'REDUCE_TIME',
+        strategyApplied: 'REDUCE_TIME',
+      },
+    });
+  }));
+
+  router.post('/calculate-total-debt', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+    const result = await useCases.calculateTotalDebt({
+      actor: req.user,
+      loanId: req.body.loanId,
+      asOfDate: req.body.asOfDate,
+    });
+    res.json({ success: true, data: result });
+  }));
+
+  router.post('/pay-total-debt', authMiddleware(['customer']), asyncHandler(async (req, res) => {
+    const result = await useCases.payTotalDebt({
+      actor: req.user,
+      loanId: req.body.loanId,
+      asOfDate: req.body.asOfDate,
+      quotedTotal: req.body.quotedTotal,
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Total debt paid successfully',
+      data: {
+        payment: result.payment,
+        loan: result.loan,
+        allocation: result.allocation,
       },
     });
   }));

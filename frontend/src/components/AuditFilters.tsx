@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { AUDIT_MODULES, AUDIT_ACTIONS } from '../types/audit';
 
 export interface FilterValues {
   userId?: string;
@@ -16,7 +15,7 @@ interface AuditFiltersProps {
   onReset: () => void;
 }
 
-const AUDIT_MODULES_LIST = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'USUARIOS', 'PERMISOS', 'AUDITORÍA', 'AUTH'];
+const AUDIT_MODULES_LIST = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'USUARIOS', 'PERMISOS', 'AUDITORIA', 'AUTH'];
 const AUDIT_ACTIONS_LIST = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT'];
 
 export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {
@@ -59,33 +58,31 @@ export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-4 space-y-4">
+    <form onSubmit={handleSubmit} className="bg-bg-surface border border-border-subtle rounded-2xl p-4 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* User ID */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            User ID
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            ID de usuario
           </label>
           <input
             type="text"
             value={filters.userId}
             onChange={(e) => handleChange('userId', e.target.value)}
-            placeholder="Filter by user ID"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Filtrar por usuario"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
-        {/* Module */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Module
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Módulo
           </label>
           <select
             value={filters.module}
             onChange={(e) => handleChange('module', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">All Modules</option>
+            <option value="">Todos los módulos</option>
             {AUDIT_MODULES_LIST.map((mod) => (
               <option key={mod} value={mod}>
                 {mod}
@@ -94,17 +91,16 @@ export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {
           </select>
         </div>
 
-        {/* Action */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Action
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Acción
           </label>
           <select
             value={filters.action}
             onChange={(e) => handleChange('action', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">All Actions</option>
+            <option value="">Todas las acciones</option>
             {AUDIT_ACTIONS_LIST.map((action) => (
               <option key={action} value={action}>
                 {action}
@@ -113,57 +109,53 @@ export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {
           </select>
         </div>
 
-        {/* Entity ID */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Entity ID
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            ID de entidad
           </label>
           <input
             type="text"
             value={filters.entityId}
             onChange={(e) => handleChange('entityId', e.target.value)}
-            placeholder="Filter by entity ID"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Filtrar por entidad"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
-        {/* Entity Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Entity Type
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Tipo de entidad
           </label>
           <input
             type="text"
             value={filters.entityType}
             onChange={(e) => handleChange('entityType', e.target.value)}
-            placeholder="e.g., Loan, User, Customer"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Ej: Loan, User, Customer"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
-        {/* Date From */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Date From
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Fecha desde
           </label>
           <input
             type="date"
             value={filters.dateFrom}
             onChange={(e) => handleChange('dateFrom', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
-        {/* Date To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Date To
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Fecha hasta
           </label>
           <input
             type="date"
             value={filters.dateTo}
             onChange={(e) => handleChange('dateTo', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
           />
         </div>
       </div>
@@ -172,15 +164,15 @@ export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {
         <button
           type="button"
           onClick={handleReset}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          className="px-4 py-2 text-sm font-medium text-text-secondary bg-bg-base border border-border-subtle rounded-lg hover:bg-hover-bg"
         >
-          Reset
+          Limpiar
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-lg hover:bg-brand-primary/90"
         >
-          Apply Filters
+          Aplicar filtros
         </button>
       </div>
     </form>

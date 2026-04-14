@@ -1,6 +1,13 @@
 const { createModule, resolveAuthContext } = require('../shared');
 const { createUsersRouter } = require('./presentation/router');
-const { createListUsers, createGetUserById, createUpdateUser, createDeactivateUser, createReactivateUser } = require('./application/useCases');
+const {
+  createListUsers,
+  createGetUserById,
+  createUpdateUser,
+  createDeactivateUser,
+  createReactivateUser,
+  createUnlockUser,
+} = require('./application/useCases');
 const { userRepository } = require('./infrastructure/repositories');
 
 const createUsersModule = ({ sharedRuntime } = {}) => {
@@ -11,6 +18,7 @@ const createUsersModule = ({ sharedRuntime } = {}) => {
     updateUser: createUpdateUser({ userRepository }),
     deactivateUser: createDeactivateUser({ userRepository }),
     reactivateUser: createReactivateUser({ userRepository }),
+    unlockUser: createUnlockUser({ userRepository }),
   };
 
   return createModule({

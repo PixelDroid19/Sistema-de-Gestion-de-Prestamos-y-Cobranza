@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, 
-  Edit2, FileText, DollarSign, ShieldAlert, Percent, History, 
-  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity
+import {
+  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
+  Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
+  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table
 } from 'lucide-react';
 import { useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
@@ -20,13 +20,14 @@ import { useSafeMutationAction } from './hooks/useSafeMutationAction';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
+import { resolveOperationalGuard } from '../services/operationalGuards';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const loanId = Number(id);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payoff' | 'history'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history'>('calendar');
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const operationalModal = useOperationalModalState();
@@ -96,6 +97,10 @@ export default function CreditDetails() {
     return [
       ...payments.map((payment: any) => ({
         id: `payment-${payment.id ?? payment.createdAt ?? Math.random()}`,
+        paymentId: Number(payment.id),
+        paymentMethod: payment.paymentMethod,
+        paymentStatus: payment.status,
+        paymentReconciled: Boolean(payment.reconciled || payment.isReconciled || String(payment.status || '').toLowerCase().includes('reconcil')),
         action: `Pago ${getPaymentTypeLabel(payment.paymentType)}`,
         description: `Monto: ${formatCurrency(payment.amount)}`,
         date: payment.paymentDate || payment.createdAt,
@@ -113,7 +118,7 @@ export default function CreditDetails() {
 
   let customerLabel = loan?.Customer?.name || loan?.customerName || '';
   if (customerLabel) {
-    customerLabel = customerLabel.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+    customerLabel = customerLabel.replace(/(qa|seed|test|dev|customer|socio|partner|admin|live|user|demo|example|sample)\s*/ig, '').trim();
   }
   customerLabel = customerLabel || (loan?.customerId ? `Cliente #${loan.customerId}` : 'Sin cliente');
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
@@ -161,6 +166,29 @@ export default function CreditDetails() {
     errorContext: { domain: 'payments', action: 'generic' },
     successMessage: 'Comprobante descargado',
   });
+
+  const payableStatuses = new Set(['pending', 'overdue', 'partial']);
+  const nextPayableInstallmentNumber = useMemo(() => {
+    const candidate = calendarEntries
+      .filter((entry: any) => payableStatuses.has(String(entry?.status || '').toLowerCase()))
+      .map((entry: any) => Number(entry?.installmentNumber))
+      .filter((value: number) => Number.isFinite(value))
+      .sort((a, b) => a - b)[0];
+
+    return Number.isFinite(candidate) ? candidate : null;
+  }, [calendarEntries]);
+
+  const extractPaymentId = (eventId: string): number | null => {
+    if (eventId.startsWith('payment-')) {
+      const id = eventId.replace('payment-', '');
+      return Number(id);
+    }
+    return null;
+  };
+
+  const isRecordPaymentModalOpen = operationalModal.is('record-payment');
+  const isPromiseModalOpen = operationalModal.is('create-promise');
+  const isFollowUpModalOpen = operationalModal.is('create-follow-up');
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
@@ -307,7 +335,9 @@ export default function CreditDetails() {
         permissions: user?.permissions,
         loanStatus: loan?.status,
         installmentStatus: operationalModal.payload?.installment?.status,
+        paymentReconciled: editingPaymentReconciled,
       },
+      confirmationMessage: '¿Confirmar actualización del método de pago?',
       run: async () => {
         await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
       },
@@ -316,6 +346,7 @@ export default function CreditDetails() {
         setShowEditPaymentMethodModal(false);
         operationalModal.closeModal();
         setEditingPaymentId(null);
+        setEditingPaymentReconciled(false);
       },
       successMessage: 'Método de pago actualizado',
     });
@@ -446,6 +477,22 @@ export default function CreditDetails() {
     setShowAnnulModal(true);
   };
 
+  const openEditPaymentMethodModal = (entry: any) => {
+    const paymentId = Number(entry?.paymentId);
+    if (!Number.isFinite(paymentId)) {
+      toast.error({ title: 'No se pudo identificar el pago.' });
+      return;
+    }
+
+    const normalizedMethod = String(entry?.paymentMethod || 'transfer').toLowerCase();
+    const hasMethod = PAYMENT_METHODS.some((method) => method.value === normalizedMethod);
+
+    setEditingPaymentId(paymentId);
+    setEditingPaymentReconciled(Boolean(entry?.paymentReconciled));
+    setNewPaymentMethod((hasMethod ? normalizedMethod : 'transfer') as PaymentMethod);
+    setShowEditPaymentMethodModal(true);
+  };
+
   const openInstallmentPayment = (row: any) => {
     if (!row?.installmentNumber) {
       toast.error({ title: 'No se pudo identificar la cuota.' });
@@ -498,18 +545,6 @@ export default function CreditDetails() {
         status: row.status,
       },
     });
-  };
-
-  const isRecordPaymentModalOpen = operationalModal.is('record-payment');
-  const isPromiseModalOpen = operationalModal.is('create-promise');
-  const isFollowUpModalOpen = operationalModal.is('create-follow-up');
-
-  const extractPaymentId = (eventId: string): number | null => {
-    if (eventId.startsWith('payment-')) {
-      const id = eventId.replace('payment-', '');
-      return Number(id);
-    }
-    return null;
   };
 
   const TabButton = ({ id, icon: Icon, label, badge }: { id: typeof activeTab, icon: any, label: string, badge?: number }) => (
@@ -590,19 +625,26 @@ export default function CreditDetails() {
                   </button>
                 </>
               )}
-              <button 
+              <button
                 onClick={() => setShowStatusModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
                 title="Cambiar estado del crédito"
               >
                 <Edit2 size={16} /> Estado
               </button>
+              <button
+                onClick={() => navigate(`/credits/${loanId}/schedule`)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
+                title="Ver plan de pagos completo"
+              >
+                <Table size={16} /> Plan de Pagos
+              </button>
             </div>
           </div>
         </div>
 
         {/* Financial Summary */}
-        <div className="bg-bg-base/50 p-6 md:px-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <div className="bg-bg-base/50 p-6 md:px-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6">
           <div className="min-w-0">
             <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Cuotas Totales</p>
             <p className="text-xl font-bold text-text-primary truncate">{loan.termMonths ?? '—'}</p>
@@ -616,8 +658,16 @@ export default function CreditDetails() {
             <p className="text-xl font-bold text-text-primary truncate" title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</p>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Capital Amortizado</p>
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Capital Pagado</p>
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate" title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Interés Pagado</p>
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400 truncate" title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wide truncate">Tasa Mora EA</p>
+            <p className="text-xl font-bold text-red-600 dark:text-red-400 truncate">{loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}</p>
           </div>
           <div className="lg:border-l border-border-strong lg:pl-6 min-w-0 md:col-span-2 lg:col-span-1">
             <p className="text-xs font-bold text-brand-primary mb-1.5 uppercase tracking-wide flex items-center gap-1 truncate">
@@ -635,6 +685,7 @@ export default function CreditDetails() {
           <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
           <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />
           <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />
+          <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={historyEntries.length} />
           <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />
           <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
         </div>
@@ -711,38 +762,55 @@ export default function CreditDetails() {
                             </span>
                           </td>
                           {user?.role !== 'customer' && (
-                            <td className="py-3 px-5 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                {(row.status === 'pending' || row.status === 'overdue') && (
+                          <td className="py-3 px-5 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                                {(row.status === 'pending' || row.status === 'overdue' || row.status === 'partial') && (
                                   <>
-                                    <button
-                                      onClick={() => openInstallmentPayment(row)}
-                                      className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
-                                      title="Registrar pago de cuota"
-                                    >
-                                      <DollarSign size={16} />
-                                    </button>
+                                    {(() => {
+                                      const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
+                                      const installmentReason = isNextPendingInstallment
+                                        ? ''
+                                        : (nextPayableInstallmentNumber
+                                          ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
+                                          : 'No hay cuotas pendientes para operar.');
+
+                                      return (
+                                        <>
+                                     <button
+                                        onClick={() => openInstallmentPayment(row)}
+                                        disabled={!isNextPendingInstallment}
+                                       className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                       title={isNextPendingInstallment ? 'Registrar pago de cuota' : installmentReason}
+                                     >
+                                       <DollarSign size={16} />
+                                     </button>
                                     <button
                                       onClick={() => openPromiseFromInstallment(row)}
-                                      className="p-1.5 text-text-secondary hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors"
-                                      title="Crear compromiso de pago"
+                                      disabled={!isNextPendingInstallment}
+                                      className="p-1.5 text-text-secondary hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={isNextPendingInstallment ? 'Crear compromiso de pago' : installmentReason}
                                     >
                                       <Clock size={16} />
                                     </button>
                                     <button
                                       onClick={() => openFollowUpFromInstallment(row)}
-                                      className="p-1.5 text-text-secondary hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-                                      title="Crear seguimiento"
+                                      disabled={!isNextPendingInstallment}
+                                      className="p-1.5 text-text-secondary hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={isNextPendingInstallment ? 'Crear seguimiento' : installmentReason}
                                     >
                                       <Bell size={16} />
                                     </button>
-                                    <button
-                                      onClick={() => openAnnulModal(row.installmentNumber)}
-                                      className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                                      title="Anular cuota"
-                                    >
-                                      <ShieldAlert size={16} />
-                                    </button>
+                                      <button
+                                         onClick={() => openAnnulModal(row.installmentNumber)}
+                                         disabled={!isNextPendingInstallment}
+                                       className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                       title={isNextPendingInstallment ? 'Anular cuota' : installmentReason}
+                                      >
+                                        <ShieldAlert size={16} />
+                                      </button>
+                                         </>
+                                       );
+                                     })()}
                                   </>
                                 )}
                               </div>
@@ -872,6 +940,72 @@ export default function CreditDetails() {
             </div>
           )}
 
+          {/* TAB: HISTORIAL DE PAGOS */}
+          {activeTab === 'payouts' && (
+            <div className="animate-in fade-in duration-300">
+              {historyEntries.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-bg-base border-b border-border-subtle">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">ID Pago</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Tipo</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary"># Cuota</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Monto</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Capital</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Interés</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Mora</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Método</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Fecha Pago</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyEntries.map((entry: any, index: number) => (
+                        <tr key={index} className="border-b border-border-subtle hover:bg-hover-bg">
+                          <td className="py-3 px-4 text-text-secondary">{entry.id ? `#${String(entry.id).slice(0, 8)}` : '—'}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              entry.type === 'payoff' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' :
+                              entry.paymentType === 'capital' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' :
+                              entry.paymentType === 'partial' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' :
+                              'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                              {entry.type === 'payoff' ? 'Pago total' :
+                               getPaymentTypeLabel(entry.paymentType)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-text-secondary">{entry.installmentNumber || '—'}</td>
+                          <td className="py-3 px-4 text-right font-medium text-text-primary">{formatCurrency(entry.amount)}</td>
+                          <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400">{entry.principalApplied ? formatCurrency(entry.principalApplied) : '—'}</td>
+                          <td className="py-3 px-4 text-right text-amber-600 dark:text-amber-400">{entry.interestApplied ? formatCurrency(entry.interestApplied) : '—'}</td>
+                          <td className="py-3 px-4 text-right text-red-600 dark:text-red-400">{entry.penaltyApplied ? formatCurrency(entry.penaltyApplied) : '—'}</td>
+                          <td className="py-3 px-4 text-text-secondary capitalize">{entry.paymentMethod || '—'}</td>
+                          <td className="py-3 px-4 text-text-secondary">{formatDate(entry.date || entry.paymentDate)}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              entry.status === 'completed' || entry.paymentStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                              entry.status === 'failed' || entry.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {entry.status === 'completed' || entry.paymentStatus === 'completed' ? 'Completado' :
+                               entry.status === 'failed' || entry.paymentStatus === 'failed' ? 'Fallido' : 'Pendiente'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <DollarSign className="mx-auto h-12 w-12 text-border-strong mb-3" />
+                  <p className="text-text-secondary">No hay pagos registrados aún.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB: PAYOFF */}
           {activeTab === 'payoff' && (
             <div className="animate-in fade-in duration-300">
@@ -948,12 +1082,36 @@ export default function CreditDetails() {
                               </p>
                             </div>
                             {paymentId && (
-                              <button
-                                onClick={() => handleDownloadVoucher(paymentId)}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors border border-border-subtle"
-                              >
-                                <FileText size={16} /> Recibo
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleDownloadVoucher(paymentId)}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors border border-border-subtle"
+                                >
+                                  <FileText size={16} /> Recibo
+                                </button>
+                                {(() => {
+                                  const editGuard = resolveOperationalGuard('installment.editPaymentMethod', {
+                                    role: user?.role,
+                                    permissions: user?.permissions,
+                                    loanStatus: loan?.status,
+                                    paymentStatus: event.paymentStatus,
+                                    paymentReconciled: Boolean(event.paymentReconciled),
+                                  });
+
+                                  if (!editGuard.visible) return null;
+
+                                  return (
+                                    <button
+                                      onClick={() => openEditPaymentMethodModal(event)}
+                                      disabled={!editGuard.executable}
+                                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={editGuard.executable ? 'Editar método de pago' : (editGuard.reason || 'Acción no disponible')}
+                                    >
+                                      <Edit2 size={16} /> Método
+                                    </button>
+                                  );
+                                })()}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1211,6 +1369,56 @@ export default function CreditDetails() {
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={() => setShowCapitalModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
               <button onClick={handleRecordCapital} disabled={!capitalAmount || parseFloat(capitalAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Aporte</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditPaymentMethodModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-border-subtle">
+              <h3 className="text-lg font-medium text-text-primary">Editar método de pago</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              {editingPaymentReconciled && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  El pago está conciliado. No se permite editar su método.
+                </div>
+              )}
+              <div>
+                <label htmlFor="credit-payment-method-select" className="block text-sm text-text-secondary mb-1">Nuevo método</label>
+                <select
+                  id="credit-payment-method-select"
+                  value={newPaymentMethod}
+                  onChange={(event) => setNewPaymentMethod(event.target.value as PaymentMethod)}
+                  disabled={editingPaymentReconciled}
+                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {PAYMENT_METHODS.map((method) => (
+                    <option key={method.value} value={method.value}>{method.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
+              <button
+                onClick={() => {
+                  setShowEditPaymentMethodModal(false);
+                  setEditingPaymentId(null);
+                  setEditingPaymentReconciled(false);
+                }}
+                className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdatePaymentMethod}
+                disabled={editingPaymentReconciled}
+                className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Guardar
+              </button>
             </div>
           </div>
         </div>

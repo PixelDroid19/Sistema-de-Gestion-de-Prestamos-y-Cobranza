@@ -7,6 +7,7 @@ const {
   createUpdateUser,
   createDeactivateUser,
   createReactivateUser,
+  createUnlockUser,
 } = require('../src/modules/users/application/useCases');
 const { ConflictError, NotFoundError } = require('../src/utils/errorHandler');
 
@@ -120,4 +121,36 @@ test('createGetUserById throws NotFoundError for missing users', async () => {
   });
 
   await assert.rejects(() => getUserById(404), NotFoundError);
+});
+
+test('createUnlockUser resets lock counters for locked accounts', async () => {
+  const updates = [];
+  const userRepository = {
+    async findById(id) {
+      return {
+        id,
+        name: 'Locked User',
+        email: 'locked@example.com',
+        role: 'customer',
+        failedLoginAttempts: 5,
+        lockedUntil: '2026-04-10T00:00:00.000Z',
+      };
+    },
+    async update(id, payload) {
+      updates.push({ id, payload });
+      return {
+        id,
+        name: 'Locked User',
+        email: 'locked@example.com',
+        role: 'customer',
+        ...payload,
+      };
+    },
+  };
+
+  const unlockUser = createUnlockUser({ userRepository });
+  const unlocked = await unlockUser(12);
+
+  assert.equal(unlocked.id, 12);
+  assert.deepEqual(updates, [{ id: 12, payload: { failedLoginAttempts: 0, lockedUntil: null } }]);
 });

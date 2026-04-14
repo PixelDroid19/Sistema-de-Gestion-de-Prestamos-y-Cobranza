@@ -38,6 +38,11 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
+  router.get('/workbench/scopes', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const result = await useCases.listDagWorkbenchScopes({ actor: req.user });
+    res.json({ success: true, data: { scopes: result.scopes } });
+  }));
+
   router.get('/workbench/graph', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.loadDagWorkbenchGraph({ actor: req.user, scopeKey: req.query.scope });
     res.json({ success: true, data: { graph: result.graphVersion } });
@@ -128,6 +133,41 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
         financialSummary: loan.financialSnapshot,
       },
     });
+  }));
+
+  // Keep specific/static paths before any '/:id' route to avoid shadowing.
+  router.get('/statistics', authMiddleware(), asyncHandler(async (req, res) => {
+    const statistics = await useCases.getLoanStatistics();
+    res.json({ success: true, data: { statistics } });
+  }));
+
+  router.get('/due-payments', authMiddleware(), asyncHandler(async (req, res) => {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ success: false, error: { message: 'date parameter is required' } });
+    }
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid date format' } });
+    }
+    const duePayments = await useCases.getDuePayments({ date: parsedDate });
+    res.json({ success: true, count: duePayments.length, data: { duePayments } });
+  }));
+
+  router.get('/search', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
+    const filters = {
+      status: req.query.status,
+      minAmount: req.query.minAmount ? Number(req.query.minAmount) : undefined,
+      maxAmount: req.query.maxAmount ? Number(req.query.maxAmount) : undefined,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    };
+    const result = await useCases.searchLoans({ filters, pagination: req.pagination });
+    if (result.pagination) {
+      res.json({ success: true, count: result.pagination.totalItems, data: { loans: result.items, pagination: result.pagination } });
+      return;
+    }
+    res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
   router.patch('/:id/status', authMiddleware(['admin']), loanValidation.updateStatus, asyncHandler(async (req, res) => {
@@ -305,40 +345,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       lateFeeRate,
     });
     res.json({ success: true, message: 'Late fee rate updated successfully', data: { loan } });
-  }));
-
-  router.get('/statistics', authMiddleware(), asyncHandler(async (req, res) => {
-    const statistics = await useCases.getLoanStatistics();
-    res.json({ success: true, data: { statistics } });
-  }));
-
-  router.get('/due-payments', authMiddleware(), asyncHandler(async (req, res) => {
-    const { date } = req.query;
-    if (!date) {
-      return res.status(400).json({ success: false, error: { message: 'date parameter is required' } });
-    }
-    const parsedDate = new Date(date);
-    if (Number.isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ success: false, error: { message: 'Invalid date format' } });
-    }
-    const duePayments = await useCases.getDuePayments({ date: parsedDate });
-    res.json({ success: true, count: duePayments.length, data: { duePayments } });
-  }));
-
-  router.get('/search', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
-    const filters = {
-      status: req.query.status,
-      minAmount: req.query.minAmount ? Number(req.query.minAmount) : undefined,
-      maxAmount: req.query.maxAmount ? Number(req.query.maxAmount) : undefined,
-      startDate: req.query.startDate,
-      endDate: req.query.endDate,
-    };
-    const result = await useCases.searchLoans({ filters, pagination: req.pagination });
-    if (result.pagination) {
-      res.json({ success: true, count: result.pagination.totalItems, data: { loans: result.items, pagination: result.pagination } });
-      return;
-    }
-    res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
   return router;
