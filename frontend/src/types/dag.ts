@@ -197,6 +197,28 @@ export interface GraphDeleteResponse {
   message: string;
 }
 
+export interface DagWorkbenchScopeHelper {
+  name: string;
+  description: string;
+}
+
+export interface DagWorkbenchScope {
+  key: string;
+  label: string;
+  description: string;
+  defaultName: string;
+  simulationInput: SimulationInput;
+  helpers: DagWorkbenchScopeHelper[];
+  defaultGraph: DagGraph;
+}
+
+export interface DagWorkbenchScopesResponse {
+  success: boolean;
+  data: {
+    scopes: DagWorkbenchScope[];
+  };
+}
+
 export interface ValidateGraphResponse {
   success: boolean;
   data: {

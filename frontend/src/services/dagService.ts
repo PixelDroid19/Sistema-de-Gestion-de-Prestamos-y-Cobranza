@@ -12,6 +12,7 @@ import {
   GraphDetailsResponse,
   GraphStatusUpdateResponse,
   GraphDeleteResponse,
+  DagWorkbenchScopesResponse,
   DagGraphStatus,
   SimulationInput,
   SimulationResponse,
@@ -22,6 +23,11 @@ import {
  * Compatible with backend routes mounted at /credits/*
  */
 export const dagService = {
+  async listScopes(): Promise<DagWorkbenchScopesResponse> {
+    const { data } = await apiClient.get('/loans/workbench/scopes');
+    return data;
+  },
+
   /**
    * GET /api/v1/credits/workbench/graph?scope={scopeKey}
    * Load an existing graph from the workbench
@@ -122,4 +128,3 @@ export const dagService = {
 };
 
 export default dagService;
-
