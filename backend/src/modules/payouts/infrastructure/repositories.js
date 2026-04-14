@@ -37,8 +37,8 @@ const buildPaymentListWhere = ({ filters = {} }) => {
         buildLowercaseLikeClause('Payment.loanId', searchPattern),
         buildLowercaseLikeClause('Payment.paymentMethod', searchPattern),
         buildLowercaseLikeClause('Payment.paymentType', searchPattern),
-        buildLowercaseLikeClause('Customer.name', searchPattern),
-        buildLowercaseLikeClause('Customer.email', searchPattern),
+        buildLowercaseLikeClause('Loan->Customer.name', searchPattern),
+        buildLowercaseLikeClause('Loan->Customer.email', searchPattern),
       ],
     });
   }

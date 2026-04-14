@@ -16,10 +16,10 @@ const { sequelize } = require('../models');
 const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
   // Clean up entries older than 2x windowMs to prevent table bloat
   const cleanupOldEntries = async () => {
-    const cutoff = Date.now() - (windowMs * 2);
+    const cutoff = new Date(Date.now() - (windowMs * 2));
     try {
       await sequelize.query(
-        `DELETE FROM rate_limit_entries WHERE key_prefix = :keyPrefix AND created_at < :cutoff`,
+        `DELETE FROM rate_limit_entries WHERE "keyPrefix" = :keyPrefix AND created_at < :cutoff`,
         { replacements: { keyPrefix, cutoff }, type: sequelize.QueryTypes.DELETE }
       );
     } catch (err) {
@@ -43,15 +43,15 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const key = `${keyPrefix}:${ip}`;
     const now = Date.now();
-    const windowStart = now - windowMs;
+    const windowStart = new Date(now - windowMs);
 
     try {
       // Use a transaction for atomic operations
       const result = await sequelize.transaction(async (tx) => {
         // Count requests from this IP within the current window
-        const [countResult] = await sequelize.query(
+        const [countRow] = await sequelize.query(
           `SELECT COUNT(*) as count FROM rate_limit_entries 
-           WHERE key_prefix = :keyPrefix AND identifier = :identifier AND created_at > :windowStart`,
+           WHERE "keyPrefix" = :keyPrefix AND identifier = :identifier AND created_at > :windowStart`,
           { 
             replacements: { keyPrefix, identifier: key, windowStart },
             type: sequelize.QueryTypes.SELECT,
@@ -59,13 +59,13 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
           }
         );
 
-        const currentCount = parseInt(countResult[0]?.count || '0', 10);
+        const currentCount = parseInt(countRow?.count || '0', 10);
 
         if (currentCount >= max) {
           // Get the oldest entry to calculate retry-after
-          const [oldestResult] = await sequelize.query(
+          const [oldestRow] = await sequelize.query(
             `SELECT created_at FROM rate_limit_entries 
-             WHERE key_prefix = :keyPrefix AND identifier = :identifier 
+             WHERE "keyPrefix" = :keyPrefix AND identifier = :identifier 
              ORDER BY created_at ASC LIMIT 1`,
             {
               replacements: { keyPrefix, identifier: key },
@@ -74,7 +74,7 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
             }
           );
 
-          const oldestEntry = oldestResult[0];
+          const oldestEntry = oldestRow;
           const retryAfter = oldestEntry 
             ? Math.ceil((new Date(oldestEntry.created_at).getTime() + windowMs - now) / 1000)
             : Math.ceil(windowMs / 1000);
@@ -87,7 +87,7 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
 
         // Insert new entry for this request
         await sequelize.query(
-          `INSERT INTO rate_limit_entries (key_prefix, identifier, created_at) 
+          `INSERT INTO rate_limit_entries ("keyPrefix", identifier, created_at) 
            VALUES (:keyPrefix, :identifier, :createdAt)`,
           {
             replacements: { keyPrefix, identifier: key, createdAt: new Date(now) },

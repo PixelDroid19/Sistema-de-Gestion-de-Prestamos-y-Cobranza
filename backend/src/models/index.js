@@ -23,6 +23,7 @@ const UserPermission = require('./UserPermission');
 const AuditLog = require('./AuditLog');
 const RefreshToken = require('./RefreshToken');
 const AssociateInstallment = require('./AssociateInstallment');
+const RateLimitEntry = require('./RateLimitEntry');
 
 Loan.belongsTo(Customer, { foreignKey: 'customerId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Customer.hasMany(Loan, { foreignKey: 'customerId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
@@ -148,4 +149,5 @@ module.exports = {
   UserPermission,
   AuditLog,
   RefreshToken,
+  RateLimitEntry,
 };

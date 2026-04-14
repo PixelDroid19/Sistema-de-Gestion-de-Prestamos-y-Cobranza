@@ -74,7 +74,13 @@ export default function Payouts() {
         .filter((paymentId: number): paymentId is number => Number.isFinite(paymentId)),
     );
 
-    setSelectedPaymentIds((current) => current.filter((paymentId) => visiblePaymentIds.has(paymentId)));
+    setSelectedPaymentIds((current) => {
+      const nextSelection = current.filter((paymentId) => visiblePaymentIds.has(paymentId));
+      const didSelectionChange = nextSelection.length !== current.length
+        || nextSelection.some((paymentId, index) => paymentId !== current[index]);
+
+      return didSelectionChange ? nextSelection : current;
+    });
   }, [payments]);
 
   const selectedPayments = useMemo(
@@ -96,7 +102,19 @@ export default function Payouts() {
   };
 
   const formatPaymentMethod = (payment: any) => {
-    return payment?.paymentMethod || payment?.paymentMetadata?.method || payment?.method || 'Sin método';
+    const rawMethod = String(
+      payment?.paymentMethod
+      || payment?.paymentMetadata?.method
+      || payment?.method
+      || '',
+    ).trim().toLowerCase();
+
+    if (!rawMethod) {
+      return 'Sin método';
+    }
+
+    const matchingMethod = PAYMENT_METHODS.find((method) => method.value === rawMethod);
+    return matchingMethod?.label || rawMethod;
   };
 
   const getPaymentStatusPresentation = (payment: any) => {
