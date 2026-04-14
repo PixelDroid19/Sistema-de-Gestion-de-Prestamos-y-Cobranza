@@ -1,78 +1,34 @@
 const { test, describe } = require('node:test');
-const assert = require('assert');
+const assert = require('node:assert/strict');
 
-const { CalculationEngine } = require('../../src/core/domain/calculation/CalculationEngine');
-const { getDagWorkbenchScopeDefinition } = require('../../src/modules/credits/application/dag/scopeRegistry');
+const { simulateCredit } = require('../../src/modules/credits/application/creditSimulationService');
+const { createSimulationDagExecutor } = require('../../src/modules/credits/application/dag/simulationGraph');
 
-const products = [
-  { name: 'Personal Loan 12%', principal: 10000, rate: 12, term: 12, payment: 1000 },
-  { name: 'Business Loan 18%', principal: 50000, rate: 18, term: 24, payment: 2500 },
-  { name: 'Quick Loan 24%', principal: 5000, rate: 24, term: 6, payment: 1000 },
+const scenarios = [
+  { name: 'Personal Loan 12%', amount: 10000, interestRate: 12, termMonths: 12, lateFeeMode: 'SIMPLE' },
+  { name: 'Business Loan 18%', amount: 50000, interestRate: 18, termMonths: 24, lateFeeMode: 'SIMPLE' },
+  { name: 'Quick Loan 24%', amount: 5000, interestRate: 24, termMonths: 6, lateFeeMode: 'FLAT' },
 ];
 
-function calculateLegacyAmortization(principal, annualRate, termMonths, paymentAmount) {
-  const monthlyRate = annualRate / 100 / 12;
-  let balance = principal;
-  let totalInterest = 0;
+const compareWithinTolerance = (left, right, tolerance = 0.01) => Math.abs(Number(left || 0) - Number(right || 0)) <= tolerance;
 
-  for (let i = 0; i < termMonths && balance > 0; i++) {
-    const interest = balance * monthlyRate;
-    totalInterest += interest;
-    balance -= (paymentAmount - interest);
-  }
+describe('DAG vs canonical simulation parity', () => {
+  const executeDagSimulation = createSimulationDagExecutor();
 
-  return { totalInterest, finalBalance: Math.max(0, balance) };
-}
+  scenarios.forEach((scenario) => {
+    test(`${scenario.name}: DAG executor matches canonical simulation output`, () => {
+      const canonical = simulateCredit(scenario);
+      const dag = executeDagSimulation(scenario).outputs.result;
 
-function calculateDagAmortization(graph, principal, rate, termMonths, paymentAmount) {
-  let balance = principal;
-  let totalInterest = 0;
-
-  for (let i = 0; i < termMonths && balance > 0; i++) {
-    const scope = {
-      principal,
-      rate,
-      paymentAmount,
-      balance,
-      totalInterest,
-    };
-
-    const result = CalculationEngine.execute(graph, scope);
-
-    balance = result.scope.newBalance || 0;
-    totalInterest = result.scope.totalInterest || 0;
-  }
-
-  return { totalInterest, finalBalance: Math.max(0, balance) };
-}
-
-describe('DAG vs Legacy Parity', () => {
-  const graph = getDagWorkbenchScopeDefinition('credit-simulation').defaultGraph;
-
-  products.forEach(product => {
-    test(`${product.name}: DAG matches legacy within 0.01 tolerance`, () => {
-      const legacy = calculateLegacyAmortization(
-        product.principal,
-        product.rate,
-        product.term,
-        product.payment
-      );
-
-      const dag = calculateDagAmortization(
-        graph,
-        product.principal,
-        product.rate,
-        product.term,
-        product.payment
-      );
-
-      const tolerance = 0.01;
-      const diff = Math.abs(dag.totalInterest - legacy.totalInterest);
-
-      assert.ok(
-        diff <= tolerance,
-        `Interest mismatch: DAG=${dag.totalInterest.toFixed(4)}, Legacy=${legacy.totalInterest.toFixed(4)}, Diff=${diff.toFixed(4)}`
-      );
+      assert.equal(dag.lateFeeMode, canonical.lateFeeMode);
+      assert.equal(dag.schedule.length, canonical.schedule.length);
+      assert.ok(compareWithinTolerance(dag.summary.installmentAmount, canonical.summary.installmentAmount));
+      assert.ok(compareWithinTolerance(dag.summary.totalInterest, canonical.summary.totalInterest));
+      assert.ok(compareWithinTolerance(dag.summary.totalPayable, canonical.summary.totalPayable));
+      assert.ok(compareWithinTolerance(
+        dag.schedule[dag.schedule.length - 1].remainingBalance,
+        canonical.schedule[canonical.schedule.length - 1].remainingBalance,
+      ));
     });
   });
 });

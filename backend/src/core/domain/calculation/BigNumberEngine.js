@@ -34,6 +34,7 @@ const ALLOWED_FUNCTIONS = new Set([
   'buildAmortizationSchedule',
   'summarizeSchedule',
   'roundCurrency',
+  'assertSupportedLateFeeMode',
 ]);
 
 // Blocked patterns that could bypass the whitelist
