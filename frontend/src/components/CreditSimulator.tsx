@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Calculator, DollarSign, Calendar, Percent, BarChart3, TrendingUp, ArrowRight, Download } from 'lucide-react';
 import { useCalculateLoan } from '../services/creditSimulatorService';
-import type { SimulatorPaymentMethod } from '../types/reportSimulation';
+import type { PaymentMethod as SimulatorPaymentMethod } from '../services/creditSimulatorService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 

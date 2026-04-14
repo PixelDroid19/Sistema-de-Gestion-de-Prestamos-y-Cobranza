@@ -613,7 +613,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         nodes, 
         edges, 
         graphVersion,
-        graphName: graphVersion.name || DEFAULT_SCOPE_NAMES[scopeKey] || scopeKey,
+        graphName: graphVersion.name || scopeKey,
         validation: graphVersion.validation || null,
         isLoading: false 
       });
@@ -621,29 +621,38 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
       const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message;
       if (err?.response?.status === 404 || (typeof errMsg === 'string' && errMsg.includes('not found'))) {
         // No saved graph — load the DEFAULT template for this scope
-        const defaultGraph = DEFAULT_SCOPE_GRAPHS[scopeKey];
-        if (defaultGraph) {
-          const updateNodeData = get().updateNodeData;
-          const { nodes, edges } = convertGraphToRFState(defaultGraph, updateNodeData);
-          set({ 
-            nodes, 
-            edges,
-            graphName: DEFAULT_SCOPE_NAMES[scopeKey] || 'Nuevo Grafo',
-            graphVersion: null,
-            validation: null,
-            isLoading: false,
-            error: null,
-          });
-        } else {
-          set({ 
-            nodes: [], 
-            edges: [],
-            graphName: 'Nuevo Grafo',
-            graphVersion: null,
-            validation: null,
-            isLoading: false 
-          });
+        try {
+          const scopesResponse = await dagService.listScopes();
+          const scopeDefinition = scopesResponse.data?.scopes?.find((scope) => scope.key === scopeKey);
+          const defaultGraph = scopeDefinition?.defaultGraph;
+
+          if (defaultGraph) {
+            const updateNodeData = get().updateNodeData;
+            const { nodes, edges } = convertGraphToRFState(defaultGraph, updateNodeData);
+            set({
+              nodes,
+              edges,
+              graphName: scopeDefinition?.defaultName || scopeDefinition?.label || 'Nuevo Grafo',
+              graphVersion: null,
+              validation: null,
+              simulationInput: scopeDefinition?.simulationInput || get().simulationInput,
+              isLoading: false,
+              error: null,
+            });
+            return;
+          }
+        } catch (scopeError) {
+          console.error('[dag] listScopes fallback failed', scopeError);
         }
+
+        set({
+          nodes: [],
+          edges: [],
+          graphName: 'Nuevo Grafo',
+          graphVersion: null,
+          validation: null,
+          isLoading: false,
+        });
       } else {
         console.error('[dag] loadGraph failed', err);
         set({

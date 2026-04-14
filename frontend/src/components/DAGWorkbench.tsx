@@ -43,11 +43,11 @@ import {
 } from 'lucide-react';
 import { useDagStore, AppNode, AppEdge, RFNodeData } from '../store/dagWorkbenchStore';
 import type { DagWorkbenchState } from '../store/dagWorkbenchStore';
-import type { NodeKind } from '../types/dag';
-import { DAG_SCOPES } from '../types/dag';
+import type { DagWorkbenchScope, NodeKind } from '../types/dag';
 import DagNodeContent from './dag/DagNodeContent';
 import FormulaNodeEditor from './dag/FormulaNodeEditor';
 import { tTerm } from '../i18n/terminology';
+import { dagService } from '../services/dagService';
 
 // =============================================================================
 // CUSTOM NODE COMPONENT
@@ -616,15 +616,49 @@ const DAGWorkbenchContent: React.FC = () => {
 
   const [rightPanel, setRightPanel] = useState<'properties' | 'validation' | 'simulation'>('properties');
   const [showScopeSelect, setShowScopeSelect] = useState(false);
+  const [scopes, setScopes] = useState<DagWorkbenchScope[]>([]);
 
-  // Auto-load default graph on mount
   useEffect(() => {
-    loadGraph(scopeKey);
+    let active = true;
+
+    const bootstrapWorkbench = async () => {
+      try {
+        const response = await dagService.listScopes();
+        if (!active) return;
+
+        const nextScopes = response.data?.scopes || [];
+        setScopes(nextScopes);
+
+        const initialScope = nextScopes.find((scope) => scope.key === scopeKey) || nextScopes[0];
+        if (initialScope) {
+          setSimulationInput(initialScope.simulationInput);
+          await loadGraph(initialScope.key);
+          return;
+        }
+      } catch (scopeError) {
+        console.error('[dag] unable to load scope catalog', scopeError);
+      }
+
+      if (active) {
+        await loadGraph(scopeKey);
+      }
+    };
+
+    bootstrapWorkbench();
+
+    return () => {
+      active = false;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) || null,
     [nodes, selectedNodeId]
+  );
+
+  const selectedScope = useMemo(
+    () => scopes.find((scope) => scope.key === scopeKey) || null,
+    [scopeKey, scopes]
   );
 
   const handleAddNode = useCallback((kind: NodeKind) => {
@@ -706,18 +740,19 @@ const DAGWorkbenchContent: React.FC = () => {
             "
           >
             <Settings size={12} />
-            {scopeLabelByKey[scopeKey]
-              ? tTerm(scopeLabelByKey[scopeKey])
-              : scopeKey}
+            {selectedScope?.label || (scopeLabelByKey[scopeKey] ? tTerm(scopeLabelByKey[scopeKey]) : scopeKey)}
             <ChevronRight size={12} className={`transition-transform ${showScopeSelect ? 'rotate-90' : ''}`} />
           </button>
           
           {showScopeSelect && (
             <div className="absolute top-full left-0 mt-1 w-48 bg-bg-surface  border border-border-subtle  rounded-lg shadow-xl z-50">
-              {DAG_SCOPES.map((scope) => (
+              {(scopes.length > 0 ? scopes : [{ key: scopeKey, label: selectedScope?.label || scopeKey } as DagWorkbenchScope]).map((scope) => (
                 <button
                   key={scope.key}
-                  onClick={() => {
+                  onClick={async () => {
+                    if (scope.simulationInput) {
+                      setSimulationInput(scope.simulationInput);
+                    }
                     loadGraph(scope.key);
                     setShowScopeSelect(false);
                   }}
@@ -727,9 +762,7 @@ const DAGWorkbenchContent: React.FC = () => {
                     ${scope.key === scopeKey ? 'text-blue-500 font-semibold' : 'text-text-primary '}
                   `}
                 >
-                  {scopeLabelByKey[scope.key]
-                    ? tTerm(scopeLabelByKey[scope.key])
-                    : scope.key}
+                  {scope.label || (scopeLabelByKey[scope.key] ? tTerm(scopeLabelByKey[scope.key]) : scope.key)}
                 </button>
               ))}
             </div>
