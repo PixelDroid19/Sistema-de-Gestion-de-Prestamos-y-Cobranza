@@ -1,8 +1,8 @@
 const { test, describe } = require('node:test');
 const assert = require('assert');
 
-const { createStandardAmortizationGraph } = require('../../src/bootstrap/graphDefinitions');
 const { CalculationEngine } = require('../../src/core/domain/calculation/CalculationEngine');
+const { getDagWorkbenchScopeDefinition } = require('../../src/modules/credits/application/dag/scopeRegistry');
 
 const products = [
   { name: 'Personal Loan 12%', principal: 10000, rate: 12, term: 12, payment: 1000 },
@@ -47,7 +47,7 @@ function calculateDagAmortization(graph, principal, rate, termMonths, paymentAmo
 }
 
 describe('DAG vs Legacy Parity', () => {
-  const graph = createStandardAmortizationGraph();
+  const graph = getDagWorkbenchScopeDefinition('credit-simulation').defaultGraph;
 
   products.forEach(product => {
     test(`${product.name}: DAG matches legacy within 0.01 tolerance`, () => {

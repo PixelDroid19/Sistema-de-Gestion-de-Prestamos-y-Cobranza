@@ -32,12 +32,6 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
-  if (tableName === 'GraphTopologies') {
-    return {
-      id: {}, productId: {}, version: {}, nodes: {}, edges: {}, createdAt: {}, updatedAt: {},
-    };
-  }
-
   if (tableName === 'OutboxEvents') {
     return {
       id: {}, aggregateType: {}, aggregateId: {}, eventType: {}, payload: {}, status: {}, processedAt: {}, createdAt: {}, updatedAt: {},
@@ -140,7 +134,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'GraphTopologies', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
+const allTables = ['Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -158,7 +152,6 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const dagGraphVersions = requiredSchema.find((entry) => entry.tableName === 'DagGraphVersions');
   const dagSimulationSummaries = requiredSchema.find((entry) => entry.tableName === 'DagSimulationSummaries');
   const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
-  const graphTopologies = requiredSchema.find((entry) => entry.tableName === 'GraphTopologies');
   const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
   const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
 
@@ -176,7 +169,6 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(dagGraphVersions);
   assert.ok(dagSimulationSummaries);
   assert.ok(financialProducts);
-  assert.ok(graphTopologies);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'AuditLogs'));
@@ -208,7 +200,6 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(dagGraphVersions.columns.includes('status'));
   assert.ok(dagSimulationSummaries.columns.includes('selectedSource'));
   assert.ok(financialProducts.columns.includes('penaltyRate'));
-  assert.ok(graphTopologies.columns.includes('productId'));
   assert.ok(outboxEvents.columns.includes('eventType'));
   assert.ok(configEntries.columns.includes('category'));
   assert.ok(configEntries.columns.includes('value'));

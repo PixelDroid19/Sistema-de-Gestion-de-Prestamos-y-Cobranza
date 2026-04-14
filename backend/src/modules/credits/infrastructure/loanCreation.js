@@ -1,9 +1,10 @@
-const { Loan, Customer, Associate, FinancialProduct } = require('../../../models');
+const { Loan, Customer, Associate, FinancialProduct, DagGraphVersion } = require('../../../models');
 const { NotFoundError } = require('../../../utils/errorHandler');
 const { simulateCredit } = require('../application/creditSimulationService');
 const { buildFinancialSnapshot } = require('../application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
+const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
 
 const resolveSimulationExecution = ({ input, calculationService }) => {
   if (!calculationService) {
@@ -33,6 +34,28 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   return defaultProduct.id;
 };
 
+const resolveDagGraphVersionId = async ({ dagGraphVersionModel, scopeKey = DEFAULT_DAG_SCOPE_KEY }) => {
+  if (!dagGraphVersionModel) {
+    return null;
+  }
+
+  const activeGraph = await dagGraphVersionModel.findOne({
+    where: { scopeKey, status: 'active' },
+    order: [['version', 'DESC'], ['createdAt', 'DESC']],
+  });
+
+  if (activeGraph) {
+    return activeGraph.id;
+  }
+
+  const latestGraph = await dagGraphVersionModel.findOne({
+    where: { scopeKey },
+    order: [['version', 'DESC'], ['createdAt', 'DESC']],
+  });
+
+  return latestGraph?.id || null;
+};
+
 /**
  * Create a loan record from canonical simulation data after validating linked records.
  * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate: number, termMonths: number, lateFeeMode?: string }} input
@@ -44,6 +67,7 @@ const createLoanFromCanonicalDataFactory = ({
   associateModel = Associate,
   loanModel = Loan,
   financialProductModel = FinancialProduct,
+  dagGraphVersionModel = DagGraphVersion,
 } = {}) => async (input) => {
   const customer = await customerModel.findByPk(input.customerId);
   if (!customer) {
@@ -60,6 +84,7 @@ const createLoanFromCanonicalDataFactory = ({
   const simulationExecution = resolveSimulationExecution({ input, calculationService });
   const simulation = simulationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input, financialProductModel });
+  const dagGraphVersionId = await resolveDagGraphVersionId({ dagGraphVersionModel });
   const snapshot = {
     ...buildFinancialSnapshot(simulation.schedule),
     ...(simulation.summary || {}),
@@ -81,6 +106,7 @@ const createLoanFromCanonicalDataFactory = ({
     principalOutstanding: snapshot.outstandingPrincipal,
     interestOutstanding: snapshot.outstandingInterest,
     financialSnapshot: snapshot,
+    dagGraphVersionId,
   });
 };
 
@@ -90,4 +116,5 @@ module.exports = {
   createLoanFromCanonicalData,
   createLoanFromCanonicalDataFactory,
   DEFAULT_FINANCIAL_PRODUCT_NAME,
+  DEFAULT_DAG_SCOPE_KEY,
 };

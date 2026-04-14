@@ -15,7 +15,6 @@ const PushSubscription = require('./PushSubscription');
 const DagGraphVersion = require('./DagGraphVersion');
 const DagSimulationSummary = require('./DagSimulationSummary');
 const FinancialProduct = require('./FinancialProduct');
-const GraphTopology = require('./GraphTopology');
 const OutboxEvent = require('./OutboxEvent');
 const ConfigEntry = require('./ConfigEntry');
 const Permission = require('./Permission');
@@ -78,9 +77,6 @@ DagGraphVersion.hasMany(DagSimulationSummary, { foreignKey: 'graphVersionId', as
 
 Loan.belongsTo(DagGraphVersion, { foreignKey: 'dagGraphVersionId', as: 'dagGraph', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 DagGraphVersion.hasMany(Loan, { foreignKey: 'dagGraphVersionId', as: 'loans', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
-
-FinancialProduct.hasMany(GraphTopology, { foreignKey: 'productId', as: 'topologies', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-GraphTopology.belongsTo(FinancialProduct, { foreignKey: 'productId', as: 'product', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 
 AssociateContribution.belongsTo(Associate, { foreignKey: 'associateId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Associate.hasMany(AssociateContribution, { foreignKey: 'associateId', as: 'contributions', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
@@ -145,7 +141,6 @@ module.exports = {
   DagGraphVersion,
   DagSimulationSummary,
   FinancialProduct,
-  GraphTopology,
   OutboxEvent,
   ConfigEntry,
   Permission,

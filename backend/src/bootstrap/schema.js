@@ -14,13 +14,11 @@ const {
   DagGraphVersion,
   DagSimulationSummary,
   FinancialProduct,
-  GraphTopology,
   OutboxEvent,
   ConfigEntry,
   AuditLog,
   RefreshToken,
 } = require('../models');
-const { createStandardAmortizationGraph } = require('./graphDefinitions');
 
 const REQUIRED_SCHEMA_MODELS = [
   Associate,
@@ -38,7 +36,6 @@ const REQUIRED_SCHEMA_MODELS = [
   DagGraphVersion,
   DagSimulationSummary,
   FinancialProduct,
-  GraphTopology,
   OutboxEvent,
   ConfigEntry,
   AuditLog,
@@ -371,8 +368,6 @@ const FINANCIAL_PRODUCT_SEEDS = [
 ];
 
 const seedFinancialProductsAndGraphs = async () => {
-  const { nodes, edges } = createStandardAmortizationGraph();
-
   for (const seed of FINANCIAL_PRODUCT_SEEDS) {
     const [product, created] = await FinancialProduct.findOrCreate({
       where: { name: seed.name },
@@ -381,24 +376,6 @@ const seedFinancialProductsAndGraphs = async () => {
 
     if (!created) {
       await product.update(seed);
-    }
-
-    const topology = await GraphTopology.findOne({
-      where: { productId: product.id, version: 1 },
-    });
-
-    if (!topology) {
-      await GraphTopology.create({
-        productId: product.id,
-        version: 1,
-        nodes,
-        edges,
-      });
-      continue;
-    }
-
-    if (JSON.stringify(topology.nodes) !== JSON.stringify(nodes) || JSON.stringify(topology.edges) !== JSON.stringify(edges)) {
-      await topology.update({ nodes, edges });
     }
   }
 };
