@@ -5,6 +5,7 @@ const { AuthorizationError } = require('../src/utils/errorHandler');
 
 const {
   createListPayments,
+  createUpdatePaymentMetadata,
   createCreatePayment,
   createCreatePartialPayment,
   createCreateCapitalPayment,
@@ -76,6 +77,102 @@ test('createListPayments rejects non-admin payment listing attempts', async () =
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
+});
+
+test('createListPayments filters admin ledger rows by search and status', async () => {
+  const listPayments = createListPayments({
+    paymentRepository: {
+      async list() {
+        return [
+          {
+            id: 41,
+            loanId: 8,
+            status: 'completed',
+            Loan: { Customer: { name: 'Ana Cliente', email: 'ana@example.com' } },
+            paymentMetadata: { reference: 'REF-001' },
+          },
+          {
+            id: 42,
+            loanId: 9,
+            status: 'pending',
+            Loan: { Customer: { name: 'Carlos Cliente', email: 'carlos@example.com' } },
+            paymentMetadata: { reference: 'REF-002' },
+          },
+        ];
+      },
+    },
+  });
+
+  const result = await listPayments({
+    actor: { id: 1, role: 'admin' },
+    filters: { search: 'ana', status: 'completed' },
+    pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
+  });
+
+  assert.deepEqual(result.pagination, {
+    page: 1,
+    pageSize: 25,
+    totalItems: 1,
+    totalPages: 1,
+  });
+  assert.deepEqual(result.items.map((payment) => payment.id), [41]);
+});
+
+test('createUpdatePaymentMetadata keeps payment method and nested metadata aligned', async () => {
+  let updatedPayload;
+  const updatePaymentMetadata = createUpdatePaymentMetadata({
+    paymentRepository: {
+      async findById(id) {
+        assert.equal(id, 51);
+        return {
+          id,
+          loanId: 8,
+          status: 'completed',
+          paymentDate: new Date('2026-03-01T00:00:00.000Z'),
+          paymentMethod: 'cash',
+          paymentMetadata: {
+            method: 'cash',
+            reference: 'REF-OLD',
+            observation: 'Old note',
+          },
+        };
+      },
+      async update(_payment, payload) {
+        updatedPayload = payload;
+        return payload;
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan({ actor, loanId }) {
+        assert.deepEqual(actor, { id: 3, role: 'admin' });
+        assert.equal(loanId, 8);
+        return { id: 8 };
+      },
+    },
+  });
+
+  const result = await updatePaymentMetadata({
+    actor: { id: 3, role: 'admin' },
+    paymentId: 51,
+    payload: {
+      paymentMethod: 'transfer',
+      paymentMetadata: {
+        reference: 'REF-NEW',
+      },
+      observation: 'Updated note',
+    },
+  });
+
+  assert.deepEqual(updatedPayload, {
+    paymentDate: new Date('2026-03-01T00:00:00.000Z'),
+    paymentMethod: 'transfer',
+    paymentMetadata: {
+      method: 'transfer',
+      reference: 'REF-NEW',
+      observation: 'Updated note',
+    },
+  });
+  assert.deepEqual(result, updatedPayload);
 });
 
 test('createCreatePayment stops hidden loan payments before persistence', async () => {

@@ -984,6 +984,95 @@ const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => 
 };
 
 /**
+ * Normalize free-text filters so search comparisons stay stable across API seams.
+ * @param {unknown} value
+ * @returns {string}
+ */
+const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
+
+/**
+ * Parse optional search dates while treating invalid values as absent filters.
+ * @param {unknown} value
+ * @returns {Date|null}
+ */
+const normalizeLoanSearchDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+/**
+ * Build a single searchable text surface for loan rows when repository-level
+ * filtering is unavailable in tests or lightweight adapters.
+ * @param {object} loan
+ * @returns {string}
+ */
+const buildLoanSearchHaystack = (loan) => {
+  const segments = [
+    loan?.id,
+    loan?.customerId,
+    loan?.associateId,
+    loan?.status,
+    loan?.Customer?.name,
+    loan?.Customer?.email,
+    loan?.Associate?.name,
+    loan?.Associate?.email,
+  ];
+
+  return segments
+    .filter((segment) => segment !== undefined && segment !== null)
+    .map((segment) => String(segment).toLowerCase())
+    .join(' ');
+};
+
+/**
+ * Apply credit-list filters in one place so search, list, and reporting surfaces stay aligned.
+ * @param {{ loans?: Array<object>, filters?: object }} input
+ * @returns {Array<object>}
+ */
+const filterLoansByFilters = ({ loans = [], filters = {} }) => {
+  const searchTerm = normalizeSearchValue(filters.search);
+  const minAmount = filters.minAmount !== undefined ? Number(filters.minAmount) : null;
+  const maxAmount = filters.maxAmount !== undefined ? Number(filters.maxAmount) : null;
+  const startDate = normalizeLoanSearchDate(filters.startDate);
+  const endDate = normalizeLoanSearchDate(filters.endDate);
+  const status = filters.status ? String(filters.status).trim().toLowerCase() : '';
+
+  return loans.filter((loan) => {
+    if (status && String(loan?.status || '').toLowerCase() !== status) {
+      return false;
+    }
+
+    const loanAmount = Number(loan?.amount || 0);
+    if (Number.isFinite(minAmount) && loanAmount < minAmount) {
+      return false;
+    }
+
+    if (Number.isFinite(maxAmount) && loanAmount > maxAmount) {
+      return false;
+    }
+
+    const createdAt = normalizeLoanSearchDate(loan?.createdAt);
+    if (startDate && (!createdAt || createdAt < startDate)) {
+      return false;
+    }
+
+    if (endDate && (!createdAt || createdAt > endDate)) {
+      return false;
+    }
+
+    if (searchTerm) {
+      return buildLoanSearchHaystack(loan).includes(searchTerm);
+    }
+
+    return true;
+  });
+};
+
+/**
  * Create the use case that returns aggregated loan statistics.
  * @param {{ loanRepository: object }} dependencies
  * @returns {Function}
@@ -1085,9 +1174,33 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
 
 /**
  * Create the use case that searches loans with filters and pagination.
- * @param {{ loanRepository: object }} dependencies
+ * Search results are always scoped through the shared visibility policy so
+ * customers and associates only see their own portfolio slices.
+ * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
  * @returns {Function}
  */
+const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, filters = {}, pagination }) => {
+  if (pagination && typeof loanRepository.searchPage === 'function') {
+    return loanRepository.searchPage({ actor, filters, ...pagination });
+  }
+
+  if (!pagination && typeof loanRepository.search === 'function') {
+    return loanRepository.search({ actor, filters });
+  }
+
+  const loans = await loanRepository.list();
+  const visibleLoans = loanAccessPolicy
+    ? loanAccessPolicy.filterVisibleLoans({ actor, loans })
+    : loans;
+  const filteredLoans = filterLoansByFilters({ loans: visibleLoans, filters });
+
+  if (pagination) {
+    return paginateArray({ items: filteredLoans, pagination });
+  }
+
+  return filteredLoans;
+};
+
 /**
  * Create the use case that updates the annual late fee rate for a loan.
  * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
@@ -1120,39 +1233,6 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
     return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
   return useCase;
-};
-
-const createSearchLoans = ({ loanRepository }) => async ({ filters = {}, pagination }) => {
-  const loans = await loanRepository.list();
-  let filteredLoans = loans;
-
-  if (filters.status) {
-    filteredLoans = filteredLoans.filter((l) => l.status === filters.status);
-  }
-
-  if (filters.minAmount !== undefined) {
-    filteredLoans = filteredLoans.filter((l) => Number(l.amount || 0) >= Number(filters.minAmount));
-  }
-
-  if (filters.maxAmount !== undefined) {
-    filteredLoans = filteredLoans.filter((l) => Number(l.amount || 0) <= Number(filters.maxAmount));
-  }
-
-  if (filters.startDate) {
-    const startDate = new Date(filters.startDate);
-    filteredLoans = filteredLoans.filter((l) => new Date(l.createdAt) >= startDate);
-  }
-
-  if (filters.endDate) {
-    const endDate = new Date(filters.endDate);
-    filteredLoans = filteredLoans.filter((l) => new Date(l.createdAt) <= endDate);
-  }
-
-  if (pagination) {
-    return paginateArray({ items: filteredLoans, pagination });
-  }
-
-  return filteredLoans;
 };
 
 module.exports = {
@@ -1191,6 +1271,7 @@ module.exports = {
   createGetDuePayments,
   createSearchLoans,
   createUpdateLateFeeRate,
+  filterLoansByFilters,
   isValidAttachmentSignature,
   validateAttachmentFileSignature,
 };

@@ -17,6 +17,90 @@ const {
 } = require('../../shared/documentOperations');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
+const VALID_PAYMENT_METHODS = new Set(['cash', 'transfer', 'card', 'check', 'other']);
+
+/**
+ * Normalize free-text payment filters into a comparable lowercase token.
+ * @param {unknown} value
+ * @returns {string}
+ */
+const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
+
+/**
+ * Build a fallback text surface for payment searches when a repository adapter
+ * cannot push the filter down to the database layer.
+ * @param {object} payment
+ * @returns {string}
+ */
+const buildPaymentSearchHaystack = (payment) => {
+  const segments = [
+    payment?.id,
+    payment?.loanId,
+    payment?.paymentType,
+    payment?.paymentMethod,
+    payment?.Loan?.Customer?.name,
+    payment?.Loan?.Customer?.email,
+    payment?.paymentMetadata?.reference,
+  ];
+
+  return segments
+    .filter((segment) => segment !== undefined && segment !== null)
+    .map((segment) => String(segment).toLowerCase())
+    .join(' ');
+};
+
+/**
+ * Filter payment rows using the same shape expected by the frontend listing params.
+ * @param {{ payments?: Array<object>, filters?: object }} input
+ * @returns {Array<object>}
+ */
+const filterPaymentsByFilters = ({ payments = [], filters = {} }) => {
+  const searchTerm = normalizeSearchValue(filters.search);
+  const status = filters.status ? String(filters.status).trim().toLowerCase() : '';
+
+  return payments.filter((payment) => {
+    if (status && String(payment?.status || '').toLowerCase() !== status) {
+      return false;
+    }
+
+    if (searchTerm) {
+      return buildPaymentSearchHaystack(payment).includes(searchTerm);
+    }
+
+    return true;
+  });
+};
+
+const resolvePaymentMethodInput = (payload = {}) => {
+  const directValue = toTrimmedOrNull(
+    payload.paymentMethod
+    ?? payload.method
+    ?? payload.paymentMetadata?.method,
+  );
+
+  if (!directValue) {
+    return null;
+  }
+
+  const normalizedValue = directValue.toLowerCase();
+  if (!VALID_PAYMENT_METHODS.has(normalizedValue)) {
+    throw new ValidationError(`Payment method must be one of: ${[...VALID_PAYMENT_METHODS].join(', ')}`);
+  }
+
+  return normalizedValue;
+};
+
+const resolveMetadataInput = (payload = {}) => {
+  const incomingMetadata = payload.paymentMetadata && typeof payload.paymentMetadata === 'object'
+    ? payload.paymentMetadata
+    : {};
+
+  return {
+    incomingMetadata,
+    reference: toTrimmedOrNull(payload.reference ?? incomingMetadata.reference),
+    observation: toTrimmedOrNull(payload.observation ?? incomingMetadata.observation),
+  };
+};
 
 const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
   if (!loanViewService || typeof loanViewService.getCanonicalLoanView !== 'function') {
@@ -65,16 +149,24 @@ const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId
 /**
  * Create the use case that lists all payments for admins.
  */
-const createListPayments = ({ paymentRepository }) => async ({ actor, pagination }) => {
+const createListPayments = ({ paymentRepository }) => async ({ actor, pagination, filters = {} }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can access all payments');
   }
 
-  if (pagination) {
-    return paymentRepository.listPage(pagination);
+  if (pagination && typeof paymentRepository.listPage === 'function') {
+    return paymentRepository.listPage({ ...pagination, filters });
   }
 
-  return paymentRepository.list();
+  const payments = await paymentRepository.list({ filters });
+  const filteredPayments = filterPaymentsByFilters({ payments, filters });
+
+  if (pagination) {
+    const { paginateArray } = require('../../shared/pagination');
+    return paginateArray({ items: filteredPayments, pagination });
+  }
+
+  return filteredPayments;
 };
 
 /**
@@ -178,6 +270,12 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
   });
 };
 
+/**
+ * Update mutable payment metadata while keeping the top-level payment method
+ * column and nested metadata in sync for reporting and voucher generation.
+ * @param {{ paymentRepository: object, loanAccessPolicy: object }} dependencies
+ * @returns {Function}
+ */
 const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId, payload = {} }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can update payment metadata');
@@ -194,16 +292,29 @@ const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) =>
     throw new ValidationError('Payment date must be a valid date');
   }
 
+  if (payment.status === 'annulled') {
+    throw new ValidationError('Annulled payments cannot be edited');
+  }
+
   const currentMetadata = payment.paymentMetadata && typeof payment.paymentMetadata === 'object'
     ? payment.paymentMetadata
     : {};
+  const paymentMethod = resolvePaymentMethodInput(payload);
+  const {
+    incomingMetadata,
+    reference,
+    observation,
+  } = resolveMetadataInput(payload);
 
   return paymentRepository.update(payment, {
     paymentDate: paymentDate || payment.paymentDate,
+    paymentMethod: paymentMethod || payment.paymentMethod || null,
     paymentMetadata: {
       ...currentMetadata,
-      method: payload.method ? String(payload.method).trim() : currentMetadata.method || null,
-      observation: payload.observation ? String(payload.observation).trim() : currentMetadata.observation || null,
+      ...incomingMetadata,
+      method: paymentMethod || currentMetadata.method || null,
+      reference: reference || currentMetadata.reference || null,
+      observation: observation || currentMetadata.observation || null,
     },
   });
 };
@@ -334,4 +445,5 @@ module.exports = {
   createUploadPaymentDocument,
   createDownloadPaymentDocument,
   createGetPaymentVoucher,
+  filterPaymentsByFilters,
 };

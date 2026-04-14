@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Search, Eye, Edit, Trash2, FileText } from 'lucide-react';
 import { usePayments, downloadVoucher } from '../services/paymentService';
 import { usePaginationStore } from '../store/paginationStore';
@@ -19,7 +19,15 @@ export default function Payouts() {
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
-  const { data: paymentsData, isLoading, isError, createPayment, createPartialPayment, createCapitalPayment, updatePaymentMetadata } = usePayments({ page, pageSize });
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const normalizedSearchQuery = deferredSearchQuery.trim();
+  const previousNormalizedSearchQuery = useRef(normalizedSearchQuery);
+  const { data: paymentsData, isLoading, isError, createPayment, createPartialPayment, createCapitalPayment, updatePaymentMetadata } = usePayments({
+    page,
+    pageSize,
+    search: normalizedSearchQuery || undefined,
+  });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
   const [formData, setFormData] = useState({
@@ -50,6 +58,25 @@ export default function Payouts() {
       : [];
   const pagination = paymentsData?.data?.pagination ?? paymentsData?.pagination ?? paymentsData?.meta;
 
+  useEffect(() => {
+    if (previousNormalizedSearchQuery.current === normalizedSearchQuery) {
+      return;
+    }
+
+    previousNormalizedSearchQuery.current = normalizedSearchQuery;
+    setPage(1);
+  }, [normalizedSearchQuery, setPage]);
+
+  useEffect(() => {
+    const visiblePaymentIds = new Set(
+      payments
+        .map((payment: any) => Number(payment?.id))
+        .filter((paymentId: number): paymentId is number => Number.isFinite(paymentId)),
+    );
+
+    setSelectedPaymentIds((current) => current.filter((paymentId) => visiblePaymentIds.has(paymentId)));
+  }, [payments]);
+
   const selectedPayments = useMemo(
     () => payments.filter((payment: any) => selectedPaymentIds.includes(Number(payment.id))),
     [payments, selectedPaymentIds],
@@ -69,15 +96,25 @@ export default function Payouts() {
   };
 
   const formatPaymentMethod = (payment: any) => {
-    return payment?.paymentMetadata?.method || payment?.method || payment?.paymentMethod || 'Sin método';
+    return payment?.paymentMethod || payment?.paymentMetadata?.method || payment?.method || 'Sin método';
   };
 
-  const formatPaymentStatus = (payment: any) => {
-    if (payment?.status === 'applied' || payment?.status === 'completed') {
-      return 'Aplicado';
+  const getPaymentStatusPresentation = (payment: any) => {
+    const normalizedStatus = String(payment?.status || '').toLowerCase();
+
+    if (normalizedStatus === 'applied' || normalizedStatus === 'completed') {
+      return { label: 'Aplicado', tone: 'success' as const };
     }
 
-    return 'Pendiente';
+    if (normalizedStatus === 'annulled') {
+      return { label: 'Anulado', tone: 'neutral' as const };
+    }
+
+    if (normalizedStatus === 'failed') {
+      return { label: 'Fallido', tone: 'danger' as const };
+    }
+
+    return { label: 'Pendiente', tone: 'warning' as const };
   };
 
   const handleDownloadVoucher = async (paymentId: number) => {
@@ -283,6 +320,8 @@ export default function Payouts() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
               type="text" 
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Buscar por ID de préstamo o cliente..." 
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
@@ -349,9 +388,14 @@ export default function Payouts() {
                   <td className="py-4 font-medium">${Number(payment.amount ?? 0).toLocaleString()}</td>
                   <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
                   <td className="py-4">
-                    <span className={`px-2 py-1 rounded text-xs ${formatPaymentStatus(payment) === 'Aplicado' ? getChipClassName('success') : getChipClassName('warning')}`}>
-                      {formatPaymentStatus(payment)}
-                    </span>
+                    {(() => {
+                      const status = getPaymentStatusPresentation(payment);
+                      return (
+                        <span className={`px-2 py-1 rounded text-xs ${getChipClassName(status.tone)}`}>
+                          {status.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">

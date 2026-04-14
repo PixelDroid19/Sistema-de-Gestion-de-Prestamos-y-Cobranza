@@ -136,12 +136,12 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   }));
 
   // Keep specific/static paths before any '/:id' route to avoid shadowing.
-  router.get('/statistics', authMiddleware(), asyncHandler(async (req, res) => {
+  router.get('/statistics', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const statistics = await useCases.getLoanStatistics();
     res.json({ success: true, data: { statistics } });
   }));
 
-  router.get('/due-payments', authMiddleware(), asyncHandler(async (req, res) => {
+  router.get('/due-payments', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const { date } = req.query;
     if (!date) {
       return res.status(400).json({ success: false, error: { message: 'date parameter is required' } });
@@ -156,13 +156,14 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
 
   router.get('/search', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
     const filters = {
+      search: req.query.search,
       status: req.query.status,
       minAmount: req.query.minAmount ? Number(req.query.minAmount) : undefined,
       maxAmount: req.query.maxAmount ? Number(req.query.maxAmount) : undefined,
       startDate: req.query.startDate,
       endDate: req.query.endDate,
     };
-    const result = await useCases.searchLoans({ filters, pagination: req.pagination });
+    const result = await useCases.searchLoans({ actor: req.user, filters, pagination: req.pagination });
     if (result.pagination) {
       res.json({ success: true, count: result.pagination.totalItems, data: { loans: result.items, pagination: result.pagination } });
       return;

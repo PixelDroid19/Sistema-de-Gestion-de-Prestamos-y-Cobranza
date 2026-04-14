@@ -66,8 +66,8 @@ test('createPayoutsRouter serves list and create contract responses', async () =
     attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
-      async listPayments() {
-        calls.push(['listPayments', { actor: { id: 3, role: 'admin' } }]);
+      async listPayments(input) {
+        calls.push(['listPayments', input]);
         return payments;
       },
       async createPayment(payload) {
@@ -97,7 +97,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
 
   const listResponse = await requestJson(activeServer, {
     method: 'GET',
-    path: '/',
+    path: '/?search=ana&status=completed&page=2&pageSize=10',
     headers: {
       authorization: 'Bearer valid-token',
       'x-test-role': 'admin',
@@ -140,7 +140,11 @@ test('createPayoutsRouter serves list and create contract responses', async () =
     },
   });
   assert.deepEqual(calls, [
-    ['listPayments', { actor: { id: 3, role: 'admin' } }],
+    ['listPayments', {
+      actor: { id: 3, role: 'admin' },
+      pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 },
+      filters: { search: 'ana', status: 'completed' },
+    }],
     ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload }],
   ]);
 });
@@ -454,6 +458,63 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
     code: 'NO_OUTSTANDING_BALANCE',
     message: 'Loan has no outstanding balance for capital payment',
   }]);
+});
+
+test('createPayoutsRouter forwards payment metadata updates with the admin actor context', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: allowAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      createCapitalPayment: unexpectedUseCase('createCapitalPayment'),
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+      async updatePaymentMetadata(input) {
+        calls.push(['updatePaymentMetadata', input]);
+        return {
+          id: Number(input.paymentId),
+          paymentMethod: input.payload.paymentMethod,
+          paymentMetadata: input.payload.paymentMetadata,
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/55/metadata',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: {
+      paymentMethod: 'transfer',
+      paymentMetadata: {
+        reference: 'REF-123',
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls, [[
+    'updatePaymentMetadata',
+    {
+      actor: { id: 3, role: 'admin' },
+      paymentId: '55',
+      payload: {
+        paymentMethod: 'transfer',
+        paymentMetadata: {
+          reference: 'REF-123',
+        },
+      },
+    },
+  ]]);
 });
 
 test('createPayoutsRouter serves payment document list and upload contracts', async () => {

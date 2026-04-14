@@ -363,8 +363,8 @@ test('createCreditsRouter keeps static routes above /:id to avoid shadowing', as
         calls.push(['getDuePayments', date.toISOString().slice(0, 10)]);
         return [{ loanId: 99, dueDate: date.toISOString().slice(0, 10) }];
       },
-      async searchLoans() {
-        calls.push('searchLoans');
+      async searchLoans(input) {
+        calls.push(['searchLoans', input]);
         return [];
       },
       async getLoanById() {
@@ -393,7 +393,7 @@ test('createCreditsRouter keeps static routes above /:id to avoid shadowing', as
 
   const searchResponse = await requestJson(activeServer, {
     method: 'GET',
-    path: '/search',
+    path: '/search?search=ana&status=approved&minAmount=100&maxAmount=900',
     headers: { authorization: 'Bearer valid-token' },
   });
 
@@ -405,8 +405,46 @@ test('createCreditsRouter keeps static routes above /:id to avoid shadowing', as
   assert.deepEqual(calls, [
     'getLoanStatistics',
     ['getDuePayments', '2026-04-10'],
-    'searchLoans',
+    ['searchLoans', {
+      actor: { id: 2, role: 'admin' },
+      filters: {
+        search: 'ana',
+        status: 'approved',
+        minAmount: 100,
+        maxAmount: 900,
+        startDate: undefined,
+        endDate: undefined,
+      },
+      pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
+    }],
   ]);
+});
+
+test('createCreditsRouter protects admin-only portfolio analytics routes', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 7, role: 'customer' },
+    useCases: {
+      getLoanStatistics: unexpectedUseCase('getLoanStatistics'),
+      getDuePayments: unexpectedUseCase('getDuePayments'),
+    },
+  });
+
+  activeServer = await listen(app);
+
+  const statisticsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/statistics',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  const duePaymentsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/due-payments?date=2026-04-10',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(statisticsResponse.statusCode, 403);
+  assert.equal(duePaymentsResponse.statusCode, 403);
 });
 
 test('createCreditsRouter POST /simulations preserves the legacy-compatible response while shadow comparison runs behind the use-case seam', async () => {

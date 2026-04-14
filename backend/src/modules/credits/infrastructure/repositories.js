@@ -78,6 +78,98 @@ const buildCustomerSummary = (loans = []) => {
   };
 };
 
+const normalizeOptionalSearchText = (value) => String(value || '').trim().toLowerCase();
+
+const buildImpossibleWhereClause = () => ({ id: { [Op.eq]: null } });
+
+const buildLowercaseLikeClause = (columnPath, searchPattern) => Sequelize.where(
+  Sequelize.fn('LOWER', Sequelize.cast(Sequelize.col(columnPath), 'TEXT')),
+  { [Op.like]: searchPattern },
+);
+
+/**
+ * Build a database-level search predicate for loan portfolio listing so large
+ * portfolios do not need to be fully materialized in application memory.
+ * @param {{ actor?: object, filters?: object }} input
+ * @returns {object|undefined}
+ */
+const buildLoanSearchWhere = ({ actor, filters = {} }) => {
+  const andClauses = [];
+  const normalizedStatus = normalizeOptionalSearchText(filters.status);
+  const normalizedSearch = normalizeOptionalSearchText(filters.search);
+  const actorRole = normalizeOptionalSearchText(actor?.role);
+  const amountClause = {};
+
+  const minAmount = Number(filters.minAmount);
+  if (Number.isFinite(minAmount)) {
+    amountClause[Op.gte] = minAmount;
+  }
+
+  const maxAmount = Number(filters.maxAmount);
+  if (Number.isFinite(maxAmount)) {
+    amountClause[Op.lte] = maxAmount;
+  }
+
+  if (Object.keys(amountClause).length > 0) {
+    andClauses.push({ amount: amountClause });
+  }
+
+  if (normalizedStatus) {
+    andClauses.push({ status: normalizedStatus });
+  }
+
+  if (filters.startDate || filters.endDate) {
+    const createdAtClause = {};
+
+    if (filters.startDate) {
+      const startDate = new Date(filters.startDate);
+      if (!Number.isNaN(startDate.getTime())) {
+        createdAtClause[Op.gte] = startDate;
+      }
+    }
+
+    if (filters.endDate) {
+      const endDate = new Date(filters.endDate);
+      if (!Number.isNaN(endDate.getTime())) {
+        endDate.setHours(23, 59, 59, 999);
+        createdAtClause[Op.lte] = endDate;
+      }
+    }
+
+    if (Object.keys(createdAtClause).length > 0) {
+      andClauses.push({ createdAt: createdAtClause });
+    }
+  }
+
+  if (actorRole === 'customer') {
+    const customerId = Number(actor?.id);
+    andClauses.push(Number.isFinite(customerId) ? { customerId } : buildImpossibleWhereClause());
+  }
+
+  if (actorRole === 'socio') {
+    const associateId = Number(actor?.associateId);
+    andClauses.push(Number.isFinite(associateId) ? { associateId } : buildImpossibleWhereClause());
+  }
+
+  if (normalizedSearch) {
+    const searchPattern = `%${normalizedSearch}%`;
+    andClauses.push({
+      [Op.or]: [
+        buildLowercaseLikeClause('Loan.id', searchPattern),
+        buildLowercaseLikeClause('Loan.customerId', searchPattern),
+        buildLowercaseLikeClause('Loan.associateId', searchPattern),
+        buildLowercaseLikeClause('Loan.status', searchPattern),
+        buildLowercaseLikeClause('Customer.name', searchPattern),
+        buildLowercaseLikeClause('Customer.email', searchPattern),
+        buildLowercaseLikeClause('Associate.name', searchPattern),
+        buildLowercaseLikeClause('Associate.email', searchPattern),
+      ],
+    });
+  }
+
+  return andClauses.length > 0 ? { [Op.and]: andClauses } : undefined;
+};
+
 /**
  * Create the infrastructure ports consumed by the credits module composition seam.
  * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, creditSimulator?: Function, loanCreator?: Function, notifications?: object, attachmentStorage?: object }} [options]
@@ -127,6 +219,23 @@ const createCreditsInfrastructure = ({
           model: loanModel,
           page,
           pageSize,
+          include: loanIncludes,
+          order: [['createdAt', 'DESC']],
+        });
+      },
+      search({ actor, filters = {} }) {
+        return loanModel.findAll({
+          where: buildLoanSearchWhere({ actor, filters }),
+          include: loanIncludes,
+          order: [['createdAt', 'DESC']],
+        });
+      },
+      searchPage({ actor, filters = {}, page, pageSize }) {
+        return paginateModel({
+          model: loanModel,
+          page,
+          pageSize,
+          where: buildLoanSearchWhere({ actor, filters }),
           include: loanIncludes,
           order: [['createdAt', 'DESC']],
         });

@@ -102,7 +102,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     downloadPromiseToPay: createDownloadPromiseToPay({ promiseRepository, loanAccessPolicy }),
     getLoanStatistics: createGetLoanStatistics({ loanRepository }),
     getDuePayments: createGetDuePayments({ loanRepository, alertRepository, loanViewService }),
-    searchLoans: createSearchLoans({ loanRepository }),
+    searchLoans: createSearchLoans({ loanRepository, loanAccessPolicy }),
     updateLateFeeRate: createUpdateLateFeeRate({ loanRepository, loanAccessPolicy, auditService }),
   };
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ChevronRight, ClipboardList, X, PanelLeftClose, PanelLeftOpen, Calculator } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
-import { useNavigate } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 
@@ -28,10 +27,11 @@ export default function Sidebar({
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
   const { user, logout } = useSessionStore();
-  const isAdmin = user?.role === 'admin';
-  const isCustomer = user?.role === 'customer';
-  const isSocio = user?.role === 'socio';
-  const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
+  const resolvedRole = user?.role ?? 'admin';
+  const isAdmin = resolvedRole === 'admin';
+  const isCustomer = resolvedRole === 'customer';
+  const isSocio = resolvedRole === 'socio';
+  const homeView = getDefaultRouteForUser(user ?? { role: resolvedRole, associateId: undefined }).replace(/^\//u, '');
   
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {

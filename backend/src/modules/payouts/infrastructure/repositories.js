@@ -1,19 +1,69 @@
-const { Payment, Loan, DocumentAttachment, User } = require('../../../models');
+const { Op, Sequelize } = require('sequelize');
+const { Payment, Loan, Customer, DocumentAttachment, User } = require('../../../models');
 const { paginateModel } = require('../../shared/pagination');
+
+const paymentListInclude = [{
+  model: Loan,
+  include: [Customer],
+}];
+
+const normalizeOptionalSearchText = (value) => String(value || '').trim().toLowerCase();
+
+const buildLowercaseLikeClause = (columnPath, searchPattern) => Sequelize.where(
+  Sequelize.fn('LOWER', Sequelize.cast(Sequelize.col(columnPath), 'TEXT')),
+  { [Op.like]: searchPattern },
+);
+
+/**
+ * Build the DB predicate for the admin payment ledger search so pagination and
+ * filtering stay aligned without loading every payment into memory first.
+ * @param {{ filters?: object }} input
+ * @returns {object|undefined}
+ */
+const buildPaymentListWhere = ({ filters = {} }) => {
+  const andClauses = [];
+  const normalizedStatus = normalizeOptionalSearchText(filters.status);
+  const normalizedSearch = normalizeOptionalSearchText(filters.search);
+
+  if (normalizedStatus) {
+    andClauses.push({ status: normalizedStatus });
+  }
+
+  if (normalizedSearch) {
+    const searchPattern = `%${normalizedSearch}%`;
+    andClauses.push({
+      [Op.or]: [
+        buildLowercaseLikeClause('Payment.id', searchPattern),
+        buildLowercaseLikeClause('Payment.loanId', searchPattern),
+        buildLowercaseLikeClause('Payment.paymentMethod', searchPattern),
+        buildLowercaseLikeClause('Payment.paymentType', searchPattern),
+        buildLowercaseLikeClause('Customer.name', searchPattern),
+        buildLowercaseLikeClause('Customer.email', searchPattern),
+      ],
+    });
+  }
+
+  return andClauses.length > 0 ? { [Op.and]: andClauses } : undefined;
+};
 
 /**
  * Persistence port for payment list and loan-history queries.
  */
 const paymentRepository = {
-  list() {
-    return Payment.findAll({ include: Loan, order: [['createdAt', 'DESC']] });
+  list({ filters = {} } = {}) {
+    return Payment.findAll({
+      where: buildPaymentListWhere({ filters }),
+      include: paymentListInclude,
+      order: [['createdAt', 'DESC']],
+    });
   },
-  listPage({ page, pageSize }) {
+  listPage({ page, pageSize, filters = {} }) {
     return paginateModel({
       model: Payment,
       page,
       pageSize,
-      include: [Loan],
+      where: buildPaymentListWhere({ filters }),
+      include: paymentListInclude,
       order: [['createdAt', 'DESC']],
     });
   },

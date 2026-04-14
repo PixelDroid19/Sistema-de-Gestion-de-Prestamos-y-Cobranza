@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const {
   createListLoans,
+  createSearchLoans,
   createCreateSimulation,
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
@@ -87,6 +88,55 @@ test('createListLoans enriches visible loan rows with additive customer summary 
     latestLoanId: 41,
     latestLoanStatus: 'approved',
   });
+});
+
+test('createSearchLoans scopes visible rows before applying customer search filters', async () => {
+  let filterCall;
+  const searchLoans = createSearchLoans({
+    loanRepository: {
+      async list() {
+        return [
+          {
+            id: 41,
+            customerId: 7,
+            status: 'approved',
+            amount: 900,
+            createdAt: '2026-02-01T00:00:00.000Z',
+            Customer: { name: 'Ana Visible', email: 'ana@example.com' },
+          },
+          {
+            id: 42,
+            customerId: 99,
+            status: 'approved',
+            amount: 1200,
+            createdAt: '2026-02-02T00:00:00.000Z',
+            Customer: { name: 'Carlos Hidden', email: 'carlos@example.com' },
+          },
+        ];
+      },
+    },
+    loanAccessPolicy: {
+      filterVisibleLoans(input) {
+        filterCall = input;
+        return input.loans.filter((loan) => loan.customerId === 7);
+      },
+    },
+  });
+
+  const result = await searchLoans({
+    actor: { id: 7, role: 'customer' },
+    filters: { search: 'ana', status: 'approved' },
+    pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
+  });
+
+  assert.equal(filterCall.actor.id, 7);
+  assert.deepEqual(result.pagination, {
+    page: 1,
+    pageSize: 25,
+    totalItems: 1,
+    totalPages: 1,
+  });
+  assert.deepEqual(result.items.map((loan) => loan.id), [41]);
 });
 
 test('createCreateSimulation returns canonical preview data from the domain service', async () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle, Save } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -86,6 +86,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     endDate: '',
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedCreditIds, setSelectedCreditIds] = useState<number[]>([]);
   const [appliedFilters, setAppliedFilters] = useState({
     status: '',
@@ -136,9 +137,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       setIsExporting(true);
       await exportCreditsExcel();
       toast.success({ description: tTerm('credits.toast.export.success') });
-    } catch (error) {
+    } catch {
       toast.error({ description: tTerm('credits.toast.export.error') });
-      console.error('Export error:', error);
     } finally {
       setIsExporting(false);
     }
@@ -148,7 +148,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const [simParams, setSimParams] = useState({
     principal: 2000000,
     tna: 60,
-    frequency: 12, // 12 = Mensual
     installments: 12
   });
 
@@ -213,8 +212,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
 
-  const hasAppliedAdvancedFilters = Boolean(
-    appliedFilters.minAmount
+  const hasAppliedServerFilters = Boolean(
+    appliedFilters.search
+    || appliedFilters.status
+    || appliedFilters.minAmount
     || appliedFilters.maxAmount
     || appliedFilters.startDate
     || appliedFilters.endDate
@@ -243,19 +244,58 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   } = useLoans({
     page,
     pageSize,
-    search: appliedFilters.search || undefined,
-    status: appliedFilters.status || undefined,
   });
 
-  const loansData = hasAppliedAdvancedFilters ? searchedLoansData : defaultLoansData;
-  const isLoading = hasAppliedAdvancedFilters ? isSearchLoading : isDefaultLoading;
-  const isError = hasAppliedAdvancedFilters ? isSearchError : isDefaultError;
+  const loansData = hasAppliedServerFilters ? searchedLoansData : defaultLoansData;
+  const isLoading = hasAppliedServerFilters ? isSearchLoading : isDefaultLoading;
+  const isError = hasAppliedServerFilters ? isSearchError : isDefaultError;
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: filters.status,
+      minAmount: filters.minAmount,
+      maxAmount: filters.maxAmount,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      search: searchQuery.trim(),
+    });
+    setPage(1);
+  };
+
+  useEffect(() => {
+    const normalizedSearch = deferredSearchQuery.trim();
+    if (appliedFilters.search === normalizedSearch) {
+      return;
+    }
+
+    setAppliedFilters((current) => ({
+      ...current,
+      search: normalizedSearch,
+    }));
+    setPage(1);
+  }, [appliedFilters.search, deferredSearchQuery, setPage]);
 
   const creditsList = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
     : Array.isArray(loansData?.data)
       ? loansData.data
       : [];
+
+  useEffect(() => {
+    const visibleLoanIds = new Set(
+      creditsList
+        .map((loan: any) => Number(loan?.id))
+        .filter((loanId: number): loanId is number => Number.isFinite(loanId)),
+    );
+
+    setSelectedCreditIds((current) => {
+      const nextSelection = current.filter((loanId) => visibleLoanIds.has(loanId));
+      const didSelectionChange = nextSelection.length !== current.length
+        || nextSelection.some((loanId, index) => loanId !== current[index]);
+
+      return didSelectionChange ? nextSelection : current;
+    });
+  }, [creditsList]);
 
   const calendarLoanIds = useMemo<number[]>(
     () => creditsList
@@ -593,6 +633,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   placeholder="Buscar por cliente..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      applyFilters();
+                    }
+                  }}
                   className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
                 />
               </div>
@@ -699,17 +745,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   Limpiar
                 </button>
                 <button
-                  onClick={() => {
-                    setAppliedFilters({
-                      status: filters.status,
-                      minAmount: filters.minAmount,
-                      maxAmount: filters.maxAmount,
-                      startDate: filters.startDate,
-                      endDate: filters.endDate,
-                      search: searchQuery,
-                    });
-                    setPage(1);
-                  }}
+                  onClick={applyFilters}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                 >
                   Aplicar
@@ -1247,16 +1283,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </div>
               <div>
                 <label className="block text-sm text-text-secondary mb-1">Frecuencia de Pago</label>
-                <select
-                  value={simParams.frequency}
-                  onChange={(e) => setSimParams({...simParams, frequency: Number(e.target.value)})}
-                  className="w-full bg-bg-surface border border-border-strong rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value={12}>Mensual (12/año)</option>
-                  <option value={24}>Quincenal (24/año)</option>
-                  <option value={52}>Semanal (52/año)</option>
-                  <option value={360}>Diario (360/año)</option>
-                </select>
+                <div className="rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-secondary">
+                  El simulador operativo usa cronograma mensual para mantener paridad con el motor de cÃ¡lculo del backend.
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-text-secondary mb-1">N° Total de Cuotas</label>

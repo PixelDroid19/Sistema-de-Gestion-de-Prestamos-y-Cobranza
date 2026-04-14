@@ -8,7 +8,14 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // List all payments (admin only)
   router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listPayments({ actor: req.user, pagination: req.pagination });
+    const result = await useCases.listPayments({
+      actor: req.user,
+      pagination: req.pagination,
+      filters: {
+        search: req.query.search,
+        status: req.query.status,
+      },
+    });
     if (result?.pagination) {
       res.json({ success: true, count: result.pagination.totalItems, data: { payments: result.items, pagination: result.pagination } });
       return;
