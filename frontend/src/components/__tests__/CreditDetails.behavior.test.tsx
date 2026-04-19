@@ -9,6 +9,14 @@ const mockCreateFollowUp = vi.fn();
 const mockAnnulInstallment = vi.fn();
 const mockUpdatePaymentMethod = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
+let mockCalendarEntries: Array<{
+  installmentNumber: number | string;
+  scheduledPayment: number;
+  remainingInterest: number;
+  status: string;
+}> = [
+  { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+];
 const mockUseSessionStore = vi.fn(() => ({
   user: { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] },
 }));
@@ -107,9 +115,7 @@ vi.mock('../../services/loanService', () => {
     }),
     useLoanById: () => ({ data: { data: { loan } }, isLoading: false }),
     useLoanDetails: () => ({
-      calendar: [
-        { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
-      ],
+      calendar: mockCalendarEntries,
       calendarSnapshot: { outstandingBalance: 750000 },
       alerts: [],
       promises: [],
@@ -140,6 +146,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfirmDanger.mockResolvedValue(true);
+    mockCalendarEntries = [
+      { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+    ];
   });
 
   const setSessionUser = (user: {
@@ -179,6 +188,18 @@ describe('CreditDetails behavioral parity scenarios', () => {
     await waitFor(() => {
       expect(mockInvalidateAfterPayment).toHaveBeenCalledWith(expect.anything(), { loanId: 101 });
     });
+  });
+
+  it('keeps row installment actions working when the calendar installment number is serialized as text', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockCalendarEntries = [
+      { installmentNumber: '1', scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+    ];
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
+    expect(screen.getByText('Pago aplicado a cuota #1')).toBeInTheDocument();
   });
 
   it('routes top-level payment CTA to the next payable installment', async () => {

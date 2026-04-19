@@ -133,8 +133,14 @@ export default function CreditDetails() {
 
     return [
       ...payments.map((payment: any) => ({
-        id: `payment-${payment.id ?? payment.createdAt ?? Math.random()}`,
+        id: payment.id ?? payment.createdAt ?? Math.random(),
         paymentId: Number(payment.id),
+        amount: payment.amount,
+        paymentType: payment.paymentType,
+        installmentNumber: payment.installmentNumber,
+        principalApplied: payment.principalApplied,
+        interestApplied: payment.interestApplied,
+        penaltyApplied: payment.penaltyApplied,
         paymentMethod: payment.paymentMethod,
         paymentStatus: payment.status,
         paymentReconciled: Boolean(payment.reconciled || payment.isReconciled || String(payment.status || '').toLowerCase().includes('reconcil')),
@@ -238,8 +244,11 @@ export default function CreditDetails() {
     return Number.isFinite(candidate) ? candidate : null;
   }, [calendarEntries]);
 
-  const extractPaymentId = (eventId: string): number | null => {
-    if (eventId.startsWith('payment-')) {
+  const extractPaymentId = (eventId: unknown): number | null => {
+    if (typeof eventId === 'number' && Number.isFinite(eventId)) {
+      return eventId;
+    }
+    if (typeof eventId === 'string' && eventId.startsWith('payment-')) {
       const id = eventId.replace('payment-', '');
       return Number(id);
     }
@@ -554,18 +563,20 @@ export default function CreditDetails() {
   };
 
   const openInstallmentPayment = (row: any) => {
-    if (!row?.installmentNumber) {
+    const installmentNumber = Number(row?.installmentNumber);
+
+    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
       toast.error({ title: 'No se pudo identificar la cuota.' });
       return;
     }
 
-    setSelectedInstallmentNumber(row.installmentNumber);
+    setSelectedInstallmentNumber(installmentNumber);
     setPaymentAmount(String(row.scheduledPayment ?? ''));
     operationalModal.openModal('record-payment', {
       loanId,
       installment: {
-        installmentId: row.installmentNumber,
-        installmentNumber: row.installmentNumber,
+        installmentId: installmentNumber,
+        installmentNumber,
         amount: row.scheduledPayment,
         status: row.status,
       },
@@ -586,7 +597,9 @@ export default function CreditDetails() {
   };
 
   const openPromiseFromInstallment = (row: any) => {
-    if (!row?.installmentNumber) {
+    const installmentNumber = Number(row?.installmentNumber);
+
+    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
       toast.error({ title: 'No se pudo identificar la cuota para promesa.' });
       return;
     }
@@ -594,8 +607,8 @@ export default function CreditDetails() {
     operationalModal.openModal('create-promise', {
       loanId,
       installment: {
-        installmentId: row.installmentNumber,
-        installmentNumber: row.installmentNumber,
+        installmentId: installmentNumber,
+        installmentNumber,
         amount: row.scheduledPayment,
         status: row.status,
       },
@@ -604,7 +617,9 @@ export default function CreditDetails() {
   };
 
   const openFollowUpFromInstallment = (row: any) => {
-    if (!row?.installmentNumber) {
+    const installmentNumber = Number(row?.installmentNumber);
+
+    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
       toast.error({ title: 'No se pudo identificar la cuota para seguimiento.' });
       return;
     }
@@ -612,8 +627,8 @@ export default function CreditDetails() {
     operationalModal.openModal('create-follow-up', {
       loanId,
       installment: {
-        installmentId: row.installmentNumber,
-        installmentNumber: row.installmentNumber,
+        installmentId: installmentNumber,
+        installmentNumber,
         amount: row.scheduledPayment,
         status: row.status,
       },
@@ -821,8 +836,12 @@ export default function CreditDetails() {
                         const openingBalance = index === 0 ? Number(loan.amount) : rows[index - 1].closingBalance;
                         const closingBalance = Math.max(0, openingBalance - principalComponent);
                         
+                        const normalizedInstallmentNumber = Number(installment.installmentNumber);
+
                         rows.push({
-                          installmentNumber: installment.installmentNumber,
+                          installmentNumber: Number.isFinite(normalizedInstallmentNumber)
+                            ? normalizedInstallmentNumber
+                            : installment.installmentNumber,
                           scheduledPayment, interestComponent, principalComponent, openingBalance, closingBalance,
                           status: installment.status,
                         });
@@ -1069,7 +1088,7 @@ export default function CreditDetails() {
                     <tbody>
                       {historyEntries.map((entry: any, index: number) => (
                         <tr key={index} className="border-b border-border-subtle hover:bg-hover-bg">
-                          <td className="py-3 px-4 text-text-secondary">{entry.id ? `#${String(entry.id).slice(0, 8)}` : '—'}</td>
+                          <td className="py-3 px-4 text-text-secondary">{entry.paymentId ? `#${entry.paymentId}` : entry.id ? `#${entry.id}` : '—'}</td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
                               entry.type === 'payoff' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' :
