@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 import { TrendingUp, Users, DollarSign, AlertCircle, Download, Calendar, Wallet, CalendarClock } from 'lucide-react';
 import { useReports, usePayoutsReport, usePaymentSchedule, exportDashboardSummary, exportContextualReport, useFinancialAnalytics } from '../services/reportService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
@@ -10,6 +10,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import MeasuredChart from './shared/MeasuredChart';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
@@ -370,8 +371,9 @@ export default function Reports() {
           </p>
           {chartHasData ? (
             <div className="h-72 w-full min-w-0 text-sm">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={288}>
-                <AreaChart data={filteredMonthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <MeasuredChart className="h-full w-full min-w-0 text-sm" minHeight={288}>
+                {({ width, height }) => (
+                <AreaChart width={width} height={height} data={filteredMonthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorDes" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -394,7 +396,8 @@ export default function Reports() {
                   <Area type="monotone" name={tTerm('reports.chart.disbursementRecovery.legend.disbursed')} dataKey="disbursed" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorDes)" />
                   <Area type="monotone" name={tTerm('reports.chart.disbursementRecovery.legend.recovered')} dataKey="recovered" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorRec)" />
                 </AreaChart>
-              </ResponsiveContainer>
+                )}
+              </MeasuredChart>
             </div>
           ) : (
             <div className="h-72 w-full rounded-xl border border-dashed border-border-subtle bg-bg-base flex flex-col items-center justify-center text-center px-6">
@@ -416,8 +419,9 @@ export default function Reports() {
         <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
           <h3 className="font-medium mb-6">Estado de la Cartera</h3>
           <div className="h-64 w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={256}>
-              <PieChart>
+            <MeasuredChart className="h-full w-full min-w-0" minHeight={256}>
+              {({ width, height }) => (
+              <PieChart width={width} height={height}>
                 <Pie
                   data={statusData}
                   cx="50%"
@@ -437,7 +441,8 @@ export default function Reports() {
                   formatter={(value) => [`${value}`, 'Cantidad']}
                 />
               </PieChart>
-            </ResponsiveContainer>
+              )}
+            </MeasuredChart>
           </div>
           <div className="flex flex-col gap-3 mt-4">
             {statusData.map((item: any, index: number) => (
@@ -553,8 +558,9 @@ export default function Reports() {
             <h4 className="font-medium mb-4">Tendencia avanzada de recuperación y mora</h4>
             {advancedTrendSeries.length > 0 ? (
               <div className="h-72 min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={288}>
-                  <LineChart data={advancedTrendSeries}>
+                <MeasuredChart className="h-full min-w-0" minHeight={288}>
+                  {({ width, height }) => (
+                  <LineChart width={width} height={height} data={advancedTrendSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
                     <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
@@ -566,7 +572,8 @@ export default function Reports() {
                     <Line type="monotone" dataKey="recovered" stroke="#10b981" strokeWidth={2} dot={false} name="Recuperado" />
                     <Line type="monotone" dataKey="arrears" stroke="#ef4444" strokeWidth={2} dot={false} name="Mora" />
                   </LineChart>
-                </ResponsiveContainer>
+                  )}
+                </MeasuredChart>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-border-subtle bg-bg-base p-6 text-sm text-text-secondary text-center">

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { GripHorizontal, Plus, Settings2, X } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { Responsive, WidthProvider, Layout, LayoutItem, ResponsiveLayouts } from 'react-grid-layout/legacy';
 import { useDashboardReport } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
+import MeasuredChart from './shared/MeasuredChart';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -183,8 +184,9 @@ export default function Dashboard() {
             </p>
             {chartHasData ? (
               <div className="flex-1 min-h-[150px] min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <MeasuredChart className="h-full min-h-[150px] min-w-0" minHeight={150}>
+                  {({ width, height }) => (
+                  <AreaChart width={width} height={height} data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="dashboard-disbursed-gradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -217,7 +219,8 @@ export default function Dashboard() {
                       fill="url(#dashboard-recovered-gradient)"
                     />
                   </AreaChart>
-                </ResponsiveContainer>
+                  )}
+                </MeasuredChart>
               </div>
             ) : (
               <div className="flex-1 min-h-[150px] rounded-xl border border-dashed border-border-subtle bg-bg-base flex flex-col items-center justify-center text-center px-6">
@@ -246,8 +249,9 @@ export default function Dashboard() {
               <div className="text-xs text-text-secondary">{tTerm('dashboard.widget.recoveryPerformance.subtitle')}</div>
             </div>
             <div className="flex-1 min-h-[150px] min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
-                <BarChart data={chartData}>
+              <MeasuredChart className="h-full min-h-[150px] min-w-0" minHeight={150}>
+                {({ width, height }) => (
+                <BarChart width={width} height={height} data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
@@ -255,7 +259,8 @@ export default function Dashboard() {
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.recovered')} dataKey="recovered" fill="#10b981" radius={[6, 6, 0, 0]} />
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.disbursed')} dataKey="disbursed" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
+                )}
+              </MeasuredChart>
             </div>
           </div>
         );
