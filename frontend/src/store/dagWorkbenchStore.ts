@@ -57,6 +57,7 @@ export interface DagWorkbenchState {
   validation: ValidationResult | null;
   simulationInput: SimulationInput;
   simulationResult: SimulationResult | null;
+  lastSimulatedInput: SimulationInput | null;
 
   // Actions - Core RF
   onNodesChange: (changes: NodeChange<AppNode>[]) => void;
@@ -261,6 +262,7 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
     lateFeeMode: 'SIMPLE',
   },
   simulationResult: null,
+  lastSimulatedInput: null,
 
   // Event handlers for React Flow
   onNodesChange: (changes) => {
@@ -300,7 +302,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
 
   setSimulationInput: (input) => {
     set((state) => ({
-      simulationInput: { ...state.simulationInput, ...input }
+      simulationInput: { ...state.simulationInput, ...input },
+      error: null,
     }));
   },
 
@@ -334,6 +337,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         graphVersion,
         graphName: graphVersion.name || scopeKey,
         validation: graphVersion.validation || null,
+        simulationResult: null,
+        lastSimulatedInput: null,
         isLoading: false 
       });
       await get().loadGraphList(scopeKey);
@@ -356,6 +361,9 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
               graphVersion: null,
               validation: null,
               simulationInput: scopeDefinition?.simulationInput || get().simulationInput,
+              simulationResult: null,
+              lastSimulatedInput: null,
+              selectedNodeId: null,
               isLoading: false,
               error: null,
             });
@@ -372,6 +380,9 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
           graphName: 'Nuevo Grafo',
           graphVersion: null,
           validation: null,
+          simulationResult: null,
+          lastSimulatedInput: null,
+          selectedNodeId: null,
           isLoading: false,
         });
         await get().loadGraphList(scopeKey);
@@ -479,6 +490,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
 
       set({ 
         simulationResult: response.data.simulation,
+        lastSimulatedInput: { ...simulationInput },
+        validation: response.data.validation || get().validation,
         isSimulating: false 
       });
     } catch (err: any) {
@@ -579,6 +592,8 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
         edges,
         selectedNodeId: null,
         validation: graphVersion.validation || null,
+        simulationResult: null,
+        lastSimulatedInput: null,
         isLoading: false,
       });
     } catch (err: any) {

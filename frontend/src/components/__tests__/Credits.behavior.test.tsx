@@ -7,6 +7,7 @@ const mockInvalidateAfterDelete = vi.fn().mockResolvedValue(undefined);
 const mockSetCurrentView = vi.fn();
 const mockToastError = vi.fn();
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
+const mockApiPost = vi.fn();
 
 type SessionUser = {
   id: number;
@@ -35,20 +36,7 @@ vi.mock('../DAGWorkbench', () => ({
 
 vi.mock('../../api/client', () => ({
   apiClient: {
-    post: vi.fn().mockResolvedValue({
-      data: {
-        data: {
-          simulation: {
-            summary: {
-              installmentAmount: 100000,
-              totalInterest: 50000,
-              totalPayable: 1050000,
-            },
-            schedule: [],
-          },
-        },
-      },
-    }),
+    post: (...args: unknown[]) => mockApiPost(...args),
   },
 }));
 
@@ -149,6 +137,44 @@ describe('Credits behavioral parity scenarios', () => {
     currentUser = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] };
     vi.stubGlobal('confirm', vi.fn(() => true));
     mockConfirmDanger.mockResolvedValue(true);
+    mockApiPost.mockResolvedValue({
+      data: {
+        data: {
+          simulation: {
+            summary: {
+              installmentAmount: 100000,
+              totalInterest: 50000,
+              totalPayable: 1050000,
+              totalPrincipal: 1000000,
+              outstandingBalance: 1050000,
+              outstandingPrincipal: 1000000,
+              outstandingInterest: 50000,
+              outstandingInstallments: 12,
+              nextInstallment: null,
+            },
+            graphVersionId: 7,
+            lateFeeMode: 'SIMPLE',
+            schedule: [
+              {
+                installmentNumber: 1,
+                dueDate: '2026-06-01T00:00:00.000Z',
+                openingBalance: 1000000,
+                scheduledPayment: 100000,
+                principalComponent: 60000,
+                interestComponent: 40000,
+                paidPrincipal: 0,
+                paidInterest: 0,
+                paidTotal: 0,
+                remainingPrincipal: 940000,
+                remainingInterest: 0,
+                remainingBalance: 940000,
+                status: 'pending',
+              },
+            ],
+          },
+        },
+      },
+    });
   });
 
   it('executes view details action and navigates to credit detail', async () => {
@@ -177,6 +203,52 @@ describe('Credits behavioral parity scenarios', () => {
 
     await waitFor(() => {
       expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');
+    });
+  });
+
+  it('renders the shared simulation workspace and preserves saved scenarios across tab switches', async () => {
+    renderCredits();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+
+    expect(await screen.findByRole('heading', { name: 'Simulación operativa de crédito' })).toBeInTheDocument();
+    expect(mockApiPost).toHaveBeenCalledWith('/loans/simulations', {
+      amount: 2000000,
+      interestRate: 60,
+      termMonths: 12,
+      lateFeeMode: 'SIMPLE',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar escenario' }));
+    expect(await screen.findByText('1 escenario guardado.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+
+    expect(screen.getByText('1 escenario guardado.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ocultar comparación' })).toBeInTheDocument();
+    expect(screen.getByText('Fórmula v7')).toBeInTheDocument();
+  });
+
+  it('flags stale simulation results after parameter changes until the user reruns the calculation', async () => {
+    renderCredits();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+
+    const amountInput = await screen.findByLabelText('Monto del crédito');
+    fireEvent.change(amountInput, { target: { value: '2500000' } });
+
+    expect(await screen.findByText('Cambiaste parámetros después del último cálculo. Ejecuta nuevamente la simulación para actualizar los resultados.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Simular' })[0]);
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenLastCalledWith('/loans/simulations', {
+        amount: 2500000,
+        interestRate: 60,
+        termMonths: 12,
+        lateFeeMode: 'SIMPLE',
+      });
     });
   });
 });

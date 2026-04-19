@@ -49,6 +49,7 @@ import FormulaNodeEditor from './dag/FormulaNodeEditor';
 import { tTerm } from '../i18n/terminology';
 import { dagService } from '../services/dagService';
 import { confirmDanger } from '../lib/confirmModal';
+import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 
 // =============================================================================
 // CUSTOM NODE COMPONENT
@@ -567,179 +568,6 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({
 };
 
 // =============================================================================
-// SIMULATION PANEL
-// =============================================================================
-
-interface SimulationPanelProps {
-  simulationInput: DagWorkbenchState['simulationInput'];
-  simulationResult: DagWorkbenchState['simulationResult'];
-  isSimulating: boolean;
-  error: string | null;
-  onSetSimulationInput: (input: Partial<DagWorkbenchState['simulationInput']>) => void;
-  onSimulate: () => void;
-}
-
-const SimulationPanel: React.FC<SimulationPanelProps> = ({
-  simulationInput,
-  simulationResult,
-  isSimulating,
-  error,
-  onSetSimulationInput,
-  onSimulate,
-}) => {
-  const formatCurrency = (value: number) => 
-    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
-  
-  return (
-    <div className="bg-bg-surface  rounded-lg border border-border-subtle overflow-hidden">
-      <button
-        onClick={onSimulate}
-        disabled={isSimulating}
-        className="
-          w-full px-3 py-2 flex items-center justify-between
-          border-b border-border-subtle
-          hover:bg-hover-bg
-          transition-colors
-        "
-      >
-         <span className="text-xs font-semibold">{tTerm('dag.simulation.title')}</span>
-        {isSimulating ? (
-          <Loader2 size={14} className="animate-spin text-blue-500" />
-        ) : simulationResult ? (
-          <Check size={14} className="text-emerald-500" />
-        ) : (
-          <Play size={14} className="text-text-secondary" />
-        )}
-      </button>
-      
-      <div className="p-3 space-y-3 max-h-80 overflow-y-auto">
-        {error && (
-          <div className="text-[10px] text-red-400 bg-red-500/10 px-2 py-1.5 rounded border border-red-500/20">
-            {error}
-          </div>
-        )}
-        
-        {/* Input Fields */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[10px] text-text-secondary  mb-1">
-               {tTerm('dag.simulation.input.amount')}
-            </label>
-            <input
-              type="number"
-              value={simulationInput.amount}
-              onChange={(e) => onSetSimulationInput({ amount: Number(e.target.value) })}
-              className="
-                w-full text-xs px-2 py-1.5 rounded border font-mono
-                bg-bg-base  border-border-subtle 
-                text-text-primary 
-                focus:outline-none focus:ring-1 focus:ring-blue-500
-              "
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-text-secondary  mb-1">
-               {tTerm('dag.simulation.input.rate')}
-            </label>
-            <input
-              type="number"
-              value={simulationInput.interestRate}
-              onChange={(e) => onSetSimulationInput({ interestRate: Number(e.target.value) })}
-              className="
-                w-full text-xs px-2 py-1.5 rounded border font-mono
-                bg-bg-base  border-border-subtle 
-                text-text-primary 
-                focus:outline-none focus:ring-1 focus:ring-blue-500
-              "
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-text-secondary  mb-1">
-               {tTerm('dag.simulation.input.term')}
-            </label>
-            <input
-              type="number"
-              value={simulationInput.termMonths}
-              onChange={(e) => onSetSimulationInput({ termMonths: Number(e.target.value) })}
-              className="
-                w-full text-xs px-2 py-1.5 rounded border font-mono
-                bg-bg-base  border-border-subtle 
-                text-text-primary 
-                focus:outline-none focus:ring-1 focus:ring-blue-500
-              "
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-text-secondary  mb-1">
-               {tTerm('dag.simulation.input.lateFeeMode')}
-            </label>
-            <select
-              value={simulationInput.lateFeeMode}
-              onChange={(e) => onSetSimulationInput({ lateFeeMode: e.target.value as any })}
-              className="
-                w-full text-xs px-2 py-1.5 rounded border
-                bg-bg-base  border-border-subtle 
-                text-text-primary 
-                focus:outline-none focus:ring-1 focus:ring-blue-500
-              "
-            >
-              <option value="SIMPLE">{tTerm('dag.simulation.input.lateFeeMode.option.simple')}</option>
-              <option value="COMPOUND">{tTerm('dag.simulation.input.lateFeeMode.option.compound')}</option>
-              <option value="FLAT">{tTerm('dag.simulation.input.lateFeeMode.option.flat')}</option>
-              <option value="TIERED">{tTerm('dag.simulation.input.lateFeeMode.option.tiered')}</option>
-            </select>
-          </div>
-        </div>
-        
-        {/* Results */}
-        {simulationResult && (
-          <div className="space-y-2 pt-2 border-t border-border-subtle">
-             <span className="text-[10px] font-semibold text-emerald-500">{tTerm('dag.simulation.resultsTitle')}</span>
-            
-            <div className="grid grid-cols-2 gap-1 text-[10px]">
-               <span className="text-text-secondary ">{tTerm('dag.simulation.result.installment')}</span>
-              <span className="font-semibold text-blue-500">
-                {formatCurrency(simulationResult.summary.installmentAmount)}
-              </span>
-              
-               <span className="text-text-secondary ">{tTerm('dag.simulation.result.totalInterest')}</span>
-              <span className="font-semibold text-amber-500">
-                {formatCurrency(simulationResult.summary.totalInterest)}
-              </span>
-              
-               <span className="text-text-secondary ">{tTerm('dag.simulation.result.totalPayable')}</span>
-              <span className="font-semibold">
-                {formatCurrency(simulationResult.summary.totalPayable)}
-              </span>
-            </div>
-            
-            {/* Schedule Preview */}
-            {simulationResult.schedule.length > 0 && (
-              <div className="mt-2">
-                <span className="text-[10px] font-semibold text-text-secondary  block mb-1">
-                   {tTerm('dag.simulation.result.firstInstallments')}
-                </span>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {simulationResult.schedule.slice(0, 3).map((row) => (
-                    <div 
-                      key={row.installmentNumber}
-                      className="text-[9px] bg-bg-base  px-2 py-1 rounded font-mono"
-                    >
-                      #{row.installmentNumber}: {formatCurrency(row.scheduledPayment)} 
-                      (Cap: {formatCurrency(row.principalComponent)} / Int: {formatCurrency(row.interestComponent)})
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// =============================================================================
 // MAIN WORKBENCH COMPONENT
 // =============================================================================
 
@@ -760,6 +588,7 @@ const DAGWorkbenchContent: React.FC = () => {
     validation,
     simulationInput,
     simulationResult,
+    lastSimulatedInput,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -777,7 +606,7 @@ const DAGWorkbenchContent: React.FC = () => {
     selectGraph,
   } = useDagStore();
 
-  const [rightPanel, setRightPanel] = useState<'properties' | 'validation' | 'simulation'>('properties');
+  const [rightPanel, setRightPanel] = useState<'properties' | 'validation'>('properties');
   const [showScopeSelect, setShowScopeSelect] = useState(false);
   const [scopes, setScopes] = useState<DagWorkbenchScope[]>([]);
   const [pendingGraphActionId, setPendingGraphActionId] = useState<number | null>(null);
@@ -965,6 +794,18 @@ const DAGWorkbenchContent: React.FC = () => {
     [graphVersion?.status],
   );
 
+  const isSimulationResultStale = useMemo(() => {
+    if (!simulationResult || !lastSimulatedInput) {
+      return false;
+    }
+
+    return simulationInput.amount !== lastSimulatedInput.amount
+      || simulationInput.interestRate !== lastSimulatedInput.interestRate
+      || simulationInput.termMonths !== lastSimulatedInput.termMonths
+      || (simulationInput.lateFeeMode || 'SIMPLE') !== (lastSimulatedInput.lateFeeMode || 'SIMPLE')
+      || (simulationInput.startDate || '') !== (lastSimulatedInput.startDate || '');
+  }, [lastSimulatedInput, simulationInput, simulationResult]);
+
   return (
     <div className="h-full flex flex-col bg-bg-base ">
       {/* Header Toolbar */}
@@ -1065,18 +906,6 @@ const DAGWorkbenchContent: React.FC = () => {
           {tTerm('dag.actions.save')}
         </button>
         
-        <button
-          onClick={() => simulateGraph()}
-          disabled={isSimulating || !validation?.valid}
-          className="
-            flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
-            bg-emerald-500 hover:bg-emerald-600 text-white
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-        >
-          {isSimulating ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-          {tTerm('dag.actions.simulate')}
-        </button>
       </div>
 
       {/* Error Banner */}
@@ -1094,131 +923,150 @@ const DAGWorkbenchContent: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Node Palette */}
-        <div className="w-64 flex-shrink-0 p-3 border-r border-border-subtle overflow-y-auto">
-          <NodePalette onAddNode={handleAddNode} />
-          
-          {/* Node count info */}
-          <div className="mt-4 text-[10px] text-text-secondary  space-y-1">
-            <div>{tTerm('dag.metrics.nodes')} {nodes.length}</div>
-            <div>{tTerm('dag.metrics.edges')} {edges.length}</div>
-            {graphName && (
-              <div>
-                {tTerm('dag.metrics.version')} {useDagStore.getState().graphVersion?.version || tTerm('dag.metrics.versionNew')}
-              </div>
-            )}
-          </div>
-
-          <FormulaVersionHistory
-            graphList={graphList}
-            currentGraphId={graphVersion?.id ?? null}
-            isLoading={isLoadingGraphList}
-            pendingGraphActionId={pendingGraphActionId}
-            onRefresh={handleRefreshGraphList}
-            onSelect={selectGraph}
-            onActivate={handleActivateGraph}
-            onDeactivate={handleDeactivateGraph}
-            onDelete={handleDeleteGraph}
-          />
-        </div>
-
-        {/* Canvas - React Flow */}
-        <div className="flex-1 relative">
-          {isLoading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-bg-base/80  z-10">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex min-h-[720px] overflow-hidden border-b border-border-subtle">
+          {/* Left Panel - Node Palette */}
+          <div className="w-64 flex-shrink-0 p-3 border-r border-border-subtle overflow-y-auto">
+            <NodePalette onAddNode={handleAddNode} />
+            
+            {/* Node count info */}
+            <div className="mt-4 text-[10px] text-text-secondary  space-y-1">
+              <div>{tTerm('dag.metrics.nodes')} {nodes.length}</div>
+              <div>{tTerm('dag.metrics.edges')} {edges.length}</div>
+              {graphName && (
+                <div>
+                  {tTerm('dag.metrics.version')} {useDagStore.getState().graphVersion?.version || tTerm('dag.metrics.versionNew')}
+                </div>
+              )}
             </div>
-          ) : (
-            <ReactFlow
-              nodes={nodes as any}
-              edges={edges as any}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-              nodeTypes={nodeTypes}
-              fitView
-              className=""
-              defaultEdgeOptions={{
-                animated: true,
-                style: { strokeWidth: 2 },
-              }}
-            >
-              <Background color="#9ca3af" size={1} />
-              <Controls />
-              <MiniMap 
-                nodeColor={(node) => {
-                  const kind = (node.data as any)?.kind as NodeKind;
-                  const colorMap: Record<NodeKind, string> = {
-                    formula: '#3b82f6',
-                    output: '#10b981',
-                    constant: '#f59e0b',
-                    conditional: '#a855f7',
-                    lookup: '#f43f5e',
-                  };
-                  return colorMap[kind] || '#6b7280';
+
+            <FormulaVersionHistory
+              graphList={graphList}
+              currentGraphId={graphVersion?.id ?? null}
+              isLoading={isLoadingGraphList}
+              pendingGraphActionId={pendingGraphActionId}
+              onRefresh={handleRefreshGraphList}
+              onSelect={selectGraph}
+              onActivate={handleActivateGraph}
+              onDeactivate={handleDeactivateGraph}
+              onDelete={handleDeleteGraph}
+            />
+          </div>
+
+          {/* Canvas - React Flow */}
+          <div className="flex-1 relative min-h-[720px]">
+            {isLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-bg-base/80  z-10">
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <ReactFlow
+                nodes={nodes as any}
+                edges={edges as any}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+                nodeTypes={nodeTypes}
+                fitView
+                className=""
+                defaultEdgeOptions={{
+                  animated: true,
+                  style: { strokeWidth: 2 },
                 }}
-                maskColor="rgba(0,0,0,0.5)"
-              />
-            </ReactFlow>
-          )}
+              >
+                <Background color="#9ca3af" size={1} />
+                <Controls />
+                <MiniMap 
+                  nodeColor={(node) => {
+                    const kind = (node.data as any)?.kind as NodeKind;
+                    const colorMap: Record<NodeKind, string> = {
+                      formula: '#3b82f6',
+                      output: '#10b981',
+                      constant: '#f59e0b',
+                      conditional: '#a855f7',
+                      lookup: '#f43f5e',
+                    };
+                    return colorMap[kind] || '#6b7280';
+                  }}
+                  maskColor="rgba(0,0,0,0.5)"
+                />
+              </ReactFlow>
+            )}
+          </div>
+
+          {/* Right Panel - Properties/Validation */}
+          <div className="w-72 flex-shrink-0 flex flex-col border-l border-border-subtle">
+            {/* Tab Switcher */}
+            <div className="flex-shrink-0 flex border-b border-border-subtle">
+              {(['properties', 'validation'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setRightPanel(tab)}
+                  className={`
+                    flex-1 px-2 py-2 text-[10px] font-semibold uppercase tracking-wide
+                    transition-colors border-b-2
+                    ${rightPanel === tab
+                      ? 'border-blue-500 text-blue-500'
+                      : 'border-transparent text-text-secondary hover:text-text-primary '
+                    }
+                  `}
+                >
+                  {tab === 'properties' && tTerm('dag.tabs.properties')}
+                  {tab === 'validation' && tTerm('dag.tabs.validation')}
+                </button>
+              ))}
+            </div>
+            
+            {/* Panel Content */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {rightPanel === 'properties' && (
+                <PropertiesPanel
+                  selectedNode={selectedNode}
+                  onUpdateNode={handleUpdateNode}
+                  onUpdateFormulaNode={handleUpdateFormulaNode}
+                  onDeleteNode={handleDeleteNode}
+                />
+              )}
+              
+              {rightPanel === 'validation' && (
+                <ValidationPanel
+                  validation={validation}
+                  isValidating={false}
+                  onValidate={() => validateGraph()}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Right Panel - Properties/Validation/Simulation */}
-        <div className="w-72 flex-shrink-0 flex flex-col border-l border-border-subtle">
-          {/* Tab Switcher */}
-          <div className="flex-shrink-0 flex border-b border-border-subtle">
-            {(['properties', 'validation', 'simulation'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setRightPanel(tab)}
-                className={`
-                  flex-1 px-2 py-2 text-[10px] font-semibold uppercase tracking-wide
-                  transition-colors border-b-2
-                  ${rightPanel === tab
-                    ? 'border-blue-500 text-blue-500'
-                    : 'border-transparent text-text-secondary hover:text-text-primary '
-                  }
-                `}
-              >
-                {tab === 'properties' && tTerm('dag.tabs.properties')}
-                {tab === 'validation' && tTerm('dag.tabs.validation')}
-                {tab === 'simulation' && tTerm('dag.tabs.simulation')}
-              </button>
-            ))}
-          </div>
-          
-          {/* Panel Content */}
-          <div className="flex-1 overflow-y-auto p-3">
-            {rightPanel === 'properties' && (
-              <PropertiesPanel
-                selectedNode={selectedNode}
-                onUpdateNode={handleUpdateNode}
-                onUpdateFormulaNode={handleUpdateFormulaNode}
-                onDeleteNode={handleDeleteNode}
-              />
-            )}
-            
-            {rightPanel === 'validation' && (
-              <ValidationPanel
-                validation={validation}
-                isValidating={false}
-                onValidate={() => validateGraph()}
-              />
-            )}
-            
-            {rightPanel === 'simulation' && (
-              <SimulationPanel
-                simulationInput={simulationInput}
-                simulationResult={simulationResult}
-                isSimulating={isSimulating}
-                error={error}
-                onSetSimulationInput={setSimulationInput}
-                onSimulate={() => simulateGraph()}
-              />
-            )}
-          </div>
+        <div className="p-4 sm:p-6">
+          <CreditSimulationWorkspace
+            title="Simulación del borrador DAG"
+            description="Usa exactamente los mismos parámetros que la simulación operativa, pero ejecutando el grafo que estás editando. Valida primero el borrador y luego compara el resultado con la fórmula activa antes de publicarlo."
+            modeLabel="Workbench DAG"
+            input={simulationInput}
+            result={simulationResult}
+            isSimulating={isSimulating}
+            error={error}
+            isResultStale={isSimulationResultStale}
+            onInputChange={setSimulationInput}
+            onSimulate={() => simulateGraph()}
+            helperText="Guardar crea una nueva versión; simular ejecuta solo el borrador en edición. Si cambias nodos o dependencias, vuelve a validar antes de correr la simulación."
+            resultBadge={graphVersion ? `Versión cargada v${graphVersion.version}` : 'Borrador sin publicar'}
+            validationStatus={validation ? {
+              valid: validation.valid,
+              message: validation.valid
+                ? 'El grafo está válido para simular y guardar una nueva versión.'
+                : 'El grafo tiene errores o advertencias pendientes. Revisa la pestaña de validación antes de simular.',
+            } : {
+              valid: false,
+              message: 'Valida el grafo para confirmar dependencias, salidas obligatorias y seguridad de fórmulas.',
+            }}
+            actionLabel="Simular borrador"
+            emptyTitle="El borrador aún no fue ejecutado"
+            emptyDescription="Valida el grafo y corre la simulación para revisar cómo impactan tus cambios sobre cuota, interés total y cronograma."
+          />
         </div>
       </div>
     </div>

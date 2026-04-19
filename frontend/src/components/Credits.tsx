@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, MoreVertical, Calculator, Filter, Eye, Edit, Trash2, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, FileText, Check, Download, TrendingUp, DollarSign, Users, AlertTriangle, Save } from 'lucide-react';
+import { Plus, Search, Calculator, Filter, Eye, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, Download, TrendingUp, DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLoans, useLoanStatistics, useSearchLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
-import { SimulationResult } from '../types/simulation';
 import DAGWorkbench from './DAGWorkbench';
 import { toast } from '../lib/toast';
 import { downloadCreditReport, exportCreditsExcel } from '../services/reportService';
@@ -20,6 +19,8 @@ import { dagService } from '../services/dagService';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
+import { DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
 
 const locales = {
   'es': es,
@@ -55,16 +56,6 @@ const getInitialCreditsTab = () => (
     ? 'workbench'
     : 'list'
 );
-
-// Función para obtener simulación del backend
-const fetchSimulation = async (params: {
-  amount: number;
-  interestRate: number;
-  termMonths: number;
-}): Promise<SimulationResult> => {
-  const { data } = await apiClient.post('/loans/simulations', params);
-  return data.data.simulation;
-};
 
 /**
  * Credits page displays the loan portfolio with filtering, search,
@@ -169,71 +160,19 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }
   };
 
-  // Simulator states
-  const [simParams, setSimParams] = useState({
-    principal: 2000000,
-    tna: 60,
-    installments: 12
+  const {
+    input: simulationInput,
+    result: simulationResult,
+    error: simulationError,
+    fieldErrors: simulationFieldErrors,
+    isSimulating,
+    isResultStale,
+    setInput: setSimulationInput,
+    simulate: runSimulation,
+  } = useActiveCreditSimulation({
+    initialInput: DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT,
+    autoRun: activeTab === 'simulation',
   });
-
-  // Saved scenarios for comparison
-  const [savedScenarios, setSavedScenarios] = useState<Array<{
-    id: string;
-    name: string;
-    params: typeof simParams;
-    results: typeof simResults;
-    createdAt: Date;
-  }>>([]);
-
-  const [scenarioComparison, setScenarioComparison] = useState(false);
-  const [scenarioName, setScenarioName] = useState('');
-
-  const handleSaveScenario = () => {
-    if (!simResults) return;
-    const newScenario = {
-      id: Date.now().toString(),
-      name: scenarioName || `Escenario ${savedScenarios.length + 1}`,
-      params: { ...simParams },
-      results: simResults,
-      createdAt: new Date(),
-    };
-    setSavedScenarios(prev => [...prev.slice(-2), newScenario]); // Keep max 3 scenarios
-    setScenarioName('');
-    toast.success({ description: 'Escenario guardado para comparación' });
-  };
-
-  const handleDeleteScenario = (id: string) => {
-    setSavedScenarios(prev => prev.filter(s => s.id !== id));
-  };
-
-  // Transformar parámetros al formato que espera el API
-  const apiParams = {
-    amount: simParams.principal,
-    interestRate: simParams.tna,
-    termMonths: simParams.installments
-  };
-
-  // Simulator: obtener datos del backend
-  const { data: simulationData, isLoading: isSimulating } = useQuery({
-    queryKey: queryKeys.loans.simulation(apiParams),
-    queryFn: () => fetchSimulation(apiParams),
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-
-  // Transformar respuesta del API al formato que usa la UI
-  const simResults = simulationData ? {
-    pmt: simulationData.summary.installmentAmount,
-    totalInterest: simulationData.summary.totalInterest,
-    totalPayment: simulationData.summary.totalPayable,
-    profitPerMonth: simulationData.summary.totalInterest / Math.max(simParams.installments, 1),
-    schedule: simulationData.schedule.map((row) => ({
-      step: row.installmentNumber,
-      pmt: row.scheduledPayment,
-      interest: row.interestComponent,
-      principalPayment: row.principalComponent,
-      balance: row.remainingBalance
-    }))
-  } : null;
 
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
 
@@ -562,7 +501,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             </button>
           )}
           <button onClick={() => updateActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
-            <Calculator size={16} /> {tTerm('credits.cta.simulate')}
+            <Calculator size={16} /> Abrir simulación
           </button>
           {isAdmin && (
             <button 
@@ -1164,299 +1103,26 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         </div>
       )}
 
-      {activeTab === 'simulation' && (
-        <div className="bg-bg-surface rounded-2xl p-6 flex flex-col gap-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Simulador de Crédito Avanzado</h3>
-            {savedScenarios.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setScenarioComparison(!scenarioComparison)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    scenarioComparison
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30'
-                  }`}
-                >
-                  {scenarioComparison ? 'Ocultar Comparación' : 'Comparar Escenarios'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Scenario Comparison View */}
-          {scenarioComparison && savedScenarios.length > 0 && (
-            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-6">
-              <h4 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                <TrendingUp size={18} />
-                Comparación de Escenarios
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                {/* Current simulation */}
-                {simResults && (
-                  <div className="bg-white dark:bg-bg-surface rounded-xl p-4 border-2 border-blue-300 dark:border-blue-500">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <p className="font-medium text-sm">Simulación Actual</p>
-                        <p className="text-xs text-text-secondary">Parámetros actuales</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded text-xs">Actual</span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">Monto:</span>
-                        <span className="font-medium">{formatCurrency(simParams.principal)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">TNA:</span>
-                        <span className="font-medium">{simParams.tna}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">Cuotas:</span>
-                        <span className="font-medium">{simParams.installments}</span>
-                      </div>
-                      <div className="border-t border-border-subtle pt-2 mt-2">
-                        <div className="flex justify-between">
-                          <span className="text-text-secondary">Cuota:</span>
-                          <span className="font-bold text-blue-600">{formatCurrency(simResults.pmt)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-text-secondary">Total Interés:</span>
-                          <span className="font-medium text-amber-600">{formatCurrency(simResults.totalInterest)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Saved scenarios */}
-                {savedScenarios.map((scenario) => (
-                  <div key={scenario.id} className="bg-white dark:bg-bg-surface rounded-xl p-4 border border-border-subtle">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <p className="font-medium text-sm">{scenario.name}</p>
-                        <p className="text-xs text-text-secondary">
-                          {formatCurrency(scenario.params.principal)} · {scenario.params.tna}% · {scenario.params.installments} cuotas
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteScenario(scenario.id)}
-                        className="text-text-secondary hover:text-red-500 p-1"
-                        title="Eliminar"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">Monto:</span>
-                        <span className="font-medium">{formatCurrency(scenario.params.principal)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">TNA:</span>
-                        <span className="font-medium">{scenario.params.tna}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary">Cuotas:</span>
-                        <span className="font-medium">{scenario.params.installments}</span>
-                      </div>
-                      {scenario.results && (
-                        <div className="border-t border-border-subtle pt-2 mt-2">
-                          <div className="flex justify-between">
-                            <span className="text-text-secondary">Cuota:</span>
-                            <span className="font-bold text-blue-600">{formatCurrency(scenario.results.pmt)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-text-secondary">Total Interés:</span>
-                            <span className="font-medium text-amber-600">{formatCurrency(scenario.results.totalInterest)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Inputs */}
-            <div className="col-span-1 bg-bg-base p-5 rounded-xl border border-border-subtle space-y-4 h-fit">
-              <h4 className="font-medium text-text-primary mb-4 border-b border-border-subtle pb-2">Parámetros del Préstamo</h4>
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Valor del préstamo</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                  <input
-                    type="number"
-                    value={simParams.principal}
-                    onChange={(e) => setSimParams({...simParams, principal: Number(e.target.value)})}
-                    className="w-full bg-bg-surface border border-border-strong rounded-lg pl-8 pr-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">TNA (%) - Tasa Nominal Anual</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={simParams.tna}
-                    onChange={(e) => setSimParams({...simParams, tna: Number(e.target.value)})}
-                    className="w-full bg-bg-surface border border-border-strong rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">Frecuencia de Pago</label>
-                <div className="rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-secondary">
-                  El simulador operativo usa cronograma mensual para mantener paridad con el motor de cÃ¡lculo del backend.
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">N° Total de Cuotas</label>
-                <input
-                  type="number"
-                  value={simParams.installments}
-                  onChange={(e) => setSimParams({...simParams, installments: Number(e.target.value)})}
-                  className="w-full bg-bg-surface border border-border-strong rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Save Scenario Section */}
-              <div className="border-t border-border-subtle pt-4 mt-4">
-                <h5 className="text-sm font-medium mb-3">Guardar Escenario</h5>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={scenarioName}
-                    onChange={(e) => setScenarioName(e.target.value)}
-                    placeholder="Nombre del escenario..."
-                    className="flex-1 bg-bg-surface border border-border-strong rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={handleSaveScenario}
-                    disabled={!simResults}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Guardar escenario para comparar"
-                  >
-                    <Save size={16} />
-                  </button>
-                </div>
-                {savedScenarios.length > 0 && (
-                  <p className="text-xs text-text-secondary mt-2">
-                    {savedScenarios.length} escenario{savedScenarios.length > 1 ? 's' : ''} guardado{savedScenarios.length > 1 ? 's' : ''} · Máx. 3
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Resumen & Tabla */}
-            <div className="col-span-1 lg:col-span-2 flex flex-col gap-6">
-              {/* Resumen Cards */}
-              {isSimulating ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="bg-bg-base p-4 rounded-xl border border-border-subtle animate-pulse">
-                      <div className="h-3 bg-border-subtle rounded w-20 mb-2"></div>
-                      <div className="h-6 bg-border-subtle rounded w-28"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : simResults ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
-                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Cuota a Pagar</div>
-                    <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(simResults.pmt)}</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Suma de Cuotas</div>
-                    <div className="text-lg font-semibold">{formatCurrency(simResults.totalPayment)}</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Suma de Intereses</div>
-                    <div className="text-lg font-semibold">{formatCurrency(simResults.totalInterest)}</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Ganancia por Cuota</div>
-                    <div className="text-lg font-semibold">{formatCurrency(simResults.profitPerMonth)}</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Cuota a Pagar</div>
-                    <div className="text-lg font-semibold text-text-secondary">-</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Suma de Cuotas</div>
-                    <div className="text-lg font-semibold text-text-secondary">-</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Suma de Intereses</div>
-                    <div className="text-lg font-semibold text-text-secondary">-</div>
-                  </div>
-                  <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                    <div className="text-xs text-text-secondary mb-1">Ganancia por Cuota</div>
-                    <div className="text-lg font-semibold text-text-secondary">-</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tabla de Amortización */}
-              <div className="bg-bg-base rounded-xl border border-border-subtle overflow-hidden flex-1">
-                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                  <table className="w-full text-sm text-right">
-                    <thead className="text-xs text-text-secondary bg-bg-surface sticky top-0 shadow-sm">
-                      <tr>
-                        <th className="py-3 px-4 text-center font-medium">N° Cuota</th>
-                        <th className="py-3 px-4 font-medium">Cuota a Pagar</th>
-                        <th className="py-3 px-4 font-medium">Interés</th>
-                        <th className="py-3 px-4 font-medium">Capital Amort.</th>
-                        <th className="py-3 px-4 font-medium">Capital Vivo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      <tr className="bg-hover-bg/50">
-                        <td className="py-2 px-4 text-center">0</td>
-                        <td className="py-2 px-4">-</td>
-                        <td className="py-2 px-4">-</td>
-                        <td className="py-2 px-4">-</td>
-                        <td className="py-2 px-4 font-semibold">{formatCurrency(simParams.principal)}</td>
-                      </tr>
-                      {isSimulating ? (
-                        <tr>
-                          <td colSpan={5} className="py-8 text-center text-text-secondary">
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                              Cargando simulación...
-                            </div>
-                          </td>
-                        </tr>
-                      ) : simResults && simResults.schedule.length > 0 ? (
-                        simResults.schedule.map((row) => (
-                          <tr key={row.step} className="hover:bg-hover-bg transition-colors">
-                            <td className="py-2 px-4 text-center">{row.step}</td>
-                            <td className="py-2 px-4 font-medium text-blue-600 dark:text-blue-400">{formatCurrency(row.pmt)}</td>
-                            <td className="py-2 px-4 text-amber-600 dark:text-amber-400">{formatCurrency(row.interest)}</td>
-                            <td className="py-2 px-4 text-emerald-600 dark:text-emerald-400">{formatCurrency(row.principalPayment)}</td>
-                            <td className="py-2 px-4 font-medium">{formatCurrency(row.balance)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-8 text-center text-text-secondary">
-                            Ajusta los parámetros para ver la simulación
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className={activeTab === 'simulation' ? '' : 'hidden'}>
+        <CreditSimulationWorkspace
+          title="Simulación operativa de crédito"
+          description="Este módulo usa el mismo motor de cálculo que crea créditos nuevos. Ajusta capital, tasa, plazo y política de mora para revisar cuota, costo financiero y cronograma antes de originar."
+          modeLabel="Módulo compartido"
+          input={simulationInput}
+          result={simulationResult}
+          isSimulating={isSimulating}
+          error={simulationError}
+          fieldErrors={simulationFieldErrors}
+          isResultStale={isResultStale}
+          onInputChange={setSimulationInput}
+          onSimulate={runSimulation}
+          showScenarioTools
+          helperText="La simulación de cartera y la del workbench ahora comparten la misma interfaz. Si editas la fórmula en el workbench, compara aquí contra la versión activa antes de publicar cambios."
+          resultBadge={simulationResult?.graphVersionId != null ? `Fórmula v${simulationResult.graphVersionId}` : null}
+          emptyTitle="Listo para proyectar un crédito"
+          emptyDescription="Completa los parámetros y ejecuta la simulación para revisar cuota estimada, interés total y cronograma mensual."
+        />
+      </div>
 
       {activeTab === 'workbench' && isWorkbenchAvailable && (
         <div className="bg-bg-surface rounded-2xl flex-1 flex flex-col min-h-[800px] overflow-hidden -mx-4 sm:mx-0 shadow-lg border border-border-subtle">
