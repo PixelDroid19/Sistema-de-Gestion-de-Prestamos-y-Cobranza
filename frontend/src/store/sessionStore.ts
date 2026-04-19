@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { safeSessionStateStorage } from '../lib/safeStorage';
 
 interface User {
   id: number;
@@ -36,7 +37,7 @@ export const useSessionStore = create<SessionState>()(
     }),
     {
       name: 'lendflow-session',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => safeSessionStateStorage),
       partialize: (state) => ({
         refreshToken: state.refreshToken,
         user: state.user,

@@ -3,6 +3,7 @@ import { Search, Bell, ChevronDown, ChevronLeft, ChevronRight, Sun, Moon, Menu }
 import { useSessionStore } from '../store/sessionStore';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { getDefaultRouteForUser } from '../constants/appAccess';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 export default function Header({ setCurrentView, toggleMobileSidebar }: { setCurrentView: (v: string) => void, toggleMobileSidebar?: () => void }) {
   const [isDark, setIsDark] = useState(true);
@@ -11,7 +12,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
 
   useEffect(() => {
     // Check initial theme
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = safeLocalStorage.getItem('theme');
     if (savedTheme === 'light') {
       document.documentElement.classList.remove('dark');
       setIsDark(false);
@@ -24,11 +25,11 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: { setCur
   const toggleTheme = () => {
     if (isDark) {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      safeLocalStorage.setItem('theme', 'light');
       setIsDark(false);
     } else {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      safeLocalStorage.setItem('theme', 'dark');
       setIsDark(true);
     }
   };

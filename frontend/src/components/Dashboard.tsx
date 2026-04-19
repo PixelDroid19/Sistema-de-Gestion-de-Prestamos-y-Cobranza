@@ -5,6 +5,7 @@ import { Responsive, WidthProvider, Layout, LayoutItem, ResponsiveLayouts } from
 import { useDashboardReport } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -75,8 +76,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const savedLayouts = localStorage.getItem('dashboard_layouts');
-    const savedWidgets = localStorage.getItem('dashboard_widgets');
+    const savedLayouts = safeLocalStorage.getItem('dashboard_layouts');
+    const savedWidgets = safeLocalStorage.getItem('dashboard_widgets');
     if (savedLayouts) {
       try {
         setLayouts(JSON.parse(savedLayouts));
@@ -95,14 +96,14 @@ export default function Dashboard() {
 
   const handleLayoutChange = (_layout: Layout, allLayouts: ResponsiveLayouts) => {
     setLayouts(allLayouts);
-    localStorage.setItem('dashboard_layouts', JSON.stringify(allLayouts));
+    safeLocalStorage.setItem('dashboard_layouts', JSON.stringify(allLayouts));
   };
 
   const toggleWidget = (widgetId: string) => {
     setVisibleWidgets((prev) => {
       const isVisible = prev.includes(widgetId);
       const next = isVisible ? prev.filter((id) => id !== widgetId) : [...prev, widgetId];
-      localStorage.setItem('dashboard_widgets', JSON.stringify(next));
+      safeLocalStorage.setItem('dashboard_widgets', JSON.stringify(next));
 
       if (!isVisible) {
         const widgetDef = AVAILABLE_WIDGETS.find((w) => w.id === widgetId);
@@ -181,8 +182,8 @@ export default function Dashboard() {
               <span className="font-medium">{tTerm('dashboard.chart.scope.label')}:</span> {tTerm('dashboard.chart.scope.recent')} {tTerm('dashboard.chart.scope.currentRangePrefix')} {tTerm('dashboard.chart.range.last6')}.
             </p>
             {chartHasData ? (
-              <div className="flex-1 min-h-[150px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="flex-1 min-h-[150px] min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="dashboard-disbursed-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -244,8 +245,8 @@ export default function Dashboard() {
               </div>
               <div className="text-xs text-text-secondary">{tTerm('dashboard.widget.recoveryPerformance.subtitle')}</div>
             </div>
-            <div className="flex-1 min-h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="flex-1 min-h-[150px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
