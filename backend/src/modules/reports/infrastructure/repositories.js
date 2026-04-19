@@ -39,6 +39,8 @@ const buildPaymentDateWhere = ({ fromDate = null, toDate = null } = {}) => {
   return paymentDateWhere;
 };
 
+const TOTAL_PAYMENT_EARNINGS_LITERAL = literal('"principalApplied" + "interestApplied" + "penaltyApplied"');
+
 /**
  * Repository contract for report-oriented loan queries with shared related models included.
  */
@@ -286,7 +288,7 @@ const reportRepository = {
     const payments = await Payment.findAll({
       attributes: [
         [fn('DATE_TRUNC', 'month', col('paymentDate')), 'month'],
-        [fn('SUM', literal('principalApplied + interestApplied + penaltyApplied')), 'totalEarnings'],
+        [fn('SUM', TOTAL_PAYMENT_EARNINGS_LITERAL), 'totalEarnings'],
         [fn('COUNT', col('Payment.id')), 'paymentCount'],
       ],
       where: {
@@ -317,7 +319,7 @@ const reportRepository = {
     const [earningsData, loansData, paymentsData] = await Promise.all([
       Payment.findAll({
         attributes: [
-          [fn('SUM', literal('principalApplied + interestApplied + penaltyApplied')), 'totalAmount'],
+          [fn('SUM', TOTAL_PAYMENT_EARNINGS_LITERAL), 'totalAmount'],
           [fn('COUNT', col('Payment.id')), 'count'],
         ],
         where: {
