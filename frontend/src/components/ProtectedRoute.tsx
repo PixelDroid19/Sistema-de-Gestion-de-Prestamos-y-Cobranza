@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../api/client';
+import { restoreAccessToken } from '../api/client';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 
 interface ProtectedRouteProps {
@@ -11,24 +11,13 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-  const { user, accessToken, refreshToken, updateAccessToken, logout } = useSessionStore();
+  const { user, accessToken, refreshToken } = useSessionStore();
   const location = useLocation();
 
   // Si no hay accessToken pero sí hay refreshToken, intentamos restaurar la sesión
-  const { isLoading, isError, isSuccess } = useQuery({
-    queryKey: ['auth.restoreSession'],
-    queryFn: async () => {
-      try {
-        const response = await apiClient.post('/auth/refresh', { refreshToken });
-        const newAccessToken = response.data.data.accessToken;
-        const newRefreshToken = response.data.data.refreshToken;
-        updateAccessToken(newAccessToken, newRefreshToken);
-        return newAccessToken;
-      } catch (error) {
-        logout();
-        throw error;
-      }
-    },
+  const { isLoading } = useQuery({
+    queryKey: ['auth.restoreSession', refreshToken],
+    queryFn: restoreAccessToken,
     enabled: !accessToken && !!refreshToken,
     retry: false,
     staleTime: Infinity,

@@ -20,8 +20,64 @@ export interface ApiResponse<T = unknown> {
 }
 
 let refreshPromise: Promise<string> | null = null;
+const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 30_000;
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const isSessionBootstrapRequest = (path: string) => (
+  path.includes('/auth/login')
+  || path.includes('/auth/register')
+  || path.includes('/auth/refresh')
+);
+
+const decodeBase64Url = (value: string): string | null => {
+  const normalizedValue = value.replace(/-/g, '+').replace(/_/g, '/');
+  const paddedValue = normalizedValue.padEnd(Math.ceil(normalizedValue.length / 4) * 4, '=');
+
+  try {
+    if (typeof atob === 'function') {
+      return atob(paddedValue);
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const getAccessTokenExpiryMs = (token: string | null | undefined): number | null => {
+  if (!token) {
+    return null;
+  }
+
+  const [, payload] = token.split('.');
+  if (!payload) {
+    return null;
+  }
+
+  const decodedPayload = decodeBase64Url(payload);
+  if (!decodedPayload) {
+    return null;
+  }
+
+  try {
+    const parsedPayload = JSON.parse(decodedPayload) as { exp?: number };
+    const expiresAtSeconds = Number(parsedPayload.exp);
+    return Number.isFinite(expiresAtSeconds) ? expiresAtSeconds * 1000 : null;
+  } catch {
+    return null;
+  }
+};
+
+const isAccessTokenStale = (token: string | null | undefined): boolean => {
+  const expiresAtMs = getAccessTokenExpiryMs(token);
+
+  if (!expiresAtMs) {
+    return false;
+  }
+
+  return expiresAtMs <= Date.now() + ACCESS_TOKEN_REFRESH_LEEWAY_MS;
+};
 
 const buildUrl = (path: string, params?: Record<string, QueryParamValue>): string => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -142,6 +198,26 @@ const getRefreshPromise = (): Promise<string> => {
   return refreshPromise;
 };
 
+export const restoreAccessToken = (): Promise<string> => getRefreshPromise();
+
+const resolveRequestAccessToken = async (path: string, hasAuthorizationHeader: boolean): Promise<string | null> => {
+  const { accessToken, refreshToken } = useSessionStore.getState();
+
+  if (hasAuthorizationHeader || isSessionBootstrapRequest(path)) {
+    return accessToken;
+  }
+
+  if (!refreshToken) {
+    return accessToken;
+  }
+
+  if (!accessToken || isAccessTokenStale(accessToken)) {
+    return getRefreshPromise();
+  }
+
+  return accessToken;
+};
+
 const request = async <T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
@@ -149,10 +225,10 @@ const request = async <T>(
   config: ApiRequestConfig = {}
 ): Promise<ApiResponse<T>> => {
   const headers = new Headers(config.headers || {});
-  const { accessToken } = useSessionStore.getState();
+  const requestAccessToken = await resolveRequestAccessToken(path, headers.has('Authorization'));
 
-  if (accessToken && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
+  if (requestAccessToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${requestAccessToken}`);
   }
 
   const isFormData = body instanceof FormData;
@@ -175,6 +251,17 @@ const request = async <T>(
 
   if (response.status === 401 && !config._retry && !isRefreshRequest) {
     try {
+      const latestAccessToken = useSessionStore.getState().accessToken;
+
+      if (latestAccessToken && latestAccessToken !== requestAccessToken) {
+        const retryHeaders = {
+          ...(config.headers || {}),
+          Authorization: `Bearer ${latestAccessToken}`,
+        };
+
+        return request<T>(method, path, body, { ...config, headers: retryHeaders, _retry: true });
+      }
+
       const nextToken = await getRefreshPromise();
       const retryHeaders = {
         ...(config.headers || {}),
