@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
-const { APPLICATION_ROLES } = require('../modules/shared/roles');
+const { APPLICATION_ROLES } = require('@/modules/shared/roles');
 
 const RolePermission = sequelize.define('RolePermission', {
   role: {

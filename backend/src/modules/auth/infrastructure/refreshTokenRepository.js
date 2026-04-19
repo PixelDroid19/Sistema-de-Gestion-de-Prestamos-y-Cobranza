@@ -1,4 +1,4 @@
-const RefreshToken = require('../../../models/RefreshToken');
+const RefreshToken = require('@/models/RefreshToken');
 
 /**
  * Repository for managing refresh tokens in the database.

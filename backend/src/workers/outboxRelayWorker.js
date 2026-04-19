@@ -1,4 +1,4 @@
-const { createOutboxEventRepository } = require('../modules/credits/infrastructure/outboxEventRepository');
+const { createOutboxEventRepository } = require('@/modules/credits/infrastructure/outboxEventRepository');
 
 const createOutboxRelayWorker = ({
   outboxEventRepository = createOutboxEventRepository(),

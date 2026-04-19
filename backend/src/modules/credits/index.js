@@ -1,8 +1,9 @@
-const { loanValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
+const { loanValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListLoans,
   createCreateSimulation,
+  createListDagWorkbenchScopes,
   createLoadDagWorkbenchGraph,
   createSaveDagWorkbenchGraph,
   createValidateDagWorkbenchGraph,
@@ -40,7 +41,6 @@ const {
 const { createAttachmentUpload } = require('./presentation/attachmentUpload');
 const { createCreditsComposition } = require('./composition');
 const { createCreditsRouter } = require('./presentation/router');
-const { listDagWorkbenchScopes } = require('./application/dag/scopeRegistry');
 
 /**
  * Compose the credits module entrypoint from shared policy, services, and router seams.
@@ -65,12 +65,13 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     loanViewService,
     paymentApplicationService,
     dagWorkbenchService,
+    creditsDagConfig,
   } = createCreditsComposition({ sharedRuntime });
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),
     createSimulation: createCreateSimulation({ creditDomainService }),
-    listDagWorkbenchScopes: async () => ({ scopes: listDagWorkbenchScopes() }),
+    listDagWorkbenchScopes: createListDagWorkbenchScopes({ dagWorkbenchService, dagConfig: creditsDagConfig }),
     loadDagWorkbenchGraph: createLoadDagWorkbenchGraph({ dagWorkbenchService }),
     saveDagWorkbenchGraph: createSaveDagWorkbenchGraph({ dagWorkbenchService }),
     validateDagWorkbenchGraph: createValidateDagWorkbenchGraph({ dagWorkbenchService }),

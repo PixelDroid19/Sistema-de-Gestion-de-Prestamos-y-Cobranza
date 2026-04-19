@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
-const { CalculationEngine } = require('../../../../src/core/domain/calculation/CalculationEngine');
-const { TopologicalCycleException } = require('../../../../src/core/domain/calculation/TopologicalSorter');
+const { CalculationEngine } = require('@/core/domain/calculation/CalculationEngine');
+const { TopologicalCycleException } = require('@/core/domain/calculation/TopologicalSorter');
 
 describe('CalculationEngine', () => {
   describe('execute', () => {

@@ -1,6 +1,6 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
-const { attachPagination } = require('../../../middleware/validation');
+const { asyncHandler } = require('@/utils/errorHandler');
+const { attachPagination } = require('@/middleware/validation');
 
 const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases }) => {
   const router = express.Router();
@@ -28,7 +28,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   }));
 
   router.post('/', authMiddleware(['admin']), associateValidation.create, asyncHandler(async (req, res) => {
-    const associate = await useCases.createAssociate(req.body);
+    const associate = await useCases.createAssociate({ actor: req.user, payload: req.body });
     res.status(201).json({ success: true, message: 'Associate created successfully', data: { associate } });
   }));
 
@@ -38,12 +38,12 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   }));
 
   router.patch('/:id', authMiddleware(['admin']), associateValidation.update, asyncHandler(async (req, res) => {
-    const associate = await useCases.updateAssociate(req.params.id, req.body);
+    const associate = await useCases.updateAssociate({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.json({ success: true, message: 'Associate updated successfully', data: { associate } });
   }));
 
   router.delete('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    await useCases.deleteAssociate(req.params.id);
+    await useCases.deleteAssociate({ actor: req.user, associateId: req.params.id });
     res.json({ success: true, message: 'Associate deleted successfully' });
   }));
 

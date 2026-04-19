@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError } = require('../src/utils/errorHandler');
-const { createAuthMiddleware } = require('../src/modules/shared/auth');
+const { AuthorizationError } = require('@/utils/errorHandler');
+const { createAuthMiddleware } = require('@/modules/shared/auth');
 const { captureMiddlewareError, runMiddleware } = require('./helpers/middleware');
 
 test('authMiddleware accepts { roles, permissions } options - permissions denied', async () => {

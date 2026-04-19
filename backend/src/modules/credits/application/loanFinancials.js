@@ -1,4 +1,4 @@
-const { ValidationError } = require('../../../utils/errorHandler');
+const { ValidationError } = require('@/utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
 

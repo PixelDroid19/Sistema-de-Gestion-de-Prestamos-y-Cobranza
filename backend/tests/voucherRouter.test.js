@@ -2,8 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createPayoutsRouter } = require('../src/modules/payouts/presentation/router');
-const { globalErrorHandler, NotFoundError } = require('../src/utils/errorHandler');
+const { createPayoutsRouter } = require('@/modules/payouts/presentation/router');
+const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
 const { closeServer, listen } = require('./helpers/http');
 
 let activeServer;

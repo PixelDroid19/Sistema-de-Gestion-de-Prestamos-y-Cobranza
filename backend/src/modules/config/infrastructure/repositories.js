@@ -1,4 +1,4 @@
-const { ConfigEntry } = require('../../../models');
+const { ConfigEntry } = require('@/models');
 
 const PAYMENT_METHOD_CATEGORY = 'payment_method';
 const BUSINESS_SETTING_CATEGORY = 'business_setting';

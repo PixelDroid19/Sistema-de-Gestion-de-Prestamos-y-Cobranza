@@ -1,7 +1,7 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
-const { attachPagination } = require('../../../middleware/validation');
-const { sendBufferDownload, sendPathDownload } = require('../../shared/http');
+const { asyncHandler } = require('@/utils/errorHandler');
+const { attachPagination } = require('@/middleware/validation');
+const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
 
 const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();

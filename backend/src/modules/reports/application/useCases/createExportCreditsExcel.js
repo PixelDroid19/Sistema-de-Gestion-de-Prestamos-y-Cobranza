@@ -1,4 +1,4 @@
-const { ensureAdmin, formatMoney } = require('../reportHelpers');
+const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
 
 const formatIsoDate = (value) => {
   if (!value) {

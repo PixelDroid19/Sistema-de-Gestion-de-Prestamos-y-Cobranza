@@ -19,31 +19,36 @@ const {
   ConfigEntry,
   AuditLog,
   RefreshToken,
-} = require('../models');
+  AssociateInstallment,
+  RateLimitEntry,
+} = require('@/models');
+const { AUDIT_ACTIONS } = require('@/models/AuditLog');
 
 // The required schema models are ordered to respect foreign-key dependencies
 // (e.g. Customers must exist before Loans which reference them).
 const REQUIRED_SCHEMA_MODELS = [
   Customer,
   Associate,
+  FinancialProduct,
+  OutboxEvent,
+  ConfigEntry,
+  User,
+  DagGraphVersion,
   Loan,
   Payment,
-  DocumentAttachment,
   LoanAlert,
   PromiseToPay,
   AssociateContribution,
+  AssociateInstallment,
   ProfitDistribution,
   IdempotencyKey,
   Notification,
   PushSubscription,
-  User,
-  DagGraphVersion,
   DagSimulationSummary,
-  FinancialProduct,
-  OutboxEvent,
-  ConfigEntry,
   AuditLog,
   RefreshToken,
+  RateLimitEntry,
+  DocumentAttachment,
 ];
 
 const SAFE_RESET_ENVIRONMENTS = new Set(['development', 'test', 'local']);
@@ -347,6 +352,27 @@ const syncDatabaseSchema = async ({
   };
 };
 
+const ensureEnumValues = async ({ database, enumTypeName, values }) => {
+  if (!database || typeof database.getDialect !== 'function' || database.getDialect() !== 'postgres') {
+    return;
+  }
+
+  for (const value of values) {
+    const safeEnumTypeName = String(enumTypeName).replace(/"/g, '""');
+    const safeEnumValue = String(value).replace(/'/g, "''");
+
+    await database.query(`ALTER TYPE "${safeEnumTypeName}" ADD VALUE IF NOT EXISTS '${safeEnumValue}';`);
+  }
+};
+
+const ensureAuditLogEnums = async ({ database }) => {
+  await ensureEnumValues({
+    database,
+    enumTypeName: 'enum_AuditLogs_action',
+    values: AUDIT_ACTIONS,
+  });
+};
+
 const FINANCIAL_PRODUCT_SEEDS = [
   {
     name: 'Personal Loan 12%',
@@ -382,6 +408,38 @@ const seedFinancialProductsAndGraphs = async () => {
       await product.update(seed);
     }
   }
+
+  // Seed default DAG graph versions from scope definitions so graphExecutor always
+  // has an active version to run against, even on a fresh database.
+  const { listDagWorkbenchScopes } = require('@/modules/credits/application/dag/scopeRegistry');
+  const scopes = listDagWorkbenchScopes();
+
+  for (const scope of scopes) {
+    if (!scope.defaultGraph) continue;
+
+    const existing = await DagGraphVersion.findOne({
+      where: { scopeKey: scope.key },
+      order: [['version', 'DESC']],
+    });
+
+    if (existing) continue; // Do not overwrite user-customized graphs
+
+    await DagGraphVersion.create({
+      scopeKey: scope.key,
+      name: scope.defaultName || `Default ${scope.key}`,
+      version: 1,
+      graph: scope.defaultGraph,
+      graphSummary: {
+        nodeCount: scope.defaultGraph.nodes.length,
+        edgeCount: scope.defaultGraph.edges.length,
+        outputCount: scope.defaultGraph.nodes.filter((n) => n.kind === 'output').length,
+        formulaNodeCount: scope.defaultGraph.nodes.filter((n) => typeof n.formula === 'string' && n.formula.trim()).length,
+      },
+      validation: { valid: true, errors: [], warnings: [] },
+      status: 'active',
+      createdByUserId: null,
+    });
+  }
 };
 
 module.exports = {
@@ -397,5 +455,6 @@ module.exports = {
   verifyRequiredSchema,
   resetDatabaseSchema,
   syncDatabaseSchema,
+  ensureAuditLogEnums,
   seedFinancialProductsAndGraphs,
 };

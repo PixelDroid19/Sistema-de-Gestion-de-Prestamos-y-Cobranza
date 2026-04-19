@@ -1,4 +1,4 @@
-const { sequelize, Loan, FinancialProduct } = require('../models');
+const { sequelize, Loan, FinancialProduct } = require('@/models');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 

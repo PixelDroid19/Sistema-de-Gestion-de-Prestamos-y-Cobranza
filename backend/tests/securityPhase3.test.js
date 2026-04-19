@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validateFormulaInput, validateFormulaNodes } = require('../src/modules/credits/application/dag/workbenchService');
+const { validateFormulaInput, validateFormulaNodes } = require('@/modules/credits/application/dag/workbenchService');
 
 describe('DAG Workbench Formula Validation', () => {
   describe('validateFormulaInput', () => {
@@ -93,6 +93,12 @@ describe('DAG Workbench Formula Validation', () => {
       assert.ok(result.error.message.includes('disallowed functions'));
     });
 
+    test('rejects malformed formula syntax before runtime', () => {
+      const result = validateFormulaInput('1 +', 'brokenNode');
+      assert.equal(result.valid, false);
+      assert.ok(result.error.message.includes('brokenNode'));
+    });
+
     test('rejects Catmull-Rom import attempt via import()', () => {
       // This is a known injection vector
       const result = validateFormulaInput('import("fs")', 'catmullNode');
@@ -133,6 +139,16 @@ describe('DAG Workbench Formula Validation', () => {
       ];
       const errors = validateFormulaNodes(nodes);
       assert.equal(errors.length, 2);
+    });
+
+    test('validates blocked formulas on output and conditional nodes too', () => {
+      const nodes = [
+        { id: 'gate', kind: 'conditional', formula: 'import("fs")' },
+        { id: 'result', kind: 'output', formula: 'evaluate("x")' },
+      ];
+      const errors = validateFormulaNodes(nodes);
+      assert.equal(errors.length, 2);
+      assert.ok(errors.every((error) => error.message.includes('Blocked pattern')));
     });
 
     test('ignores non-formula nodes', () => {

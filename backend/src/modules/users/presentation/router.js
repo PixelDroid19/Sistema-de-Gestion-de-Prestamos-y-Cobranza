@@ -1,6 +1,6 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
-const { attachPagination } = require('../../../middleware/validation');
+const { asyncHandler } = require('@/utils/errorHandler');
+const { attachPagination } = require('@/middleware/validation');
 
 const createUsersRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();

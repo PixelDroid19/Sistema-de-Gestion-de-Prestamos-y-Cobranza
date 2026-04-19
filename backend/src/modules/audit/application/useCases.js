@@ -1,5 +1,9 @@
-const { ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
-const { AUDIT_MODULES, AUDIT_ACTIONS } = require('../../../models/AuditLog');
+const { ValidationError, AuthorizationError } = require('@/utils/errorHandler');
+const { AUDIT_MODULES, AUDIT_ACTIONS } = require('@/models/AuditLog');
+const {
+  normalizeAuditAction,
+  normalizeAuditModule,
+} = require('@/modules/audit/domain/services/AuditService');
 
 /**
  * Create the use case for retrieving audit logs with filtering and pagination.
@@ -25,11 +29,14 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
   } = filters;
 
   // Validate enum values
-  if (action && !AUDIT_ACTIONS.includes(action)) {
+  const normalizedAction = action ? normalizeAuditAction(action) : undefined;
+  const normalizedModule = module ? normalizeAuditModule(module) : undefined;
+
+  if (normalizedAction && !AUDIT_ACTIONS.includes(normalizedAction)) {
     throw new ValidationError(`Invalid action. Valid actions: ${AUDIT_ACTIONS.join(', ')}`);
   }
 
-  if (module && !AUDIT_MODULES.includes(module.toUpperCase())) {
+  if (normalizedModule && !AUDIT_MODULES.includes(normalizedModule)) {
     throw new ValidationError(`Invalid module. Valid modules: ${AUDIT_MODULES.join(', ')}`);
   }
 
@@ -38,8 +45,8 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
 
   const result = await auditService.query({
     userId: userId ? Number(userId) : undefined,
-    action,
-    module: module?.toUpperCase(),
+    action: normalizedAction,
+    module: normalizedModule,
     entityId,
     entityType,
     dateFrom,

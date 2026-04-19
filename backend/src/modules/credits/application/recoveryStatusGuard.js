@@ -1,4 +1,4 @@
-const { ValidationError } = require('../../../utils/errorHandler');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 

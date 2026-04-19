@@ -1,4 +1,4 @@
-const { ValidationError } = require('../../utils/errorHandler');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;

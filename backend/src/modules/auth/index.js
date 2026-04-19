@@ -1,6 +1,6 @@
-const { authValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
-const { createJwtTokenService } = require('../shared/auth/tokenService');
+const { authValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
+const { createJwtTokenService } = require('@/modules/shared/auth/tokenService');
 const {
   createRegisterUser,
   createLoginUser,
@@ -12,8 +12,8 @@ const {
   createRevokeAllUserTokens,
   createRegisterWithPermissions,
 } = require('./application/useCases');
-const { createListUsers } = require('../users/application/useCases');
-const { userRepository: usersRepository } = require('../users/infrastructure/repositories');
+const { createListUsers } = require('@/modules/users/application/useCases');
+const { userRepository: usersRepository } = require('@/modules/users/infrastructure/repositories');
 const {
   userRepository,
   customerProfileRepository,
@@ -21,7 +21,7 @@ const {
   passwordHasher,
   refreshTokenRepository,
 } = require('./infrastructure/repositories');
-const { userPermissionRepository, rolePermissionRepository, permissionRepository } = require('../permissions/infrastructure');
+const { userPermissionRepository, rolePermissionRepository, permissionRepository } = require('@/modules/permissions/infrastructure');
 const { createAuthRouter } = require('./presentation/router');
 
 /**

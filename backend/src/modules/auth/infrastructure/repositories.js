@@ -1,9 +1,10 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const User = require('../../../models/User');
-const Customer = require('../../../models/Customer');
-const Associate = require('../../../models/Associate');
-const RefreshToken = require('../../../models/RefreshToken');
+const sequelize = require('@/models/database');
+const User = require('@/models/User');
+const Customer = require('@/models/Customer');
+const Associate = require('@/models/Associate');
+const RefreshToken = require('@/models/RefreshToken');
 
 /**
  * Hash a refresh token using SHA-256.
@@ -40,6 +41,18 @@ const userRepository = {
   },
   findById(id) {
     return User.findByPk(id);
+  },
+  syncPrimaryKeySequenceWithCustomerProfiles() {
+    return sequelize.query(`
+      SELECT setval(
+        pg_get_serial_sequence('"Users"', 'id'),
+        GREATEST(
+          COALESCE((SELECT MAX(id) FROM "Users"), 0),
+          COALESCE((SELECT MAX(id) FROM "Customers"), 0)
+        ),
+        true
+      );
+    `);
   },
   create(payload) {
     return User.create(payload);

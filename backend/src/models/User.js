@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
-const { APPLICATION_ROLES } = require('../modules/shared/roles');
+const { APPLICATION_ROLES } = require('@/modules/shared/roles');
 
 const User = sequelize.define('User', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },

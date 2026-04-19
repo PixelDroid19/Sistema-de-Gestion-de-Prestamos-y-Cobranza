@@ -1,7 +1,7 @@
-const { paymentValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
-const { createCreditsPublicPorts } = require('../credits/public');
-const { createAttachmentUpload } = require('../credits/presentation/attachmentUpload');
+const { paymentValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
+const { createCreditsPublicPorts } = require('@/modules/credits/public');
+const { createAttachmentUpload } = require('@/modules/credits/presentation/attachmentUpload');
 const {
   createListPayments,
   createCreatePayment,

@@ -35,6 +35,7 @@ const ALLOWED_FUNCTIONS = new Set([
   'summarizeSchedule',
   'roundCurrency',
   'assertSupportedLateFeeMode',
+  'buildSimulationResult',
 ]);
 
 // Blocked patterns that could bypass the whitelist

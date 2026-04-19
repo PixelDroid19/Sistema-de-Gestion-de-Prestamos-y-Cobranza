@@ -5,8 +5,8 @@ const {
   ValidationError,
   AuthorizationError,
   ConflictError,
-} = require('../../../utils/errorHandler');
-const { withAudit } = require('../../audit/application/auditDecorator');
+} = require('@/utils/errorHandler');
+const { withAudit } = require('@/modules/audit/application/auditDecorator');
 
 const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(2));
 const formatCurrency = (value) => roundCurrency(value).toFixed(2);
@@ -289,7 +289,7 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination } 
  * @returns {Function}
  */
 const createCreateAssociate = ({ associateRepository, auditService }) => {
-  const useCase = async (payload) => {
+  const useCase = async ({ payload }) => {
     const normalizedPayload = normalizeAssociatePayload(payload);
 
     await ensureUniqueAssociateContact({
@@ -327,7 +327,7 @@ const createGetAssociateById = ({ associateRepository }) => async (associateId) 
  * @returns {Function}
  */
 const createUpdateAssociate = ({ associateRepository, auditService }) => {
-  const useCase = async (associateId, payload) => {
+  const useCase = async ({ associateId, payload }) => {
     const associate = await associateRepository.findById(associateId);
     if (!associate) {
       throw new NotFoundError('Associate');
@@ -346,7 +346,7 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
   };
 
   if (auditService) {
-    return withAudit({ auditService, action: 'UPDATE', module: 'associates', getEntityId: (p) => p, getEntityType: () => 'Associate' })(useCase);
+    return withAudit({ auditService, action: 'UPDATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'Associate' })(useCase);
   }
   return useCase;
 };
@@ -357,7 +357,7 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
  * @returns {Function}
  */
 const createDeleteAssociate = ({ associateRepository, auditService }) => {
-  const useCase = async (associateId) => {
+  const useCase = async ({ associateId }) => {
     const associate = await associateRepository.findById(associateId);
     if (!associate) {
       throw new NotFoundError('Associate');
@@ -367,7 +367,7 @@ const createDeleteAssociate = ({ associateRepository, auditService }) => {
   };
 
   if (auditService) {
-    return withAudit({ auditService, action: 'DELETE', module: 'associates', getEntityId: (p) => p, getEntityType: () => 'Associate' })(useCase);
+    return withAudit({ auditService, action: 'DELETE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'Associate' })(useCase);
   }
   return useCase;
 };

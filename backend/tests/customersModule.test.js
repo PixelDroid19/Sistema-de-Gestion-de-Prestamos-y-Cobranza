@@ -1,4 +1,4 @@
-const test = require('node:test');
+const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
@@ -8,7 +8,7 @@ const {
   createUploadCustomerDocument,
   createDownloadCustomerDocument,
   createRestoreCustomer,
-} = require('../src/modules/customers/application/useCases');
+} = require('@/modules/customers/application/useCases');
 
 test('createListCustomers returns repository results in descending business order', async () => {
   const listCustomers = createListCustomers({
@@ -111,9 +111,12 @@ test('createCreateCustomer delegates persistence to the repository', async () =>
   });
 
   const customer = await createCustomer({
-    name: 'New Customer',
-    email: 'new@example.com',
-    phone: '+573001112244',
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'New Customer',
+      email: 'new@example.com',
+      phone: '+573001112244',
+    },
   });
 
   assert.equal(customer.id, 10);
@@ -144,9 +147,12 @@ test('createCreateCustomer repairs customer id sequence drift and retries once o
   });
 
   const customer = await createCustomer({
-    name: 'Recovered Customer',
-    email: 'recovered@example.com',
-    phone: '+573001112288',
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Recovered Customer',
+      email: 'recovered@example.com',
+      phone: '+573001112288',
+    },
   });
 
   assert.equal(syncCalls, 1);
@@ -172,9 +178,12 @@ test('createCreateCustomer does not retry non-primary-key unique conflicts', asy
   });
 
   await assert.rejects(() => createCustomer({
-    name: 'Duplicate Email',
-    email: 'dup@example.com',
-    phone: '+573001112299',
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Duplicate Email',
+      email: 'dup@example.com',
+      phone: '+573001112299',
+    },
   }), (error) => {
     assert.equal(error.name, 'SequelizeUniqueConstraintError');
     return true;
@@ -279,6 +288,36 @@ test('createRestoreCustomer restores a soft-deleted customer', async () => {
   const customer = await restoreCustomer({ actor: { id: 1, role: 'admin' }, customerId: 5 });
   assert.equal(customer.id, 5);
   assert.equal(customer.deletedAt, null);
+});
+
+test('createRestoreCustomer emits a single restore audit entry when audit is enabled', async () => {
+  const mockAuditService = {
+    log: mock.fn(() => Promise.resolve({ id: 1 })),
+  };
+
+  const restoreCustomer = createRestoreCustomer({
+    customerRepository: {
+      async findByIdIncludingDeleted(id) {
+        return { id, name: 'Test Customer', email: 'test@example.com', deletedAt: new Date() };
+      },
+      async restore() {
+        return 1;
+      },
+      async findById(id) {
+        return { id, name: 'Test Customer', email: 'test@example.com', deletedAt: null };
+      },
+    },
+    auditService: mockAuditService,
+  });
+
+  await restoreCustomer({ actor: { id: 1, name: 'Admin', role: 'admin' }, customerId: 5 });
+
+  assert.equal(mockAuditService.log.mock.callCount(), 1);
+  const logCall = mockAuditService.log.mock.calls[0].arguments[0];
+  assert.equal(logCall.action, 'RESTORE');
+  assert.equal(logCall.module, 'customers');
+  assert.equal(logCall.entityId, '5');
+  assert.equal(logCall.entityType, 'Customer');
 });
 
 test('createRestoreCustomer throws NotFoundError for non-existent customer', async () => {

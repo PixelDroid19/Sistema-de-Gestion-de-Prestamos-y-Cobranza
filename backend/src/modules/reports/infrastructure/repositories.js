@@ -11,8 +11,8 @@ const {
   AssociateContribution,
   ProfitDistribution,
   User,
-} = require('../../../models');
-const { paginateModel } = require('../../shared/pagination');
+} = require('@/models');
+const { paginateModel } = require('@/modules/shared/pagination');
 
 const reportIncludes = [
   {
@@ -442,7 +442,7 @@ const paymentRepository = {
     };
 
     if (pagination) {
-      const { paginateModel } = require('../../shared/pagination');
+      const { paginateModel } = require('@/modules/shared/pagination');
       return paginateModel({
         model: Payment,
         page: pagination.page,

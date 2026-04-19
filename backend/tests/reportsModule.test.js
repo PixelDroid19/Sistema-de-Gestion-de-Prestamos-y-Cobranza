@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError } = require('../src/utils/errorHandler');
+const { AuthorizationError } = require('@/utils/errorHandler');
 const {
   createGetRecoveredLoans,
   createGetOutstandingLoans,
@@ -18,8 +18,8 @@ const {
   createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
-} = require('../src/modules/reports/application/useCases');
-const { createReportsModule } = require('../src/modules/reports');
+} = require('@/modules/reports/application/useCases');
+const { createReportsModule } = require('@/modules/reports');
 
 test('createGetRecoveredLoans builds report records and summary totals', async () => {
   const getRecoveredLoans = createGetRecoveredLoans({

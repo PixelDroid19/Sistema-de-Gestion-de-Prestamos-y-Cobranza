@@ -1,4 +1,4 @@
-const { Permission } = require('../../../models');
+const { Permission } = require('@/models');
 
 const serializePermission = (permission) => {
   if (!permission) return null;

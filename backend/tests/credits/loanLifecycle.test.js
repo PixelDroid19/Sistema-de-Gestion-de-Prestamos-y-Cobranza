@@ -1,12 +1,12 @@
 const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
-const models = require('../../src/models');
-const { getCanonicalLoanView } = require('../../src/modules/credits/application/loanFinancials');
+const models = require('@/models');
+const { getCanonicalLoanView } = require('@/modules/credits/application/loanFinancials');
 const {
   createLoanFromCanonicalData,
   createLoanFromCanonicalDataFactory,
-} = require('../../src/modules/credits/infrastructure/loanCreation');
+} = require('@/modules/credits/infrastructure/loanCreation');
 
 afterEach(() => {
   mock.restoreAll();
@@ -52,12 +52,6 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
-  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
-    if (where?.status === 'active') {
-      return { id: 501, scopeKey: 'credit-simulation', status: 'active' };
-    }
-    return { id: 501, scopeKey: 'credit-simulation', status: 'active' };
-  });
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 88, ...payload };
@@ -65,10 +59,11 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
 
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
-      calculate(input) {
+      async calculate(input) {
         return {
           mode: 'primary',
           selectedSource: 'dag',
+          graphVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
             schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
@@ -108,12 +103,6 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy f
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
-  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
-    if (where?.status === 'active') {
-      return { id: 700, scopeKey: 'credit-simulation', status: 'active' };
-    }
-    return { id: 700, scopeKey: 'credit-simulation', status: 'active' };
-  });
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 89, ...payload };
@@ -121,11 +110,12 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy f
 
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
-      calculate() {
+      async calculate() {
         return {
           mode: 'primary',
           selectedSource: 'legacy',
           fallbackReason: 'parity_mismatch',
+          graphVersionId: 700,
           result: {
             lateFeeMode: 'NONE',
             schedule: [{ installmentNumber: 1, scheduledPayment: 100 }],
@@ -159,34 +149,12 @@ test('createLoanFromCanonicalDataFactory rejects new credits when formula histor
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
-  mock.method(models.DagGraphVersion, 'findOne', async ({ where }) => {
-    if (where?.status === 'active') {
-      return null;
-    }
-
-    return { id: 901, scopeKey: 'credit-simulation', status: 'inactive', version: 4 };
-  });
 
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
-      calculate() {
-        return {
-          mode: 'primary',
-          selectedSource: 'dag',
-          result: {
-            lateFeeMode: 'NONE',
-            schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
-            summary: {
-              installmentAmount: 90,
-              totalPayable: 90,
-              totalPaid: 0,
-              outstandingPrincipal: 80,
-              outstandingInterest: 10,
-              outstandingBalance: 90,
-              outstandingInstallments: 1,
-            },
-          },
-        };
+      async calculate() {
+        const { ValidationError } = require('@/utils/errorHandler');
+        throw new ValidationError('No active formula version found for scope credit-simulation');
       },
     },
   });

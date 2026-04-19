@@ -1,5 +1,5 @@
-const { AuthorizationError } = require('../../../../utils/errorHandler');
-const { ensureAdminOrSocio, formatMoney } = require('../reportHelpers');
+const { AuthorizationError } = require('@/utils/errorHandler');
+const { ensureAdminOrSocio, formatMoney } = require('@/modules/reports/application/reportHelpers');
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {

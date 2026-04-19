@@ -1,7 +1,7 @@
 const { permissionRepository } = require('./PermissionRepository');
 const { rolePermissionRepository } = require('./RolePermissionRepository');
 const { userPermissionRepository } = require('./UserPermissionRepository');
-const { userRepository } = require('../../users/infrastructure/repositories');
+const { userRepository } = require('@/modules/users/infrastructure/repositories');
 
 const permissionService = {
   async listAll() {

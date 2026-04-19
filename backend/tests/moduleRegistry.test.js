@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { buildModuleRegistry } = require('../src/modules');
+const { buildModuleRegistry } = require('@/modules');
 
 test('buildModuleRegistry includes every modularized backend surface', () => {
   const sharedRuntime = {

@@ -82,13 +82,6 @@ const nodeKindConfig: Record<NodeKind, { color: string; icon: React.ReactNode; l
   },
 };
 
-const scopeLabelByKey: Record<string, 'dag.scope.creditSimulation' | 'dag.scope.paymentCalculation' | 'dag.scope.lateFeeCalculation' | 'dag.scope.amortization'> = {
-  'credit-simulation': 'dag.scope.creditSimulation',
-  'payment-calculation': 'dag.scope.paymentCalculation',
-  'late-fee-calculation': 'dag.scope.lateFeeCalculation',
-  amortization: 'dag.scope.amortization',
-};
-
 const DagNodeComponent = ({ data, selected }: any) => {
   const config = nodeKindConfig[data.kind as NodeKind] || nodeKindConfig.formula;
   
@@ -348,6 +341,8 @@ interface PropertiesPanelProps {
   onDeleteNode: (id: string) => void;
 }
 
+const supportsFormulaEditing = (kind: NodeKind) => ['formula', 'output', 'conditional'].includes(kind);
+
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   selectedNode,
   onUpdateNode,
@@ -425,7 +420,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
         
         {/* Formula */}
-        {data.kind === 'formula' && (
+        {supportsFormulaEditing(data.kind as NodeKind) && (
           <FormulaNodeEditor
             nodeId={id}
             label={data.label}
@@ -806,10 +801,14 @@ const DAGWorkbenchContent: React.FC = () => {
         }
       } catch (scopeError) {
         console.error('[dag] unable to load scope catalog', scopeError);
-      }
 
-      if (active) {
-        await loadGraph(scopeKey);
+        if (active) {
+          useDagStore.setState({
+            isLoading: false,
+            error: 'El workbench DAG no está habilitado en este entorno.',
+          });
+        }
+        return;
       }
     };
 
@@ -829,6 +828,12 @@ const DAGWorkbenchContent: React.FC = () => {
     () => scopes.find((scope) => scope.key === scopeKey) || null,
     [scopeKey, scopes]
   );
+
+  const availableScopes = scopes.length > 0
+    ? scopes
+    : [{ key: 'credit-simulation', label: tTerm('dag.scope.creditSimulation') } as DagWorkbenchScope];
+
+  const canSwitchScopes = availableScopes.length > 1;
 
   const handleAddNode = useCallback((kind: NodeKind) => {
     const id = `${kind}_${Date.now()}`;
@@ -967,21 +972,27 @@ const DAGWorkbenchContent: React.FC = () => {
         {/* Scope Selector */}
         <div className="relative">
           <button
-            onClick={() => setShowScopeSelect(!showScopeSelect)}
+            onClick={() => {
+              if (canSwitchScopes) {
+                setShowScopeSelect(!showScopeSelect);
+              }
+            }}
+            disabled={!canSwitchScopes}
             className="
               flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium
               bg-bg-base border border-border-subtle
               hover:bg-hover-bg
+              disabled:opacity-60 disabled:cursor-default
             "
           >
             <Settings size={12} />
-            {selectedScope?.label || (scopeLabelByKey[scopeKey] ? tTerm(scopeLabelByKey[scopeKey]) : scopeKey)}
-            <ChevronRight size={12} className={`transition-transform ${showScopeSelect ? 'rotate-90' : ''}`} />
+            {selectedScope?.label || availableScopes[0]?.label || scopeKey}
+            {canSwitchScopes && <ChevronRight size={12} className={`transition-transform ${showScopeSelect ? 'rotate-90' : ''}`} />}
           </button>
           
-          {showScopeSelect && (
+          {showScopeSelect && canSwitchScopes && (
             <div className="absolute top-full left-0 mt-1 w-48 bg-bg-surface  border border-border-subtle  rounded-lg shadow-xl z-50">
-              {(scopes.length > 0 ? scopes : [{ key: scopeKey, label: selectedScope?.label || scopeKey } as DagWorkbenchScope]).map((scope) => (
+              {availableScopes.map((scope) => (
                 <button
                   key={scope.key}
                   onClick={async () => {
@@ -997,7 +1008,7 @@ const DAGWorkbenchContent: React.FC = () => {
                     ${scope.key === scopeKey ? 'text-blue-500 font-semibold' : 'text-text-primary '}
                   `}
                 >
-                  {scope.label || (scopeLabelByKey[scope.key] ? tTerm(scopeLabelByKey[scope.key]) : scope.key)}
+                  {scope.label || scope.key}
                 </button>
               ))}
             </div>

@@ -1,11 +1,11 @@
-const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
+const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
   PAYABLE_LOAN_STATUSES,
-} = require('../../credits/application/paymentEligibility');
-const { Loan, Customer } = require('../../../models');
-const { VoucherService } = require('../domain/services/VoucherService');
+} = require('@/modules/credits/application/paymentEligibility');
+const { Loan, Customer } = require('@/models');
+const { VoucherService } = require('@/modules/payouts/domain/services/VoucherService');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -14,7 +14,7 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
-} = require('../../shared/documentOperations');
+} = require('@/modules/shared/documentOperations');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
 const VALID_PAYMENT_METHODS = new Set(['cash', 'transfer', 'card', 'check', 'other']);
@@ -162,7 +162,7 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
   const filteredPayments = filterPaymentsByFilters({ payments, filters });
 
   if (pagination) {
-    const { paginateArray } = require('../../shared/pagination');
+    const { paginateArray } = require('@/modules/shared/pagination');
     return paginateArray({ items: filteredPayments, pagination });
   }
 

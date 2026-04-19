@@ -2,8 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createConfigRouter } = require('../src/modules/config/presentation/router');
-const { globalErrorHandler } = require('../src/utils/errorHandler');
+const { createConfigRouter } = require('@/modules/config/presentation/router');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;

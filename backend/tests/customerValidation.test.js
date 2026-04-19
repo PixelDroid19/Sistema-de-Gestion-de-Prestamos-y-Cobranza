@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { customerValidation } = require('../src/middleware/validation');
-const { ValidationError } = require('../src/utils/errorHandler');
+const { customerValidation } = require('@/middleware/validation');
+const { ValidationError } = require('@/utils/errorHandler');
 const { runMiddleware, captureMiddlewareError } = require('./helpers/middleware');
 
 test('customerValidation.update accepts partial customer profile updates', async () => {

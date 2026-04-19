@@ -1,5 +1,5 @@
 const { roundCurrency } = require('./creditFormulaHelpers');
-const { BusinessRuleViolationError } = require('../../../utils/errorHandler');
+const { BusinessRuleViolationError } = require('@/utils/errorHandler');
 
 const PAYABLE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
 

@@ -20,6 +20,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.0",
     "mathjs": "^15.1.1",
+    "module-alias": "^2.3.4",
     "multer": "^2.1.1",
     "pdfkit": "^0.18.0",
     "pg": "^8.11.1",
@@ -36,5 +37,8 @@
   },
   "engines": {
     "node": ">=16.0.0"
+  },
+  "_moduleAliases": {
+    "@": "src"
   }
 }

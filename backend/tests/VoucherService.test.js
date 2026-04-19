@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { VoucherService } = require('../src/modules/payouts/domain/services/VoucherService');
+const { VoucherService } = require('@/modules/payouts/domain/services/VoucherService');
 
 describe('VoucherService', () => {
   describe('formatCurrency', () => {

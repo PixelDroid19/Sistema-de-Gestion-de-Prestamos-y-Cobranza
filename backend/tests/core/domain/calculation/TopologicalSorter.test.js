@@ -1,6 +1,6 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
-const { TopologicalSorter, TopologicalCycleException } = require('../../../../src/core/domain/calculation/TopologicalSorter');
+const { TopologicalSorter, TopologicalCycleException } = require('@/core/domain/calculation/TopologicalSorter');
 
 describe('TopologicalSorter', () => {
   describe('sort', () => {

@@ -6,6 +6,19 @@ const addMonths = (date, months) => {
   return copy;
 };
 
+const resolveScheduleStartDate = (startDate) => {
+  if (startDate === undefined || startDate === null || startDate === '') {
+    return new Date();
+  }
+
+  const parsedDate = new Date(startDate);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return new Date();
+  }
+
+  return parsedDate;
+};
+
 /**
  * Calculate the fixed installment amount for a reducing-balance loan.
  * @param {{ amount: number, interestRate: number, termMonths: number }} input
@@ -35,10 +48,11 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
  * @param {{ amount: number, interestRate: number, termMonths: number, startDate?: Date|string }} input
  * @returns {Array<object>}
  */
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate = new Date() }) => {
+const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate }) => {
   const installmentAmount = calculateInstallmentAmount({ amount, interestRate, termMonths });
   const schedule = [];
   const monthlyRate = Number(interestRate) / 100 / 12;
+  const scheduleStartDate = resolveScheduleStartDate(startDate);
   let balance = roundCurrency(amount);
 
   for (let month = 1; month <= Number(termMonths); month += 1) {
@@ -54,7 +68,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
     schedule.push({
       installmentNumber: month,
-      dueDate: addMonths(new Date(startDate), month).toISOString(),
+      dueDate: addMonths(scheduleStartDate, month).toISOString(),
       openingBalance,
       scheduledPayment,
       principalComponent,

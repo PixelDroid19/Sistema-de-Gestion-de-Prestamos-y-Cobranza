@@ -1,5 +1,5 @@
 const { calculateForecast, calculateTrend, calculateMovingAverage } = require('./statistics');
-const { ensureAdmin, formatMoney, mapMonthlySeries } = require('../reportHelpers');
+const { ensureAdmin, formatMoney, mapMonthlySeries } = require('@/modules/reports/application/reportHelpers');
 
 /**
  * Create use case: Get Forecast Analysis

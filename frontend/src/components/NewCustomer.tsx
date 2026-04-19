@@ -14,8 +14,23 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     email: '',
     address: ''
   });
+  const buildCustomerPayload = (payload: typeof formData) => {
+    const fullName = [payload.firstName, payload.lastName]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(' ');
+
+    return {
+      name: fullName,
+      email: payload.email.trim(),
+      phone: payload.phone.trim(),
+      address: payload.address.trim() || undefined,
+      documentNumber: payload.documentId.trim() || undefined,
+      status: payload.status,
+    };
+  };
   const { isSubmitting, run } = useCreateEntitySubmit({
-    mutate: (payload: typeof formData) => createCustomer.mutateAsync(payload),
+    mutate: (payload: typeof formData) => createCustomer.mutateAsync(buildCustomerPayload(payload)),
     errorContext: { domain: 'customers', action: 'customer.create' },
     onSuccess: onBack,
   });

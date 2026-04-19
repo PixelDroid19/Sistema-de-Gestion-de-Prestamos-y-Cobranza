@@ -1,5 +1,5 @@
-const { Notification } = require('../../../models');
-const { createPushProviderRegistry } = require('../../../services/push/providerRegistry');
+const { Notification } = require('@/models');
+const { createPushProviderRegistry } = require('@/services/push/providerRegistry');
 
 /**
  * Contract for notification providers used by backend infrastructure seams.

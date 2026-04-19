@@ -129,6 +129,7 @@ export interface SimulationResult {
   lateFeeMode: LateFeeMode;
   summary: SimulationSummary;
   schedule: AmortizationRow[];
+  graphVersionId?: number | null;
 }
 
 export interface SimulationResponse {
@@ -275,7 +276,7 @@ export interface DagSimulationSummary {
   scopeKey: string;
   graphVersionId: number | null;
   createdByUserId: number;
-  selectedSource: 'legacy' | 'dag';
+  selectedSource: 'legacy' | 'dag' | 'draft';
   fallbackReason: string | null;
   parity: ParityResult;
   simulationInput: SimulationInput;
@@ -303,12 +304,10 @@ export const DEFAULT_GRAPH: DagGraph = {
   edges: [],
 };
 
-// Available scopes for the workbench
+// Available scopes for the workbench — must match backend scopeRegistry.js
+// Only 'credit-simulation' actually exists in the backend.
 export const DAG_SCOPES = [
-  { key: 'credit-simulation', label: 'Simulación de Crédito' },
-  { key: 'payment-calculation', label: 'Cálculo de Pagos' },
-  { key: 'late-fee-calculation', label: 'Cálculo de Mora' },
-  { key: 'amortization', label: 'Amortización' },
+  { key: 'credit-simulation', label: 'Simulacion de Credito' },
 ] as const;
 
 // Node kind labels and colors
@@ -342,4 +341,5 @@ export const FORMULA_HELPERS = [
   { name: 'assertSupportedLateFeeMode', description: 'Valida modo de mora' },
   { name: 'roundCurrency', description: 'Redondea a 2 decimales' },
   { name: 'calculateLateFee', description: 'Calcula mora: SIMPLE/FLAT/TIERED' },
+  { name: 'buildSimulationResult', description: 'Construye resultado (lateFeeMode, schedule, summary)' },
 ] as const;

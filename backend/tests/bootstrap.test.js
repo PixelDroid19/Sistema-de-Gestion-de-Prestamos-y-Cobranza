@@ -1,8 +1,8 @@
 const { test, mock, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { bootstrap, validateEnvironment } = require('../src/bootstrap');
-const { startServer } = require('../src/server');
+const { bootstrap, validateEnvironment } = require('@/bootstrap');
+const { startServer } = require('@/server');
 
 afterEach(() => {
   mock.restoreAll();

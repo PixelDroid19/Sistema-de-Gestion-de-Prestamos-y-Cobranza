@@ -1,5 +1,5 @@
-const { notificationValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
+const { notificationValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const { createNotificationsPublicPorts } = require('./public');
 const {
   createGetNotifications,

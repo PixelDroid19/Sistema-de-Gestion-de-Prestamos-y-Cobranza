@@ -1,4 +1,4 @@
-const { ValidationError } = require('../../../../utils/errorHandler');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const UNSUPPORTED_LATE_FEE_MODES = new Set(['SIMPLE_DAILY', 'COMPOUND_DAILY', 'FIXED_FEE']);
 

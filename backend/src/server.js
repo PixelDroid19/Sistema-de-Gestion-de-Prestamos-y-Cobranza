@@ -1,3 +1,4 @@
+require('module-alias/register');
 const createApp = require('./app');
 const { bootstrap } = require('./bootstrap');
 const { createOutboxRelayWorker } = require('./workers/outboxRelayWorker');

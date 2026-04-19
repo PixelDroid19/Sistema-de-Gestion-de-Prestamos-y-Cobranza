@@ -1,35 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createCreditsDagConfig } = require('../../src/modules/credits/application/dag/config');
-const { createCreditsCalculationService } = require('../../src/modules/credits/application/dag/calculationAdapter');
-const { createDagRuntime } = require('../../src/modules/credits/application/dag/runtime');
-const { compareSimulationResults } = require('../../src/modules/credits/application/dag/parity');
-
-test('createDagRuntime executes nodes in dependency order and returns deterministic outputs', () => {
-  const runtime = createDagRuntime({
-    nodes: [
-      {
-        id: 'principal',
-        execute: ({ input }) => Number(input.amount || 0),
-      },
-      {
-        id: 'doublePrincipal',
-        dependencies: ['principal'],
-        execute: ({ values }) => values.principal * 2,
-      },
-    ],
-  });
-
-  const result = runtime.execute({
-    input: { amount: 125 },
-    requestedOutputs: ['doublePrincipal'],
-  });
-
-  assert.equal(result.ok, true);
-  assert.deepEqual(result.nodeOrder, ['principal', 'doublePrincipal']);
-  assert.deepEqual(result.outputs, { doublePrincipal: 250 });
-});
+const { createCreditsDagConfig } = require('@/modules/credits/application/dag/config');
+const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
+const { compareSimulationResults } = require('@/modules/credits/application/dag/parity');
 
 test('compareSimulationResults accepts values within tolerance and rejects material mismatches', () => {
   const legacy = {
@@ -41,6 +15,7 @@ test('compareSimulationResults accepts values within tolerance and rejects mater
     },
     schedule: [{
       installmentNumber: 1,
+      dueDate: '2026-02-01T00:00:00.000Z',
       scheduledPayment: 100,
       principalComponent: 90,
       interestComponent: 10,
@@ -59,6 +34,7 @@ test('compareSimulationResults accepts values within tolerance and rejects mater
     },
     schedule: [{
       installmentNumber: 1,
+      dueDate: '2026-02-01T00:00:00.000Z',
       scheduledPayment: 100.009,
       principalComponent: 90,
       interestComponent: 10,
@@ -80,10 +56,58 @@ test('compareSimulationResults accepts values within tolerance and rejects mater
   assert.equal(compareSimulationResults({ legacyResult: legacy, dagResult: mismatch, tolerance: 0.01 }).passed, false);
 });
 
+test('compareSimulationResults rejects due date mismatches in the canonical schedule', () => {
+  const legacy = {
+    summary: { installmentAmount: 100, totalPayable: 100, outstandingBalance: 100 },
+    schedule: [{
+      installmentNumber: 1,
+      dueDate: '2026-02-01T00:00:00.000Z',
+      scheduledPayment: 100,
+      principalComponent: 90,
+      interestComponent: 10,
+      remainingBalance: 0,
+      remainingPrincipal: 90,
+      remainingInterest: 10,
+    }],
+  };
+
+  const dag = {
+    summary: { installmentAmount: 100, totalPayable: 100, outstandingBalance: 100 },
+    schedule: [{
+      installmentNumber: 1,
+      dueDate: '1970-02-01T00:00:00.000Z',
+      scheduledPayment: 100,
+      principalComponent: 90,
+      interestComponent: 10,
+      remainingBalance: 0,
+      remainingPrincipal: 90,
+      remainingInterest: 10,
+    }],
+  };
+
+  const comparison = compareSimulationResults({ legacyResult: legacy, dagResult: dag, tolerance: 0.01 });
+
+  assert.equal(comparison.passed, false);
+  assert.deepEqual(comparison.mismatches, [{
+    scope: 'schedule[1]',
+    field: 'dueDate',
+    expected: '2026-02-01T00:00:00.000Z',
+    actual: '1970-02-01T00:00:00.000Z',
+  }]);
+});
+
 test('createCreditsDagConfig normalizes supported rollout modes', () => {
   assert.equal(createCreditsDagConfig({ mode: 'PRIMARY' }).mode, 'primary');
   assert.equal(createCreditsDagConfig({ mode: 'shadow' }).mode, 'shadow');
   assert.equal(createCreditsDagConfig({ mode: 'unexpected-value' }).mode, 'off');
+});
+
+test('createCreditsDagConfig honors DAG_ROLLOUT_MODE for deployed environments', () => {
+  const config = createCreditsDagConfig({
+    env: { DAG_ROLLOUT_MODE: 'primary' },
+  });
+
+  assert.equal(config.mode, 'primary');
 });
 
 test('createCreditsDagConfig supports workbench rollout flags and scope gating', () => {
@@ -98,7 +122,7 @@ test('createCreditsDagConfig supports workbench rollout flags and scope gating',
   assert.equal(config.isScopeEnabled('mortgage'), false);
 });
 
-test('createCreditsCalculationService returns legacy results in shadow mode and logs parity metadata', () => {
+test('createCreditsCalculationService returns legacy results in shadow mode and logs parity metadata', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -110,11 +134,11 @@ test('createCreditsCalculationService returns legacy results in shadow mode and 
   const service = createCreditsCalculationService({
     dagConfig: createCreditsDagConfig({ mode: 'shadow' }),
     legacySimulator: () => legacyResult,
-    dagExecutor: () => ({ ok: true, outputs: { result: dagResult } }),
+    graphExecutor: { execute: async () => ({ ok: true, source: 'persisted_graph', graphVersionId: 1, result: dagResult }) },
     comparisonLogger: (event, payload) => logEntries.push({ event, payload }),
   });
 
-  const execution = service.calculate({ amount: 100 });
+  const execution = await service.calculate({ amount: 100 });
 
   assert.equal(execution.selectedSource, 'legacy');
   assert.equal(execution.result, legacyResult);
@@ -123,7 +147,7 @@ test('createCreditsCalculationService returns legacy results in shadow mode and 
   assert.equal(logEntries[0].payload.mode, 'shadow');
 });
 
-test('createCreditsCalculationService falls back to legacy results on primary parity mismatches', () => {
+test('createCreditsCalculationService falls back to legacy results on primary parity mismatches', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -139,11 +163,11 @@ test('createCreditsCalculationService falls back to legacy results on primary pa
   const service = createCreditsCalculationService({
     dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     legacySimulator: () => legacyResult,
-    dagExecutor: () => ({ ok: true, outputs: { result: dagResult } }),
+    graphExecutor: { execute: async () => ({ ok: true, source: 'persisted_graph', graphVersionId: 1, result: dagResult }) },
     comparisonLogger: (event, payload) => logEntries.push({ event, payload }),
   });
 
-  const execution = service.calculate({ amount: 100 });
+  const execution = await service.calculate({ amount: 100 });
 
   assert.equal(execution.selectedSource, 'legacy');
   assert.equal(execution.result, legacyResult);
@@ -155,7 +179,7 @@ test('createCreditsCalculationService falls back to legacy results on primary pa
   assert.equal(logEntries[0].payload.fallbackReason, 'parity_mismatch');
 });
 
-test('createCreditsCalculationService falls back to legacy results on DAG execution errors', () => {
+test('createCreditsCalculationService falls back to legacy results on DAG execution errors', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -166,17 +190,58 @@ test('createCreditsCalculationService falls back to legacy results on DAG execut
   const service = createCreditsCalculationService({
     dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     legacySimulator: () => legacyResult,
-    dagExecutor: () => {
-      throw new Error('dag exploded');
-    },
+    graphExecutor: { execute: async () => { throw new Error('dag exploded'); } },
     comparisonLogger: (event, payload) => logEntries.push({ event, payload }),
   });
 
-  const execution = service.calculate({ amount: 100 });
+  const execution = await service.calculate({ amount: 100 });
 
   assert.equal(execution.selectedSource, 'legacy');
   assert.equal(execution.result, legacyResult);
   assert.equal(execution.fallbackReason, 'dag_execution_failed');
   assert.equal(logEntries[0].event, 'credits.dag.comparison');
   assert.equal(logEntries[0].payload.fallbackReason, 'dag_execution_failed');
+});
+
+test('createCreditsCalculationService injects one shared startDate when callers omit it', async () => {
+  const service = createCreditsCalculationService({
+    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
+    legacySimulator: (input) => ({
+      summary: { installmentAmount: 100, totalPayable: 100, outstandingBalance: 100 },
+      schedule: [{
+        installmentNumber: 1,
+        dueDate: input.startDate,
+        scheduledPayment: 100,
+        principalComponent: 90,
+        interestComponent: 10,
+        remainingBalance: 0,
+        remainingPrincipal: 90,
+        remainingInterest: 10,
+      }],
+    }),
+    graphExecutor: { execute: async ({ contractVars }) => ({
+      ok: true,
+      source: 'persisted_graph',
+      graphVersionId: 1,
+      result: {
+        summary: { installmentAmount: 100, totalPayable: 100, outstandingBalance: 100 },
+        schedule: [{
+          installmentNumber: 1,
+          dueDate: contractVars.startDate,
+          scheduledPayment: 100,
+          principalComponent: 90,
+          interestComponent: 10,
+          remainingBalance: 0,
+          remainingPrincipal: 90,
+          remainingInterest: 10,
+        }],
+      },
+    }) },
+  });
+
+  const execution = await service.calculate({ amount: 100, interestRate: 12, termMonths: 1 });
+
+  assert.equal(execution.selectedSource, 'dag');
+  assert.equal(execution.parity.passed, true);
+  assert.match(execution.result.schedule[0].dueDate, /^\d{4}-\d{2}-\d{2}T/);
 });

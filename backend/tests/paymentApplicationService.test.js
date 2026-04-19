@@ -1,12 +1,12 @@
 const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
-const models = require('../src/models');
-const { summarizeSchedule, buildAmortizationSchedule } = require('../src/modules/credits/application/creditFormulaHelpers');
-const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
-const moduleOwnedPaymentApplicationService = require('../src/modules/credits/application/paymentApplicationService');
-const { createPaymentApplicationService } = require('../src/services/paymentApplicationService');
-const { BusinessRuleViolationError } = require('../src/utils/errorHandler');
+const models = require('@/models');
+const { summarizeSchedule, buildAmortizationSchedule } = require('@/modules/credits/application/creditFormulaHelpers');
+const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
+const moduleOwnedPaymentApplicationService = require('@/modules/credits/application/paymentApplicationService');
+const { createPaymentApplicationService } = require('@/services/paymentApplicationService');
+const { BusinessRuleViolationError } = require('@/utils/errorHandler');
 
 afterEach(() => {
   mock.restoreAll();
@@ -16,8 +16,8 @@ const loanViewService = createLoanViewService();
 
 test('root paymentApplicationService stays a thin compatibility adapter to the credits module implementation', () => {
   assert.equal(createPaymentApplicationService, moduleOwnedPaymentApplicationService.createPaymentApplicationService);
-  assert.equal(require('../src/services/paymentApplicationService').isInstallmentOverdue, moduleOwnedPaymentApplicationService.isInstallmentOverdue);
-  assert.equal(require('../src/services/paymentApplicationService').CANCELLABLE_STATUSES, moduleOwnedPaymentApplicationService.CANCELLABLE_STATUSES);
+  assert.equal(require('@/services/paymentApplicationService').isInstallmentOverdue, moduleOwnedPaymentApplicationService.isInstallmentOverdue);
+  assert.equal(require('@/services/paymentApplicationService').CANCELLABLE_STATUSES, moduleOwnedPaymentApplicationService.CANCELLABLE_STATUSES);
 });
 
 test('applyPayment allocates payoff amounts and closes a recovered loan', async () => {

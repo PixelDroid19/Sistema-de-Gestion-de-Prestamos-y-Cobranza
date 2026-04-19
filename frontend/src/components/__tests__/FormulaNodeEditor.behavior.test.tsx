@@ -64,4 +64,35 @@ describe('FormulaNodeEditor behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: tTerm('dag.nodeEdit.formula.apply') }));
     expect(onCommit).not.toHaveBeenCalled();
   });
+
+  it('accepts buildSimulationResult because it is allowed by the backend runtime', () => {
+    const onCommit = vi.fn();
+
+    render(
+      <FormulaNodeEditor
+        nodeId="formula_3"
+        label="Resultado"
+        description=""
+        formula="buildSimulationResult(lateFeeMode, schedule, summary)"
+        onCommit={onCommit}
+      />,
+    );
+
+    expect(screen.getByText(tTerm('dag.nodeEdit.formula.validation.ok'))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: tTerm('dag.nodeEdit.formula.apply') }));
+
+    expect(onCommit).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(tTerm('dag.nodeEdit.formula.businessLabel')), {
+      target: { value: 'Resultado final de la simulación' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: tTerm('dag.nodeEdit.formula.apply') }));
+
+    expect(onCommit).toHaveBeenCalledWith('formula_3', {
+      description: 'Resultado final de la simulación',
+      formula: 'buildSimulationResult(lateFeeMode, schedule, summary)',
+    });
+  });
 });

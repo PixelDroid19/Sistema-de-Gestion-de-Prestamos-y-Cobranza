@@ -3,7 +3,7 @@ const multer = require('multer');
 const {
   buildStoredAttachmentName,
   createLocalAttachmentStorage,
-} = require('../infrastructure/attachmentStorage');
+} = require('@/modules/credits/infrastructure/attachmentStorage');
 
 const DEFAULT_ALLOWED_ATTACHMENT_MIME_TYPES = Object.freeze([
   'application/pdf',

@@ -1,11 +1,11 @@
-const { sequelize } = require('../models');
-const { buildModuleRegistry } = require('../modules');
-const { syncDatabaseSchema, seedFinancialProductsAndGraphs } = require('./schema');
+const { sequelize } = require('@/models');
+const { buildModuleRegistry } = require('@/modules');
+const { syncDatabaseSchema, ensureAuditLogEnums, seedFinancialProductsAndGraphs } = require('./schema');
 const { createSharedRuntime } = require('./sharedRuntime');
-const { loanRepository, alertRepository } = require('../modules/credits/infrastructure/repositories');
-const { createLoanViewService } = require('../modules/credits/application/loanFinancials');
-const { createOverdueAlertSyncService } = require('../modules/credits/application/overdueAlertSyncService');
-const { createOverdueAlertScheduler } = require('../modules/credits/application/overdueAlertScheduler');
+const { loanRepository, alertRepository } = require('@/modules/credits/infrastructure/repositories');
+const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
+const { createOverdueAlertSyncService } = require('@/modules/credits/application/overdueAlertSyncService');
+const { createOverdueAlertScheduler } = require('@/modules/credits/application/overdueAlertScheduler');
 
 const REQUIRED_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'JWT_SECRET'];
 const UNSAFE_JWT_SECRETS = new Set(['changeme', 'replace_me', 'default', 'secret', 'password', 'jwt_secret']);
@@ -46,6 +46,7 @@ const bootstrap = async ({
   env = process.env,
   sequelize: database = sequelize,
   syncSchema = syncDatabaseSchema,
+  ensureAuditEnums = ensureAuditLogEnums,
   seedFinancialProducts = seedFinancialProductsAndGraphs,
   buildModuleRegistry: getModuleRegistry = buildModuleRegistry,
   createSharedRuntime: buildSharedRuntime = createSharedRuntime,
@@ -60,6 +61,7 @@ const bootstrap = async ({
   await database.authenticate();
 
   const schema = await syncSchema({ database, env });
+  await ensureAuditEnums({ database });
   await seedFinancialProducts();
   const sharedRuntime = buildSharedRuntime();
 

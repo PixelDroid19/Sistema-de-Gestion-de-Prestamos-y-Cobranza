@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError, NotFoundError } = require('../src/utils/errorHandler');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const {
   createGetNotifications,
   createMarkAsRead,
@@ -10,8 +10,8 @@ const {
   createClearNotifications,
   createRegisterPushSubscription,
   createDeletePushSubscription,
-} = require('../src/modules/notifications/application/useCases');
-const { createNotificationsModule } = require('../src/modules/notifications');
+} = require('@/modules/notifications/application/useCases');
+const { createNotificationsModule } = require('@/modules/notifications');
 
 test('createGetNotifications aggregates unread and total counts', async () => {
   const getNotifications = createGetNotifications({

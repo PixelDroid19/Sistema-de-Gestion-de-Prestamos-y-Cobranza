@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthenticationError, AuthorizationError } = require('../src/utils/errorHandler');
-const { createAuthMiddleware } = require('../src/modules/shared/auth');
+const { AuthenticationError, AuthorizationError } = require('@/utils/errorHandler');
+const { createAuthMiddleware } = require('@/modules/shared/auth');
 const { captureMiddlewareError } = require('./helpers/middleware');
 
 test('createAuthMiddleware rejects requests without a bearer token', async () => {

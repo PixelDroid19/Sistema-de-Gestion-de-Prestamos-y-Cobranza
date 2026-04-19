@@ -1,4 +1,4 @@
-const { AuthorizationError, NotFoundError } = require('../../utils/errorHandler');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { normalizeApplicationRole } = require('./roles');
 
 const normalizeId = (value) => Number(value);

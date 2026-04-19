@@ -1,21 +1,34 @@
-const { Loan, Customer, Associate, FinancialProduct, DagGraphVersion } = require('../../../models');
-const { NotFoundError, ValidationError } = require('../../../utils/errorHandler');
-const { simulateCredit } = require('../application/creditSimulationService');
-const { buildFinancialSnapshot } = require('../application/loanFinancials');
+const { Loan, Customer, Associate, FinancialProduct } = require('@/models');
+const { NotFoundError } = require('@/utils/errorHandler');
+const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
+const { buildFinancialSnapshot } = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
 
-const resolveSimulationExecution = ({ input, calculationService }) => {
+/**
+ * Execute the simulation via calculationService (async — may load persisted graph)
+ * or fall back to legacy if no calculationService is provided.
+ *
+ * Returns { selectedSource, result, graphVersionId }.
+ */
+const resolveSimulationExecution = async ({ input, calculationService }) => {
   if (!calculationService) {
     const result = simulateCredit(input);
     return {
       selectedSource: 'legacy',
       result,
+      graphVersionId: null,
     };
   }
 
-  return calculationService.calculate(input);
+  // calculationAdapter.calculate is now async
+  const execution = await calculationService.calculate(input);
+  return {
+    selectedSource: execution.selectedSource,
+    result: execution.result,
+    graphVersionId: execution.graphVersionId || null,
+  };
 };
 
 const resolveFinancialProductId = async ({ input, financialProductModel }) => {
@@ -34,35 +47,13 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   return defaultProduct.id;
 };
 
-const resolveDagGraphVersionId = async ({ dagGraphVersionModel, scopeKey = DEFAULT_DAG_SCOPE_KEY }) => {
-  if (!dagGraphVersionModel) {
-    return null;
-  }
-
-  const [activeGraph, latestGraph] = await Promise.all([
-    dagGraphVersionModel.findOne({
-      where: { scopeKey, status: 'active' },
-      order: [['version', 'DESC'], ['createdAt', 'DESC']],
-    }),
-    dagGraphVersionModel.findOne({
-      where: { scopeKey },
-      order: [['version', 'DESC'], ['createdAt', 'DESC']],
-    }),
-  ]);
-
-  if (activeGraph) {
-    return activeGraph.id;
-  }
-
-  if (!latestGraph) {
-    return null;
-  }
-
-  throw new ValidationError(`No active formula version is configured for scope '${scopeKey}'. Activate one before creating new credits.`);
-};
-
 /**
  * Create a loan record from canonical simulation data after validating linked records.
+ *
+ * The `dagGraphVersionId` persisted on the loan now comes directly from the
+ * calculation execution result, guaranteeing it is the exact graph that produced
+ * the numbers — no more separate DB query that could return a different version.
+ *
  * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate: number, termMonths: number, lateFeeMode?: string }} input
  * @returns {Promise<object>}
  */
@@ -72,7 +63,6 @@ const createLoanFromCanonicalDataFactory = ({
   associateModel = Associate,
   loanModel = Loan,
   financialProductModel = FinancialProduct,
-  dagGraphVersionModel = DagGraphVersion,
 } = {}) => async (input) => {
   const customer = await customerModel.findByPk(input.customerId);
   if (!customer) {
@@ -86,10 +76,13 @@ const createLoanFromCanonicalDataFactory = ({
     }
   }
 
-  const simulationExecution = resolveSimulationExecution({ input, calculationService });
+  const simulationExecution = await resolveSimulationExecution({ input, calculationService });
   const simulation = simulationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input, financialProductModel });
-  const dagGraphVersionId = await resolveDagGraphVersionId({ dagGraphVersionModel });
+
+  // graphVersionId comes from the execution — the exact graph that produced these numbers
+  const dagGraphVersionId = simulationExecution.graphVersionId;
+
   const snapshot = {
     ...buildFinancialSnapshot(simulation.schedule),
     ...(simulation.summary || {}),

@@ -1,5 +1,5 @@
-const { NotFoundError, AuthorizationError, ValidationError } = require('../../../utils/errorHandler');
-const { PERMISSION_MODULES } = require('../../../models/Permission');
+const { NotFoundError, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
+const { PERMISSION_MODULES } = require('@/models/Permission');
 
 const normalizeId = (value, fieldName) => {
   if (value === undefined || value === null || value === '') {

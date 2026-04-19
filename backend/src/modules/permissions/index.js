@@ -1,4 +1,4 @@
-const { createModule, resolveAuthContext } = require('../shared');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListPermissions,
   createGetPermissionsByModule,
@@ -13,7 +13,7 @@ const {
 const { permissionRepository } = require('./application/PermissionRepository');
 const { userPermissionRepository } = require('./application/UserPermissionRepository');
 const { rolePermissionRepository } = require('./application/RolePermissionRepository');
-const { userRepository } = require('../users/infrastructure/repositories');
+const { userRepository } = require('@/modules/users/infrastructure/repositories');
 const { createPermissionsRouter } = require('./presentation/router');
 
 const createPermissionsModule = ({ sharedRuntime } = {}) => {

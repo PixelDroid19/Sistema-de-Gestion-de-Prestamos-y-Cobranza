@@ -11,7 +11,7 @@ const DagGraphVersion = sequelize.define('DagGraphVersion', {
   graph: { type: DataTypes.JSONB, allowNull: false, defaultValue: { nodes: [], edges: [] } },
   graphSummary: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   validation: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
-  createdByUserId: { type: DataTypes.INTEGER, allowNull: false },
+  createdByUserId: { type: DataTypes.INTEGER, allowNull: true },
 }, {
   timestamps: true,
   indexes: [
@@ -21,4 +21,3 @@ const DagGraphVersion = sequelize.define('DagGraphVersion', {
 });
 
 module.exports = DagGraphVersion;
-

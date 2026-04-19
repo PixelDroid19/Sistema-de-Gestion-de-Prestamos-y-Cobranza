@@ -26,20 +26,25 @@ const simulateCredit = (input) => {
 };
 
 const createCreditSimulationService = ({ calculationService } = {}) => ({
-  simulate(input) {
+  async simulate(input) {
     if (!calculationService) {
-      return simulateCredit(input);
+      return { ...simulateCredit(input), graphVersionId: null };
     }
 
-    return calculationService.calculate(input).result;
+    const execution = await calculationService.calculate(input);
+    return {
+      ...execution.result,
+      graphVersionId: execution.graphVersionId ?? null,
+    };
   },
-  simulateDetailed(input) {
+  async simulateDetailed(input) {
     if (!calculationService) {
       return {
         selectedSource: 'legacy',
         fallbackReason: null,
         parity: { passed: true, mismatches: [] },
         result: simulateCredit(input),
+        graphVersionId: null,
       };
     }
 

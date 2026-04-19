@@ -2,8 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createNotificationsRouter } = require('../src/modules/notifications/presentation/router');
-const { globalErrorHandler } = require('../src/utils/errorHandler');
+const { createNotificationsRouter } = require('@/modules/notifications/presentation/router');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -268,7 +268,7 @@ test('createNotificationsRouter returns validation failures for malformed subscr
 });
 
 test('createNotificationsRouter rejects mismatched provider and channel combinations', async () => {
-  const { notificationValidation } = require('../src/middleware/validation');
+  const { notificationValidation } = require('@/middleware/validation');
 
   const router = createNotificationsRouter({
     authMiddleware,
@@ -323,7 +323,7 @@ test('createNotificationsRouter rejects mismatched provider and channel combinat
 });
 
 test('createNotificationsRouter rejects mobile subscription registration without deviceToken', async () => {
-  const { notificationValidation } = require('../src/middleware/validation');
+  const { notificationValidation } = require('@/middleware/validation');
 
   const router = createNotificationsRouter({
     authMiddleware,
@@ -377,7 +377,7 @@ test('createNotificationsRouter rejects mobile subscription registration without
 });
 
 test('createNotificationsRouter rejects webpush deletion without endpoint identifier', async () => {
-  const { notificationValidation } = require('../src/middleware/validation');
+  const { notificationValidation } = require('@/middleware/validation');
 
   const router = createNotificationsRouter({
     authMiddleware,

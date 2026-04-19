@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { authValidation } = require('../src/middleware/validation');
-const { ValidationError } = require('../src/utils/errorHandler');
+const { authValidation } = require('@/middleware/validation');
+const { ValidationError } = require('@/utils/errorHandler');
 const { runMiddleware, captureMiddlewareError } = require('./helpers/middleware');
 
 test('authValidation.register accepts customer self-signup without phone', async () => {

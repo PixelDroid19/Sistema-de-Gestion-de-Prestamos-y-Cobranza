@@ -1,7 +1,7 @@
-const { NotFoundError, ValidationError, AuthorizationError } = require('../../../utils/errorHandler');
+const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const { roundCurrency } = require('./creditFormulaHelpers');
-const { paginateArray } = require('../../shared/pagination');
-const { withAudit } = require('../../audit/application/auditDecorator');
+const { paginateArray } = require('@/modules/shared/pagination');
+const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -10,7 +10,7 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
-} = require('../../shared/documentOperations');
+} = require('@/modules/shared/documentOperations');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
@@ -363,6 +363,8 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
  * @returns {Function}
  */
 const createCreateSimulation = ({ creditDomainService }) => async (payload) => creditDomainService.simulate(payload);
+
+const createListDagWorkbenchScopes = ({ dagWorkbenchService }) => async ({ actor }) => dagWorkbenchService.listScopes({ actor });
 
 const createLoadDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.loadGraph({ actor, scopeKey });
 
@@ -1238,6 +1240,7 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
 module.exports = {
   createListLoans,
   createCreateSimulation,
+  createListDagWorkbenchScopes,
   createLoadDagWorkbenchGraph,
   createSaveDagWorkbenchGraph,
   createValidateDagWorkbenchGraph,

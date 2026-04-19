@@ -28,6 +28,7 @@ export interface LoanSimulationResult {
   interestRate: number;
   paymentMethod: PaymentMethod;
   schedule: LoanSimulationScheduleRow[];
+  graphVersionId?: number | null;
 }
 
 export interface LoanSimulationResponse {
@@ -56,6 +57,7 @@ const mapSimulationResponse = (
         term: input.term,
         interestRate: input.interestRate,
         paymentMethod: input.paymentMethod,
+        graphVersionId: simulation.graphVersionId ?? null,
         schedule: simulation.schedule.map((row) => ({
           period: row.installmentNumber,
           payment: row.scheduledPayment,

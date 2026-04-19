@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createCreditsComposition } = require('../../src/modules/credits/composition');
-const { createCreditsPublicPorts } = require('../../src/modules/credits/public');
+const { createCreditsComposition } = require('@/modules/credits/composition');
+const { createCreditsPublicPorts } = require('@/modules/credits/public');
 
 test('createCreditsPublicPorts reuses an existing credits composition seam', () => {
   const loanAccessPolicy = { filterVisibleLoans() {} };
@@ -137,6 +137,7 @@ test('createCreditsComposition keeps a credits-local DAG config on the compositi
       dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
+      graphExecutor: { execute() {}, executeDraft() {} },
     },
     loanAccessPolicy: { filterVisibleLoans() {} },
     loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },

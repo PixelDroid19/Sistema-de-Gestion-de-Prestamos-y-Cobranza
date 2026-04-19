@@ -1,9 +1,9 @@
 const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { globalErrorHandler } = require('../src/utils/errorHandler');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 
-const { createCustomersRouter } = require('../src/modules/customers/presentation/router');
+const { createCustomersRouter } = require('@/modules/customers/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 const allowAuth = () => (req, res, next) => {
-  req.user = { id: 1, role: 'admin' };
+  req.user = { id: 1, role: 'admin', name: 'Admin Test' };
   next();
 };
 
@@ -59,11 +59,11 @@ test('createCustomersRouter serves list and create contract responses', async ()
           pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
         };
       },
-      async createCustomer(payload) {
-        calls.push(['createCustomer', payload]);
+      async createCustomer(input) {
+        calls.push(['createCustomer', input]);
         return {
           id: 5,
-          ...payload,
+          ...input.payload,
         };
       },
       async listCustomerDocuments() {
@@ -123,7 +123,7 @@ test('createCustomersRouter serves list and create contract responses', async ()
   });
   assert.deepEqual(calls, [
     ['listCustomers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
-    ['createCustomer', createPayload],
+    ['createCustomer', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload: createPayload }],
   ]);
 });
 
@@ -255,7 +255,7 @@ test('createCustomersRouter serves update contract responses', async () => {
     message: 'Customer updated successfully',
   });
   assert.deepEqual(calls, [
-    ['updateCustomer', { customerId: '7', payload }],
+    ['updateCustomer', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, customerId: '7', payload }],
   ]);
 });
 

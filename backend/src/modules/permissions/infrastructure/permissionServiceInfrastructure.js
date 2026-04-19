@@ -1,4 +1,4 @@
-const { permissionService } = require('../application/PermissionService');
+const { permissionService } = require('@/modules/permissions/application/PermissionService');
 
 const createPermissionServiceForMiddleware = () => {
   return {

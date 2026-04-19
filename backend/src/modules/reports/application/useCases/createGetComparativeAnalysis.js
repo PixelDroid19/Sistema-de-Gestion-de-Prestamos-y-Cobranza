@@ -1,5 +1,5 @@
 const { calculateChangePercent } = require('./statistics');
-const { ensureAdmin, formatMoney } = require('../reportHelpers');
+const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
 
 /**
  * Create use case: Get Comparative Analysis

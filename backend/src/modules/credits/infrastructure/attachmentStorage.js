@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
-const { NotFoundError } = require('../../../utils/errorHandler');
+const { NotFoundError } = require('@/utils/errorHandler');
 
 const DEFAULT_ATTACHMENT_STORAGE_DIRECTORY = path.resolve(__dirname, '..', '..', '..', '..', 'uploads', 'attachments');
 

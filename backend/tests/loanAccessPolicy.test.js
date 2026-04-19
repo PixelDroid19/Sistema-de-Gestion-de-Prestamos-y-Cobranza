@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError, NotFoundError } = require('../src/utils/errorHandler');
-const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor, canActorViewAttachment } = require('../src/modules/shared/loanAccessPolicy');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
+const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor, canActorViewAttachment } = require('@/modules/shared/loanAccessPolicy');
 
 test('isLoanVisibleToActor supports admin and customer visibility under the three-role model', () => {
   const loan = { id: 18, customerId: 7 };

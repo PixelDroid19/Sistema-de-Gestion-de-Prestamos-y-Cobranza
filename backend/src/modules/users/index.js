@@ -1,4 +1,4 @@
-const { createModule, resolveAuthContext } = require('../shared');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const { createUsersRouter } = require('./presentation/router');
 const {
   createListUsers,

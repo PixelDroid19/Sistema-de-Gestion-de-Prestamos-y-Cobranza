@@ -1,5 +1,5 @@
-const User = require('../../../models/User');
-const { paginateModel } = require('../../shared/pagination');
+const User = require('@/models/User');
+const { paginateModel } = require('@/modules/shared/pagination');
 
 const userRepository = {
   findAll() {

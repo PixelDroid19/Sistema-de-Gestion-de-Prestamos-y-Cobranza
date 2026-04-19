@@ -1,5 +1,5 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
+const { asyncHandler } = require('@/utils/errorHandler');
 
 const createConfigRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();

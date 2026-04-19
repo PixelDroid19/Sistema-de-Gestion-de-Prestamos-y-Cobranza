@@ -1,5 +1,5 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
+const { asyncHandler } = require('@/utils/errorHandler');
 
 const createNotificationsRouter = ({ authMiddleware, notificationValidation, useCases }) => {
   const router = express.Router();

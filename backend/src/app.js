@@ -12,6 +12,7 @@ const { createSharedRuntime } = require('./bootstrap/sharedRuntime');
 const { globalErrorHandler, notFoundHandler } = require('./utils/errorHandler');
 const { logRequest } = require('./utils/logger');
 const { buildModuleRegistry } = require('./modules');
+const { runWithRequestContext } = require('./modules/shared/requestContext');
 
 /**
  * Create the backend HTTP application with the registered module routers.
@@ -65,6 +66,7 @@ const createApp = ({
 
   app.use(cors(corsOptions));
   app.use(globalLimiter);
+  app.use((req, res, next) => runWithRequestContext({ req, res }, next));
   app.use(express.json({ limit: '2mb' })); // Reduced limit for better security
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(logRequest);

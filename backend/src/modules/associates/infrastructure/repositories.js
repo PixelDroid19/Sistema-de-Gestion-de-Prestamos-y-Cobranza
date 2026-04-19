@@ -8,8 +8,8 @@ const {
   Loan,
   Customer,
   User,
-} = require('../../../models');
-const { paginateModel } = require('../../shared/pagination');
+} = require('@/models');
+const { paginateModel } = require('@/modules/shared/pagination');
 
 const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
 

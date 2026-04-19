@@ -1,7 +1,7 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
-const { attachPagination } = require('../../../middleware/validation');
-const { sendPathDownload } = require('../../shared/http');
+const { asyncHandler } = require('@/utils/errorHandler');
+const { attachPagination } = require('@/middleware/validation');
+const { sendPathDownload } = require('@/modules/shared/http');
 
 const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentUpload, useCases }) => {
   const router = express.Router();
@@ -17,7 +17,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
   }));
 
   router.post('/', authMiddleware(['admin']), customerValidation.create, asyncHandler(async (req, res) => {
-    const customer = await useCases.createCustomer(req.body);
+    const customer = await useCases.createCustomer({ actor: req.user, payload: req.body });
     res.status(201).json({ success: true, data: customer, message: 'Customer created successfully' });
   }));
 
@@ -28,6 +28,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
 
   router.patch('/:id', authMiddleware(['admin']), customerValidation.update, asyncHandler(async (req, res) => {
     const customer = await useCases.updateCustomer({
+      actor: req.user,
       customerId: req.params.id,
       payload: req.body,
     });
@@ -35,7 +36,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
   }));
 
   router.delete('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    await useCases.deleteCustomer({ customerId: req.params.id });
+    await useCases.deleteCustomer({ actor: req.user, customerId: req.params.id });
     res.json({ success: true, message: 'Customer deleted successfully' });
   }));
 

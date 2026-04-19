@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { NotFoundError, ValidationError, AuthorizationError } = require('../src/utils/errorHandler');
+const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const {
   allocateProportionalDistribution,
   buildProportionalIdempotencyRequestHash,
@@ -18,7 +18,7 @@ const {
   createGetAssociateInstallments,
   createPayAssociateInstallment,
   createGetAssociateCalendar,
-} = require('../src/modules/associates/application/useCases');
+} = require('@/modules/associates/application/useCases');
 
 test('createListAssociates returns repository results in name order', async () => {
   const listAssociates = createListAssociates({
@@ -86,7 +86,7 @@ test('createUpdateAssociate persists changes through the repository', async () =
     },
   });
 
-  const updatedAssociate = await updateAssociate(2, { name: 'After Update' });
+  const updatedAssociate = await updateAssociate({ associateId: 2, payload: { name: 'After Update' } });
   assert.equal(updatedAssociate.name, 'After Update');
 });
 
@@ -102,7 +102,7 @@ test('createDeleteAssociate rejects when the record is missing', async () => {
     },
   });
 
-  await assert.rejects(() => deleteAssociate(91), (error) => {
+  await assert.rejects(() => deleteAssociate({ associateId: 91 }), (error) => {
     assert.ok(error instanceof NotFoundError);
     return true;
   });
@@ -121,10 +121,13 @@ test('createCreateAssociate delegates persistence to the repository', async () =
   });
 
   const associate = await createAssociate({
-    name: 'New Associate',
-    email: 'associate@example.com',
-    phone: '+573001112255',
-    participationPercentage: '25',
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'New Associate',
+      email: 'associate@example.com',
+      phone: '+573001112255',
+      participationPercentage: '25',
+    },
   });
 
   assert.equal(associate.id, 12);
@@ -144,9 +147,12 @@ test('createCreateAssociate rejects duplicate contact details through the reposi
   });
 
   await assert.rejects(() => createAssociate({
-    name: 'New Associate',
-    email: 'associate@example.com',
-    phone: '+573001112255',
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'New Associate',
+      email: 'associate@example.com',
+      phone: '+573001112255',
+    },
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.deepEqual(error.errors, [

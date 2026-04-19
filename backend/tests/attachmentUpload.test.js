@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {
   DEFAULT_ALLOWED_ATTACHMENT_MIME_TYPES,
   isAllowedAttachmentMimeType,
-} = require('../src/modules/credits/presentation/attachmentUpload');
+} = require('@/modules/credits/presentation/attachmentUpload');
 
 test('isAllowedAttachmentMimeType allows default supported attachment mime types', () => {
   assert.equal(isAllowedAttachmentMimeType('application/pdf'), true);

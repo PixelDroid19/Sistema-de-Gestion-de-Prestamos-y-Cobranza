@@ -1,22 +1,51 @@
+/**
+ * Scope Registry — defines the contract every DAG graph for a given scope must
+ * satisfy. Each scope declares:
+ *
+ *  - requiredInputs:  variables the caller must provide (contractVars)
+ *  - requiredOutputs: variables the result object must contain
+ *  - helpers:         domain functions injected into the evaluation scope
+ *  - simulationInput: default values used by the workbench "simulate" button
+ *  - defaultGraph:    the canonical graph seeded into DagGraphVersion on first boot
+ *
+ * Both `graphExecutor` and `workbenchService` read these contracts to validate
+ * execution inputs and graph outputs before running.
+ */
+
+// ─── Scope definitions ───────────────────────────────────────────────────────
+
 const WORKBENCH_SCOPE_DEFINITIONS = [
   {
     key: 'credit-simulation',
     label: 'Simulacion de credito',
     description: 'Formula editable para originacion, amortizacion y resumen financiero del credito.',
     defaultName: 'Formula base de simulacion de credito',
+
+    // Contract: what the caller MUST provide
+    requiredInputs: ['amount', 'interestRate', 'termMonths'],
+
+    // Contract: what the graph's `result` output MUST contain
+    requiredOutputs: ['lateFeeMode', 'schedule', 'summary'],
+
+    // Default simulation input for the workbench preview button
     simulationInput: {
       amount: 2000000,
       interestRate: 60,
       termMonths: 12,
       lateFeeMode: 'SIMPLE',
     },
+
+    // Helpers injected into the formula scope (scopeBuilder.js provides the real fns)
     helpers: [
       { name: 'buildAmortizationSchedule', description: 'Genera el cronograma canonico del credito.' },
       { name: 'summarizeSchedule', description: 'Resume el cronograma en totales y saldo pendiente.' },
       { name: 'assertSupportedLateFeeMode', description: 'Valida el modo de mora configurado.' },
       { name: 'calculateLateFee', description: 'Calcula mora para escenarios vencidos.' },
       { name: 'roundCurrency', description: 'Redondea resultados monetarios a 2 decimales.' },
+      { name: 'buildSimulationResult', description: 'Construye el objeto resultado (lateFeeMode, schedule, summary).' },
     ],
+
+    // Canonical default graph — seeded into DagGraphVersion on first boot
     defaultGraph: {
       nodes: [
         {
@@ -40,20 +69,20 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           description: 'Cantidad de cuotas del credito.',
           outputVar: 'termMonths',
         },
-      {
-        id: 'input_late_fee_mode',
-        kind: 'conditional',
-        label: 'Modo de mora',
-        description: 'Valida el modo de mora antes de calcular el cronograma (SIMPLE, COMPOUND, FLAT, TIERED).',
-        formula: 'assertSupportedLateFeeMode(lateFeeMode)',
-        outputVar: 'lateFeeMode',
-      },
+        {
+          id: 'input_late_fee_mode',
+          kind: 'conditional',
+          label: 'Modo de mora',
+          description: 'Valida el modo de mora antes de calcular el cronograma (SIMPLE, COMPOUND, FLAT, TIERED).',
+          formula: 'assertSupportedLateFeeMode(lateFeeMode)',
+          outputVar: 'lateFeeMode',
+        },
         {
           id: 'amortization_schedule',
           kind: 'formula',
           label: 'Cronograma canonico',
           description: 'Usa el helper del dominio para generar la tabla de amortizacion.',
-          formula: 'buildAmortizationSchedule({ amount, interestRate, termMonths, startDate, lateFeeMode })',
+          formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)',
           outputVar: 'schedule',
         },
         {
@@ -69,7 +98,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           kind: 'output',
           label: 'Resultado final',
           description: 'Expone el resultado usado por el simulador y por la originacion.',
-          formula: '{ lateFeeMode: lateFeeMode, schedule: schedule, summary: summary }',
+          formula: 'buildSimulationResult(lateFeeMode, schedule, summary)',
           outputVar: 'result',
         },
       ],
@@ -87,6 +116,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
   },
 ];
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 const DEFAULT_SCOPE_KEY = WORKBENCH_SCOPE_DEFINITIONS[0].key;
 
 const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
@@ -101,14 +132,41 @@ const listDagWorkbenchScopes = () => WORKBENCH_SCOPE_DEFINITIONS.map((scope) => 
   label: scope.label,
   description: scope.description,
   defaultName: scope.defaultName,
+  requiredInputs: scope.requiredInputs,
+  requiredOutputs: scope.requiredOutputs,
   simulationInput: scope.simulationInput,
   helpers: scope.helpers,
   defaultGraph: scope.defaultGraph,
 }));
+
+// ─── Contract Validation ─────────────────────────────────────────────────────
+
+/**
+ * Validate that contractVars include every required input for the scope.
+ * Returns an array of missing field names (empty = valid).
+ */
+const validateContractInputs = (scopeKey, contractVars = {}) => {
+  const scope = getDagWorkbenchScopeDefinition(scopeKey);
+  if (!scope || !Array.isArray(scope.requiredInputs)) return [];
+  return scope.requiredInputs.filter((key) => contractVars[key] === undefined || contractVars[key] === null);
+};
+
+/**
+ * Validate that a graph execution result contains every required output.
+ * `resultObj` is the value bound to the `result` outputVar after execution.
+ * Returns an array of missing field names (empty = valid).
+ */
+const validateContractOutputs = (scopeKey, resultObj = {}) => {
+  const scope = getDagWorkbenchScopeDefinition(scopeKey);
+  if (!scope || !Array.isArray(scope.requiredOutputs)) return [];
+  return scope.requiredOutputs.filter((key) => resultObj[key] === undefined);
+};
 
 module.exports = {
   DEFAULT_SCOPE_KEY,
   normalizeScopeKey,
   getDagWorkbenchScopeDefinition,
   listDagWorkbenchScopes,
+  validateContractInputs,
+  validateContractOutputs,
 };

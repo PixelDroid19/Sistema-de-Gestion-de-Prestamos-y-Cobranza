@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ValidationError } = require('../src/utils/errorHandler');
-const { createRecoveryStatusGuard } = require('../src/modules/credits/application/recoveryStatusGuard');
+const { ValidationError } = require('@/utils/errorHandler');
+const { createRecoveryStatusGuard } = require('@/modules/credits/application/recoveryStatusGuard');
 
 const createGuard = (outstandingBalance) => createRecoveryStatusGuard({
   loanViewService: {

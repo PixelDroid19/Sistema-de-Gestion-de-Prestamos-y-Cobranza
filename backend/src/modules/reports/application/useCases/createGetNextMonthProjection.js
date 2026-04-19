@@ -1,5 +1,5 @@
 const { calculateForecast } = require('./statistics');
-const { ensureAdmin, formatMoney } = require('../reportHelpers');
+const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
 
 /**
  * Create use case: Get Next Month Projection

@@ -2,11 +2,16 @@ const {
   AuthorizationError,
   NotFoundError,
   ValidationError,
-} = require('../../../../utils/errorHandler');
-const { logSecurity, logBusiness } = require('../../../../utils/logger');
-const BigNumberEngine = require('../../../../core/domain/calculation/BigNumberEngine');
-const { CalculationEngine } = require('../../../../core/domain/calculation/CalculationEngine');
-const { getDagWorkbenchScopeDefinition, normalizeScopeKey } = require('./scopeRegistry');
+} = require('@/utils/errorHandler');
+const { logSecurity, logBusiness } = require('@/utils/logger');
+const { CalculationEngine } = require('@/core/domain/calculation/CalculationEngine');
+const BigNumberEngine = require('@/core/domain/calculation/BigNumberEngine');
+const {
+  getDagWorkbenchScopeDefinition,
+  listDagWorkbenchScopes,
+  normalizeScopeKey,
+  validateContractOutputs,
+} = require('./scopeRegistry');
 
 const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
 
@@ -30,6 +35,8 @@ const buildGraphSummary = ({ nodes, edges }) => ({
   outputCount: nodes.filter((node) => node.kind === 'output').length,
   formulaNodeCount: nodes.filter((node) => typeof node.formula === 'string' && node.formula.trim()).length,
 });
+
+const hasFormula = (node) => typeof node?.formula === 'string' && node.formula.trim();
 
 /**
  * Validate a formula string for dangerous patterns before saving.
@@ -66,9 +73,9 @@ const validateFormulaInput = (formula, nodeId) => {
     }
   }
 
-  // Validate formula syntax and function whitelist using BigNumberEngine
+  // Compile the formula so invalid syntax is rejected before save/simulate time.
   try {
-    BigNumberEngine.validateFormula(trimmedFormula);
+    BigNumberEngine.compileFormula(trimmedFormula);
     return { valid: true };
   } catch (validationError) {
     logSecurity('dag.workbench.formula_validation_failed', {
@@ -95,7 +102,7 @@ const validateFormulaNodes = (nodes) => {
   const errors = [];
 
   for (const node of nodes) {
-    if (node.kind === 'formula' && node.formula) {
+    if (hasFormula(node)) {
       const result = validateFormulaInput(node.formula, node.id);
       if (!result.valid && result.error) {
         errors.push(result.error);
@@ -136,7 +143,47 @@ const detectCycles = ({ nodes, incomingByTarget }) => {
   return nodes.some((node) => visit(node.id));
 };
 
-const validateDagWorkbenchGraph = (graph = {}) => {
+const validateScopeContractGraph = ({ nodes, edges, scopeKey }) => {
+  const scopeDef = getDagWorkbenchScopeDefinition(scopeKey);
+  if (!scopeDef) {
+    return [];
+  }
+
+  const errors = [];
+  const requiredOutputVars = [...new Set([...(scopeDef.requiredOutputs || []), 'result'])];
+  const outputVars = new Set(nodes.map((node) => String(node?.outputVar || '').trim()).filter(Boolean));
+  const missingOutputVars = requiredOutputVars.filter((outputVar) => !outputVars.has(outputVar));
+
+  if (missingOutputVars.length > 0) {
+    errors.push({
+      field: 'nodes',
+      message: `Scope '${scopeKey}' requires nodes with outputVar values: ${requiredOutputVars.join(', ')}. Missing: ${missingOutputVars.join(', ')}`,
+    });
+    return errors;
+  }
+
+  try {
+    const execution = CalculationEngine.execute({ nodes, edges }, scopeDef.simulationInput || {});
+    const resultObj = execution.result?.result || execution.scope?.result || {};
+    const missingOutputs = validateContractOutputs(scopeKey, resultObj);
+
+    if (missingOutputs.length > 0) {
+      errors.push({
+        field: 'nodes',
+        message: `Scope '${scopeKey}' execution result is missing required outputs: ${missingOutputs.join(', ')}`,
+      });
+    }
+  } catch (error) {
+    errors.push({
+      field: 'nodes',
+      message: `Graph failed executable validation for scope '${scopeKey}': ${error.message}`,
+    });
+  }
+
+  return errors;
+};
+
+const validateDagWorkbenchGraph = (graph = {}, { scopeKey } = {}) => {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
   const errors = [];
@@ -208,6 +255,10 @@ const validateDagWorkbenchGraph = (graph = {}) => {
     warnings.push({ field: 'nodes', message: 'Graph does not declare any output nodes' });
   }
 
+  if (scopeKey && errors.length === 0) {
+    errors.push(...validateScopeContractGraph({ nodes, edges, scopeKey }));
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -230,6 +281,16 @@ const assertWorkbenchAccess = ({ actor, dagConfig, scopeKey }) => {
   }
 };
 
+const assertWorkbenchFeatureEnabled = ({ actor, dagConfig }) => {
+  if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+    throw new AuthorizationError('Only admins can access the DAG workbench');
+  }
+
+  if (!dagConfig?.workbenchEnabled) {
+    throw new AuthorizationError('DAG workbench is not enabled');
+  }
+};
+
 const assertScopeKey = (scopeKey) => {
   const normalizedScopeKey = normalizeScopeKey(scopeKey);
   if (!normalizedScopeKey) {
@@ -247,13 +308,29 @@ const createDagWorkbenchService = ({
   dagConfig,
   dagGraphRepository,
   dagSimulationSummaryRepository,
-  creditDomainService,
+  graphExecutor,
 } = {}) => {
-  if (!dagGraphRepository || !dagSimulationSummaryRepository || !creditDomainService) {
-    throw new Error('DagWorkbenchService requires graph, summary, and credit domain dependencies');
+  if (!dagGraphRepository || !dagSimulationSummaryRepository) {
+    throw new Error('DagWorkbenchService requires graph and summary repository dependencies');
+  }
+  if (!graphExecutor) {
+    throw new Error('DagWorkbenchService requires a graphExecutor dependency');
   }
 
   return {
+    async listScopes({ actor }) {
+      assertWorkbenchFeatureEnabled({ actor, dagConfig });
+      const scopes = listDagWorkbenchScopes().filter((scope) => {
+        if (typeof dagConfig?.isScopeEnabled !== 'function') {
+          return true;
+        }
+
+        return dagConfig.isScopeEnabled(scope.key);
+      });
+
+      return { scopes };
+    },
+
     async loadGraph({ actor, scopeKey }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
@@ -270,7 +347,7 @@ const createDagWorkbenchService = ({
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
-      const validation = validateDagWorkbenchGraph(graph);
+      const validation = validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
       if (!validation.valid) {
         const error = new ValidationError('DAG graph validation failed');
         error.errors = validation.errors;
@@ -301,14 +378,14 @@ const createDagWorkbenchService = ({
     async validateGraph({ actor, scopeKey, graph }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
-      return validateDagWorkbenchGraph(graph);
+      return validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
     },
 
     async simulateGraph({ actor, scopeKey, graph, simulationInput = {} }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
-      const validation = validateDagWorkbenchGraph(graph);
+      const validation = validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
       if (!validation.valid) {
         const error = new ValidationError('DAG graph validation failed');
         error.errors = validation.errors;
@@ -317,31 +394,20 @@ const createDagWorkbenchService = ({
 
       const graphVersion = await dagGraphRepository.getLatest(normalizedScopeKey);
 
-      // Execute the DAG graph using CalculationEngine, which properly evaluates
-      // formulas with calculateLateFee and other helpers available in scope
-      let dagExecution;
-      try {
-        dagExecution = CalculationEngine.execute(graph, simulationInput);
-      } catch (engineError) {
-        // If DAG execution fails, fall back to legacy simulation
-        const legacyResult = typeof creditDomainService.simulateDetailed === 'function'
-          ? await creditDomainService.simulateDetailed(simulationInput)
-          : { selectedSource: 'legacy', fallbackReason: null, parity: { passed: true, mismatches: [] }, result: await creditDomainService.simulate(simulationInput) };
-        dagExecution = {
-          selectedSource: 'legacy',
-          fallbackReason: 'dag_execution_failed',
-          result: legacyResult.result,
-          parity: { passed: false, mismatches: [{ scope: 'dag', field: 'execution', expected: 'success', actual: engineError.message }] },
-        };
-      }
+      // Execute the draft graph via graphExecutor.executeDraft — no legacy fallback.
+      // The workbench user needs to see actual formula errors so they can fix them.
+      const dagExecution = graphExecutor.executeDraft({
+        graph,
+        contractVars: simulationInput,
+      });
 
       const latestSimulation = await dagSimulationSummaryRepository.save({
         scopeKey: normalizedScopeKey,
         graphVersionId: graphVersion?.id || null,
         createdByUserId: actor.id,
-        selectedSource: dagExecution.selectedSource || 'dag',
-        fallbackReason: dagExecution.fallbackReason || null,
-        parity: dagExecution.parity || { passed: true, mismatches: [] },
+        selectedSource: dagExecution.source || 'draft',
+        fallbackReason: null,
+        parity: { passed: true, mismatches: [] },
         simulationInput,
         summary: dagExecution.result?.summary || dagExecution.result || {},
         schedulePreview: Array.isArray(dagExecution.result?.schedule) ? dagExecution.result.schedule.slice(0, 5) : [],

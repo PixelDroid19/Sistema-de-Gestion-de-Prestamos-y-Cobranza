@@ -1,4 +1,4 @@
-const { ValidationError, NotFoundError, ConflictError } = require('../../../utils/errorHandler');
+const { ValidationError, NotFoundError, ConflictError } = require('@/utils/errorHandler');
 
 const VALID_ROLES = ['admin', 'customer', 'socio'];
 

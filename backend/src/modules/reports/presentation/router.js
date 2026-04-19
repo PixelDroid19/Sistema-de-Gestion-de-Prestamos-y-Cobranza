@@ -1,8 +1,8 @@
 const express = require('express');
 const XLSX = require('xlsx');
-const { asyncHandler } = require('../../../utils/errorHandler');
-const { attachPagination } = require('../../../middleware/validation');
-const { sendBufferDownload } = require('../../shared/http');
+const { asyncHandler } = require('@/utils/errorHandler');
+const { attachPagination } = require('@/middleware/validation');
+const { sendBufferDownload } = require('@/modules/shared/http');
 
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();

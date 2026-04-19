@@ -1,8 +1,8 @@
 const { test, mock, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { migrateLoansToDefaultProduct } = require('../../src/scripts/migrateLoansToProducts');
-const models = require('../../src/models');
+const { migrateLoansToDefaultProduct } = require('@/scripts/migrateLoansToProducts');
+const models = require('@/models');
 
 beforeEach(() => {
   mock.restoreAll();

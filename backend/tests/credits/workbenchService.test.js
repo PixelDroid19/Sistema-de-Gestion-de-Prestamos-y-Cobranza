@@ -4,17 +4,27 @@ const assert = require('node:assert/strict');
 const {
   validateDagWorkbenchGraph,
   createDagWorkbenchService,
-} = require('../../src/modules/credits/application/dag/workbenchService');
+} = require('@/modules/credits/application/dag/workbenchService');
 
 const buildGraph = () => ({
   nodes: [
-    { id: 'amount', kind: 'input', label: 'Monto' },
-    { id: 'interest', kind: 'input', label: 'Interes' },
-    { id: 'result', kind: 'output', label: 'Resultado', formula: 'amount + interest' },
+    { id: 'amount', kind: 'constant', label: 'Monto', outputVar: 'amount' },
+    { id: 'interestRate', kind: 'constant', label: 'Interes', outputVar: 'interestRate' },
+    { id: 'termMonths', kind: 'constant', label: 'Plazo', outputVar: 'termMonths' },
+    { id: 'lateFeeMode', kind: 'conditional', label: 'Modo mora', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
+    { id: 'schedule', kind: 'formula', label: 'Cronograma', outputVar: 'schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)' },
+    { id: 'summary', kind: 'formula', label: 'Resumen', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
+    { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
   ],
   edges: [
-    { id: 'edge-1', source: 'amount', target: 'result' },
-    { id: 'edge-2', source: 'interest', target: 'result' },
+    { id: 'edge-1', source: 'amount', target: 'schedule' },
+    { id: 'edge-2', source: 'interestRate', target: 'schedule' },
+    { id: 'edge-3', source: 'termMonths', target: 'schedule' },
+    { id: 'edge-4', source: 'lateFeeMode', target: 'schedule' },
+    { id: 'edge-5', source: 'schedule', target: 'summary' },
+    { id: 'edge-6', source: 'lateFeeMode', target: 'result' },
+    { id: 'edge-7', source: 'schedule', target: 'result' },
+    { id: 'edge-8', source: 'summary', target: 'result' },
   ],
 });
 
@@ -42,6 +52,45 @@ test('validateDagWorkbenchGraph rejects duplicate nodes and circular edges', () 
   assert.match(duplicateResult.errors[0].message, /duplicate/i);
   assert.equal(circularResult.valid, false);
   assert.match(circularResult.errors.at(-1).message, /circular/i);
+});
+
+test('validateDagWorkbenchGraph rejects graphs that do not satisfy the credit-simulation contract', () => {
+  const result = validateDagWorkbenchGraph({
+    nodes: [
+      { id: 'result', kind: 'output', outputVar: 'result', formula: '1 + 1' },
+    ],
+    edges: [],
+  }, { scopeKey: 'credit-simulation' });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /latefeemode|schedule|summary/i.test(error.message)));
+});
+
+test('validateDagWorkbenchGraph rejects malformed formulas before runtime execution', () => {
+  const result = validateDagWorkbenchGraph({
+    nodes: [
+      { id: 'amount', kind: 'constant', outputVar: 'amount' },
+      { id: 'interestRate', kind: 'constant', outputVar: 'interestRate' },
+      { id: 'termMonths', kind: 'constant', outputVar: 'termMonths' },
+      { id: 'lateFeeMode', kind: 'conditional', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
+      { id: 'schedule', kind: 'formula', outputVar: 'schedule', formula: '1 +' },
+      { id: 'summary', kind: 'formula', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
+      { id: 'result', kind: 'output', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+    ],
+    edges: [
+      { source: 'amount', target: 'schedule' },
+      { source: 'interestRate', target: 'schedule' },
+      { source: 'termMonths', target: 'schedule' },
+      { source: 'lateFeeMode', target: 'schedule' },
+      { source: 'schedule', target: 'summary' },
+      { source: 'lateFeeMode', target: 'result' },
+      { source: 'schedule', target: 'result' },
+      { source: 'summary', target: 'result' },
+    ],
+  }, { scopeKey: 'credit-simulation' });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /unexpected end of expression/i.test(error.message)));
 });
 
 test('createDagWorkbenchService saves, loads, simulates, and summarizes scoped graphs', async () => {
@@ -80,17 +129,18 @@ test('createDagWorkbenchService saves, loads, simulates, and summarizes scoped g
         return savedSummaries.get(scopeKey) || null;
       },
     },
-    creditDomainService: {
-      simulateDetailed(input) {
+    graphExecutor: {
+      executeDraft({ graph, contractVars }) {
         return {
-          selectedSource: 'legacy',
-          fallbackReason: null,
-          parity: { passed: true, mismatches: [] },
+          ok: true,
+          source: 'draft',
+          graphVersionId: null,
           result: {
             lateFeeMode: 'NONE',
             schedule: [{ installmentNumber: 1, scheduledPayment: 125 }],
-            summary: { totalPayable: Number(input.amount || 0) + Number(input.interestRate || 0) },
+            summary: { totalPayable: Number(contractVars.amount || 0) + Number(contractVars.interestRate || 0) },
           },
+          executionMetrics: { executionTimeMs: 1 },
         };
       },
     },
@@ -112,9 +162,44 @@ test('createDagWorkbenchService saves, loads, simulates, and summarizes scoped g
   assert.equal(saveResult.validation.valid, true);
   assert.equal(loadResult.graphVersion.name, 'Personal Loan');
   assert.equal(simulationResult.simulation.summary.totalPayable, 1012);
-  assert.equal(simulationResult.summary.latestSimulation.selectedSource, 'legacy');
+  assert.equal(simulationResult.summary.latestSimulation.selectedSource, 'draft');
   assert.equal(summaryResult.latestGraph.version, 1);
-  assert.equal(summaryResult.latestSimulation.selectedSource, 'legacy');
+  assert.equal(summaryResult.latestSimulation.selectedSource, 'draft');
+});
+
+test('createDagWorkbenchService lists scopes only when the workbench is enabled for admins', async () => {
+  const service = createDagWorkbenchService({
+    dagConfig: {
+      mode: 'shadow',
+      workbenchEnabled: true,
+      isScopeEnabled(scopeKey) {
+        return scopeKey === 'credit-simulation';
+      },
+    },
+    dagGraphRepository: {
+      async getLatest() {
+        return null;
+      },
+      async saveVersion() {
+        throw new Error('saveVersion should not be called');
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        return null;
+      },
+    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
+  });
+
+  const result = await service.listScopes({ actor: { id: 1, role: 'admin' } });
+
+  assert.ok(Array.isArray(result.scopes));
+  assert.equal(result.scopes.length, 1);
+  assert.equal(result.scopes[0].key, 'credit-simulation');
 });
 
 test('createDagWorkbenchService saves subsequent formula versions as inactive until explicitly activated', async () => {
@@ -157,11 +242,7 @@ test('createDagWorkbenchService saves subsequent formula versions as inactive un
         return null;
       },
     },
-    creditDomainService: {
-      simulateDetailed() {
-        throw new Error('simulateDetailed should not be called');
-      },
-    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
   });
 
   const result = await service.saveGraph({
@@ -204,11 +285,7 @@ test('createDagWorkbenchService activates a formula version without leaving prev
         return null;
       },
     },
-    creditDomainService: {
-      simulateDetailed() {
-        throw new Error('simulateDetailed should not be called');
-      },
-    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
   });
 
   const result = await service.activateGraph({ actor: { id: 1, role: 'admin' }, graphId: 2 });
@@ -245,11 +322,7 @@ test('createDagWorkbenchService rejects deactivating the only active version in 
         return null;
       },
     },
-    creditDomainService: {
-      simulateDetailed() {
-        throw new Error('simulateDetailed should not be called');
-      },
-    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
   });
 
   await assert.rejects(
@@ -294,17 +367,18 @@ test('createDagWorkbenchService persists fallback and parity metadata for workbe
         return null;
       },
     },
-    creditDomainService: {
-      simulateDetailed() {
+    graphExecutor: {
+      executeDraft() {
         return {
-          selectedSource: 'legacy',
-          fallbackReason: 'parity_mismatch',
-          parity: { passed: false, mismatches: [{ field: 'summary.totalPayable' }] },
+          ok: true,
+          source: 'draft',
+          graphVersionId: null,
           result: {
             lateFeeMode: 'NONE',
             schedule: [{ installmentNumber: 1, scheduledPayment: 125 }],
             summary: { totalPayable: 1300 },
           },
+          executionMetrics: { executionTimeMs: 1 },
         };
       },
     },
@@ -318,11 +392,11 @@ test('createDagWorkbenchService persists fallback and parity metadata for workbe
   });
 
   assert.equal(savedSummaries.length, 1);
-  assert.equal(savedSummaries[0].selectedSource, 'legacy');
-  assert.equal(savedSummaries[0].fallbackReason, 'dag_execution_failed');
-  assert.equal(savedSummaries[0].parity.passed, false);
-  assert.equal(simulationResult.summary.latestSimulation.fallbackReason, 'dag_execution_failed');
-  assert.equal(simulationResult.summary.latestSimulation.parity.passed, false);
+  assert.equal(savedSummaries[0].selectedSource, 'draft');
+  assert.equal(savedSummaries[0].fallbackReason, null);
+  assert.equal(savedSummaries[0].parity.passed, true);
+  assert.equal(simulationResult.summary.latestSimulation.fallbackReason, null);
+  assert.equal(simulationResult.summary.latestSimulation.parity.passed, true);
 });
 
 test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {
@@ -350,17 +424,44 @@ test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {
         return null;
       },
     },
-    creditDomainService: {
-      async simulate() {
-        throw new Error('simulate should not be called');
-      },
-    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
   });
 
   await assert.rejects(
     () => service.getSummary({ actor: { id: 2, role: 'admin' }, scopeKey: 'credit-simulation' }),
     (error) => {
       assert.match(error.message, /not enabled for scope 'credit-simulation'/i);
+      return true;
+    },
+  );
+});
+
+test('createDagWorkbenchService rejects listing scopes when the workbench is disabled', async () => {
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: false },
+    dagGraphRepository: {
+      async getLatest() {
+        throw new Error('getLatest should not be called');
+      },
+      async saveVersion() {
+        throw new Error('saveVersion should not be called');
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        throw new Error('getLatest should not be called');
+      },
+    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
+  });
+
+  await assert.rejects(
+    () => service.listScopes({ actor: { id: 2, role: 'admin' } }),
+    (error) => {
+      assert.match(error.message, /workbench is not enabled/i);
       return true;
     },
   );
@@ -385,11 +486,7 @@ test('assertWorkbenchAccess rejects non-admin roles with correct error message',
         throw new Error('getLatest should not be called');
       },
     },
-    creditDomainService: {
-      async simulate() {
-        throw new Error('simulate should not be called');
-      },
-    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
   });
 
   // Test that customer role is rejected

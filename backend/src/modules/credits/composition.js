@@ -1,4 +1,4 @@
-const { createLoanAccessPolicy } = require('../shared/loanAccessPolicy');
+const { createLoanAccessPolicy } = require('@/modules/shared/loanAccessPolicy');
 const { createPaymentApplicationService } = require('./application/paymentApplicationService');
 const { createLoanViewService } = require('./application/loanFinancials');
 const { createRecoveryStatusGuard } = require('./application/recoveryStatusGuard');
@@ -39,7 +39,7 @@ const createCreditsComposition = ({
     dagConfig,
     dagGraphRepository: infrastructure.dagGraphRepository,
     dagSimulationSummaryRepository: infrastructure.dagSimulationSummaryRepository,
-    creditDomainService: infrastructure.creditDomainService,
+    graphExecutor: infrastructure.graphExecutor,
   }),
   outboxEventRepository = createOutboxEventRepository(),
   paymentRouter = createPaymentRouter({ paymentApplicationService }),

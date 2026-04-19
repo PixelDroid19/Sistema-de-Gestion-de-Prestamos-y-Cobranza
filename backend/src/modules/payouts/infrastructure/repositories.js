@@ -1,6 +1,6 @@
 const { Op, Sequelize } = require('sequelize');
-const { Payment, Loan, Customer, DocumentAttachment, User } = require('../../../models');
-const { paginateModel } = require('../../shared/pagination');
+const { Payment, Loan, Customer, DocumentAttachment, User } = require('@/models');
+const { paginateModel } = require('@/modules/shared/pagination');
 
 const paymentListInclude = [{
   model: Loan,

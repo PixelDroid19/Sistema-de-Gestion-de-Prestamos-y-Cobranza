@@ -1,7 +1,7 @@
 const XLSX = require('xlsx');
-const { AuthorizationError, NotFoundError } = require('../../../utils/errorHandler');
-const { normalizeDistributionRecord } = require('../../associates/application/useCases');
-const { buildPaginationMeta, paginateArray } = require('../../shared/pagination');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
+const { normalizeDistributionRecord } = require('@/modules/associates/application/useCases');
+const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
 const {
   ensureAdmin,
   formatMoney,

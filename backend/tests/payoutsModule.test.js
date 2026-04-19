@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError } = require('../src/utils/errorHandler');
+const { AuthorizationError } = require('@/utils/errorHandler');
 
 const {
   createListPayments,
@@ -14,8 +14,8 @@ const {
   createListPaymentDocuments,
   createUploadPaymentDocument,
   createDownloadPaymentDocument,
-} = require('../src/modules/payouts/application/useCases');
-const { createPayoutsModule } = require('../src/modules/payouts');
+} = require('@/modules/payouts/application/useCases');
+const { createPayoutsModule } = require('@/modules/payouts');
 
 test('createCreatePayment delegates actor-aware canonical payment application', async () => {
   let serviceInput;

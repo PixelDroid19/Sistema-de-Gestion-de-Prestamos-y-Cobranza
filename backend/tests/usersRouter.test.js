@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createUsersRouter } = require('../src/modules/users/presentation/router');
+const { createUsersRouter } = require('@/modules/users/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;

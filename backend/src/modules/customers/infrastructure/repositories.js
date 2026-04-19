@@ -1,6 +1,6 @@
-const Customer = require('../../../models/Customer');
-const { sequelize, DocumentAttachment, Loan, User } = require('../../../models');
-const { paginateModel } = require('../../shared/pagination');
+const Customer = require('@/models/Customer');
+const { sequelize, DocumentAttachment, Loan, User } = require('@/models');
+const { paginateModel } = require('@/modules/shared/pagination');
 
 const ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
 

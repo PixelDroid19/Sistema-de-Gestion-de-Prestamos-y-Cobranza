@@ -294,6 +294,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               {simulation?.schedule && (
                 <div className="mt-6 pt-4 border-t border-border-subtle">
                   <p className="text-sm text-text-secondary text-center">Simulación completada con éxito.</p>
+                  {simulation.graphVersionId != null && (
+                    <p className="text-xs text-text-secondary text-center mt-1">
+                      Fórmula v{simulation.graphVersionId}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

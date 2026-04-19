@@ -38,6 +38,16 @@ const compareSimulationResults = ({ legacyResult, dagResult, tolerance = 0.01 } 
 
   legacySchedule.forEach((legacyRow, index) => {
     const dagRow = dagSchedule[index] || {};
+
+    if (legacyRow?.dueDate !== dagRow?.dueDate) {
+      mismatches.push({
+        scope: `schedule[${index + 1}]`,
+        field: 'dueDate',
+        expected: legacyRow?.dueDate,
+        actual: dagRow?.dueDate,
+      });
+    }
+
     SCHEDULE_FIELDS.forEach((field) => {
       if (!compareWithinTolerance(legacyRow?.[field], dagRow?.[field], tolerance)) {
         mismatches.push(buildMismatch({

@@ -535,12 +535,15 @@ export const useDagStore = create<DagWorkbenchState>((set, get) => ({
 
   deleteGraph: async (graphId: number) => {
     try {
+      const { scopeKey, graphVersion } = get();
       await dagService.deleteGraph(graphId);
-      // Refresh the graph list
-      const { scopeKey } = get();
-      if (get().graphVersion?.id === graphId) {
-        set({ graphVersion: null });
+      const deletedCurrentGraph = graphVersion?.id === graphId;
+
+      if (deletedCurrentGraph) {
+        await get().loadGraph(scopeKey);
+        return;
       }
+
       await get().loadGraphList(scopeKey);
     } catch (err: any) {
       console.error('[dag] deleteGraph failed', err);

@@ -1,4 +1,4 @@
-const { createModule, resolveAuthContext } = require('../shared');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const { createGetAuditLogs, createGetAuditStats } = require('./application');
 const { auditService } = require('./domain/services');
 const { createAuditRouter } = require('./presentation');

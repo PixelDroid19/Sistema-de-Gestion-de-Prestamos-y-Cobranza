@@ -1,4 +1,4 @@
-const { AppError } = require('../../utils/errorHandler');
+const { AppError } = require('@/utils/errorHandler');
 
 const mapApplicationError = (error) => {
   if (error instanceof AppError) {

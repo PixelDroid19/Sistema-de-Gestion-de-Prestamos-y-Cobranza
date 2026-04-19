@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Op } = require('sequelize');
 
-const { createCreditsInfrastructure } = require('../src/modules/credits/infrastructure/repositories');
-const { createOverdueAlertScheduler } = require('../src/modules/credits/application/overdueAlertScheduler');
-const { createOverdueAlertSyncService } = require('../src/modules/credits/application/overdueAlertSyncService');
-const { createCreateLoanFollowUp } = require('../src/modules/credits/application/useCases');
+const { createCreditsInfrastructure } = require('@/modules/credits/infrastructure/repositories');
+const { createOverdueAlertScheduler } = require('@/modules/credits/application/overdueAlertScheduler');
+const { createOverdueAlertSyncService } = require('@/modules/credits/application/overdueAlertSyncService');
+const { createCreateLoanFollowUp } = require('@/modules/credits/application/useCases');
 
 const createAlertModelDouble = () => {
   const records = [];

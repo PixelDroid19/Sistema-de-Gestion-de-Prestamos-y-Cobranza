@@ -1,5 +1,5 @@
-const { AuthorizationError, NotFoundError } = require('../../../../utils/errorHandler');
-const { buildAmortizationSchedule } = require('../../../credits/application/creditFormulaHelpers');
+const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
+const { buildAmortizationSchedule } = require('@/modules/credits/application/creditFormulaHelpers');
 
 /**
  * Get the payment schedule (amortization) for a specific credit/loan.
@@ -19,7 +19,7 @@ const createGetPaymentSchedule = ({ loanAccessPolicy }) => async ({ actor, loanI
   }
 
   // Get the loan - we need to fetch it directly since we need its details
-  const { Loan, Customer, Payment } = require('../../../../models');
+  const { Loan, Customer, Payment } = require('@/models');
   const loan = await Loan.findByPk(loanId, {
     include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
   });

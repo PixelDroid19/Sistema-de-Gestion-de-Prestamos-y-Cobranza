@@ -1,4 +1,4 @@
-const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
+const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 
 const ensureSubscriptionIdentifier = ({ endpoint, deviceToken }) => {
   if (!endpoint && !deviceToken) {

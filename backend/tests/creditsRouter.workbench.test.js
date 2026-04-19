@@ -2,7 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createCreditsRouter } = require('../src/modules/credits/presentation/router');
+const { createCreditsRouter } = require('@/modules/credits/presentation/router');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -140,6 +141,7 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   const app = express();
   app.use(express.json());
   app.use(router);
+  app.use(globalErrorHandler);
   activeServer = await listen(app);
 
   const scopesResponse = await requestJson(activeServer, {
@@ -181,7 +183,8 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   assert.equal(loadResponse.statusCode, 200);
   assert.equal(loadResponse.body.data.graph.version, 1);
   assert.equal(saveResponse.statusCode, 201);
-  assert.equal(saveResponse.body.data.graph.validation.valid, true);
+  assert.equal(saveResponse.body.data.graph.version, 1);
+  assert.equal(saveResponse.body.data.validation.valid, true);
   assert.equal(validateResponse.statusCode, 200);
   assert.equal(validateResponse.body.data.validation.valid, true);
   assert.equal(simulateResponse.statusCode, 200);
@@ -232,6 +235,7 @@ test('createCreditsRouter preserves fallback metadata in DAG workbench simulatio
   const app = express();
   app.use(express.json());
   app.use(router);
+  app.use(globalErrorHandler);
   activeServer = await listen(app);
 
   const response = await requestJson(activeServer, {
@@ -245,4 +249,35 @@ test('createCreditsRouter preserves fallback metadata in DAG workbench simulatio
   assert.equal(response.body.data.summary.latestSimulation.selectedSource, 'legacy');
   assert.equal(response.body.data.summary.latestSimulation.fallbackReason, 'parity_mismatch');
   assert.equal(response.body.data.summary.latestSimulation.parity.passed, false);
+});
+
+test('createCreditsRouter returns 403 for scope catalog when the DAG workbench is disabled', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async listDagWorkbenchScopes() {
+        const error = new Error('DAG workbench is not enabled');
+        error.statusCode = 403;
+        throw error;
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/workbench/scopes',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.success, false);
+  assert.match(response.body.error.message, /workbench is not enabled/i);
 });

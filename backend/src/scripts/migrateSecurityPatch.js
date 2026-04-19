@@ -11,7 +11,7 @@
 
 require('dotenv').config();
 
-const { sequelize } = require('../models');
+const { sequelize } = require('@/models');
 
 async function migrate() {
   console.log('🔒 Starting Security Patch Migration...\n');

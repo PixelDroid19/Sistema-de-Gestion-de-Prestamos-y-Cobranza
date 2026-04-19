@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AccountLockedError } = require('../src/utils/errorHandler');
+const { AccountLockedError } = require('@/utils/errorHandler');
 
 test('AccountLockedError has correct status code 423', () => {
   const error = new AccountLockedError();
@@ -30,7 +30,7 @@ test('AccountLockedError defaults lockoutDurationMinutes to 15', () => {
 });
 
 describe('createLoginUser with progressive delays and lockout', () => {
-  const { createLoginUser } = require('../src/modules/auth/application/useCases');
+  const { createLoginUser } = require('@/modules/auth/application/useCases');
 
   test('rejects login for non-existent user with generic error', async () => {
     const loginUser = createLoginUser({
@@ -232,7 +232,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
 });
 
 describe('createUnlockUser', () => {
-  const { createUnlockUser } = require('../src/modules/users/application/useCases');
+  const { createUnlockUser } = require('@/modules/users/application/useCases');
 
   test('unlockUser resets failedLoginAttempts and lockedUntil', async () => {
     let updatedFields = null;

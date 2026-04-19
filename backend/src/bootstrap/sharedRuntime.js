@@ -1,7 +1,7 @@
-const { createModule } = require('../modules/shared/contracts');
-const { createAuthContext } = require('../modules/shared/auth');
-const { notificationService } = require('../modules/notifications/application/notificationService');
-const { createPermissionServiceForMiddleware } = require('../modules/permissions/infrastructure/permissionServiceInfrastructure');
+const { createModule } = require('@/modules/shared/contracts');
+const { createAuthContext } = require('@/modules/shared/auth');
+const { notificationService } = require('@/modules/notifications/application/notificationService');
+const { createPermissionServiceForMiddleware } = require('@/modules/permissions/infrastructure/permissionServiceInfrastructure');
 
 const createPortsRegistry = (seed = {}) => {
   const registry = new Map(Object.entries(seed));

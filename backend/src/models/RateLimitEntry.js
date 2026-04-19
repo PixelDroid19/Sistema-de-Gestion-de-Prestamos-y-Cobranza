@@ -35,11 +35,11 @@ const RateLimitEntry = sequelize.define('RateLimitEntry', {
   indexes: [
     // Composite index for efficient window queries
     {
-      fields: ['key_prefix', 'identifier', 'created_at'],
+      fields: ['keyPrefix', 'identifier', 'created_at'],
     },
     // Index for cleanup operations
     {
-      fields: ['key_prefix', 'created_at'],
+      fields: ['keyPrefix', 'created_at'],
     },
   ],
 });

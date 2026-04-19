@@ -39,9 +39,10 @@ const normalizeRolloutMode = (value) => {
 
 const createCreditsDagConfig = ({ env = process.env, mode, parityTolerance, workbenchEnabled, workbenchScopes } = {}) => {
   const normalizedScopes = normalizeScopeList(workbenchScopes ?? env.CREDITS_DAG_WORKBENCH_SCOPES);
+  const resolvedMode = mode ?? env.CREDITS_DAG_MODE ?? env.DAG_ROLLOUT_MODE;
 
   return {
-    mode: normalizeRolloutMode(mode ?? env.CREDITS_DAG_MODE),
+    mode: normalizeRolloutMode(resolvedMode),
     parityTolerance: normalizeTolerance(parityTolerance ?? env.CREDITS_DAG_TOLERANCE, 0.01),
     workbenchEnabled: normalizeBoolean(workbenchEnabled ?? env.CREDITS_DAG_WORKBENCH_ENABLED, false),
     workbenchScopes: normalizedScopes,

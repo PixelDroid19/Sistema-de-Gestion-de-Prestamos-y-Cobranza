@@ -8,8 +8,8 @@ const {
   createDeactivateUser,
   createReactivateUser,
   createUnlockUser,
-} = require('../src/modules/users/application/useCases');
-const { ConflictError, NotFoundError } = require('../src/utils/errorHandler');
+} = require('@/modules/users/application/useCases');
+const { ConflictError, NotFoundError } = require('@/utils/errorHandler');
 
 test('createListUsers sanitizes administrative user listings', async () => {
   const listUsers = createListUsers({

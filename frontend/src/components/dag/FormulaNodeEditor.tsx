@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DagNodeContent from './DagNodeContent';
 import { tTerm } from '../../i18n/terminology';
+import { FORMULA_HELPERS } from '../../types/dag';
 
 type FormulaNodeEditorProps = {
   nodeId: string;
   label?: string;
   description?: string;
   formula?: string;
+  /** outputVar names from all upstream (ancestor) nodes — used for variable chips */
+  upstreamVars?: string[];
   onCommit: (id: string, data: { description: string; formula: string }) => void;
 };
 
@@ -54,6 +57,7 @@ const ALLOWED_FORMULA_FUNCTIONS = new Set([
   'buildAmortizationSchedule',
   'summarizeSchedule',
   'roundCurrency',
+  'buildSimulationResult',
 ]);
 
 const ALLOWED_FUNCTION_LIST = [...ALLOWED_FORMULA_FUNCTIONS].sort();
@@ -141,6 +145,7 @@ export const FormulaNodeEditor: React.FC<FormulaNodeEditorProps> = ({
   label,
   description,
   formula,
+  upstreamVars = [],
   onCommit,
 }) => {
   const businessDescriptionId = `formula-business-${nodeId}`;
@@ -148,6 +153,7 @@ export const FormulaNodeEditor: React.FC<FormulaNodeEditorProps> = ({
   const [businessDraft, setBusinessDraft] = useState(description || '');
   const [formulaDraft, setFormulaDraft] = useState(formula || '');
   const [showAdvancedDetails, setShowAdvancedDetails] = useState(false);
+  const formulaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setBusinessDraft(description || '');
@@ -158,6 +164,27 @@ export const FormulaNodeEditor: React.FC<FormulaNodeEditorProps> = ({
   const validation = useMemo(() => validateFormulaDraft(formulaDraft), [formulaDraft]);
 
   const hasChanges = businessDraft !== (description || '') || formulaDraft !== (formula || '');
+
+  /** Insert text at the cursor position in the formula textarea */
+  const insertAtCursor = (text: string) => {
+    const textarea = formulaRef.current;
+    if (!textarea) {
+      setFormulaDraft((prev) => prev + text);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = formulaDraft.slice(0, start);
+    const after = formulaDraft.slice(end);
+    const next = before + text + after;
+    setFormulaDraft(next);
+    // Restore cursor after the inserted text
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.selectionStart = start + text.length;
+      textarea.selectionEnd = start + text.length;
+    });
+  };
 
   const handleCommit = () => {
     if (!validation.valid) return;
@@ -185,12 +212,50 @@ export const FormulaNodeEditor: React.FC<FormulaNodeEditorProps> = ({
         />
       </div>
 
+      {/* ── Helper chips ──────────────────────────────────────────── */}
+      <div>
+        <p className="text-[10px] text-text-secondary mb-1">Helpers disponibles</p>
+        <div className="flex flex-wrap gap-1">
+          {FORMULA_HELPERS.map((helper) => (
+            <button
+              key={helper.name}
+              type="button"
+              title={helper.description}
+              onClick={() => insertAtCursor(`${helper.name}()`)}
+              className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors"
+            >
+              {helper.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Upstream variable chips ───────────────────────────────── */}
+      {upstreamVars.length > 0 && (
+        <div>
+          <p className="text-[10px] text-text-secondary mb-1">Variables disponibles</p>
+          <div className="flex flex-wrap gap-1">
+            {upstreamVars.map((varName) => (
+              <button
+                key={varName}
+                type="button"
+                onClick={() => insertAtCursor(varName)}
+                className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800/40 transition-colors"
+              >
+                {varName}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <label htmlFor={technicalFormulaId} className="block text-[10px] text-text-secondary mb-1">
           {tTerm('dag.nodeEdit.formula.technicalLabel')}
         </label>
         <p className="text-[9px] text-text-secondary mb-1.5">{tTerm('dag.nodeEdit.formula.quickHelp')}</p>
         <textarea
+          ref={formulaRef}
           id={technicalFormulaId}
           value={formulaDraft}
           onChange={(event) => setFormulaDraft(event.target.value)}

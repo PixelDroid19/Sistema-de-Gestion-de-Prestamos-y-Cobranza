@@ -1,4 +1,4 @@
-const { AuditLog } = require('../../../models');
+const { AuditLog } = require('@/models');
 
 const serializeAuditLog = (auditLog) => {
   if (!auditLog) return null;
@@ -43,7 +43,7 @@ const auditLogRepository = {
   },
 
   async findWithFilters({ userId, action, module, entityId, entityType, dateFrom, dateTo, limit = 100, offset = 0 }) {
-    const { Op } = require('../../../models').sequelize.Sequelize;
+    const { Op } = require('@/models').sequelize.Sequelize;
     const where = {};
 
     if (userId) {
@@ -92,7 +92,7 @@ const auditLogRepository = {
   },
 
   async getStatsByModule({ dateFrom, dateTo }) {
-    const { Op } = require('../../../models').sequelize.Sequelize;
+    const { Op } = require('@/models').sequelize.Sequelize;
     const where = {};
 
     if (dateFrom || dateTo) {

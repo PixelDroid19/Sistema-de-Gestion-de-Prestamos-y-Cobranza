@@ -1,1 +1,1 @@
-module.exports = require('../modules/credits/application/creditSimulationService');
+module.exports = require('@/modules/credits/application/creditSimulationService');

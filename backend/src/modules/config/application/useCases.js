@@ -1,12 +1,12 @@
-const { ConflictError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
+const { ConflictError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   PAYMENT_METHOD_CATEGORY,
   BUSINESS_SETTING_CATEGORY,
   TNA_RATE_CATEGORY,
   LATE_FEE_POLICY_CATEGORY,
   INTEREST_NODE_CATEGORY,
-} = require('../infrastructure/repositories');
-const { ROLES } = require('../../shared/roles');
+} = require('@/modules/config/infrastructure/repositories');
+const { ROLES } = require('@/modules/shared/roles');
 
 const ADMIN_CATALOGS = {
   roles: ['admin', 'customer', 'socio'],

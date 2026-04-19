@@ -3,7 +3,7 @@ const {
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
-} = require('../reportHelpers');
+} = require('@/modules/reports/application/reportHelpers');
 
 /**
  * Get all payouts (payments) across all credits with optional filtering.

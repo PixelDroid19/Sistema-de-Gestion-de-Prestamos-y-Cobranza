@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const { createOutboxEventRepository } = require('../infrastructure/outboxEventRepository');
+const { createOutboxEventRepository } = require('@/modules/credits/infrastructure/outboxEventRepository');
 
 const createEventPublisher = ({ outboxEventRepository = createOutboxEventRepository() } = {}) => {
   const publishAmortizationCalculatedEvent = async ({

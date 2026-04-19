@@ -1,7 +1,7 @@
-const { ValidationError } = require('../utils/errorHandler');
-const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('../modules/credits/application/creditSimulationService');
-const { parsePaginationQuery } = require('../modules/shared/pagination');
-const { APPLICATION_ROLES, normalizeApplicationRole } = require('../modules/shared/roles');
+const { ValidationError } = require('@/utils/errorHandler');
+const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/application/creditSimulationService');
+const { parsePaginationQuery } = require('@/modules/shared/pagination');
+const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);

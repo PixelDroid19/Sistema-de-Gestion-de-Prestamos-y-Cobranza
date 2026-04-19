@@ -16,6 +16,7 @@ import { useOperationalActions } from './hooks/useOperationalActions';
 import { invalidateAfterDelete, invalidateAfterReport } from '../services/operationalInvalidation';
 import { tTerm } from '../i18n/terminology';
 import { queryKeys } from '../services/queryKeys';
+import { dagService } from '../services/dagService';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
@@ -98,6 +99,18 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   });
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
+  const {
+    data: workbenchScopesData,
+    isLoading: isLoadingWorkbenchAvailability,
+    isError: isWorkbenchAvailabilityError,
+  } = useQuery({
+    queryKey: queryKeys.loans.workbenchScopes,
+    queryFn: () => dagService.listScopes(),
+    enabled: isAdmin,
+    retry: false,
+  });
+  const isWorkbenchAvailable = isAdmin && (workbenchScopesData?.data?.scopes?.length || 0) > 0;
+  const hasResolvedWorkbenchAvailability = !isAdmin || (!isLoadingWorkbenchAvailability && (isWorkbenchAvailable || isWorkbenchAvailabilityError));
 
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
@@ -107,13 +120,25 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const { executeGuardedAction } = useOperationalActions(queryClient);
 
   useEffect(() => {
-    if (!isAdmin && activeTab === 'workbench') {
+    if (hasResolvedWorkbenchAvailability && !isWorkbenchAvailable && activeTab === 'workbench') {
       setActiveTab('list');
     }
-  }, [activeTab, isAdmin]);
+  }, [activeTab, hasResolvedWorkbenchAvailability, isWorkbenchAvailable]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasResolvedWorkbenchAvailability) {
+      return;
+    }
+
+    const nextTab = window.location.hash === '#workbench' && isWorkbenchAvailable
+      ? 'workbench'
+      : 'list';
+
+    setActiveTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
+  }, [hasResolvedWorkbenchAvailability, isWorkbenchAvailable]);
 
   const updateActiveTab = (nextTab: string) => {
-    if (nextTab === 'workbench' && !isAdmin) {
+    if (nextTab === 'workbench' && !isWorkbenchAvailable) {
       setActiveTab('list');
       return;
     }
@@ -573,7 +598,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         >
           Simulación
         </button>
-        {isAdmin && (
+        {isWorkbenchAvailable && (
           <button 
             onClick={() => updateActiveTab('workbench')}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
@@ -1433,7 +1458,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         </div>
       )}
 
-      {activeTab === 'workbench' && (
+      {activeTab === 'workbench' && isWorkbenchAvailable && (
         <div className="bg-bg-surface rounded-2xl flex-1 flex flex-col min-h-[800px] overflow-hidden -mx-4 sm:mx-0 shadow-lg border border-border-subtle">
           <DAGWorkbench />
         </div>

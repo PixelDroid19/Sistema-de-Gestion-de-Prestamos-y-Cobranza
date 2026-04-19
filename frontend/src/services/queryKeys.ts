@@ -62,6 +62,7 @@ export const queryKeys = {
     all: ['loans'] as const,
     listRoot: ['loans.list'] as const,
     list: (params?: LoanListParams) => ['loans.list', params ?? {}] as const,
+    workbenchScopes: ['loans.workbench.scopes'] as const,
     detail: (loanId: number) => ['loans.detail', loanId] as const,
     calendar: (loanId: number) => ['loans.calendar', loanId] as const,
     alerts: (loanId: number) => ['loans.alerts', loanId] as const,

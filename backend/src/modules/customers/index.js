@@ -1,5 +1,5 @@
-const { customerValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
+const { customerValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListCustomers,
   createCreateCustomer,
@@ -14,8 +14,8 @@ const {
 } = require('./application/useCases');
 const { customerRepository } = require('./infrastructure/repositories');
 const { createCustomersRouter } = require('./presentation/router');
-const { createAttachmentUpload } = require('../credits/presentation/attachmentUpload');
-const { createLocalAttachmentStorage } = require('../credits/infrastructure/attachmentStorage');
+const { createAttachmentUpload } = require('@/modules/credits/presentation/attachmentUpload');
+const { createLocalAttachmentStorage } = require('@/modules/credits/infrastructure/attachmentStorage');
 
 /**
  * Compose the customers module entrypoint and its router dependencies.

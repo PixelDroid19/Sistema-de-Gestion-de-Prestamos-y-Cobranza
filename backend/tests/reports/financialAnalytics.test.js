@@ -6,7 +6,7 @@ const {
   calculateMovingAverage,
   calculateForecast,
   calculateChangePercent,
-} = require('../../src/modules/reports/application/useCases/statistics');
+} = require('@/modules/reports/application/useCases/statistics');
 
 test('calculateTrend returns "stable" for empty or single value arrays', () => {
   assert.equal(calculateTrend([]), 'stable');

@@ -8,9 +8,9 @@ const {
   createUpsertSetting,
   createListAdminCatalogs,
   createListRoles,
-} = require('../src/modules/config/application/useCases');
-const { createConfigModule } = require('../src/modules/config');
-const { ConflictError, NotFoundError } = require('../src/utils/errorHandler');
+} = require('@/modules/config/application/useCases');
+const { createConfigModule } = require('@/modules/config');
+const { ConflictError, NotFoundError } = require('@/utils/errorHandler');
 
 test('createCreatePaymentMethod normalizes keys and persists payment-method metadata', async () => {
   let createdPayload;

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ValidationError, BusinessRuleViolationError, formatErrorResponse } = require('../src/utils/errorHandler');
+const { ValidationError, BusinessRuleViolationError, formatErrorResponse } = require('@/utils/errorHandler');
 
 test('formatErrorResponse preserves validation field names from middleware output', () => {
   const error = new ValidationError('Please correct the following errors');

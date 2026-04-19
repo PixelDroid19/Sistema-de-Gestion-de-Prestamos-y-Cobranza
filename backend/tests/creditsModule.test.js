@@ -24,11 +24,11 @@ const {
   createCreateLoanFollowUp,
   createUpdateLoanAlertStatus,
   createUpdatePromiseToPayStatus,
-} = require('../src/modules/credits/application/useCases');
-const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
-const { createLocalAttachmentStorage } = require('../src/modules/credits/infrastructure/attachmentStorage');
-const { AuthorizationError, NotFoundError, ValidationError } = require('../src/utils/errorHandler');
-const { createCreditsModule } = require('../src/modules/credits');
+} = require('@/modules/credits/application/useCases');
+const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
+const { createLocalAttachmentStorage } = require('@/modules/credits/infrastructure/attachmentStorage');
+const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+const { createCreditsModule } = require('@/modules/credits');
 
 test('createListLoans scopes repository results through the shared access policy', async () => {
   let filterCall;

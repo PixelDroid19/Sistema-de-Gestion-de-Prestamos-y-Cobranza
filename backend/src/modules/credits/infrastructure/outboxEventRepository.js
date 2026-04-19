@@ -1,4 +1,4 @@
-const { OutboxEvent } = require('../../../models');
+const { OutboxEvent } = require('@/models');
 
 const createOutboxEventRepository = ({ outboxEventModel = OutboxEvent } = {}) => ({
   async create(event) {

@@ -1,5 +1,5 @@
-const { associateValidation } = require('../../middleware/validation');
-const { createModule, resolveAuthContext } = require('../shared');
+const { associateValidation } = require('@/middleware/validation');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListAssociates,
   createCreateAssociate,

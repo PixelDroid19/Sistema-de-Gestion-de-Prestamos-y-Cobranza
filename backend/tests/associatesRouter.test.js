@@ -2,8 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { NotFoundError, ValidationError, AuthorizationError, globalErrorHandler } = require('../src/utils/errorHandler');
-const { createAssociatesRouter } = require('../src/modules/associates/presentation/router');
+const { NotFoundError, ValidationError, AuthorizationError, globalErrorHandler } = require('@/utils/errorHandler');
+const { createAssociatesRouter } = require('@/modules/associates/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -20,7 +20,7 @@ const roleAwareAuth = (roles = []) => (req, res, next) => {
     return;
   }
 
-  req.user = { id: 1, role };
+  req.user = { id: 1, role, name: 'Admin Test' };
   next();
 };
 
@@ -53,20 +53,20 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
           pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
         };
       },
-      async createAssociate(payload) {
-        calls.push(['createAssociate', payload]);
-        return { id: 5, ...payload };
+      async createAssociate(input) {
+        calls.push(['createAssociate', input]);
+        return { id: 5, ...input.payload };
       },
       async getAssociateById(id) {
         calls.push(['getAssociateById', id]);
         return { id: Number(id), name: 'Ana Associate' };
       },
-      async updateAssociate(id, payload) {
-        calls.push(['updateAssociate', id, payload]);
-        return { id: Number(id), ...payload };
+      async updateAssociate(input) {
+        calls.push(['updateAssociate', input]);
+        return { id: Number(input.associateId), ...input.payload };
       },
-      async deleteAssociate(id) {
-        calls.push(['deleteAssociate', id]);
+      async deleteAssociate(input) {
+        calls.push(['deleteAssociate', input]);
       },
       async createProportionalProfitDistribution({ payload }) {
         calls.push(['createProportionalProfitDistribution', payload]);
@@ -171,6 +171,9 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     },
   });
   assert.deepEqual(calls[0], ['listAssociates', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }]);
+  assert.deepEqual(calls[1], ['createAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload }]);
+  assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5', payload: { status: 'inactive' } }]);
+  assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5' }]);
 });
 
 test('createAssociatesRouter replays proportional distributions safely for repeated idempotency keys', async () => {
@@ -391,7 +394,7 @@ test('createAssociatesRouter POST /:id/installments/:installmentNumber/pay marks
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.success, true);
   assert.equal(response.body.data.installment.installment.status, 'paid');
-  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin' }, '12', '2', { paymentDate: '2026-02-15' }]);
+  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin', name: 'Admin Test' }, '12', '2', { paymentDate: '2026-02-15' }]);
 });
 
 test('createAssociatesRouter GET /:id/calendar-events returns calendar data', async () => {

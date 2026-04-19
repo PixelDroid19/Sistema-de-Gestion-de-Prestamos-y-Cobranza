@@ -1,4 +1,4 @@
-const { UserPermission, Permission } = require('../../../models');
+const { UserPermission, Permission } = require('@/models');
 
 const serializeUserPermission = (up) => {
   if (!up) return null;

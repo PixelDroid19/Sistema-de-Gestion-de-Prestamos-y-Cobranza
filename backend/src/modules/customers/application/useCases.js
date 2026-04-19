@@ -1,5 +1,5 @@
-const { AuthorizationError, NotFoundError, ValidationError } = require('../../../utils/errorHandler');
-const { withAudit } = require('../../audit/application/auditDecorator');
+const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -8,7 +8,7 @@ const {
   buildStoredFileFields,
   ensureDocumentExists,
   resolveDocumentDownload,
-} = require('../../shared/documentOperations');
+} = require('@/modules/shared/documentOperations');
 
 const enrichCustomersWithLoanSummaries = async ({ customerRepository, result }) => {
   if (typeof customerRepository.attachLoanSummaries !== 'function') {
@@ -63,7 +63,7 @@ const createListCustomers = ({ customerRepository }) => async ({ pagination } = 
  * @returns {Function}
  */
 const createCreateCustomer = ({ customerRepository, auditService }) => {
-  const useCase = async (payload) => {
+  const useCase = async ({ payload }) => {
     try {
       return await customerRepository.create(payload);
     } catch (error) {
@@ -259,18 +259,6 @@ const createRestoreCustomer = ({ customerRepository, auditService }) => {
 
     // Reload the customer to get the updated state
     const restoredCustomer = await customerRepository.findById(customer.id);
-
-    // Audit logging
-    if (auditService) {
-      await auditService.log({
-        actor,
-        action: 'RESTORE',
-        module: 'customers',
-        entityId: String(customer.id),
-        entityType: 'Customer',
-        metadata: { restoredBy: actor.id },
-      });
-    }
 
     return restoredCustomer;
   };

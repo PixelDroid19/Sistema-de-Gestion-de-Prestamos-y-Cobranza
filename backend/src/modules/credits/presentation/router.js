@@ -1,8 +1,8 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
+const { asyncHandler } = require('@/utils/errorHandler');
 const { createPaymentRouter } = require('./paymentRouter');
-const { attachPagination } = require('../../../middleware/validation');
-const { sendBufferDownload, sendPathDownload } = require('../../shared/http');
+const { attachPagination } = require('@/middleware/validation');
+const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
@@ -33,6 +33,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
           lateFeeMode: simulation.lateFeeMode,
           summary: simulation.summary,
           schedule: simulation.schedule,
+          graphVersionId: simulation.graphVersionId ?? null,
         },
       },
     });
@@ -55,7 +56,14 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       name: req.body.name,
       graph: req.body.graph,
     });
-    res.status(201).json({ success: true, message: 'DAG graph saved successfully', data: { graph: result } });
+    res.status(201).json({
+      success: true,
+      message: 'DAG graph saved successfully',
+      data: {
+        graph: result.graphVersion,
+        validation: result.validation,
+      },
+    });
   }));
 
   router.post('/workbench/graph/validate', authMiddleware(['admin']), asyncHandler(async (req, res) => {

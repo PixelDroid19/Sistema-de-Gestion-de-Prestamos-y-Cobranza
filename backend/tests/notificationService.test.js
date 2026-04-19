@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { SequelizeNotificationService } = require('../src/modules/notifications/application/notificationService');
+const { SequelizeNotificationService } = require('@/modules/notifications/application/notificationService');
 
 test('SequelizeNotificationService reuses unread notifications with the same dedupe key', async () => {
   const created = [];

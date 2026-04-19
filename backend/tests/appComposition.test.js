@@ -2,7 +2,8 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const createApp = require('../src/app');
+const createApp = require('@/app');
+const { getCurrentRequest } = require('@/modules/shared/requestContext');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -170,4 +171,48 @@ test('createApp builds the registry from the shared runtime when no registry is 
     surface: 'credits',
   });
   assert.equal(sharedRuntime.id, 'runtime-3');
+});
+
+test('createApp preserves request context for async route handlers', async () => {
+  const contextRouter = express.Router();
+  contextRouter.get('/current', async (req, res) => {
+    await Promise.resolve();
+    const currentRequest = getCurrentRequest();
+
+    res.json({
+      success: true,
+      sameRequest: currentRequest === req,
+      forwardedFor: currentRequest?.headers?.['x-forwarded-for'] || null,
+      userAgent: currentRequest?.headers?.['user-agent'] || null,
+    });
+  });
+
+  const app = createApp({
+    sharedRuntime: { id: 'runtime-4' },
+    moduleRegistry: [
+      {
+        name: 'context',
+        basePath: '/api/context',
+        router: contextRouter,
+      },
+    ],
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/api/context/current',
+    headers: {
+      'x-forwarded-for': '198.51.100.24',
+      'user-agent': 'context-test',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    sameRequest: true,
+    forwardedFor: '198.51.100.24',
+    userAgent: 'context-test',
+  });
 });

@@ -1,6 +1,6 @@
 const crypto = require('crypto');
-const { sequelize, Loan, Payment, IdempotencyKey } = require('../../../models');
-const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError } = require('../../../utils/errorHandler');
+const { sequelize, Loan, Payment, IdempotencyKey } = require('@/models');
+const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError } = require('@/utils/errorHandler');
 const { cloneSchedule, roundCurrency, summarizeSchedule, calculateLateFee } = require('./creditFormulaHelpers');
 const {
   PAYABLE_LOAN_STATUSES,

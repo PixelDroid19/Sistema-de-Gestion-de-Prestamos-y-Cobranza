@@ -1,8 +1,8 @@
 const crypto = require('node:crypto');
 const { Op } = require('sequelize');
 
-const { Notification, PushSubscription } = require('../../../models');
-const { notificationService } = require('../application/notificationService');
+const { Notification, PushSubscription } = require('@/models');
+const { notificationService } = require('@/modules/notifications/application/notificationService');
 
 const hashIdentifier = (value) => {
   if (!value) {

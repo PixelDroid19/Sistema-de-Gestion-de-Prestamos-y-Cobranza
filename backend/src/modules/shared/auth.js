@@ -1,4 +1,4 @@
-const { AuthenticationError, AuthorizationError } = require('../../utils/errorHandler');
+const { AuthenticationError, AuthorizationError } = require('@/utils/errorHandler');
 const { createJwtTokenService } = require('./auth/tokenService');
 const { normalizeApplicationRole } = require('./roles');
 

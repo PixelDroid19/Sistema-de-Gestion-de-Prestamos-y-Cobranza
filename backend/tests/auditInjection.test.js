@@ -1,7 +1,7 @@
 const { test, mock, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { withAudit, createAuditRouterHelpers } = require('../src/modules/audit/application/auditDecorator');
+const { withAudit, createAuditRouterHelpers } = require('@/modules/audit/application/auditDecorator');
 
 describe('withAudit decorator', () => {
   test('wraps use case and logs audit event on success', async () => {
@@ -170,7 +170,7 @@ describe('createAuditRouterHelpers', () => {
 
 describe('Audit injection integration', () => {
   test('customer use cases accept auditService parameter', async () => {
-    const { createCreateCustomer } = require('../src/modules/customers/application/useCases');
+    const { createCreateCustomer } = require('@/modules/customers/application/useCases');
 
     const mockCustomerRepository = {
       create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),
@@ -190,7 +190,7 @@ describe('Audit injection integration', () => {
   });
 
   test('associate use cases accept auditService parameter', async () => {
-    const { createCreateAssociate } = require('../src/modules/associates/application/useCases');
+    const { createCreateAssociate } = require('@/modules/associates/application/useCases');
 
     const mockAssociateRepository = {
       create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),
@@ -210,7 +210,7 @@ describe('Audit injection integration', () => {
   });
 
   test('credits use cases accept auditService parameter', async () => {
-    const { createCreateLoan } = require('../src/modules/credits/application/useCases');
+    const { createCreateLoan } = require('@/modules/credits/application/useCases');
 
     const mockLoanCreationService = {
       create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),

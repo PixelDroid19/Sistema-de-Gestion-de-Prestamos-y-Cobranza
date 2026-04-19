@@ -1,4 +1,4 @@
-const { NotFoundError } = require('../../utils/errorHandler');
+const { NotFoundError } = require('@/utils/errorHandler');
 
 const normalizeAttachmentVisibility = (value) => {
   if (typeof value === 'boolean') {

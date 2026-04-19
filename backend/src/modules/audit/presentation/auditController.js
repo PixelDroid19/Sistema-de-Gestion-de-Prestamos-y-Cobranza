@@ -1,4 +1,4 @@
-const { asyncHandler } = require('../../../utils/errorHandler');
+const { asyncHandler } = require('@/utils/errorHandler');
 
 /**
  * Create the audit controller with handlers for audit log endpoints.

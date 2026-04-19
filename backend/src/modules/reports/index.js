@@ -1,5 +1,5 @@
-const { createModule, resolveAuthContext } = require('../shared');
-const { createCreditsPublicPorts } = require('../credits/public');
+const { createModule, resolveAuthContext } = require('@/modules/shared');
+const { createCreditsPublicPorts } = require('@/modules/credits/public');
 const {
   createGetRecoveredLoans,
   createGetOutstandingLoans,
@@ -33,7 +33,7 @@ const {
   createGetPaymentSchedule,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
-const { associateRepository } = require('../associates/infrastructure/repositories');
+const { associateRepository } = require('@/modules/associates/infrastructure/repositories');
 const { createReportsRouter } = require('./presentation/router');
 
 /**

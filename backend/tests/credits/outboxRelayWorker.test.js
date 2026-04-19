@@ -1,7 +1,7 @@
 const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createOutboxRelayWorker } = require('../../src/workers/outboxRelayWorker');
+const { createOutboxRelayWorker } = require('@/workers/outboxRelayWorker');
 
 afterEach(() => {
   mock.restoreAll();

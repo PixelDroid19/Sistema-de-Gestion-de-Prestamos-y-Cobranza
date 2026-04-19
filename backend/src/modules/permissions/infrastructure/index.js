@@ -1,7 +1,7 @@
-const { permissionRepository } = require('../application/PermissionRepository');
-const { rolePermissionRepository } = require('../application/RolePermissionRepository');
-const { userPermissionRepository } = require('../application/UserPermissionRepository');
-const { permissionService } = require('../application/PermissionService');
+const { permissionRepository } = require('@/modules/permissions/application/PermissionRepository');
+const { rolePermissionRepository } = require('@/modules/permissions/application/RolePermissionRepository');
+const { userPermissionRepository } = require('@/modules/permissions/application/UserPermissionRepository');
+const { permissionService } = require('@/modules/permissions/application/PermissionService');
 
 module.exports = {
   permissionRepository,

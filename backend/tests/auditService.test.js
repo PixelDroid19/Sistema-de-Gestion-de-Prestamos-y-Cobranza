@@ -1,52 +1,8 @@
 const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
-// We define the audit service inline to avoid module resolution issues in test environment
-const createAuditService = ({ auditLogRepository: repo } = {}) => {
-  const repository = repo;
-
-  const extractClientIp = (req) => {
-    if (!req) return null;
-    const forwardedFor = req.headers['x-forwarded-for'];
-    if (forwardedFor) {
-      return String(forwardedFor).split(',')[0].trim();
-    }
-    return req.connection?.remoteAddress || req.ip || null;
-  };
-
-  const log = async ({ actor, action, module, entityId, entityType, previousData, newData, metadata, req }) => {
-    const userId = actor?.id || null;
-    const userName = actor?.name || actor?.email || null;
-    const ip = extractClientIp(req);
-    const userAgent = req?.headers?.['user-agent'] || null;
-
-    return repository.create({
-      userId,
-      userName,
-      action,
-      module,
-      entityId: entityId ? String(entityId) : null,
-      entityType,
-      previousData: previousData || null,
-      newData: newData || null,
-      metadata: metadata || null,
-      ip,
-      userAgent,
-    });
-  };
-
-  const query = async ({ userId, action, module, entityId, entityType, dateFrom, dateTo, limit = 100, offset = 0 } = {}) => {
-    return repository.findWithFilters({
-      userId, action, module, entityId, entityType, dateFrom, dateTo, limit, offset,
-    });
-  };
-
-  const getStats = async ({ dateFrom, dateTo } = {}) => {
-    return repository.getStatsByModule({ dateFrom, dateTo });
-  };
-
-  return { log, query, getStats };
-};
+const { createAuditService } = require('@/modules/audit/domain/services/AuditService');
+const { runWithRequestContext } = require('@/modules/shared/requestContext');
 
 test('AuditService.log creates audit entry with required fields', async () => {
   const mockRepository = {
@@ -65,7 +21,7 @@ test('AuditService.log creates audit entry with required fields', async () => {
 
   assert.equal(result.id, 1);
   assert.equal(result.action, 'CREATE');
-  assert.equal(result.module, 'customers');
+  assert.equal(result.module, 'CLIENTES');
   assert.equal(result.entityId, '123');
   assert.equal(result.userId, 1);
   assert.equal(result.userName, 'Test User');
@@ -95,7 +51,39 @@ test('AuditService.log extracts IP from request headers', async () => {
 
   const callData = mockRepository.create.mock.calls[0].arguments[0];
   assert.equal(callData.ip, '192.168.1.1');
+  assert.equal(callData.module, 'CREDITOS');
   assert.ok(callData.userAgent === null || typeof callData.userAgent === 'string');
+});
+
+test('AuditService.log falls back to request context when req is omitted', async () => {
+  const mockRepository = {
+    create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),
+  };
+
+  const auditService = createAuditService({ auditLogRepository: mockRepository });
+
+  await runWithRequestContext({
+    req: {
+      headers: {
+        'x-forwarded-for': '203.0.113.10, 10.0.0.1',
+        'user-agent': 'context-agent',
+      },
+      socket: { remoteAddress: '127.0.0.1' },
+    },
+  }, async () => {
+    await auditService.log({
+      actor: { id: 7, name: 'Context User' },
+      action: 'LOGIN',
+      module: 'auth',
+      entityId: 7,
+      entityType: 'User',
+    });
+  });
+
+  const callData = mockRepository.create.mock.calls[0].arguments[0];
+  assert.equal(callData.ip, '203.0.113.10');
+  assert.equal(callData.userAgent, 'context-agent');
+  assert.equal(callData.module, 'AUTH');
 });
 
 test('AuditService.log handles missing actor gracefully', async () => {
@@ -142,7 +130,7 @@ test('AuditService.query passes filters to repository', async () => {
   const callArgs = mockRepository.findWithFilters.mock.calls[0].arguments[0];
   assert.equal(callArgs.userId, 1);
   assert.equal(callArgs.action, 'CREATE');
-  assert.equal(callArgs.module, 'customers');
+  assert.equal(callArgs.module, 'CLIENTES');
 });
 
 test('AuditService.query uses default pagination values', async () => {
@@ -161,8 +149,8 @@ test('AuditService.query uses default pagination values', async () => {
 
 test('AuditService.getStats calls repository getStatsByModule', async () => {
   const mockStats = [
-    { module: 'customers', totalCount: 10, actions: { CREATE: 5, UPDATE: 3, DELETE: 2 } },
-    { module: 'credits', totalCount: 8, actions: { CREATE: 4, UPDATE: 4 } },
+    { module: 'CLIENTES', totalCount: 10, actions: { CREATE: 5, UPDATE: 3, DELETE: 2 } },
+    { module: 'CREDITOS', totalCount: 8, actions: { CREATE: 4, UPDATE: 4 } },
   ];
 
   const mockRepository = {
@@ -176,7 +164,10 @@ test('AuditService.getStats calls repository getStatsByModule', async () => {
     dateTo: '2024-12-31',
   });
 
-  assert.deepEqual(result, mockStats);
+  assert.deepEqual(result, [
+    { module: 'customers', totalCount: 10, actions: { CREATE: 5, UPDATE: 3, DELETE: 2 } },
+    { module: 'credits', totalCount: 8, actions: { CREATE: 4, UPDATE: 4 } },
+  ]);
   assert.equal(mockRepository.getStatsByModule.mock.callCount(), 1);
 });
 
@@ -213,4 +204,23 @@ test('AuditService.log handles null entityId', async () => {
   });
 
   assert.equal(result.entityId, null);
+  assert.equal(result.module, 'AUTH');
+});
+
+test('AuditService.query normalizes filters and presents stored modules as domain keys', async () => {
+  const mockRepository = {
+    findWithFilters: mock.fn(() => Promise.resolve({
+      items: [{ id: 1, action: 'RESTORE', module: 'CLIENTES' }],
+      totalItems: 1,
+    })),
+  };
+
+  const auditService = createAuditService({ auditLogRepository: mockRepository });
+
+  const result = await auditService.query({ module: 'customers', action: 'restore' });
+
+  assert.equal(mockRepository.findWithFilters.mock.calls[0].arguments[0].module, 'CLIENTES');
+  assert.equal(mockRepository.findWithFilters.mock.calls[0].arguments[0].action, 'RESTORE');
+  assert.equal(result.items[0].module, 'customers');
+  assert.equal(result.items[0].action, 'RESTORE');
 });

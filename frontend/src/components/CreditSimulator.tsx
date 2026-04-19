@@ -234,6 +234,14 @@ export default function CreditSimulator() {
                       {result.paymentMethod === 'french' ? tTerm('simulator.summary.method.french' as any) : tTerm('simulator.summary.method.simple' as any)}
                     </span>
                   </div>
+                  {result.graphVersionId != null && (
+                    <div className="mt-3 flex justify-between items-center">
+                      <span className="text-sm text-text-secondary">Fórmula</span>
+                      <span className="text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                        v{result.graphVersionId}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Amortization Schedule */}

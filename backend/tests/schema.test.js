@@ -10,7 +10,7 @@ const {
   resetDatabaseSchema,
   syncDatabaseSchema,
   verifyRequiredSchema,
-} = require('../src/bootstrap/schema');
+} = require('@/bootstrap/schema');
 
 const buildDescribedTable = (tableName) => {
   if (tableName === 'Customers') {
@@ -69,6 +69,12 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
+  if (tableName === 'rate_limit_entries') {
+    return {
+      id: {}, keyPrefix: {}, identifier: {}, created_at: {},
+    };
+  }
+
   if (tableName === 'DocumentAttachments') {
     return {
       id: {}, loanId: {}, paymentId: {}, customerId: {}, uploadedByUserId: {}, storageDisk: {}, storagePath: {}, storedName: {},
@@ -121,6 +127,12 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
+  if (tableName === 'AssociateInstallments') {
+    return {
+      id: {}, associateId: {}, installmentNumber: {}, amount: {}, dueDate: {}, status: {}, paidAt: {}, paidBy: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
   if (tableName === 'ProfitDistributions') {
     return {
       id: {}, associateId: {}, loanId: {}, amount: {}, distributionDate: {}, createdByUserId: {}, notes: {}, basis: {}, createdAt: {}, updatedAt: {},
@@ -153,7 +165,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -164,6 +176,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const alerts = requiredSchema.find((entry) => entry.tableName === 'LoanAlerts');
   const promises = requiredSchema.find((entry) => entry.tableName === 'PromiseToPays');
   const contributions = requiredSchema.find((entry) => entry.tableName === 'AssociateContributions');
+  const associateInstallments = requiredSchema.find((entry) => entry.tableName === 'AssociateInstallments');
   const distributions = requiredSchema.find((entry) => entry.tableName === 'ProfitDistributions');
   const idempotencyKeys = requiredSchema.find((entry) => entry.tableName === 'IdempotencyKeys');
   const notifications = requiredSchema.find((entry) => entry.tableName === 'Notifications');
@@ -173,6 +186,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
   const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
   const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
+  const rateLimitEntries = requiredSchema.find((entry) => entry.tableName === 'rate_limit_entries');
 
   assert.ok(associates);
   assert.ok(loans);
@@ -181,6 +195,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(alerts);
   assert.ok(promises);
   assert.ok(contributions);
+  assert.ok(associateInstallments);
   assert.ok(distributions);
   assert.ok(idempotencyKeys);
   assert.ok(notifications);
@@ -190,6 +205,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(financialProducts);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
+  assert.ok(rateLimitEntries);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'AuditLogs'));
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('failedLoginAttempts'));
@@ -210,6 +226,9 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(alerts.columns.includes('outstandingAmount'));
   assert.ok(promises.columns.includes('statusHistory'));
   assert.ok(idempotencyKeys.columns.includes('idempotencyKey'));
+  assert.ok(associateInstallments.columns.includes('associateId'));
+  assert.ok(associateInstallments.columns.includes('installmentNumber'));
+  assert.ok(associateInstallments.columns.includes('paidBy'));
   assert.ok(idempotencyKeys.columns.includes('responsePayload'));
   assert.ok(notifications.columns.includes('payload'));
   assert.ok(pushSubscriptions.columns.includes('providerKey'));
@@ -222,6 +241,9 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(outboxEvents.columns.includes('eventType'));
   assert.ok(configEntries.columns.includes('category'));
   assert.ok(configEntries.columns.includes('value'));
+  assert.ok(rateLimitEntries.columns.includes('keyPrefix'));
+  assert.ok(rateLimitEntries.columns.includes('identifier'));
+  assert.ok(rateLimitEntries.columns.includes('created_at'));
 });
 
 test('verifyRequiredSchema rejects when a required table is missing', async () => {
@@ -396,6 +418,21 @@ test('syncDatabaseSchema auto-creates newly required tables in local verify mode
   assert.deepEqual(calls, ['DagGraphVersions.sync', 'DagSimulationSummaries.sync']);
   assert.equal(result.mode, 'verify');
   assert.deepEqual(result.createdTables, ['DagGraphVersions', 'DagSimulationSummaries']);
+});
+
+test('REQUIRED_SCHEMA_MODELS keeps parent tables before dependent child tables', () => {
+  const names = REQUIRED_SCHEMA_MODELS.map((model) => model.name);
+
+  assert.ok(names.indexOf('FinancialProduct') < names.indexOf('Loan'));
+  assert.ok(names.indexOf('User') < names.indexOf('DagGraphVersion'));
+  assert.ok(names.indexOf('DagGraphVersion') < names.indexOf('Loan'));
+  assert.ok(names.indexOf('Loan') < names.indexOf('Payment'));
+  assert.ok(names.indexOf('User') < names.indexOf('Notification'));
+  assert.ok(names.indexOf('User') < names.indexOf('RefreshToken'));
+  assert.ok(names.indexOf('Associate') < names.indexOf('AssociateInstallment'));
+  assert.ok(names.indexOf('User') < names.indexOf('AssociateInstallment'));
+  assert.ok(names.indexOf('Loan') < names.indexOf('DocumentAttachment'));
+  assert.ok(names.indexOf('Payment') < names.indexOf('DocumentAttachment'));
 });
 
 test('syncDatabaseSchema keeps failing on missing tables outside safe local environments', async () => {
