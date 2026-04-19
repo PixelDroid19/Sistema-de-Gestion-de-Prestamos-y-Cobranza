@@ -7,9 +7,10 @@ const {
   createGetProfile,
   createUpdateProfile,
   createChangePassword,
+  createRefreshToken,
   createRegisterWithPermissions,
-} = require('../src/modules/auth/application/useCases');
-const { AuthenticationError, AuthorizationError, ConflictError, ValidationError } = require('../src/utils/errorHandler');
+} = require('@/modules/auth/application/useCases');
+const { AuthenticationError, AuthorizationError, ConflictError, ValidationError } = require('@/utils/errorHandler');
 
 test('createRegisterUser creates a customer-linked identity and token response', async () => {
   const registerUser = createRegisterUser({
@@ -55,6 +56,150 @@ test('createRegisterUser creates a customer-linked identity and token response',
   assert.equal(result.user.id, 15);
   assert.equal(result.user.role, 'customer');
   assert.equal(result.token, 'token:15:customer');
+});
+
+test('createLoginUser preserves associateId in sanitized socio sessions', async () => {
+  let signedPayload;
+  const loginUser = createLoginUser({
+    userRepository: {
+      async findByLoginIdentifier() {
+        return {
+          id: 3,
+          name: 'QA Socio',
+          email: 'qa.socio@example.com',
+          password: 'hashed-password',
+          role: 'socio',
+          associateId: 12,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        };
+      },
+    },
+    passwordHasher: {
+      async compare() {
+        return true;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        signedPayload = payload;
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await loginUser({ email: 'qa.socio@example.com', password: 'Admin1234' });
+
+  assert.equal(result.user.role, 'socio');
+  assert.equal(result.user.associateId, 12);
+  assert.deepEqual(signedPayload, {
+    id: 3,
+    role: 'socio',
+    name: 'QA Socio',
+    associateId: 12,
+  });
+});
+
+test('createRefreshToken preserves associateId in renewed socio access tokens', async () => {
+  let tokenPairArgs;
+  const refreshToken = createRefreshToken({
+    tokenService: {
+      async verifyRefreshToken() {
+        return { userId: 3 };
+      },
+      generateTokenPair(userId, role, extraPayload) {
+        tokenPairArgs = { userId, role, extraPayload };
+        return {
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+        };
+      },
+    },
+    refreshTokenRepository: {
+      async revoke() {
+        return true;
+      },
+      async create() {
+        return true;
+      },
+    },
+    userRepository: {
+      async findById() {
+        return {
+          id: 3,
+          name: 'QA Socio',
+          email: 'qa.socio@example.com',
+          role: 'socio',
+          associateId: 12,
+        };
+      },
+    },
+  });
+
+  const result = await refreshToken({ refreshToken: 'refresh-token' });
+
+  assert.equal(result.accessToken, 'new-access-token');
+  assert.equal(result.refreshToken, 'new-refresh-token');
+  assert.deepEqual(tokenPairArgs, {
+    userId: 3,
+    role: 'socio',
+    extraPayload: {
+      name: 'QA Socio',
+      associateId: 12,
+    },
+  });
+});
+
+test('createRegisterUser aligns customer-linked ids before provisioning customer accounts', async () => {
+  const callOrder = [];
+
+  const registerUser = createRegisterUser({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async syncPrimaryKeySequenceWithCustomerProfiles() {
+        callOrder.push('sync');
+      },
+      async create(payload) {
+        callOrder.push('create-user');
+        return { id: 27, ...payload };
+      },
+      async remove() {},
+    },
+    customerProfileRepository: {
+      async create(payload) {
+        callOrder.push(`create-customer:${payload.id}`);
+        return payload;
+      },
+    },
+    associateProfileRepository: {},
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+  });
+
+  const result = await registerUser({
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Portal Customer',
+      email: 'portal.customer@example.com',
+      password: 'Secret123',
+      role: 'customer',
+      phone: '+573001112255',
+    },
+  });
+
+  assert.equal(result.user.id, 27);
+  assert.deepEqual(callOrder, ['sync', 'create-user', 'create-customer:27']);
 });
 
 test('createRegisterUser rejects privileged public signup even when validation is bypassed', async () => {
@@ -818,6 +963,77 @@ test('createRegisterWithPermissions derives default permissions when not provide
   assert.equal(result.user.id, 26);
   assert.equal(result.user.role, 'socio');
   assert.deepEqual(result.permissions, ['READ_CREDITOS', 'READ_REPORTES']);
+});
+
+test('createRegisterWithPermissions aligns customer-linked ids before creating customer portal accounts', async () => {
+  const callOrder = [];
+
+  const registerWithPermissions = createRegisterWithPermissions({
+    userRepository: {
+      async findByEmail() {
+        return null;
+      },
+      async syncPrimaryKeySequenceWithCustomerProfiles() {
+        callOrder.push('sync');
+      },
+      async create(payload) {
+        callOrder.push('create-user');
+        return { id: 44, ...payload };
+      },
+      async remove() {},
+    },
+    customerProfileRepository: {
+      async create(payload) {
+        callOrder.push(`create-customer:${payload.id}`);
+        return payload;
+      },
+    },
+    associateProfileRepository: {
+      async update() {
+        return {};
+      },
+    },
+    passwordHasher: {
+      async hash(password) {
+        return `hashed:${password}`;
+      },
+    },
+    tokenService: {
+      sign(payload) {
+        return `token:${payload.id}:${payload.role}`;
+      },
+    },
+    userPermissionRepository: {
+      async grantBatch() {
+        return [];
+      },
+    },
+    rolePermissionRepository: {
+      async findByRole() {
+        return [];
+      },
+    },
+    permissionRepository: {
+      async findAll() {
+        return [];
+      },
+    },
+  });
+
+  const result = await registerWithPermissions({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Permitted Customer',
+      email: 'permitted.customer@example.com',
+      password: 'Secret123',
+      role: 'customer',
+      phone: '+573001112277',
+    },
+  });
+
+  assert.equal(result.user.id, 44);
+  assert.deepEqual(result.permissions, []);
+  assert.deepEqual(callOrder, ['sync', 'create-user', 'create-customer:44']);
 });
 
 test('createRegisterWithPermissions throws AuthorizationError for non-admin actor', async () => {

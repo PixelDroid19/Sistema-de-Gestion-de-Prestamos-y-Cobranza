@@ -4,7 +4,36 @@
  * multiple application instances sharing the same database.
  */
 
-const { sequelize } = require('../models');
+const { sequelize } = require('@/models');
+
+const resolveClientIp = (req) => {
+  if (!req) {
+    return 'unknown-ip';
+  }
+
+  const forwardedFor = req.headers?.['x-forwarded-for'];
+  if (forwardedFor) {
+    return String(forwardedFor).split(',')[0].trim();
+  }
+
+  return req.socket?.remoteAddress || req.connection?.remoteAddress || req.ip || 'unknown-ip';
+};
+
+const buildRateLimitIdentifier = (req, keyPrefix) => {
+  const ip = resolveClientIp(req);
+
+  if (keyPrefix === 'auth') {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+    const loginIdentifier = email || username;
+
+    if (loginIdentifier) {
+      return `${ip}:${loginIdentifier}`;
+    }
+  }
+
+  return ip;
+};
 
 /**
  * Create a rate limiter backed by PostgreSQL using sliding window algorithm.
@@ -40,8 +69,8 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
   };
 
   return async (req, res, next) => {
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    const key = `${keyPrefix}:${ip}`;
+    const identifier = buildRateLimitIdentifier(req, keyPrefix);
+    const key = `${keyPrefix}:${identifier}`;
     const now = Date.now();
     const windowStart = new Date(now - windowMs);
 
@@ -128,16 +157,16 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
  * Create a simple in-memory rate limiter for when database is not available.
  * This is used as a fallback when the database connection is not established.
  */
-const createInMemoryRateLimiter = ({ windowMs, max, message }) => {
+const createInMemoryRateLimiter = ({ windowMs, max, keyPrefix, message }) => {
   const requests = new Map(); // In-memory storage (IP -> { count, resetTime })
 
   return (req, res, next) => {
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const identifier = buildRateLimitIdentifier(req, keyPrefix);
     const now = Date.now();
-    const entry = requests.get(ip);
+    const entry = requests.get(identifier);
 
     if (!entry || now > entry.resetTime) {
-      requests.set(ip, {
+      requests.set(identifier, {
         count: 1,
         resetTime: now + windowMs,
       });
@@ -189,7 +218,7 @@ const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
   keyPrefix: 'auth',
-  message: 'Demasiados intentos de acceso fallidos. Por favor, espere 15 minutos.',
+  message: 'Demasiados intentos de acceso. Por favor, espere 15 minutos.',
 });
 
 // Payments limiter: 3 payments per minute
@@ -216,4 +245,6 @@ module.exports = {
   createRateLimiter,
   createSqlRateLimiter,
   createInMemoryRateLimiter,
+  buildRateLimitIdentifier,
+  resolveClientIp,
 };

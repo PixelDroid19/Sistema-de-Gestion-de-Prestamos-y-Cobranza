@@ -41,6 +41,7 @@ type GuardResult = {
 
 const CLOSED_LOAN_STATUSES = new Set<string>(CLOSED_OR_BLOCKED_LOAN_STATUSES);
 const NON_EXECUTABLE_STATUSES = new Set<string>(NON_EXECUTABLE_INSTALLMENT_STATUSES);
+const PAYABLE_LOAN_STATUSES = new Set<string>(['approved', 'active', 'defaulted', 'overdue']);
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
   'credit.delete': ['credits.delete', 'credit.delete'],
@@ -112,6 +113,29 @@ const canOperateInstallment = (
   }
 
   return { visible: true, executable: true };
+};
+
+const canProcessLoanPayments = (
+  role: OperationalRole | undefined,
+  loanStatus: string | undefined,
+  installmentStatus: string | undefined,
+  actionLabel: string,
+): GuardResult => {
+  const installmentGuard = canOperateInstallment(role, loanStatus, installmentStatus, actionLabel);
+
+  if (!installmentGuard.visible || !installmentGuard.executable) {
+    return installmentGuard;
+  }
+
+  if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
+    return {
+      visible: true,
+      executable: false,
+      reason: `Crédito ${loanStatus}: acción no disponible.`,
+    };
+  }
+
+  return installmentGuard;
 };
 
 const isReconciledPaymentStatus = (status?: string): boolean => {
@@ -188,7 +212,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'credit.delete':
       return canDeleteCredit(role, loanStatus);
     case 'installment.pay':
-      return canOperateInstallment(role, loanStatus, installmentStatus, 'pagos de cuota');
+      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
       if (paymentReconciled) {
         return {
@@ -203,12 +227,15 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'installment.followUp':
       return canOperateInstallment(role, loanStatus, installmentStatus, 'seguimientos');
     case 'installment.annul':
-      return canOperateInstallment(role, loanStatus, installmentStatus, 'anulación de cuotas');
+      return canProcessLoanPayments(role, loanStatus, installmentStatus, 'anulación de cuotas');
     case 'capital.payment':
       if (role === 'customer') {
         return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
+        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+      }
+      if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
       }
       return { visible: true, executable: true };

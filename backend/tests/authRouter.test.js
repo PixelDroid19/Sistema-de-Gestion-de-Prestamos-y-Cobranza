@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { createAuthRouter } = require('../src/modules/auth/presentation/router');
+const { createAuthRouter } = require('@/modules/auth/presentation/router');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -327,6 +327,96 @@ test('createAuthRouter serves refresh token endpoint', async () => {
     },
   });
   assert.deepEqual(calls, [['refreshToken', 'old-refresh-token-123']]);
+});
+
+test('createAuthRouter applies auth limiter only to login requests', async () => {
+  const limitedStatus = 429;
+  const authLimiter = (req, res, next) => {
+    if (req.path === '/login') {
+      res.status(limitedStatus).json({ success: false, error: { message: 'limited' } });
+      return;
+    }
+
+    next();
+  };
+
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async registerUser(payload) {
+        return {
+          token: 'register-token',
+          user: {
+            id: 11,
+            name: payload.payload.name,
+            email: payload.payload.email,
+            role: payload.payload.role,
+          },
+        };
+      },
+      async loginUser() {
+        return {
+          token: 'login-token',
+          user: {
+            id: 22,
+            name: 'Ana Customer',
+            email: 'ana@example.com',
+            role: 'customer',
+          },
+        };
+      },
+      async refreshToken() {
+        return { accessToken: 'new-access', refreshToken: 'new-refresh' };
+      },
+      async getProfile() {
+        throw new Error('getProfile should not be called');
+      },
+      async updateProfile() {
+        throw new Error('updateProfile should not be called');
+      },
+      async changePassword() {
+        throw new Error('changePassword should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use((req, res, next) => authLimiter(req, res, next));
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const registerResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/register',
+    body: {
+      name: 'Ana Customer',
+      email: 'ana@example.com',
+      password: 'secret123',
+      role: 'customer',
+    },
+  });
+  const refreshResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/refresh',
+    body: {
+      refreshToken: 'refresh-token',
+    },
+  });
+  const loginResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/login',
+    body: {
+      email: 'ana@example.com',
+      password: 'secret123',
+    },
+  });
+
+  assert.equal(registerResponse.statusCode, 201);
+  assert.equal(refreshResponse.statusCode, 200);
+  assert.equal(loginResponse.statusCode, limitedStatus);
 });
 
 test('createAuthRouter refresh token requires refresh token in body', async () => {

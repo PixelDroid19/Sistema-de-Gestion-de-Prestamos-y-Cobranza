@@ -26,7 +26,10 @@ export const CAPITAL_STRATEGIES = [
 
 export type CapitalStrategy = typeof CAPITAL_STRATEGIES[number]['value'];
 
-export const useLoans = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+export const useLoans = (
+  params?: { page?: number; pageSize?: number; search?: string; status?: string },
+  options?: { enabled?: boolean },
+) => {
   const queryClient = useQueryClient();
 
   const getLoans = useQuery({
@@ -35,6 +38,7 @@ export const useLoans = (params?: { page?: number; pageSize?: number; search?: s
       const { data } = await apiClient.get('/loans', { params });
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 
   const createLoan = useMutation({
@@ -85,7 +89,13 @@ export const useLoans = (params?: { page?: number; pageSize?: number; search?: s
   };
 };
 
-export const useLoanDetails = (loanId: number) => {
+type LoanDetailsQueryOptions = {
+  includeAlerts?: boolean;
+  includePromises?: boolean;
+  includePayoffQuote?: boolean;
+};
+
+export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions = {}) => {
   const queryClient = useQueryClient();
   const asOfDate = new Date().toISOString().slice(0, 10);
 
@@ -104,7 +114,7 @@ export const useLoanDetails = (loanId: number) => {
       const { data } = await apiClient.get(`/loans/${loanId}/alerts`);
       return data;
     },
-    enabled: !!loanId,
+    enabled: Boolean(loanId) && (options.includeAlerts ?? true),
   });
 
   const getPromises = useQuery({
@@ -113,7 +123,7 @@ export const useLoanDetails = (loanId: number) => {
       const { data } = await apiClient.get(`/loans/${loanId}/promises`);
       return data;
     },
-    enabled: !!loanId,
+    enabled: Boolean(loanId) && (options.includePromises ?? true),
   });
 
   const createPromise = useMutation({
@@ -144,7 +154,7 @@ export const useLoanDetails = (loanId: number) => {
       });
       return data;
     },
-    enabled: !!loanId,
+    enabled: Boolean(loanId) && (options.includePayoffQuote ?? true),
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -161,7 +171,7 @@ export const useLoanDetails = (loanId: number) => {
 
   const recordPayment = useMutation({
     mutationFn: async (paymentData: { paymentAmount: number; paymentDate: string; paymentMethod?: string; installmentNumber?: number }) => {
-      const { data } = await apiClient.post(`/payments/process`, {
+      const { data } = await apiClient.post(`/loans/payments/process`, {
         loanId,
         ...paymentData,
       });

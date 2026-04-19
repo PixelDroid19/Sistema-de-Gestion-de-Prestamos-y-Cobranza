@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
-import { useUsers } from '../services/userService';
 import { useSessionStore } from '../store/sessionStore';
 import { downloadVoucher } from '../services/paymentService';
 import { toast } from '../lib/toast';
@@ -29,10 +28,14 @@ export default function CreditDetails() {
   const loanId = Number(id);
   const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history'>('calendar');
   const { user } = useSessionStore();
+  const isAdmin = user?.role === 'admin';
+  const canViewPayoff = user?.role === 'customer';
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const operationalModal = useOperationalModalState();
 
-  const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus } = useLoans();
+  const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus } = useLoans(undefined, {
+    enabled: !Number.isFinite(loanId) || !loanId || isAdmin,
+  });
   const { data: loanData, isLoading: isLoadingLoanRecord } = useLoanById(loanId);
   const loans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
@@ -40,15 +43,33 @@ export default function CreditDetails() {
       ? loansData.data
       : [];
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
+  const payoffEligibility = loan?.paymentContext?.payoffEligibility;
+  const shouldFetchPayoffQuote = canViewPayoff && Boolean(payoffEligibility?.allowed);
+  const primaryPayoffDenialReason = Array.isArray(payoffEligibility?.denialReasons)
+    ? payoffEligibility.denialReasons[0]
+    : null;
 
-  const { calendar, calendarSnapshot, alerts, promises, payoffQuote, isLoading: isLoadingDetails, createPromise, createFollowUp, executePayoff, recordPayment, annulInstallment, updatePaymentMethod, recordCapitalPayment, updateLateFeeRate } = useLoanDetails(loanId);
+  const {
+    calendar,
+    calendarSnapshot,
+    alerts,
+    promises,
+    payoffQuote,
+    isLoading: isLoadingDetails,
+    createPromise,
+    createFollowUp,
+    executePayoff,
+    recordPayment,
+    annulInstallment,
+    updatePaymentMethod,
+    recordCapitalPayment,
+    updateLateFeeRate,
+  } = useLoanDetails(loanId, {
+    includeAlerts: isAdmin,
+    includePromises: isAdmin,
+    includePayoffQuote: shouldFetchPayoffQuote,
+  });
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
-  const { data: usersData } = useUsers({ pageSize: 100 });
-  const users = Array.isArray(usersData?.data?.users)
-    ? usersData.data.users
-    : Array.isArray(usersData?.data)
-      ? usersData.data
-      : [];
 
   const formatDate = (value: unknown, withTime = false) => {
     if (!value) return 'Sin fecha';
@@ -94,6 +115,16 @@ export default function CreditDetails() {
 
   const statusInfo = getStatusInfo(loan?.status);
   const promiseDate = (promise: any) => promise?.promisedDate || promise?.promiseDate || promise?.createdAt;
+  const installmentPaymentGuard = resolveOperationalGuard('installment.pay', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus: loan?.status,
+  });
+  const capitalPaymentGuard = resolveOperationalGuard('capital.payment', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus: loan?.status,
+  });
 
   const historyEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
@@ -130,6 +161,23 @@ export default function CreditDetails() {
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
   const alertEntries = Array.isArray(alerts) ? alerts : [];
   const promiseEntries = Array.isArray(promises) ? promises : [];
+  const visibleTabs = useMemo(() => {
+    const tabs: Array<typeof activeTab> = ['calendar'];
+
+    if (isAdmin) {
+      tabs.push('alerts', 'promises');
+    }
+
+    tabs.push('payouts');
+
+    if (canViewPayoff) {
+      tabs.push('payoff');
+    }
+
+    tabs.push('history');
+
+    return tabs;
+  }, [canViewPayoff, isAdmin]);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -174,6 +222,12 @@ export default function CreditDetails() {
   });
 
   const payableStatuses = new Set(['pending', 'overdue', 'partial']);
+
+  React.useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] ?? 'calendar');
+    }
+  }, [activeTab, visibleTabs]);
   const nextPayableInstallmentNumber = useMemo(() => {
     const candidate = calendarEntries
       .filter((entry: any) => payableStatuses.has(String(entry?.status || '').toLowerCase()))
@@ -518,6 +572,19 @@ export default function CreditDetails() {
     });
   };
 
+  const openNextInstallmentPayment = () => {
+    const nextInstallment = calendarEntries.find(
+      (entry: any) => Number(entry?.installmentNumber) === nextPayableInstallmentNumber,
+    );
+
+    if (!nextInstallment) {
+      toast.error({ title: 'No hay cuotas pendientes para registrar pago.' });
+      return;
+    }
+
+    openInstallmentPayment(nextInstallment);
+  };
+
   const openPromiseFromInstallment = (row: any) => {
     if (!row?.installmentNumber) {
       toast.error({ title: 'No se pudo identificar la cuota para promesa.' });
@@ -615,20 +682,28 @@ export default function CreditDetails() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {user?.role !== 'customer' && (
-                <>
-                  <button
-                    onClick={() => operationalModal.openModal('record-payment', { loanId })}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-brand-primary/90 hover:shadow-md transition-all"
-                  >
-                    <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
-                  </button>
-                  <button
-                    onClick={() => setShowCapitalModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
-                  >
-                    <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
-                  </button>
+               {isAdmin && (
+                  <>
+                  {installmentPaymentGuard.visible && (
+                    <button
+                      onClick={openNextInstallmentPayment}
+                      disabled={!installmentPaymentGuard.executable}
+                      title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:bg-brand-primary/90 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-primary disabled:hover:shadow-none"
+                    >
+                      <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
+                    </button>
+                  )}
+                  {capitalPaymentGuard.visible && (
+                    <button
+                      onClick={() => setShowCapitalModal(true)}
+                      disabled={!capitalPaymentGuard.executable}
+                      title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-bg-base"
+                    >
+                      <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setLateFeeRate(String(loan.annualLateFeeRate || ''));
@@ -640,13 +715,15 @@ export default function CreditDetails() {
                   </button>
                 </>
               )}
-              <button
-                onClick={() => setShowStatusModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
-                title="Cambiar estado del crédito"
-              >
-                <Edit2 size={16} /> Estado
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowStatusModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
+                  title="Cambiar estado del crédito"
+                >
+                  <Edit2 size={16} /> Estado
+                </button>
+              )}
               <button
                 onClick={() => navigate(`/credits/${loanId}/schedule`)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-bg-base border border-border-strong text-text-primary rounded-xl text-sm font-medium hover:bg-hover-bg transition-colors shadow-sm"
@@ -698,10 +775,10 @@ export default function CreditDetails() {
         {/* Navigation Tabs */}
         <div className="flex border-b border-border-subtle overflow-x-auto hide-scrollbar">
           <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
-          <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />
-          <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />
+          {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
+          {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
           <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={historyEntries.length} />
-          <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />
+          {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
           <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
         </div>
 
@@ -721,7 +798,7 @@ export default function CreditDetails() {
                           <th className="py-4 px-6 font-semibold text-right">Amortización</th>
                           <th className="py-4 px-6 font-semibold text-right">Capital Vivo</th>
                           <th className="py-4 px-6 font-semibold text-center w-32">Estado</th>
-                          {user?.role !== 'customer' && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
+                          {isAdmin && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-subtle">
@@ -735,7 +812,7 @@ export default function CreditDetails() {
                             {formatCurrency(loan.amount)}
                           </td>
                           <td className="py-3 px-6"></td>
-                          {user?.role !== 'customer' && <td></td>}
+                          {isAdmin && <td></td>}
                         </tr>
                       {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
                         const scheduledPayment = installment.scheduledPayment ?? 0;
@@ -776,29 +853,43 @@ export default function CreditDetails() {
                               {row.status === 'paid' ? 'Pagada' : row.status === 'overdue' ? 'Vencida' : row.status === 'partial' ? 'Parcial' : row.status === 'annulled' ? 'Anulada' : 'Pendiente'}
                             </span>
                           </td>
-                          {user?.role !== 'customer' && (
-                          <td className="py-3 px-5 text-center">
+                           {isAdmin && (
+                           <td className="py-3 px-5 text-center">
                             <div className="flex items-center justify-center gap-2">
                                 {(row.status === 'pending' || row.status === 'overdue' || row.status === 'partial') && (
                                   <>
-                                    {(() => {
-                                      const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
-                                      const installmentReason = isNextPendingInstallment
-                                        ? ''
-                                        : (nextPayableInstallmentNumber
-                                          ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
-                                          : 'No hay cuotas pendientes para operar.');
+                                     {(() => {
+                                       const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
+                                       const paymentGuard = resolveOperationalGuard('installment.pay', {
+                                         role: user?.role,
+                                         permissions: user?.permissions,
+                                         loanStatus: loan?.status,
+                                         installmentStatus: row.status,
+                                       });
+                                       const annulGuard = resolveOperationalGuard('installment.annul', {
+                                         role: user?.role,
+                                         permissions: user?.permissions,
+                                         loanStatus: loan?.status,
+                                         installmentStatus: row.status,
+                                       });
+                                       const installmentReason = isNextPendingInstallment
+                                         ? ''
+                                         : (nextPayableInstallmentNumber
+                                           ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
+                                           : 'No hay cuotas pendientes para operar.');
+                                       const paymentActionReason = paymentGuard.executable ? installmentReason : (paymentGuard.reason || installmentReason);
+                                       const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
 
-                                      return (
-                                        <>
+                                       return (
+                                         <>
                                      <button
                                         onClick={() => openInstallmentPayment(row)}
-                                        disabled={!isNextPendingInstallment}
-                                       className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                       title={isNextPendingInstallment ? 'Registrar pago de cuota' : installmentReason}
-                                     >
-                                       <DollarSign size={16} />
-                                     </button>
+                                        disabled={!isNextPendingInstallment || !paymentGuard.executable}
+                                        className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title={isNextPendingInstallment && paymentGuard.executable ? 'Registrar pago de cuota' : paymentActionReason}
+                                      >
+                                        <DollarSign size={16} />
+                                      </button>
                                     <button
                                       onClick={() => openPromiseFromInstallment(row)}
                                       disabled={!isNextPendingInstallment}
@@ -815,14 +906,14 @@ export default function CreditDetails() {
                                     >
                                       <Bell size={16} />
                                     </button>
-                                      <button
-                                         onClick={() => openAnnulModal(row.installmentNumber)}
-                                         disabled={!isNextPendingInstallment}
-                                       className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                       title={isNextPendingInstallment ? 'Anular cuota' : installmentReason}
-                                      >
-                                        <ShieldAlert size={16} />
-                                      </button>
+                                       <button
+                                          onClick={() => openAnnulModal(row.installmentNumber)}
+                                          disabled={!isNextPendingInstallment || !annulGuard.executable}
+                                        className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title={isNextPendingInstallment && annulGuard.executable ? 'Anular cuota' : annulActionReason}
+                                       >
+                                         <ShieldAlert size={16} />
+                                       </button>
                                          </>
                                        );
                                      })()}
@@ -841,7 +932,7 @@ export default function CreditDetails() {
                           <td className="py-4 px-5 text-right font-bold text-brand-primary text-base">
                             {formatCurrency(calendarSnapshot.outstandingBalance)}
                           </td>
-                          <td colSpan={user?.role !== 'customer' ? 2 : 1}></td>
+                          <td colSpan={isAdmin ? 2 : 1}></td>
                         </tr>
                       </tfoot>
                     )}
@@ -1064,9 +1155,12 @@ export default function CreditDetails() {
                   </button>
                 </div>
               ) : (
-                 <div className="text-center py-12">
+                <div className="text-center py-12 max-w-md">
                   <Info className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No se pudo generar la cotización de pago total.</p>
+                  <p className="text-text-primary font-medium mb-2">El pago total no está disponible para este crédito.</p>
+                  <p className="text-text-secondary">
+                    {primaryPayoffDenialReason?.message || 'Verifica el estado del crédito para continuar con esta operación.'}
+                  </p>
                 </div>
               )}
             </div>
@@ -1113,7 +1207,7 @@ export default function CreditDetails() {
                                     paymentReconciled: Boolean(event.paymentReconciled),
                                   });
 
-                                  if (!editGuard.visible) return null;
+                                  if (!isAdmin || !editGuard.visible) return null;
 
                                   return (
                                     <button

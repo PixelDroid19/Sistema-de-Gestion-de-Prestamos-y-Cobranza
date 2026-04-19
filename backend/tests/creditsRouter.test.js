@@ -5,12 +5,12 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 
-const { loanValidation: runtimeLoanValidation } = require('../src/middleware/validation');
-const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('../src/modules/credits/application/useCases');
-const { createCreditsRouter } = require('../src/modules/credits/presentation/router');
-const { createAuthMiddleware } = require('../src/modules/shared/auth');
-const { createLoanAccessPolicy } = require('../src/modules/shared/loanAccessPolicy');
-const { globalErrorHandler, NotFoundError } = require('../src/utils/errorHandler');
+const { loanValidation: runtimeLoanValidation } = require('@/middleware/validation');
+const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('@/modules/credits/application/useCases');
+const { createCreditsRouter } = require('@/modules/credits/presentation/router');
+const { createAuthMiddleware } = require('@/modules/shared/auth');
+const { createLoanAccessPolicy } = require('@/modules/shared/loanAccessPolicy');
+const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -347,6 +347,29 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   ]);
 });
 
+test('createCreditsRouter blocks canonical payment processing for non-admin actors at the auth boundary', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 7, role: 'customer' },
+    useCases: createUseCases({}),
+    validation: noopLoanValidation,
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payments/process',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      loanId: 55,
+      paymentAmount: 250,
+      paymentDate: '2026-03-15T00:00:00.000Z',
+    },
+  });
+
+  assert.equal(response.statusCode, 403);
+});
+
 test('createCreditsRouter keeps static routes above /:id to avoid shadowing', async () => {
   const calls = [];
 
@@ -510,6 +533,7 @@ test('createCreditsRouter POST /simulations preserves the legacy-compatible resp
         lateFeeMode: 'NONE',
         summary: simulation.summary,
         schedule: simulation.schedule,
+        graphVersionId: null,
       },
     },
   });

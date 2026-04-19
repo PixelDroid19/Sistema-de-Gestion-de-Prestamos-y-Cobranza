@@ -4,7 +4,7 @@ const crypto = require('crypto');
 
 describe('tokenService', () => {
   // Use the actual tokenService
-  const { createJwtTokenService, hashRefreshToken, calculateRefreshTokenExpiry } = require('../src/modules/shared/auth/tokenService');
+  const { createJwtTokenService, hashRefreshToken, calculateRefreshTokenExpiry } = require('@/modules/shared/auth/tokenService');
 
   test('createJwtTokenService generates access token with 15min expiry', () => {
     const tokenService = createJwtTokenService({ secret: 'test-secret' });
@@ -39,11 +39,12 @@ describe('tokenService', () => {
   test('createJwtTokenService verifies valid access token', () => {
     const secret = 'test-secret';
     const tokenService = createJwtTokenService({ secret });
-    const token = tokenService.generateAccessToken(1, 'admin');
+    const token = tokenService.generateAccessToken(1, 'admin', { name: 'Admin Test' });
     const decoded = tokenService.verify(token);
     
     assert.equal(decoded.id, 1, 'User ID should match');
     assert.equal(decoded.role, 'admin', 'Role should match');
+    assert.equal(decoded.name, 'Admin Test', 'Name should match');
   });
 
   test('hashRefreshToken produces consistent SHA-256 hash', () => {
@@ -169,10 +170,11 @@ describe('tokenService', () => {
 
   test('legacy sign and verify methods still work', () => {
     const tokenService = createJwtTokenService({ secret: 'test-secret' });
-    const token = tokenService.sign({ id: 1, role: 'admin' });
+    const token = tokenService.sign({ id: 1, role: 'admin', name: 'Admin Test' });
     const decoded = tokenService.verify(token);
     
     assert.equal(decoded.id, 1, 'User ID should match');
     assert.equal(decoded.role, 'admin', 'Role should match');
+    assert.equal(decoded.name, 'Admin Test', 'Name should match');
   });
 });

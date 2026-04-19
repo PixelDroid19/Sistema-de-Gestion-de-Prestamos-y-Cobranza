@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../services/authService';
 import { toast } from '../lib/toast';
 import { getSafeErrorText } from '../services/safeErrorMessages';
+import { getDefaultRouteForUser } from '../constants/appAccess';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,14 +13,16 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const from = location.state?.from?.pathname || "/dashboard";
+  const from = location.state?.from?.pathname;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      await login({ email, password });
-      navigate(from, { replace: true });
+      const response = await login({ email, password });
+      const authenticatedUser = response?.data?.user;
+      const nextRoute = from || (authenticatedUser ? getDefaultRouteForUser(authenticatedUser) : '/dashboard');
+      navigate(nextRoute, { replace: true });
     } catch (err: any) {
       console.error('[auth] login failed', err);
       setError(getSafeErrorText(err, { domain: 'auth', action: 'login' }));

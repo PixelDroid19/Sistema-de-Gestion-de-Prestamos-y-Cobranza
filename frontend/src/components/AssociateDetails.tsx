@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, TrendingUp, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
-import { useAssociateDetails, useAssociates } from '../services/associateService';
+import { useAssociateDetails } from '../services/associateService';
 import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
@@ -13,15 +13,8 @@ export default function AssociateDetails() {
   const navigate = useNavigate();
   const associateId = Number(id);
 
-  const { data: associatesData } = useAssociates({ pageSize: 100 });
-  const associates = Array.isArray(associatesData?.data?.associates)
-    ? associatesData.data.associates
-    : Array.isArray(associatesData?.data)
-      ? associatesData.data
-      : [];
-  const associate = associates.find((a: any) => Number(a.id) === associateId);
-
   const { portal, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
+  const associate = portal?.associate ?? null;
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<'contribution' | 'distribution' | 'reinvestment' | null>(null);
@@ -34,7 +27,7 @@ export default function AssociateDetails() {
     return <div className="p-8 text-center text-text-secondary">Cargando portal del socio...</div>;
   }
 
-  if (!associate) {
+  if (!associate && !portal) {
     return (
       <div className="p-8 text-center text-text-secondary">
         <p>Socio no encontrado.</p>

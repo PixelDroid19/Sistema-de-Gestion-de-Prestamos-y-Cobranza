@@ -1,7 +1,7 @@
 const express = require('express');
-const { asyncHandler, ValidationError } = require('../../../utils/errorHandler');
-const { createPaymentApplicationService } = require('../application/paymentApplicationService');
-const { createLoanViewService } = require('../application/loanFinancials');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
+const { createPaymentApplicationService } = require('@/modules/credits/application/paymentApplicationService');
+const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 
 const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {}) => {
   const router = express.Router();
@@ -41,13 +41,13 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {})
     next();
   };
 
-  const { paymentLimiter } = require('../../../middleware/rateLimiter');
+  const { paymentLimiter } = require('@/middleware/rateLimiter');
 
   /**
    * Process a payment using the DAG workbench logic.
    */
   router.post('/process', 
-    authMiddleware ? authMiddleware() : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); }, 
+    authMiddleware ? authMiddleware(['admin']) : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); }, 
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {

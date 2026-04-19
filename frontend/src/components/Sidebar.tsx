@@ -26,12 +26,17 @@ export default function Sidebar({
   });
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
+  const isCreditsView = currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator';
+  const isAssociatesView = currentView.startsWith('associate');
   const { user, logout } = useSessionStore();
   const resolvedRole = user?.role ?? 'admin';
   const isAdmin = resolvedRole === 'admin';
   const isCustomer = resolvedRole === 'customer';
   const isSocio = resolvedRole === 'socio';
   const homeView = getDefaultRouteForUser(user ?? { role: resolvedRole, associateId: undefined }).replace(/^\//u, '');
+  const associatesHomeView = isSocio && Number.isFinite(Number(user?.associateId))
+    ? `associates/${Number(user?.associateId)}`
+    : 'associates';
   
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
@@ -40,11 +45,16 @@ export default function Sidebar({
     }
   }, [isCollapsed]);
 
-  const toggleMenu = (key: string) => {
+  const handleSectionClick = (key: 'clientes' | 'creditos' | 'socios', nextView: string, isSectionActive: boolean) => {
     if (isCollapsed) {
       setIsCollapsed(false);
     }
-    setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
+    const shouldToggleOnly = isSectionActive && currentView === nextView;
+    setOpenMenus(prev => ({ ...prev, [key]: shouldToggleOnly ? !prev[key] : true }));
+
+    if (!shouldToggleOnly) {
+      setCurrentView(nextView);
+    }
   };
 
   return (
@@ -98,10 +108,10 @@ export default function Sidebar({
           {/* Menú Clientes */}
           {isAdmin && (
           <div className="mt-1">
-            <button 
-              onClick={() => toggleMenu('clientes')}
-              data-active={isCollapsed && isCustomersView ? "true" : "false"}
-              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+              <button 
+                onClick={() => handleSectionClick('clientes', 'customers', isCustomersView)}
+                data-active={isCollapsed && isCustomersView ? "true" : "false"}
+                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
                 isCollapsed ? 'justify-center' : 'justify-between gap-3'
               } ${
                 isCustomersView && isCollapsed
@@ -150,22 +160,22 @@ export default function Sidebar({
           {/* Menú Créditos */}
           {(isAdmin || isCustomer) && (
           <div className="mt-1">
-            <button 
-              onClick={() => toggleMenu('creditos')}
-              data-active={isCollapsed && (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator') ? "true" : "false"}
-              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                isCollapsed ? 'justify-center' : 'justify-between gap-3'
-              } ${
-                (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator') && isCollapsed
-                  ? 'bg-hover-bg text-brand-primary font-medium'
-                  : (currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator')
-                    ? 'text-brand-primary font-medium'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-              }`}
+              <button 
+                onClick={() => handleSectionClick('creditos', 'credits', isCreditsView)}
+                data-active={isCollapsed && isCreditsView ? "true" : "false"}
+                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
+                } ${
+                  isCreditsView && isCollapsed
+                    ? 'bg-hover-bg text-brand-primary font-medium'
+                    : isCreditsView
+                      ? 'text-brand-primary font-medium'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+                }`}
               title={isCollapsed ? tTerm('sidebar.credits') : undefined}
             >
               <div className="flex items-center gap-3">
-                <div className={`${(currentView.startsWith('credit') || currentView === 'reports') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`${isCreditsView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <CreditCard size={20} />
                 </div>
                 {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.credits')}</span>}
@@ -175,7 +185,7 @@ export default function Sidebar({
                   <ChevronDown size={16} />
                 </div>
               )}
-              {(currentView.startsWith('credit') || currentView === 'reports') && isCollapsed && (
+              {isCreditsView && isCollapsed && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
               )}
             </button>
@@ -219,22 +229,22 @@ export default function Sidebar({
           {/* Menú Socios */}
           {(isAdmin || isSocio) && (
           <div className="mt-1">
-            <button 
-              onClick={() => toggleMenu('socios')}
-              data-active={isCollapsed && currentView.startsWith('associate') ? "true" : "false"}
-              className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                isCollapsed ? 'justify-center' : 'justify-between gap-3'
-              } ${
-                currentView.startsWith('associate') && isCollapsed
-                  ? 'bg-hover-bg text-brand-primary font-medium' 
-                  : currentView.startsWith('associate')
-                    ? 'text-brand-primary font-medium' 
-                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-              }`}
+              <button 
+                onClick={() => handleSectionClick('socios', associatesHomeView, isAssociatesView)}
+                data-active={isCollapsed && isAssociatesView ? "true" : "false"}
+                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
+                } ${
+                  isAssociatesView && isCollapsed
+                    ? 'bg-hover-bg text-brand-primary font-medium' 
+                    : isAssociatesView
+                      ? 'text-brand-primary font-medium' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+                }`}
               title={isCollapsed ? tTerm('sidebar.associates') : undefined}
             >
               <div className="flex items-center gap-3">
-                <div className={`${currentView.startsWith('associate') ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`${isAssociatesView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <UserPlus size={20} />
                 </div>
                 {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.associates')}</span>}
@@ -244,7 +254,7 @@ export default function Sidebar({
                   <ChevronDown size={16} />
                 </div>
               )}
-              {currentView.startsWith('associate') && isCollapsed && (
+              {isAssociatesView && isCollapsed && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
               )}
             </button>
@@ -253,7 +263,7 @@ export default function Sidebar({
               <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
                 <SubNavItem
                   active={currentView === 'associates' || currentView.startsWith('associates/')}
-                  onClick={() => setCurrentView(isSocio && Number.isFinite(Number(user?.associateId)) ? `associates/${Number(user?.associateId)}` : 'associates')}
+                  onClick={() => setCurrentView(associatesHomeView)}
                   title={isSocio ? 'Mi portal' : tTerm('sidebar.associates.management')}
                 />
               </div>

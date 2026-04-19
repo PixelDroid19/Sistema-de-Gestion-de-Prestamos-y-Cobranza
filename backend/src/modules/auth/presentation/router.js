@@ -1,13 +1,13 @@
 const express = require('express');
-const { asyncHandler } = require('../../../utils/errorHandler');
+const { asyncHandler } = require('@/utils/errorHandler');
 const { presentAuthResult, presentProfile } = require('./presenter');
-const { authLimiter } = require('../../../middleware/rateLimiter');
-const { attachPagination } = require('../../../middleware/validation');
+const { authLimiter } = require('@/middleware/rateLimiter');
+const { attachPagination } = require('@/middleware/validation');
 
 const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   const router = express.Router();
 
-  router.post('/register', authLimiter, authValidation.register, asyncHandler(async (req, res) => {
+  router.post('/register', authValidation.register, asyncHandler(async (req, res) => {
     const result = await useCases.registerUser({
       actor: null,
       registrationSource: 'public',
@@ -17,7 +17,7 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   }));
 
   // Admin-provisioned user registration (admin only)
-  router.post('/admin/register', authLimiter, authMiddleware(['admin']), authValidation.adminRegister, asyncHandler(async (req, res) => {
+  router.post('/admin/register', authMiddleware(['admin']), authValidation.adminRegister, asyncHandler(async (req, res) => {
     const result = await useCases.registerUser({
       actor: req.user,
       registrationSource: 'admin',
@@ -49,7 +49,7 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
   }));
 
   // Refresh token endpoint - exchanges old refresh token for new token pair
-  router.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
+  router.post('/refresh', asyncHandler(async (req, res) => {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       return res.status(400).json({ 

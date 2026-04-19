@@ -1,5 +1,5 @@
-const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('../../../utils/errorHandler');
-const { APPLICATION_ROLES, normalizeApplicationRole } = require('../../shared/roles');
+const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('@/utils/errorHandler');
+const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
 
 const PRIVILEGED_ROLES = new Set(['admin', 'socio']);
 
@@ -112,6 +112,16 @@ const normalizeRegisterInput = (input) => {
   };
 };
 
+const alignCustomerIdentitySequence = async ({ normalizedRole, userRepository }) => {
+  if (normalizedRole !== 'customer') {
+    return;
+  }
+
+  if (typeof userRepository?.syncPrimaryKeySequenceWithCustomerProfiles === 'function') {
+    await userRepository.syncPrimaryKeySequenceWithCustomerProfiles();
+  }
+};
+
 const LEGACY_ROLE_ALIAS_MAP = {
   SUPER_ADMIN: 'admin',
   ADMINISTRATOR: 'admin',
@@ -161,7 +171,19 @@ const sanitizeUser = (user) => ({
   name: user.name,
   email: user.email,
   role: normalizeApplicationRole(user.role),
+  ...(user.associateId !== undefined ? { associateId: user.associateId } : {}),
 });
+
+const buildTokenPayload = (user) => {
+  const sanitizedUser = sanitizeUser(user);
+
+  return {
+    id: sanitizedUser.id,
+    role: sanitizedUser.role,
+    name: sanitizedUser.name,
+    ...(sanitizedUser.associateId !== undefined ? { associateId: sanitizedUser.associateId } : {}),
+  };
+};
 
 const buildSupportedRolesError = () => {
   const error = new ValidationError('Please correct the following errors');
@@ -239,6 +261,7 @@ const createRegisterUser = ({
   }
 
   const hashedPassword = await passwordHasher.hash(password);
+  await alignCustomerIdentitySequence({ normalizedRole, userRepository });
   const user = await userRepository.create({ name, email, password: hashedPassword, role: normalizedRole });
 
   try {
@@ -297,7 +320,7 @@ const createRegisterUser = ({
 
   return {
     user: sanitizedUser,
-    token: tokenService.sign({ id: user.id, role: sanitizedUser.role }),
+    token: tokenService.sign(buildTokenPayload(user)),
   };
 };
 
@@ -308,8 +331,8 @@ const createRegisterUser = ({
  * @returns {Function}
  */
 const createLoginUser = ({ userRepository, passwordHasher, tokenService, refreshTokenRepository, auditService }) => async (credentials = {}) => {
-  const { AccountLockedError } = require('../../../utils/errorHandler');
-  const { logSecurity } = require('../../../utils/logger');
+  const { AccountLockedError } = require('@/utils/errorHandler');
+  const { logSecurity } = require('@/utils/logger');
 
   const { email, username, identifier, password, req } = normalizeLoginCredentials(credentials);
 
@@ -388,19 +411,22 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
   // Generate token pair if tokenService supports it, otherwise fall back to legacy sign
   let accessToken, refreshToken;
   if (tokenService.generateTokenPair) {
-    const tokens = tokenService.generateTokenPair(user.id, user.role);
+    const tokens = tokenService.generateTokenPair(user.id, user.role, {
+      name: user.name,
+      ...(sanitizedUser.associateId !== undefined ? { associateId: sanitizedUser.associateId } : {}),
+    });
     accessToken = tokens.accessToken;
     refreshToken = tokens.refreshToken;
   } else {
     // Legacy fallback for backwards compatibility
-    accessToken = tokenService.sign({ id: user.id, role: user.role });
+    accessToken = tokenService.sign(buildTokenPayload(user));
     refreshToken = null;
   }
 
   // Store refresh token if repository is available
   if (refreshTokenRepository && refreshToken) {
-    const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
-    const expiresAt = require('../../shared/auth/tokenService').calculateRefreshTokenExpiry();
+    const tokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(refreshToken);
+    const expiresAt = require('@/modules/shared/auth/tokenService').calculateRefreshTokenExpiry();
     await refreshTokenRepository.create({
       tokenHash,
       userId: user.id,
@@ -561,7 +587,7 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
   const { userId } = await tokenService.verifyRefreshToken(refreshToken);
 
   // Revoke the old refresh token (rotation)
-  const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
+  const tokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(refreshToken);
   await refreshTokenRepository.revoke(tokenHash);
 
   // Get the user to include roles in the new access token
@@ -571,11 +597,15 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
   }
 
   // Generate new token pair
-  const { accessToken, refreshToken: newRefreshToken } = tokenService.generateTokenPair(userId, user.role);
+  const sanitizedUser = sanitizeUser(user);
+  const { accessToken, refreshToken: newRefreshToken } = tokenService.generateTokenPair(userId, user.role, {
+    name: user.name,
+    ...(sanitizedUser.associateId !== undefined ? { associateId: sanitizedUser.associateId } : {}),
+  });
 
   // Hash and store the new refresh token
-  const newTokenHash = require('../infrastructure/repositories').hashRefreshToken(newRefreshToken);
-  const expiresAt = require('../../shared/auth/tokenService').calculateRefreshTokenExpiry();
+  const newTokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(newRefreshToken);
+  const expiresAt = require('@/modules/shared/auth/tokenService').calculateRefreshTokenExpiry();
   
   await refreshTokenRepository.create({
     tokenHash: newTokenHash,
@@ -597,7 +627,7 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
  * @returns {Function}
  */
 const createRevokeRefreshToken = ({ refreshTokenRepository }) => async ({ refreshToken }) => {
-  const tokenHash = require('../infrastructure/repositories').hashRefreshToken(refreshToken);
+  const tokenHash = require('@/modules/auth/infrastructure/repositories').hashRefreshToken(refreshToken);
   const revoked = await refreshTokenRepository.revoke(tokenHash);
   
   if (!revoked) {
@@ -628,7 +658,7 @@ const createRegisterWithPermissions = ({
 
   // Validate actor has PERMISSIONS_ASSIGN permission
   if (!actor || actor.role !== 'admin') {
-    const { AuthorizationError } = require('../../../utils/errorHandler');
+    const { AuthorizationError } = require('@/utils/errorHandler');
     throw new AuthorizationError('PERMISSIONS_ASSIGN permission required');
   }
 
@@ -674,6 +704,7 @@ const createRegisterWithPermissions = ({
 
   // Create user
   const hashedPassword = await passwordHasher.hash(password);
+  await alignCustomerIdentitySequence({ normalizedRole, userRepository });
   const user = await userRepository.create({ 
     name, 
     email, 
@@ -760,7 +791,7 @@ const createRegisterWithPermissions = ({
  */
 const createRevokeAllUserTokens = ({ refreshTokenRepository, auditService }) => async (userId, { req } = {}) => {
   // Get user info before revoking tokens for audit logging
-  const user = req?.user || (userId ? await require('../../users/infrastructure/repositories').userRepository.findById(userId) : null);
+  const user = req?.user || (userId ? await require('@/modules/users/infrastructure/repositories').userRepository.findById(userId) : null);
 
   const revokedCount = await refreshTokenRepository.revokeAllForUser(userId);
 

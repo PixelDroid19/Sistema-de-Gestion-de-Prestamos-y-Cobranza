@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { AuthenticationError } = require('../../../utils/errorHandler');
-const { normalizeApplicationRole } = require('../roles');
+const { AuthenticationError } = require('@/utils/errorHandler');
+const { normalizeApplicationRole } = require('@/modules/shared/roles');
 
 // Access token expiry: 15 minutes
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -41,10 +41,11 @@ const createJwtTokenService = ({
    * @param {string|string[]} roles
    * @returns {string} JWT access token
    */
-  generateAccessToken(userId, roles) {
+  generateAccessToken(userId, roles, extraPayload = {}) {
     const payload = {
       id: userId,
       role: Array.isArray(roles) ? roles[0] : roles,
+      ...extraPayload,
       type: 'access',
     };
     return jwt.sign(normalizeTokenPayload(payload), secret, {
@@ -67,9 +68,9 @@ const createJwtTokenService = ({
    * @param {string|string[]} roles
    * @returns {{ accessToken: string, refreshToken: string }}
    */
-  generateTokenPair(userId, roles) {
+  generateTokenPair(userId, roles, extraPayload = {}) {
     return {
-      accessToken: this.generateAccessToken(userId, roles),
+      accessToken: this.generateAccessToken(userId, roles, extraPayload),
       refreshToken: this.generateRefreshToken(),
     };
   },

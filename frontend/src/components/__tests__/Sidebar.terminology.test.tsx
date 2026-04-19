@@ -30,6 +30,11 @@ describe('Sidebar canonical terminology parity', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clientes' }));
     fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Socios' }));
+
+    expect(setCurrentView).toHaveBeenNthCalledWith(1, 'customers');
+    expect(setCurrentView).toHaveBeenNthCalledWith(2, 'credits');
+    expect(setCurrentView).toHaveBeenNthCalledWith(3, 'associates');
 
     expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Lista de clientes' })).toBeInTheDocument();
