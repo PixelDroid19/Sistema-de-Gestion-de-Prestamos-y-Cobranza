@@ -4,7 +4,22 @@ const sequelize = require('./database');
 const Payment = sequelize.define('Payment', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   loanId: { type: DataTypes.INTEGER, allowNull: false },
-  amount: { type: DataTypes.FLOAT, allowNull: false, validate: { min: 0.01 } },
+  amount: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    validate: {
+      min: 0,
+      validAmountForStatus(value) {
+        if (this.status === 'annulled') {
+          return;
+        }
+
+        if (Number(value) < 0.01) {
+          throw new Error('Validation min on amount failed');
+        }
+      },
+    },
+  },
   paymentDate: { type: DataTypes.DATE, allowNull: false },
   status: { type: DataTypes.ENUM('pending', 'completed', 'failed', 'annulled'), defaultValue: 'pending' },
   // paymentType: 'installment' (regular EMI), 'payoff' (total close), 'partial' (free amount), 'capital' (debt reduction)

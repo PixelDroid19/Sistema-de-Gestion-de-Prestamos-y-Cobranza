@@ -757,6 +757,42 @@ test('annulInstallment excludes annulled installments from outstanding snapshot 
   assert.equal(savedPayment.allocationBreakdown[0].previousStatus, 'overdue');
 });
 
+test('Payment model allows zero-amount records only for annulled payments', async () => {
+  const annulledPayment = models.Payment.build({
+    loanId: 44,
+    amount: 0,
+    paymentDate: '2026-03-20T00:00:00.000Z',
+    status: 'annulled',
+    paymentType: 'installment',
+    principalApplied: 0,
+    interestApplied: 0,
+    penaltyApplied: 0,
+    overpaymentAmount: 0,
+    remainingBalanceAfterPayment: 0,
+    allocationBreakdown: [],
+    paymentMetadata: {},
+  });
+
+  await assert.doesNotReject(() => annulledPayment.validate());
+
+  const regularPayment = models.Payment.build({
+    loanId: 44,
+    amount: 0,
+    paymentDate: '2026-03-20T00:00:00.000Z',
+    status: 'completed',
+    paymentType: 'installment',
+    principalApplied: 0,
+    interestApplied: 0,
+    penaltyApplied: 0,
+    overpaymentAmount: 0,
+    remainingBalanceAfterPayment: 0,
+    allocationBreakdown: [],
+    paymentMetadata: {},
+  });
+
+  await assert.rejects(() => regularPayment.validate(), /Validation min on amount failed/);
+});
+
 test('annulInstallment respects requested installment number when it matches nearest cancellable installment', async () => {
   let savedPayment;
 
