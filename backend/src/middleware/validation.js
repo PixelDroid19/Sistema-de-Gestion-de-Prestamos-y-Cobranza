@@ -1,5 +1,5 @@
 const { ValidationError } = require('@/utils/errorHandler');
-const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/application/creditSimulationService');
+const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/application/dag/lateFeeMode');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
 const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
 

@@ -116,8 +116,6 @@ export const dagService = {
     return data;
   },
 
-  // ── Variable Registry Endpoints ───────────────────────────────────────────
-
   // ── Graph History & Diff Endpoints ───────────────────────────────────────
 
   async getGraphHistory(graphId: number): Promise<GraphHistoryResponse> {
@@ -138,6 +136,7 @@ export const dagService = {
     });
     return data;
   },
+
 };
 
 export default dagService;

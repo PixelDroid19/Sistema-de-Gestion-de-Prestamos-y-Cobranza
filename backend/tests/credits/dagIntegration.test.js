@@ -13,7 +13,6 @@ const assert = require('node:assert/strict');
 const models = require('@/models');
 const { createGraphExecutor } = require('@/modules/credits/application/dag/graphExecutor');
 const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
-const { createCreditsDagConfig } = require('@/modules/credits/application/dag/config');
 const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
 const { createLoanFromCanonicalDataFactory } = require('@/modules/credits/infrastructure/loanCreation');
 const { getDagWorkbenchScopeDefinition } = require('@/modules/credits/application/dag/scopeRegistry');
@@ -113,22 +112,18 @@ test('graphExecutor rejects execution with missing required inputs', async () =>
 
 // ─── Full chain: graphExecutor -> calculationAdapter -> creditSimulationService ─
 
-test('full chain: simulateDetailed returns DAG result with parity and graphVersionId', async () => {
+test('full chain: simulateDetailed returns DAG result with graphVersionId', async () => {
   const record = createMockGraphVersionRecord();
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
 
   const calculationService = createCreditsCalculationService({
-    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     graphExecutor: executor,
   });
 
   const creditSimulator = createCreditSimulationService({ calculationService });
   const detailed = await creditSimulator.simulateDetailed(standardInput);
 
-  // Should use DAG source when parity passes (same formulas, same result)
-  assert.equal(detailed.selectedSource, 'dag');
   assert.equal(detailed.graphVersionId, 42);
-  assert.ok(detailed.parity.passed);
   assert.equal(detailed.result.schedule.length, 12);
   assert.ok(detailed.result.summary.installmentAmount > 0);
 });
@@ -138,7 +133,6 @@ test('full chain: simulate returns simulation result with graphVersionId', async
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
 
   const calculationService = createCreditsCalculationService({
-    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     graphExecutor: executor,
   });
 
@@ -169,7 +163,6 @@ test('full chain: loanCreation uses DAG result and persists correct graphVersion
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
 
   const calculationService = createCreditsCalculationService({
-    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     graphExecutor: executor,
   });
 
@@ -190,40 +183,6 @@ test('full chain: loanCreation uses DAG result and persists correct graphVersion
   assert.ok(persistedPayload.totalPayable > 10000);
   assert.equal(persistedPayload.lateFeeMode, 'SIMPLE');
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
-});
-
-// ─── Parity: DAG default graph matches legacy simulateCredit exactly ────────
-
-test('parity: default seeded DAG graph produces identical numbers to legacy simulateCredit', async () => {
-  const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
-
-  const record = createMockGraphVersionRecord();
-  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
-
-  const calculationService = createCreditsCalculationService({
-    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
-    graphExecutor: executor,
-  });
-
-  const execution = await calculationService.calculate(standardInput);
-
-  // Must select DAG (parity should pass since the default graph calls the same helpers)
-  assert.equal(execution.selectedSource, 'dag');
-  assert.ok(execution.parity.passed, `Parity failed: ${JSON.stringify(execution.parity.mismatches)}`);
-
-  // Compare key values
-  const legacy = simulateCredit(standardInput);
-  const dag = execution.result;
-
-  assert.equal(dag.lateFeeMode, legacy.lateFeeMode);
-  assert.equal(dag.schedule.length, legacy.schedule.length);
-  assert.equal(dag.summary.installmentAmount, legacy.summary.installmentAmount);
-  assert.equal(dag.summary.totalPayable, legacy.summary.totalPayable);
-  assert.equal(dag.summary.totalInterest, legacy.summary.totalInterest);
-  assert.equal(
-    dag.schedule[dag.schedule.length - 1].remainingBalance,
-    legacy.schedule[legacy.schedule.length - 1].remainingBalance,
-  );
 });
 
 // ─── Formula Editor Integration: edited graph affects simulation ────────────
@@ -247,7 +206,6 @@ test('edited formula graph is executed and used in primary mode — DAG is sourc
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(modifiedRecord) });
 
   const calculationService = createCreditsCalculationService({
-    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
     graphExecutor: executor,
   });
 
@@ -263,12 +221,7 @@ test('edited formula graph is executed and used in primary mode — DAG is sourc
 
   // DAG is the single source of truth — edited formula is always used
   assert.equal(detailed.graphVersionId, 99);
-  assert.equal(detailed.selectedSource, 'dag');
-  assert.equal(detailed.fallbackReason, null);
   assert.equal(detailed.result.schedule.length, 6, 'Edited formula produces 6 installments');
-
-  // Parity is computed for observability but does not block
-  assert.equal(detailed.dagResult.schedule.length, 6);
 });
 
 test('formula editor save flow: graphExecutor.executeDraft validates edited formulas', async () => {

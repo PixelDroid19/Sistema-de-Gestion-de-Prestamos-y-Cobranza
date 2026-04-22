@@ -6,8 +6,7 @@ const {
 } = require('@/modules/credits/application/dag/workbenchService');
 
 describe('Visual Formula Editor E2E Integration', () => {
-  test('full flow: save graph, simulate, create variable, get history, diff, restore', async () => {
-    const variables = [];
+  test('full flow: save graph, simulate, get history, diff, restore', async () => {
     const graphVersions = [];
     let versionCounter = 0;
 
@@ -59,14 +58,6 @@ describe('Visual Formula Editor E2E Integration', () => {
       graphExecutor: {
         executeDraft() {
           return { ok: true, result: { lateFeeMode: 'SIMPLE', schedule: [], summary: {} } };
-        },
-      },
-      dagVariableRepository: {
-        async listAll() { return variables; },
-        async create(record) {
-          const v = { id: variables.length + 1, ...record, usageCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-          variables.push(v);
-          return v;
         },
       },
     });

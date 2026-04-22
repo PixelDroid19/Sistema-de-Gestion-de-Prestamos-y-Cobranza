@@ -68,6 +68,29 @@ const buildInitialScope = (contractVars = {}) => {
     summary: summ,
   });
 
+  // Logical helpers for the visual block-based formula editor.
+  // These allow IF/THEN/ELSE, AND, OR, NOT constructions in mathjs formulas.
+  scope.ifThenElse = (condition, thenValue, elseValue) => {
+    const truthy = condition !== false
+      && condition !== 0
+      && condition !== null
+      && condition !== undefined
+      && condition !== '';
+    return truthy ? thenValue : elseValue;
+  };
+
+  // mathjs already has and/or/not, but we ensure they are available
+  // in case the formula engine instance doesn't include them.
+  if (!scope.and) {
+    scope.and = (...args) => args.every((a) => a !== false && a !== 0 && a !== null && a !== undefined && a !== '');
+  }
+  if (!scope.or) {
+    scope.or = (...args) => args.some((a) => a !== false && a !== 0 && a !== null && a !== undefined && a !== '');
+  }
+  if (!scope.not) {
+    scope.not = (a) => a === false || a === 0 || a === null || a === undefined || a === '';
+  }
+
   return scope;
 };
 

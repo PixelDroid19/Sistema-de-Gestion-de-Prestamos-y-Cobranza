@@ -19,6 +19,8 @@ export interface DagNode {
   formula?: string;
   outputVar?: string;
   metadata?: Record<string, unknown>;
+  x?: number;
+  y?: number;
 }
 
 export interface DagEdge {
@@ -200,6 +202,7 @@ export interface GraphDeleteResponse {
 
 export interface DagWorkbenchScopeHelper {
   name: string;
+  label: string;
   description: string;
 }
 
@@ -231,7 +234,7 @@ export interface ValidateGraphResponse {
 
 export interface SimulateGraphRequest {
   scopeKey: string;
-  simulationInput: SimulationInput;
+  simulationInput: SimulationInput | Record<string, any>;
   graph: DagGraph;
 }
 
@@ -262,25 +265,13 @@ export interface GraphSummaryResponse {
 // =============================================================================
 // SIMULATION SUMMARY (for history)
 // =============================================================================
-export interface ParityResult {
-  passed: boolean;
-  tolerance: number;
-  mismatches: Array<{
-    scope: string;
-    field: string;
-    expected: unknown;
-    actual: unknown;
-  }>;
-}
-
 export interface DagSimulationSummary {
   id: number;
   scopeKey: string;
   graphVersionId: number | null;
   createdByUserId: number;
-  selectedSource: 'legacy' | 'dag' | 'draft';
+  selectedSource: 'dag' | 'draft';
   fallbackReason: string | null;
-  parity: ParityResult;
   simulationInput: SimulationInput;
   summary: SimulationSummary;
   schedulePreview: AmortizationRow[];
@@ -348,36 +339,5 @@ export const SCOPE_LABELS: Record<string, string> = {
 
 export const getScopeLabel = (scopeKey: string): string => SCOPE_LABELS[scopeKey] || scopeKey;
 
-// Default formula helpers available in the backend
-export const FORMULA_HELPERS = [
-  {
-    name: 'buildAmortizationSchedule',
-    description: 'Genera tabla de amortización',
-    template: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)',
-  },
-  {
-    name: 'summarizeSchedule',
-    description: 'Resume la tabla en totales',
-    template: 'summarizeSchedule(schedule)',
-  },
-  {
-    name: 'assertSupportedLateFeeMode',
-    description: 'Valida modo de mora',
-    template: 'assertSupportedLateFeeMode(lateFeeMode)',
-  },
-  {
-    name: 'roundCurrency',
-    description: 'Redondea a 2 decimales',
-    template: 'roundCurrency(value)',
-  },
-  {
-    name: 'calculateLateFee',
-    description: 'Calcula mora: SIMPLE/FLAT/TIERED',
-    template: 'calculateLateFee()',
-  },
-  {
-    name: 'buildSimulationResult',
-    description: 'Construye resultado (lateFeeMode, schedule, summary)',
-    template: 'buildSimulationResult(lateFeeMode, schedule, summary)',
-  },
-] as const;
+// Helpers are loaded dynamically from the backend via dagService.listScopes()
+// Do NOT hardcode helper definitions here — the backend scopeRegistry is the single source of truth.

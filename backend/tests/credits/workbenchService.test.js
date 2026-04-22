@@ -334,7 +334,7 @@ test('createDagWorkbenchService rejects deactivating the only active version in 
   );
 });
 
-test('createDagWorkbenchService persists fallback and parity metadata for workbench simulations', async () => {
+test('createDagWorkbenchService persists fallback metadata for workbench simulations', async () => {
   const savedSummaries = [];
 
   const service = createDagWorkbenchService({
@@ -394,9 +394,7 @@ test('createDagWorkbenchService persists fallback and parity metadata for workbe
   assert.equal(savedSummaries.length, 1);
   assert.equal(savedSummaries[0].selectedSource, 'draft');
   assert.equal(savedSummaries[0].fallbackReason, null);
-  assert.equal(savedSummaries[0].parity.passed, true);
   assert.equal(simulationResult.summary.latestSimulation.fallbackReason, null);
-  assert.equal(simulationResult.summary.latestSimulation.parity.passed, true);
 });
 
 test('createDagWorkbenchService rejects rollout-disabled scopes', async () => {

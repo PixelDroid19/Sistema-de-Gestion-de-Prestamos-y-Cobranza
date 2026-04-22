@@ -35,6 +35,7 @@ const DashboardPage = React.lazy(() => import('./components/DashboardPage'));
 const FormulaEditorPage = React.lazy(() => import('./components/FormulaEditorPage'));
 const AuditHistoryPage = React.lazy(() => import('./components/AuditHistoryPage'));
 
+
 function RouteLoadingFallback() {
   return (
     <div className="flex min-h-[240px] items-center justify-center">
@@ -119,7 +120,6 @@ function MainLayout() {
               <Route path="/formulas" element={<ProtectedRoute allowedRoles={['admin']}><DashboardPage /></ProtectedRoute>} />
               <Route path="/formulas/new" element={<ProtectedRoute allowedRoles={['admin']}><FormulaEditorPage /></ProtectedRoute>} />
               <Route path="/formulas/:id" element={<ProtectedRoute allowedRoles={['admin']}><FormulaEditorPage /></ProtectedRoute>} />
-
               <Route path="/audit/:id" element={<ProtectedRoute allowedRoles={['admin']}><AuditHistoryPage /></ProtectedRoute>} />
               <Route path="*" element={<RoleHomeRedirect />} />
             </Routes>

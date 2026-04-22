@@ -23,6 +23,7 @@ interface GraphEditorActions {
   updateNodeFormula: (nodeId: string, formula: string) => void;
   updateNodeOutputVar: (nodeId: string, outputVar: string) => void;
   updateNodeField: (nodeId: string, field: keyof DagNode, value: unknown) => void;
+  updateNodePosition: (nodeId: string, x: number, y: number) => void;
   addNode: (node: DagNode) => void;
   removeNode: (nodeId: string) => void;
   addEdge: (edge: DagEdge) => void;
@@ -131,6 +132,18 @@ export const useBlockEditorStore = create<GraphEditorState & GraphEditorActions>
         undoStack: [...state.undoStack, state.graph],
         redoStack: [],
         selectedNodeId: field === 'id' && state.selectedNodeId === oldId ? newId : state.selectedNodeId,
+      };
+    });
+  },
+
+  updateNodePosition: (nodeId, x, y) => {
+    set((state) => {
+      if (!state.graph) return state;
+      const newNodes = state.graph.nodes.map((node) =>
+        node.id === nodeId ? { ...node, x, y } : node
+      );
+      return {
+        graph: { ...state.graph, nodes: newNodes },
       };
     });
   },

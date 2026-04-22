@@ -101,15 +101,9 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
-  if (tableName === 'DagVariables') {
-    return {
-      id: {}, name: {}, type: {}, source: {}, description: {}, status: {}, usageCount: {}, createdAt: {}, updatedAt: {},
-    };
-  }
-
   if (tableName === 'DagSimulationSummaries') {
     return {
-      id: {}, scopeKey: {}, graphVersionId: {}, createdByUserId: {}, selectedSource: {}, fallbackReason: {}, parity: {}, simulationInput: {}, summary: {}, schedulePreview: {}, createdAt: {}, updatedAt: {},
+      id: {}, scopeKey: {}, graphVersionId: {}, createdByUserId: {}, selectedSource: {}, fallbackReason: {}, simulationInput: {}, summary: {}, schedulePreview: {}, createdAt: {}, updatedAt: {},
     };
   }
 

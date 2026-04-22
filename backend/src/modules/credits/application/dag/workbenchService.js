@@ -453,7 +453,6 @@ const createDagWorkbenchService = ({
         createdByUserId: actor.id,
         selectedSource: dagExecution.source || 'draft',
         fallbackReason: null,
-        parity: { passed: true, mismatches: [] },
         simulationInput,
         summary: dagExecution.result?.summary || dagExecution.result || {},
         schedulePreview: Array.isArray(dagExecution.result?.schedule) ? dagExecution.result.schedule.slice(0, 5) : [],

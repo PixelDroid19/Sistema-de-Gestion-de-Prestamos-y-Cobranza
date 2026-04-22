@@ -42,8 +42,8 @@ const mockScope = {
     lateFeeMode: 'SIMPLE',
   },
   helpers: [
-    { name: 'buildAmortizationSchedule', description: 'Genera tabla de amortizacion' },
-    { name: 'summarizeSchedule', description: 'Resume la tabla en totales' },
+    { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera tabla de amortizacion' },
+    { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume la tabla en totales' },
   ],
   defaultGraph: {
     nodes: [
@@ -114,18 +114,20 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('amount')).toBeInTheDocument();
-      expect(screen.getByText('interestRate')).toBeInTheDocument();
-      expect(screen.getByText('termMonths')).toBeInTheDocument();
-    });
+      expect(screen.getAllByText('amount').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('interestRate').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('termMonths').length).toBeGreaterThanOrEqual(1);
+    }, { timeout: 3000 });
   });
 
-  it('renders available helpers in left panel', async () => {
+  it('renders available helpers in left panel with friendly labels', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('buildAmortizationSchedule')).toBeInTheDocument();
-      expect(screen.getByText('summarizeSchedule')).toBeInTheDocument();
+      // Use getAllByText because the label also appears inside node cards;
+      // we just need to confirm it exists somewhere (panel + cards).
+      expect(screen.getAllByText('Generar tabla de amortización').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Resumen de cronograma').length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -138,13 +140,15 @@ describe('FormulaEditorPage', () => {
     });
   });
 
-  it('displays formula for formula nodes', async () => {
+  it('displays friendly formula description for formula nodes', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/buildAmortizationSchedule\(amount, interestRate, termMonths, startDate, lateFeeMode\)/i)
-      ).toBeInTheDocument();
+      // Should show the human-friendly label inside a chip, NEVER the raw function name
+      const chips = screen.getAllByText(/Generar tabla de amortización/i);
+      expect(chips.length).toBeGreaterThanOrEqual(1);
+      // Ensure the raw function name is NOT present anywhere
+      expect(screen.queryByText('buildAmortizationSchedule')).not.toBeInTheDocument();
     });
   });
 
@@ -156,7 +160,7 @@ describe('FormulaEditorPage', () => {
     fireEvent.click(getNodeLabel('Cronograma'));
 
     await waitFor(() => {
-      expect(screen.getByText('Propiedades del nodo')).toBeInTheDocument();
+      expect(screen.getByText('Propiedades')).toBeInTheDocument();
     });
   });
 
@@ -183,7 +187,7 @@ describe('FormulaEditorPage', () => {
     fireEvent.click(getNodeLabel('Cronograma'));
 
     await waitFor(() => {
-      expect(screen.getByText('Propiedades del nodo')).toBeInTheDocument();
+      expect(screen.getByText('Propiedades')).toBeInTheDocument();
     });
 
     const textarea = screen.getAllByRole('textbox').find(

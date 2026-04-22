@@ -19,7 +19,7 @@ const { roundCurrency } = require('@/modules/credits/application/creditFormulaHe
 const { createCreditsDagConfig } = require('@/modules/credits/application/dag/config');
 const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
 const { createGraphExecutor } = require('@/modules/credits/application/dag/graphExecutor');
-const { logDagComparison } = require('@/utils/logger');
+
 const { paginateModel } = require('@/modules/shared/pagination');
 
 const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
@@ -327,9 +327,7 @@ const createCreditsInfrastructure = ({
   // ── Build the dependency chain: graphExecutor → calculationService → simulators ──
   const graphExecutor = graphExecutorOverride || createGraphExecutor({ dagGraphRepository });
   const calculationService = calculationServiceOverride || createCreditsCalculationService({
-    dagConfig,
     graphExecutor,
-    comparisonLogger: logDagComparison,
   });
   const simService = createCreditSimulationService({ calculationService });
   const creditSimulator = creditSimulatorOverride || simService.simulate;
@@ -686,6 +684,7 @@ const createCreditsInfrastructure = ({
     creditsDagConfig: dagConfig,
     creditsCalculationService: calculationService,
     graphExecutor,
+
   };
 };
 

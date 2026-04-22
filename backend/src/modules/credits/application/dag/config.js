@@ -1,7 +1,3 @@
-const { normalizeTolerance } = require('./precision');
-
-const ROLLOUT_MODES = new Set(['off', 'shadow', 'primary']);
-
 const normalizeBoolean = (value, fallback = false) => {
   if (typeof value === 'boolean') {
     return value;
@@ -32,18 +28,10 @@ const createScopeMatcher = (scopes) => {
   return (scopeKey) => normalizedScopes.size === 0 || normalizedScopes.has(String(scopeKey || '').trim().toLowerCase());
 };
 
-const normalizeRolloutMode = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  return ROLLOUT_MODES.has(normalized) ? normalized : 'off';
-};
-
-const createCreditsDagConfig = ({ env = process.env, mode, parityTolerance, workbenchEnabled, workbenchScopes } = {}) => {
+const createCreditsDagConfig = ({ env = process.env, workbenchEnabled, workbenchScopes } = {}) => {
   const normalizedScopes = normalizeScopeList(workbenchScopes ?? env.CREDITS_DAG_WORKBENCH_SCOPES);
-  const resolvedMode = mode ?? env.CREDITS_DAG_MODE ?? env.DAG_ROLLOUT_MODE;
 
   return {
-    mode: normalizeRolloutMode(resolvedMode),
-    parityTolerance: normalizeTolerance(parityTolerance ?? env.CREDITS_DAG_TOLERANCE, 0.01),
     workbenchEnabled: normalizeBoolean(workbenchEnabled ?? env.CREDITS_DAG_WORKBENCH_ENABLED, true),
     workbenchScopes: normalizedScopes,
     isScopeEnabled: createScopeMatcher(normalizedScopes),
@@ -51,9 +39,7 @@ const createCreditsDagConfig = ({ env = process.env, mode, parityTolerance, work
 };
 
 module.exports = {
-  ROLLOUT_MODES,
   normalizeBoolean,
   normalizeScopeList,
-  normalizeRolloutMode,
   createCreditsDagConfig,
 };

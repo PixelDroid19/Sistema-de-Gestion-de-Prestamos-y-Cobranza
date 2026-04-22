@@ -182,96 +182,98 @@ PORT=3000
 
 El frontend se ejecuta en el puerto 3000 por defecto (configurable via variable PORT).
 
-## Instalacion local
+## Instalacion rapida
 
-### 1. Instalar dependencias
+Ver `setup.md` para la guia completa con Docker y local.
 
-```bash
-cd backend
-npm install
-```
+### Local (requiere PostgreSQL)
 
 ```bash
-cd frontend
-npm install
+# Terminal 1 — backend
+cd backend && npm install && npm run dev
+
+# Terminal 2 — frontend
+cd frontend && npm install && npm run dev
 ```
 
-### 2. Levantar backend
+### Con Docker (solo Postgres) + local
 
 ```bash
-cd backend
-npm run dev
+# 1. Postgres en Docker
+docker run -d --name pg-credicobranza -p 5432:5432 \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=loan_recovery_system postgres:16
+
+# 2. Backend local
+cd backend && npm install && npm run dev
+
+# 3. Frontend local
+cd frontend && npm install && npm run dev
 ```
 
-El backend queda disponible por defecto en `http://localhost:5000`.
+### Con Docker Compose
 
-Endpoints utiles:
-
-- `GET /health`
-- `GET /api`
-
-### 3. Levantar frontend
-
-```bash
-cd frontend
-npm run dev
-```
-
-El frontend queda disponible por defecto en `http://localhost:3000`.
-
-## Opcion con Docker Compose
-
-Existe un compose en `backend/docker-compose.yml` para levantar PostgreSQL y el backend:
+Si tu Docker tiene el plugin `docker compose`:
 
 ```bash
 cd backend
 docker compose up --build
 ```
 
-Usa las mismas variables `DB_*` del backend.
+El frontend corre aparte:
 
-## Comandos disponibles
+```bash
+cd frontend && npm install && npm run dev
+```
+
+## Primer usuario
+
+El sistema no trae usuarios pre-creados. Registrate via API:
+
+```bash
+curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Admin","email":"admin@test.com","password":"admin123","role":"admin"}'
+```
+
+## Comandos utiles
 
 ### Backend
 
 ```bash
 cd backend
-npm run dev            # inicia con nodemon
-npm start              # inicia con node
-npm test               # ejecuta pruebas node --test
-npm run lint           # ejecuta eslint
-npm run lint:fix       # corrige lint donde sea posible
-npm run db:reset-local # reinicia el esquema local
+npm run dev            # nodemon, recarga en cambios
+npm start              # node directo
+npm test               # node --test
+npm run lint           # eslint
+npm run lint:fix       # auto-fix eslint
+npm run db:reset-local # resetea esquema (destructivo)
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-npm run dev         # inicia Vite
-npm run build       # build de produccion
-npm run preview     # preview local del build
-npm run lint        # ejecuta eslint
-npm test            # ejecuta Vitest una vez
-npm run test:watch  # ejecuta Vitest en modo watch
+npm run dev         # Vite en localhost:3000
+npm run build       # build produccion
+npm run preview     # preview del build
+npm run lint        # tsc --noEmit
+npm test            # vitest run
+npm run test:watch  # vitest watch
 ```
 
-## Validacion recomendada
+## Validacion
 
 ```bash
-cd backend
-npm test
-```
-
-```bash
-cd frontend
-npm test
-npm run build
+cd backend && npm test
+cd frontend && npm test && npm run build
 ```
 
 ## Notas para desarrollo
 
-- No existe hoy un workspace root con scripts compartidos; frontend y backend se gestionan por separado.
-- El backend sigue usando sincronizacion de esquema y seeds, no migraciones versionadas.
-- `frontend/dist/` contiene artefactos generados del cliente.
-- El shell del frontend y la landing ya muestran la marca CrediCobranza en superficies visibles del producto.
+- Frontend siempre en puerto `3000` (fijo en `vite.config.ts`).
+- Backend en puerto `5000` (configurable via `PORT`).
+- No hay workspace root; cada lado se gestiona por separado.
+- El backend usa sincronizacion de esquema automatica, no migraciones versionadas.
+- `frontend/dist/` contiene artefactos generados.
+- El shell del frontend ya muestra la marca CrediCobranza.

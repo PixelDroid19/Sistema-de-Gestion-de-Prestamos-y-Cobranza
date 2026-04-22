@@ -22,17 +22,39 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     return { id: 77, ...payload };
   });
 
-  // Build a calculationService that returns the expected legacy-compatible result
-  const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
+  // Build a calculationService that returns a DAG-compatible result
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
       async calculate(input) {
-        const result = simulateCredit(input);
         return {
-          mode: 'primary',
-          selectedSource: 'dag',
           graphVersionId: null,
-          result,
+          result: {
+            lateFeeMode: 'NONE',
+            schedule: Array.from({ length: input.termMonths }, (_, i) => ({
+              installmentNumber: i + 1,
+              dueDate: new Date(Date.now() + (i + 1) * 30 * 86400000).toISOString(),
+              scheduledPayment: 1066.19,
+              principalComponent: 1000,
+              interestComponent: 66.19,
+              paidPrincipal: 0,
+              paidInterest: 0,
+              paidTotal: 0,
+              remainingPrincipal: 1000,
+              remainingInterest: 66.19,
+              remainingBalance: 1066.19,
+              status: 'pending',
+            })),
+            summary: {
+              installmentAmount: 1066.19,
+              totalPayable: 12794.23,
+              totalPaid: 0,
+              outstandingPrincipal: 12000,
+              outstandingInterest: 794.23,
+              outstandingBalance: 12794.23,
+              outstandingInstallments: input.termMonths,
+              nextInstallment: null,
+            },
+          },
         };
       },
     },
@@ -60,7 +82,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
 });
 
-test('createLoanFromCanonicalDataFactory persists DAG-selected results when primary parity succeeds', async () => {
+test('createLoanFromCanonicalDataFactory persists DAG-selected results with graphVersionId', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
@@ -73,10 +95,8 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
 
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
-      async calculate(input) {
+      async calculate() {
         return {
-          mode: 'primary',
-          selectedSource: 'dag',
           graphVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
@@ -111,7 +131,7 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results when prim
   assert.equal(persistedPayload.emiSchedule[0].scheduledPayment, 90);
 });
 
-test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy fallback', async () => {
+test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fallback', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
@@ -126,9 +146,6 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on legacy f
     calculationService: {
       async calculate() {
         return {
-          mode: 'primary',
-          selectedSource: 'legacy',
-          fallbackReason: 'parity_mismatch',
           graphVersionId: 700,
           result: {
             lateFeeMode: 'NONE',

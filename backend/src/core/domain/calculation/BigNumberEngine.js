@@ -36,6 +36,11 @@ const ALLOWED_FUNCTIONS = new Set([
   'roundCurrency',
   'assertSupportedLateFeeMode',
   'buildSimulationResult',
+  // Logical operators for block-based formula editor
+  'ifThenElse',
+  'and',
+  'or',
+  'not',
 ]);
 
 // Blocked patterns that could bypass the whitelist

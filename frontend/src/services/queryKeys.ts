@@ -112,7 +112,6 @@ export const queryKeys = {
   },
   dag: {
     graphs: (scopeKey: string) => ['dag.graphs', scopeKey] as const,
-    variables: () => ['dag.variables'] as const,
     history: (graphId: number) => ['dag.history', graphId] as const,
     diff: (graphId: number, compareToVersionId: number) => ['dag.diff', graphId, compareToVersionId] as const,
   },

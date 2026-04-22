@@ -33,16 +33,18 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
       interestRate: 60,
       termMonths: 12,
       lateFeeMode: 'SIMPLE',
+      startDate: new Date().toISOString(),
     },
 
     // Helpers injected into the formula scope (scopeBuilder.js provides the real fns)
+    // label = human-friendly name shown in the UI (never expose raw function names to users)
     helpers: [
-      { name: 'buildAmortizationSchedule', description: 'Genera el cronograma canonico del credito.' },
-      { name: 'summarizeSchedule', description: 'Resume el cronograma en totales y saldo pendiente.' },
-      { name: 'assertSupportedLateFeeMode', description: 'Valida el modo de mora configurado.' },
-      { name: 'calculateLateFee', description: 'Calcula mora para escenarios vencidos.' },
-      { name: 'roundCurrency', description: 'Redondea resultados monetarios a 2 decimales.' },
-      { name: 'buildSimulationResult', description: 'Construye el objeto resultado (lateFeeMode, schedule, summary).' },
+      { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera el cronograma canonico del credito.' },
+      { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume el cronograma en totales y saldo pendiente.' },
+      { name: 'assertSupportedLateFeeMode', label: 'Validar modo de mora', description: 'Valida el modo de mora configurado.' },
+      { name: 'calculateLateFee', label: 'Calcular mora', description: 'Calcula mora para escenarios vencidos.' },
+      { name: 'roundCurrency', label: 'Redondear moneda', description: 'Redondea resultados monetarios a 2 decimales.' },
+      { name: 'buildSimulationResult', label: 'Construir resultado final', description: 'Construye el objeto resultado (lateFeeMode, schedule, summary).' },
     ],
 
     // Canonical default graph — seeded into DagGraphVersion on first boot

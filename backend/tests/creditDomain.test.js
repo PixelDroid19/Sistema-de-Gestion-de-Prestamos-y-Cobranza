@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
 const { loanValidation, associateValidation } = require('@/middleware/validation');
 const { ValidationError, BusinessRuleViolationError } = require('@/utils/errorHandler');
 const { buildPayoffQuote } = require('@/modules/credits/application/loanFinancials');
@@ -10,36 +9,6 @@ const {
   normalizeFinancialBlock,
 } = require('@/modules/credits/application/paymentEligibility');
 const { runMiddleware, captureMiddlewareError } = require('./helpers/middleware');
-
-test('simulateCredit returns canonical backend preview data', () => {
-  const simulation = simulateCredit({
-    amount: 12000,
-    interestRate: 12,
-    termMonths: 12,
-  });
-
-  assert.equal(simulation.lateFeeMode, 'NONE');
-  assert.equal(simulation.schedule.length, 12);
-  assert.equal(simulation.summary.installmentAmount, 1066.19);
-  assert.equal(simulation.summary.totalPayable, 12794.23);
-  assert.equal(simulation.summary.outstandingBalance, 12794.23);
-});
-
-test('simulateCredit defaults missing startDate to the current date instead of 1970', () => {
-  const before = new Date();
-  const simulation = simulateCredit({
-    amount: 12000,
-    interestRate: 12,
-    termMonths: 2,
-    startDate: null,
-  });
-  const firstDueDate = new Date(simulation.schedule[0].dueDate);
-  const secondDueDate = new Date(simulation.schedule[1].dueDate);
-
-  assert.notEqual(firstDueDate.getUTCFullYear(), 1970);
-  assert.equal(firstDueDate.getUTCMonth(), (before.getUTCMonth() + 1) % 12);
-  assert.equal(secondDueDate.getUTCMonth(), (before.getUTCMonth() + 2) % 12);
-});
 
 test('loanValidation.simulate rejects unsupported late-fee modes', async () => {
   const error = await captureMiddlewareError(loanValidation.simulate, {
