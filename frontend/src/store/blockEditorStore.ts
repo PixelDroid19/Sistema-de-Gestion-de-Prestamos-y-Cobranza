@@ -22,10 +22,12 @@ interface GraphEditorActions {
   setGraph: (graph: DagGraph) => void;
   updateNodeFormula: (nodeId: string, formula: string) => void;
   updateNodeOutputVar: (nodeId: string, outputVar: string) => void;
+  updateNodeField: (nodeId: string, field: keyof DagNode, value: unknown) => void;
   addNode: (node: DagNode) => void;
   removeNode: (nodeId: string) => void;
   addEdge: (edge: DagEdge) => void;
   removeEdge: (source: string, target: string) => void;
+  generateNodeId: (prefix: string) => string;
   selectNode: (id: string | null) => void;
   setZoom: (zoom: number) => void;
   setFormulaName: (name: string) => void;
@@ -99,6 +101,36 @@ export const useBlockEditorStore = create<GraphEditorState & GraphEditorActions>
         graph: newGraph,
         undoStack: [...state.undoStack, state.graph],
         redoStack: [],
+      };
+    });
+  },
+
+  updateNodeField: (nodeId, field, value) => {
+    set((state) => {
+      if (!state.graph) return state;
+      const oldId = nodeId;
+      const newId = field === 'id' ? String(value) : oldId;
+
+      const newNodes = state.graph.nodes.map((node) =>
+        node.id === nodeId ? { ...node, [field]: value } : node
+      );
+
+      // If renaming a node, update all edges that reference it
+      const newEdges = field === 'id'
+        ? state.graph.edges.map((edge) => ({
+            ...edge,
+            source: edge.source === oldId ? newId : edge.source,
+            target: edge.target === oldId ? newId : edge.target,
+          }))
+        : state.graph.edges;
+
+      const newGraph = { ...state.graph, nodes: newNodes, edges: newEdges };
+
+      return {
+        graph: newGraph,
+        undoStack: [...state.undoStack, state.graph],
+        redoStack: [],
+        selectedNodeId: field === 'id' && state.selectedNodeId === oldId ? newId : state.selectedNodeId,
       };
     });
   },
@@ -204,6 +236,18 @@ export const useBlockEditorStore = create<GraphEditorState & GraphEditorActions>
   },
 
   reset: () => set(initialState),
+
+  generateNodeId: (prefix) => {
+    const { graph } = get();
+    const existingIds = new Set(graph?.nodes.map((n) => n.id) || []);
+    let counter = 1;
+    let id = `${prefix}_${counter}`;
+    while (existingIds.has(id)) {
+      counter += 1;
+      id = `${prefix}_${counter}`;
+    }
+    return id;
+  },
 
   canUndo: () => get().undoStack.length > 0,
 

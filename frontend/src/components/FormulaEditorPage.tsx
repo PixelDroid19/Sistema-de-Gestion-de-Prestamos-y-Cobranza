@@ -1,18 +1,35 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Undo2, Redo2, ZoomIn, ZoomOut, Save, ChevronLeft, Loader2, Play } from 'lucide-react';
+import { Undo2, Redo2, ZoomIn, ZoomOut, Save, ChevronLeft, Loader2, Play, Plus, Trash2, Link, X } from 'lucide-react';
 import { useBlockEditorStore } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
-import { getScopeLabel } from '../types/dag';
-import { useConfirm } from '../lib/confirmModal';
+import { getScopeLabel, DagNode, DagEdge } from '../types/dag';
 import { toast } from '../lib/toast';
+
+const MINIMAL_DEFAULT_GRAPH = {
+  nodes: [
+    { id: 'amount', kind: 'constant' as const, label: 'Monto', outputVar: 'amount' },
+    { id: 'interestRate', kind: 'constant' as const, label: 'Tasa', outputVar: 'interestRate' },
+    { id: 'termMonths', kind: 'constant' as const, label: 'Plazo', outputVar: 'termMonths' },
+    { id: 'schedule', kind: 'formula' as const, label: 'Cronograma', outputVar: 'schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)' },
+    { id: 'summary', kind: 'formula' as const, label: 'Resumen', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
+    { id: 'result', kind: 'output' as const, label: 'Resultado', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+  ],
+  edges: [
+    { source: 'amount', target: 'schedule' },
+    { source: 'interestRate', target: 'schedule' },
+    { source: 'termMonths', target: 'schedule' },
+    { source: 'schedule', target: 'summary' },
+    { source: 'schedule', target: 'result' },
+    { source: 'summary', target: 'result' },
+  ],
+};
 
 export default function FormulaEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { confirm } = useConfirm();
   const isNew = !id || id === 'new';
 
   const {
@@ -27,6 +44,11 @@ export default function FormulaEditorPage() {
     error: storeError,
     setGraph,
     updateNodeFormula,
+    updateNodeField,
+    addNode,
+    removeNode,
+    addEdge,
+    removeEdge,
     selectNode,
     setZoom,
     setFormulaName,
@@ -40,10 +62,15 @@ export default function FormulaEditorPage() {
     canUndo,
     canRedo,
     reset,
+    generateNodeId,
   } = useBlockEditorStore();
 
-  // Load scope definition (variables, helpers, default graph)
-  const { data: scopeData } = useQuery({
+  const [edgeSource, setEdgeSource] = useState<string>('');
+  const [edgeTarget, setEdgeTarget] = useState<string>('');
+  const [showAddNode, setShowAddNode] = useState(false);
+
+  // Load scope definition
+  const { data: scopeData, isLoading: scopeLoading } = useQuery({
     queryKey: queryKeys.loans.workbenchScopes,
     queryFn: () => dagService.listScopes(),
   });
@@ -60,15 +87,20 @@ export default function FormulaEditorPage() {
     enabled: !!scopeKey,
   });
 
-  // Reset store when formula id changes (handles navigation between formulas)
+  // Reset store when formula id changes
   useEffect(() => {
     reset();
   }, [id, reset]);
 
   // Initialize graph from scope or existing version
   useEffect(() => {
-    if (isNew && defaultGraph) {
-      setGraph(JSON.parse(JSON.stringify(defaultGraph)));
+    if (graph) return; // Don't re-init if already loaded
+
+    if (isNew) {
+      const initialGraph = defaultGraph
+        ? JSON.parse(JSON.stringify(defaultGraph))
+        : JSON.parse(JSON.stringify(MINIMAL_DEFAULT_GRAPH));
+      setGraph(initialGraph);
       setFormulaName(scope?.defaultName || 'Nueva formula');
     } else if (!isNew && id && graphsData) {
       const graphs = graphsData?.data?.graphs || [];
@@ -80,13 +112,12 @@ export default function FormulaEditorPage() {
         setStatus(existing.status || 'draft');
       }
     }
-  }, [isNew, id, defaultGraph, graphsData, scope, setGraph, setFormulaName, setFormulaDescription, setStatus]);
+  }, [isNew, id, defaultGraph, graphsData, scope, graph, setGraph, setFormulaName, setFormulaDescription, setStatus]);
 
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: (payload: any) => dagService.saveGraph(payload),
     onSuccess: () => {
-      setStatus('active');
       toast.success({ description: 'Formula guardada exitosamente' });
     },
     onError: (err: any) => {
@@ -99,7 +130,7 @@ export default function FormulaEditorPage() {
   const simulateMutation = useMutation({
     mutationFn: (payload: any) => dagService.simulateGraph(payload),
     onSuccess: (data) => {
-      toast.success({ description: `Prueba exitosa! Resultado: ${JSON.stringify(data?.data?.simulation || {})}` });
+      toast.success({ description: `Prueba exitosa!` });
     },
     onError: (err: any) => {
       toast.error({ description: `Error en prueba: ${err.message}` });
@@ -125,18 +156,11 @@ export default function FormulaEditorPage() {
 
   const handleSave = async () => {
     if (!graph) return;
-    
+
     const payload = {
       scopeKey,
       name: formulaName,
-      description: formulaDescription,
       graph,
-      graphSummary: {
-        nodeCount: graph.nodes.length,
-        edgeCount: graph.edges.length,
-        outputCount: graph.nodes.filter((n: any) => n.kind === 'output').length,
-        formulaNodeCount: graph.nodes.filter((n: any) => n.formula).length,
-      },
     };
 
     saveMutation.mutate(payload);
@@ -154,9 +178,38 @@ export default function FormulaEditorPage() {
     });
   };
 
-  const selectedNode = graph?.nodes.find((n: any) => n.id === selectedNodeId);
+  const handleAddNode = (kind: DagNode['kind']) => {
+    const prefix = kind === 'constant' ? 'input' : kind;
+    const nodeId = generateNodeId(prefix);
+    const newNode: DagNode = {
+      id: nodeId,
+      kind,
+      label: nodeId,
+      outputVar: kind === 'output' ? 'result' : nodeId,
+    };
+    if (kind === 'formula' || kind === 'conditional' || kind === 'output') {
+      newNode.formula = '';
+    }
+    addNode(newNode);
+    setShowAddNode(false);
+    selectNode(nodeId);
+  };
 
-  if (graphLoading || storeLoading) {
+  const handleAddEdge = () => {
+    if (!edgeSource || !edgeTarget || edgeSource === edgeTarget) return;
+    if (graph?.edges.find((e: DagEdge) => e.source === edgeSource && e.target === edgeTarget)) return;
+    addEdge({ source: edgeSource, target: edgeTarget });
+    setEdgeSource('');
+    setEdgeTarget('');
+  };
+
+  const handleDeleteNode = (nodeId: string) => {
+    removeNode(nodeId);
+  };
+
+  const selectedNode = graph?.nodes.find((n: DagNode) => n.id === selectedNodeId);
+
+  if (graphLoading || storeLoading || scopeLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="animate-spin text-brand-primary" size={32} />
@@ -254,7 +307,7 @@ export default function FormulaEditorPage() {
 
       {/* 3-Pane Layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Variables & Helpers */}
+        {/* Left: Variables, Helpers, Add Node */}
         <div className="w-64 flex flex-col gap-4 p-4 bg-bg-surface border-r border-border-subtle overflow-y-auto">
           <div>
             <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider mb-2">Variables de entrada</h3>
@@ -278,6 +331,57 @@ export default function FormulaEditorPage() {
               ))}
             </div>
           </div>
+
+          <div className="border-t border-border-subtle pt-3">
+            <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider mb-2">Agregar nodo</h3>
+            <div className="flex flex-col gap-1.5">
+              <button onClick={() => handleAddNode('constant')} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+                <Plus size={12} /> Constante / Input
+              </button>
+              <button onClick={() => handleAddNode('formula')} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors">
+                <Plus size={12} /> Formula
+              </button>
+              <button onClick={() => handleAddNode('conditional')} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
+                <Plus size={12} /> Condicional
+              </button>
+              <button onClick={() => handleAddNode('output')} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                <Plus size={12} /> Output
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-border-subtle pt-3">
+            <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider mb-2">Conectar nodos</h3>
+            <div className="flex flex-col gap-1.5">
+              <select
+                value={edgeSource}
+                onChange={(e) => setEdgeSource(e.target.value)}
+                className="px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs text-text-primary"
+              >
+                <option value="">Desde nodo...</option>
+                {graph?.nodes.map((n: DagNode) => (
+                  <option key={n.id} value={n.id}>{n.label || n.id}</option>
+                ))}
+              </select>
+              <select
+                value={edgeTarget}
+                onChange={(e) => setEdgeTarget(e.target.value)}
+                className="px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs text-text-primary"
+              >
+                <option value="">Hacia nodo...</option>
+                {graph?.nodes.map((n: DagNode) => (
+                  <option key={n.id} value={n.id}>{n.label || n.id}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAddEdge}
+                disabled={!edgeSource || !edgeTarget || edgeSource === edgeTarget}
+                className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-brand-primary text-white hover:bg-brand-primary/90 transition-colors disabled:opacity-40"
+              >
+                <Link size={12} /> Crear conexion
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Center: Graph Canvas */}
@@ -290,7 +394,7 @@ export default function FormulaEditorPage() {
             }}
           />
           <div className="relative min-h-full p-6 flex flex-col gap-3" style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
-            {graph?.nodes.map((node: any) => (
+            {graph?.nodes.map((node: DagNode) => (
               <div
                 key={node.id}
                 onClick={() => selectNode(node.id === selectedNodeId ? null : node.id)}
@@ -302,8 +406,9 @@ export default function FormulaEditorPage() {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    node.kind === 'input' || node.kind === 'constant' ? 'bg-blue-100 text-blue-700' :
+                    node.kind === 'constant' ? 'bg-blue-100 text-blue-700' :
                     node.kind === 'formula' ? 'bg-purple-100 text-purple-700' :
+                    node.kind === 'conditional' ? 'bg-amber-100 text-amber-700' :
                     node.kind === 'output' ? 'bg-green-100 text-green-700' :
                     'bg-gray-100 text-gray-700'
                   }`}>
@@ -313,8 +418,15 @@ export default function FormulaEditorPage() {
                   {node.outputVar && (
                     <span className="text-xs text-text-secondary font-mono">→ {node.outputVar}</span>
                   )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
+                    className="ml-auto p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Eliminar nodo"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
-                
+
                 {node.description && (
                   <p className="text-xs text-text-secondary mb-2">{node.description}</p>
                 )}
@@ -339,16 +451,22 @@ export default function FormulaEditorPage() {
                 )}
 
                 {/* Show outgoing edges */}
-                {graph.edges.filter((e: any) => e.source === node.id).length > 0 && (
-                  <div className="mt-2 flex items-center gap-1 text-[10px] text-text-secondary">
+                {graph.edges.filter((e: DagEdge) => e.source === node.id).length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-text-secondary">
                     <span>Conexiones a:</span>
                     {graph.edges
-                      .filter((e: any) => e.source === node.id)
-                      .map((e: any) => {
-                        const target = graph.nodes.find((n: any) => n.id === e.target);
+                      .filter((e: DagEdge) => e.source === node.id)
+                      .map((e: DagEdge) => {
+                        const target = graph.nodes.find((n: DagNode) => n.id === e.target);
                         return (
-                          <span key={e.target} className="px-1.5 py-0.5 rounded bg-bg-base border border-border-subtle">
+                          <span key={e.target} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-base border border-border-subtle">
                             {target?.label || e.target}
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); removeEdge(node.id, e.target); }}
+                              className="text-red-400 hover:text-red-600"
+                            >
+                              <X size={10} />
+                            </button>
                           </span>
                         );
                       })}
@@ -375,20 +493,49 @@ export default function FormulaEditorPage() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">ID</label>
-                <p className="text-sm text-text-primary font-mono">{selectedNode.id}</p>
+                <input
+                  type="text"
+                  value={selectedNode.id}
+                  onChange={(e) => updateNodeField(selectedNode.id, 'id', e.target.value)}
+                  className="w-full mt-1 px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                />
               </div>
-              
+
               <div>
                 <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Tipo</label>
-                <p className="text-sm text-text-primary">{selectedNode.kind}</p>
+                <select
+                  value={selectedNode.kind}
+                  onChange={(e) => updateNodeField(selectedNode.id, 'kind', e.target.value)}
+                  className="w-full mt-1 px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                >
+                  <option value="constant">Constante / Input</option>
+                  <option value="formula">Formula</option>
+                  <option value="conditional">Condicional</option>
+                  <option value="output">Output</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Etiqueta</label>
+                <input
+                  type="text"
+                  value={selectedNode.label || ''}
+                  onChange={(e) => updateNodeField(selectedNode.id, 'label', e.target.value)}
+                  className="w-full mt-1 px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                />
               </div>
 
               <div>
                 <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Variable de salida</label>
-                <p className="text-sm text-text-primary font-mono">{selectedNode.outputVar || '-'}</p>
+                <input
+                  type="text"
+                  value={selectedNode.outputVar || ''}
+                  onChange={(e) => updateNodeField(selectedNode.id, 'outputVar', e.target.value)}
+                  className="w-full mt-1 px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                />
               </div>
 
-              {selectedNode.formula && (
+              {selectedNode.formula !== undefined && (
                 <div>
                   <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Formula</label>
                   <textarea
@@ -402,13 +549,26 @@ export default function FormulaEditorPage() {
 
               <div>
                 <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Descripcion</label>
-                <p className="text-sm text-text-secondary">{selectedNode.description || '-'}</p>
+                <textarea
+                  value={selectedNode.description || ''}
+                  onChange={(e) => updateNodeField(selectedNode.id, 'description', e.target.value)}
+                  className="w-full mt-1 px-2 py-1.5 rounded-lg border border-border-subtle bg-bg-base text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary resize-y"
+                  rows={2}
+                />
               </div>
+
+              <button
+                onClick={() => handleDeleteNode(selectedNode.id)}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-xs text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={12} />
+                Eliminar nodo
+              </button>
             </div>
           ) : (
             <div className="text-sm text-text-secondary">
               <p>Selecciona un nodo del grafo para ver y editar sus propiedades.</p>
-              
+
               <div className="mt-4 p-3 rounded-lg bg-bg-base border border-border-subtle">
                 <h4 className="text-xs font-semibold text-text-primary mb-2">Grafo actual</h4>
                 <div className="space-y-1 text-xs text-text-secondary">
@@ -421,9 +581,11 @@ export default function FormulaEditorPage() {
               <div className="mt-4 p-3 rounded-lg bg-bg-base border border-border-subtle">
                 <h4 className="text-xs font-semibold text-text-primary mb-2">Ayuda</h4>
                 <ul className="space-y-1 text-xs text-text-secondary list-disc list-inside">
+                  <li>Usa el panel izquierdo para agregar nodos</li>
                   <li>Clic en un nodo para seleccionarlo</li>
-                  <li>Edita la formula en el panel derecho</li>
-                  <li>Usa "Probar" para simular</li>
+                  <li>Edita propiedades en el panel derecho</li>
+                  <li>Usa &quot;Conectar nodos&quot; para crear edges</li>
+                  <li>Usa &quot;Probar&quot; para simular</li>
                   <li>Guarda para crear una version</li>
                 </ul>
               </div>
