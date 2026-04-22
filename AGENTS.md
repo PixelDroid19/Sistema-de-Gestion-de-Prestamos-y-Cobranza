@@ -79,6 +79,7 @@ The system uses persisted, editable DAG graphs (`DagGraphVersion` model) as the 
 
 ### Rollout config
 - `config.js` reads `DAG_ROLLOUT_MODE` env (default `off`). Modes: `off` = legacy only, `shadow` = run both / return legacy / log parity, `primary` = use DAG when parity passes.
+- **CRITICAL**: In production, `DAG_ROLLOUT_MODE` MUST be set to `primary`. Without it, the system runs in legacy-only mode, `graphVersionId` is always `null`, and `dagGraphVersionId` is not persisted on loans — breaking formula traceability completely.
 - Composition wired in `repositories.js` -> `composition.js`.
 
 ### Seeding

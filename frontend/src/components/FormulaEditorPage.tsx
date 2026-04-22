@@ -144,13 +144,13 @@ export default function FormulaEditorPage() {
 
   const handleSimulate = async () => {
     if (!graph || !scope) return;
-    
-    const input = scope.simulationInput || { amount: 2000000, interestRate: 60, termMonths: 12, lateFeeMode: 'SIMPLE' };
-    
+
+    const simulationInput = scope.simulationInput || { amount: 2000000, interestRate: 60, termMonths: 12, lateFeeMode: 'SIMPLE' };
+
     simulateMutation.mutate({
       scopeKey,
       graph,
-      input,
+      simulationInput,
     });
   };
 
