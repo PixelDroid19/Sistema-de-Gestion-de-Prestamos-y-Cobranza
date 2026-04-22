@@ -55,8 +55,6 @@ export const queryKeys = {
     settings: ['config.settings'] as const,
     catalogs: ['config.catalogs'] as const,
     roles: ['config.roles'] as const,
-    tnaRates: ['config.tnaRates'] as const,
-    lateFeePolicies: ['config.lateFeePolicies'] as const,
   },
   loans: {
     all: ['loans'] as const,
@@ -111,5 +109,11 @@ export const queryKeys = {
   },
   timeline: {
     loan: (loanId: number) => ['loans.timeline', loanId] as const,
+  },
+  dag: {
+    graphs: (scopeKey: string) => ['dag.graphs', scopeKey] as const,
+    variables: () => ['dag.variables'] as const,
+    history: (graphId: number) => ['dag.history', graphId] as const,
+    diff: (graphId: number, compareToVersionId: number) => ['dag.diff', graphId, compareToVersionId] as const,
   },
 };

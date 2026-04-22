@@ -10,6 +10,7 @@ const {
   Payment,
   DagGraphVersion,
   DagSimulationSummary,
+  DagVariable,
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
 const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
@@ -648,6 +649,14 @@ const createCreditsInfrastructure = ({
         });
       },
     },
+    dagVariableRepository: {
+      listAll() {
+        return DagVariable.findAll({ order: [['name', 'ASC']] });
+      },
+      create(payload) {
+        return DagVariable.create(payload);
+      },
+    },
     loanCreationService: {
       create(input) {
         return loanCreator(input);
@@ -657,7 +666,7 @@ const createCreditsInfrastructure = ({
       sendRecoveryAssignment(userId, payload) {
         return notifications.sendNotification(
           userId,
-          `You have been assigned to Loan #${payload.loanId} (₹${payload.loanAmount}) for customer ${payload.customerName || 'Unknown'}. Please review and begin recovery process.`,
+          `You have been assigned to Loan #${payload.loanId} ($${payload.loanAmount}) for customer ${payload.customerName || 'Unknown'}. Please review and begin recovery process.`,
           'loan_assignment',
           payload,
           { dedupeKey: `loan-assignment:${payload.loanId}:${userId}` },

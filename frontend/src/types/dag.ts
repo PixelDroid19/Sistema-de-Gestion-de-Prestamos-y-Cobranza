@@ -208,6 +208,8 @@ export interface DagWorkbenchScope {
   label: string;
   description: string;
   defaultName: string;
+  requiredInputs: string[];
+  requiredOutputs: string[];
   simulationInput: SimulationInput;
   helpers: DagWorkbenchScopeHelper[];
   defaultGraph: DagGraph;
@@ -286,60 +288,127 @@ export interface DagSimulationSummary {
 }
 
 // =============================================================================
+// BLOCK AST TYPES (Visual Formula Editor)
+// =============================================================================
+
+export type BlockNodeType = 'variable' | 'value' | 'operator' | 'if' | 'and' | 'or' | 'output';
+
+export interface BlockNode {
+  id: string;
+  type: BlockNodeType;
+  variableName?: string;
+  value?: number | string | boolean;
+  operator?: '+' | '-' | '*' | '/' | '>' | '<' | '>=' | '<=' | '=';
+  left?: BlockNode;
+  right?: BlockNode;
+  condition?: BlockNode;
+  thenBlock?: BlockNode;
+  elseBlock?: BlockNode;
+  blocks?: BlockNode[];
+  outputVar?: string;
+  expression?: BlockNode;
+}
+
+export type VariableType = 'integer' | 'currency' | 'boolean' | 'float';
+export type VariableSource = 'bureau_api' | 'app_data' | 'system_core';
+export type VariableStatus = 'active' | 'idle' | 'deprecated';
+
+export interface DagVariable {
+  id: number;
+  name: string;
+  type: VariableType;
+  source: VariableSource;
+  description: string;
+  status: VariableStatus;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GraphHistoryEntry {
+  version: number;
+  commitMessage: string | null;
+  authorName: string | null;
+  authorEmail: string | null;
+  createdAt: string;
+  isActive: boolean;
+}
+
+export interface GraphDiffEntry {
+  previousGraph: DagGraph;
+  newGraph: DagGraph;
+  impactedVariables: string[];
+}
+
+export interface GraphDiffResponse {
+  success: boolean;
+  data: {
+    diff: GraphDiffEntry;
+  };
+}
+
+export interface GraphHistoryResponse {
+  success: boolean;
+  data: {
+    history: GraphHistoryEntry[];
+  };
+}
+
+export interface DagVariableListResponse {
+  success: boolean;
+  data: {
+    variables: DagVariable[];
+  };
+}
+
+export interface DagVariableCreateRequest {
+  name: string;
+  type: VariableType;
+  source: VariableSource;
+  description?: string;
+}
+
+export interface DagVariableCreateResponse {
+  success: boolean;
+  data: {
+    variable: DagVariable;
+  };
+}
+
+// =============================================================================
 // CONSTANTS
 // =============================================================================
 
-export const DAG_NODE_WIDTH = 200;
-export const DAG_NODE_HEIGHT = 80;
-export const DAG_EDGE_WIDTH = 2;
-
-export const DEFAULT_CANVAS_TRANSFORM = {
-  x: 50,
-  y: 50,
-  scale: 1,
-};
-
-export const DEFAULT_GRAPH: DagGraph = {
-  nodes: [],
-  edges: [],
-};
-
-// Available scopes for the workbench — must match backend scopeRegistry.js
-// Only 'credit-simulation' actually exists in the backend.
-export const DAG_SCOPES = [
-  { key: 'credit-simulation', label: 'Simulacion de Credito' },
-] as const;
-
-// Node kind labels and colors
-export const NODE_KIND_CONFIG = {
-  formula: { 
-    color: 'bg-blue-500 dark:bg-blue-600', 
-    label: 'Fórmula' 
-  },
-  output: { 
-    color: 'bg-emerald-500 dark:bg-emerald-600', 
-    label: 'Salida' 
-  },
-  constant: { 
-    color: 'bg-amber-500 dark:bg-amber-600', 
-    label: 'Constante' 
-  },
-  conditional: { 
-    color: 'bg-purple-500 dark:bg-purple-600', 
-    label: 'Condicional' 
-  },
-  lookup: { 
-    color: 'bg-rose-500 dark:bg-rose-600', 
-    label: 'Búsqueda' 
-  },
-} as const;
-
 // Default formula helpers available in the backend
 export const FORMULA_HELPERS = [
-  { name: 'buildAmortizationSchedule', description: 'Genera tabla de amortización' },
-  { name: 'summarizeSchedule', description: 'Resume la tabla en totales' },
-  { name: 'assertSupportedLateFeeMode', description: 'Valida modo de mora' },
-  { name: 'roundCurrency', description: 'Redondea a 2 decimales' },
-  { name: 'calculateLateFee', description: 'Calcula mora: SIMPLE/FLAT/TIERED' },
-  { name: 'buildSimulationResult', description: 'Construye resultado (lateFeeMode, schedule, summary)' },
+  {
+    name: 'buildAmortizationSchedule',
+    description: 'Genera tabla de amortización',
+    template: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)',
+  },
+  {
+    name: 'summarizeSchedule',
+    description: 'Resume la tabla en totales',
+    template: 'summarizeSchedule(schedule)',
+  },
+  {
+    name: 'assertSupportedLateFeeMode',
+    description: 'Valida modo de mora',
+    template: 'assertSupportedLateFeeMode(lateFeeMode)',
+  },
+  {
+    name: 'roundCurrency',
+    description: 'Redondea a 2 decimales',
+    template: 'roundCurrency(value)',
+  },
+  {
+    name: 'calculateLateFee',
+    description: 'Calcula mora: SIMPLE/FLAT/TIERED',
+    template: 'calculateLateFee()',
+  },
+  {
+    name: 'buildSimulationResult',
+    description: 'Construye resultado (lateFeeMode, schedule, summary)',
+    template: 'buildSimulationResult(lateFeeMode, schedule, summary)',
+  },
 ] as const;

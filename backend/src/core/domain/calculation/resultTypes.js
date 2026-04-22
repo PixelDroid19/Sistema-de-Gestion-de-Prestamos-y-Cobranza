@@ -19,18 +19,7 @@ const createAmortizationBreakdown = (capital, interest, penalty, fees) => ({
   currency: 'USD',
 });
 
-const createCalculationError = (errorType, message, nodeId = null) => ({
-  error: {
-    type: errorType,
-    message,
-    nodeId,
-    timestamp: new Date().toISOString(),
-  },
-  ok: false,
-});
-
 module.exports = {
   createDagExecutionResult,
   createAmortizationBreakdown,
-  createCalculationError,
 };

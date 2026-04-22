@@ -77,71 +77,15 @@ export const useConfig = () => {
     },
   });
 
-  // TNA Rates
-  const getTnaRates = useQuery({
-    queryKey: queryKeys.config.tnaRates,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/tna-rates');
-      return data;
-    },
-  });
-
-  const createTnaRate = useInvalidatingMutation(async (tnaData: any) => {
-    const { data } = await apiClient.post('/config/tna-rates', tnaData);
-    return data;
-  }, queryKeys.config.tnaRates);
-
-  const updateTnaRate = useInvalidatingMutation(async ({ id, ...tnaData }: any) => {
-    const { data } = await apiClient.put(`/config/tna-rates/${id}`, tnaData);
-    return data;
-  }, queryKeys.config.tnaRates);
-
-  const deleteTnaRate = useInvalidatingMutation(async (id: number) => {
-    const { data } = await apiClient.delete(`/config/tna-rates/${id}`);
-    return data;
-  }, queryKeys.config.tnaRates);
-
-  // Late Fee Policies
-  const getLateFeePolicies = useQuery({
-    queryKey: queryKeys.config.lateFeePolicies,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/late-fee-policies');
-      return data;
-    },
-  });
-
-  const createLateFeePolicy = useInvalidatingMutation(async (policyData: any) => {
-    const { data } = await apiClient.post('/config/late-fee-policies', policyData);
-    return data;
-  }, queryKeys.config.lateFeePolicies);
-
-  const updateLateFeePolicy = useInvalidatingMutation(async ({ id, ...policyData }: any) => {
-    const { data } = await apiClient.put(`/config/late-fee-policies/${id}`, policyData);
-    return data;
-  }, queryKeys.config.lateFeePolicies);
-
-  const deleteLateFeePolicy = useInvalidatingMutation(async (id: number) => {
-    const { data } = await apiClient.delete(`/config/late-fee-policies/${id}`);
-    return data;
-  }, queryKeys.config.lateFeePolicies);
-
   return {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
     settings: toArray(getSettings.data?.data?.settings),
     catalogs: getCatalogs.data?.data?.catalogs,
     roles: toArray(getRoles.data?.data?.roles),
-    tnaRates: toArray(getTnaRates.data?.data?.tnaRates),
-    lateFeePolicies: toArray(getLateFeePolicies.data?.data?.lateFeePolicies),
-    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading || getTnaRates.isLoading || getLateFeePolicies.isLoading,
+    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
     updateSetting,
-    createTnaRate,
-    updateTnaRate,
-    deleteTnaRate,
-    createLateFeePolicy,
-    updateLateFeePolicy,
-    deleteLateFeePolicy,
   };
 };

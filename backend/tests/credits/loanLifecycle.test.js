@@ -12,19 +12,34 @@ afterEach(() => {
   mock.restoreAll();
 });
 
-test('createLoanFromCanonicalData persists the canonical schedule and summary', async () => {
+test('createLoanFromCanonicalData persists the canonical schedule and summary via DAG', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async (id) => ({ id, name: 'Associate Test' }));
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
-  mock.method(models.DagGraphVersion, 'findOne', async () => null);
   mock.method(models.Loan, 'create', async (payload) => {
     persistedPayload = payload;
     return { id: 77, ...payload };
   });
 
-  const createdLoan = await createLoanFromCanonicalData({
+  // Build a calculationService that returns the expected legacy-compatible result
+  const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
+  const createLoan = createLoanFromCanonicalDataFactory({
+    calculationService: {
+      async calculate(input) {
+        const result = simulateCredit(input);
+        return {
+          mode: 'primary',
+          selectedSource: 'dag',
+          graphVersionId: null,
+          result,
+        };
+      },
+    },
+  });
+
+  const createdLoan = await createLoan({
     customerId: 1,
     associateId: 3,
     amount: 12000,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, FlaskConical, Variable } from 'lucide-react';
 import { useSessionStore } from '../store/sessionStore';
 import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
@@ -274,6 +274,22 @@ export default function Sidebar({
           {/* Pagos Directos */}
           {isAdmin && (
           <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
+            <NavItem
+              icon={<FlaskConical size={20} />}
+              active={currentView === 'formulas'}
+              onClick={() => setCurrentView('formulas')}
+              title="Formulas"
+              tooltip="Visual formula editor and DAG workbench"
+              isCollapsed={isCollapsed}
+            />
+            <NavItem
+              icon={<Variable size={20} />}
+              active={currentView === 'variables'}
+              onClick={() => setCurrentView('variables')}
+              title="Variables"
+              tooltip="Variable registry and management"
+              isCollapsed={isCollapsed}
+            />
             <NavItem 
               icon={<DollarSign size={20} />} 
               active={currentView === 'payouts'} 

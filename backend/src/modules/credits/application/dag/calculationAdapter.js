@@ -1,10 +1,12 @@
 /**
  * Calculation Adapter — the single entry point for credit simulation numbers.
  *
+ * DAG is the single source of truth. There is no legacy fallback.
+ *
  * Depending on `dagConfig.mode`:
- *   off     — legacy only (simulateCredit)
- *   shadow  — run both, return legacy, log parity
- *   primary — run persisted graph via graphExecutor, fallback to legacy on error
+ *   off     — legacy only (simulateCredit) — EXPLICIT opt-out
+ *   shadow  — run both, return DAG, log parity for observability
+ *   primary — run persisted graph via graphExecutor, always return DAG
  *
  * The adapter is SYNCHRONOUS in `off` mode but ASYNCHRONOUS in `shadow` and
  * `primary` because `graphExecutor.execute` loads the persisted version from DB.
@@ -83,69 +85,37 @@ const createCreditsCalculationService = ({
     }
 
     // ── shadow / primary ────────────────────────────────────────────────
-    try {
-        const execution = await graphExecutor.execute({
-          scopeKey,
-          contractVars: normalizedInput,
-        });
+    // DAG is the single source of truth. Always execute graph and return DAG result.
+    const execution = await graphExecutor.execute({
+      scopeKey,
+      contractVars: normalizedInput,
+    });
 
-      const dagResult = execution.result;
-      const parity = compareSimulationResults({
-        legacyResult,
-        dagResult,
-        tolerance: dagConfig.parityTolerance,
-      });
+    const dagResult = execution.result;
+    const parity = compareSimulationResults({
+      legacyResult,
+      dagResult,
+      tolerance: dagConfig.parityTolerance,
+    });
 
-      const useDag = dagConfig.mode === 'primary' && parity.passed;
-      const selectedSource = useDag ? 'dag' : 'legacy';
-      const fallbackReason = !useDag && dagConfig.mode === 'primary' && !parity.passed
-        ? 'parity_mismatch'
-        : null;
+    comparisonLogger('credits.dag.comparison', {
+      mode: dagConfig.mode,
+      inputsFingerprint: fingerprint,
+      parityPassed: parity.passed,
+      mismatchCount: parity.mismatches.length,
+      graphVersionId: execution.graphVersionId,
+    });
 
-      comparisonLogger('credits.dag.comparison', {
-        mode: dagConfig.mode,
-        inputsFingerprint: fingerprint,
-        parityPassed: parity.passed,
-        mismatchCount: parity.mismatches.length,
-        fallbackReason,
-        graphVersionId: execution.graphVersionId,
-      });
-
-      return {
-        mode: dagConfig.mode,
-        selectedSource,
-        result: useDag ? dagResult : legacyResult,
-        parity,
-        fallbackReason,
-        graphVersionId: execution.graphVersionId,
-        legacyResult,
-        dagResult,
-      };
-    } catch (error) {
-      comparisonLogger('credits.dag.comparison', {
-        mode: dagConfig.mode,
-        inputsFingerprint: fingerprint,
-        parityPassed: false,
-        mismatchCount: 0,
-        fallbackReason: 'dag_execution_failed',
-        errorMessage: error.message,
-      });
-
-      return {
-        mode: dagConfig.mode,
-        selectedSource: 'legacy',
-        result: legacyResult,
-        parity: {
-          passed: false,
-          tolerance: dagConfig.parityTolerance,
-          mismatches: [{ scope: 'dag', field: 'execution', expected: 'success', actual: error.message }],
-        },
-        fallbackReason: 'dag_execution_failed',
-        graphVersionId: null,
-        legacyResult,
-        dagResult: null,
-      };
-    }
+    return {
+      mode: dagConfig.mode,
+      selectedSource: 'dag',
+      result: dagResult,
+      parity,
+      fallbackReason: null,
+      graphVersionId: execution.graphVersionId,
+      legacyResult,
+      dagResult,
+    };
   },
 });
 

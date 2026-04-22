@@ -48,7 +48,7 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
  * @param {{ amount: number, interestRate: number, termMonths: number, startDate?: Date|string }} input
  * @returns {Array<object>}
  */
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate }) => {
+const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode }) => {
   const installmentAmount = calculateInstallmentAmount({ amount, interestRate, termMonths });
   const schedule = [];
   const monthlyRate = Number(interestRate) / 100 / 12;
@@ -204,23 +204,30 @@ const calculateLateFee = ({
     }
 
     case 'TIERED': {
-      // Escalated rates over time
-      // Tier 1 (days 1-30): base rate
+      // Escalated rates over time — fees accumulate per tier bracket.
+      // Tier 1 (days 1-30):  1x   base rate
       // Tier 2 (days 31-60): 1.5x base rate
-      // Tier 3 (days 61+): 2x base rate
+      // Tier 3 (days 61+):   2x   base rate
       const baseDailyRate = (Number(baseRate) || 0) / 100 / 365;
 
-      // Determine which tier applies
-      let effectiveRate;
-      if (days <= 30) {
-        effectiveRate = baseDailyRate; // Tier 1: 1x base rate
-      } else if (days <= 60) {
-        effectiveRate = baseDailyRate * 1.5; // Tier 2: 1.5x base rate
-      } else {
-        effectiveRate = baseDailyRate * 2; // Tier 3: 2x base rate
+      let fee = 0;
+
+      // Tier 1: first 30 days at 1x base rate
+      const tier1Days = Math.min(days, 30);
+      fee += principal * baseDailyRate * tier1Days;
+
+      // Tier 2: days 31-60 at 1.5x base rate
+      if (days > 30) {
+        const tier2Days = Math.min(days - 30, 30);
+        fee += principal * (baseDailyRate * 1.5) * tier2Days;
       }
 
-      const fee = principal * effectiveRate * days;
+      // Tier 3: days 61+ at 2x base rate
+      if (days > 60) {
+        const tier3Days = days - 60;
+        fee += principal * (baseDailyRate * 2) * tier3Days;
+      }
+
       return roundCurrency(fee);
     }
 

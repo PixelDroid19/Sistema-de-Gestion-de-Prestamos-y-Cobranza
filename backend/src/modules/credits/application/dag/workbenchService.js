@@ -15,19 +15,8 @@ const {
 
 const ALLOWED_WORKBENCH_ROLES = new Set(['admin']);
 
-// Blocked patterns that could bypass formula validation
-const BLOCKED_FORMULA_PATTERNS = [
-  /import\s*\(/i,
-  /evaluate\s*\(/i,
-  /parse\s*\(/i,
-  /createUnit\s*\(/i,
-  /simplify\s*\(/i,
-  /derivative\s*\(/i,
-  /chain\s*\(/i,
-  /typed\s*\(/i,
-  /config\s*\(/i,
-  /importFrom\s*\(/i,
-];
+// Re-use the canonical blocked patterns from BigNumberEngine to avoid divergence.
+const BLOCKED_FORMULA_PATTERNS = BigNumberEngine.BLOCKED_PATTERNS;
 
 const buildGraphSummary = ({ nodes, edges }) => ({
   nodeCount: nodes.length,
@@ -192,6 +181,18 @@ const validateDagWorkbenchGraph = (graph = {}, { scopeKey } = {}) => {
   const nodeIds = new Set();
   const incomingByTarget = new Map();
 
+  // Guard against oversized payloads (DoS via huge graph)
+  const MAX_NODES = 200;
+  const MAX_EDGES = 500;
+  if (nodes.length > MAX_NODES) {
+    errors.push({ field: 'nodes', message: `Graph exceeds the maximum of ${MAX_NODES} nodes (got ${nodes.length})` });
+    return { valid: false, errors, warnings, summary: buildGraphSummary({ nodes, edges }) };
+  }
+  if (edges.length > MAX_EDGES) {
+    errors.push({ field: 'edges', message: `Graph exceeds the maximum of ${MAX_EDGES} edges (got ${edges.length})` });
+    return { valid: false, errors, warnings, summary: buildGraphSummary({ nodes, edges }) };
+  }
+
   if (nodes.length === 0) {
     errors.push({ field: 'nodes', message: 'Graph must include at least one node' });
   }
@@ -291,6 +292,48 @@ const assertWorkbenchFeatureEnabled = ({ actor, dagConfig }) => {
   }
 };
 
+const extractImpactedVariables = (oldGraph, newGraph) => {
+  const oldNodes = Array.isArray(oldGraph?.nodes) ? oldGraph.nodes : [];
+  const newNodes = Array.isArray(newGraph?.nodes) ? newGraph.nodes : [];
+  const impacted = new Set();
+
+  const oldById = new Map(oldNodes.map((n) => [n.id, n]));
+  const newById = new Map(newNodes.map((n) => [n.id, n]));
+
+  for (const [id, newNode] of newById) {
+    const oldNode = oldById.get(id);
+    if (!oldNode) {
+      // Added node
+      if (newNode.outputVar) impacted.add(newNode.outputVar);
+      if (newNode.formula) {
+        const vars = newNode.formula.match(/[a-zA-Z_]\w*/g) || [];
+        vars.forEach((v) => impacted.add(v));
+      }
+    } else if (
+      oldNode.formula !== newNode.formula ||
+      oldNode.outputVar !== newNode.outputVar ||
+      oldNode.kind !== newNode.kind
+    ) {
+      if (newNode.outputVar) impacted.add(newNode.outputVar);
+      if (oldNode.outputVar && oldNode.outputVar !== newNode.outputVar) {
+        impacted.add(oldNode.outputVar);
+      }
+      if (newNode.formula) {
+        const vars = newNode.formula.match(/[a-zA-Z_]\w*/g) || [];
+        vars.forEach((v) => impacted.add(v));
+      }
+    }
+  }
+
+  for (const [id, oldNode] of oldById) {
+    if (!newById.has(id) && oldNode.outputVar) {
+      impacted.add(oldNode.outputVar);
+    }
+  }
+
+  return Array.from(impacted);
+};
+
 const assertScopeKey = (scopeKey) => {
   const normalizedScopeKey = normalizeScopeKey(scopeKey);
   if (!normalizedScopeKey) {
@@ -309,6 +352,7 @@ const createDagWorkbenchService = ({
   dagGraphRepository,
   dagSimulationSummaryRepository,
   graphExecutor,
+  dagVariableRepository,
 } = {}) => {
   if (!dagGraphRepository || !dagSimulationSummaryRepository) {
     throw new Error('DagWorkbenchService requires graph and summary repository dependencies');
@@ -343,7 +387,7 @@ const createDagWorkbenchService = ({
       return { graphVersion };
     },
 
-    async saveGraph({ actor, scopeKey, name, graph }) {
+    async saveGraph({ actor, scopeKey, name, graph, commitMessage }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
@@ -362,6 +406,9 @@ const createDagWorkbenchService = ({
         validation,
         status: latestGraph ? 'inactive' : 'active',
         createdByUserId: actor.id,
+        commitMessage: commitMessage || null,
+        authorName: actor.name || null,
+        authorEmail: actor.email || null,
       });
 
       logBusiness('dag.graph.saved', {
@@ -552,6 +599,145 @@ const createDagWorkbenchService = ({
       });
 
       return { deleted: true };
+    },
+
+    // ── Variable Registry ────────────────────────────────────────────────────
+
+    async listVariables({ actor }) {
+      assertWorkbenchFeatureEnabled({ actor, dagConfig });
+      if (!dagVariableRepository) {
+        return { variables: [] };
+      }
+      const variables = await dagVariableRepository.listAll();
+      return { variables };
+    },
+
+    async createVariable({ actor, name, type, source, description }) {
+      assertWorkbenchFeatureEnabled({ actor, dagConfig });
+      if (!dagVariableRepository) {
+        throw new ValidationError('Variable repository not available');
+      }
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        throw new ValidationError('Variable name is required');
+      }
+      if (!type || !['integer', 'currency', 'boolean', 'float'].includes(type)) {
+        throw new ValidationError('Variable type must be one of: integer, currency, boolean, float');
+      }
+      if (!source || !['bureau_api', 'app_data', 'system_core'].includes(source)) {
+        throw new ValidationError('Variable source must be one of: bureau_api, app_data, system_core');
+      }
+      const variable = await dagVariableRepository.create({
+        name: name.trim(),
+        type,
+        source,
+        description: description || null,
+      });
+      return { variable };
+    },
+
+    // ── Graph History & Diff ─────────────────────────────────────────────────
+
+    async getGraphHistory({ actor, graphId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const graphs = await dagGraphRepository.listByScopeKey(graph.scopeKey);
+      const history = graphs.map((g) => ({
+        version: g.version,
+        commitMessage: g.commitMessage || null,
+        authorName: g.authorName || null,
+        authorEmail: g.authorEmail || null,
+        createdAt: g.createdAt,
+        isActive: g.status === 'active',
+      }));
+
+      return { history };
+    },
+
+    async getGraphDiff({ actor, graphId, compareToVersionId }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const newGraphVersion = await dagGraphRepository.findById(graphId);
+      if (!newGraphVersion) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const previousGraphVersion = await dagGraphRepository.findById(compareToVersionId);
+      if (!previousGraphVersion) {
+        throw new NotFoundError('Comparison DAG graph');
+      }
+
+      const impactedVariables = extractImpactedVariables(
+        previousGraphVersion.graph,
+        newGraphVersion.graph
+      );
+
+      return {
+        diff: {
+          previousGraph: previousGraphVersion.graph,
+          newGraph: newGraphVersion.graph,
+          impactedVariables,
+        },
+      };
+    },
+
+    async restoreGraph({ actor, graphId, commitMessage }) {
+      if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
+        throw new AuthorizationError('Only admins can access the DAG workbench');
+      }
+      if (!dagConfig?.workbenchEnabled) {
+        throw new AuthorizationError('DAG workbench is not enabled');
+      }
+
+      const graph = await dagGraphRepository.findById(graphId);
+      if (!graph) {
+        throw new NotFoundError('DAG graph');
+      }
+
+      const validation = validateDagWorkbenchGraph(graph.graph, { scopeKey: graph.scopeKey });
+      if (!validation.valid) {
+        const error = new ValidationError('DAG graph validation failed');
+        error.errors = validation.errors;
+        throw error;
+      }
+
+      const restoredGraphVersion = await dagGraphRepository.saveVersion({
+        scopeKey: graph.scopeKey,
+        name: graph.name,
+        graph: graph.graph,
+        graphSummary: validation.summary,
+        validation,
+        status: 'inactive',
+        createdByUserId: actor.id,
+        commitMessage: commitMessage || `Restored from version ${graph.version}`,
+        authorName: actor.name || null,
+        authorEmail: actor.email || null,
+        restoredFromVersionId: graph.version,
+      });
+
+      logBusiness('dag.graph.restored', {
+        graphId: restoredGraphVersion.id,
+        restoredFromVersionId: graph.version,
+        scopeKey: graph.scopeKey,
+        actorId: actor.id,
+        version: restoredGraphVersion.version,
+      });
+
+      return { graph: restoredGraphVersion };
     },
   };
 };

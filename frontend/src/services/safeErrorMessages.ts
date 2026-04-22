@@ -32,6 +32,7 @@ export type SafeErrorAction =
   | 'dag.load'
   | 'dag.save'
   | 'dag.simulate'
+  | 'dag.validate'
   | 'generic';
 
 export type SafeToastMessage = {
@@ -174,6 +175,10 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
   'dag.simulate': {
     title: 'No se pudo ejecutar la simulación',
     description: 'Revisa el grafo e inténtalo nuevamente.',
+  },
+  'dag.validate': {
+    title: 'No se pudo validar el grafo',
+    description: 'Revisa la estructura del grafo e inténtalo nuevamente.',
   },
 };
 

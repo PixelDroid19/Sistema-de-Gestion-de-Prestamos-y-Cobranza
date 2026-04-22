@@ -97,7 +97,13 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'DagGraphVersions') {
     return {
-      id: {}, scopeKey: {}, name: {}, description: {}, version: {}, status: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
+      id: {}, scopeKey: {}, name: {}, description: {}, version: {}, status: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, commitMessage: {}, authorName: {}, authorEmail: {}, restoredFromVersionId: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'DagVariables') {
+    return {
+      id: {}, name: {}, type: {}, source: {}, description: {}, status: {}, usageCount: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -165,7 +171,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'DagVariables', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -315,6 +321,7 @@ test('syncDatabaseSchema verifies schema without altering tables by default', as
           async showAllTables() {
             return allTables;
           },
+          async addColumn() {},
           async describeTable(tableName) {
             return buildDescribedTable(tableName);
           },
@@ -342,6 +349,7 @@ test('syncDatabaseSchema alters schema only when alter mode is explicitly reques
           async showAllTables() {
             return allTables;
           },
+          async addColumn() {},
           async describeTable(tableName) {
             return buildDescribedTable(tableName);
           },
@@ -407,6 +415,7 @@ test('syncDatabaseSchema auto-creates newly required tables in local verify mode
           async showAllTables() {
             return Array.from(existingTables);
           },
+          async addColumn() {},
           async describeTable(tableName) {
             return buildDescribedTable(tableName);
           },
@@ -489,6 +498,7 @@ test('resetDatabaseSchema drops and recreates the local postgres schema before v
           async showAllTables() {
             return allTables;
           },
+          async addColumn() {},
           async describeTable(tableName) {
             return buildDescribedTable(tableName);
           },

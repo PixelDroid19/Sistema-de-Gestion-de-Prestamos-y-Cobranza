@@ -2,9 +2,6 @@ const { ConfigEntry } = require('@/models');
 
 const PAYMENT_METHOD_CATEGORY = 'payment_method';
 const BUSINESS_SETTING_CATEGORY = 'business_setting';
-const TNA_RATE_CATEGORY = 'tna_rate';
-const LATE_FEE_POLICY_CATEGORY = 'late_fee_policy';
-const INTEREST_NODE_CATEGORY = 'interest_node';
 
 const serializeConfigEntry = (entry) => {
   if (!entry) {
@@ -86,8 +83,5 @@ const configRepository = {
 module.exports = {
   PAYMENT_METHOD_CATEGORY,
   BUSINESS_SETTING_CATEGORY,
-  TNA_RATE_CATEGORY,
-  LATE_FEE_POLICY_CATEGORY,
-  INTEREST_NODE_CATEGORY,
   configRepository,
 };

@@ -7,7 +7,6 @@ import {
   SimulateGraphResponse,
   ValidateGraphRequest,
   ValidateGraphResponse,
-  GraphSummaryResponse,
   GraphListResponse,
   GraphDetailsResponse,
   GraphStatusUpdateResponse,
@@ -16,6 +15,11 @@ import {
   DagGraphStatus,
   SimulationInput,
   SimulationResponse,
+  DagVariableListResponse,
+  DagVariableCreateRequest,
+  DagVariableCreateResponse,
+  GraphHistoryResponse,
+  GraphDiffResponse,
 } from '../types/dag';
 
 /**
@@ -67,17 +71,6 @@ export const dagService = {
   },
 
   /**
-   * GET /api/v1/loans/workbench/graph/summary?scope={scopeKey}
-   * Get summary of latest graph and simulation
-   */
-  async getSummary(scopeKey: string): Promise<GraphSummaryResponse> {
-    const { data } = await apiClient.get('/loans/workbench/graph/summary', { 
-      params: { scope: scopeKey } 
-    });
-    return data;
-  },
-
-  /**
    * POST /api/v1/loans/simulations
    * Run a simple credit simulation (without custom graph)
    */
@@ -123,6 +116,39 @@ export const dagService = {
    */
   async deleteGraph(graphId: number): Promise<GraphDeleteResponse> {
     const { data } = await apiClient.delete(`/loans/workbench/graphs/${graphId}`);
+    return data;
+  },
+
+  // ── Variable Registry Endpoints ───────────────────────────────────────────
+
+  async listVariables(): Promise<DagVariableListResponse> {
+    const { data } = await apiClient.get('/loans/workbench/variables');
+    return data;
+  },
+
+  async createVariable(payload: DagVariableCreateRequest): Promise<DagVariableCreateResponse> {
+    const { data } = await apiClient.post('/loans/workbench/variables', payload);
+    return data;
+  },
+
+  // ── Graph History & Diff Endpoints ───────────────────────────────────────
+
+  async getGraphHistory(graphId: number): Promise<GraphHistoryResponse> {
+    const { data } = await apiClient.get(`/loans/workbench/graphs/${graphId}/history`);
+    return data;
+  },
+
+  async getGraphDiff(graphId: number, compareToVersionId: number): Promise<GraphDiffResponse> {
+    const { data } = await apiClient.get(`/loans/workbench/graphs/${graphId}/diff`, {
+      params: { compareToVersionId },
+    });
+    return data;
+  },
+
+  async restoreGraph(graphId: number, commitMessage?: string): Promise<SaveGraphResponse> {
+    const { data } = await apiClient.post(`/loans/workbench/graphs/${graphId}/restore`, {
+      commitMessage,
+    });
     return data;
   },
 };

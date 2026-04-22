@@ -12,6 +12,10 @@ const DagGraphVersion = sequelize.define('DagGraphVersion', {
   graphSummary: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   validation: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   createdByUserId: { type: DataTypes.INTEGER, allowNull: true },
+  commitMessage: { type: DataTypes.STRING(500), allowNull: true },
+  authorName: { type: DataTypes.STRING(100), allowNull: true },
+  authorEmail: { type: DataTypes.STRING(255), allowNull: true },
+  restoredFromVersionId: { type: DataTypes.INTEGER, allowNull: true },
 }, {
   timestamps: true,
   indexes: [

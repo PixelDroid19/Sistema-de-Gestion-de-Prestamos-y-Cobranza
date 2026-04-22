@@ -1,0 +1,117 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { FileText, Activity, GitBranch, Plus, Loader2 } from 'lucide-react';
+import dagService from '../services/dagService';
+import { queryKeys } from '../services/queryKeys';
+
+export default function DashboardPage() {
+  const navigate = useNavigate();
+
+  const { data: graphsData, isLoading: graphsLoading } = useQuery({
+    queryKey: queryKeys.dag.graphs('credit-simulation'),
+    queryFn: () => dagService.listGraphs('credit-simulation'),
+  });
+
+  const graphs = graphsData?.data?.graphs ?? [];
+  const activeCount = graphs.filter((g: any) => g.status === 'active').length;
+  const totalVersions = graphs.reduce((sum: number, g: any) => sum + (g.version || 0), 0);
+
+  const stats = [
+    { label: 'Active Formulas', value: activeCount, icon: <FileText size={18} />, color: 'bg-blue-50 text-blue-600' },
+    { label: 'Total Versions', value: totalVersions, icon: <GitBranch size={18} />, color: 'bg-purple-50 text-purple-600' },
+    { label: 'Total Graphs', value: graphs.length, icon: <Activity size={18} />, color: 'bg-green-50 text-green-600' },
+  ];
+
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-text-primary">Formula Dashboard</h1>
+        <button
+          onClick={() => navigate('/formulas/new')}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white text-sm font-medium hover:bg-brand-primary/90 transition-colors"
+        >
+          <Plus size={16} />
+          New Formula
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="flex items-center gap-4 p-4 rounded-xl border border-border-subtle bg-bg-surface">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
+              {stat.icon}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold text-text-primary">{stat.value}</span>
+              <span className="text-sm text-text-secondary">{stat.label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold text-text-primary">Active Formulas</h2>
+        <div className="overflow-hidden rounded-xl border border-border-subtle">
+          <table className="w-full text-sm">
+            <thead className="bg-bg-surface border-b border-border-subtle">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-text-secondary">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-text-secondary">Scope</th>
+                <th className="text-left px-4 py-3 font-medium text-text-secondary">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-text-secondary">Version</th>
+                <th className="text-left px-4 py-3 font-medium text-text-secondary">Updated</th>
+                <th className="text-right px-4 py-3 font-medium text-text-secondary">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {graphsLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center">
+                    <Loader2 className="animate-spin mx-auto text-brand-primary" size={24} />
+                  </td>
+                </tr>
+              ) : graphs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
+                    No formulas found. Create your first formula to get started.
+                  </td>
+                </tr>
+              ) : (
+                graphs.map((formula: any) => (
+                  <tr key={formula.id} className="hover:bg-hover-bg/50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-text-primary">{formula.name}</td>
+                    <td className="px-4 py-3 text-text-secondary">{formula.scopeKey}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          formula.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {formula.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">v{formula.version}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => navigate(`/formulas/${formula.id}`)}
+                        className="text-brand-primary hover:text-brand-primary/80 text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

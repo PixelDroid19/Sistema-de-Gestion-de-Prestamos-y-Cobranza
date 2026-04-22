@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLoans, useLoanStatistics, useSearchLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
-import DAGWorkbench from './DAGWorkbench';
+
 import { toast } from '../lib/toast';
 import { downloadCreditReport, exportCreditsExcel } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
@@ -52,8 +52,8 @@ interface InstallmentEvent {
 }
 
 const getInitialCreditsTab = () => (
-  typeof window !== 'undefined' && window.location.hash === '#workbench'
-    ? 'workbench'
+  typeof window !== 'undefined' && window.location.hash === '#formulas'
+    ? 'formulas'
     : 'list'
 );
 
@@ -91,7 +91,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
   const {
-    data: workbenchScopesData,
+    data: formulasScopesData,
     isLoading: isLoadingWorkbenchAvailability,
     isError: isWorkbenchAvailabilityError,
   } = useQuery({
@@ -100,8 +100,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     enabled: isAdmin,
     retry: false,
   });
-  const isWorkbenchAvailable = isAdmin && (workbenchScopesData?.data?.scopes?.length || 0) > 0;
-  const hasResolvedWorkbenchAvailability = !isAdmin || (!isLoadingWorkbenchAvailability && (isWorkbenchAvailable || isWorkbenchAvailabilityError));
+  const isFormulasAvailable = isAdmin && (formulasScopesData?.data?.scopes?.length || 0) > 0;
+  const hasResolvedWorkbenchAvailability = !isAdmin || (!isLoadingWorkbenchAvailability && (isFormulasAvailable || isWorkbenchAvailabilityError));
 
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
@@ -111,25 +111,25 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const { executeGuardedAction } = useOperationalActions(queryClient);
 
   useEffect(() => {
-    if (hasResolvedWorkbenchAvailability && !isWorkbenchAvailable && activeTab === 'workbench') {
+    if (hasResolvedWorkbenchAvailability && !isFormulasAvailable && activeTab === 'formulas') {
       setActiveTab('list');
     }
-  }, [activeTab, hasResolvedWorkbenchAvailability, isWorkbenchAvailable]);
+  }, [activeTab, hasResolvedWorkbenchAvailability, isFormulasAvailable]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !hasResolvedWorkbenchAvailability) {
       return;
     }
 
-    const nextTab = window.location.hash === '#workbench' && isWorkbenchAvailable
-      ? 'workbench'
+    const nextTab = window.location.hash === '#formulas' && isFormulasAvailable
+      ? 'formulas'
       : 'list';
 
     setActiveTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
-  }, [hasResolvedWorkbenchAvailability, isWorkbenchAvailable]);
+  }, [hasResolvedWorkbenchAvailability, isFormulasAvailable]);
 
   const updateActiveTab = (nextTab: string) => {
-    if (nextTab === 'workbench' && !isWorkbenchAvailable) {
+    if (nextTab === 'formulas' && !isFormulasAvailable) {
       setActiveTab('list');
       return;
     }
@@ -140,8 +140,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       return;
     }
 
-    if (nextTab === 'workbench') {
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#workbench`);
+    if (nextTab === 'formulas') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#formulas`);
       return;
     }
 
@@ -501,7 +501,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             </button>
           )}
           <button onClick={() => updateActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
-            <Calculator size={16} /> Abrir simulación
+            <Calculator size={16} /> Previsualizar crédito
           </button>
           {isAdmin && (
             <button 
@@ -533,17 +533,17 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <button 
           onClick={() => updateActiveTab('simulation')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Simula cuota, interes total y cronograma estimado"
+          title="Previsualiza cuota, interes total y cronograma estimado"
         >
-          Simulación
+          Previsualizar
         </button>
-        {isWorkbenchAvailable && (
+        {isFormulasAvailable && (
           <button 
-            onClick={() => updateActiveTab('workbench')}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'workbench' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-            title="Herramienta tecnica para flujos y escenarios DAG"
+            onClick={() => updateActiveTab('formulas')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'formulas' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+            title="Editor de la fórmula operativa que gobierna créditos nuevos"
           >
-            <Calculator size={16} /> Workbench DAG
+            <Calculator size={16} /> Fórmulas
           </button>
         )}
       </div>
@@ -1105,9 +1105,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
       <div className={activeTab === 'simulation' ? '' : 'hidden'}>
         <CreditSimulationWorkspace
-          title="Simulación operativa de crédito"
-          description="Este módulo usa el mismo motor de cálculo que crea créditos nuevos. Ajusta capital, tasa, plazo y política de mora para revisar cuota, costo financiero y cronograma antes de originar."
-          modeLabel="Módulo compartido"
+          title="Previsualizar crédito"
+          description="Usa la fórmula activa que crea créditos nuevos. Ajusta capital, tasa, plazo y política de mora para revisar cuota, costo financiero y cronograma antes de originar."
+          modeLabel="Fórmula activa"
+          actionLabel="Calcular"
           input={simulationInput}
           result={simulationResult}
           isSimulating={isSimulating}
@@ -1117,18 +1118,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           onInputChange={setSimulationInput}
           onSimulate={runSimulation}
           showScenarioTools
-          helperText="La simulación de cartera y la del workbench ahora comparten la misma interfaz. Si editas la fórmula en el workbench, compara aquí contra la versión activa antes de publicar cambios."
+          helperText="Esta previsualización ejecuta la fórmula activa en producción. Si editas la fórmula en el Editor, compara aquí contra la versión activa antes de publicar cambios."
           resultBadge={simulationResult?.graphVersionId != null ? `Fórmula v${simulationResult.graphVersionId}` : null}
           emptyTitle="Listo para proyectar un crédito"
-          emptyDescription="Completa los parámetros y ejecuta la simulación para revisar cuota estimada, interés total y cronograma mensual."
+          emptyDescription="Completa los parámetros y ejecuta el cálculo para revisar cuota estimada, interés total y cronograma mensual."
         />
       </div>
-
-      {activeTab === 'workbench' && isWorkbenchAvailable && (
-        <div className="bg-bg-surface rounded-2xl flex-1 flex flex-col min-h-[800px] overflow-hidden -mx-4 sm:mx-0 shadow-lg border border-border-subtle">
-          <DAGWorkbench />
-        </div>
-      )}
 
     </div>
   );

@@ -225,3 +225,68 @@ test('parity: default seeded DAG graph produces identical numbers to legacy simu
     legacy.schedule[legacy.schedule.length - 1].remainingBalance,
   );
 });
+
+// ─── Formula Editor Integration: edited graph affects simulation ────────────
+
+test('edited formula graph is executed and used in primary mode — DAG is source of truth', async () => {
+  // Clone the default graph and modify the amortization formula
+  // to use a hardcoded 6-month term instead of the input termMonths
+  const modifiedGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const scheduleNode = modifiedGraph.nodes.find((n) => n.id === 'amortization_schedule');
+  assert.ok(scheduleNode, 'amortization_schedule node should exist in default graph');
+
+  // Edit the formula: replace termMonths with hardcoded 6
+  scheduleNode.formula = 'buildAmortizationSchedule(amount, interestRate, 6, startDate, lateFeeMode)';
+
+  const modifiedRecord = createMockGraphVersionRecord({
+    id: 99,
+    name: 'Edited 6-month term formula',
+    graph: modifiedGraph,
+  });
+
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(modifiedRecord) });
+
+  const calculationService = createCreditsCalculationService({
+    dagConfig: createCreditsDagConfig({ mode: 'primary' }),
+    graphExecutor: executor,
+  });
+
+  const creditSimulator = createCreditSimulationService({ calculationService });
+
+  // Pass 12 months as input, but the edited formula uses 6
+  const detailed = await creditSimulator.simulateDetailed({
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  // DAG is the single source of truth — edited formula is always used
+  assert.equal(detailed.graphVersionId, 99);
+  assert.equal(detailed.selectedSource, 'dag');
+  assert.equal(detailed.fallbackReason, null);
+  assert.equal(detailed.result.schedule.length, 6, 'Edited formula produces 6 installments');
+
+  // Parity is computed for observability but does not block
+  assert.equal(detailed.dagResult.schedule.length, 6);
+});
+
+test('formula editor save flow: graphExecutor.executeDraft validates edited formulas', async () => {
+  const modifiedGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const scheduleNode = modifiedGraph.nodes.find((n) => n.id === 'amortization_schedule');
+  scheduleNode.formula = 'buildAmortizationSchedule(amount, interestRate, 24, startDate, lateFeeMode)';
+
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(createMockGraphVersionRecord()) });
+
+  // executeDraft runs a graph without persisting it — exactly what the workbench "Probar" button does
+  const draftResult = await executor.executeDraft({
+    scopeKey: 'credit-simulation',
+    contractVars: standardInput,
+    graph: modifiedGraph,
+  });
+
+  assert.equal(draftResult.ok, true);
+  assert.equal(draftResult.source, 'draft');
+  assert.equal(draftResult.result.schedule.length, 24, 'Draft formula with 24-month term should produce 24 installments');
+  assert.ok(draftResult.result.summary.totalPayable > 10000);
+});

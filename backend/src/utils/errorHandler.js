@@ -183,7 +183,13 @@ const globalErrorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  logError(err, req);
+  // Only log as application error if it's NOT an operational client error.
+  // Operational errors (4xx, isOperational=true) are expected business flows
+  // and are already captured by the HTTP request logger with their status code.
+  const isOperationalClientError = err.isOperational === true && (err.statusCode || 500) < 500;
+  if (!isOperationalClientError) {
+    logError(err, req);
+  }
 
   if (err.name === 'SequelizeValidationError') {
     const message = Object.values(err.errors).map(val => val.message).join(', ');

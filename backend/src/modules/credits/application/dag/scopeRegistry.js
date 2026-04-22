@@ -17,9 +17,9 @@
 const WORKBENCH_SCOPE_DEFINITIONS = [
   {
     key: 'credit-simulation',
-    label: 'Simulacion de credito',
+    label: 'Credito',
     description: 'Formula editable para originacion, amortizacion y resumen financiero del credito.',
-    defaultName: 'Formula base de simulacion de credito',
+    defaultName: 'Formula base de credito',
 
     // Contract: what the caller MUST provide
     requiredInputs: ['amount', 'interestRate', 'termMonths'],

@@ -44,7 +44,7 @@ const createCreditsDagConfig = ({ env = process.env, mode, parityTolerance, work
   return {
     mode: normalizeRolloutMode(resolvedMode),
     parityTolerance: normalizeTolerance(parityTolerance ?? env.CREDITS_DAG_TOLERANCE, 0.01),
-    workbenchEnabled: normalizeBoolean(workbenchEnabled ?? env.CREDITS_DAG_WORKBENCH_ENABLED, false),
+    workbenchEnabled: normalizeBoolean(workbenchEnabled ?? env.CREDITS_DAG_WORKBENCH_ENABLED, true),
     workbenchScopes: normalizedScopes,
     isScopeEnabled: createScopeMatcher(normalizedScopes),
   };

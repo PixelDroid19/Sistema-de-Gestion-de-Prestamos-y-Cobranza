@@ -63,17 +63,9 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
         calls.push(['listAdminCatalogs']);
         return { roles: ['admin', 'customer', 'socio'] };
       },
-      async resolveLateFeePolicyForUser({ userId }) {
-        calls.push(['resolveLateFeePolicyForUser', userId]);
-        return { userId: Number(userId), source: 'global', policy: { id: 3, dailyRate: '2.50' } };
-      },
-      async getTnaRateStats() {
-        calls.push(['getTnaRateStats']);
-        return { totalRates: 2, activeRates: 1 };
-      },
-      async findTnaRatesByUser({ userId }) {
-        calls.push(['findTnaRatesByUser', userId]);
-        return { userId: Number(userId), tnaRates: [{ id: 10, annualRate: '48.00' }] };
+      async listRoles() {
+        calls.push(['listRoles']);
+        return ['admin', 'customer', 'socio'];
       },
     },
   }));
@@ -126,25 +118,9 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' },
   });
-  const lateFeeResolveResponse = await requestJson(activeServer, {
-    method: 'POST',
-    path: '/late-fee/resolve',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { userId: 44 },
-  });
-  const lateFeeByUserResponse = await requestJson(activeServer, {
+  const rolesResponse = await requestJson(activeServer, {
     method: 'GET',
-    path: '/late-fee/user/45',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
-  const tnaStatsResponse = await requestJson(activeServer, {
-    method: 'GET',
-    path: '/tna-rates/stats',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
-  const tnaByUserResponse = await requestJson(activeServer, {
-    method: 'GET',
-    path: '/tna-rates/user/99',
+    path: '/roles',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const catalogsResponse = await requestJson(activeServer, {
@@ -160,10 +136,7 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   assert.equal(settingsResponse.statusCode, 200);
   assert.equal(legacyPaymentMethodsResponse.statusCode, 200);
   assert.equal(saveSettingResponse.statusCode, 200);
-  assert.equal(lateFeeResolveResponse.statusCode, 200);
-  assert.equal(lateFeeByUserResponse.statusCode, 200);
-  assert.equal(tnaStatsResponse.statusCode, 200);
-  assert.equal(tnaByUserResponse.statusCode, 200);
+  assert.equal(rolesResponse.statusCode, 200);
   assert.equal(catalogsResponse.statusCode, 200);
 
   assert.deepEqual(listResponse.body, {
@@ -182,27 +155,10 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     },
   });
   assert.equal(saveSettingResponse.body.message, 'Setting saved successfully');
-  assert.deepEqual(lateFeeResolveResponse.body, {
+  assert.deepEqual(rolesResponse.body, {
     success: true,
     data: {
-      userId: 44,
-      source: 'global',
-      policy: { id: 3, dailyRate: '2.50' },
-    },
-  });
-  assert.equal(lateFeeByUserResponse.body.data.userId, 45);
-  assert.deepEqual(tnaStatsResponse.body, {
-    success: true,
-    data: {
-      totalRates: 2,
-      activeRates: 1,
-    },
-  });
-  assert.deepEqual(tnaByUserResponse.body, {
-    success: true,
-    data: {
-      userId: 99,
-      tnaRates: [{ id: 10, annualRate: '48.00' }],
+      roles: ['admin', 'customer', 'socio'],
     },
   });
   assert.deepEqual(catalogsResponse.body, {
@@ -219,10 +175,7 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     ['listSettings'],
     ['listPaymentMethodsLegacy'],
     ['upsertSetting', 'company-name', { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' }],
-    ['resolveLateFeePolicyForUser', 44],
-    ['resolveLateFeePolicyForUser', '45'],
-    ['getTnaRateStats'],
-    ['findTnaRatesByUser', '99'],
+    ['listRoles'],
     ['listAdminCatalogs'],
   ]);
 });
@@ -262,6 +215,10 @@ test('createConfigRouter denies non-admin access without invoking config use cas
       async listAdminCatalogs() {
         invoked = true;
         return {};
+      },
+      async listRoles() {
+        invoked = true;
+        return [];
       },
     },
   }));

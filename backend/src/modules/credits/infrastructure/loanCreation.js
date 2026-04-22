@@ -1,28 +1,20 @@
 const { Loan, Customer, Associate, FinancialProduct } = require('@/models');
 const { NotFoundError } = require('@/utils/errorHandler');
-const { simulateCredit } = require('@/modules/credits/application/creditSimulationService');
 const { buildFinancialSnapshot } = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
 
 /**
- * Execute the simulation via calculationService (async — may load persisted graph)
- * or fall back to legacy if no calculationService is provided.
+ * Execute the simulation via calculationService (async — loads persisted graph).
  *
  * Returns { selectedSource, result, graphVersionId }.
  */
 const resolveSimulationExecution = async ({ input, calculationService }) => {
   if (!calculationService) {
-    const result = simulateCredit(input);
-    return {
-      selectedSource: 'legacy',
-      result,
-      graphVersionId: null,
-    };
+    throw new Error('calculationService is required. DAG is the single source of truth.');
   }
 
-  // calculationAdapter.calculate is now async
   const execution = await calculationService.calculate(input);
   return {
     selectedSource: execution.selectedSource,

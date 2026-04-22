@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Credits from '../Credits';
@@ -28,10 +29,6 @@ let currentUser: SessionUser = {
 vi.mock('react-big-calendar', () => ({
   Calendar: () => null,
   dateFnsLocalizer: () => ({}),
-}));
-
-vi.mock('../DAGWorkbench', () => ({
-  default: () => null,
 }));
 
 vi.mock('../../api/client', () => ({
@@ -209,9 +206,9 @@ describe('Credits behavioral parity scenarios', () => {
   it('renders the shared simulation workspace and preserves saved scenarios across tab switches', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
 
-    expect(await screen.findByRole('heading', { name: 'Simulación operativa de crédito' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Previsualizar crédito' })).toBeInTheDocument();
     expect(mockApiPost).toHaveBeenCalledWith('/loans/simulations', {
       amount: 2000000,
       interestRate: 60,
@@ -223,7 +220,7 @@ describe('Credits behavioral parity scenarios', () => {
     expect(await screen.findByText('1 escenario guardado.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
 
     expect(screen.getByText('1 escenario guardado.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ocultar comparación' })).toBeInTheDocument();
@@ -233,14 +230,14 @@ describe('Credits behavioral parity scenarios', () => {
   it('flags stale simulation results after parameter changes until the user reruns the calculation', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Simulación' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
 
     const amountInput = await screen.findByLabelText('Monto del crédito');
     fireEvent.change(amountInput, { target: { value: '2500000' } });
 
-    expect(await screen.findByText('Cambiaste parámetros después del último cálculo. Ejecuta nuevamente la simulación para actualizar los resultados.')).toBeInTheDocument();
+    expect(await screen.findByText('Cambiaste parámetros después del último cálculo. Ejecuta nuevamente para actualizar los resultados.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Simular' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Calcular' })[0]);
 
     await waitFor(() => {
       expect(mockApiPost).toHaveBeenLastCalledWith('/loans/simulations', {

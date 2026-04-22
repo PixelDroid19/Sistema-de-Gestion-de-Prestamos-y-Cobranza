@@ -13,6 +13,16 @@ const buildMismatch = ({ scope, field, expected, actual }) => ({
 const compareSimulationResults = ({ legacyResult, dagResult, tolerance = 0.01 } = {}) => {
   const mismatches = [];
 
+  // Compare top-level lateFeeMode (exact match, not numeric tolerance)
+  if (legacyResult?.lateFeeMode !== dagResult?.lateFeeMode) {
+    mismatches.push({
+      scope: 'top-level',
+      field: 'lateFeeMode',
+      expected: legacyResult?.lateFeeMode,
+      actual: dagResult?.lateFeeMode,
+    });
+  }
+
   SUMMARY_FIELDS.forEach((field) => {
     if (!compareWithinTolerance(legacyResult?.summary?.[field], dagResult?.summary?.[field], tolerance)) {
       mismatches.push(buildMismatch({

@@ -130,8 +130,7 @@ const createEngine = () => {
     },
 
     compileFormula(formulaString) {
-      // Validate formula against whitelist before compilation
-      validateFormula(formulaString);
+      // Validation happens inside mathInstance.compile (patched above).
       return mathInstance.compile(formulaString);
     },
 
@@ -175,6 +174,10 @@ const BigNumberEngine = {
   validateFormula(formulaString) {
     return this.getInstance()._validateFormula(formulaString);
   },
+
+  // Expose the canonical blocked patterns so other layers (e.g. workbenchService)
+  // can run an early-reject without duplicating the list.
+  BLOCKED_PATTERNS,
 };
 
 module.exports = BigNumberEngine;

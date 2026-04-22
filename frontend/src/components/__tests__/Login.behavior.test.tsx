@@ -45,13 +45,13 @@ describe('Login behavior', () => {
 
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('Correo electrónico'), {
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
       target: { value: 'qa.customer@example.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
       target: { value: 'Admin1234' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits', { replace: true });
@@ -70,13 +70,13 @@ describe('Login behavior', () => {
 
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('Correo electrónico'), {
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
       target: { value: 'qa.socio@example.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
       target: { value: 'Admin1234' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/associates/12', { replace: true });
@@ -101,13 +101,13 @@ describe('Login behavior', () => {
 
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('Correo electrónico'), {
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
       target: { value: 'qa.customer@example.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
       target: { value: 'Admin1234' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/77', { replace: true });

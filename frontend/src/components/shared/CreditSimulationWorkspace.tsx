@@ -50,7 +50,18 @@ type CreditSimulationWorkspaceProps = {
   emptyDescription?: string;
 };
 
-const lateFeeModeOptions: Array<NonNullable<SimulationInput['lateFeeMode']>> = ['SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'];
+const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMode']>; label: string }> = [
+  { value: 'NONE', label: 'Sin mora' },
+  { value: 'SIMPLE', label: 'Interés simple' },
+  { value: 'COMPOUND', label: 'Interés compuesto' },
+  { value: 'FLAT', label: 'Cargo fijo' },
+  { value: 'TIERED', label: 'Escalonado' },
+];
+
+const formatLateFeeModeLabel = (value?: SimulationInput['lateFeeMode']) => {
+  const selectedOption = lateFeeModeOptions.find((option) => option.value === (value || 'SIMPLE'));
+  return selectedOption?.label || 'Interés simple';
+};
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
   style: 'currency',
@@ -191,8 +202,8 @@ export default function CreditSimulationWorkspace({
 
   return (
     <section className="flex flex-col gap-6" aria-labelledby={titleId}>
-      <div className="rounded-3xl border border-border-subtle bg-bg-surface shadow-sm overflow-hidden">
-        <div className="relative overflow-hidden border-b border-border-subtle bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.16),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.16),_transparent_35%),linear-gradient(180deg,rgba(15,23,42,0.02),rgba(15,23,42,0))] px-6 py-6 sm:px-8">
+      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+        <div className="border-b border-border-subtle px-6 py-6 sm:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
@@ -201,7 +212,7 @@ export default function CreditSimulationWorkspace({
                   {modeLabel}
                 </span>
                 {resultBadge && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] tracking-[0.12em] text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-[11px] tracking-[0.12em] text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
                     <Check size={12} />
                     {resultBadge}
                   </span>
@@ -222,7 +233,7 @@ export default function CreditSimulationWorkspace({
                 type="button"
                 onClick={onSimulate}
                 disabled={disabled || isSimulating}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-3 text-sm font-semibold text-bg-base shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
                 {actionLabel}
@@ -232,7 +243,7 @@ export default function CreditSimulationWorkspace({
                   type="button"
                   onClick={onReset}
                   disabled={disabled || isSimulating}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border-subtle bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Restablecer parámetros
                 </button>
@@ -240,47 +251,47 @@ export default function CreditSimulationWorkspace({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-border-subtle bg-bg-base/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <DollarSign size={14} />
                 Monto base
               </div>
               <p className="mt-2 text-lg font-semibold text-text-primary">{formatCurrency(input.amount)}</p>
             </div>
-            <div className="rounded-2xl border border-border-subtle bg-bg-base/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <Percent size={14} />
                 Tasa anual
               </div>
               <p className="mt-2 text-lg font-semibold text-text-primary">{input.interestRate}%</p>
             </div>
-            <div className="rounded-2xl border border-border-subtle bg-bg-base/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <Clock3 size={14} />
                 Plazo
               </div>
               <p className="mt-2 text-lg font-semibold text-text-primary">{input.termMonths} meses</p>
             </div>
-            <div className="rounded-2xl border border-border-subtle bg-bg-base/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <AlertCircle size={14} />
                 Mora
               </div>
-              <p className="mt-2 text-lg font-semibold text-text-primary">{input.lateFeeMode || 'SIMPLE'}</p>
+              <p className="mt-2 text-lg font-semibold text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 p-6 sm:p-8 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <div className="grid gap-6 bg-bg-base/40 p-6 sm:p-8 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
           <div className="space-y-5">
-            <section className="rounded-3xl border border-border-subtle bg-bg-base p-5 shadow-sm">
+            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
-                Parámetros de simulación
+                Parámetros
               </div>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
-                Usa este mismo bloque para evaluar la fórmula activa o el borrador del workbench. Los resultados solo se actualizan cuando ejecutas una simulación.
+                Configura capital, tasa, plazo y política de mora. Los resultados solo se actualizan al ejecutar.
               </p>
 
               <div className="mt-5 grid gap-4">
@@ -303,7 +314,7 @@ export default function CreditSimulationWorkspace({
                       aria-describedby={fieldErrors.amount ? `${amountHelpId} ${amountInputId}-error` : amountHelpId}
                       aria-invalid={!!fieldErrors.amount}
                       disabled={disabled}
-                      className={`w-full rounded-2xl border bg-bg-surface px-10 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                        className={`w-full rounded-xl border bg-bg-base px-10 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                     />
                   </div>
                   {fieldErrors.amount && (
@@ -333,7 +344,7 @@ export default function CreditSimulationWorkspace({
                         aria-describedby={fieldErrors.interestRate ? `${rateHelpId} ${rateInputId}-error` : rateHelpId}
                         aria-invalid={!!fieldErrors.interestRate}
                         disabled={disabled}
-                        className={`w-full rounded-2xl border bg-bg-surface px-4 py-3 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                        className={`w-full rounded-xl border bg-bg-base px-4 py-3 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-secondary">%</span>
                     </div>
@@ -361,7 +372,7 @@ export default function CreditSimulationWorkspace({
                       aria-describedby={fieldErrors.termMonths ? `${termHelpId} ${termInputId}-error` : termHelpId}
                       aria-invalid={!!fieldErrors.termMonths}
                       disabled={disabled}
-                      className={`mt-2 w-full rounded-2xl border bg-bg-surface px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                       className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                     />
                     {fieldErrors.termMonths && (
                       <p id={`${termInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
@@ -385,7 +396,7 @@ export default function CreditSimulationWorkspace({
                       value={input.startDate || ''}
                       onChange={handleFieldChange('startDate')}
                       disabled={disabled}
-                      className="mt-2 w-full rounded-2xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </div>
 
@@ -394,7 +405,7 @@ export default function CreditSimulationWorkspace({
                       Modo de mora
                     </label>
                     <p id={lateFeeHelpId} className="mt-1 text-xs leading-5 text-text-secondary">
-                      Política que se inyecta al motor DAG para estimar mora futura.
+                      Política que se inyecta a la fórmula para estimar mora futura.
                     </p>
                     <select
                       id={lateFeeInputId}
@@ -402,29 +413,29 @@ export default function CreditSimulationWorkspace({
                       onChange={handleFieldChange('lateFeeMode')}
                       aria-describedby={lateFeeHelpId}
                       disabled={disabled}
-                      className="mt-2 w-full rounded-2xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {lateFeeModeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
+                       {lateFeeModeOptions.map((option) => (
+                         <option key={option.value} value={option.value}>
+                           {option.label}
+                         </option>
+                       ))}
                     </select>
                   </div>
                 </div>
               </div>
 
               {helperText && (
-                <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                <div className="mt-5 rounded-xl border border-blue-200 bg-blue-100 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
                   {helperText}
                 </div>
               )}
 
               {validationStatus && (
                 <div
-                  className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-6 ${validationStatus.valid
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300'
+                  className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-6 ${validationStatus.valid
+                    ? 'border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-200'
+                    : 'border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
                   }`}
                   role="status"
                 >
@@ -449,13 +460,13 @@ export default function CreditSimulationWorkspace({
                       onChange={(event) => setScenarioName(event.target.value)}
                       placeholder="Nombre del escenario"
                       disabled={disabled}
-                      className="min-w-0 flex-1 rounded-2xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                       className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <button
                       type="button"
                       onClick={handleSaveScenario}
                       disabled={disabled || !result}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
+                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Save size={16} />
                       Guardar escenario
@@ -470,7 +481,7 @@ export default function CreditSimulationWorkspace({
                       <button
                         type="button"
                         onClick={() => setIsComparisonVisible((currentValue) => !currentValue)}
-                        className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-hover-bg"
+                        className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-hover-bg"
                         aria-expanded={isComparisonVisible}
                       >
                         <GitCompareArrows size={14} />
@@ -483,14 +494,14 @@ export default function CreditSimulationWorkspace({
             </section>
 
             {showScenarioTools && isComparisonVisible && savedScenarios.length > 0 && (
-              <section className="rounded-3xl border border-border-subtle bg-bg-base p-5 shadow-sm" aria-label="Comparación de escenarios guardados">
+              <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Comparación de escenarios guardados">
                 <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                   <GitCompareArrows size={16} />
                   Comparación de escenarios
                 </div>
                 <div className="mt-4 space-y-3">
                   {result && (
-                    <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+                    <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-semibold text-text-primary">Simulación actual</h4>
@@ -498,14 +509,14 @@ export default function CreditSimulationWorkspace({
                             {formatCurrency(input.amount)} · {input.interestRate}% · {input.termMonths} meses
                           </p>
                         </div>
-                        <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-700 dark:border-blue-500/20 dark:bg-bg-surface dark:text-blue-300">
+                        <span className="rounded-full border border-blue-200 bg-bg-surface px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-900 dark:border-blue-500/30 dark:bg-bg-base dark:text-blue-200">
                           Activa
                         </span>
                       </div>
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <dt className="text-text-secondary">Cuota</dt>
-                          <dd className="font-semibold text-blue-700 dark:text-blue-300">{formatCurrency(result.summary.installmentAmount)}</dd>
+                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(result.summary.installmentAmount)}</dd>
                         </div>
                         <div>
                           <dt className="text-text-secondary">Interés total</dt>
@@ -516,7 +527,7 @@ export default function CreditSimulationWorkspace({
                   )}
 
                   {savedScenarios.map((scenario) => (
-                    <article key={scenario.id} className="rounded-2xl border border-border-subtle bg-bg-surface p-4">
+                    <article key={scenario.id} className="rounded-xl border border-border-subtle bg-bg-base p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-semibold text-text-primary">{scenario.name}</h4>
@@ -539,7 +550,7 @@ export default function CreditSimulationWorkspace({
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <dt className="text-text-secondary">Cuota</dt>
-                          <dd className="font-semibold text-blue-700 dark:text-blue-300">{formatCurrency(scenario.result.summary.installmentAmount)}</dd>
+                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(scenario.result.summary.installmentAmount)}</dd>
                         </div>
                         <div>
                           <dt className="text-text-secondary">Interés total</dt>
@@ -555,36 +566,36 @@ export default function CreditSimulationWorkspace({
 
           <div className="space-y-5 min-w-0">
             {error && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300" role="alert">
-                {error}
-              </div>
-            )}
+               <div className="rounded-xl border border-red-200 bg-red-100 px-4 py-3 text-sm leading-6 text-red-900 dark:border-red-500/30 dark:bg-red-500/20 dark:text-red-200" role="alert">
+                 {error}
+               </div>
+             )}
 
-            {isResultStale && !isSimulating && result && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300" role="status">
-                Cambiaste parámetros después del último cálculo. Ejecuta nuevamente la simulación para actualizar los resultados.
-              </div>
-            )}
+             {isResultStale && !isSimulating && result && (
+               <div className="rounded-xl border border-amber-200 bg-amber-100 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200" role="status">
+                 Cambiaste parámetros después del último cálculo. Ejecuta nuevamente para actualizar los resultados.
+               </div>
+             )}
 
-            <section className="rounded-3xl border border-border-subtle bg-bg-base p-5 shadow-sm" aria-label="Resumen de simulación">
+            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Resumen de simulación">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">Resumen financiero</h4>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
-                    Resultado consolidado del motor de cálculo usado por la originación y por el workbench.
+                    Resultado consolidado de la fórmula.
                   </p>
                 </div>
                 {result && (
-                  <div className="rounded-full border border-border-subtle bg-bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary">
-                    Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
-                  </div>
-                )}
+                   <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                     Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
+                   </div>
+                 )}
               </div>
 
               {isSimulating ? (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-live="polite">
                   {[1, 2, 3, 4].map((item) => (
-                    <div key={item} className="rounded-2xl border border-border-subtle bg-bg-surface p-4">
+                     <div key={item} className="rounded-xl border border-border-subtle bg-bg-base p-4">
                       <div className="h-3 w-24 animate-pulse rounded bg-border-subtle" />
                       <div className="mt-3 h-7 w-32 animate-pulse rounded bg-border-subtle" />
                     </div>
@@ -593,14 +604,14 @@ export default function CreditSimulationWorkspace({
               ) : result ? (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {summaryCards.map((card) => (
-                    <article key={card.id} className={`rounded-2xl border p-4 ${card.tone}`}>
+                     <article key={card.id} className={`rounded-xl border p-4 ${card.tone}`}>
                       <p className="text-xs font-medium uppercase tracking-[0.14em]">{card.label}</p>
                       <p className="mt-2 text-lg font-semibold">{card.value}</p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <div className="mt-5 rounded-3xl border border-dashed border-border-subtle bg-bg-surface px-6 py-10 text-center">
+                 <div className="mt-5 rounded-2xl border border-dashed border-border-subtle bg-bg-base px-6 py-10 text-center">
                   <Calculator size={40} className="mx-auto text-text-secondary" strokeWidth={1.5} />
                   <h5 className="mt-4 text-lg font-semibold text-text-primary">{emptyTitle}</h5>
                   <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
@@ -610,7 +621,7 @@ export default function CreditSimulationWorkspace({
               )}
             </section>
 
-            <section className="rounded-3xl border border-border-subtle bg-bg-base p-5 shadow-sm" aria-label="Tabla de amortización">
+            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Tabla de amortización">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -622,13 +633,13 @@ export default function CreditSimulationWorkspace({
                   </p>
                 </div>
                 {result && (
-                  <div className="rounded-full border border-border-subtle bg-bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary">
-                    Fórmula: {result.graphVersionId != null ? `v${result.graphVersionId}` : 'Legado'}
-                  </div>
-                )}
+                   <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                     Fórmula: {result.graphVersionId != null ? `v${result.graphVersionId}` : 'Legado'}
+                   </div>
+                 )}
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-2xl border border-border-subtle">
+               <div className="mt-5 overflow-hidden rounded-xl border border-border-subtle bg-bg-base">
                 <div className="max-h-[540px] overflow-auto">
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
@@ -667,13 +678,17 @@ export default function CreditSimulationWorkspace({
                           <tr key={row.installmentNumber} className="hover:bg-hover-bg/60">
                             <td className="px-4 py-3 font-medium text-text-primary">{row.installmentNumber}</td>
                             <td className="px-4 py-3 text-text-secondary">{formatDate(row.dueDate)}</td>
-                            <td className="px-4 py-3 text-right font-medium text-blue-700 dark:text-blue-300">{formatCurrency(row.scheduledPayment)}</td>
-                            <td className="px-4 py-3 text-right text-amber-700 dark:text-amber-300">{formatCurrency(row.interestComponent)}</td>
-                            <td className="px-4 py-3 text-right text-emerald-700 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</td>
-                            <td className="px-4 py-3 text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
-                            <td className="px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">{row.status}</td>
-                          </tr>
-                        ))
+                             <td className="px-4 py-3 text-right font-medium text-blue-900 dark:text-blue-200">{formatCurrency(row.scheduledPayment)}</td>
+                             <td className="px-4 py-3 text-right text-amber-900 dark:text-amber-200">{formatCurrency(row.interestComponent)}</td>
+                             <td className="px-4 py-3 text-right text-emerald-900 dark:text-emerald-200">{formatCurrency(row.principalComponent)}</td>
+                             <td className="px-4 py-3 text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
+                             <td className="px-4 py-3 text-right">
+                               <span className="rounded-full border border-border-subtle bg-bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                                 {row.status}
+                               </span>
+                             </td>
+                           </tr>
+                         ))
                       ) : (
                         <tr>
                           <td colSpan={7} className="px-4 py-12 text-center text-sm leading-6 text-text-secondary">

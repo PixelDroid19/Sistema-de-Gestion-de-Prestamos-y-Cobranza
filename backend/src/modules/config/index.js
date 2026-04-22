@@ -9,21 +9,6 @@ const {
   createUpsertSetting,
   createListAdminCatalogs,
   createListRoles,
-  createListTnaRates,
-  createCreateTnaRate,
-  createUpdateTnaRate,
-  createDeleteTnaRate,
-  createListLateFeePolicies,
-  resolveLateFeePolicyForUser,
-  createCreateLateFeePolicy,
-  createUpdateLateFeePolicy,
-  createDeleteLateFeePolicy,
-  createListInterestNodes,
-  createCreateInterestNode,
-  createUpdateInterestNode,
-  createDeleteInterestNode,
-  createGetTnaRateStats,
-  createFindTnaRatesByUser,
 } = require('./application/useCases');
 const { configRepository } = require('./infrastructure/repositories');
 const { createConfigRouter } = require('./presentation/router');
@@ -40,21 +25,6 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
     upsertSetting: createUpsertSetting({ configRepository }),
     listAdminCatalogs: createListAdminCatalogs(),
     listRoles: createListRoles(),
-    listTnaRates: createListTnaRates({ configRepository }),
-    getTnaRateStats: createGetTnaRateStats({ configRepository }),
-    findTnaRatesByUser: createFindTnaRatesByUser({ configRepository }),
-    createTnaRate: createCreateTnaRate({ configRepository }),
-    updateTnaRate: createUpdateTnaRate({ configRepository }),
-    deleteTnaRate: createDeleteTnaRate({ configRepository }),
-    listLateFeePolicies: createListLateFeePolicies({ configRepository }),
-    resolveLateFeePolicyForUser: resolveLateFeePolicyForUser({ configRepository }),
-    createLateFeePolicy: createCreateLateFeePolicy({ configRepository }),
-    updateLateFeePolicy: createUpdateLateFeePolicy({ configRepository }),
-    deleteLateFeePolicy: createDeleteLateFeePolicy({ configRepository }),
-    listInterestNodes: createListInterestNodes({ configRepository }),
-    createInterestNode: createCreateInterestNode({ configRepository }),
-    updateInterestNode: createUpdateInterestNode({ configRepository }),
-    deleteInterestNode: createDeleteInterestNode({ configRepository }),
   };
 
   return createModule({

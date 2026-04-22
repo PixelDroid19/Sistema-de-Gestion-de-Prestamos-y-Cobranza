@@ -6,19 +6,19 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { safeLocalStorage } from '../lib/safeStorage';
 
 export default function Header({ setCurrentView, toggleMobileSidebar }: { setCurrentView: (v: string) => void, toggleMobileSidebar?: () => void }) {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const { user } = useSessionStore();
   const { unreadCount } = useUnreadNotificationsCount();
 
   useEffect(() => {
-    // Check initial theme
+    // Check initial theme — default to light mode for better readability
     const savedTheme = safeLocalStorage.getItem('theme');
-    if (savedTheme === 'light') {
-      document.documentElement.classList.remove('dark');
-      setIsDark(false);
-    } else if (savedTheme === 'dark' || document.documentElement.classList.contains('dark')) {
+    if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
       setIsDark(true);
+    } else {
+      document.documentElement.classList.remove('dark');
+      setIsDark(false);
     }
   }, []);
 

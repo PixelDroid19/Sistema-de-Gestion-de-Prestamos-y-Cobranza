@@ -122,7 +122,7 @@ test('createCreditsDagConfig supports workbench rollout flags and scope gating',
   assert.equal(config.isScopeEnabled('mortgage'), false);
 });
 
-test('createCreditsCalculationService returns legacy results in shadow mode and logs parity metadata', async () => {
+test('createCreditsCalculationService returns DAG results in shadow mode and logs parity metadata', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -140,14 +140,15 @@ test('createCreditsCalculationService returns legacy results in shadow mode and 
 
   const execution = await service.calculate({ amount: 100 });
 
-  assert.equal(execution.selectedSource, 'legacy');
-  assert.equal(execution.result, legacyResult);
+  // DAG is the single source of truth — shadow logs parity but always returns DAG
+  assert.equal(execution.selectedSource, 'dag');
+  assert.equal(execution.result, dagResult);
   assert.equal(execution.parity.passed, true);
   assert.equal(logEntries[0].event, 'credits.dag.comparison');
   assert.equal(logEntries[0].payload.mode, 'shadow');
 });
 
-test('createCreditsCalculationService falls back to legacy results on primary parity mismatches', async () => {
+test('createCreditsCalculationService returns DAG results in primary mode even when parity mismatches', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -169,17 +170,18 @@ test('createCreditsCalculationService falls back to legacy results on primary pa
 
   const execution = await service.calculate({ amount: 100 });
 
-  assert.equal(execution.selectedSource, 'legacy');
-  assert.equal(execution.result, legacyResult);
+  // DAG is the single source of truth — no fallback to legacy
+  assert.equal(execution.selectedSource, 'dag');
+  assert.equal(execution.result, dagResult);
   assert.equal(execution.parity.passed, false);
-  assert.equal(execution.fallbackReason, 'parity_mismatch');
+  assert.equal(execution.fallbackReason, null);
   assert.equal(execution.parity.mismatches.length > 0, true);
   assert.equal(logEntries[0].event, 'credits.dag.comparison');
   assert.equal(logEntries[0].payload.mode, 'primary');
-  assert.equal(logEntries[0].payload.fallbackReason, 'parity_mismatch');
+  assert.equal(logEntries[0].payload.fallbackReason, undefined);
 });
 
-test('createCreditsCalculationService falls back to legacy results on DAG execution errors', async () => {
+test('createCreditsCalculationService propagates DAG execution errors in primary mode', async () => {
   const logEntries = [];
   const legacyResult = {
     lateFeeMode: 'NONE',
@@ -194,13 +196,13 @@ test('createCreditsCalculationService falls back to legacy results on DAG execut
     comparisonLogger: (event, payload) => logEntries.push({ event, payload }),
   });
 
-  const execution = await service.calculate({ amount: 100 });
-
-  assert.equal(execution.selectedSource, 'legacy');
-  assert.equal(execution.result, legacyResult);
-  assert.equal(execution.fallbackReason, 'dag_execution_failed');
-  assert.equal(logEntries[0].event, 'credits.dag.comparison');
-  assert.equal(logEntries[0].payload.fallbackReason, 'dag_execution_failed');
+  await assert.rejects(
+    () => service.calculate({ amount: 100 }),
+    (err) => {
+      assert.equal(err.message, 'dag exploded');
+      return true;
+    },
+  );
 });
 
 test('createCreditsCalculationService injects one shared startDate when callers omit it', async () => {

@@ -4,7 +4,7 @@ import { DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT, useActiveCreditSimulation } fro
 
 /**
  * Standalone simulator route for admins.
- * It now reuses the shared simulation workspace used in Credits and the DAG workbench.
+ * It now reuses the shared simulation workspace used in Credits and the formula editor.
  */
 export default function CreditSimulator() {
   const {
@@ -26,13 +26,13 @@ export default function CreditSimulator() {
       <div>
         <h2 className="text-2xl font-semibold">Simulador de Crédito</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Mismo motor, misma interfaz y mismas reglas operativas que la simulación usada en cartera y en el workbench DAG.
+          Mismo motor, misma interfaz y mismas reglas operativas que la simulación usada en cartera y en el editor de fórmulas.
         </p>
       </div>
 
       <CreditSimulationWorkspace
         title="Simulador unificado de crédito"
-        description="Esta vista conserva la ruta independiente para el equipo, pero usa exactamente el mismo módulo compartido que la simulación de cartera y la del workbench DAG."
+        description="Esta vista conserva la ruta independiente para el equipo, pero usa exactamente el mismo módulo compartido que la simulación de cartera y la del editor de fórmulas."
         modeLabel="Ruta dedicada"
         input={input}
         result={result}
