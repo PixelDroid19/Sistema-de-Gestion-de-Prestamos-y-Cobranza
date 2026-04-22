@@ -10,7 +10,6 @@ const {
   Payment,
   DagGraphVersion,
   DagSimulationSummary,
-  DagVariable,
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
 const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
@@ -647,14 +646,6 @@ const createCreditsInfrastructure = ({
           where: { scopeKey },
           order: [['createdAt', 'DESC'], ['id', 'DESC']],
         });
-      },
-    },
-    dagVariableRepository: {
-      listAll() {
-        return DagVariable.findAll({ order: [['name', 'ASC']] });
-      },
-      create(payload) {
-        return DagVariable.create(payload);
       },
     },
     loanCreationService: {

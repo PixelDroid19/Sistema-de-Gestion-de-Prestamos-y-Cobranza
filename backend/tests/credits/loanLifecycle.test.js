@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const models = require('@/models');
 const { getCanonicalLoanView } = require('@/modules/credits/application/loanFinancials');
 const {
-  createLoanFromCanonicalData,
   createLoanFromCanonicalDataFactory,
 } = require('@/modules/credits/infrastructure/loanCreation');
 

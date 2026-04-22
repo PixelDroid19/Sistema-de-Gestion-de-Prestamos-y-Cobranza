@@ -171,7 +171,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'DagVariables', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();

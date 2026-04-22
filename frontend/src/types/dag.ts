@@ -309,22 +309,6 @@ export interface BlockNode {
   expression?: BlockNode;
 }
 
-export type VariableType = 'integer' | 'currency' | 'boolean' | 'float';
-export type VariableSource = 'bureau_api' | 'app_data' | 'system_core';
-export type VariableStatus = 'active' | 'idle' | 'deprecated';
-
-export interface DagVariable {
-  id: number;
-  name: string;
-  type: VariableType;
-  source: VariableSource;
-  description: string;
-  status: VariableStatus;
-  usageCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface GraphHistoryEntry {
   version: number;
   commitMessage: string | null;
@@ -351,27 +335,6 @@ export interface GraphHistoryResponse {
   success: boolean;
   data: {
     history: GraphHistoryEntry[];
-  };
-}
-
-export interface DagVariableListResponse {
-  success: boolean;
-  data: {
-    variables: DagVariable[];
-  };
-}
-
-export interface DagVariableCreateRequest {
-  name: string;
-  type: VariableType;
-  source: VariableSource;
-  description?: string;
-}
-
-export interface DagVariableCreateResponse {
-  success: boolean;
-  data: {
-    variable: DagVariable;
   };
 }
 

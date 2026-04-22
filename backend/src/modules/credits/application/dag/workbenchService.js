@@ -352,7 +352,6 @@ const createDagWorkbenchService = ({
   dagGraphRepository,
   dagSimulationSummaryRepository,
   graphExecutor,
-  dagVariableRepository,
 } = {}) => {
   if (!dagGraphRepository || !dagSimulationSummaryRepository) {
     throw new Error('DagWorkbenchService requires graph and summary repository dependencies');
@@ -599,40 +598,6 @@ const createDagWorkbenchService = ({
       });
 
       return { deleted: true };
-    },
-
-    // ── Variable Registry ────────────────────────────────────────────────────
-
-    async listVariables({ actor }) {
-      assertWorkbenchFeatureEnabled({ actor, dagConfig });
-      if (!dagVariableRepository) {
-        return { variables: [] };
-      }
-      const variables = await dagVariableRepository.listAll();
-      return { variables };
-    },
-
-    async createVariable({ actor, name, type, source, description }) {
-      assertWorkbenchFeatureEnabled({ actor, dagConfig });
-      if (!dagVariableRepository) {
-        throw new ValidationError('Variable repository not available');
-      }
-      if (!name || typeof name !== 'string' || !name.trim()) {
-        throw new ValidationError('Variable name is required');
-      }
-      if (!type || !['integer', 'currency', 'boolean', 'float'].includes(type)) {
-        throw new ValidationError('Variable type must be one of: integer, currency, boolean, float');
-      }
-      if (!source || !['bureau_api', 'app_data', 'system_core'].includes(source)) {
-        throw new ValidationError('Variable source must be one of: bureau_api, app_data, system_core');
-      }
-      const variable = await dagVariableRepository.create({
-        name: name.trim(),
-        type,
-        source,
-        description: description || null,
-      });
-      return { variable };
     },
 
     // ── Graph History & Diff ─────────────────────────────────────────────────

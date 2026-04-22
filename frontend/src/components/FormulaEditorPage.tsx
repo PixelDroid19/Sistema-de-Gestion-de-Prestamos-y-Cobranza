@@ -60,10 +60,13 @@ export default function FormulaEditorPage() {
     enabled: !!scopeKey,
   });
 
+  // Reset store when formula id changes (handles navigation between formulas)
+  useEffect(() => {
+    reset();
+  }, [id, reset]);
+
   // Initialize graph from scope or existing version
   useEffect(() => {
-    if (graph) return; // Already loaded
-    
     if (isNew && defaultGraph) {
       setGraph(JSON.parse(JSON.stringify(defaultGraph)));
       setFormulaName(scope?.defaultName || 'Nueva formula');
@@ -77,7 +80,7 @@ export default function FormulaEditorPage() {
         setStatus(existing.status || 'draft');
       }
     }
-  }, [isNew, id, defaultGraph, graphsData, graph, scope, setGraph, setFormulaName, setFormulaDescription, setStatus]);
+  }, [isNew, id, defaultGraph, graphsData, scope, setGraph, setFormulaName, setFormulaDescription, setStatus]);
 
   // Save mutation
   const saveMutation = useMutation({
@@ -102,10 +105,6 @@ export default function FormulaEditorPage() {
       toast.error({ description: `Error en prueba: ${err.message}` });
     },
   });
-
-  useEffect(() => {
-    return () => reset();
-  }, [reset]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.ctrlKey || e.metaKey) {

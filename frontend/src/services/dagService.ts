@@ -15,9 +15,6 @@ import {
   DagGraphStatus,
   SimulationInput,
   SimulationResponse,
-  DagVariableListResponse,
-  DagVariableCreateRequest,
-  DagVariableCreateResponse,
   GraphHistoryResponse,
   GraphDiffResponse,
 } from '../types/dag';
@@ -120,16 +117,6 @@ export const dagService = {
   },
 
   // ── Variable Registry Endpoints ───────────────────────────────────────────
-
-  async listVariables(): Promise<DagVariableListResponse> {
-    const { data } = await apiClient.get('/loans/workbench/variables');
-    return data;
-  },
-
-  async createVariable(payload: DagVariableCreateRequest): Promise<DagVariableCreateResponse> {
-    const { data } = await apiClient.post('/loans/workbench/variables', payload);
-    return data;
-  },
 
   // ── Graph History & Diff Endpoints ───────────────────────────────────────
 

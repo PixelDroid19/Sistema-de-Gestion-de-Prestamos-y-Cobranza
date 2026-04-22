@@ -100,23 +100,7 @@ describe('Visual Formula Editor E2E Integration', () => {
 
     assert.ok(simulation.simulation);
 
-    // 3. Create a variable
-    const variable = await service.createVariable({
-      actor,
-      name: 'Test_Score',
-      type: 'integer',
-      source: 'bureau_api',
-      description: 'Test variable for integration',
-    });
-
-    assert.equal(variable.variable.name, 'Test_Score');
-
-    // 4. List variables
-    const listResult = await service.listVariables({ actor });
-    assert.ok(listResult.variables.length >= 1);
-    assert.ok(listResult.variables.some((v) => v.name === 'Test_Score'));
-
-    // 5. Update graph (create v2)
+    // 3. Update graph (create v2)
     const savedV2 = await service.saveGraph({
       actor,
       scopeKey: 'credit-simulation',
@@ -133,19 +117,19 @@ describe('Visual Formula Editor E2E Integration', () => {
     const version2 = savedV2.graphVersion.version;
     assert.ok(version2 > version1);
 
-    // 6. Get history
+    // 4. Get history
     const history = await service.getGraphHistory({ actor, graphId });
     assert.ok(history.history.length >= 2);
     assert.ok(history.history.some((h) => h.version === version1));
     assert.ok(history.history.some((h) => h.version === version2));
 
-    // 7. Diff versions
+    // 5. Diff versions
     const diff = await service.getGraphDiff({ actor, graphId, compareToVersionId: version1 });
     assert.ok(diff.diff);
     assert.ok(Array.isArray(diff.diff.previousGraph.nodes));
     assert.ok(Array.isArray(diff.diff.newGraph.nodes));
 
-    // 8. Restore v1 as new version
+    // 6. Restore v1 as new version
     const restored = await service.restoreGraph({ actor, graphId, commitMessage: 'Restored from v1' });
     assert.ok(restored.graph.version > version2);
     assert.equal(restored.graph.restoredFromVersionId, version1);

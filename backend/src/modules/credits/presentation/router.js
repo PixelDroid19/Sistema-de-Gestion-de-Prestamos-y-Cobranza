@@ -126,23 +126,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, message: 'Graph deleted successfully' });
   }));
 
-  // ── Variable Registry Endpoints ───────────────────────────────────────────
-  router.get('/workbench/variables', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.listDagWorkbenchVariables({ actor: req.user });
-    res.json({ success: true, data: { variables: result.variables } });
-  }));
-
-  router.post('/workbench/variables', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.createDagWorkbenchVariable({
-      actor: req.user,
-      name: req.body.name,
-      type: req.body.type,
-      source: req.body.source,
-      description: req.body.description,
-    });
-    res.status(201).json({ success: true, data: { variable: result.variable } });
-  }));
-
   // ── Graph History & Diff Endpoints ───────────────────────────────────────
   router.get('/workbench/graphs/:graphId/history', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.getDagWorkbenchGraphHistory({ actor: req.user, graphId: Number(req.params.graphId) });

@@ -386,10 +386,6 @@ const createDeactivateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ 
 
 const createDeleteDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.deleteGraph({ actor, graphId });
 
-const createListDagWorkbenchVariables = ({ dagWorkbenchService }) => async ({ actor }) => dagWorkbenchService.listVariables({ actor });
-
-const createCreateDagWorkbenchVariable = ({ dagWorkbenchService }) => async ({ actor, name, type, source, description }) => dagWorkbenchService.createVariable({ actor, name, type, source, description });
-
 const createGetDagWorkbenchGraphHistory = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.getGraphHistory({ actor, graphId });
 
 const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({ actor, graphId, compareToVersionId }) => dagWorkbenchService.getGraphDiff({ actor, graphId, compareToVersionId });
@@ -1261,8 +1257,6 @@ module.exports = {
   createActivateDagWorkbenchGraph,
   createDeactivateDagWorkbenchGraph,
   createDeleteDagWorkbenchGraph,
-  createListDagWorkbenchVariables,
-  createCreateDagWorkbenchVariable,
   createGetDagWorkbenchGraphHistory,
   createGetDagWorkbenchGraphDiff,
   createRestoreDagWorkbenchGraph,

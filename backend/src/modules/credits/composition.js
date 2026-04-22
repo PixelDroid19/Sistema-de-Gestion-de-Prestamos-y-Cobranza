@@ -40,7 +40,6 @@ const createCreditsComposition = ({
     dagGraphRepository: infrastructure.dagGraphRepository,
     dagSimulationSummaryRepository: infrastructure.dagSimulationSummaryRepository,
     graphExecutor: infrastructure.graphExecutor,
-    dagVariableRepository: infrastructure.dagVariableRepository,
   }),
   outboxEventRepository = createOutboxEventRepository(),
   paymentRouter = createPaymentRouter({ paymentApplicationService }),

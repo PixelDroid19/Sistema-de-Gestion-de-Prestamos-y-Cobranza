@@ -5,43 +5,6 @@ const {
   createDagWorkbenchService,
 } = require('@/modules/credits/application/dag/workbenchService');
 
-test('createDagWorkbenchService lists and creates variables', async () => {
-  const variables = [];
-
-  const service = createDagWorkbenchService({
-    dagConfig: { mode: 'shadow', workbenchEnabled: true },
-    dagGraphRepository: {
-      async getLatest() { return null; },
-      async saveVersion() { throw new Error('should not be called'); },
-    },
-    dagSimulationSummaryRepository: {
-      async save() { throw new Error('should not be called'); },
-      async getLatest() { return null; },
-    },
-    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
-    dagVariableRepository: {
-      async listAll() { return variables; },
-      async create(record) {
-        const v = { id: variables.length + 1, ...record, usageCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        variables.push(v);
-        return v;
-      },
-    },
-  });
-
-  const actor = { id: 1, role: 'admin' };
-
-  const listResult = await service.listVariables({ actor });
-  assert.equal(listResult.variables.length, 0);
-
-  const createResult = await service.createVariable({ actor, name: 'Credit_Score', type: 'integer', source: 'bureau_api', description: 'Bureau score' });
-  assert.equal(createResult.variable.name, 'Credit_Score');
-  assert.equal(createResult.variable.type, 'integer');
-
-  const listResult2 = await service.listVariables({ actor });
-  assert.equal(listResult2.variables.length, 1);
-});
-
 test('createDagWorkbenchService returns graph history', async () => {
   const graphs = [
     { id: 1, scopeKey: 'credit-simulation', version: 1, status: 'inactive', name: 'V1', commitMessage: 'Initial', authorName: 'Alice', createdAt: '2026-01-01T00:00:00Z' },
