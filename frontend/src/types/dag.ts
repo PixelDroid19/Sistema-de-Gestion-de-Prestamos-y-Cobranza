@@ -379,6 +379,12 @@ export interface DagVariableCreateResponse {
 // CONSTANTS
 // =============================================================================
 
+export const SCOPE_LABELS: Record<string, string> = {
+  'credit-simulation': 'Credito',
+};
+
+export const getScopeLabel = (scopeKey: string): string => SCOPE_LABELS[scopeKey] || scopeKey;
+
 // Default formula helpers available in the backend
 export const FORMULA_HELPERS = [
   {

@@ -228,6 +228,6 @@ describe('FormulaEditorPage', () => {
     await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
 
     expect(screen.getByText(/Grafo actual/i)).toBeInTheDocument();
-    expect(screen.getByText(/credit-simulation/i)).toBeInTheDocument();
+    expect(screen.getByText(/Credito/i)).toBeInTheDocument();
   });
 });

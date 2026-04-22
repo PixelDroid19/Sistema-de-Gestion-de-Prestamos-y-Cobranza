@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Activity, GitBranch, Plus, Loader2, Power, PowerOff, Trash2, History } from 'lucide-react';
 import dagService from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
+import { getScopeLabel } from '../types/dag';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 
@@ -127,7 +128,7 @@ export default function DashboardPage() {
                 graphs.map((formula: any) => (
                   <tr key={formula.id} className="hover:bg-hover-bg/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-text-primary">{formula.name}</td>
-                    <td className="px-4 py-3 text-text-secondary">{formula.scopeKey}</td>
+                    <td className="px-4 py-3 text-text-secondary">{getScopeLabel(formula.scopeKey)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${

@@ -5,6 +5,7 @@ import { Undo2, Redo2, ZoomIn, ZoomOut, Save, ChevronLeft, Loader2, Play } from 
 import { useBlockEditorStore } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
+import { getScopeLabel } from '../types/dag';
 import { useConfirm } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 
@@ -414,7 +415,7 @@ export default function FormulaEditorPage() {
                 <div className="space-y-1 text-xs text-text-secondary">
                   <p>Nodos: {graph?.nodes.length || 0}</p>
                   <p>Edges: {graph?.edges.length || 0}</p>
-                  <p>Scope: {scopeKey}</p>
+                  <p>Scope: {getScopeLabel(scopeKey)}</p>
                 </div>
               </div>
 
