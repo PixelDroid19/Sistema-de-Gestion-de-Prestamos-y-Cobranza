@@ -51,30 +51,19 @@ const mockScope = {
     termMonths: 12,
     lateFeeMode: 'SIMPLE',
   },
-  helpers: [
-    { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera tabla de amortizacion' },
-    { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume la tabla en totales' },
-  ],
+  helpers: [],
   defaultGraph: {
     nodes: [
-      { id: 'input_amount', kind: 'constant', label: 'Monto', outputVar: 'amount' },
-      { id: 'input_rate', kind: 'constant', label: 'Tasa', outputVar: 'interestRate' },
-      { id: 'schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)', outputVar: 'schedule' },
-      { id: 'summary', kind: 'formula', label: 'Resumen', formula: 'summarizeSchedule(schedule)', outputVar: 'summary' },
+      { id: 'monthly_rate', kind: 'formula', label: 'Tasa mensual', formula: 'interestRate / 12', outputVar: 'monthly_rate' },
+      { id: 'result', kind: 'output', label: 'Resultado final', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
     ],
-    edges: [
-      { source: 'input_amount', target: 'schedule' },
-      { source: 'input_rate', target: 'schedule' },
-      { source: 'schedule', target: 'summary' },
-    ],
+    edges: [{ source: 'monthly_rate', target: 'result' }],
   },
 };
 
 function createTestQueryClient() {
   return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false } },
   });
 }
 
@@ -85,11 +74,6 @@ function renderWithProviders(ui: React.ReactElement) {
       {ui}
     </QueryClientProvider>
   );
-}
-
-function getNodeLabel(text: string) {
-  const all = screen.getAllByText(text);
-  return all.find((el) => el.classList.contains('text-sm') && el.classList.contains('font-semibold')) || all[0];
 }
 
 describe('FormulaEditorPage', () => {
@@ -130,200 +114,78 @@ describe('FormulaEditorPage', () => {
     }, { timeout: 3000 });
   });
 
-  it('renders available helpers in left panel with friendly labels', async () => {
+  it('renders logic block controls in left panel', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      // Use getAllByText because the label also appears inside node cards;
-      // we just need to confirm it exists somewhere (panel + cards).
-      expect(screen.getAllByText('Generar tabla de amortización').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('Resumen de cronograma').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('IF').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('ELSE IF').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('ELSE').length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it('renders graph nodes from default graph', async () => {
+  it('shows live test panel with inputs', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(getNodeLabel('Monto')).toBeInTheDocument();
-      expect(getNodeLabel('Cronograma')).toBeInTheDocument();
+      expect(screen.getByText(/Live Test/i)).toBeInTheDocument();
+      expect(screen.getByText(/Input Values/i)).toBeInTheDocument();
     });
-  });
-
-  it('displays friendly formula description for formula nodes', async () => {
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => {
-      // Should show the human-friendly label inside a chip, NEVER the raw function name
-      const chips = screen.getAllByText(/Generar tabla de amortización/i);
-      expect(chips.length).toBeGreaterThanOrEqual(1);
-      // Ensure the raw function name is NOT present anywhere
-      expect(screen.queryByText('buildAmortizationSchedule')).not.toBeInTheDocument();
-    });
-  });
-
-  it('selects a node when clicked', async () => {
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    fireEvent.click(getNodeLabel('Cronograma'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Propiedades')).toBeInTheDocument();
-    });
-  });
-
-  it('shows formula textarea when formula node is selected', async () => {
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    fireEvent.click(getNodeLabel('Cronograma'));
-
-    await waitFor(() => {
-      const textarea = screen.getAllByRole('textbox').find(
-        (el) => el.classList.contains('font-mono')
-      );
-      expect(textarea).toBeTruthy();
-    });
-  });
-
-  it('updates node formula in store when textarea changes', async () => {
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    fireEvent.click(getNodeLabel('Cronograma'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Propiedades')).toBeInTheDocument();
-    });
-
-    const textarea = screen.getAllByRole('textbox').find(
-      (el) => el.classList.contains('font-mono')
-    ) as HTMLTextAreaElement;
-
-    expect(textarea).toBeTruthy();
-    fireEvent.change(textarea, { target: { value: 'newFormula()' } });
-
-    expect(useBlockEditorStore.getState().graph?.nodes.find((n) => n.id === 'schedule')?.formula).toBe('newFormula()');
   });
 
   it('calls saveGraph when save button is clicked', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getAllByText(/Guardar|Save/i).length).toBeGreaterThanOrEqual(1);
+    });
 
-    const saveButton = screen.getByRole('button', { name: /guardar/i });
-    fireEvent.click(saveButton);
+    const saveButtons = screen.getAllByRole('button', { name: /guardar|save/i });
+    fireEvent.click(saveButtons[0]);
 
     await waitFor(() => {
       expect(mockSaveGraph).toHaveBeenCalledTimes(1);
     });
   });
 
-  it('calls simulateGraph when simulate button is clicked', async () => {
+  it('calls simulateGraph when test button is clicked', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getAllByText(/Probar|Evaluate/i).length).toBeGreaterThanOrEqual(1);
+    });
 
-    const simulateButton = screen.getByRole('button', { name: /probar/i });
-    fireEvent.click(simulateButton);
+    const testButtons = screen.getAllByRole('button', { name: /probar|evaluate/i });
+    fireEvent.click(testButtons[0]);
 
     await waitFor(() => {
       expect(mockSimulateGraph).toHaveBeenCalledTimes(1);
     });
   });
 
-  it('shows live test panel with scope info', async () => {
+  it('shows error message when evaluation fails', async () => {
+    mockSimulateGraph.mockRejectedValueOnce(new Error('Evaluation failed: missing variable'));
+
     renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    expect(screen.getByText(/Live Test/i)).toBeInTheDocument();
-    expect(screen.getByText(/Input Values/i)).toBeInTheDocument();
-  });
-
-  // ── New tests for untested spec scenarios ──
-
-  it('adds a new block to canvas when dragged from toolbox', async () => {
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    const toolboxItem = screen.getByText('IF / THEN / ELSE');
-    // The canvas is the section element with onDrop handler
-    const canvas = document.querySelector('section[ondrop]') || document.querySelector('section')!;
-
-    // Simulate drag from toolbox to canvas
-    fireEvent.dragStart(toolboxItem, {
-      dataTransfer: {
-        setData: vi.fn(),
-        effectAllowed: 'copy',
-      },
-    });
-
-    fireEvent.dragOver(canvas, {
-      dataTransfer: {
-        dropEffect: 'copy',
-      },
-    });
-
-    fireEvent.drop(canvas, {
-      dataTransfer: {
-        getData: () => JSON.stringify({ kind: 'conditional', preset: 'if(condition, then, else)' }),
-      },
-      clientX: 500,
-      clientY: 400,
-    });
 
     await waitFor(() => {
-      const store = useBlockEditorStore.getState();
-      expect(store.graph?.nodes.some((n) => n.kind === 'conditional')).toBe(true);
+      expect(screen.getAllByText(/Evaluate|Probar/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const evalButtons = screen.getAllByRole('button', { name: /evaluate|probar/i });
+    fireEvent.click(evalButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Evaluation failed: missing variable/i)).toBeInTheDocument();
     });
   });
 
-  it('rejects incompatible block connections and shows toast error', async () => {
+  it('renders the formula name input', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
-    await waitFor(() => expect(getNodeLabel('Monto')).toBeInTheDocument());
-
-    // The default graph has 4 nodes: 2 constants, 2 formulas.
-    // We'll try to connect one constant node to another constant node (incompatible)
-    const outHandles = screen.getAllByTitle('Conectar salida');
-    const inHandles = screen.getAllByTitle('Conectar entrada');
-
-    // Click output handle of the second node (should be input_rate, a constant)
-    fireEvent.mouseDown(outHandles[1]);
-
-    // Click input handle of the first node (input_amount, a constant)
-    // constant -> constant is invalid
-    fireEvent.mouseDown(inHandles[0]);
-
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalled();
-    });
-
-    // Ensure no edge was actually added between these two
-    const edgesAfter = useBlockEditorStore.getState().graph?.edges || [];
-    const sourceId = useBlockEditorStore.getState().graph?.nodes[1]?.id;
-    const targetId = useBlockEditorStore.getState().graph?.nodes[0]?.id;
-    expect(edgesAfter.some((e) => e.source === sourceId && e.target === targetId)).toBe(false);
-  });
-
-  it('shows error message with node trace when evaluation fails', async () => {
-    mockSimulateGraph.mockRejectedValueOnce(new Error('Node trace: schedule -> summary failed'));
-
-    renderWithProviders(<FormulaEditorPage />);
-
-    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
-
-    const evaluateButton = screen.getByRole('button', { name: /evaluate formula/i });
-    fireEvent.click(evaluateButton);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Node trace: schedule -> summary failed/i)).toBeInTheDocument();
+      const input = screen.getByPlaceholderText(/nombre de la formula/i);
+      expect(input).toBeInTheDocument();
     });
   });
 });

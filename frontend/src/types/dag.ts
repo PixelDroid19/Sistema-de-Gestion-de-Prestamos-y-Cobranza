@@ -282,22 +282,52 @@ export interface DagSimulationSummary {
 // BLOCK AST TYPES (Visual Formula Editor)
 // =============================================================================
 
-export type BlockNodeType = 'variable' | 'value' | 'operator' | 'if' | 'and' | 'or' | 'output';
+/**
+ * BlockKind represents the type of visual block in the formula editor.
+ * These blocks compose vertically to form a formula definition.
+ */
+export type BlockKind = 'if' | 'elseIf' | 'else' | 'expression' | 'output' | 'container';
 
-export interface BlockNode {
+/**
+ * Condition within an IF/ELSE-IF block.
+ * Represents: variable operator value
+ */
+export interface BlockCondition {
+  variable: string;
+  operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
+  value: string;
+}
+
+/**
+ * A single visual block in the formula editor canvas.
+ * Blocks are ordered in a linear array and compile to DagGraph nodes.
+ */
+export interface BlockDefinition {
   id: string;
-  type: BlockNodeType;
-  variableName?: string;
-  value?: number | string | boolean;
-  operator?: '+' | '-' | '*' | '/' | '>' | '<' | '>=' | '<=' | '=';
-  left?: BlockNode;
-  right?: BlockNode;
-  condition?: BlockNode;
-  thenBlock?: BlockNode;
-  elseBlock?: BlockNode;
-  blocks?: BlockNode[];
+  kind: BlockKind;
+  /** For if/elseIf blocks: the condition to evaluate */
+  condition?: BlockCondition;
+  /** For if/elseIf blocks: the result value if condition is true */
+  thenValue?: string;
+  /** For else blocks: the fallback value */
+  elseValue?: string;
+  /** For output blocks: the variable name that receives the result */
   outputVar?: string;
-  expression?: BlockNode;
+  /** For expression blocks: a label or description */
+  label?: string;
+  /** For container blocks: groups of child blocks */
+  children?: BlockDefinition[];
+}
+
+/**
+ * A formula container represents a named group of blocks that
+ * together define one logical formula on the canvas.
+ */
+export interface FormulaContainer {
+  id: string;
+  label: string;
+  blocks: BlockDefinition[];
+  outputVar: string;
 }
 
 export interface GraphHistoryEntry {

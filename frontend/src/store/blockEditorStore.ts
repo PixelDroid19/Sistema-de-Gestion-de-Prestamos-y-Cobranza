@@ -1,55 +1,89 @@
 // frontend/src/store/blockEditorStore.ts
 import { create } from 'zustand';
-import type { DagGraph, DagNode, DagEdge } from '../types/dag';
+import type { DagGraph, FormulaContainer, BlockDefinition } from '../types/dag';
+import { compileBlocksToGraph, generateBlockId } from '../lib/blockCompiler';
 
 export type EditorStatus = 'draft' | 'active' | 'inactive' | 'archived';
 
-interface GraphEditorState {
-  graph: DagGraph | null;
-  selectedNodeId: string | null;
+interface BlockEditorState {
+  /** Formula containers on the canvas */
+  containers: FormulaContainer[];
+  /** The compiled DagGraph (built from containers) */
+  compiledGraph: DagGraph | null;
+  /** Selected block or container ID */
+  selectedBlockId: string | null;
+  /** Zoom level */
   zoom: number;
+  /** Formula name */
   formulaName: string;
+  /** Formula description */
   formulaDescription: string;
+  /** Formula status */
   status: EditorStatus;
+  /** Scope key */
   scopeKey: string;
-  undoStack: DagGraph[];
-  redoStack: DagGraph[];
+  /** Undo/redo stacks (snapshots of containers array) */
+  undoStack: FormulaContainer[][];
+  redoStack: FormulaContainer[][];
+  /** Loading state */
   isLoading: boolean;
+  /** Error state */
   error: string | null;
 }
 
-interface GraphEditorActions {
-  setGraph: (graph: DagGraph) => void;
-  updateNodeFormula: (nodeId: string, formula: string) => void;
-  updateNodeOutputVar: (nodeId: string, outputVar: string) => void;
-  updateNodeField: (nodeId: string, field: keyof DagNode, value: unknown) => void;
-  updateNodePosition: (nodeId: string, x: number, y: number) => void;
-  addNode: (node: DagNode) => void;
-  removeNode: (nodeId: string) => void;
-  addEdge: (edge: DagEdge) => void;
-  removeEdge: (source: string, target: string) => void;
-  generateNodeId: (prefix: string) => string;
-  selectNode: (id: string | null) => void;
+interface BlockEditorActions {
+  // Container operations
+  addContainer: (container: FormulaContainer) => void;
+  removeContainer: (containerId: string) => void;
+  updateContainer: (containerId: string, updates: Partial<FormulaContainer>) => void;
+
+  // Block operations within a container
+  addBlock: (containerId: string, block: BlockDefinition, index?: number) => void;
+  removeBlock: (containerId: string, blockId: string) => void;
+  updateBlock: (containerId: string, blockId: string, updates: Partial<BlockDefinition>) => void;
+  moveBlock: (containerId: string, blockId: string, newIndex: number) => void;
+
+  // Selection
+  selectBlock: (id: string | null) => void;
+
+  // Compilation
+  compileGraph: () => DagGraph;
+
+  // Zoom
   setZoom: (zoom: number) => void;
+
+  // Metadata
   setFormulaName: (name: string) => void;
   setFormulaDescription: (desc: string) => void;
   setStatus: (status: EditorStatus) => void;
   setScopeKey: (key: string) => void;
+
+  // State
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setContainers: (containers: FormulaContainer[]) => void;
+
+  // Undo/Redo
   undo: () => void;
   redo: () => void;
-  reset: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+
+  // Reset
+  reset: () => void;
 }
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.0;
 
-const initialState: GraphEditorState = {
-  graph: null,
-  selectedNodeId: null,
+function clampZoom(z: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+}
+
+const initialState: BlockEditorState = {
+  containers: [],
+  compiledGraph: null,
+  selectedBlockId: null,
   zoom: 1,
   formulaName: 'Formula de credito',
   formulaDescription: '',
@@ -61,208 +95,168 @@ const initialState: GraphEditorState = {
   error: null,
 };
 
-function clampZoom(z: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+function pushUndo(state: BlockEditorState): Partial<BlockEditorState> {
+  return {
+    undoStack: [...state.undoStack, JSON.parse(JSON.stringify(state.containers))],
+    redoStack: [],
+  };
 }
 
-export const useBlockEditorStore = create<GraphEditorState & GraphEditorActions>((set, get) => ({
+export const useBlockEditorStore = create<BlockEditorState & BlockEditorActions>((set, get) => ({
   ...initialState,
 
-  setGraph: (graph) => {
+  // ── Container Operations ────────────────────────────────────────────────
+
+  addContainer: (container) => {
     set((state) => ({
-      graph,
-      undoStack: state.graph ? [...state.undoStack, state.graph] : state.undoStack,
-      redoStack: [],
+      ...pushUndo(state),
+      containers: [...state.containers, container],
     }));
   },
 
-  updateNodeFormula: (nodeId, formula) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newNodes = state.graph.nodes.map((node) =>
-        node.id === nodeId ? { ...node, formula } : node
-      );
-      const newGraph = { ...state.graph, nodes: newNodes };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-      };
-    });
+  removeContainer: (containerId) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.filter((c) => c.id !== containerId),
+      selectedBlockId: state.selectedBlockId === containerId ? null : state.selectedBlockId,
+    }));
   },
 
-  updateNodeOutputVar: (nodeId, outputVar) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newNodes = state.graph.nodes.map((node) =>
-        node.id === nodeId ? { ...node, outputVar } : node
-      );
-      const newGraph = { ...state.graph, nodes: newNodes };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-      };
-    });
+  updateContainer: (containerId, updates) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.map((c) =>
+        c.id === containerId ? { ...c, ...updates } : c
+      ),
+    }));
   },
 
-  updateNodeField: (nodeId, field, value) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const oldId = nodeId;
-      const newId = field === 'id' ? String(value) : oldId;
+  // ── Block Operations ────────────────────────────────────────────────────
 
-      const newNodes = state.graph.nodes.map((node) =>
-        node.id === nodeId ? { ...node, [field]: value } : node
-      );
-
-      // If renaming a node, update all edges that reference it
-      const newEdges = field === 'id'
-        ? state.graph.edges.map((edge) => ({
-            ...edge,
-            source: edge.source === oldId ? newId : edge.source,
-            target: edge.target === oldId ? newId : edge.target,
-          }))
-        : state.graph.edges;
-
-      const newGraph = { ...state.graph, nodes: newNodes, edges: newEdges };
-
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-        selectedNodeId: field === 'id' && state.selectedNodeId === oldId ? newId : state.selectedNodeId,
-      };
-    });
+  addBlock: (containerId, block, index) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.map((c) => {
+        if (c.id !== containerId) return c;
+        const blocks = [...c.blocks];
+        if (index !== undefined && index >= 0 && index <= blocks.length) {
+          blocks.splice(index, 0, block);
+        } else {
+          blocks.push(block);
+        }
+        return { ...c, blocks };
+      }),
+    }));
   },
 
-  updateNodePosition: (nodeId, x, y) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newNodes = state.graph.nodes.map((node) =>
-        node.id === nodeId ? { ...node, x, y } : node
-      );
-      return {
-        graph: { ...state.graph, nodes: newNodes },
-      };
-    });
+  removeBlock: (containerId, blockId) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.map((c) => {
+        if (c.id !== containerId) return c;
+        return { ...c, blocks: c.blocks.filter((b) => b.id !== blockId) };
+      }),
+      selectedBlockId: state.selectedBlockId === blockId ? null : state.selectedBlockId,
+    }));
   },
 
-  addNode: (node) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newGraph = {
-        ...state.graph,
-        nodes: [...state.graph.nodes, node],
-      };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-      };
-    });
+  updateBlock: (containerId, blockId, updates) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.map((c) => {
+        if (c.id !== containerId) return c;
+        return {
+          ...c,
+          blocks: c.blocks.map((b) =>
+            b.id === blockId ? { ...b, ...updates } : b
+          ),
+        };
+      }),
+    }));
   },
 
-  removeNode: (nodeId) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newGraph = {
-        ...state.graph,
-        nodes: state.graph.nodes.filter((n) => n.id !== nodeId),
-        edges: state.graph.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-      };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-        selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
-      };
-    });
+  moveBlock: (containerId, blockId, newIndex) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: state.containers.map((c) => {
+        if (c.id !== containerId) return c;
+        const blocks = [...c.blocks];
+        const oldIndex = blocks.findIndex((b) => b.id === blockId);
+        if (oldIndex === -1) return c;
+        const [moved] = blocks.splice(oldIndex, 1);
+        blocks.splice(newIndex, 0, moved);
+        return { ...c, blocks };
+      }),
+    }));
   },
 
-  addEdge: (edge) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newGraph = {
-        ...state.graph,
-        edges: [...state.graph.edges, edge],
-      };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-      };
-    });
+  // ── Selection ───────────────────────────────────────────────────────────
+
+  selectBlock: (id) => set({ selectedBlockId: id }),
+
+  // ── Compilation ─────────────────────────────────────────────────────────
+
+  compileGraph: () => {
+    const { containers } = get();
+    const graph = compileBlocksToGraph(containers);
+    set({ compiledGraph: graph });
+    return graph;
   },
 
-  removeEdge: (source, target) => {
-    set((state) => {
-      if (!state.graph) return state;
-      const newGraph = {
-        ...state.graph,
-        edges: state.graph.edges.filter((e) => !(e.source === source && e.target === target)),
-      };
-      return {
-        graph: newGraph,
-        undoStack: [...state.undoStack, state.graph],
-        redoStack: [],
-      };
-    });
-  },
-
-  selectNode: (id) => set({ selectedNodeId: id }),
+  // ── Zoom ────────────────────────────────────────────────────────────────
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
+  // ── Metadata ────────────────────────────────────────────────────────────
+
   setFormulaName: (name) => set({ formulaName: name }),
-
   setFormulaDescription: (desc) => set({ formulaDescription: desc }),
-
   setStatus: (status) => set({ status }),
-
   setScopeKey: (key) => set({ scopeKey: key }),
 
-  setLoading: (loading) => set({ isLoading: loading }),
+  // ── State ───────────────────────────────────────────────────────────────
 
+  setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
 
+  setContainers: (containers) => {
+    set((state) => ({
+      ...pushUndo(state),
+      containers: JSON.parse(JSON.stringify(containers)),
+    }));
+  },
+
+  // ── Undo/Redo ───────────────────────────────────────────────────────────
+
   undo: () => {
-    const { undoStack, redoStack, graph } = get();
+    const { undoStack, redoStack, containers } = get();
     if (undoStack.length === 0) return;
     const prev = undoStack[undoStack.length - 1];
     set({
-      graph: prev,
+      containers: prev,
       undoStack: undoStack.slice(0, -1),
-      redoStack: graph ? [...redoStack, graph] : redoStack,
+      redoStack: [...redoStack, JSON.parse(JSON.stringify(containers))],
     });
   },
 
   redo: () => {
-    const { undoStack, redoStack, graph } = get();
+    const { undoStack, redoStack, containers } = get();
     if (redoStack.length === 0) return;
     const next = redoStack[redoStack.length - 1];
     set({
-      graph: next,
-      undoStack: graph ? [...undoStack, graph] : undoStack,
+      containers: next,
+      undoStack: [...undoStack, JSON.parse(JSON.stringify(containers))],
       redoStack: redoStack.slice(0, -1),
     });
   },
 
-  reset: () => set(initialState),
-
-  generateNodeId: (prefix) => {
-    const { graph } = get();
-    const existingIds = new Set(graph?.nodes.map((n) => n.id) || []);
-    let counter = 1;
-    let id = `${prefix}_${counter}`;
-    while (existingIds.has(id)) {
-      counter += 1;
-      id = `${prefix}_${counter}`;
-    }
-    return id;
-  },
-
   canUndo: () => get().undoStack.length > 0,
-
   canRedo: () => get().redoStack.length > 0,
+
+  // ── Reset ───────────────────────────────────────────────────────────────
+
+  reset: () => set(initialState),
 }));
+
+// Re-export generateBlockId for convenience
+export { generateBlockId };

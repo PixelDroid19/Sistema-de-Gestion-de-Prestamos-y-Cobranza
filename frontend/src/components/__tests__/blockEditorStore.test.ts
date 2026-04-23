@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useBlockEditorStore } from '../../store/blockEditorStore';
-import type { DagGraph, DagNode, DagEdge } from '../../types/dag';
+import { generateBlockId } from '../../lib/blockCompiler';
+import type { FormulaContainer, BlockDefinition } from '../../types/dag';
 
 describe('blockEditorStore', () => {
-  const sampleGraph: DagGraph = {
-    nodes: [
-      { id: 'input_amount', kind: 'constant', label: 'Monto', outputVar: 'amount' },
-      { id: 'schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)', outputVar: 'schedule' },
-    ],
-    edges: [
-      { source: 'input_amount', target: 'schedule' },
+  const sampleContainer: FormulaContainer = {
+    id: 'rate_calc',
+    label: 'Rate Calculation',
+    outputVar: 'custom_rate',
+    blocks: [
+      { id: 'if_1', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: '0.035' },
+      { id: 'else_1', kind: 'else', elseValue: '0.05' },
     ],
   };
 
@@ -17,67 +18,92 @@ describe('blockEditorStore', () => {
     useBlockEditorStore.getState().reset();
   });
 
-  it('has null graph by default', () => {
-    const { graph } = useBlockEditorStore.getState();
-    expect(graph).toBeNull();
+  it('has empty containers by default', () => {
+    const { containers } = useBlockEditorStore.getState();
+    expect(containers).toEqual([]);
   });
 
-  it('sets a graph', () => {
+  it('adds a container', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    expect(useBlockEditorStore.getState().graph).toEqual(sampleGraph);
+    store.addContainer(sampleContainer);
+    expect(useBlockEditorStore.getState().containers).toHaveLength(1);
+    expect(useBlockEditorStore.getState().containers[0].id).toBe('rate_calc');
   });
 
-  it('updates a node formula', () => {
+  it('removes a container', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.updateNodeFormula('schedule', 'buildAmortizationSchedule(amount, interestRate, 24, startDate, lateFeeMode)');
-    const node = useBlockEditorStore.getState().graph?.nodes.find((n) => n.id === 'schedule');
-    expect(node?.formula).toBe('buildAmortizationSchedule(amount, interestRate, 24, startDate, lateFeeMode)');
+    store.addContainer(sampleContainer);
+    store.removeContainer('rate_calc');
+    expect(useBlockEditorStore.getState().containers).toHaveLength(0);
   });
 
-  it('removes a node and its edges', () => {
+  it('adds a block to a container', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.removeNode('schedule');
-    expect(useBlockEditorStore.getState().graph?.nodes).toHaveLength(1);
-    expect(useBlockEditorStore.getState().graph?.edges).toHaveLength(0);
+    store.addContainer(sampleContainer);
+    const newBlock: BlockDefinition = { id: 'elseIf_1', kind: 'elseIf', condition: { variable: 'Credit_Score', operator: '>', value: '680' }, thenValue: '0.042' };
+    store.addBlock('rate_calc', newBlock, 1); // insert between if and else
+    const blocks = useBlockEditorStore.getState().containers[0].blocks;
+    expect(blocks).toHaveLength(3);
+    expect(blocks[1].id).toBe('elseIf_1');
   });
 
-  it('selects a node', () => {
+  it('removes a block from a container', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.selectNode('schedule');
-    expect(useBlockEditorStore.getState().selectedNodeId).toBe('schedule');
+    store.addContainer(sampleContainer);
+    store.removeBlock('rate_calc', 'else_1');
+    expect(useBlockEditorStore.getState().containers[0].blocks).toHaveLength(1);
   });
 
-  it('undo restores previous graph', () => {
+  it('updates a block', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.updateNodeFormula('schedule', 'new formula');
-    expect(useBlockEditorStore.getState().graph?.nodes[1].formula).toBe('new formula');
+    store.addContainer(sampleContainer);
+    store.updateBlock('rate_calc', 'if_1', { thenValue: '0.025' });
+    const block = useBlockEditorStore.getState().containers[0].blocks[0];
+    expect(block.thenValue).toBe('0.025');
+  });
+
+  it('selects a block', () => {
+    const store = useBlockEditorStore.getState();
+    store.selectBlock('if_1');
+    expect(useBlockEditorStore.getState().selectedBlockId).toBe('if_1');
+  });
+
+  it('undo restores previous containers', () => {
+    const store = useBlockEditorStore.getState();
+    store.addContainer(sampleContainer);
+    store.removeBlock('rate_calc', 'else_1');
+    expect(useBlockEditorStore.getState().containers[0].blocks).toHaveLength(1);
     store.undo();
-    expect(useBlockEditorStore.getState().graph?.nodes[1].formula).toBe('buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)');
+    expect(useBlockEditorStore.getState().containers[0].blocks).toHaveLength(2);
   });
 
-  it('redo restores undone graph', () => {
+  it('redo restores undone state', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.updateNodeFormula('schedule', 'new formula');
+    store.addContainer(sampleContainer);
+    store.removeBlock('rate_calc', 'else_1');
     store.undo();
     store.redo();
-    expect(useBlockEditorStore.getState().graph?.nodes[1].formula).toBe('new formula');
+    expect(useBlockEditorStore.getState().containers[0].blocks).toHaveLength(1);
   });
 
   it('clears redo stack on new action', () => {
     const store = useBlockEditorStore.getState();
-    store.setGraph(sampleGraph);
-    store.updateNodeFormula('schedule', 'v2');
+    store.addContainer(sampleContainer);
+    store.removeBlock('rate_calc', 'else_1');
     store.undo();
-    store.updateNodeFormula('schedule', 'v3');
+    store.updateBlock('rate_calc', 'if_1', { thenValue: '0.01' });
     store.redo();
     // redo should do nothing because stack was cleared
-    expect(useBlockEditorStore.getState().graph?.nodes[1].formula).toBe('v3');
+    expect(useBlockEditorStore.getState().containers[0].blocks[0].thenValue).toBe('0.01');
+  });
+
+  it('compiles graph from containers', () => {
+    const store = useBlockEditorStore.getState();
+    store.addContainer(sampleContainer);
+    const graph = store.compileGraph();
+    expect(graph.nodes.length).toBeGreaterThan(0);
+    // Compiler injects pipeline nodes + edges for backend compatibility
+    expect(graph.edges.length).toBeGreaterThan(0);
   });
 
   it('updates zoom level', () => {
