@@ -10,6 +10,7 @@ const {
   Payment,
   DagGraphVersion,
   DagSimulationSummary,
+  DagVariable,
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
 const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
@@ -192,6 +193,7 @@ const createCreditsInfrastructure = ({
   paymentModel = Payment,
   dagGraphVersionModel = DagGraphVersion,
   dagSimulationSummaryModel = DagSimulationSummary,
+  dagVariableModel = DagVariable,
   dagConfig = createCreditsDagConfig(),
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
@@ -273,22 +275,36 @@ const createCreditsInfrastructure = ({
     },
     async activateVersion(id) {
       const activated = await dagGraphVersionModel.sequelize.transaction(async (transaction) => {
-        const targetGraph = await dagGraphVersionModel.findByPk(id, { transaction });
+        // Acquire an advisory lock on the scopeKey to prevent concurrent activations
+        // This ensures only one activation per scope can happen at a time across all instances
+        const targetGraph = await dagGraphVersionModel.findByPk(id, { transaction, lock: true });
         if (!targetGraph) {
           return null;
         }
 
-        await dagGraphVersionModel.update(
-          { status: 'inactive' },
-          {
-            where: {
-              scopeKey: targetGraph.scopeKey,
-              status: 'active',
-              id: { [Op.ne]: targetGraph.id },
-            },
-            transaction,
-          },
+        // Use advisory lock derived from scopeKey hash for cross-process serialization
+        const scopeKeyHash = Buffer.from(targetGraph.scopeKey).reduce((h, c) => ((h << 5) - h + c) | 0, 0);
+        await dagGraphVersionModel.sequelize.query(
+          'SELECT pg_advisory_xact_lock(:lockId)',
+          { replacements: { lockId: Math.abs(scopeKeyHash) % 2147483647 }, transaction }
         );
+
+        // Re-verify no other active version was created while we waited for the lock
+        const currentActive = await dagGraphVersionModel.findOne({
+          where: { scopeKey: targetGraph.scopeKey, status: 'active' },
+          transaction,
+          lock: true,
+        });
+
+        if (currentActive && currentActive.id !== targetGraph.id) {
+          await dagGraphVersionModel.update(
+            { status: 'inactive' },
+            {
+              where: { id: currentActive.id },
+              transaction,
+            },
+          );
+        }
 
         targetGraph.status = 'active';
         await targetGraph.save({ transaction });
@@ -635,6 +651,42 @@ const createCreditsInfrastructure = ({
       },
     },
     dagGraphRepository,
+    dagVariableRepository: {
+      async list({ type, source, status, page = 1, pageSize = 20 } = {}) {
+        const where = {};
+        if (type) where.type = type;
+        if (source) where.source = source;
+        if (status) where.status = status;
+        return paginateModel({
+          model: dagVariableModel,
+          page,
+          pageSize,
+          where,
+          order: [['createdAt', 'DESC']],
+        });
+      },
+      async findById(id) {
+        return dagVariableModel.findByPk(id);
+      },
+      async findByName(name) {
+        return dagVariableModel.findOne({ where: { name } });
+      },
+      async create(payload) {
+        return dagVariableModel.create(payload);
+      },
+      async update(id, payload) {
+        const variable = await dagVariableModel.findByPk(id);
+        if (!variable) return null;
+        await variable.update(payload);
+        return variable;
+      },
+      async delete(id) {
+        const variable = await dagVariableModel.findByPk(id);
+        if (!variable) return null;
+        await variable.destroy();
+        return true;
+      },
+    },
     dagSimulationSummaryRepository: {
       save(payload) {
         return dagSimulationSummaryModel.create(payload);
@@ -699,6 +751,7 @@ const {
   creditDomainService,
   dagGraphRepository,
   dagSimulationSummaryRepository,
+  dagVariableRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,
@@ -717,6 +770,7 @@ module.exports = {
   creditDomainService,
   dagGraphRepository,
   dagSimulationSummaryRepository,
+  dagVariableRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,

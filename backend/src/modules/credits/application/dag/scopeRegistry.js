@@ -19,7 +19,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
     key: 'credit-simulation',
     label: 'Credito',
     description: 'Formula editable para originacion, amortizacion y resumen financiero del credito.',
-    defaultName: 'Formula base de credito',
+    defaultName: 'Formula base de credito v2',
 
     // Contract: what the caller MUST provide
     requiredInputs: ['amount', 'interestRate', 'termMonths'],
@@ -38,18 +38,22 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
     // Helpers injected into the formula scope (scopeBuilder.js provides the real fns)
     // label = human-friendly name shown in the UI (never expose raw function names to users)
+    // NOTE: Domain helpers (buildAmortizationSchedule, summarizeSchedule) are kept for
+    // backward compatibility but are NOT exposed in the workbench toolbox. They are
+    // rendered as opaque domain blocks in the UI, not as editable formulas.
     helpers: [
       { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera el cronograma canonico del credito.' },
       { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume el cronograma en totales y saldo pendiente.' },
-      { name: 'assertSupportedLateFeeMode', label: 'Validar modo de mora', description: 'Valida el modo de mora configurado.' },
-      { name: 'calculateLateFee', label: 'Calcular mora', description: 'Calcula mora para escenarios vencidos.' },
-      { name: 'roundCurrency', label: 'Redondear moneda', description: 'Redondea resultados monetarios a 2 decimales.' },
       { name: 'buildSimulationResult', label: 'Construir resultado final', description: 'Construye el objeto resultado (lateFeeMode, schedule, summary).' },
     ],
 
     // Canonical default graph — seeded into DagGraphVersion on first boot
+    // Mathematical formulas are decomposed into visible nodes. Domain blocks
+    // (schedule generation, summary) remain as opaque helpers because they
+    // require iteration and date arithmetic that mathjs cannot express.
     defaultGraph: {
       nodes: [
+        // ── Inputs ────────────────────────────────────────────────────────────
         {
           id: 'input_amount',
           kind: 'constant',
@@ -72,18 +76,60 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           outputVar: 'termMonths',
         },
         {
-          id: 'input_late_fee_mode',
-          kind: 'conditional',
+          id: 'input_startDate',
+          kind: 'constant',
+          label: 'Fecha inicio',
+          description: 'Fecha de inicio del credito.',
+          outputVar: 'startDate',
+        },
+        {
+          id: 'input_lateFeeMode',
+          kind: 'constant',
           label: 'Modo de mora',
-          description: 'Valida el modo de mora antes de calcular el cronograma (SIMPLE, COMPOUND, FLAT, TIERED).',
-          formula: 'assertSupportedLateFeeMode(lateFeeMode)',
+          description: 'Modo de calculo de mora (SIMPLE, COMPOUND, FLAT, TIERED).',
           outputVar: 'lateFeeMode',
         },
+
+        // ── Mathematical formulas (visible in the workbench) ──────────────────
+        {
+          id: 'monthly_rate',
+          kind: 'formula',
+          label: 'Tasa mensual',
+          description: 'Convierte la tasa nominal anual a tasa mensual.',
+          formula: 'interestRate / 100 / 12',
+          outputVar: 'monthlyRate',
+        },
+        {
+          id: 'installment_amount',
+          kind: 'formula',
+          label: 'Cuota mensual',
+          description: 'Cuota fija del sistema frances (reducing balance).',
+          formula: 'ifThenElse(monthlyRate == 0, round(amount / termMonths, 2), round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2))',
+          outputVar: 'installmentAmount',
+        },
+        {
+          id: 'total_payable',
+          kind: 'formula',
+          label: 'Total a pagar',
+          description: 'Monto total a pagar por el cliente.',
+          formula: 'round(installmentAmount * termMonths, 2)',
+          outputVar: 'totalPayable',
+        },
+        {
+          id: 'total_interest',
+          kind: 'formula',
+          label: 'Total intereses',
+          description: 'Suma total de intereses del credito.',
+          formula: 'round(totalPayable - amount, 2)',
+          outputVar: 'totalInterest',
+        },
+
+        // ── Domain blocks (opaque — rendered as blocks, not formulas) ─────────
         {
           id: 'amortization_schedule',
           kind: 'formula',
           label: 'Cronograma canonico',
-          description: 'Usa el helper del dominio para generar la tabla de amortizacion.',
+          description: 'Genera la tabla de amortizacion mes a mes.',
           formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)',
           outputVar: 'schedule',
         },
@@ -95,6 +141,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           formula: 'summarizeSchedule(schedule)',
           outputVar: 'summary',
         },
+
+        // ── Output ────────────────────────────────────────────────────────────
         {
           id: 'simulation_result',
           kind: 'output',
@@ -105,12 +153,32 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
         },
       ],
       edges: [
+        // Inputs → monthly_rate
+        { source: 'input_rate', target: 'monthly_rate' },
+
+        // Inputs + monthly_rate → installment_amount
+        { source: 'input_amount', target: 'installment_amount' },
+        { source: 'input_term', target: 'installment_amount' },
+        { source: 'monthly_rate', target: 'installment_amount' },
+
+        // installment_amount + term → totals
+        { source: 'installment_amount', target: 'total_payable' },
+        { source: 'input_term', target: 'total_payable' },
+        { source: 'total_payable', target: 'total_interest' },
+        { source: 'input_amount', target: 'total_interest' },
+
+        // Inputs → schedule (domain block)
         { source: 'input_amount', target: 'amortization_schedule' },
         { source: 'input_rate', target: 'amortization_schedule' },
         { source: 'input_term', target: 'amortization_schedule' },
-        { source: 'input_late_fee_mode', target: 'amortization_schedule' },
+        { source: 'input_startDate', target: 'amortization_schedule' },
+        { source: 'input_lateFeeMode', target: 'amortization_schedule' },
+
+        // schedule → summary (domain block)
         { source: 'amortization_schedule', target: 'financial_summary' },
-        { source: 'input_late_fee_mode', target: 'simulation_result' },
+
+        // Assemble result
+        { source: 'input_lateFeeMode', target: 'simulation_result' },
         { source: 'amortization_schedule', target: 'simulation_result' },
         { source: 'financial_summary', target: 'simulation_result' },
       ],

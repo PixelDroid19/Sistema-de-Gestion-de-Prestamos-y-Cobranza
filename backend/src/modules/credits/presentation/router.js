@@ -3,6 +3,7 @@ const { asyncHandler } = require('@/utils/errorHandler');
 const { createPaymentRouter } = require('./paymentRouter');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
+const { workbenchLimiter } = require('@/middleware/rateLimiter');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
@@ -49,7 +50,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { graph: result.graphVersion } });
   }));
 
-  router.post('/workbench/graph', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
     const result = await useCases.saveDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -66,7 +67,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.post('/workbench/graph/validate', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph/validate', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
     const validation = await useCases.validateDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -75,7 +76,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { validation } });
   }));
 
-  router.post('/workbench/graph/simulations', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graph/simulations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
     const result = await useCases.simulateDagWorkbenchGraph({
       actor: req.user,
       scopeKey: req.body.scopeKey,
@@ -110,7 +111,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { graph: result.graph } });
   }));
 
-  router.patch('/workbench/graphs/:graphId/status', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.patch('/workbench/graphs/:graphId/status', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
     const { status } = req.body;
     if (!['active', 'inactive'].includes(status)) {
       return res.status(400).json({ success: false, error: { message: 'Invalid status. Must be "active" or "inactive".' } });
@@ -141,13 +142,39 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { diff: result.diff } });
   }));
 
-  router.post('/workbench/graphs/:graphId/restore', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/workbench/graphs/:graphId/restore', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
     const result = await useCases.restoreDagWorkbenchGraph({
       actor: req.user,
       graphId: Number(req.params.graphId),
       commitMessage: req.body.commitMessage,
     });
     res.status(201).json({ success: true, data: { graph: result.graph } });
+  }));
+
+  // ── Variable Registry Endpoints ──────────────────────────────────────────
+  router.get('/workbench/variables', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+    const filters = {
+      type: req.query.type,
+      source: req.query.source,
+      status: req.query.status,
+    };
+    const result = await useCases.listDagVariables({ actor: req.user, filters, pagination: req.pagination });
+    res.json({ success: true, count: result.pagination?.totalItems ?? result.items?.length ?? 0, data: { variables: result.items ?? result, pagination: result.pagination } });
+  }));
+
+  router.post('/workbench/variables', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const variable = await useCases.createDagVariable({ actor: req.user, payload: req.body });
+    res.status(201).json({ success: true, data: { variable } });
+  }));
+
+  router.patch('/workbench/variables/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const variable = await useCases.updateDagVariable({ id: Number(req.params.id), payload: req.body });
+    res.json({ success: true, data: { variable } });
+  }));
+
+  router.delete('/workbench/variables/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    await useCases.deleteDagVariable({ id: Number(req.params.id) });
+    res.json({ success: true, message: 'Variable deleted successfully' });
   }));
 
   router.get('/customer/:customerId', authMiddleware(['customer']), attachPagination(), asyncHandler(async (req, res) => {

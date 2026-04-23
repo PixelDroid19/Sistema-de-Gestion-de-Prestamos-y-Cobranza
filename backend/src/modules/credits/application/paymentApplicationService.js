@@ -1049,6 +1049,46 @@ const createPaymentApplicationService = ({
     }
   };
 
+  /**
+   * Retry a transaction with exponential backoff for serialization failures.
+   * PostgreSQL SERIALIZABLE may abort transactions with 40001 (serialization_failure)
+   * or 40P01 (deadlock_detected). We retry up to MAX_RETRIES with jitter.
+   */
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 50;
+
+  const isRetryableTransactionError = (error) => {
+    if (!error) return false;
+    // Sequelize wraps PostgreSQL errors; check original error code
+    const pgError = error.original || error.parent || error;
+    const retryableCodes = ['40001', '40P01'];
+    return retryableCodes.includes(pgError.code) ||
+      retryableCodes.includes(error.code) ||
+      (error.message && /serialization|deadlock/i.test(error.message));
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const runTransactionWithRetry = async (transactionFn) => {
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await sequelize.transaction({
+          isolationLevel: sequelize.constructor.Transaction.ISOLATION_LEVELS.SERIALIZABLE,
+        }, transactionFn);
+      } catch (error) {
+        lastError = error;
+        if (attempt < MAX_RETRIES && isRetryableTransactionError(error)) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 20);
+          await sleep(delay);
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
+  };
+
   const processPayment = async ({ loanId, paymentAmount, paymentDate, actorId = 0, idempotencyKey: reqIdempotencyKey }) => {
     validateProcessPaymentInput({ loanId, paymentAmount, paymentDate });
 
@@ -1061,10 +1101,9 @@ const createPaymentApplicationService = ({
 
     // Use SERIALIZABLE isolation to prevent race conditions on idempotency key handling
     // The idempotency check and payment processing are wrapped in a single atomic transaction
+    // with automatic retry on serialization/deadlock failures.
     try {
-      const result = await sequelize.transaction({
-        isolationLevel: sequelize.constructor.Transaction.ISOLATION_LEVELS.SERIALIZABLE,
-      }, async (tx) => {
+      const result = await runTransactionWithRetry(async (tx) => {
       // Step 1: Try to acquire lock on idempotency key row using SELECT FOR UPDATE
       // This prevents concurrent requests from processing the same idempotency key simultaneously
       const existingKey = await IdempotencyKey.findOne({

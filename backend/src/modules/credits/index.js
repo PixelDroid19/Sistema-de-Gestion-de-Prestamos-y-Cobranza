@@ -17,6 +17,10 @@ const {
   createGetDagWorkbenchGraphHistory,
   createGetDagWorkbenchGraphDiff,
   createRestoreDagWorkbenchGraph,
+  createListDagVariables,
+  createCreateDagVariable,
+  createUpdateDagVariable,
+  createDeleteDagVariable,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,
@@ -69,6 +73,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     paymentApplicationService,
     dagWorkbenchService,
     creditsDagConfig,
+    dagVariableRepository,
   } = createCreditsComposition({ sharedRuntime });
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
@@ -88,6 +93,10 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     getDagWorkbenchGraphHistory: createGetDagWorkbenchGraphHistory({ dagWorkbenchService }),
     getDagWorkbenchGraphDiff: createGetDagWorkbenchGraphDiff({ dagWorkbenchService }),
     restoreDagWorkbenchGraph: createRestoreDagWorkbenchGraph({ dagWorkbenchService }),
+    listDagVariables: createListDagVariables({ dagVariableRepository }),
+    createDagVariable: createCreateDagVariable({ dagVariableRepository }),
+    updateDagVariable: createUpdateDagVariable({ dagVariableRepository }),
+    deleteDagVariable: createDeleteDagVariable({ dagVariableRepository }),
     getLoanById: createGetLoanById({ loanRepository, loanAccessPolicy, loanViewService }),
     createLoan: createCreateLoan({ loanCreationService, auditService }),
     listLoansByCustomer: createListLoansByCustomer({ customerRepository, loanRepository }),

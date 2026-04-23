@@ -318,9 +318,14 @@ const createRegisterUser = ({
 
   const sanitizedUser = sanitizeUser(user);
 
+  // Use generateAccessToken if available (short-lived 15m token), otherwise fall back to legacy sign
+  const accessToken = typeof tokenService.generateAccessToken === 'function'
+    ? tokenService.generateAccessToken(user.id, user.role, buildTokenPayload(user))
+    : tokenService.sign(buildTokenPayload(user));
+
   return {
     user: sanitizedUser,
-    token: tokenService.sign(buildTokenPayload(user)),
+    token: accessToken,
   };
 };
 

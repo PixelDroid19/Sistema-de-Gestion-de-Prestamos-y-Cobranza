@@ -115,4 +115,9 @@ export const queryKeys = {
     history: (graphId: number) => ['dag.history', graphId] as const,
     diff: (graphId: number, compareToVersionId: number) => ['dag.diff', graphId, compareToVersionId] as const,
   },
+  variables: {
+    all: ['variables'] as const,
+    list: (params?: object) => ['variables.list', params ?? {}] as const,
+    detail: (id: number) => ['variables.detail', id] as const,
+  },
 };

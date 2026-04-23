@@ -392,6 +392,44 @@ const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({ act
 
 const createRestoreDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId, commitMessage }) => dagWorkbenchService.restoreGraph({ actor, graphId, commitMessage });
 
+const createListDagVariables = ({ dagVariableRepository }) => async ({ filters = {}, pagination }) => dagVariableRepository.list({ ...filters, ...pagination });
+
+const createCreateDagVariable = ({ dagVariableRepository }) => async ({ actor, payload }) => {
+  const existing = await dagVariableRepository.findByName(payload.name);
+  if (existing) {
+    const error = new ValidationError('Variable name already exists');
+    error.statusCode = 409;
+    throw error;
+  }
+  return dagVariableRepository.create({
+    ...payload,
+    createdByUserId: actor.id,
+  });
+};
+
+const createUpdateDagVariable = ({ dagVariableRepository }) => async ({ id, payload }) => {
+  if (payload.name) {
+    const existing = await dagVariableRepository.findByName(payload.name);
+    if (existing && existing.id !== Number(id)) {
+      const error = new ValidationError('Variable name already exists');
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+  return dagVariableRepository.update(id, payload);
+};
+
+const createDeleteDagVariable = ({ dagVariableRepository }) => async ({ id }) => {
+  const variable = await dagVariableRepository.findById(id);
+  if (!variable) {
+    throw new NotFoundError('Variable');
+  }
+  if (variable.status !== 'idle') {
+    throw new ValidationError('Only idle variables can be deleted');
+  }
+  return dagVariableRepository.delete(id);
+};
+
 /**
  * Create the use case that retrieves a single loan through the shared access policy.
  * @param {{ loanAccessPolicy?: object, loanRepository: object }} dependencies
@@ -1260,6 +1298,10 @@ module.exports = {
   createGetDagWorkbenchGraphHistory,
   createGetDagWorkbenchGraphDiff,
   createRestoreDagWorkbenchGraph,
+  createListDagVariables,
+  createCreateDagVariable,
+  createUpdateDagVariable,
+  createDeleteDagVariable,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,

@@ -9,8 +9,8 @@ const { createAuditController } = require('./auditController');
 const createAuditRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
 
-  // All audit routes require authentication
-  router.use(authMiddleware());
+  // All audit routes require admin authentication
+  router.use(authMiddleware(['admin']));
 
   const controller = createAuditController({ useCases });
 

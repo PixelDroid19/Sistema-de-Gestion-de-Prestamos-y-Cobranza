@@ -67,6 +67,18 @@ const createUseCases = (overrides) => ({
   validateDagWorkbenchGraph: unexpectedUseCase('validateDagWorkbenchGraph'),
   simulateDagWorkbenchGraph: unexpectedUseCase('simulateDagWorkbenchGraph'),
   getDagWorkbenchSummary: unexpectedUseCase('getDagWorkbenchSummary'),
+  listDagWorkbenchGraphs: unexpectedUseCase('listDagWorkbenchGraphs'),
+  getDagWorkbenchGraphDetails: unexpectedUseCase('getDagWorkbenchGraphDetails'),
+  activateDagWorkbenchGraph: unexpectedUseCase('activateDagWorkbenchGraph'),
+  deactivateDagWorkbenchGraph: unexpectedUseCase('deactivateDagWorkbenchGraph'),
+  deleteDagWorkbenchGraph: unexpectedUseCase('deleteDagWorkbenchGraph'),
+  getDagWorkbenchGraphHistory: unexpectedUseCase('getDagWorkbenchGraphHistory'),
+  getDagWorkbenchGraphDiff: unexpectedUseCase('getDagWorkbenchGraphDiff'),
+  restoreDagWorkbenchGraph: unexpectedUseCase('restoreDagWorkbenchGraph'),
+  listDagVariables: unexpectedUseCase('listDagVariables'),
+  createDagVariable: unexpectedUseCase('createDagVariable'),
+  updateDagVariable: unexpectedUseCase('updateDagVariable'),
+  deleteDagVariable: unexpectedUseCase('deleteDagVariable'),
   ...overrides,
 });
 
@@ -280,4 +292,291 @@ test('createCreditsRouter returns 403 for scope catalog when the DAG workbench i
   assert.equal(response.statusCode, 403);
   assert.equal(response.body.success, false);
   assert.match(response.body.error.message, /workbench is not enabled/i);
+});
+
+// ── Variable Registry Integration Tests ──
+
+test('createCreditsRouter lists variables with filters and pagination', async () => {
+  const variables = [
+    { id: 1, name: 'rate', type: 'percent', source: 'system_core', status: 'active' },
+    { id: 2, name: 'score', type: 'integer', source: 'bureau_api', status: 'active' },
+  ];
+
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async listDagVariables({ filters, pagination }) {
+        return {
+          items: variables.filter((v) => {
+            if (filters.type && v.type !== filters.type) return false;
+            if (filters.source && v.source !== filters.source) return false;
+            if (filters.status && v.status !== filters.status) return false;
+            return true;
+          }),
+          pagination: { totalItems: variables.length, totalPages: 1, currentPage: pagination?.page || 1, pageSize: pagination?.pageSize || 20 },
+        };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/workbench/variables?type=percent&source=system_core&status=active',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.variables.length, 1);
+  assert.equal(response.body.data.variables[0].name, 'rate');
+  assert.equal(response.body.data.pagination.totalItems, 2);
+});
+
+test('createCreditsRouter creates a variable and returns 201', async () => {
+  const created = { id: 3, name: 'fee', type: 'currency', source: 'app_data', status: 'active' };
+
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async createDagVariable({ actor, payload }) {
+        return { ...created, createdByUserId: actor.id };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/workbench/variables',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { name: 'fee', type: 'currency', source: 'app_data' },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.variable.name, 'fee');
+});
+
+test('createCreditsRouter rejects duplicate variable name with 409', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async createDagVariable() {
+        const error = new Error('Variable name already exists');
+        error.statusCode = 409;
+        throw error;
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/workbench/variables',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { name: 'rate', type: 'percent', source: 'system_core' },
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.body.success, false);
+  assert.match(response.body.error.message, /already exists/i);
+});
+
+test('createCreditsRouter updates a variable', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async updateDagVariable({ id, payload }) {
+        return { id, name: 'updatedRate', ...payload };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/workbench/variables/1',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { status: 'deprecated' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.variable.status, 'deprecated');
+});
+
+test('createCreditsRouter deletes a variable', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async deleteDagVariable() {
+        return { deleted: true };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'DELETE',
+    path: '/workbench/variables/1',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+});
+
+// ── Activation atomicity ──
+
+test('createCreditsRouter activates a graph version atomically', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async activateDagWorkbenchGraph({ actor, graphId }) {
+        return {
+          graph: {
+            id: graphId,
+            scopeKey: 'credit-simulation',
+            version: 2,
+            status: 'active',
+            name: 'V2',
+          },
+        };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/workbench/graphs/2/status',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { status: 'active' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.data.graph.status, 'active');
+});
+
+test('createCreditsRouter rejects invalid status in graph activation', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases(),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/workbench/graphs/2/status',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { status: 'invalid' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.success, false);
+  assert.match(response.body.error.message, /Invalid status/i);
+});
+
+test('createCreditsRouter diff endpoint returns structured deltas', async () => {
+  const diff = {
+    previousGraph: {
+      nodes: [{ id: 'n1', kind: 'formula', formula: 'Score > 700', outputVar: 'tier' }],
+      edges: [],
+    },
+    newGraph: {
+      nodes: [
+        { id: 'n1', kind: 'formula', formula: 'Score > 750', outputVar: 'tier' },
+        { id: 'n2', kind: 'formula', formula: '0.05', outputVar: 'rate2' },
+      ],
+      edges: [],
+    },
+    impactedVariables: ['tier', 'rate2', 'Score'],
+    deltas: [
+      { nodeId: 'n1', change: 'modified', oldFormula: 'Score > 700', newFormula: 'Score > 750', oldOutputVar: 'tier', newOutputVar: 'tier' },
+      { nodeId: 'n2', change: 'added', newFormula: '0.05', newOutputVar: 'rate2' },
+    ],
+  };
+
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getDagWorkbenchGraphDiff({ actor, graphId, compareToVersionId }) {
+        return { diff };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/workbench/graphs/2/diff?compareToVersionId=1',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.ok(Array.isArray(response.body.data.diff.deltas));
+  assert.equal(response.body.data.diff.deltas.length, 2);
+  assert.equal(response.body.data.diff.deltas[0].change, 'modified');
+  assert.equal(response.body.data.diff.deltas[1].change, 'added');
+  assert.ok(response.body.data.diff.impactedVariables.includes('tier'));
+  assert.ok(response.body.data.diff.impactedVariables.includes('rate2'));
 });

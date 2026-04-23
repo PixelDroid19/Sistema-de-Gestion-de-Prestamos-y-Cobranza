@@ -9,6 +9,7 @@ const mockListScopes = vi.fn();
 const mockListGraphs = vi.fn();
 const mockSaveGraph = vi.fn();
 const mockSimulateGraph = vi.fn();
+const mockToastError = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: undefined }),
@@ -26,6 +27,15 @@ vi.mock('../../services/dagService', () => ({
 
 vi.mock('../../lib/confirmModal', () => ({
   useConfirm: () => ({ confirm: vi.fn(() => Promise.resolve(true)) }),
+}));
+
+vi.mock('../../lib/toast', () => ({
+  toast: {
+    success: vi.fn(),
+    error: (opts: any) => mockToastError(opts),
+    warning: vi.fn(),
+    info: vi.fn(),
+  },
 }));
 
 const mockScope = {
@@ -226,12 +236,94 @@ describe('FormulaEditorPage', () => {
     });
   });
 
-  it('shows graph stats in right panel', async () => {
+  it('shows live test panel with scope info', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
 
-    expect(screen.getByText(/Grafo actual/i)).toBeInTheDocument();
-    expect(screen.getByText(/Credito/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live Test/i)).toBeInTheDocument();
+    expect(screen.getByText(/Input Values/i)).toBeInTheDocument();
+  });
+
+  // ── New tests for untested spec scenarios ──
+
+  it('adds a new block to canvas when dragged from toolbox', async () => {
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
+
+    const toolboxItem = screen.getByText('IF / THEN / ELSE');
+    // The canvas is the section element with onDrop handler
+    const canvas = document.querySelector('section[ondrop]') || document.querySelector('section')!;
+
+    // Simulate drag from toolbox to canvas
+    fireEvent.dragStart(toolboxItem, {
+      dataTransfer: {
+        setData: vi.fn(),
+        effectAllowed: 'copy',
+      },
+    });
+
+    fireEvent.dragOver(canvas, {
+      dataTransfer: {
+        dropEffect: 'copy',
+      },
+    });
+
+    fireEvent.drop(canvas, {
+      dataTransfer: {
+        getData: () => JSON.stringify({ kind: 'conditional', preset: 'if(condition, then, else)' }),
+      },
+      clientX: 500,
+      clientY: 400,
+    });
+
+    await waitFor(() => {
+      const store = useBlockEditorStore.getState();
+      expect(store.graph?.nodes.some((n) => n.kind === 'conditional')).toBe(true);
+    });
+  });
+
+  it('rejects incompatible block connections and shows toast error', async () => {
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitFor(() => expect(getNodeLabel('Monto')).toBeInTheDocument());
+
+    // The default graph has 4 nodes: 2 constants, 2 formulas.
+    // We'll try to connect one constant node to another constant node (incompatible)
+    const outHandles = screen.getAllByTitle('Conectar salida');
+    const inHandles = screen.getAllByTitle('Conectar entrada');
+
+    // Click output handle of the second node (should be input_rate, a constant)
+    fireEvent.mouseDown(outHandles[1]);
+
+    // Click input handle of the first node (input_amount, a constant)
+    // constant -> constant is invalid
+    fireEvent.mouseDown(inHandles[0]);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalled();
+    });
+
+    // Ensure no edge was actually added between these two
+    const edgesAfter = useBlockEditorStore.getState().graph?.edges || [];
+    const sourceId = useBlockEditorStore.getState().graph?.nodes[1]?.id;
+    const targetId = useBlockEditorStore.getState().graph?.nodes[0]?.id;
+    expect(edgesAfter.some((e) => e.source === sourceId && e.target === targetId)).toBe(false);
+  });
+
+  it('shows error message with node trace when evaluation fails', async () => {
+    mockSimulateGraph.mockRejectedValueOnce(new Error('Node trace: schedule -> summary failed'));
+
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitFor(() => expect(getNodeLabel('Cronograma')).toBeInTheDocument());
+
+    const evaluateButton = screen.getByRole('button', { name: /evaluate formula/i });
+    fireEvent.click(evaluateButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Node trace: schedule -> summary failed/i)).toBeInTheDocument();
+    });
   });
 });

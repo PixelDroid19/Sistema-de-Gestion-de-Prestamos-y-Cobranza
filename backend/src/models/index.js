@@ -14,6 +14,7 @@ const Notification = require('./Notification');
 const PushSubscription = require('./PushSubscription');
 const DagGraphVersion = require('./DagGraphVersion');
 const DagSimulationSummary = require('./DagSimulationSummary');
+const DagVariable = require('./DagVariable');
 const FinancialProduct = require('./FinancialProduct');
 const OutboxEvent = require('./OutboxEvent');
 const ConfigEntry = require('./ConfigEntry');
@@ -140,6 +141,7 @@ module.exports = {
   PushSubscription,
   DagGraphVersion,
   DagSimulationSummary,
+  DagVariable,
   FinancialProduct,
   OutboxEvent,
   ConfigEntry,

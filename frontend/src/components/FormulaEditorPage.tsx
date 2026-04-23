@@ -3,51 +3,70 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Undo2, Redo2, ZoomIn, ZoomOut, Save, Play, ChevronLeft,
-  Plus, Trash2, X, Variable, Equal, GitBranch,
-  FunctionSquare,
+  Plus, Trash2, X, Variable, Equal, GitBranch, GripVertical,
+  FunctionSquare, RotateCcw, Maximize2,
 } from 'lucide-react';
 import { useBlockEditorStore } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
+import { toast } from '../lib/toast';
+import { VisualNodeBlock } from './VisualNodeBlock';
 import type { DagNode, DagEdge, NodeKind } from '../types/dag';
 
 // ── Constants ──
-const CANVAS_WIDTH = 2400;
-const CANVAS_HEIGHT = 1600;
+const CANVAS_WIDTH = 3000;
+const CANVAS_HEIGHT = 2400;
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
+const COL_GAP = 420;
+const ROW_GAP = 160;
+
+// Material Design 3 tokens
+const MD3 = {
+  surface: '#f8f9ff',
+  onSurface: '#0b1c30',
+  onSurfaceVariant: '#5a6271',
+  secondary: '#00668a',
+  secondaryContainer: '#cce5f3',
+  onSecondaryContainer: '#00344a',
+  outline: '#c4c6cf',
+  outlineVariant: '#dee1ea',
+  error: '#ba1a1a',
+  errorContainer: '#ffdad6',
+  success: '#2e7d32',
+} as const;
 
 // ── Helpers ──
 const kindLabel: Record<NodeKind, string> = {
   constant: 'Constante',
-  formula: 'Fórmula',
+  formula: 'Formula',
   conditional: 'Condicional',
   output: 'Output',
   lookup: 'Lookup',
 };
 
 const kindColor: Record<NodeKind, string> = {
-  constant: 'bg-sky-50 border-sky-300 text-sky-900',
-  formula: 'bg-amber-50 border-amber-300 text-amber-900',
-  conditional: 'bg-violet-50 border-violet-300 text-violet-900',
-  output: 'bg-emerald-50 border-emerald-300 text-emerald-900',
-  lookup: 'bg-rose-50 border-rose-300 text-rose-900',
+  constant: 'bg-[#e3f2fd] border-[#90caf9] text-[#0d47a1]',
+  formula: 'bg-[#fff8e1] border-[#ffe082] text-[#5d4037]',
+  conditional: 'bg-[#f3e5f5] border-[#ce93d8] text-[#4a148c]',
+  output: 'bg-[#e8f5e9] border-[#a5d6a7] text-[#1b5e20]',
+  lookup: 'bg-[#fce4ec] border-[#f48fb1] text-[#880e4f]',
 };
 
 const kindBadge: Record<NodeKind, string> = {
-  constant: 'bg-sky-200 text-sky-800',
-  formula: 'bg-amber-200 text-amber-800',
-  conditional: 'bg-violet-200 text-violet-800',
-  output: 'bg-emerald-200 text-emerald-800',
-  lookup: 'bg-rose-200 text-rose-800',
+  constant: 'bg-[#bbdefb] text-[#1565c0]',
+  formula: 'bg-[#ffecb3] text-[#6d4c41]',
+  conditional: 'bg-[#e1bee7] text-[#6a1b9a]',
+  output: 'bg-[#c8e6c9] text-[#2e7d32]',
+  lookup: 'bg-[#f8bbd0] text-[#c2185b]',
 };
 
 const kindHandle: Record<NodeKind, string> = {
-  constant: 'bg-sky-500',
-  formula: 'bg-amber-500',
-  conditional: 'bg-violet-500',
-  output: 'bg-emerald-500',
-  lookup: 'bg-rose-500',
+  constant: 'bg-[#42a5f5]',
+  formula: 'bg-[#ffa726]',
+  conditional: 'bg-[#ab47bc]',
+  output: 'bg-[#66bb6a]',
+  lookup: 'bg-[#ec407a]',
 };
 
 function getIncomingEdges(nodeId: string, edges: DagEdge[]) {
@@ -58,222 +77,79 @@ function getOutgoingEdges(nodeId: string, edges: DagEdge[]) {
   return edges.filter((e) => e.source === nodeId);
 }
 
-// ── Visual Formula Parser ──
-type TokenType = 'action' | 'keyword' | 'variable' | 'operator' | 'value';
-interface VisualToken { type: TokenType; text: string }
+// ── Edge compatibility rules ──
+const VALID_TARGETS: Record<NodeKind, NodeKind[]> = {
+  constant: ['formula', 'conditional', 'output'],
+  formula: ['formula', 'conditional', 'output'],
+  conditional: ['formula', 'conditional', 'output'],
+  output: [],
+  lookup: ['formula', 'conditional', 'output'],
+};
 
-function buildHelperLabelMap(helpers: Array<{ name: string; label?: string }> = []): Record<string, string> {
-  const map: Record<string, string> = {};
-  helpers.forEach((h) => {
-    if (h.name) map[h.name] = h.label || h.name;
-  });
-  return map;
-}
-
-function splitTopLevel(str: string, delimiter: string): string[] {
-  const parts: string[] = [];
-  let current = '';
-  let depth = 0;
-  for (const char of str) {
-    if (char === '(') depth++;
-    if (char === ')') depth--;
-    if (char === delimiter && depth === 0) {
-      parts.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  if (current.trim()) parts.push(current.trim());
-  return parts;
-}
-
-function parseExpression(expr: string): VisualToken[] {
-  const tokens: VisualToken[] = [];
-  const compMatch = expr.match(/^(.+?)\s*(>=|<=|>|<|=|!=)\s*(.+)$/);
-  if (compMatch) {
-    tokens.push(makeOperandToken(compMatch[1].trim()));
-    tokens.push({ type: 'operator', text: compMatch[2] });
-    tokens.push(makeOperandToken(compMatch[3].trim()));
-    return tokens;
-  }
-  tokens.push(makeOperandToken(expr.trim()));
-  return tokens;
-}
-
-function makeOperandToken(text: string): VisualToken {
-  if (text.match(/^-?\d+\.?\d*$/)) return { type: 'value', text };
-  if (text === 'true' || text === 'false') return { type: 'value', text: text === 'true' ? 'Sí' : 'No' };
-  return { type: 'variable', text };
-}
-
-function parseFormulaVisual(formula: string, helperLabelMap: Record<string, string> = {}): VisualToken[] {
-  if (!formula) return [];
-  const f = formula.trim();
-
-  const helperMatch = f.match(/^(\w+)\((.*)\)$/);
-  if (helperMatch) {
-    const [, name] = helperMatch;
-    const friendly = helperLabelMap[name];
-    if (friendly) return [{ type: 'action', text: friendly }];
-  }
-
-  const ifMatch = f.match(/^if(?:ThenElse)?\((.*)\)$/i);
-  if (ifMatch) {
-    const parts = splitTopLevel(ifMatch[1], ',');
-    if (parts.length >= 3) {
-      const tokens: VisualToken[] = [{ type: 'keyword', text: 'IF' }];
-      tokens.push(...parseExpression(parts[0]));
-      tokens.push({ type: 'keyword', text: 'THEN' });
-      tokens.push(...parseExpression(parts[1]));
-      tokens.push({ type: 'keyword', text: 'ELSE' });
-      tokens.push(...parseExpression(parts[2]));
-      return tokens;
-    }
-  }
-
-  return parseExpression(f);
-}
-
-function VisualChip({ type, text }: { type: string; text: string }) {
-  const styles: Record<string, string> = {
-    action: 'bg-amber-100 text-amber-800 border-amber-200 font-medium',
-    keyword: 'bg-violet-100 text-violet-800 border-violet-200 font-bold uppercase tracking-wide',
-    variable: 'bg-sky-50 text-sky-700 border-sky-200',
-    operator: 'bg-slate-100 text-slate-700 border-slate-200 font-bold',
-    value: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-mono font-medium',
-  };
-
-  return (
-    <span className={`inline-flex items-center px-2 py-1 rounded text-xs border ${styles[type] || styles.variable}`}>
-      {type === 'variable' && <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mr-1.5" />}
-      {text}
-    </span>
-  );
+function isConnectionCompatible(sourceKind: NodeKind, targetKind: NodeKind): boolean {
+  return VALID_TARGETS[sourceKind]?.includes(targetKind) ?? false;
 }
 
 // ── Layout helpers ──
-function assignLayoutPositions(nodes: DagNode[]) {
-  const columns: Record<string, number> = { constant: 0, conditional: 1, formula: 2, output: 3, lookup: 2 };
-  const colCount = [0, 0, 0, 0];
-  return nodes.map((node) => {
-    if (node.x != null && node.y != null) return node;
-    const col = columns[node.kind] ?? 2;
-    const row = colCount[col];
-    colCount[col] += 1;
+function assignLayoutPositions(nodes: DagNode[], edges: DagEdge[]) {
+  // Preserve nodes that already have positions
+  const positioned = new Set<string>();
+  for (const n of nodes) {
+    if (n.x != null && n.y != null) positioned.add(n.id);
+  }
+
+  // Build adjacency maps
+  const incoming: Record<string, string[]> = {};
+  const outgoing: Record<string, string[]> = {};
+  for (const e of edges) {
+    incoming[e.target] = incoming[e.target] || [];
+    incoming[e.target].push(e.source);
+    outgoing[e.source] = outgoing[e.source] || [];
+    outgoing[e.source].push(e.target);
+  }
+
+  // Compute topological level (max distance from any root)
+  const level: Record<string, number> = {};
+  const computeLevel = (id: string, visited = new Set<string>()): number => {
+    if (level[id] !== undefined) return level[id];
+    if (visited.has(id)) return 0; // cycle guard
+    visited.add(id);
+    const preds = incoming[id] || [];
+    if (preds.length === 0) {
+      level[id] = 0;
+      return 0;
+    }
+    const maxPred = Math.max(...preds.map((p) => computeLevel(p, new Set(visited))));
+    level[id] = maxPred + 1;
+    return level[id];
+  };
+
+  for (const n of nodes) computeLevel(n.id);
+
+  // Group nodes by level
+  const levelGroups: Record<number, DagNode[]> = {};
+  let maxLevel = 0;
+  for (const n of nodes) {
+    if (positioned.has(n.id)) continue;
+    const lv = level[n.id] ?? 0;
+    levelGroups[lv] = levelGroups[lv] || [];
+    levelGroups[lv].push(n);
+    if (lv > maxLevel) maxLevel = lv;
+  }
+
+  // Assign positions per level
+  const updatedNodes = nodes.map((node) => {
+    if (positioned.has(node.id)) return node;
+    const lv = level[node.id] ?? 0;
+    const idxInLevel = levelGroups[lv].indexOf(node);
     return {
       ...node,
-      x: 100 + col * 320,
-      y: 100 + row * 160,
+      x: 80 + lv * COL_GAP,
+      y: 80 + idxInLevel * ROW_GAP,
     };
   });
-}
 
-// ── Node Card ──
-function NodeCard({
-  node,
-  edges,
-  isSelected,
-  onSelect,
-  onDelete,
-  helperLabelMap,
-  onDragStart,
-  onEdgeHandleClick,
-}: {
-  node: DagNode;
-  edges: DagEdge[];
-  isSelected: boolean;
-  onSelect: () => void;
-  onDelete: (e: React.MouseEvent) => void;
-  helperLabelMap: Record<string, string>;
-  onDragStart: (e: React.MouseEvent) => void;
-  onEdgeHandleClick: (nodeId: string, side: 'in' | 'out', e: React.MouseEvent) => void;
-}) {
-  const incoming = getIncomingEdges(node.id, edges);
-  const outgoing = getOutgoingEdges(node.id, edges);
-  const visualTokens = parseFormulaVisual(node.formula || '', helperLabelMap);
-
-  return (
-    <div
-      className={`
-        absolute w-[${NODE_WIDTH}px] rounded-xl border shadow-sm cursor-default select-none transition-shadow
-        ${kindColor[node.kind]}
-        ${isSelected ? 'ring-2 ring-offset-2 ring-sky-400 shadow-lg' : 'hover:shadow-md'}
-      `}
-      style={{ left: node.x ?? 0, top: node.y ?? 0, width: NODE_WIDTH }}
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-    >
-      {/* Header — draggable area */}
-      <div
-        className="flex items-center justify-between px-3 py-2 cursor-grab active:cursor-grabbing"
-        onMouseDown={onDragStart}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${kindBadge[node.kind]}`}>
-            {kindLabel[node.kind]}
-          </span>
-          <span className="text-sm font-semibold truncate">{node.label || node.id}</span>
-        </div>
-        <button
-          onClick={onDelete}
-          className="text-slate-400 hover:text-red-500 transition-colors p-0.5 shrink-0"
-          title="Eliminar nodo"
-        >
-          <X size={13} />
-        </button>
-      </div>
-
-      {/* Body */}
-      <div className="px-3 pb-3">
-        {visualTokens.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1 bg-white/60 border border-black/5 rounded-md px-2 py-1.5">
-            {visualTokens.map((token, idx) => (
-              <VisualChip key={idx} type={token.type} text={token.text} />
-            ))}
-          </div>
-        )}
-
-        {visualTokens.length === 0 && node.kind === 'constant' && (
-          <div className="text-[10px] text-slate-400 italic">
-            Variable: {node.outputVar}
-          </div>
-        )}
-      </div>
-
-      {/* Edge count badge */}
-      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 text-[10px] text-slate-400 whitespace-nowrap">
-        {incoming.length > 0 && <span>{incoming.length} in</span>}
-        {outgoing.length > 0 && <span>{outgoing.length} out</span>}
-      </div>
-
-      {/* Input handle (left) */}
-      <button
-        className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow ${kindHandle[node.kind]} hover:scale-125 transition-transform z-20`}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onEdgeHandleClick(node.id, 'in', e);
-        }}
-        title="Conectar entrada"
-      />
-
-      {/* Output handle (right) */}
-      <button
-        className={`absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow ${kindHandle[node.kind]} hover:scale-125 transition-transform z-20`}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onEdgeHandleClick(node.id, 'out', e);
-        }}
-        title="Conectar salida"
-      />
-    </div>
-  );
+  return updatedNodes;
 }
 
 // ── Main Page ──
@@ -312,6 +188,7 @@ export default function FormulaEditorPage() {
   const [testInputs, setTestInputs] = useState<Record<string, any>>({});
   const [testResult, setTestResult] = useState<any>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [showNodeEditor, setShowNodeEditor] = useState(false);
 
   // Drag state
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -342,7 +219,21 @@ export default function FormulaEditorPage() {
     enabled: !isNew && !!scopeKey,
   });
 
-  const helperLabelMap = React.useMemo(() => buildHelperLabelMap(scope?.helpers || []), [scope?.helpers]);
+  // Detect if a loaded graph is the old format (pre-v2)
+  const isLegacyGraph = useCallback((graph: any): boolean => {
+    if (!graph || !Array.isArray(graph.nodes)) return false;
+    // Old graphs had a conditional node for lateFeeMode with assertSupportedLateFeeMode
+    const hasConditionalLateFee = graph.nodes.some(
+      (n: any) => n.id === 'input_late_fee_mode' && n.kind === 'conditional'
+    );
+    const hasAssertFormula = graph.nodes.some(
+      (n: any) => typeof n.formula === 'string' && n.formula.includes('assertSupportedLateFeeMode')
+    );
+    const hasNewNodes = graph.nodes.some(
+      (n: any) => n.id === 'monthly_rate' || n.id === 'installment_amount'
+    );
+    return hasConditionalLateFee || hasAssertFormula || !hasNewNodes;
+  }, []);
 
   // Initialize graph from scope default or existing
   useEffect(() => {
@@ -351,18 +242,32 @@ export default function FormulaEditorPage() {
     if (isNew) {
       const defaultGraph = scope.defaultGraph;
       if (defaultGraph) {
-        const withPositions = { ...defaultGraph, nodes: assignLayoutPositions(defaultGraph.nodes) };
+            const withPositions = { ...defaultGraph, nodes: assignLayoutPositions(defaultGraph.nodes, defaultGraph.edges || []) };
         setGraph(JSON.parse(JSON.stringify(withPositions)));
-        setFormulaName(scope.defaultName || 'Nueva formula');
+        setFormulaName(scope.defaultName || 'Formula base de credito v2');
         setTestInputs(scope.simulationInput || {});
       }
     } else if (id && graphsData?.data?.graphs) {
       const existing = graphsData.data.graphs.find((g: any) => g.id === Number(id));
       if (existing?.graph) {
-        const withPositions = { ...existing.graph, nodes: assignLayoutPositions(existing.graph.nodes) };
-        setGraph(JSON.parse(JSON.stringify(withPositions)));
-        setFormulaName(existing.name || 'Formula');
-        setFormulaDescription(existing.description || '');
+        if (isLegacyGraph(existing.graph)) {
+          // Auto-migrate: replace old structure with the new default graph
+          const defaultGraph = scope.defaultGraph;
+          if (defaultGraph) {
+        const withPositions = { ...defaultGraph, nodes: assignLayoutPositions(defaultGraph.nodes, defaultGraph.edges || []) };
+            setGraph(JSON.parse(JSON.stringify(withPositions)));
+            setFormulaName(existing.name || scope.defaultName || 'Formula base de credito v2');
+            setFormulaDescription(existing.description || '');
+            toast.info({
+              description: 'La estructura de la formula fue actualizada automaticamente al nuevo formato v2. Guarda para persistir los cambios.',
+            });
+          }
+        } else {
+          const withPositions = { ...existing.graph, nodes: assignLayoutPositions(existing.graph.nodes, existing.graph.edges || []) };
+          setGraph(JSON.parse(JSON.stringify(withPositions)));
+          setFormulaName(existing.name || 'Formula');
+          setFormulaDescription(existing.description || '');
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -373,14 +278,19 @@ export default function FormulaEditorPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (selectedNodeId) {
+      setShowNodeEditor(true);
+    }
+  }, [selectedNodeId]);
+
   const nodes = graph?.nodes ?? [];
   const edges = graph?.edges ?? [];
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   // Ensure new nodes have positions
-  const handleAddNode = (kind: NodeKind) => {
+  const handleAddNode = (kind: NodeKind, presetFormula?: string) => {
     const newId = generateNodeId(kind);
-    // Find a free spot near center
     const usedPositions = new Set(nodes.map((n) => `${Math.round((n.x ?? 0) / 40)}:${Math.round((n.y ?? 0) / 40)}`));
     let x = 400;
     let y = 300;
@@ -396,11 +306,53 @@ export default function FormulaEditorPage() {
       kind,
       label: kindLabel[kind],
       outputVar: kind === 'output' ? 'result' : newId,
-      formula: kind === 'formula' ? 'roundCurrency()' : kind === 'conditional' ? 'if(condition, then, else)' : undefined,
+      formula: presetFormula || (kind === 'formula' ? 'roundCurrency()' : kind === 'conditional' ? 'if(condition, then, else)' : undefined),
       x,
       y,
     };
     addNode(node);
+  };
+
+  // ── Native DnD from toolbox ──
+  const handleToolboxDragStart = (e: React.DragEvent, kind: NodeKind, preset?: string) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ kind, preset }));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleCanvasDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('application/json');
+    if (!data) return;
+    try {
+      const { kind, preset } = JSON.parse(data);
+      if (kind) {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          // Place near drop position, accounting for zoom
+          const dropX = (e.clientX - rect.left) / zoom;
+          const dropY = (e.clientY - rect.top) / zoom;
+          const nodeKind = kind as NodeKind;
+          const newId = generateNodeId(nodeKind);
+          const node: DagNode = {
+            id: newId,
+            kind: nodeKind,
+            label: kindLabel[nodeKind],
+            outputVar: nodeKind === 'output' ? 'result' : newId,
+            formula: preset || (nodeKind === 'formula' ? 'roundCurrency()' : nodeKind === 'conditional' ? 'if(condition, then, else)' : undefined),
+            x: Math.round(dropX - NODE_WIDTH / 2),
+            y: Math.round(dropY - 40),
+          };
+          addNode(node);
+        }
+      }
+    } catch {
+      // ignore invalid drop data
+    }
+  };
+
+  const handleCanvasDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
   };
 
   // ── Drag handlers ──
@@ -435,7 +387,6 @@ export default function FormulaEditorPage() {
   const handleCanvasMouseUp = useCallback(() => {
     setDraggingNodeId(null);
     if (drawingEdge) {
-      // Cancel if not completed
       setDrawingEdge(null);
     }
   }, [drawingEdge]);
@@ -447,7 +398,6 @@ export default function FormulaEditorPage() {
     if (!node || node.x == null || node.y == null) return;
 
     if (!drawingEdge) {
-      // Start drawing from output
       if (side === 'out') {
         setDrawingEdge({
           sourceId: nodeId,
@@ -458,17 +408,21 @@ export default function FormulaEditorPage() {
         });
       }
     } else {
-      // Complete drawing at input
       if (side === 'in' && drawingEdge.sourceId !== nodeId) {
-        addEdge({ source: drawingEdge.sourceId, target: nodeId });
+        const sourceNode = nodes.find((n) => n.id === drawingEdge.sourceId);
+        if (sourceNode && !isConnectionCompatible(sourceNode.kind, node.kind)) {
+          toast.error({ description: `No se puede conectar ${kindLabel[sourceNode.kind]} a ${kindLabel[node.kind]}` });
+        } else {
+          addEdge({ source: drawingEdge.sourceId, target: nodeId });
+        }
       }
       setDrawingEdge(null);
     }
   }, [drawingEdge, nodes, addEdge]);
 
-  // Click on canvas cancels edge drawing
   const handleCanvasClick = useCallback(() => {
     selectNode(null);
+    setShowNodeEditor(false);
     if (drawingEdge) setDrawingEdge(null);
   }, [drawingEdge, selectNode]);
 
@@ -512,14 +466,23 @@ export default function FormulaEditorPage() {
 
   const isLoading = scopeLoading || graphsLoading;
 
+  // ── Toolbox items ──
+  const operations = ['+', '-', '*', '/', '(', ')', '=', '>'];
+  const logicBlocks = [
+    { label: 'IF / THEN / ELSE', kind: 'conditional' as NodeKind, preset: 'if(condition, then, else)', icon: <GitBranch size={14} /> },
+    { label: 'Formula', kind: 'formula' as NodeKind, preset: 'roundCurrency()', icon: <Equal size={14} /> },
+    { label: 'Output', kind: 'output' as NodeKind, preset: undefined, icon: <Variable size={14} /> },
+  ];
+
   // ── Render ──
   return (
-    <div className="flex flex-col h-full bg-slate-50 select-none">
+    <div className="flex flex-col h-full select-none" style={{ backgroundColor: MD3.surface }}>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white shrink-0 z-30">
+      <div className="flex items-center gap-3 px-4 py-2 border-b shrink-0 z-30" style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}>
         <button
           onClick={() => navigate('/formulas')}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+          className="flex items-center gap-1 text-sm transition-colors hover:text-[#0b1c30]"
+          style={{ color: MD3.onSurfaceVariant }}
         >
           <ChevronLeft size={16} />
           Volver
@@ -529,7 +492,8 @@ export default function FormulaEditorPage() {
           type="text"
           value={formulaName}
           onChange={(e) => setFormulaName(e.target.value)}
-          className="flex-1 max-w-md px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+          className="flex-1 max-w-md px-3 py-1.5 rounded-lg border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#00668a]/30 focus:border-[#00668a]"
+          style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant, color: MD3.onSurface }}
           placeholder="Nombre de la formula"
         />
 
@@ -537,7 +501,8 @@ export default function FormulaEditorPage() {
           <button
             onClick={undo}
             disabled={undoStack.length === 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-30"
+            className="p-1.5 rounded-lg transition-colors disabled:opacity-30"
+            style={{ color: MD3.onSurfaceVariant }}
             title="Deshacer"
           >
             <Undo2 size={16} />
@@ -545,29 +510,33 @@ export default function FormulaEditorPage() {
           <button
             onClick={redo}
             disabled={redoStack.length === 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-30"
+            className="p-1.5 rounded-lg transition-colors disabled:opacity-30"
+            style={{ color: MD3.onSurfaceVariant }}
             title="Rehacer"
           >
             <Redo2 size={16} />
           </button>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <div className="w-px h-5 mx-1" style={{ backgroundColor: MD3.outlineVariant }} />
           <button
             onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: MD3.onSurfaceVariant }}
           >
             <ZoomOut size={16} />
           </button>
-          <span className="text-xs text-slate-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="text-xs w-10 text-center" style={{ color: MD3.onSurfaceVariant }}>{Math.round(zoom * 100)}%</span>
           <button
             onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: MD3.onSurfaceVariant }}
           >
             <ZoomIn size={16} />
           </button>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <div className="w-px h-5 mx-1" style={{ backgroundColor: MD3.outlineVariant }} />
           <button
             onClick={handleTest}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors"
+            style={{ borderColor: MD3.outlineVariant, color: MD3.onSurface }}
           >
             <Play size={14} />
             Probar
@@ -575,7 +544,8 @@ export default function FormulaEditorPage() {
           <button
             onClick={handleSave}
             disabled={saveMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ backgroundColor: MD3.onSurface }}
           >
             <Save size={14} />
             {saveMutation.isPending ? 'Guardando...' : 'Guardar'}
@@ -585,72 +555,95 @@ export default function FormulaEditorPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Toolbox */}
-        <aside className="w-64 flex flex-col gap-4 p-4 bg-white border-r border-slate-200 overflow-y-auto shrink-0 z-20">
+        <aside className="w-72 flex flex-col gap-4 p-4 border-r overflow-y-auto shrink-0 z-20" style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}>
+          {/* Variables */}
           <div>
-            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: MD3.onSurfaceVariant }}>
               Variables
             </h3>
             <div className="flex flex-col gap-1.5">
               {scope?.requiredInputs?.map((varName: string) => (
-                <button
+                <div
                   key={varName}
-                  onClick={() => handleAddNode('constant')}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 hover:border-sky-400 transition-colors text-left"
+                  draggable
+                  onDragStart={(e) => handleToolboxDragStart(e, 'constant')}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border cursor-grab active:cursor-grabbing transition-colors"
+                  style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant }}
                 >
-                  <div className="w-2 h-2 rounded-full bg-sky-500" />
-                  <span className="font-mono text-slate-700">{varName}</span>
-                </button>
+                  <GripVertical size={12} style={{ color: MD3.onSurfaceVariant }} />
+                  <div className="w-2 h-2 rounded-full bg-[#42a5f5]" />
+                  <span className="font-mono text-[#0b1c30]">{varName}</span>
+                </div>
               ))}
               <button
                 onClick={() => handleAddNode('constant')}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-slate-50 border border-dashed border-slate-200 hover:border-sky-400 transition-colors text-slate-400"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-dashed transition-colors"
+                style={{ borderColor: MD3.outline, color: MD3.onSurfaceVariant }}
               >
                 <Plus size={12} /> Nueva constante
               </button>
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-3">
-            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Logic Blocks
+          {/* Operations */}
+          <div className="border-t pt-3" style={{ borderColor: MD3.outlineVariant }}>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: MD3.onSurfaceVariant }}>
+              Operations
             </h3>
-            <div className="flex flex-col gap-1.5">
-              <button
-                onClick={() => handleAddNode('conditional')}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors"
-              >
-                <GitBranch size={12} /> IF / THEN / ELSE
-              </button>
-              <button
-                onClick={() => handleAddNode('formula')}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 hover:border-sky-400 transition-colors"
-              >
-                <Equal size={12} /> Fórmula
-              </button>
-              <button
-                onClick={() => handleAddNode('output')}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
-              >
-                <Variable size={12} /> Output
-              </button>
+            <div className="grid grid-cols-4 gap-1.5">
+              {operations.map((op) => (
+                <div
+                  key={op}
+                  draggable
+                  onDragStart={(e) => handleToolboxDragStart(e, 'formula', op)}
+                  className="flex items-center justify-center h-8 rounded-lg border text-xs font-bold font-mono cursor-grab active:cursor-grabbing transition-colors hover:border-[#00668a]"
+                  style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                >
+                  {op}
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-3">
-            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+          {/* Logic Blocks */}
+          <div className="border-t pt-3" style={{ borderColor: MD3.outlineVariant }}>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: MD3.onSurfaceVariant }}>
+              Logic Blocks
+            </h3>
+            <div className="flex flex-col gap-1.5">
+              {logicBlocks.map((block) => (
+                <div
+                  key={block.label}
+                  draggable
+                  onDragStart={(e) => handleToolboxDragStart(e, block.kind, block.preset)}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border cursor-grab active:cursor-grabbing transition-colors"
+                  style={{ backgroundColor: '#f3e5f5', borderColor: '#ce93d8', color: '#4a148c' }}
+                >
+                  {block.icon}
+                  <span>{block.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Helpers */}
+          <div className="border-t pt-3" style={{ borderColor: MD3.outlineVariant }}>
+            <h3 className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: MD3.onSurfaceVariant }}>
               Helpers
             </h3>
             <div className="flex flex-col gap-1.5">
               {scope?.helpers?.map((helper: any) => (
-                <button
+                <div
                   key={helper.name}
-                  onClick={() => handleAddNode('formula')}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors text-left"
+                  draggable
+                  onDragStart={(e) => handleToolboxDragStart(e, 'formula', `${helper.name}()`)}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border cursor-grab active:cursor-grabbing transition-colors"
+                  style={{ backgroundColor: '#fff8e1', borderColor: '#ffe082', color: '#5d4037' }}
                   title={helper.description}
                 >
                   <FunctionSquare size={12} />
                   <span className="truncate">{helper.label || helper.name}</span>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -658,23 +651,37 @@ export default function FormulaEditorPage() {
 
         {/* Center Canvas */}
         <section
-          className="flex-1 relative overflow-auto bg-[radial-gradient(#cbd5e1_1px,transparent_1px)]"
-          style={{ backgroundSize: `${20 * zoom}px ${20 * zoom}px` }}
+          className="flex-1 relative overflow-auto"
+          style={{
+            backgroundImage: 'radial-gradient(#c4c6cf 1px, transparent 1px)',
+            backgroundSize: `${16 * zoom}px ${16 * zoom}px`,
+          }}
           ref={canvasRef}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onClick={handleCanvasClick}
+          onDrop={handleCanvasDrop}
+          onDragOver={handleCanvasDragOver}
         >
-          {/* Floating info bar */}
+          {/* Floating toolbar */}
           <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10 pointer-events-none">
-            <div className="flex items-center gap-2 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm pointer-events-auto">
-              <span className="font-medium text-sm text-slate-800">{formulaName}</span>
-              <span className="bg-slate-100 text-slate-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-sm flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+            <div
+              className="flex items-center gap-2 backdrop-blur border rounded-xl px-3 py-1.5 shadow-sm pointer-events-auto"
+              style={{ backgroundColor: 'rgba(255,255,255,0.9)', borderColor: MD3.outlineVariant }}
+            >
+              <span className="font-semibold text-sm" style={{ color: MD3.onSurface }}>{formulaName}</span>
+              <span
+                className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-sm flex items-center gap-1"
+                style={{ backgroundColor: MD3.secondaryContainer, color: MD3.onSecondaryContainer }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00668a]" />
                 DRAFT
               </span>
             </div>
-            <div className="bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500 shadow-sm pointer-events-auto">
+            <div
+              className="backdrop-blur border rounded-xl px-3 py-1.5 text-xs shadow-sm pointer-events-auto"
+              style={{ backgroundColor: 'rgba(255,255,255,0.9)', borderColor: MD3.outlineVariant, color: MD3.onSurfaceVariant }}
+            >
               {nodes.length} nodos · {edges.length} conexiones
             </div>
           </div>
@@ -691,7 +698,6 @@ export default function FormulaEditorPage() {
           >
             {/* SVG Edges layer */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-              {/* Existing edges */}
               {edges.map((edge, idx) => {
                 const src = nodes.find((n) => n.id === edge.source);
                 const tgt = nodes.find((n) => n.id === edge.target);
@@ -711,7 +717,6 @@ export default function FormulaEditorPage() {
                       strokeWidth={2}
                       markerEnd="url(#arrowhead)"
                     />
-                    {/* Invisible hit area for delete */}
                     <line
                       x1={x1}
                       y1={y1}
@@ -729,34 +734,32 @@ export default function FormulaEditorPage() {
                 );
               })}
 
-              {/* Drawing edge */}
               {drawingEdge && (
                 <line
                   x1={drawingEdge.startX}
                   y1={drawingEdge.startY}
                   x2={drawingEdge.endX}
                   y2={drawingEdge.endY}
-                  stroke="#3b82f6"
+                  stroke="#00668a"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   markerEnd="url(#arrowhead-blue)"
                 />
               )}
 
-              {/* Arrow markers */}
               <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                   <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
                 </marker>
                 <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#00668a" />
                 </marker>
               </defs>
             </svg>
 
             {/* Nodes */}
             {nodes.map((node) => (
-              <NodeCard
+              <VisualNodeBlock
                 key={node.id}
                 node={node}
                 edges={edges}
@@ -766,184 +769,157 @@ export default function FormulaEditorPage() {
                   e.stopPropagation();
                   removeNode(node.id);
                 }}
-                helperLabelMap={helperLabelMap}
                 onDragStart={(e) => handleNodeDragStart(node.id, e)}
                 onEdgeHandleClick={handleEdgeHandleClick}
               />
             ))}
 
             {nodes.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm pointer-events-none">
-                Agrega nodos desde el panel izquierdo para empezar
+              <div className="absolute inset-0 flex items-center justify-center text-sm pointer-events-none" style={{ color: MD3.onSurfaceVariant }}>
+                Arrastra bloques desde el panel izquierdo para empezar
               </div>
             )}
           </div>
         </section>
 
-        {/* Right Panel */}
-        <aside className="w-80 flex flex-col gap-4 p-4 bg-white border-l border-slate-200 overflow-y-auto shrink-0 z-20">
-          {selectedNode ? (
-            <>
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${kindBadge[selectedNode.kind]}`}>
+        {/* Right Panel: Properties + Live Test */}
+        <aside className="w-80 flex flex-col gap-4 p-4 border-l overflow-y-auto shrink-0 z-20" style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}>
+          {/* Properties Panel */}
+          {selectedNode && (
+            <div className="rounded-xl border p-4 flex flex-col gap-3" style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${kindBadge[selectedNode.kind]}`}>
                     {kindLabel[selectedNode.kind]}
                   </span>
-                  <h3 className="font-bold text-slate-800 text-lg">Propiedades</h3>
+                  <span className="text-sm font-bold" style={{ color: MD3.onSurface }}>Propiedades</span>
                 </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">ID</label>
-                    <input
-                      value={selectedNode.id}
-                      onChange={(e) => updateNodeField(selectedNode.id, 'id', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Label</label>
-                    <input
-                      value={selectedNode.label || ''}
-                      onChange={(e) => updateNodeField(selectedNode.id, 'label', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">outputVar</label>
-                    <input
-                      value={selectedNode.outputVar || ''}
-                      onChange={(e) => updateNodeField(selectedNode.id, 'outputVar', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-
-                  {['formula', 'conditional', 'output'].includes(selectedNode.kind) && (
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Formula</label>
-                      <textarea
-                        value={selectedNode.formula || ''}
-                        onChange={(e) => updateNodeField(selectedNode.id, 'formula', e.target.value)}
-                        rows={3}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-mono text-slate-700 focus:outline-none focus:border-sky-500 resize-none"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Descripción</label>
-                    <textarea
-                      value={selectedNode.description || ''}
-                      onChange={(e) => updateNodeField(selectedNode.id, 'description', e.target.value)}
-                      rows={2}
-                      className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:border-sky-500 resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Posición</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={selectedNode.x ?? 0}
-                        onChange={(e) => updateNodePosition(selectedNode.id, Number(e.target.value), selectedNode.y ?? 0)}
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
-                        placeholder="X"
-                      />
-                      <input
-                        type="number"
-                        value={selectedNode.y ?? 0}
-                        onChange={(e) => updateNodePosition(selectedNode.id, selectedNode.x ?? 0, Number(e.target.value))}
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
-                        placeholder="Y"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <Play size={18} className="text-sky-600" />
-                <h3 className="font-bold text-slate-800 text-lg">Live Test</h3>
+                <button
+                  onClick={() => selectNode(null)}
+                  className="text-[#5a6271] hover:text-[#ba1a1a]"
+                >
+                  <X size={14} />
+                </button>
               </div>
 
-              <div>
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-                  Input Values
-                </h4>
-                <div className="flex flex-col gap-3">
-                  {Object.entries(testInputs).map(([key, value]) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-slate-700 flex justify-between">
-                        {key} <span className="text-[10px] text-slate-400 font-mono">{typeof value === 'number' ? 'Num' : 'Str'}</span>
-                      </label>
-                      <input
-                        type={typeof value === 'number' ? 'number' : 'text'}
-                        value={value}
-                        onChange={(e) => setTestInputs((prev) => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={handleTest}
-                className="w-full bg-white border border-slate-200 text-slate-700 rounded-lg py-2 font-medium text-sm flex justify-center items-center gap-2 hover:bg-slate-50 transition-colors"
-              >
-                <Play size={16} /> Evaluate Formula
-              </button>
-
-              {testError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-xs">
-                  {testError}
-                </div>
-              )}
-
-              {testResult && (
+              <div className="space-y-2.5">
                 <div>
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-                    Execution Result
-                  </h4>
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-                    <div className="flex justify-between items-center mb-2 pl-2">
-                      <span className="text-sm font-medium text-slate-800">Result</span>
-                      <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wide">SUCCESS</span>
-                    </div>
-                    <pre className="text-xs font-mono text-slate-700 overflow-auto max-h-48">
-                      {JSON.stringify(testResult, null, 2)}
-                    </pre>
-                  </div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: MD3.onSurfaceVariant }}>ID</label>
+                  <input
+                    value={selectedNode.id}
+                    onChange={(e) => updateNodeField(selectedNode.id, 'id', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-xs border focus:outline-none focus:border-[#00668a]"
+                    style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                  />
                 </div>
-              )}
-
-              <div className="border-t border-slate-100 pt-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  Grafo actual
-                </h4>
-                <div className="text-xs text-slate-600 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Scope:</span>
-                    <span className="font-medium">{scope?.label || scopeKey}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Nodos:</span>
-                    <span className="font-mono">{nodes.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Edges:</span>
-                    <span className="font-mono">{edges.length}</span>
-                  </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: MD3.onSurfaceVariant }}>Label</label>
+                  <input
+                    value={selectedNode.label || ''}
+                    onChange={(e) => updateNodeField(selectedNode.id, 'label', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-xs border focus:outline-none focus:border-[#00668a]"
+                    style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                  />
                 </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: MD3.onSurfaceVariant }}>outputVar</label>
+                  <input
+                    value={selectedNode.outputVar || ''}
+                    onChange={(e) => updateNodeField(selectedNode.id, 'outputVar', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-xs border focus:outline-none focus:border-[#00668a]"
+                    style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                  />
+                </div>
+                {['formula', 'conditional', 'output'].includes(selectedNode.kind) && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: MD3.onSurfaceVariant }}>Formula</label>
+                    <textarea
+                      value={selectedNode.formula || ''}
+                      onChange={(e) => updateNodeField(selectedNode.id, 'formula', e.target.value)}
+                      rows={3}
+                      className="w-full px-2.5 py-1.5 rounded-lg text-xs font-mono border focus:outline-none focus:border-[#00668a] resize-none"
+                      style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                    />
+                  </div>
+                )}
               </div>
-            </>
+            </div>
           )}
+
+          <div className="flex items-center gap-2">
+            <Play size={18} style={{ color: MD3.secondary }} />
+            <h3 className="font-bold text-lg" style={{ color: MD3.onSurface }}>Live Test</h3>
+          </div>
+
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: MD3.onSurfaceVariant }}>
+              Input Values
+            </h4>
+            <div className="flex flex-col gap-3">
+              {Object.entries(testInputs).map(([key, value]) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold flex justify-between" style={{ color: MD3.onSurface }}>
+                    {key} <span className="text-[10px] font-mono" style={{ color: MD3.onSurfaceVariant }}>{typeof value === 'number' ? 'Decimal' : 'Str'}</span>
+                  </label>
+                  <input
+                    type={typeof value === 'number' ? 'number' : 'text'}
+                    value={value}
+                    onChange={(e) => setTestInputs((prev) => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))}
+                    className="w-full rounded-lg px-3 py-2 text-sm font-mono outline-none border focus:ring-1 transition-all"
+                    style={{
+                      backgroundColor: MD3.surface,
+                      borderColor: MD3.outlineVariant,
+                      color: MD3.onSurface,
+                    }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = MD3.secondary; e.currentTarget.style.boxShadow = `0 0 0 1px ${MD3.secondary}`; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = MD3.outlineVariant; e.currentTarget.style.boxShadow = 'none'; }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={handleTest}
+            className="w-full rounded-lg py-2 font-semibold text-sm flex justify-center items-center gap-2 border transition-colors hover:bg-[#f8f9ff]"
+            style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+          >
+            <Play size={16} /> Evaluate Formula
+          </button>
+
+          {testError && (
+            <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: MD3.errorContainer, color: MD3.error, border: `1px solid ${MD3.errorContainer}` }}>
+              {testError}
+            </div>
+          )}
+
+          {testResult && (
+            <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: MD3.onSurfaceVariant }}>
+                Execution Result
+              </h4>
+              <div className="rounded-lg p-4 relative overflow-hidden border" style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant }}>
+                <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: MD3.success }} />
+                <div className="flex justify-between items-center mb-2 pl-2">
+                  <span className="text-sm font-semibold" style={{ color: MD3.onSurface }}>Result</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wide" style={{ backgroundColor: '#e8f5e9', color: '#1b5e20' }}>SUCCESS</span>
+                </div>
+                <pre className="text-xs font-mono overflow-auto max-h-48" style={{ color: MD3.onSurface }}>
+                  {JSON.stringify(testResult, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="w-full rounded-lg py-2.5 font-semibold text-sm flex justify-center items-center gap-2 text-white hover:opacity-90 transition-opacity disabled:opacity-50 mt-auto"
+            style={{ backgroundColor: MD3.secondary }}
+          >
+            <Save size={16} />
+            {saveMutation.isPending ? 'Guardando...' : 'Save Formula'}
+          </button>
         </aside>
       </div>
     </div>

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   createDagWorkbenchService,
+  extractImpactedVariables,
 } = require('@/modules/credits/application/dag/workbenchService');
 
 test('createDagWorkbenchService returns graph history', async () => {
@@ -137,4 +138,152 @@ test('createDagWorkbenchService produces node-level diff', async () => {
   assert.ok(diff.diff.impactedVariables.includes('tier'));
   assert.ok(Array.isArray(diff.diff.previousGraph.nodes));
   assert.ok(Array.isArray(diff.diff.newGraph.nodes));
+});
+
+// ── extractImpactedVariables unit tests ──
+
+test('extractImpactedVariables returns empty deltas for identical graphs', () => {
+  const graph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'result' },
+    ],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(graph, graph);
+
+  assert.equal(deltas.length, 1);
+  assert.equal(deltas[0].change, 'unchanged');
+  assert.equal(impactedVariables.length, 0);
+});
+
+test('extractImpactedVariables detects added nodes', () => {
+  const oldGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'result' }],
+    edges: [],
+  };
+  const newGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'result' },
+      { id: 'n2', kind: 'formula', formula: 'c * d', outputVar: 'bonus' },
+    ],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(oldGraph, newGraph);
+
+  const addedDelta = deltas.find((d) => d.nodeId === 'n2');
+  assert.ok(addedDelta, 'Expected delta for added node n2');
+  assert.equal(addedDelta.change, 'added');
+  assert.equal(addedDelta.newFormula, 'c * d');
+  assert.equal(addedDelta.newOutputVar, 'bonus');
+  assert.ok(impactedVariables.includes('bonus'));
+  assert.ok(impactedVariables.includes('c'));
+  assert.ok(impactedVariables.includes('d'));
+});
+
+test('extractImpactedVariables detects removed nodes', () => {
+  const oldGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'result' },
+      { id: 'n2', kind: 'formula', formula: 'c * d', outputVar: 'bonus' },
+    ],
+    edges: [],
+  };
+  const newGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'result' }],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(oldGraph, newGraph);
+
+  const removedDelta = deltas.find((d) => d.nodeId === 'n2');
+  assert.ok(removedDelta, 'Expected delta for removed node n2');
+  assert.equal(removedDelta.change, 'removed');
+  assert.equal(removedDelta.oldFormula, 'c * d');
+  assert.equal(removedDelta.oldOutputVar, 'bonus');
+  assert.ok(impactedVariables.includes('bonus'));
+});
+
+test('extractImpactedVariables detects modified formulas and outputVars', () => {
+  const oldGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'Score > 700', outputVar: 'tier' }],
+    edges: [],
+  };
+  const newGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'Score > 750', outputVar: 'tier' }],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(oldGraph, newGraph);
+
+  assert.equal(deltas.length, 1);
+  assert.equal(deltas[0].change, 'modified');
+  assert.equal(deltas[0].oldFormula, 'Score > 700');
+  assert.equal(deltas[0].newFormula, 'Score > 750');
+  assert.ok(impactedVariables.includes('tier'));
+  assert.ok(impactedVariables.includes('Score'));
+});
+
+test('extractImpactedVariables detects outputVar rename', () => {
+  const oldGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'oldResult' }],
+    edges: [],
+  };
+  const newGraph = {
+    nodes: [{ id: 'n1', kind: 'formula', formula: 'a + b', outputVar: 'newResult' }],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(oldGraph, newGraph);
+
+  assert.equal(deltas.length, 1);
+  assert.equal(deltas[0].change, 'modified');
+  assert.equal(deltas[0].oldOutputVar, 'oldResult');
+  assert.equal(deltas[0].newOutputVar, 'newResult');
+  assert.ok(impactedVariables.includes('newResult'));
+  assert.ok(impactedVariables.includes('oldResult'));
+});
+
+test('extractImpactedVariables returns structured deltas array with all change types', () => {
+  const oldGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: '1', outputVar: 'a' },
+      { id: 'n2', kind: 'formula', formula: '2', outputVar: 'b' },
+      { id: 'n3', kind: 'formula', formula: '3', outputVar: 'c' },
+    ],
+    edges: [],
+  };
+  const newGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: '1', outputVar: 'a' },
+      { id: 'n2', kind: 'formula', formula: '2_updated', outputVar: 'b' },
+      { id: 'n4', kind: 'formula', formula: '4', outputVar: 'd' },
+    ],
+    edges: [],
+  };
+
+  const { deltas, impactedVariables } = extractImpactedVariables(oldGraph, newGraph);
+
+  assert.equal(deltas.length, 4);
+
+  const unchanged = deltas.find((d) => d.nodeId === 'n1');
+  assert.ok(unchanged);
+  assert.equal(unchanged.change, 'unchanged');
+
+  const modified = deltas.find((d) => d.nodeId === 'n2');
+  assert.ok(modified);
+  assert.equal(modified.change, 'modified');
+
+  const removed = deltas.find((d) => d.nodeId === 'n3');
+  assert.ok(removed);
+  assert.equal(removed.change, 'removed');
+
+  const added = deltas.find((d) => d.nodeId === 'n4');
+  assert.ok(added);
+  assert.equal(added.change, 'added');
+
+  assert.ok(impactedVariables.includes('b'));
+  assert.ok(impactedVariables.includes('d'));
+  assert.ok(impactedVariables.includes('c'));
 });

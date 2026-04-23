@@ -296,6 +296,7 @@ const extractImpactedVariables = (oldGraph, newGraph) => {
   const oldNodes = Array.isArray(oldGraph?.nodes) ? oldGraph.nodes : [];
   const newNodes = Array.isArray(newGraph?.nodes) ? newGraph.nodes : [];
   const impacted = new Set();
+  const deltas = [];
 
   const oldById = new Map(oldNodes.map((n) => [n.id, n]));
   const newById = new Map(newNodes.map((n) => [n.id, n]));
@@ -303,7 +304,12 @@ const extractImpactedVariables = (oldGraph, newGraph) => {
   for (const [id, newNode] of newById) {
     const oldNode = oldById.get(id);
     if (!oldNode) {
-      // Added node
+      deltas.push({
+        nodeId: id,
+        change: 'added',
+        newFormula: newNode.formula,
+        newOutputVar: newNode.outputVar,
+      });
       if (newNode.outputVar) impacted.add(newNode.outputVar);
       if (newNode.formula) {
         const vars = newNode.formula.match(/[a-zA-Z_]\w*/g) || [];
@@ -314,6 +320,14 @@ const extractImpactedVariables = (oldGraph, newGraph) => {
       oldNode.outputVar !== newNode.outputVar ||
       oldNode.kind !== newNode.kind
     ) {
+      deltas.push({
+        nodeId: id,
+        change: 'modified',
+        oldFormula: oldNode.formula,
+        newFormula: newNode.formula,
+        oldOutputVar: oldNode.outputVar,
+        newOutputVar: newNode.outputVar,
+      });
       if (newNode.outputVar) impacted.add(newNode.outputVar);
       if (oldNode.outputVar && oldNode.outputVar !== newNode.outputVar) {
         impacted.add(oldNode.outputVar);
@@ -322,16 +336,31 @@ const extractImpactedVariables = (oldGraph, newGraph) => {
         const vars = newNode.formula.match(/[a-zA-Z_]\w*/g) || [];
         vars.forEach((v) => impacted.add(v));
       }
+    } else {
+      deltas.push({
+        nodeId: id,
+        change: 'unchanged',
+        oldFormula: oldNode.formula,
+        newFormula: newNode.formula,
+        oldOutputVar: oldNode.outputVar,
+        newOutputVar: newNode.outputVar,
+      });
     }
   }
 
   for (const [id, oldNode] of oldById) {
-    if (!newById.has(id) && oldNode.outputVar) {
-      impacted.add(oldNode.outputVar);
+    if (!newById.has(id)) {
+      deltas.push({
+        nodeId: id,
+        change: 'removed',
+        oldFormula: oldNode.formula,
+        oldOutputVar: oldNode.outputVar,
+      });
+      if (oldNode.outputVar) impacted.add(oldNode.outputVar);
     }
   }
 
-  return Array.from(impacted);
+  return { deltas, impactedVariables: Array.from(impacted) };
 };
 
 const assertScopeKey = (scopeKey) => {
@@ -645,7 +674,7 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('Comparison DAG graph');
       }
 
-      const impactedVariables = extractImpactedVariables(
+      const { deltas, impactedVariables } = extractImpactedVariables(
         previousGraphVersion.graph,
         newGraphVersion.graph
       );
@@ -655,6 +684,7 @@ const createDagWorkbenchService = ({
           previousGraph: previousGraphVersion.graph,
           newGraph: newGraphVersion.graph,
           impactedVariables,
+          deltas,
         },
       };
     },
@@ -690,7 +720,7 @@ const createDagWorkbenchService = ({
         commitMessage: commitMessage || `Restored from version ${graph.version}`,
         authorName: actor.name || null,
         authorEmail: actor.email || null,
-        restoredFromVersionId: graph.version,
+        restoredFromVersionId: graph.id,
       });
 
       logBusiness('dag.graph.restored', {
@@ -711,5 +741,6 @@ module.exports = {
   validateDagWorkbenchGraph,
   validateFormulaInput,
   validateFormulaNodes,
+  extractImpactedVariables,
   createDagWorkbenchService,
 };

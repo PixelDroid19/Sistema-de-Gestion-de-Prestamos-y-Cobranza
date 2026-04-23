@@ -20,7 +20,12 @@ const DagGraphVersion = sequelize.define('DagGraphVersion', {
   timestamps: true,
   indexes: [
     { fields: ['scopeKey', 'version'], unique: true },
-    { fields: ['scopeKey', 'status'] },
+    {
+      fields: ['scopeKey', 'status'],
+      unique: true,
+      where: { status: 'active' },
+      name: 'dag_graph_versions_scope_key_active_unique',
+    },
   ],
 });
 

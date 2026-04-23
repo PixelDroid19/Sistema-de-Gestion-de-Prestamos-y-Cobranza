@@ -23,6 +23,7 @@ export default function Sidebar({
     clientes: false,
     creditos: false,
     socios: false,
+    formulas: false,
   });
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
@@ -41,11 +42,11 @@ export default function Sidebar({
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
     if (isCollapsed) {
-       setOpenMenus({ clientes: false, creditos: false, socios: false });
+       setOpenMenus({ clientes: false, creditos: false, socios: false, formulas: false });
     }
   }, [isCollapsed]);
 
-  const handleSectionClick = (key: 'clientes' | 'creditos' | 'socios', nextView: string, isSectionActive: boolean) => {
+  const handleSectionClick = (key: 'clientes' | 'creditos' | 'socios' | 'formulas', nextView: string, isSectionActive: boolean) => {
     if (isCollapsed) {
       setIsCollapsed(false);
     }
@@ -271,22 +272,61 @@ export default function Sidebar({
           </div>
           )}
 
-          {/* Pagos Directos */}
+          {/* Menú Formulas */}
           {isAdmin && (
           <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
+              <button
+                onClick={() => handleSectionClick('formulas', 'formulas', currentView === 'formulas' || currentView.startsWith('formulas/'))}
+                data-active={isCollapsed && (currentView === 'formulas' || currentView.startsWith('formulas/')) ? "true" : "false"}
+                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
+                } ${
+                  (currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed
+                    ? 'bg-hover-bg text-brand-primary font-medium'
+                    : (currentView === 'formulas' || currentView.startsWith('formulas/'))
+                      ? 'text-brand-primary font-medium'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+                }`}
+                title={isCollapsed ? 'Formulas' : undefined}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`${(currentView === 'formulas' || currentView.startsWith('formulas/')) ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                    <FlaskConical size={20} />
+                  </div>
+                  {!isCollapsed && <span className="text-sm whitespace-nowrap">Formulas</span>}
+                </div>
+                {!isCollapsed && (
+                  <div className={`transition-transform duration-200 ${openMenus['formulas'] ? 'rotate-180' : ''}`}>
+                    <ChevronDown size={16} />
+                  </div>
+                )}
+                {(currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+                )}
+              </button>
+
+              {openMenus['formulas'] && !isCollapsed && (
+                <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                  <SubNavItem
+                    active={currentView === 'formulas' || currentView.startsWith('formulas/') && currentView !== 'formulas/variables'}
+                    onClick={() => setCurrentView('formulas')}
+                    title="Editor"
+                    tooltip="Visual formula editor and DAG workbench"
+                  />
+                  <SubNavItem
+                    active={currentView === 'formulas/variables'}
+                    onClick={() => setCurrentView('formulas/variables')}
+                    title="Variables"
+                    tooltip="Manage DAG variables registry"
+                  />
+                </div>
+              )}
+
             <NavItem
-              icon={<FlaskConical size={20} />}
-              active={currentView === 'formulas'}
-              onClick={() => setCurrentView('formulas')}
-              title="Formulas"
-              tooltip="Visual formula editor and DAG workbench"
-              isCollapsed={isCollapsed}
-            />
-            <NavItem 
-              icon={<DollarSign size={20} />} 
-              active={currentView === 'payouts'} 
-              onClick={() => setCurrentView('payouts')} 
-              title={tTerm('sidebar.payouts')} 
+              icon={<DollarSign size={20} />}
+              active={currentView === 'payouts'}
+              onClick={() => setCurrentView('payouts')}
+              title={tTerm('sidebar.payouts')}
               tooltip="Registra pagos, consulta recibos y seguimiento de cobranza"
               isCollapsed={isCollapsed}
             />

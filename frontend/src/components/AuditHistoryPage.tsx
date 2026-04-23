@@ -6,12 +6,87 @@ import dagService from '../services/dagService';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 import { queryKeys } from '../services/queryKeys';
-import { GraphHistoryEntry } from '../types/dag';
+import { GraphHistoryEntry, NodeDelta } from '../types/dag';
+
+const MD3 = {
+  surface: '#f8f9ff',
+  onSurface: '#0b1c30',
+  onSurfaceVariant: '#5a6271',
+  secondary: '#00668a',
+  secondaryContainer: '#cce5f3',
+  onSecondaryContainer: '#00344a',
+  error: '#ba1a1a',
+  errorContainer: '#ffdad6',
+  onErrorContainer: '#410002',
+  outline: '#c4c6cf',
+  outlineVariant: '#dee1ea',
+  success: '#2e7d32',
+  successContainer: '#e8f5e9',
+} as const;
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function DeltaLine({ delta }: { delta: NodeDelta }) {
+  const isAdded = delta.change === 'added';
+  const isRemoved = delta.change === 'removed';
+  const isModified = delta.change === 'modified';
+
+  return (
+    <div className="flex flex-col gap-1 py-1">
+      <div className="flex items-center gap-2">
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+          style={{
+            backgroundColor: isAdded ? MD3.successContainer : isRemoved ? MD3.errorContainer : isModified ? MD3.secondaryContainer : MD3.surface,
+            color: isAdded ? MD3.success : isRemoved ? MD3.error : isModified ? MD3.secondary : MD3.onSurfaceVariant,
+          }}
+        >
+          {delta.change}
+        </span>
+        <span className="text-xs font-mono font-semibold" style={{ color: MD3.onSurface }}>{delta.nodeId}</span>
+      </div>
+      {isRemoved && (
+        <div className="text-xs font-mono pl-4" style={{ color: MD3.error }}>
+          - {delta.oldFormula || '(no formula)'}
+        </div>
+      )}
+      {isAdded && (
+        <div className="text-xs font-mono pl-4" style={{ color: MD3.success }}>
+          + {delta.newFormula || '(no formula)'}
+        </div>
+      )}
+      {isModified && (
+        <div className="flex flex-col gap-0.5 pl-4">
+          <div className="text-xs font-mono" style={{ color: MD3.error }}>
+            - {delta.oldFormula || '(no formula)'}
+          </div>
+          <div className="text-xs font-mono" style={{ color: MD3.success }}>
+            + {delta.newFormula || '(no formula)'}
+          </div>
+        </div>
+      )}
+      {delta.oldOutputVar !== delta.newOutputVar && (
+        <div className="text-xs pl-4" style={{ color: MD3.onSurfaceVariant }}>
+          outputVar: {delta.oldOutputVar || '—'} → {delta.newOutputVar || '—'}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AuditHistoryPage() {
   const { id } = useParams<{ id: string }>();
   const graphId = Number(id);
-  const [selectedVersions, setSelectedVersions] = useState<number[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 
   const { data: historyData, isLoading } = useQuery({
     queryKey: queryKeys.dag.history(graphId),
@@ -19,29 +94,24 @@ export default function AuditHistoryPage() {
     enabled: !!graphId,
   });
 
-  const { data: diffData } = useQuery({
-    queryKey: queryKeys.dag.diff(graphId, selectedVersions[1] || 0),
-    queryFn: () => dagService.getGraphDiff(graphId, selectedVersions[1]),
-    enabled: selectedVersions.length === 2 && !!graphId,
+  const selectedEntry = historyData?.data?.history?.find((h: GraphHistoryEntry) => h.version === selectedVersion);
+  const prevEntry = historyData?.data?.history?.find((h: GraphHistoryEntry, idx: number, arr: GraphHistoryEntry[]) => {
+    return arr[idx + 1]?.version === selectedVersion;
+  });
+
+  const compareToVersionId = prevEntry ? historyData?.data?.history?.find((h: GraphHistoryEntry) => h.version === prevEntry.version)?.version : undefined;
+
+  const { data: diffData, isLoading: diffLoading } = useQuery({
+    queryKey: queryKeys.dag.diff(graphId, compareToVersionId || 0),
+    queryFn: () => dagService.getGraphDiff(graphId, compareToVersionId || 0),
+    enabled: !!graphId && !!selectedVersion && !!compareToVersionId,
   });
 
   const history: GraphHistoryEntry[] = historyData?.data?.history ?? [];
 
-  const toggleVersion = (version: number) => {
-    setSelectedVersions((prev) => {
-      if (prev.includes(version)) {
-        return prev.filter((v) => v !== version);
-      }
-      if (prev.length >= 2) {
-        return [prev[1], version];
-      }
-      return [...prev, version];
-    });
-  };
-
   const handleRestore = async () => {
-    if (!selectedVersions[0]) return;
-    const entry = history.find((h) => h.version === selectedVersions[0]);
+    if (!selectedVersion) return;
+    const entry = history.find((h) => h.version === selectedVersion);
     if (!entry) return;
     const confirmed = await confirmModal({
       title: 'Restore Version',
@@ -74,126 +144,269 @@ export default function AuditHistoryPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => window.history.back()}
-          className="flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Back
-        </button>
-        <h1 className="text-2xl font-bold text-text-primary">Formula History #{id}</h1>
+    <div className="flex flex-col gap-6 p-6 lg:p-8 h-full overflow-y-auto" style={{ backgroundColor: MD3.surface }}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="flex items-center gap-1 text-sm transition-colors hover:text-[#0b1c30]"
+            style={{ color: MD3.onSurfaceVariant }}
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: MD3.secondary }}>
+              Formula Audit Log
+            </div>
+            <h1 className="text-2xl font-bold" style={{ color: MD3.onSurface }}>
+              {history[0]?.commitMessage || `Formula History`}
+            </h1>
+            <p className="text-sm" style={{ color: MD3.onSurfaceVariant }}>
+              FRM-{String(graphId).padStart(4, '0')}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors"
+            style={{ borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+          >
+            <Download size={14} />
+            Export Log
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="animate-spin text-brand-primary" size={32} />
+          <Loader2 className="animate-spin" size={32} style={{ color: MD3.secondary }} />
         </div>
       ) : history.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary">
+        <div className="text-center py-12" style={{ color: MD3.onSurfaceVariant }}>
           No history found for this formula.
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Timeline */}
-          <div className="lg:col-span-1 flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">Versions</h2>
-            <div className="flex flex-col gap-3">
-              {history.map((entry) => (
-                <button
-                  key={entry.version}
-                  onClick={() => toggleVersion(entry.version)}
-                  className={`flex flex-col gap-1 p-3 rounded-xl border text-left transition-all ${
-                    entry.isActive
-                      ? 'border-green-300 bg-green-50/60 ring-1 ring-green-300'
-                      : selectedVersions.includes(entry.version)
-                        ? 'border-brand-primary bg-brand-primary/5'
-                        : 'border-border-subtle bg-bg-surface hover:border-border-strong'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <GitCommit size={14} className={entry.isActive ? 'text-green-600' : 'text-text-secondary'} />
-                    <span className="text-sm font-semibold text-text-primary">v{entry.version}</span>
-                    {entry.isActive && (
-                      <span className="ml-auto px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-bold">ACTIVE</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-text-secondary truncate">{entry.commitMessage || 'No message'}</span>
-                  <div className="flex items-center gap-2 text-[10px] text-text-secondary">
-                    <span>{entry.authorName || 'Unknown'}</span>
-                    <span>•</span>
-                    <span>{new Date(entry.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </button>
-              ))}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left: Version History Timeline */}
+          <div className="lg:col-span-4 flex flex-col gap-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: MD3.onSurfaceVariant }}>
+              Version History
+            </h2>
+            <div className="relative flex flex-col gap-0">
+              {/* Vertical timeline line */}
+              <div className="absolute left-[19px] top-2 bottom-2 w-px" style={{ backgroundColor: MD3.outlineVariant }} />
+
+              {history.map((entry) => {
+                const isSelected = selectedVersion === entry.version;
+                const isActive = entry.isActive;
+
+                return (
+                  <button
+                    key={entry.version}
+                    onClick={() => setSelectedVersion(entry.version)}
+                    className="relative flex items-start gap-3 text-left p-3 rounded-xl transition-all mb-2"
+                    style={{
+                      backgroundColor: isActive ? '#ffffff' : isSelected ? 'rgba(0,102,138,0.05)' : 'transparent',
+                      border: `1px solid ${isActive ? MD3.secondary : isSelected ? MD3.outline : 'transparent'}`,
+                      boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                  >
+                    {/* Timeline dot */}
+                    <div
+                      className="relative z-10 w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 ring-2 ring-white"
+                      style={{
+                        backgroundColor: isActive ? MD3.secondary : isSelected ? MD3.secondary : MD3.outline,
+                      }}
+                    />
+
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold" style={{ color: MD3.onSurface }}>
+                          v{entry.version}
+                        </span>
+                        {isActive && (
+                          <span
+                            className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: MD3.secondaryContainer, color: MD3.onSecondaryContainer }}
+                          >
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs truncate" style={{ color: MD3.onSurfaceVariant }}>
+                        {entry.commitMessage || 'No message'}
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px]" style={{ color: MD3.onSurfaceVariant }}>
+                        <span>{entry.authorName || 'Unknown'}</span>
+                        <span>·</span>
+                        <span>{formatDate(entry.createdAt)}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Diff Viewer */}
-          <div className="lg:col-span-3 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
-                Diff {selectedVersions.length === 2 ? `(v${selectedVersions[0]} → v${selectedVersions[1]})` : ''}
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRestore}
-                  disabled={selectedVersions.length !== 1}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-subtle text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Right: Details + Diff */}
+          <div className="lg:col-span-8 flex flex-col gap-4">
+            {selectedEntry ? (
+              <>
+                {/* Version header */}
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}
                 >
-                  <RotateCcw size={14} />
-                  Restore
-                </button>
-                <button
-                  onClick={handleExport}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-subtle text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
-                >
-                  <Download size={14} />
-                  Export
-                </button>
-              </div>
-            </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-bold" style={{ color: MD3.onSurface }}>
+                        Version {selectedEntry.version}
+                      </h2>
+                      {selectedEntry.isActive && (
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                          style={{ backgroundColor: MD3.secondaryContainer, color: MD3.onSecondaryContainer }}
+                        >
+                          CURRENT ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleRestore}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors"
+                      style={{ borderColor: MD3.outlineVariant, color: MD3.onSurface }}
+                    >
+                      <RotateCcw size={14} />
+                      Restore
+                    </button>
+                  </div>
 
-            {selectedVersions.length === 2 ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs font-medium text-text-secondary">PREVIOUS (v{selectedVersions[0]})</span>
-                  <div className="p-4 rounded-xl border border-border-subtle bg-bg-surface min-h-[200px]">
-                    <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">
-                      {diffData?.data?.diff?.previousGraph
-                        ? JSON.stringify(diffData.data.diff.previousGraph, null, 2)
-                        : 'Loading...'}
-                    </pre>
+                  <div
+                    className="rounded-lg p-3 text-sm mb-4"
+                    style={{ backgroundColor: MD3.surface, color: MD3.onSurface }}
+                  >
+                    {selectedEntry.commitMessage || 'No commit message'}
+                  </div>
+
+                  <div className="flex items-center gap-4 text-xs" style={{ color: MD3.onSurfaceVariant }}>
+                    <span>Author: <strong style={{ color: MD3.onSurface }}>{selectedEntry.authorName || 'Unknown'}</strong></span>
+                    <span>Date: <strong style={{ color: MD3.onSurface }}>{formatDate(selectedEntry.createdAt)}</strong></span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs font-medium text-text-secondary">NEW (v{selectedVersions[1]})</span>
-                  <div className="p-4 rounded-xl border border-border-subtle bg-bg-surface min-h-[200px]">
-                    <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">
-                      {diffData?.data?.diff?.newGraph
-                        ? JSON.stringify(diffData.data.diff.newGraph, null, 2)
-                        : 'Loading...'}
-                    </pre>
+
+                {/* Diff */}
+                {diffLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin" size={24} style={{ color: MD3.secondary }} />
                   </div>
-                </div>
-              </div>
+                ) : diffData?.data?.diff ? (
+                  <div className="flex flex-col gap-4">
+                    <div
+                      className="rounded-2xl border overflow-hidden"
+                      style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}
+                    >
+                      <div
+                        className="px-5 py-3 border-b flex items-center justify-between"
+                        style={{ borderColor: MD3.outlineVariant, backgroundColor: 'rgba(248,249,255,0.5)' }}
+                      >
+                        <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: MD3.onSurfaceVariant }}>
+                          Changes
+                        </h3>
+                        <span className="text-xs font-mono" style={{ color: MD3.onSurfaceVariant }}>
+                          {diffData.data.diff.deltas?.length || 0} nodes changed
+                        </span>
+                      </div>
+
+                      <div className="p-4">
+                        {diffData.data.diff.deltas?.length > 0 ? (
+                          <div className="flex flex-col gap-2 divide-y" style={{ borderColor: MD3.outlineVariant }}>
+                            {diffData.data.diff.deltas.map((delta: NodeDelta) => (
+                              <DeltaLine key={delta.nodeId} delta={delta} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-sm" style={{ color: MD3.onSurfaceVariant }}>
+                            No structural changes detected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Impacted Variables */}
+                    {diffData.data.diff.impactedVariables && diffData.data.diff.impactedVariables.length > 0 && (
+                      <div
+                        className="rounded-2xl border p-5"
+                        style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}
+                      >
+                        <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: MD3.onSurfaceVariant }}>
+                          Impacted Variables
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {diffData.data.diff.impactedVariables.map((v: string) => (
+                            <span
+                              key={v}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                              style={{ backgroundColor: MD3.secondaryContainer, color: MD3.onSecondaryContainer }}
+                            >
+                              {v}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Side-by-side raw JSON (collapsed by default) */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-2">
+                        <span className="text-xs font-semibold" style={{ color: MD3.onSurfaceVariant }}>
+                          PREVIOUS {prevEntry ? `(v${prevEntry.version})` : ''}
+                        </span>
+                        <div
+                          className="p-4 rounded-xl border min-h-[160px] overflow-auto"
+                          style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant }}
+                        >
+                          <pre className="text-xs font-mono whitespace-pre-wrap" style={{ color: MD3.onSurfaceVariant }}>
+                            {diffData.data.diff.previousGraph
+                              ? JSON.stringify(diffData.data.diff.previousGraph, null, 2)
+                              : 'No previous data'}
+                          </pre>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <span className="text-xs font-semibold" style={{ color: MD3.onSurfaceVariant }}>
+                          NEW (v{selectedEntry.version})
+                        </span>
+                        <div
+                          className="p-4 rounded-xl border min-h-[160px] overflow-auto"
+                          style={{ backgroundColor: MD3.surface, borderColor: MD3.outlineVariant }}
+                        >
+                          <pre className="text-xs font-mono whitespace-pre-wrap" style={{ color: MD3.onSurfaceVariant }}>
+                            {diffData.data.diff.newGraph
+                              ? JSON.stringify(diffData.data.diff.newGraph, null, 2)
+                              : 'No data'}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="p-8 rounded-2xl border text-center text-sm"
+                    style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurfaceVariant }}
+                  >
+                    Select a version with a previous version to compare
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="p-8 rounded-xl border border-border-subtle bg-bg-surface text-center text-text-secondary text-sm">
-                Select two versions to compare
-              </div>
-            )}
-
-            {diffData?.data?.diff?.impactedVariables && diffData.data.diff.impactedVariables.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-semibold text-text-primary">Impacted Variables</h3>
-                <div className="flex flex-wrap gap-2">
-                  {diffData.data.diff.impactedVariables.map((v: string) => (
-                    <span key={v} className="px-2 py-1 rounded bg-brand-primary/10 text-brand-primary text-xs font-medium">
-                      {v}
-                    </span>
-                  ))}
-                </div>
+              <div
+                className="p-8 rounded-2xl border text-center text-sm"
+                style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurfaceVariant }}
+              >
+                Select a version from the timeline to view details and diff
               </div>
             )}
           </div>

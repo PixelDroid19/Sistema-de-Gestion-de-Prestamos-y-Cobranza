@@ -309,10 +309,50 @@ export interface GraphHistoryEntry {
   isActive: boolean;
 }
 
+export type VariableType = 'integer' | 'currency' | 'boolean' | 'percent';
+export type VariableSource = 'bureau_api' | 'app_data' | 'system_core';
+export type VariableStatus = 'active' | 'idle' | 'deprecated';
+
+export interface DagVariable {
+  id: number;
+  name: string;
+  type: VariableType;
+  source: VariableSource;
+  value: string | null;
+  status: VariableStatus;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VariableListResponse {
+  success: boolean;
+  count: number;
+  data: {
+    variables: DagVariable[];
+    pagination?: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      pageSize: number;
+    };
+  };
+}
+
+export interface NodeDelta {
+  nodeId: string;
+  change: 'added' | 'removed' | 'modified' | 'unchanged';
+  oldFormula?: string;
+  newFormula?: string;
+  oldOutputVar?: string;
+  newOutputVar?: string;
+}
+
 export interface GraphDiffEntry {
   previousGraph: DagGraph;
   newGraph: DagGraph;
   impactedVariables: string[];
+  deltas: NodeDelta[];
 }
 
 export interface GraphDiffResponse {
