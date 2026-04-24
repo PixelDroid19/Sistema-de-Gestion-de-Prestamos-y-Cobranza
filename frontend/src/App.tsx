@@ -104,6 +104,7 @@ function MainLayout() {
               <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
               <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
               <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
               <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
               <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><CreditDetails /></ProtectedRoute>} />
               <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><PaymentSchedule /></ProtectedRoute>} />

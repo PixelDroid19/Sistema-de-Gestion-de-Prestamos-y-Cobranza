@@ -17,7 +17,7 @@ import { tTerm } from '../i18n/terminology';
 import { queryKeys } from '../services/queryKeys';
 import { dagService } from '../services/dagService';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
-import { getChipClassName } from '../constants/uiChips';
+import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
@@ -33,6 +33,26 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 });
+
+const getLoanStatusTone = (status?: string): ChipTone => {
+  switch (String(status || '').toLowerCase()) {
+    case 'active':
+    case 'approved':
+    case 'paid':
+      return 'success';
+    case 'pending':
+      return 'warning';
+    case 'overdue':
+    case 'defaulted':
+    case 'rejected':
+      return 'danger';
+    case 'closed':
+    case 'cancelled':
+      return 'neutral';
+    default:
+      return 'info';
+  }
+};
 
 interface InstallmentEvent {
   id: string;
@@ -657,8 +677,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     <option value="active">Activo</option>
                     <option value="pending">Pendiente</option>
                     <option value="approved">Aprobado</option>
+                    <option value="overdue">Vencido</option>
                     <option value="defaulted">En Mora</option>
+                    <option value="paid">Pagado</option>
                     <option value="closed">Cerrado</option>
+                    <option value="cancelled">Cancelado</option>
                   </select>
                 </div>
                 <div>
@@ -821,7 +844,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4">
-                          <span className={`inline-flex rounded-md px-2 py-1 text-xs ${credit.status === 'active' ? getChipClassName('success') : credit.status === 'pending' ? getChipClassName('warning') : getChipClassName('info')}`}>
+                          <span className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}>
                             {getLoanStatusLabel(credit.status)}
                           </span>
                         </td>
