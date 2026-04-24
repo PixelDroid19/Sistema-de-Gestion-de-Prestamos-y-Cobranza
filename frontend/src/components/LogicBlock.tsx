@@ -5,7 +5,8 @@
 // horizontal chip rows (matching the CreditCore Engine mockup).
 
 import React from 'react';
-import type { BlockDefinition, BlockCondition } from '../types/dag';
+import { GitBranch, Plus } from 'lucide-react';
+import type { BlockDefinition, BlockCondition, BlockKind } from '../types/dag';
 import {
   getFormulaTargetLabel,
   getFormulaValueLabel,
@@ -475,6 +476,7 @@ interface FormulaContainerBlockProps {
   onSelectBlock: (blockId: string) => void;
   onDeleteBlock: (containerId: string, blockId: string) => void;
   onSelectContainer: (containerId: string) => void;
+  onAddBlock?: (containerId: string, kind: BlockKind) => void;
   isContainerSelected: boolean;
 }
 
@@ -484,10 +486,12 @@ export function FormulaContainerBlock({
   onSelectBlock,
   onDeleteBlock,
   onSelectContainer,
+  onAddBlock,
   isContainerSelected,
 }: FormulaContainerBlockProps) {
   return (
     <div
+      className="formula-container-block"
       onClick={(e) => { e.stopPropagation(); onSelectContainer(container.id); }}
       style={{
         backgroundColor: '#ffffff',
@@ -500,7 +504,7 @@ export function FormulaContainerBlock({
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
-        width: '440px',
+        width: 'min(100%, 520px)',
         position: 'relative',
         transition: 'border-color 0.2s, box-shadow 0.2s',
         cursor: 'default',
@@ -551,16 +555,69 @@ export function FormulaContainerBlock({
       {/* Empty state */}
       {container.blocks.length === 0 && (
         <div
+          className="formula-rule-empty"
           style={{
-            padding: '24px',
+            padding: '18px',
             border: '2px dashed #c6c6cd',
             borderRadius: '8px',
-            textAlign: 'center',
+            textAlign: 'left',
             color: '#76777d',
             fontSize: '13px',
+            background: '#f8fafc',
           }}
         >
-          Arrastrá bloques aquí desde el Toolbox
+          <div style={{ color: '#0f172a', fontWeight: 800, marginBottom: 6 }}>
+            Esta etapa usa el valor del sistema.
+          </div>
+          <div style={{ lineHeight: 1.45, marginBottom: 12 }}>
+            Agrega condiciones solo cuando necesites cambiar este valor para ciertos creditos.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddBlock?.(container.id, 'if');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid #0f766e',
+                background: '#0f766e',
+                color: '#ffffff',
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> Agregar condicion
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddBlock?.(container.id, 'else');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#0f172a',
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              <GitBranch size={14} /> Valor alterno
+            </button>
+          </div>
         </div>
       )}
 

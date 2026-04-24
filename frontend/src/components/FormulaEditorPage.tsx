@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Undo2, Redo2, ZoomIn, ZoomOut, Save, Play, ChevronLeft,
   Plus, GripVertical, GitBranch, Trash2, Power, LockKeyhole,
-  ShieldCheck, ArrowRight, CheckCircle2,
+  ShieldCheck, ArrowRight, CheckCircle2, ListChecks, SlidersHorizontal,
 } from 'lucide-react';
 import { useBlockEditorStore, generateBlockId } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
@@ -345,6 +345,7 @@ export default function FormulaEditorPage() {
         ? { label: 'Activa', bg: '#e8f5e9', fg: '#1b5e20', dot: '#2e7d32' }
         : { label: 'Inactiva', bg: MD3.secondaryContainer, fg: MD3.onSecondaryContainer, dot: MD3.secondary };
   const ruleCountLabel = `${containers.length} regla${containers.length === 1 ? '' : 's'} - ${containers.reduce((a, c) => a + c.blocks.length, 0)} bloque${containers.reduce((a, c) => a + c.blocks.length, 0) === 1 ? '' : 's'}`;
+  const configuredBlockCount = containers.reduce((total, container) => total + container.blocks.length, 0);
 
   const applyVariableToSelectedDecision = (variableName: string) => {
     if (!selectedBlock || (selectedBlock.block.kind !== 'if' && selectedBlock.block.kind !== 'elseIf')) {
@@ -361,16 +362,16 @@ export default function FormulaEditorPage() {
 
   // -- Render --
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: MD3.surface, fontFamily: "'Inter', sans-serif" }}>
+    <div className="formula-editor-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: MD3.surface, fontFamily: "'Inter', sans-serif" }}>
       {/* Toolbar */}
-      <div style={sty.toolbar}>
+      <div className="formula-editor-toolbar" style={sty.toolbar}>
         <button onClick={() => navigate('/formulas')} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), border: 'none', padding: '4px 8px' }}>
           <ChevronLeft size={16} /> Volver
         </button>
-        <input type="text" value={formulaName} onChange={e => store.setFormulaName(e.target.value)}
+        <input className="formula-editor-name-input" type="text" value={formulaName} onChange={e => store.setFormulaName(e.target.value)}
           style={{ flex: 1, maxWidth: 320, padding: '6px 12px', borderRadius: 8, border: `1px solid ${MD3.outlineVariant}`, fontSize: 14, fontWeight: 600, color: MD3.onSurface, backgroundColor: MD3.surface, outline: 'none' }}
           placeholder="Nombre de la formula" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+        <div className="formula-editor-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
           <button onClick={store.undo} disabled={!store.canUndo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canUndo() ? 1 : 0.3 }}><Undo2 size={16} /></button>
           <button onClick={store.redo} disabled={!store.canRedo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canRedo() ? 1 : 0.3 }}><Redo2 size={16} /></button>
           <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
@@ -389,7 +390,7 @@ export default function FormulaEditorPage() {
       </div>
 
       {!isNew && existingGraph && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${MD3.outlineVariant}`, backgroundColor: isLockedByCredits ? '#fff8e1' : '#eef7fb', color: MD3.onSurface }}>
+        <div className="formula-version-banner" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${MD3.outlineVariant}`, backgroundColor: isLockedByCredits ? '#fff8e1' : '#eef7fb', color: MD3.onSurface }}>
           {isLockedByCredits ? <LockKeyhole size={16} color="#8a5a00" /> : <ShieldCheck size={16} color={MD3.secondary} />}
           <span style={{ fontSize: 13, fontWeight: 700 }}>
             Version {existingGraph.version} {isActiveVersion ? 'activa' : 'inactiva'}
@@ -400,9 +401,18 @@ export default function FormulaEditorPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="formula-editor-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Toolbox */}
-        <aside style={sty.aside}>
+        <aside className="formula-editor-toolbox" style={sty.aside}>
+          <div className="formula-panel-intro">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface, fontWeight: 800, fontSize: 14 }}>
+              <SlidersHorizontal size={16} color={MD3.secondary} />
+              Ajustes disponibles
+            </div>
+            <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
+              Toca una etapa del flujo o agrega una condicion para cambiar como se crean los creditos nuevos.
+            </div>
+          </div>
           <div>
             <div style={sty.heading}>Datos del credito</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -481,10 +491,10 @@ export default function FormulaEditorPage() {
         </aside>
 
         {/* Center Canvas */}
-        <section style={sty.canvas} onDrop={handleCanvasDrop} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+        <section className="formula-editor-canvas" style={sty.canvas} onDrop={handleCanvasDrop} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
           onClick={() => { store.selectBlock(null); setSelectedContainerId(null); }}>
           {/* Floating info bar */}
-          <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', zIndex: 10, pointerEvents: 'none' }}>
+          <div className="formula-editor-floating-info" style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', zIndex: 10, pointerEvents: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)', border: `1px solid ${MD3.outlineVariant}`, backdropFilter: 'blur(8px)', pointerEvents: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <span style={{ fontWeight: 600, fontSize: 14, color: MD3.onSurface }}>{formulaName}</span>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: floatingStatus.bg, color: floatingStatus.fg, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -497,13 +507,13 @@ export default function FormulaEditorPage() {
           </div>
 
           {/* Canvas content */}
-          <div style={{ padding: '80px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
-            <div style={{ width: 'min(860px, calc(100vw - 520px))', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+          <div className="formula-editor-canvas-content" style={{ padding: '80px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <div className="formula-editor-workflow-card" style={{ width: 'min(960px, calc(100vw - 520px))', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: MD3.onSurface }}>Flujo real del credito</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: MD3.onSurface }}>Flujo real del credito</div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, marginTop: 2 }}>
-                    Este es el orden que usa el sistema al crear creditos. Las etapas marcadas se pueden ajustar con reglas.
+                    El sistema recorre estas etapas al crear un credito. Las tarjetas con "Editar" pueden tener reglas propias.
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isActiveVersion ? '#1b5e20' : '#8a5a00', backgroundColor: isActiveVersion ? '#e8f5e9' : '#fff8e1', padding: '5px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
@@ -512,12 +522,12 @@ export default function FormulaEditorPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, alignItems: 'stretch' }}>
+              <div className="formula-flow-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, alignItems: 'stretch' }}>
                 {FORMULA_FLOW_STEPS.map((step, index) => {
                   const editableTarget = step.editableTarget;
                   const isConfigured = editableTarget ? activeOutputVars.has(editableTarget) : true;
                   return (
-                    <div key={step.key} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                    <div className="formula-flow-step-wrap" key={step.key} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
                       <button
                         type="button"
                         disabled={!editableTarget}
@@ -526,6 +536,7 @@ export default function FormulaEditorPage() {
                             handleAddTargetRule(editableTarget);
                           }
                         }}
+                        className="formula-flow-step"
                         style={{
                           minHeight: 116,
                           width: '100%',
@@ -557,10 +568,55 @@ export default function FormulaEditorPage() {
               </div>
             </div>
 
+            {configuredBlockCount === 0 && (
+              <div className="formula-editor-empty-guide" style={{ width: 'min(960px, calc(100vw - 520px))', minWidth: 620, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: '#e6fffa', color: '#0f766e', flexShrink: 0 }}>
+                    <ListChecks size={18} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: MD3.onSurface }}>Esta version usa el calculo base del sistema.</div>
+                    <div style={{ fontSize: 13, color: MD3.onSurfaceVariant, lineHeight: 1.45, marginTop: 4 }}>
+                      No hay condiciones personalizadas todavia. Puedes dejarla asi o crear una regla para cambiar tasa, plazo, cuota o politica de mora en los creditos nuevos.
+                    </div>
+                    <div className="formula-empty-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+                      {FORMULA_TARGET_OPTIONS.map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAddTargetRule(option.key);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            border: `1px solid ${MD3.outlineVariant}`,
+                            background: activeOutputVars.has(option.key) ? '#eef7fb' : '#ffffff',
+                            color: MD3.onSurface,
+                            borderRadius: 10,
+                            padding: '9px 11px',
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Plus size={14} color={MD3.secondary} />
+                          Ajustar {option.label.toLowerCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {containers.map(c => (
               <FormulaContainerBlock key={c.id} container={c} selectedBlockId={selectedBlockId}
                 onSelectBlock={bid => store.selectBlock(bid)} onDeleteBlock={handleDeleteBlock}
                 onSelectContainer={cid => { setSelectedContainerId(cid); store.selectBlock(null); }}
+                onAddBlock={(containerId, kind) => handleAddBlock(kind, containerId)}
                 isContainerSelected={selectedContainerId === c.id} />
             ))}
             {containers.length === 0 && (
@@ -573,7 +629,7 @@ export default function FormulaEditorPage() {
         </section>
 
         {/* Right Panel: Properties + Live Test */}
-        <aside style={sty.right}>
+        <aside className="formula-editor-right-panel" style={sty.right}>
           {/* Properties */}
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
