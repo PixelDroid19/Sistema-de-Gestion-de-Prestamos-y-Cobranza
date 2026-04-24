@@ -6,6 +6,7 @@
 export type NodeKind = 'formula' | 'output' | 'constant' | 'conditional' | 'lookup';
 export type LateFeeMode = 'NONE' | 'SIMPLE' | 'COMPOUND' | 'FLAT' | 'TIERED';
 export type InstallmentStatus = 'pending' | 'paid' | 'partial' | 'overdue' | 'annulled';
+export type CalculationMethodKey = 'FRENCH' | 'SIMPLE' | 'COMPOUND';
 
 // =============================================================================
 // CORE DAG TYPES
@@ -31,6 +32,30 @@ export interface DagEdge {
 export interface DagGraph {
   nodes: DagNode[];
   edges: DagEdge[];
+  metadata?: DagGraphMetadata;
+}
+
+export interface FormulaExceptionRule {
+  id: string;
+  target: string;
+  condition: {
+    variable: string;
+    operator: string;
+    value: string;
+  };
+  value: string;
+  priority: number;
+}
+
+export interface FormulaEditorModel {
+  version: number;
+  baseMethod: CalculationMethodKey;
+  exceptionRules: FormulaExceptionRule[];
+}
+
+export interface DagGraphMetadata {
+  editorModel?: FormulaEditorModel;
+  [key: string]: unknown;
 }
 
 // =============================================================================
@@ -134,7 +159,7 @@ export interface AmortizationRow {
 
 export interface CreditCalculationResult {
   lateFeeMode: LateFeeMode;
-  calculationMethod?: 'FRENCH' | 'SIMPLE' | 'COMPOUND';
+  calculationMethod?: CalculationMethodKey;
   summary: CreditCalculationSummary;
   schedule: AmortizationRow[];
   graphVersionId?: number | null;
@@ -217,6 +242,14 @@ export interface DagWorkbenchScopeHelper {
   description: string;
 }
 
+export interface DagWorkbenchCalculationMethod {
+  key: CalculationMethodKey;
+  label: string;
+  equation: string;
+  description: string;
+  useCase: string;
+}
+
 export interface DagWorkbenchScope {
   key: string;
   label: string;
@@ -226,6 +259,7 @@ export interface DagWorkbenchScope {
   requiredOutputs: string[];
   calculationInput?: CreditCalculationInput;
   simulationInput: CreditCalculationInput;
+  calculationMethods?: DagWorkbenchCalculationMethod[];
   helpers: DagWorkbenchScopeHelper[];
   defaultGraph: DagGraph;
 }

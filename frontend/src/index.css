@@ -211,7 +211,7 @@
 .formula-editor-workflow-card,
 .formula-editor-empty-guide,
 .formula-method-card {
-  width: min(100%, 960px) !important;
+  width: 100% !important;
   min-width: 0 !important;
 }
 
@@ -243,6 +243,35 @@
   border-radius: 10px;
   background: #f8fafc;
   padding: 12px;
+}
+
+.formula-product-stage,
+.formula-product-content,
+.formula-product-card,
+.formula-impact-layout,
+.formula-impact-metrics,
+.formula-target-actions,
+.formula-rule-row,
+.formula-schedule-row {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.formula-product-card {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.formula-workbench-grid {
+  min-width: 0;
+}
+
+.formula-rule-row button {
+  min-width: 0;
+}
+
+.formula-rule-row,
+.formula-schedule-row {
+  overflow-wrap: anywhere;
 }
 
 .formula-rule-empty button:hover,
@@ -278,6 +307,11 @@
     overflow: visible !important;
   }
 
+  .formula-product-stage {
+    order: 1;
+    overflow: visible !important;
+  }
+
   .formula-editor-right-panel {
     order: 2;
     width: auto !important;
@@ -291,8 +325,32 @@
     padding: 72px 24px 32px !important;
   }
 
+  .formula-product-content {
+    padding: 24px !important;
+  }
+
+  .formula-workbench-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .formula-impact-card {
+    position: static !important;
+  }
+
   .formula-flow-grid {
     grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
+  }
+
+  .formula-target-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .formula-impact-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .formula-impact-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .formula-flow-step-wrap {
@@ -354,6 +412,21 @@
     gap: 16px !important;
   }
 
+  .formula-product-content {
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+
+  .formula-product-card {
+    padding: 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .formula-section-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
   .formula-flow-grid {
     display: flex !important;
     flex-direction: column;
@@ -382,6 +455,24 @@
   .formula-method-grid,
   .formula-method-summary,
   .formula-reference-list > div {
+    grid-template-columns: 1fr !important;
+  }
+
+  .formula-target-actions,
+  .formula-impact-metrics {
+    grid-template-columns: 1fr !important;
+  }
+
+  .formula-rule-row {
+    grid-template-columns: 32px 1fr !important;
+  }
+
+  .formula-rule-row > div:last-child {
+    grid-column: 1 / -1;
+    justify-content: flex-start !important;
+  }
+
+  .formula-schedule-row {
     grid-template-columns: 1fr !important;
   }
 

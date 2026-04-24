@@ -380,6 +380,47 @@ test('edited installment formula is persisted through real loan creation payload
   assert.equal(persistedPayload.installmentAmount, 1500);
   assert.equal(persistedPayload.emiSchedule[0].scheduledPayment, 1500);
   assert.equal(persistedPayload.financialSnapshot.installmentAmount, 1500);
+  assert.equal(persistedPayload.financialSnapshot.calculationMethod, 'FRENCH');
+});
+
+test('calculation method selected by active formula is persisted in loan snapshot', async () => {
+  let persistedPayload;
+
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Method Customer' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Method Product' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    persistedPayload = payload;
+    return { id: 102, ...payload };
+  });
+
+  const modifiedGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const methodNode = modifiedGraph.nodes.find((n) => n.id === 'calculation_method');
+  assert.ok(methodNode, 'calculation_method node should exist in default graph');
+  methodNode.formula = "'COMPOUND'";
+
+  const modifiedRecord = createMockGraphVersionRecord({
+    id: 101,
+    name: 'Compound method formula',
+    graph: modifiedGraph,
+  });
+
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(modifiedRecord) });
+  const calculationService = createCreditsCalculationService({ graphExecutor: executor });
+  const createLoan = createLoanFromCanonicalDataFactory({ calculationService });
+
+  const loan = await createLoan({
+    customerId: 1,
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  assert.equal(loan.id, 102);
+  assert.equal(persistedPayload.dagGraphVersionId, 101);
+  assert.equal(persistedPayload.financialSnapshot.calculationMethod, 'COMPOUND');
+  assert.equal(persistedPayload.emiSchedule.length, 12);
 });
 
 test('new active formula affects only new loans while old graph versions remain executable', async () => {

@@ -12,6 +12,8 @@
  * execution inputs and graph outputs before running.
  */
 
+const { SUPPORTED_CALCULATION_METHODS } = require('./calculationMethods');
+
 // ─── Scope definitions ───────────────────────────────────────────────────────
 
 const WORKBENCH_SCOPE_DEFINITIONS = [
@@ -35,6 +37,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
       lateFeeMode: 'SIMPLE',
       startDate: new Date().toISOString(),
     },
+
+    calculationMethods: SUPPORTED_CALCULATION_METHODS,
 
     // Helpers injected into the formula scope (scopeBuilder.js provides the real fns)
     // label = human-friendly name shown in the UI (never expose raw function names to users)
@@ -290,6 +294,7 @@ const listDagWorkbenchScopes = () => WORKBENCH_SCOPE_DEFINITIONS.map((scope) => 
   requiredOutputs: scope.requiredOutputs,
   calculationInput: scope.calculationInput,
   simulationInput: scope.calculationInput,
+  calculationMethods: scope.calculationMethods,
   helpers: scope.helpers,
   defaultGraph: scope.defaultGraph,
 }));

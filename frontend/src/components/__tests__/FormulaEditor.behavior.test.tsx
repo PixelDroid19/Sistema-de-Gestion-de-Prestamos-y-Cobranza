@@ -113,7 +113,7 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitForEditorReady();
-    const toolsButton = await screen.findByRole('button', { name: /herramientas/i });
+    const toolsButton = await screen.findByRole('button', { name: /datos disponibles/i });
     fireEvent.click(toolsButton);
 
     await waitFor(() => {
@@ -127,7 +127,7 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitForEditorReady();
-    expect(screen.getByText(/Formula financiera de la cuota/i)).toBeInTheDocument();
+    expect(screen.getByText(/Formula base de cuota/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sistema frances/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Interes simple/i }));
@@ -148,7 +148,7 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitForEditorReady();
-    const toolsButton = await screen.findByRole('button', { name: /herramientas/i });
+    const toolsButton = await screen.findByRole('button', { name: /datos disponibles/i });
     fireEvent.click(toolsButton);
 
     await waitFor(() => {
@@ -162,12 +162,12 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitForEditorReady();
-    const validateButton = await screen.findByRole('button', { name: /validar/i });
+    const validateButton = (await screen.findAllByRole('button', { name: /validar/i }))[0];
     fireEvent.click(validateButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Validacion de credito/i)).toBeInTheDocument();
-      expect(screen.getByText(/Datos del credito de prueba/i)).toBeInTheDocument();
+      expect(screen.getByText(/Impacto real/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Cuota/i).length).toBeGreaterThan(0);
     });
   });
 

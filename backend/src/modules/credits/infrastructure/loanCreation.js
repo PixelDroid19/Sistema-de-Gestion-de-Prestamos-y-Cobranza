@@ -80,6 +80,7 @@ const createLoanFromCanonicalDataFactory = ({
   const snapshot = {
     ...buildFinancialSnapshot(calculation.schedule),
     ...(calculation.summary || {}),
+    calculationMethod: calculation.calculationMethod || 'FRENCH',
   };
 
   return loanModel.create({

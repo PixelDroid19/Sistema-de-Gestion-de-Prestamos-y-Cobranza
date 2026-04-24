@@ -1,22 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Undo2, Redo2, ZoomIn, ZoomOut, Save, Play, ChevronLeft,
+  Undo2, Redo2, Save, Play, ChevronLeft,
   Plus, GripVertical, GitBranch, Trash2, Power, LockKeyhole,
-  ShieldCheck, ArrowRight, CheckCircle2, ListChecks, SlidersHorizontal,
-  Calculator, BookOpen,
+  ShieldCheck, ListChecks, SlidersHorizontal,
+  Calculator, ArrowUp, ArrowDown, Edit3, Info,
 } from 'lucide-react';
 import { useBlockEditorStore, generateBlockId } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
 import { variableService } from '../services/variableService';
 import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
-import { FormulaContainerBlock } from './LogicBlock';
 import { decompileGraphToContainers } from '../lib/blockCompiler';
-import type { BlockDefinition, FormulaContainer, BlockKind, DagVariable } from '../types/dag';
+import type {
+  BlockDefinition,
+  CalculationMethodKey,
+  DagGraph,
+  DagVariable,
+  FormulaContainer,
+  FormulaExceptionRule,
+  BlockKind,
+} from '../types/dag';
 import {
-  FORMULA_FLOW_STEPS,
   FORMULA_INPUT_OPTIONS,
   FORMULA_TARGET_OPTIONS,
   LATE_FEE_MODE_OPTIONS,
@@ -27,10 +33,7 @@ import {
   normalizeModeValue,
 } from '../lib/formulaDisplay';
 import {
-  CREDIT_FORMULA_REFERENCE,
   CREDIT_FORMULA_TEMPLATES,
-  FRENCH_INSTALLMENT_FORMULA,
-  findCreditFormulaTemplate,
   getFormulaFromBlock,
   type CreditFormulaTemplate,
 } from '../lib/creditFormulaTemplates';
@@ -119,20 +122,166 @@ function createTemplateBlock(template: CreditFormulaTemplate): BlockDefinition {
   };
 }
 
+const CURRENCY_FORMATTER = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  maximumFractionDigits: 0,
+});
+
+function formatMoney(value: unknown): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  return CURRENCY_FORMATTER.format(numeric);
+}
+
+function normalizeMethodKey(value: unknown): CalculationMethodKey {
+  const method = String(value || 'FRENCH').replace(/^['"]|['"]$/g, '').toUpperCase();
+  if (method === 'SIMPLE' || method === 'COMPOUND') return method;
+  return 'FRENCH';
+}
+
+function getTemplateMethodKey(template: CreditFormulaTemplate): CalculationMethodKey {
+  return normalizeMethodKey(template.formula);
+}
+
+function getTemplateForMethod(method: CalculationMethodKey): CreditFormulaTemplate {
+  return CREDIT_FORMULA_TEMPLATES.find((template) => getTemplateMethodKey(template) === method) || CREDIT_FORMULA_TEMPLATES[0];
+}
+
+function getBaseMethodFromContainers(containers: FormulaContainer[]): CalculationMethodKey {
+  const container = containers.find((item) => item.outputVar === 'calculationMethod');
+  if (!container) return 'FRENCH';
+
+  const expression = container.blocks.find((block) => block.kind === 'expression');
+  if (expression) {
+    return normalizeMethodKey(getFormulaFromBlock(expression));
+  }
+
+  const fallback = [...container.blocks].reverse().find((block) => block.kind === 'else');
+  return normalizeMethodKey(fallback?.elseValue || 'FRENCH');
+}
+
+function normalizeConditionalKinds(blocks: BlockDefinition[]): BlockDefinition[] {
+  let conditionIndex = 0;
+  return blocks.map((block) => {
+    if (block.kind !== 'if' && block.kind !== 'elseIf') return block;
+    const kind: BlockKind = conditionIndex === 0 ? 'if' : 'elseIf';
+    conditionIndex += 1;
+    return { ...block, kind };
+  });
+}
+
+function isConditionalRule(block: BlockDefinition): block is BlockDefinition & {
+  condition: NonNullable<BlockDefinition['condition']>;
+} {
+  return (block.kind === 'if' || block.kind === 'elseIf') && Boolean(block.condition);
+}
+
+function buildExceptionRules(containers: FormulaContainer[]): Array<{
+  container: FormulaContainer;
+  block: BlockDefinition & { condition: NonNullable<BlockDefinition['condition']> };
+  priority: number;
+}> {
+  const rules: Array<{
+    container: FormulaContainer;
+    block: BlockDefinition & { condition: NonNullable<BlockDefinition['condition']> };
+    priority: number;
+  }> = [];
+
+  containers.forEach((container) => {
+    let priority = 0;
+    container.blocks.forEach((block) => {
+      if (!isConditionalRule(block)) return;
+      priority += 1;
+      rules.push({ container, block, priority });
+    });
+  });
+
+  return rules;
+}
+
+function buildEditorModel(containers: FormulaContainer[]) {
+  const exceptionRules: FormulaExceptionRule[] = buildExceptionRules(containers).map(({ container, block, priority }) => ({
+    id: block.id,
+    target: container.outputVar || 'lateFeeMode',
+    condition: {
+      variable: block.condition.variable,
+      operator: block.condition.operator,
+      value: String(block.condition.value),
+    },
+    value: String(block.thenValue ?? ''),
+    priority,
+  }));
+
+  return {
+    version: 1,
+    baseMethod: getBaseMethodFromContainers(containers),
+    exceptionRules,
+  };
+}
+
+function describeRule(container: FormulaContainer, block: BlockDefinition): string {
+  if (!isConditionalRule(block)) return 'Regla incompleta';
+  const target = FORMULA_TARGET_OPTIONS.find((option) => option.key === container.outputVar);
+  const variable = getFormulaVariableLabel(block.condition.variable);
+  const value = getFormulaValueLabel(block.thenValue, container.outputVar);
+  return `Si ${variable} ${block.condition.operator} ${block.condition.value}, cambiar ${target?.label || container.label} a ${value}`;
+}
+
+function getTargetHelp(outputVar?: string): string {
+  if (outputVar === 'calculationMethod') {
+    return 'Cambia el metodo financiero usado para calcular la cuota. Si no aplica, se conserva la formula base.';
+  }
+  if (outputVar === 'installmentAmount') {
+    return 'Fija una cuota manual. Cuando esta excepcion aplica, reemplaza la cuota calculada por la formula base.';
+  }
+  const target = FORMULA_TARGET_OPTIONS.find((option) => option.key === outputVar);
+  return `${target?.description || 'Ajusta un valor del credito.'} Si no aplica, el sistema conserva el dato original.`;
+}
+
+function conditionMatches(
+  condition: NonNullable<BlockDefinition['condition']>,
+  inputs: Record<string, any>,
+): boolean {
+  const leftValue = inputs[condition.variable];
+  const leftNumber = Number(leftValue);
+  const rightNumber = Number(condition.value);
+  const canCompareAsNumber = Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
+  const left = canCompareAsNumber ? leftNumber : String(leftValue ?? '');
+  const right = canCompareAsNumber ? rightNumber : String(condition.value ?? '');
+
+  if (condition.operator === '>') return left > right;
+  if (condition.operator === '<') return left < right;
+  if (condition.operator === '>=') return left >= right;
+  if (condition.operator === '<=') return left <= right;
+  if (condition.operator === '!=') return left !== right;
+  return left === right;
+}
+
+function getAppliedExceptionRules(containers: FormulaContainer[], inputs: Record<string, any>) {
+  return containers.flatMap((container) => {
+    const matchedBlock = container.blocks.find((block) => (
+      isConditionalRule(block) && conditionMatches(block.condition, inputs)
+    ));
+
+    if (!matchedBlock || !isConditionalRule(matchedBlock)) return [];
+    return [{ container, block: matchedBlock }];
+  });
+}
+
 export default function FormulaEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isNew = !id || id === 'new';
   const store = useBlockEditorStore();
-  const { containers, selectedBlockId, zoom, formulaName, scopeKey } = store;
+  const { containers, selectedBlockId, formulaName, scopeKey } = store;
 
   const [testInputs, setTestInputs] = useState<Record<string, any>>({});
   const [testResult, setTestResult] = useState<any>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [showToolbox, setShowToolbox] = useState(false);
-  const [showValidationPanel, setShowValidationPanel] = useState(false);
 
   const { data: scopeData } = useQuery({ queryKey: queryKeys.loans.workbenchScopes, queryFn: () => dagService.listScopes() });
   const scope = scopeData?.data?.scopes?.[0];
@@ -158,7 +307,6 @@ export default function FormulaEditorPage() {
   useEffect(() => {
     if (!scope) return;
     setShowToolbox(false);
-    setShowValidationPanel(false);
     setTestError(null);
     setTestResult(null);
     store.selectBlock(null);
@@ -206,9 +354,20 @@ export default function FormulaEditorPage() {
       dagService.updateGraphStatus(graphId, status),
   });
 
+  const compileGraphWithEditorModel = (): DagGraph => {
+    const graph = store.compileGraph();
+    return {
+      ...graph,
+      metadata: {
+        ...(graph.metadata || {}),
+        editorModel: buildEditorModel(containers),
+      },
+    };
+  };
+
   const persistGraph = async ({ activate }: { activate: boolean }) => {
     try {
-      const graph = store.compileGraph();
+      const graph = compileGraphWithEditorModel();
       const saveResult = await saveMutation.mutateAsync({ scopeKey, name: formulaName, graph });
       const savedGraph = saveResult?.data?.graph || saveResult?.data?.graphVersion;
 
@@ -227,7 +386,6 @@ export default function FormulaEditorPage() {
       });
 
       setShowToolbox(false);
-      setShowValidationPanel(false);
       setSelectedContainerId(null);
       setTestError(null);
       setTestResult(null);
@@ -245,23 +403,42 @@ export default function FormulaEditorPage() {
 
   const handleTest = async () => {
     setTestError(null); setTestResult(null);
-    setShowValidationPanel(true);
     try {
-      const graph = store.compileGraph();
+      const graph = compileGraphWithEditorModel();
       const res = await dagService.calculateGraph({ scopeKey, graph, calculationInput: testInputs });
       setTestResult(res?.data?.calculation || res?.data?.simulation || null);
     } catch (err: any) { setTestError(err.message || 'Error en prueba'); }
   };
 
   const handleAddContainer = () => {
-    const c = createDefaultContainer('Nuevo bloque de formula');
+    const c = createDefaultContainerForTarget('interestRate');
     store.addContainer(c);
     setSelectedContainerId(c.id);
-    store.selectBlock(null);
+    store.selectBlock(c.blocks[0]?.id || null);
   };
 
   const applyCreditFormulaTemplate = (template: CreditFormulaTemplate) => {
     const existing = containers.find((container) => container.outputVar === template.outputVar);
+    const methodKey = getTemplateMethodKey(template);
+    const fallbackBlock: BlockDefinition = {
+      id: generateBlockId('else'),
+      kind: 'else',
+      elseValue: methodKey,
+    };
+
+    if (existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf')) {
+      const withoutFallback = existing.blocks.filter((block) => block.kind !== 'else');
+      const nextContainer: FormulaContainer = {
+        ...existing,
+        label: 'Metodo financiero',
+        blocks: [...normalizeConditionalKinds(withoutFallback), fallbackBlock],
+      };
+      store.setContainers(containers.map((container) => (container.id === existing.id ? nextContainer : container)));
+      setSelectedContainerId(nextContainer.id);
+      store.selectBlock(null);
+      return;
+    }
+
     const nextBlock = createTemplateBlock(template);
     const nextContainer: FormulaContainer = {
       id: existing?.id || generateBlockId(`container_${template.key}`),
@@ -273,45 +450,70 @@ export default function FormulaEditorPage() {
     store.setContainers(existing
       ? containers.map((container) => (container.id === existing.id ? nextContainer : container))
       : [...containers, nextContainer]);
-    setSelectedContainerId(nextContainer.id);
-    store.selectBlock(nextBlock.id);
-    setShowValidationPanel(false);
+    setSelectedContainerId(null);
+    store.selectBlock(null);
   };
 
   const handleAddTargetRule = (outputVar: string) => {
+    const createRuleBlock = (target: string, kind: BlockKind): BlockDefinition => makeBlock(kind, target);
+
     if (outputVar === 'calculationMethod') {
       const existing = containers.find((container) => container.outputVar === outputVar);
+      const currentBaseMethod = getBaseMethodFromContainers(containers);
+      const nextBlock = createRuleBlock(outputVar, existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf') ? 'elseIf' : 'if');
+      nextBlock.thenValue = currentBaseMethod === 'COMPOUND' ? 'SIMPLE' : 'COMPOUND';
+
       if (existing) {
+        const conditionalBlocks = existing.blocks.filter((block) => block.kind !== 'expression' && block.kind !== 'else');
+        const fallback: BlockDefinition = {
+          id: generateBlockId('else'),
+          kind: 'else',
+          elseValue: currentBaseMethod,
+        };
+        const nextBlocks = normalizeConditionalKinds([...conditionalBlocks, nextBlock, fallback]);
+        store.setContainers(containers.map((container) => (
+          container.id === existing.id
+            ? { ...container, label: 'Metodo financiero', blocks: nextBlocks }
+            : container
+        )));
         setSelectedContainerId(existing.id);
-        store.selectBlock(null);
-        setShowValidationPanel(false);
+        store.selectBlock(nextBlock.id);
         return;
       }
-      applyCreditFormulaTemplate(CREDIT_FORMULA_TEMPLATES[0]);
+
+      const container: FormulaContainer = {
+        id: generateBlockId('container_calculationMethod'),
+        label: 'Metodo financiero',
+        outputVar,
+        blocks: [nextBlock, { id: generateBlockId('else'), kind: 'else', elseValue: currentBaseMethod }],
+      };
+      store.addContainer(container);
+      setSelectedContainerId(container.id);
+      store.selectBlock(nextBlock.id);
       return;
     }
 
     const existing = containers.find((container) => container.outputVar === outputVar);
+    const nextKind: BlockKind = existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf') ? 'elseIf' : 'if';
+    const nextBlock = createRuleBlock(outputVar, nextKind);
+
     if (existing) {
-      if (existing.blocks.length === 0) {
-        const block = makeBlock('if', outputVar);
-        store.addBlock(existing.id, block);
-        setSelectedContainerId(existing.id);
-        store.selectBlock(block.id);
-        setShowValidationPanel(false);
-        return;
-      }
+      store.addBlock(existing.id, nextBlock);
       setSelectedContainerId(existing.id);
-      store.selectBlock(null);
-      setShowValidationPanel(false);
+      store.selectBlock(nextBlock.id);
       return;
     }
 
-    const container = createDefaultContainerForTarget(outputVar);
+    const option = FORMULA_TARGET_OPTIONS.find((item) => item.key === outputVar);
+    const container: FormulaContainer = {
+      id: generateBlockId(`container_${outputVar}`),
+      label: option?.label || 'Regla de credito',
+      outputVar,
+      blocks: [nextBlock],
+    };
     store.addContainer(container);
     setSelectedContainerId(container.id);
-    store.selectBlock(container.blocks[0]?.id || null);
-    setShowValidationPanel(false);
+    store.selectBlock(nextBlock.id);
   };
 
   const handleAddBlock = (kind: BlockKind, preferredContainerId?: string) => {
@@ -329,11 +531,61 @@ export default function FormulaEditorPage() {
     store.addBlock(targetContainerId, block);
     setSelectedContainerId(targetContainerId);
     store.selectBlock(block.id);
-    setShowValidationPanel(false);
   };
 
   const handleDeleteBlock = (containerId: string, blockId: string) => {
-    store.removeBlock(containerId, blockId);
+    const targetContainer = containers.find((container) => container.id === containerId);
+    if (!targetContainer) return;
+    const remainingBlocks = targetContainer.blocks.filter((block) => block.id !== blockId);
+    const hasConditions = remainingBlocks.some((block) => block.kind === 'if' || block.kind === 'elseIf');
+
+    if (!hasConditions && targetContainer.outputVar !== 'calculationMethod') {
+      store.removeContainer(containerId);
+      setSelectedContainerId(null);
+      store.selectBlock(null);
+      return;
+    }
+
+    if (targetContainer.outputVar === 'calculationMethod' && !hasConditions) {
+      const baseTemplate = getTemplateForMethod(getBaseMethodFromContainers(containers));
+      store.setContainers(containers.map((container) => (
+        container.id === containerId
+          ? { ...container, label: baseTemplate.name, blocks: [createTemplateBlock(baseTemplate)] }
+          : container
+      )));
+      store.selectBlock(null);
+      return;
+    }
+
+    store.setContainers(containers.map((container) => (
+      container.id === containerId
+        ? { ...container, blocks: normalizeConditionalKinds(remainingBlocks) }
+        : container
+    )));
+    store.selectBlock(null);
+  };
+
+  const handleMoveRule = (containerId: string, blockId: string, direction: -1 | 1) => {
+    const targetContainer = containers.find((container) => container.id === containerId);
+    if (!targetContainer) return;
+
+    const conditionals = targetContainer.blocks.filter((block) => block.kind === 'if' || block.kind === 'elseIf');
+    const fallbackBlocks = targetContainer.blocks.filter((block) => block.kind === 'else');
+    const currentIndex = conditionals.findIndex((block) => block.id === blockId);
+    const nextIndex = currentIndex + direction;
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= conditionals.length) return;
+
+    const nextConditionals = [...conditionals];
+    const [moved] = nextConditionals.splice(currentIndex, 1);
+    nextConditionals.splice(nextIndex, 0, moved);
+
+    store.setContainers(containers.map((container) => (
+      container.id === containerId
+        ? { ...container, blocks: [...normalizeConditionalKinds(nextConditionals), ...fallbackBlocks] }
+        : container
+    )));
+    store.selectBlock(blockId);
   };
 
   const handleUpdateContainerOutput = (container: FormulaContainer, outputVar: string) => {
@@ -356,23 +608,6 @@ export default function FormulaEditorPage() {
     store.setContainers(containers.map((item) => (
       item.id === container.id ? { ...item, outputVar, blocks: nextBlocks } : item
     )));
-  };
-
-  // Drop handler
-  const handleCanvasDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const data = e.dataTransfer.getData('text/plain');
-    if (!data) return;
-    try {
-      const { action, kind, name } = JSON.parse(data);
-      if (action === 'addBlock' && kind) {
-        handleAddBlock(kind, selectedContainerId || undefined);
-      } else if (action === 'variable' && name) {
-        applyVariableToSelectedDecision(name);
-      } else if (action === 'addContainer') {
-        handleAddContainer();
-      }
-    } catch { /* ignore */ }
   };
 
   const selectedBlock = (() => {
@@ -399,18 +634,26 @@ export default function FormulaEditorPage() {
       valueKind: variable.type === 'boolean' ? 'number' as const : variable.type === 'currency' ? 'currency' as const : variable.type === 'percent' ? 'percent' as const : 'integer' as const,
     })),
   ];
-  const configuredContainers = containers.filter((container) => container.blocks.length > 0);
+  const methodTemplates = useMemo(() => CREDIT_FORMULA_TEMPLATES.map((template) => {
+    const methodKey = getTemplateMethodKey(template);
+    const backendDefinition = scope?.calculationMethods?.find((method) => method.key === methodKey);
+    return {
+      ...template,
+      name: backendDefinition?.label || template.name,
+      equation: backendDefinition?.equation || template.equation,
+      description: backendDefinition?.description || template.description,
+      useCase: backendDefinition?.useCase || template.useCase,
+    };
+  }), [scope?.calculationMethods]);
+  const configuredContainers = containers.filter((container) => (
+    container.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf')
+  ));
   const configuredOutputVars = new Set(configuredContainers.map((container) => container.outputVar));
-  const calculationMethodContainer = containers.find((container) => container.outputVar === 'calculationMethod') || null;
-  const calculationMethodExpressionBlock = calculationMethodContainer?.blocks.find((block) => block.kind === 'expression') || null;
-  const installmentContainer = containers.find((container) => container.outputVar === 'installmentAmount') || null;
-  const activeCreditFormulaTemplate = findCreditFormulaTemplate(
-    calculationMethodExpressionBlock ? getFormulaFromBlock(calculationMethodExpressionBlock) : FRENCH_INSTALLMENT_FORMULA,
-    calculationMethodExpressionBlock?.templateKey,
-  );
-  const hasConditionalInstallmentRule = Boolean(
-    installmentContainer?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf' || block.kind === 'else'),
-  );
+  const exceptionRules = buildExceptionRules(containers);
+  const baseMethod = getBaseMethodFromContainers(containers);
+  const activeCreditFormulaTemplate = methodTemplates.find((template) => getTemplateMethodKey(template) === baseMethod) || methodTemplates[0];
+  const hasConditionalInstallmentRule = exceptionRules.some(({ container }) => container.outputVar === 'installmentAmount');
+  const appliedImpactRules = testResult ? getAppliedExceptionRules(containers, testInputs) : [];
   const lockedText = isLockedByCredits
     ? `${usageCount} credito${usageCount === 1 ? '' : 's'} ya usan esta version. Sus condiciones quedan congeladas.`
     : 'Esta version aun no esta asociada a creditos.';
@@ -421,12 +664,11 @@ export default function FormulaEditorPage() {
       : isActiveVersion
         ? { label: 'Activa', bg: '#e8f5e9', fg: '#1b5e20', dot: '#2e7d32' }
         : { label: 'Inactiva', bg: MD3.secondaryContainer, fg: MD3.onSecondaryContainer, dot: MD3.secondary };
-  const configuredBlockCount = configuredContainers.reduce((total, container) => total + container.blocks.length, 0);
-  const ruleCountLabel = `${configuredContainers.length} ajuste${configuredContainers.length === 1 ? '' : 's'} - ${configuredBlockCount} condicion${configuredBlockCount === 1 ? '' : 'es'}`;
+  const ruleCountLabel = `${exceptionRules.length} excepcion${exceptionRules.length === 1 ? '' : 'es'}`;
   const selectedContainerForEdit = selectedContainerId && !selectedBlock
     ? containers.find((container) => container.id === selectedContainerId) || null
     : null;
-  const shouldShowRightPanel = Boolean(selectedBlock || selectedContainerForEdit || showValidationPanel);
+  const shouldShowRightPanel = Boolean(selectedBlock || selectedContainerForEdit);
 
   const applyVariableToSelectedDecision = (variableName: string) => {
     if (!selectedBlock || (selectedBlock.block.kind !== 'if' && selectedBlock.block.kind !== 'elseIf')) {
@@ -456,12 +698,8 @@ export default function FormulaEditorPage() {
           <button onClick={store.undo} disabled={!store.canUndo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canUndo() ? 1 : 0.3 }}><Undo2 size={16} /></button>
           <button onClick={store.redo} disabled={!store.canRedo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canRedo() ? 1 : 0.3 }}><Redo2 size={16} /></button>
           <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
-          <button onClick={() => store.setZoom(Math.max(0.5, zoom - 0.1))} style={sty.btn('transparent', MD3.onSurfaceVariant)}><ZoomOut size={16} /></button>
-          <span style={{ fontSize: 12, width: 40, textAlign: 'center', color: MD3.onSurfaceVariant, fontFamily: "'JetBrains Mono'" }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => store.setZoom(Math.min(2, zoom + 0.1))} style={sty.btn('transparent', MD3.onSurfaceVariant)}><ZoomIn size={16} /></button>
-          <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
           <button onClick={() => setShowToolbox((value) => !value)} style={{ ...sty.btn(showToolbox ? MD3.secondaryContainer : '#fff', MD3.onSurface), border: `1px solid ${showToolbox ? MD3.secondary : MD3.outlineVariant}` }}>
-            <SlidersHorizontal size={14} /> Herramientas
+            <SlidersHorizontal size={14} /> Datos disponibles
           </button>
           <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}` }}><Play size={14} /> Validar</button>
           <button onClick={() => persistGraph({ activate: false })} disabled={isSaving} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, opacity: isSaving ? 0.5 : 1 }}>
@@ -576,30 +814,45 @@ export default function FormulaEditorPage() {
         </aside>
         )}
 
-        {/* Center Canvas */}
-        <section className="formula-editor-canvas" style={sty.canvas} onDrop={handleCanvasDrop} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-          onClick={() => { store.selectBlock(null); setSelectedContainerId(null); }}>
-          {/* Canvas content */}
-          <div className="formula-editor-canvas-content" style={{ padding: '32px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
-            <div className="formula-method-card" style={{ width: 'min(100%, 980px)', minWidth: 620, backgroundColor: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
+        {/* Guided product editor */}
+        <section
+          className="formula-product-stage"
+          style={{ flex: 1, overflow: 'auto', backgroundColor: '#f4f7fb', minWidth: 0 }}
+          onClick={() => { store.selectBlock(null); setSelectedContainerId(null); }}
+        >
+          <div className="formula-product-content" style={{ width: '100%', maxWidth: 1480, margin: '0 auto', padding: '18px 24px 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="formula-version-note" style={{ display: 'flex', gap: 10, alignItems: 'center', border: `1px solid ${MD3.outlineVariant}`, backgroundColor: '#ffffff', borderRadius: 12, padding: '10px 12px', color: MD3.onSurface }}>
+              <Info size={18} color={MD3.secondary} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 900 }}>Esta formula se guarda como version exacta.</div>
+                <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 1 }}>
+                  Los creditos nuevos usan la version activa al momento de crearse. Los creditos anteriores conservan su propia version y no se recalculan.
+                </div>
+              </div>
+            </div>
+
+            <div className="formula-workbench-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(620px, 1fr) minmax(360px, 430px)', alignItems: 'start', gap: 14 }}>
+            <div className="formula-setup-column" style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            <section className="formula-product-card formula-method-card" style={{ backgroundColor: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 3px 14px rgba(15,23,42,0.05)' }}>
+              <div className="formula-section-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
                     <Calculator size={18} color={MD3.secondary} />
-                    <span style={{ fontSize: 18, fontWeight: 900 }}>Formula financiera de la cuota</span>
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>1. Formula base de cuota</span>
                   </div>
-                  <div style={{ fontSize: 13, color: MD3.onSurfaceVariant, lineHeight: 1.45, marginTop: 5 }}>
-                    Esta eleccion define la cuota real del credito nuevo. Las reglas de abajo solo son excepciones o ajustes por condicion.
+                  <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
+                    Esta eleccion define como se calcula la cuota del credito. Las excepciones de abajo solo cambian casos puntuales.
                   </div>
                 </div>
                 <div style={{ borderRadius: 999, padding: '6px 10px', background: hasConditionalInstallmentRule ? '#fff8e1' : '#e8f5e9', color: hasConditionalInstallmentRule ? '#8a5a00' : '#1b5e20', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                  {hasConditionalInstallmentRule ? 'Cuota por condiciones' : activeCreditFormulaTemplate?.shortName || 'Sistema base'}
+                  {hasConditionalInstallmentRule ? 'Cuota fija puede reemplazarla' : activeCreditFormulaTemplate?.shortName || 'Sistema base'}
                 </div>
               </div>
 
               <div className="formula-method-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
-                {CREDIT_FORMULA_TEMPLATES.map((template) => {
-                  const isSelected = !hasConditionalInstallmentRule && activeCreditFormulaTemplate?.key === template.key;
+                {methodTemplates.map((template) => {
+                  const methodKey = getTemplateMethodKey(template);
+                  const isSelected = baseMethod === methodKey;
                   return (
                     <button
                       key={template.key}
@@ -617,7 +870,7 @@ export default function FormulaEditorPage() {
                         color: MD3.onSurface,
                         padding: 14,
                         cursor: 'pointer',
-                        minHeight: 156,
+                        minHeight: 116,
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 8,
@@ -642,180 +895,244 @@ export default function FormulaEditorPage() {
                   );
                 })}
               </div>
+            </section>
 
-              {activeCreditFormulaTemplate && !hasConditionalInstallmentRule && (
-                <div className="formula-method-summary" style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 10 }}>
-                  <div style={{ border: `1px solid ${MD3.outlineVariant}`, background: MD3.surface, borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: MD3.onSurface, marginBottom: 4 }}>
-                      {activeCreditFormulaTemplate.name}: que cambia en el credito
-                    </div>
-                    <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45 }}>
-                      {activeCreditFormulaTemplate.description}
-                    </div>
-                  </div>
-                  <div style={{ border: `1px solid ${MD3.outlineVariant}`, background: '#ffffff', borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: MD3.onSurfaceVariant, textTransform: 'uppercase', marginBottom: 6 }}>Variables</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {activeCreditFormulaTemplate.variables.slice(0, 4).map((item) => (
-                        <div key={item.symbol} style={{ display: 'flex', gap: 8, fontSize: 12, color: MD3.onSurfaceVariant }}>
-                          <strong style={{ color: MD3.onSurface, minWidth: 18 }}>{item.symbol}</strong>
-                          <span>{item.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <details className="formula-reference-list" style={{ marginTop: 12 }}>
-                <summary style={{ cursor: 'pointer', color: MD3.secondary, fontSize: 13, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <BookOpen size={14} /> Ver otras formulas financieras
-                </summary>
-                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-                  {CREDIT_FORMULA_REFERENCE.map((item) => (
-                    <div key={item.name} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 10, background: MD3.surface, padding: 10 }}>
-                      <div style={{ fontWeight: 900, color: MD3.onSurface, fontSize: 12 }}>{item.name}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", color: MD3.secondary, fontSize: 11, fontWeight: 800, marginTop: 5 }}>{item.equation}</div>
-                      <div style={{ color: MD3.onSurfaceVariant, fontSize: 11, lineHeight: 1.35, marginTop: 5 }}>{item.description}</div>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
-
-            <div className="formula-editor-workflow-card" style={{ width: 'min(100%, 980px)', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
+            <section className="formula-product-card" style={{ backgroundColor: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 3px 14px rgba(15,23,42,0.05)' }}>
+              <div className="formula-section-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: MD3.onSurface }}>Ajustes opcionales del credito</div>
-                  <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, marginTop: 2 }}>
-                    Usa estas etapas solo cuando una condicion de negocio deba cambiar tasa, plazo, mora o cuota.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
+                    <ListChecks size={18} color={MD3.secondary} />
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>2. Reglas de excepcion</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
+                    Si varias reglas cambian el mismo campo, se leen de arriba hacia abajo y gana la primera que aplique. Reglas de campos distintos se combinan.
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isActiveVersion ? '#1b5e20' : '#8a5a00', backgroundColor: floatingStatus.bg, padding: '5px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
-                    <CheckCircle2 size={13} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div style={{ padding: '6px 10px', borderRadius: 999, backgroundColor: floatingStatus.bg, color: floatingStatus.fg, fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>
                     {floatingStatus.label}
                   </div>
-                  <div style={{ padding: '5px 9px', borderRadius: 999, backgroundColor: MD3.surface, border: `1px solid ${MD3.outlineVariant}`, fontSize: 11, color: MD3.onSurfaceVariant, fontWeight: 800 }}>
+                  <div style={{ padding: '6px 10px', borderRadius: 999, backgroundColor: MD3.surface, border: `1px solid ${MD3.outlineVariant}`, fontSize: 11, color: MD3.onSurfaceVariant, fontWeight: 900 }}>
                     {ruleCountLabel}
                   </div>
                 </div>
               </div>
 
-              <div className="formula-flow-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, alignItems: 'stretch' }}>
-                {FORMULA_FLOW_STEPS.map((step, index) => {
-                  const editableTarget = step.editableTarget;
-                  const isConfigured = editableTarget ? configuredOutputVars.has(editableTarget) : true;
+              <div className="formula-target-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8, marginBottom: 14 }}>
+                {FORMULA_TARGET_OPTIONS.map((option) => {
+                  const isConfigured = configuredOutputVars.has(option.key);
                   return (
-                    <div className="formula-flow-step-wrap" key={step.key} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
-                      <button
-                        type="button"
-                        disabled={!editableTarget}
-                        onClick={() => {
-                          if (editableTarget) {
-                            handleAddTargetRule(editableTarget);
-                          }
-                        }}
-                        className="formula-flow-step"
-                        style={{
-                          minHeight: 116,
-                          width: '100%',
-                          textAlign: 'left',
-                          borderRadius: 10,
-                          border: `1px solid ${editableTarget ? (isConfigured ? MD3.secondary : MD3.outlineVariant) : MD3.outlineVariant}`,
-                          backgroundColor: editableTarget ? (isConfigured ? '#eef7fb' : '#ffffff') : MD3.surface,
-                          padding: 10,
-                          cursor: editableTarget ? 'pointer' : 'default',
-                          color: MD3.onSurface,
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: MD3.onSurface }}>{step.label}</span>
-                          {editableTarget && (
-                            <span style={{ fontSize: 9, fontWeight: 800, borderRadius: 999, padding: '2px 5px', color: isConfigured ? '#1b5e20' : MD3.onSurfaceVariant, backgroundColor: isConfigured ? '#e8f5e9' : MD3.surface }}>
-                              {isConfigured ? 'AJUSTADA' : 'EDITAR'}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, lineHeight: 1.35, color: MD3.onSurfaceVariant }}>{step.description}</div>
-                      </button>
-                      {index < FORMULA_FLOW_STEPS.length - 1 && (
-                        <ArrowRight size={14} color={MD3.outline} style={{ alignSelf: 'center', flexShrink: 0 }} />
-                      )}
-                    </div>
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleAddTargetRule(option.key);
+                      }}
+                      style={{
+                        border: `1px solid ${isConfigured ? MD3.secondary : MD3.outlineVariant}`,
+                        background: isConfigured ? '#eef7fb' : '#ffffff',
+                        borderRadius: 10,
+                        color: MD3.onSurface,
+                        cursor: 'pointer',
+                        padding: '10px 12px',
+                        textAlign: 'left',
+                      minHeight: 56,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 900 }}>{option.label}</div>
+                      <div style={{ color: MD3.onSurfaceVariant, fontSize: 11, lineHeight: 1.35, marginTop: 3 }}>
+                        {isConfigured ? 'Agregar otra prioridad' : 'Crear excepcion'}
+                      </div>
+                    </button>
                   );
                 })}
               </div>
-            </div>
 
-            {containers.length === 0 && (
-              <div className="formula-editor-empty-guide" style={{ width: 'min(100%, 980px)', minWidth: 620, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: '#e6fffa', color: '#0f766e', flexShrink: 0 }}>
+              {exceptionRules.length === 0 ? (
+                <div className="formula-rule-empty" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', border: `1px dashed ${MD3.outline}`, borderRadius: 12, padding: 16, backgroundColor: MD3.surface }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', background: '#e6fffa', color: '#0f766e', flexShrink: 0 }}>
                     <ListChecks size={18} />
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: MD3.onSurface }}>Sin ajustes adicionales.</div>
-                    <div style={{ fontSize: 13, color: MD3.onSurfaceVariant, lineHeight: 1.45, marginTop: 4 }}>
-                      El credito usara la formula financiera seleccionada arriba y la politica normal del sistema.
-                      Crea ajustes solo si necesitas excepciones por monto, tasa, plazo o mora.
+                  <div>
+                    <div style={{ color: MD3.onSurface, fontWeight: 900, fontSize: 14 }}>Sin excepciones.</div>
+                    <div style={{ color: MD3.onSurfaceVariant, fontSize: 13, lineHeight: 1.45, marginTop: 3 }}>
+                      El credito usara la formula base y los datos reales de la solicitud. Agrega excepciones solo si un producto necesita cambiar tasa, plazo, mora, metodo o cuota fija bajo una condicion.
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="formula-rule-groups" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {configuredContainers.map((container) => {
+                    const groupRules = exceptionRules.filter((rule) => rule.container.id === container.id);
+                    const targetOption = FORMULA_TARGET_OPTIONS.find((option) => option.key === container.outputVar);
+                    return (
+                      <div key={container.id} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 12px', borderBottom: `1px solid ${MD3.outlineVariant}`, backgroundColor: MD3.surface }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: MD3.onSurface }}>{targetOption?.label || container.label}</div>
+                            <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 2 }}>{getTargetHelp(container.outputVar)}</div>
+                          </div>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); handleAddTargetRule(container.outputVar || 'lateFeeMode'); }} style={{ ...sty.btn('#fff', MD3.secondary), border: `1px solid ${MD3.outlineVariant}`, flexShrink: 0 }}>
+                            <Plus size={14} /> Agregar
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {groupRules.map(({ block, priority }, index) => (
+                            <div key={block.id} className="formula-rule-row" style={{ display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 12, alignItems: 'center', padding: 12, borderTop: index === 0 ? 'none' : `1px solid ${MD3.outlineVariant}` }}>
+                              <div style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#eef7fb', display: 'grid', placeItems: 'center', color: MD3.secondary, fontWeight: 900 }}>
+                                {priority}
+                              </div>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedContainerId(container.id); store.selectBlock(block.id); }} style={{ border: 'none', background: 'transparent', padding: 0, textAlign: 'left', color: MD3.onSurface, cursor: 'pointer' }}>
+                                <div style={{ fontWeight: 800, fontSize: 14 }}>{describeRule(container, block)}</div>
+                                {container.outputVar === 'installmentAmount' && (
+                                  <div style={{ color: '#8a5a00', fontSize: 12, marginTop: 3 }}>Cuando aplica, esta cuota reemplaza el calculo de la formula base.</div>
+                                )}
+                              </button>
+                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                <button type="button" aria-label="Subir prioridad" onClick={(event) => { event.stopPropagation(); handleMoveRule(container.id, block.id, -1); }} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), padding: 6 }}><ArrowUp size={14} /></button>
+                                <button type="button" aria-label="Bajar prioridad" onClick={(event) => { event.stopPropagation(); handleMoveRule(container.id, block.id, 1); }} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), padding: 6 }}><ArrowDown size={14} /></button>
+                                <button type="button" aria-label="Editar excepcion" onClick={(event) => { event.stopPropagation(); setSelectedContainerId(container.id); store.selectBlock(block.id); }} style={{ ...sty.btn('transparent', MD3.secondary), padding: 6 }}><Edit3 size={14} /></button>
+                                <button type="button" aria-label="Eliminar excepcion" onClick={(event) => { event.stopPropagation(); handleDeleteBlock(container.id, block.id); }} style={{ ...sty.btn('transparent', MD3.error), padding: 6 }}><Trash2 size={14} /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
 
-            {containers.map(c => (
-              <FormulaContainerBlock key={c.id} container={c} selectedBlockId={selectedBlockId}
-                onSelectBlock={bid => store.selectBlock(bid)} onDeleteBlock={handleDeleteBlock}
-                onSelectContainer={cid => { setSelectedContainerId(cid); store.selectBlock(null); }}
-                onAddBlock={(containerId, kind) => handleAddBlock(kind, containerId)}
-                isContainerSelected={selectedContainerId === c.id} />
-            ))}
+            </div>
+
+            <section className="formula-product-card formula-impact-card" style={{ backgroundColor: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 3px 14px rgba(15,23,42,0.05)', position: 'sticky', top: 12 }}>
+              <div className="formula-section-header" style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'stretch', marginBottom: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
+                    <ShieldCheck size={18} color={MD3.secondary} />
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>3. Impacto real</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
+                    Valida con datos de credito antes de guardar. Esto usa el mismo calculo que se aplicara a los creditos nuevos.
+                  </div>
+                </div>
+                <button type="button" className="formula-impact-validate-button" onClick={(event) => { event.stopPropagation(); handleTest(); }} style={{ ...sty.btn(MD3.secondary, '#fff'), padding: '9px 14px', justifyContent: 'center' }}>
+                  <Play size={15} /> Validar impacto
+                </button>
+              </div>
+
+              <div className="formula-impact-layout" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, alignItems: 'start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 9 }}>
+                  {Object.entries(testInputs).map(([key, value]) => (
+                    <div key={key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                        <label style={{ fontSize: 13, fontWeight: 700, color: MD3.onSurface }}>{getFormulaVariableLabel(key)}</label>
+                        <span style={{ fontSize: 11, color: MD3.onSurfaceVariant }}>{getInputKindLabel(typeof value === 'number' ? 'number' : key === 'startDate' ? 'date' : key === 'lateFeeMode' ? 'mode' : 'number')}</span>
+                      </div>
+                      {key === 'lateFeeMode' ? (
+                        <select value={normalizeModeValue(String(value))} style={sty.input}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={e => setTestInputs(prev => ({ ...prev, [key]: e.target.value }))}>
+                          {LATE_FEE_MODE_OPTIONS.map((option) => (
+                            <option key={option.key} value={option.key}>{option.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input type={typeof value === 'number' ? 'number' : 'text'} value={value as any} style={sty.input}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={e => setTestInputs(prev => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  {testError && (
+                    <div style={{ padding: 12, borderRadius: 10, backgroundColor: '#ffdad6', color: MD3.error, fontSize: 13, fontWeight: 700 }}>{testError}</div>
+                  )}
+
+                  {!testError && !testResult && (
+                    <div style={{ border: `1px dashed ${MD3.outline}`, borderRadius: 12, padding: 16, color: MD3.onSurfaceVariant, backgroundColor: MD3.surface, fontSize: 13, lineHeight: 1.45 }}>
+                      Aun no hay validacion para esta version. Revisa cuota, total, intereses y metodo aplicado antes de activar.
+                    </div>
+                  )}
+
+                  {testResult && (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      <div className="formula-impact-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                        {[
+                          ['Cuota', formatMoney(testResult?.summary?.installmentAmount)],
+                          ['Total a pagar', formatMoney(testResult?.summary?.totalPayable)],
+                          ['Intereses', formatMoney(testResult?.summary?.totalInterest)],
+                          ['Metodo', getFormulaValueLabel(testResult?.calculationMethod, 'calculationMethod')],
+                        ].map(([label, value]) => (
+                          <div key={label} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 10, padding: '10px 12px', backgroundColor: MD3.surface }}>
+                            <div style={{ fontSize: 10, color: MD3.onSurfaceVariant, textTransform: 'uppercase', fontWeight: 900 }}>{label}</div>
+                            <div style={{ fontSize: 15, color: MD3.onSurface, fontWeight: 900, marginTop: 5 }}>{value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {appliedImpactRules.length > 0 && (
+                        <div style={{ border: '1px solid #bae6fd', backgroundColor: '#f0f9ff', borderRadius: 10, padding: '10px 12px', color: MD3.onSurface, fontSize: 12, lineHeight: 1.45 }}>
+                          <div style={{ fontWeight: 900, marginBottom: 4 }}>Excepciones aplicadas en esta prueba</div>
+                          {appliedImpactRules.map(({ container, block }) => (
+                            <div key={block.id}>
+                              {describeRule(container, block)}
+                              {container.outputVar === 'installmentAmount' ? ' Esta cuota reemplaza el calculo de la formula base.' : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '9px 12px', backgroundColor: MD3.surface, borderBottom: `1px solid ${MD3.outlineVariant}`, fontSize: 12, fontWeight: 900, color: MD3.onSurface }}>
+                          Primeras cuotas del cronograma
+                        </div>
+                        {(testResult?.schedule || []).slice(0, 4).map((row: any) => (
+                          <div key={row.installmentNumber} className="formula-schedule-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 4, padding: '9px 12px', borderTop: `1px solid ${MD3.outlineVariant}`, fontSize: 12, color: MD3.onSurface }}>
+                            <strong>Cuota {row.installmentNumber}</strong>
+                            <span>Pago {formatMoney(row.scheduledPayment)}</span>
+                            <span>Interes {formatMoney(row.interestComponent)}</span>
+                            <span>Saldo {formatMoney(row.remainingBalance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+            </div>
           </div>
         </section>
 
-        {/* Right Panel: Properties + Live Test */}
+        {/* Right Panel: rule editor */}
         {shouldShowRightPanel && (
         <aside className="formula-editor-right-panel" style={sty.right}>
-          {/* Properties */}
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
-              <div style={{ ...sty.heading, marginBottom: 12 }}>
-                {selectedBlock.block.kind === 'expression' ? 'Formula aplicada' : 'Editar decision'}
-              </div>
-              {selectedBlock.block.kind === 'expression' && (() => {
-                const template = selectedBlockContainer?.outputVar === 'calculationMethod' || selectedBlockContainer?.outputVar === 'installmentAmount'
-                  ? findCreditFormulaTemplate(getFormulaFromBlock(selectedBlock.block), selectedBlock.block.templateKey)
-                  : null;
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {template ? (
-                      <>
-                        <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, background: MD3.surface }}>
-                          <div style={{ color: MD3.onSurface, fontSize: 16, fontWeight: 900 }}>{template.name}</div>
-                          <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45, marginTop: 5 }}>{template.description}</div>
-                          <div style={{ marginTop: 10, borderRadius: 8, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, padding: '8px 10px', color: MD3.secondary, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 900 }}>
-                            {template.equation}
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.45 }}>
-                          Cambia de metodo desde las tarjetas de formula financiera. Validar muestra la cuota y el costo total antes de guardar.
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, background: MD3.surface, color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45 }}>
-                        Esta regla viene de una formula avanzada. Se mantiene para no alterar creditos existentes, pero las nuevas formulas deben elegirse desde la biblioteca financiera.
-                      </div>
-                    )}
-                    <button onClick={() => handleDeleteBlock(selectedBlock.containerId, selectedBlock.block.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center' }}>
-                      <Trash2 size={14} /> Quitar formula aplicada
-                    </button>
-                  </div>
-                );
-              })()}
+              <div style={{ ...sty.heading, marginBottom: 12 }}>Editar excepcion</div>
+              {selectedBlockContainer && isConditionalRule(selectedBlock.block) && (
+                <div style={{ border: `1px solid ${MD3.outlineVariant}`, backgroundColor: MD3.surface, borderRadius: 12, padding: 12, color: MD3.onSurface, fontSize: 13, lineHeight: 1.45, marginBottom: 14 }}>
+                  <strong>Lectura operativa:</strong> {describeRule(selectedBlockContainer, selectedBlock.block)}
+                </div>
+              )}
               {(selectedBlock.block.kind === 'if' || selectedBlock.block.kind === 'elseIf') && selectedBlock.block.condition && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedBlockContainer && (
+                    <>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Que cambia esta excepcion</label>
+                      <select style={sty.input} value={selectedBlockContainer.outputVar} onChange={e => handleUpdateContainerOutput(selectedBlockContainer, e.target.value)}>
+                        {FORMULA_TARGET_OPTIONS.map((option) => (
+                          <option key={option.key} value={option.key}>{option.label}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.4 }}>{getTargetHelp(selectedBlockContainer.outputVar)}</span>
+                    </>
+                  )}
                   <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Cuando</label>
                   <select style={sty.input} value={selectedBlock.block.condition.variable}
                     onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { condition: { ...selectedBlock.block.condition!, variable: e.target.value } })}>
@@ -839,26 +1156,20 @@ export default function FormulaEditorPage() {
                         <option key={option.key} value={option.key}>{option.label}</option>
                       ))}
                     </select>
+                  ) : selectedOutputKind === 'formulaMethod' ? (
+                    <select style={sty.input} value={normalizeMethodKey(selectedBlock.block.thenValue)}
+                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })}>
+                      {methodTemplates.map((template) => (
+                        <option key={template.key} value={getTemplateMethodKey(template)}>{template.name}</option>
+                      ))}
+                    </select>
                   ) : (
                     <input style={sty.input} value={selectedBlock.block.thenValue || ''}
                       onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })} />
                   )}
-                </div>
-              )}
-              {selectedBlock.block.kind === 'else' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>En cualquier otro caso usar</label>
-                  {selectedOutputKind === 'mode' ? (
-                    <select style={sty.input} value={normalizeModeValue(selectedBlock.block.elseValue)}
-                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { elseValue: e.target.value })}>
-                      {LATE_FEE_MODE_OPTIONS.map((option) => (
-                        <option key={option.key} value={option.key}>{option.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input style={sty.input} value={selectedBlock.block.elseValue || ''}
-                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { elseValue: e.target.value })} />
-                  )}
+                  <button onClick={() => handleDeleteBlock(selectedBlock.containerId, selectedBlock.block.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
+                    <Trash2 size={14} /> Eliminar excepcion
+                  </button>
                 </div>
               )}
             </div>
@@ -891,101 +1202,6 @@ export default function FormulaEditorPage() {
             );
           })()}
 
-          {/* Live Test */}
-          {showValidationPanel && (
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-            <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, backgroundColor: MD3.surface }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <ShieldCheck size={16} color={MD3.secondary} />
-                <span style={{ fontSize: 13, fontWeight: 800, color: MD3.onSurface }}>Impacto real</span>
-              </div>
-              <div style={{ fontSize: 12, lineHeight: 1.45, color: MD3.onSurfaceVariant }}>
-                Validar prueba esta version sin guardarla. Guardar y activar hace que los creditos nuevos usen esta formula.
-                Los creditos existentes mantienen la version que ya tienen registrada.
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Play size={18} color={MD3.secondary} />
-              <span style={{ fontSize: 18, fontWeight: 700, color: MD3.onSurface }}>Validacion de credito</span>
-            </div>
-
-            <div>
-              <div style={sty.heading}>Datos del credito de prueba</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {Object.entries(testInputs).map(([key, value]) => (
-                  <div key={key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <label style={{ fontSize: 13, fontWeight: 500, color: MD3.onSurface }}>{getFormulaVariableLabel(key)}</label>
-                      <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono'", color: MD3.onSurfaceVariant }}>{getInputKindLabel(typeof value === 'number' ? 'number' : key === 'startDate' ? 'date' : key === 'lateFeeMode' ? 'mode' : 'number')}</span>
-                    </div>
-                    {key === 'lateFeeMode' ? (
-                      <select value={normalizeModeValue(String(value))} style={sty.input}
-                        onChange={e => setTestInputs(prev => ({ ...prev, [key]: e.target.value }))}>
-                        {LATE_FEE_MODE_OPTIONS.map((option) => (
-                          <option key={option.key} value={option.key}>{option.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input type={typeof value === 'number' ? 'number' : 'text'} value={value as any} style={sty.input}
-                        onChange={e => setTestInputs(prev => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, justifyContent: 'center', width: '100%' }}>
-              <Play size={16} /> Validar formula
-            </button>
-
-            {testError && (
-              <div style={{ padding: 12, borderRadius: 8, backgroundColor: '#ffdad6', color: MD3.error, fontSize: 12 }}>{testError}</div>
-            )}
-
-            {testResult && (
-              <div>
-                <div style={sty.heading}>Resultado operativo</div>
-                <div style={{ borderRadius: 12, padding: 16, backgroundColor: MD3.surface, border: `1px solid ${MD3.outlineVariant}`, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', backgroundColor: '#2e7d32' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: MD3.onSurface }}>Calculo listo para credito</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: '#e8f5e9', color: '#1b5e20' }}>OK</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingLeft: 8 }}>
-                    {[
-                      ['Cuota', testResult?.summary?.installmentAmount],
-                      ['Total a pagar', testResult?.summary?.totalPayable],
-                      ['Intereses', testResult?.summary?.totalInterest],
-                      ['Politica', getFormulaValueLabel(testResult?.lateFeeMode, 'lateFeeMode')],
-                    ].map(([label, value]) => (
-                      <div key={label} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 8, padding: '8px 10px', backgroundColor: '#fff' }}>
-                        <div style={{ fontSize: 10, color: MD3.onSurfaceVariant, textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
-                        <div style={{ fontSize: 14, color: MD3.onSurface, fontWeight: 700, fontFamily: typeof value === 'number' ? "'JetBrains Mono'" : undefined }}>
-                          {typeof value === 'number' ? value.toLocaleString('es-CO') : value || '-'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Save button at bottom */}
-          {showValidationPanel && (
-          <div style={{ padding: 16, borderTop: `1px solid ${MD3.outlineVariant}`, marginTop: 'auto' }}>
-            <button onClick={() => persistGraph({ activate: true })} disabled={isSaving}
-              style={{ ...sty.btn(MD3.secondary, '#fff'), width: '100%', justifyContent: 'center', padding: '10px 16px', opacity: isSaving ? 0.5 : 1 }}>
-              <Power size={16} /> {isSaving ? 'Guardando...' : 'Guardar y activar nueva version'}
-            </button>
-            <button onClick={() => persistGraph({ activate: false })} disabled={isSaving}
-              style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, width: '100%', justifyContent: 'center', padding: '9px 16px', opacity: isSaving ? 0.5 : 1, marginTop: 8 }}>
-              <Save size={16} /> Guardar solo como borrador
-            </button>
-          </div>
-          )}
         </aside>
         )}
       </div>

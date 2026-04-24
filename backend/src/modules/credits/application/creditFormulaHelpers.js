@@ -1,4 +1,8 @@
 const { roundCurrency } = require('./dag/precision');
+const {
+  assertSupportedCalculationMethod,
+  normalizeCalculationMethod,
+} = require('./dag/calculationMethods');
 
 const addMonths = (date, months) => {
   const copy = new Date(date);
@@ -41,14 +45,6 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
     (Math.pow(1 + monthlyRate, term) - 1);
 
   return roundCurrency(installment);
-};
-
-const normalizeCalculationMethod = (value) => {
-  const method = String(value || 'FRENCH').trim().replace(/^['"]|['"]$/g, '').toUpperCase();
-  if (['FRENCH', 'SIMPLE', 'COMPOUND'].includes(method)) {
-    return method;
-  }
-  return 'FRENCH';
 };
 
 const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate }) => {
@@ -100,14 +96,56 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
  * @returns {Array<object>}
  */
 const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode, installmentAmount, calculationMethod }) => {
-  const method = normalizeCalculationMethod(calculationMethod);
+  const method = assertSupportedCalculationMethod(calculationMethod);
   const principal = Number(amount);
   const term = Number(termMonths);
   const annualRate = Number(interestRate) / 100;
   const monthlyRate = annualRate / 12;
+  const customInstallmentAmount = Number(installmentAmount);
+  const hasCustomInstallmentAmount = Number.isFinite(customInstallmentAmount) && customInstallmentAmount > 0;
 
   if (!term || term <= 0) {
     return [];
+  }
+
+  const buildFixedInstallmentSchedule = (resolvedInstallmentAmount) => {
+    const schedule = [];
+    const scheduleStartDate = resolveScheduleStartDate(startDate);
+    let balance = roundCurrency(amount);
+
+    for (let month = 1; month <= term; month += 1) {
+      const openingBalance = balance;
+      const interestComponent = monthlyRate === 0
+        ? 0
+        : roundCurrency(openingBalance * monthlyRate);
+      const principalComponent = month === term
+        ? roundCurrency(openingBalance)
+        : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - interestComponent)));
+      const scheduledPayment = roundCurrency(principalComponent + interestComponent);
+      balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
+
+      schedule.push({
+        installmentNumber: month,
+        dueDate: addMonths(scheduleStartDate, month).toISOString(),
+        openingBalance,
+        scheduledPayment,
+        principalComponent,
+        interestComponent,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        remainingPrincipal: principalComponent,
+        remainingInterest: interestComponent,
+        remainingBalance: balance,
+        status: 'pending',
+      });
+    }
+
+    return schedule;
+  };
+
+  if (hasCustomInstallmentAmount) {
+    return buildFixedInstallmentSchedule(roundCurrency(customInstallmentAmount));
   }
 
   if (method === 'SIMPLE') {
@@ -120,43 +158,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
     return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate });
   }
 
-  const customInstallmentAmount = Number(installmentAmount);
-  const resolvedInstallmentAmount = Number.isFinite(customInstallmentAmount) && customInstallmentAmount > 0
-    ? roundCurrency(customInstallmentAmount)
-    : calculateInstallmentAmount({ amount, interestRate, termMonths });
-  const schedule = [];
-  const scheduleStartDate = resolveScheduleStartDate(startDate);
-  let balance = roundCurrency(amount);
-
-  for (let month = 1; month <= term; month += 1) {
-    const openingBalance = balance;
-    const interestComponent = monthlyRate === 0
-      ? 0
-      : roundCurrency(openingBalance * monthlyRate);
-    const principalComponent = month === term
-      ? roundCurrency(openingBalance)
-      : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - interestComponent)));
-    const scheduledPayment = roundCurrency(principalComponent + interestComponent);
-    balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
-
-    schedule.push({
-      installmentNumber: month,
-      dueDate: addMonths(scheduleStartDate, month).toISOString(),
-      openingBalance,
-      scheduledPayment,
-      principalComponent,
-      interestComponent,
-      paidPrincipal: 0,
-      paidInterest: 0,
-      paidTotal: 0,
-      remainingPrincipal: principalComponent,
-      remainingInterest: interestComponent,
-      remainingBalance: balance,
-      status: 'pending',
-    });
-  }
-
-  return schedule;
+  return buildFixedInstallmentSchedule(calculateInstallmentAmount({ amount, interestRate, termMonths }));
 };
 
 /**
@@ -316,4 +318,6 @@ module.exports = {
   summarizeSchedule,
   cloneSchedule,
   calculateLateFee,
+  normalizeCalculationMethod,
+  assertSupportedCalculationMethod,
 };
