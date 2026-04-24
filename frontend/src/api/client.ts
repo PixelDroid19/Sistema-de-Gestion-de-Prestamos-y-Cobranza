@@ -248,8 +248,9 @@ const request = async <T>(
   });
 
   const isRefreshRequest = path.includes('/auth/refresh');
+  const isBootstrapRequest = isSessionBootstrapRequest(path);
 
-  if (response.status === 401 && !config._retry && !isRefreshRequest) {
+  if (response.status === 401 && !config._retry && !isRefreshRequest && !isBootstrapRequest) {
     try {
       const latestAccessToken = useSessionStore.getState().accessToken;
 

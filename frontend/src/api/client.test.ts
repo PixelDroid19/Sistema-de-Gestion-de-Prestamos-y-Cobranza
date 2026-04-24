@@ -77,4 +77,44 @@ describe('apiClient refresh coordination', () => {
     expect(sessionState.updateAccessToken).toHaveBeenCalledWith('fresh-access', 'refresh-token-2');
     expect(sessionState.logout).not.toHaveBeenCalled();
   });
+
+  it('does not try to refresh when login fails with invalid credentials', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/auth/login')) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: {
+            message: 'Please enter correct email/password',
+            statusCode: 401,
+          },
+        }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url.includes('/api/auth/refresh')) {
+        throw new Error('refresh should not be called');
+      }
+
+      return new Response(null, { status: 500 });
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    await expect(apiClient.post('/auth/login', {
+      email: 'admin.formulas@test.local',
+      password: 'bad-password',
+    })).rejects.toMatchObject({
+      message: 'Please enter correct email/password',
+      statusCode: 401,
+    });
+
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/api/auth/refresh'))).toHaveLength(0);
+    expect(sessionState.logout).not.toHaveBeenCalled();
+  });
 });

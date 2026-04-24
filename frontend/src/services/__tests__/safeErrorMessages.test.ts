@@ -35,8 +35,23 @@ describe('safeErrorMessages', () => {
       action: 'session',
     });
 
-    expect(safe.title).toBe('No tienes permisos para realizar esta acción');
-    expect(safe.description).toContain('administrador');
+    expect(safe.title).toBe('Tu sesión expiró o no es válida');
+    expect(safe.description).toContain('Inicia sesión nuevamente');
+  });
+
+  it('returns login-safe copy for invalid credentials', () => {
+    const loginError = {
+      statusCode: 401,
+      message: 'Please enter correct email/password',
+    };
+
+    const safe = getSafeErrorMessage(loginError, {
+      domain: 'auth',
+      action: 'login',
+    });
+
+    expect(safe.title).toBe('Correo o contraseña incorrectos');
+    expect(safe.description).toContain('credenciales');
   });
 
   it('returns report-safe copy without backend raw details', () => {

@@ -266,7 +266,25 @@ export const getSafeErrorMessage = (error: unknown, context?: SafeErrorContext):
   const statusCode = extractStatusCode(error);
   const rawMessage = extractRawErrorMessage(error);
 
-  if (statusCode === 401 || statusCode === 403) {
+  if (statusCode === 401) {
+    if (context?.action === 'login') {
+      return {
+        title: 'Correo o contraseña incorrectos',
+        description: 'Verifica tus credenciales e inténtalo nuevamente.',
+      };
+    }
+
+    if (context?.action === 'session' || context?.domain === 'auth') {
+      return ACTION_MESSAGES.session as SafeToastMessage;
+    }
+
+    return {
+      title: 'Tu sesión expiró o no es válida',
+      description: 'Inicia sesión nuevamente para continuar.',
+    };
+  }
+
+  if (statusCode === 403) {
     return {
       title: 'No tienes permisos para realizar esta acción',
       description: 'Si necesitas acceso, solicita apoyo a un administrador.',
