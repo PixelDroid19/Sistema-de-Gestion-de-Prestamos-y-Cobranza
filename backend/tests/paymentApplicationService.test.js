@@ -216,6 +216,7 @@ test('applyCapitalPayment updates schedule balances and payment remaining balanc
     loanId: 33,
     amount: 150,
     paymentDate: '2026-03-10T00:00:00.000Z',
+    paymentMethod: 'cash',
   });
 
   assert.equal(result.allocation.principalApplied, 150);
@@ -223,6 +224,7 @@ test('applyCapitalPayment updates schedule balances and payment remaining balanc
   assert.equal(savedLoan.emiSchedule[0].remainingPrincipal, 0);
   assert.equal(savedLoan.emiSchedule[1].remainingPrincipal, 150);
   assert.equal(savedPayment.remainingBalanceAfterPayment, 180);
+  assert.equal(savedPayment.paymentMethod, 'cash');
 });
 
 test('applyCapitalPayment rejects loans with overdue unpaid installments and exposes denial reasons', async () => {

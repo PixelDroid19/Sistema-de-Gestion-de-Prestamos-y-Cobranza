@@ -206,7 +206,7 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
 /**
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
-const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, strategy }) => {
+const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, strategy }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can create capital reduction payments');
   }
@@ -217,6 +217,7 @@ const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolic
     loanId: loan.id,
     amount,
     paymentDate: clock(),
+    paymentMethod,
     strategy,
   });
 };

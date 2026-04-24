@@ -486,6 +486,41 @@ test('createCreateCapitalPayment only allows admins', async () => {
   await assert.rejects(() => createCapitalPayment({ actor: { id: 2, role: 'customer' }, loanId: 5, amount: 80 }), AuthorizationError);
 });
 
+test('createCreateCapitalPayment delegates payment method to capital applications', async () => {
+  let serviceInput;
+  const createCapitalPayment = createCreateCapitalPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 5 };
+      },
+    },
+    paymentApplicationService: {
+      async applyCapitalPayment(input) {
+        serviceInput = input;
+        return { payment: { id: 102 }, allocation: { remainingBalance: 10 }, loan: { id: 5 } };
+      },
+    },
+    clock: () => new Date('2026-03-20T00:00:00.000Z'),
+  });
+
+  const result = await createCapitalPayment({
+    actor: { id: 1, role: 'admin' },
+    loanId: 5,
+    amount: 80,
+    paymentMethod: 'transfer',
+    strategy: 'REDUCE_QUOTA',
+  });
+
+  assert.equal(result.payment.id, 102);
+  assert.deepEqual(serviceInput, {
+    loanId: 5,
+    amount: 80,
+    paymentDate: new Date('2026-03-20T00:00:00.000Z'),
+    paymentMethod: 'transfer',
+    strategy: 'REDUCE_QUOTA',
+  });
+});
+
 test('createAnnulInstallment uses mutation access policy and delegates to the service', async () => {
   let serviceInput;
   const annulInstallment = createAnnulInstallment({

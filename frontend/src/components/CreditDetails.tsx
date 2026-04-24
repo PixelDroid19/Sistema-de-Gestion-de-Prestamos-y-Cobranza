@@ -648,7 +648,7 @@ export default function CreditDetails() {
       action: 'capital.payment',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
       run: async () => {
-        await recordCapitalPayment.mutateAsync({ amount, strategy: capitalStrategy });
+        await recordCapitalPayment.mutateAsync({ amount, paymentMethod: capitalMethod, strategy: capitalStrategy });
       },
       onSuccess: async () => {
         await invalidateAfterPayment(queryClient, { loanId });

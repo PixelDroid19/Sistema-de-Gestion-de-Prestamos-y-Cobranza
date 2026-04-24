@@ -175,6 +175,28 @@ test('buildPayoffQuote returns principal plus mid-cycle actual/365 accrual witho
   assert.equal(quote.total, 200.92);
 });
 
+test('buildPayoffQuote supports legacy loans without startDate by using createdAt', () => {
+  const quote = buildPayoffQuote({
+    loan: {
+      status: 'active',
+      createdAt: '2026-01-01T10:30:00.000Z',
+      interestRate: 12,
+    },
+    schedule: [
+      { installmentNumber: 1, dueDate: '2026-02-01T00:00:00.000Z', remainingPrincipal: 100, remainingInterest: 10 },
+    ],
+    snapshot: {
+      outstandingPrincipal: 100,
+      outstandingBalance: 110,
+    },
+    asOfDate: '2026-01-15',
+  });
+
+  assert.equal(quote.accrualAnchor.date, '2026-01-01');
+  assert.equal(quote.accruedDays, 14);
+  assert.equal(quote.total, 100.46);
+});
+
 test('buildPayoffQuote keeps accrued daily interest at zero on a due date boundary', () => {
   const quote = buildPayoffQuote({
     loan: {

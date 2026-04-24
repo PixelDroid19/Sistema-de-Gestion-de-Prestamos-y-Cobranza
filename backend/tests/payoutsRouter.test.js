@@ -302,7 +302,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     method: 'POST',
     path: '/capital',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-    body: { loanId: 15, amount: 60, strategy: 'REDUCE_QUOTA' },
+    body: { loanId: 15, amount: 60, paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA' },
   });
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
@@ -316,7 +316,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(annulResponse.statusCode, 201);
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
-    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, strategy: 'REDUCE_QUOTA' }],
+    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA' }],
     ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined }],
   ]);
   assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');

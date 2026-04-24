@@ -38,6 +38,19 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   return defaultProduct.id;
 };
 
+const resolveLoanStartDate = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return new Date();
+  }
+
+  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ValidationError('Loan start date must be a valid date');
+  }
+
+  return parsed;
+};
+
 /**
  * Create a loan record from canonical credit calculation data after validating linked records.
  *
@@ -70,6 +83,7 @@ const createLoanFromCanonicalDataFactory = ({
   const calculationExecution = await resolveCreditCalculationExecution({ input, calculationService });
   const calculation = calculationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input, financialProductModel });
+  const startDate = resolveLoanStartDate(input.startDate);
 
   // graphVersionId comes from the execution — the exact graph that produced these numbers
   const dagGraphVersionId = calculationExecution.graphVersionId;
@@ -81,6 +95,7 @@ const createLoanFromCanonicalDataFactory = ({
     ...buildFinancialSnapshot(calculation.schedule),
     ...(calculation.summary || {}),
     calculationMethod: calculation.calculationMethod || 'FRENCH',
+    startDate: startDate.toISOString(),
   };
 
   return loanModel.create({
@@ -91,6 +106,7 @@ const createLoanFromCanonicalDataFactory = ({
     interestRate: input.interestRate,
     termMonths: input.termMonths,
     status: 'pending',
+    startDate,
     lateFeeMode: calculation.lateFeeMode,
     annualLateFeeRate: input.annualLateFeeRate ?? input.lateFeeRate ?? 0,
     emiSchedule: calculation.schedule,

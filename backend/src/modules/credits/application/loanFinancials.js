@@ -53,6 +53,13 @@ const normalizeUtcDateOnly = (value, field = 'date') => {
   ));
 };
 
+const resolveLoanStartDateValue = (loan) => (
+  loan?.startDate
+  || loan?.financialSnapshot?.startDate
+  || loan?.createdAt
+  || loan?.updatedAt
+);
+
 const countElapsedAccrualDays = ({ anchorDate, asOfDate }) => {
   const diffMs = asOfDate.getTime() - anchorDate.getTime();
   if (diffMs <= 0) {
@@ -90,13 +97,13 @@ const resolveAccrualAnchor = ({ loan, schedule, asOfDate }) => {
 
   return {
     source: 'loan_start_date',
-    date: normalizeUtcDateOnly(loan.startDate, 'Loan start date'),
+    date: normalizeUtcDateOnly(resolveLoanStartDateValue(loan), 'Loan start date'),
   };
 };
 
 const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const normalizedAsOfDate = normalizeUtcDateOnly(asOfDate, 'asOfDate');
-  const normalizedStartDate = normalizeUtcDateOnly(loan.startDate, 'Loan start date');
+  const normalizedStartDate = normalizeUtcDateOnly(resolveLoanStartDateValue(loan), 'Loan start date');
 
   if (normalizedAsOfDate.getTime() < normalizedStartDate.getTime()) {
     throw new ValidationError('Payoff effective date must be on or after the loan start date');
@@ -166,7 +173,7 @@ const getCanonicalLoanView = (loan) => {
       amount: loan.amount,
       interestRate: loan.interestRate,
       termMonths: loan.termMonths,
-      startDate: loan.startDate || new Date(),
+      startDate: resolveLoanStartDateValue(loan) || new Date(),
     });
 
   const snapshot = loan.financialSnapshot && Object.keys(loan.financialSnapshot).length > 0

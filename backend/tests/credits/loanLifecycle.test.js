@@ -67,6 +67,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     interestRate: 12,
     termMonths: 12,
     lateFeeMode: 'none',
+    startDate: '2026-04-24',
   });
 
   assert.equal(createdLoan.id, 77);
@@ -74,6 +75,8 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.associateId, 3);
   assert.equal(persistedPayload.financialProductId, 'prod-default');
   assert.equal(persistedPayload.status, 'pending');
+  assert.equal(persistedPayload.startDate.toISOString(), '2026-04-24T00:00:00.000Z');
+  assert.equal(persistedPayload.financialSnapshot.startDate, '2026-04-24T00:00:00.000Z');
   assert.equal(persistedPayload.lateFeeMode, 'NONE');
   assert.equal(persistedPayload.emiSchedule.length, 12);
   assert.equal(persistedPayload.installmentAmount, 1066.19);

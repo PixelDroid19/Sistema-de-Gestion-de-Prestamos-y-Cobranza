@@ -796,7 +796,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <td className="whitespace-nowrap px-3 py-4 text-right text-text-secondary">
                           {credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}
                         </td>
-                        <td className="hidden whitespace-nowrap px-3 py-4 text-right 2xl:table-cell">
+                        <td className="whitespace-nowrap px-3 py-4 text-right">
                           {outstandingAmount > 0 ? (
                             <span className={isDelinquent ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
                               {formatCurrency(outstandingAmount)}
@@ -805,7 +805,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                             <span className="text-text-secondary">-</span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-right">
+                        <td className="hidden whitespace-nowrap px-3 py-4 text-right 2xl:table-cell">
                           {delinquencyPercentage > 0 ? (
                             <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
                               delinquencyPercentage > 50

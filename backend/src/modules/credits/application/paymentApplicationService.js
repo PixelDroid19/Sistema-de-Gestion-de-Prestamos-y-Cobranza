@@ -256,7 +256,7 @@ const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principal
 /**
  * Build capital payment payload (reduces principal directly)
  */
-const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot, strategy }) => ({
+const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot, paymentMethod, strategy }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -267,6 +267,7 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   overpaymentAmount: 0,
   remainingBalanceAfterPayment: snapshot.outstandingBalance,
   allocationBreakdown: [],
+  paymentMethod: paymentMethod || null,
   paymentMetadata: {
     capital_reduction: true,
     strategy: strategy || 'REDUCE_TIME',
@@ -694,7 +695,7 @@ const createPaymentApplicationService = ({
   /**
    * Apply a capital payment (reduces debt principal directly)
    */
-  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), strategy = 'REDUCE_TIME' }) => {
+  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), paymentMethod = null, strategy = 'REDUCE_TIME' }) => {
     return sequelizeInstance.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
@@ -705,6 +706,9 @@ const createPaymentApplicationService = ({
       assertPayableLoanStatus(loan);
 
       const numericAmount = assertPositiveAmount(amount);
+      if (paymentMethod && !VALID_PAYMENT_METHODS.includes(paymentMethod)) {
+        throw new ValidationError('Invalid payment method');
+      }
 
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
       const { schedule: canonicalSchedule, snapshot: canonicalSnapshot } = loanViewService.getCanonicalLoanView(loan);
@@ -752,6 +756,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         principalApplied: principalReduction,
         snapshot,
+        paymentMethod,
         strategy,
       }), { transaction });
 
