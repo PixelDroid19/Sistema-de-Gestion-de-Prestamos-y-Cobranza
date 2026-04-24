@@ -49,10 +49,15 @@
     --border-strong: #475569;
   }
   
-  body {
-    background-color: var(--bg-base);
-    color: var(--text-primary);
-  }
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+}
+
+.field-hint:hover .field-hint-tooltip,
+.field-hint:focus-within .field-hint-tooltip {
+  display: block;
 }
 
 /* Custom styles for react-big-calendar to support dark mode */

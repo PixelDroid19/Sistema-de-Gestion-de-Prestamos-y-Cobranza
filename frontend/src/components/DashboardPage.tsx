@@ -11,7 +11,11 @@ import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
 
-export default function DashboardPage() {
+type DashboardPageProps = {
+  compact?: boolean;
+};
+
+export default function DashboardPage({ compact = false }: DashboardPageProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -98,15 +102,20 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto bg-bg-base p-3 sm:gap-5 sm:p-6 lg:p-8">
+    <div className={compact
+      ? 'flex flex-col gap-3 bg-transparent sm:gap-5'
+      : 'flex h-full flex-col gap-3 overflow-y-auto bg-bg-base p-3 sm:gap-5 sm:p-6 lg:p-8'
+    }>
       {/* Header */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-3xl">
-            Dashboard de formulas
+            {compact ? 'Fórmulas de crédito' : 'Dashboard de formulas'}
           </h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary sm:text-sm sm:leading-6">
-            Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.
+            {compact
+              ? 'Administra la fórmula activa que usarán los créditos nuevos.'
+              : 'Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
           </p>
         </div>
         <button

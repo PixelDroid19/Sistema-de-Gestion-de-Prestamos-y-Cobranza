@@ -6,6 +6,7 @@ import {
   Clock3,
   DollarSign,
   GitCompareArrows,
+  Info,
   Loader2,
   Percent,
   Save,
@@ -97,6 +98,38 @@ const formatScheduleStatus = (status?: string) => {
 
 const getDefaultScenarioName = (savedScenariosCount: number) => `Escenario ${savedScenariosCount + 1}`;
 
+const fieldHelp = {
+  amount: 'Capital a desembolsar antes de intereses y recargos.',
+  rate: 'Porcentaje anual usado para construir la cuota mensual equivalente.',
+  term: 'Número total de cuotas mensuales del cronograma.',
+  startDate: 'Opcional. Si no se define, el servidor usa la fecha actual.',
+  lateFee: 'Política usada para estimar mora futura.',
+  scenarios: 'Guarda resultados para comparar cuota e interés sin registrar un crédito.',
+};
+
+function FieldHint({ id, text }: { id: string; text: string }) {
+  return (
+    <span className="field-hint relative inline-flex">
+      <button
+        type="button"
+        aria-describedby={id}
+        aria-label={text}
+        title={text}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+      >
+        <Info size={12} aria-hidden="true" />
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className="field-hint-tooltip pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-64 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-xs font-normal leading-5 text-text-secondary shadow-lg"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export default function CreditSimulationWorkspace({
   title,
   description,
@@ -129,7 +162,9 @@ export default function CreditSimulationWorkspace({
   const amountHelpId = useId();
   const rateHelpId = useId();
   const termHelpId = useId();
+  const startDateHelpId = useId();
   const lateFeeHelpId = useId();
+  const scenariosHelpId = useId();
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
   const [scenarioName, setScenarioName] = useState('');
   const [isComparisonVisible, setIsComparisonVisible] = useState(false);
@@ -299,18 +334,18 @@ export default function CreditSimulationWorkspace({
                 <Calculator size={16} />
                 Parámetros
               </div>
-              <p className="text-sm leading-6 text-text-secondary">
-                Configura capital, tasa, plazo y política de mora. Los resultados solo se actualizan al ejecutar.
+              <p className="text-sm text-text-secondary">
+                Ajusta datos y ejecuta el cálculo.
               </p>
 
               <div className="grid gap-4">
                 <div>
-                  <label htmlFor={amountInputId} className="block text-sm font-medium text-text-primary">
-                    Monto del crédito
-                  </label>
-                  <p id={amountHelpId} className="mt-1 text-xs leading-5 text-text-secondary">
-                    Capital a desembolsar antes de intereses y recargos.
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor={amountInputId} className="text-sm font-medium text-text-primary">
+                      Monto del crédito
+                    </label>
+                    <FieldHint id={amountHelpId} text={fieldHelp.amount} />
+                  </div>
                   <div className="relative mt-2">
                     <DollarSign size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                     <input
@@ -320,7 +355,7 @@ export default function CreditSimulationWorkspace({
                       inputMode="numeric"
                       value={input.amount}
                       onChange={handleFieldChange('amount')}
-                      aria-describedby={fieldErrors.amount ? `${amountHelpId} ${amountInputId}-error` : amountHelpId}
+                      aria-describedby={fieldErrors.amount ? `${amountInputId}-error` : undefined}
                       aria-invalid={!!fieldErrors.amount}
                       disabled={disabled}
                         className={`w-full rounded-xl border bg-bg-base px-10 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
@@ -335,12 +370,12 @@ export default function CreditSimulationWorkspace({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor={rateInputId} className="block text-sm font-medium text-text-primary">
-                      Tasa nominal anual
-                    </label>
-                    <p id={rateHelpId} className="mt-1 text-xs leading-5 text-text-secondary">
-                      Porcentaje anual usado para construir la cuota mensual equivalente.
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
+                        Tasa nominal anual
+                      </label>
+                      <FieldHint id={rateHelpId} text={fieldHelp.rate} />
+                    </div>
                     <div className="relative mt-2">
                       <input
                         id={rateInputId}
@@ -350,7 +385,7 @@ export default function CreditSimulationWorkspace({
                         inputMode="decimal"
                         value={input.interestRate}
                         onChange={handleFieldChange('interestRate')}
-                        aria-describedby={fieldErrors.interestRate ? `${rateHelpId} ${rateInputId}-error` : rateHelpId}
+                        aria-describedby={fieldErrors.interestRate ? `${rateInputId}-error` : undefined}
                         aria-invalid={!!fieldErrors.interestRate}
                         disabled={disabled}
                         className={`w-full rounded-xl border bg-bg-base px-4 py-3 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
@@ -365,12 +400,12 @@ export default function CreditSimulationWorkspace({
                   </div>
 
                   <div>
-                    <label htmlFor={termInputId} className="block text-sm font-medium text-text-primary">
-                      Plazo en meses
-                    </label>
-                    <p id={termHelpId} className="mt-1 text-xs leading-5 text-text-secondary">
-                      Número total de cuotas mensuales del cronograma.
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={termInputId} className="text-sm font-medium text-text-primary">
+                        Plazo en meses
+                      </label>
+                      <FieldHint id={termHelpId} text={fieldHelp.term} />
+                    </div>
                     <input
                       id={termInputId}
                       type="number"
@@ -378,7 +413,7 @@ export default function CreditSimulationWorkspace({
                       inputMode="numeric"
                       value={input.termMonths}
                       onChange={handleFieldChange('termMonths')}
-                      aria-describedby={fieldErrors.termMonths ? `${termHelpId} ${termInputId}-error` : termHelpId}
+                      aria-describedby={fieldErrors.termMonths ? `${termInputId}-error` : undefined}
                       aria-invalid={!!fieldErrors.termMonths}
                       disabled={disabled}
                        className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
@@ -393,12 +428,12 @@ export default function CreditSimulationWorkspace({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor={startDateInputId} className="block text-sm font-medium text-text-primary">
-                      Fecha de inicio
-                    </label>
-                    <p className="mt-1 text-xs leading-5 text-text-secondary">
-                      Opcional. Si no se define, el backend usa la fecha actual del servidor.
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
+                        Fecha de inicio
+                      </label>
+                      <FieldHint id={startDateHelpId} text={fieldHelp.startDate} />
+                    </div>
                     <input
                       id={startDateInputId}
                       type="date"
@@ -410,17 +445,16 @@ export default function CreditSimulationWorkspace({
                   </div>
 
                   <div>
-                    <label htmlFor={lateFeeInputId} className="block text-sm font-medium text-text-primary">
-                      Modo de mora
-                    </label>
-                    <p id={lateFeeHelpId} className="mt-1 text-xs leading-5 text-text-secondary">
-                      Política que se inyecta a la fórmula para estimar mora futura.
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
+                        Modo de mora
+                      </label>
+                      <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
+                    </div>
                     <select
                       id={lateFeeInputId}
                       value={input.lateFeeMode || 'SIMPLE'}
                       onChange={handleFieldChange('lateFeeMode')}
-                      aria-describedby={lateFeeHelpId}
                       disabled={disabled}
                        className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -457,9 +491,10 @@ export default function CreditSimulationWorkspace({
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                     <GitCompareArrows size={16} />
                     Escenarios guardados
+                    <FieldHint id={scenariosHelpId} text={fieldHelp.scenarios} />
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-text-secondary">
-                    Guarda hasta tres resultados para comparar cuotas, interés total y sensibilidad de la fórmula activa.
+                  <p className="mt-2 text-sm text-text-secondary">
+                    Compara hasta 3 resultados.
                   </p>
 
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row">

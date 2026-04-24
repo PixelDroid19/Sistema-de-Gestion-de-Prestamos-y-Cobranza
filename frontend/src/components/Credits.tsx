@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Calculator, Filter, Eye, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, Download, TrendingUp, DollarSign, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Calculator, Filter, Eye, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, Download, TrendingUp, DollarSign, Users, AlertTriangle, CreditCard, FileText } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -20,6 +20,7 @@ import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
+import DashboardPage from './DashboardPage';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
 
 const locales = {
@@ -539,37 +540,58 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 overflow-x-auto border-b border-border-subtle">
-        <button
-          onClick={() => updateActiveTab('list')}
-          className={`whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Creditos vigentes con saldo o cuotas pendientes"
-        >
-          Creditos vigentes
-        </button>
-        <button
-          onClick={() => updateActiveTab('calendar')}
-          className={`flex items-center gap-2 whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'calendar' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Calendario de cuotas pagadas, pendientes y vencidas"
-        >
-          <CalendarIcon size={16} /> Calendario
-        </button>
-        <button
-          onClick={() => updateActiveTab('simulation')}
-          className={`whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Previsualiza cuota, interes total y cronograma estimado"
-        >
-          Previsualizar
-        </button>
-        {isFormulasAvailable && (
-          <button
-            onClick={() => updateActiveTab('formulas')}
-            className={`flex items-center gap-2 whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'formulas' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-            title="Editor de la fórmula operativa que gobierna créditos nuevos"
-          >
-            <Calculator size={16} /> Fórmulas
-          </button>
-        )}
+      <div className="border-b border-border-subtle pb-3 md:overflow-x-auto md:pb-0">
+        <div className="grid grid-cols-2 gap-2 md:flex md:min-w-max md:items-end">
+          {[
+            {
+              id: 'list',
+              label: 'Créditos vigentes',
+              title: 'Créditos con saldo o cuotas pendientes',
+              icon: CreditCard,
+            },
+            {
+              id: 'calendar',
+              label: 'Calendario',
+              title: 'Calendario de cuotas pagadas, pendientes y vencidas',
+              icon: CalendarIcon,
+            },
+            {
+              id: 'simulation',
+              label: 'Previsualizar',
+              title: 'Previsualiza cuota, interés total y cronograma estimado',
+              icon: Calculator,
+            },
+            ...(isFormulasAvailable
+              ? [{
+                  id: 'formulas',
+                  label: 'Fórmulas',
+                  title: 'Fórmula operativa que gobierna créditos nuevos',
+                  icon: FileText,
+                }]
+              : []),
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => updateActiveTab(tab.id)}
+                className={`inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-3 text-sm font-semibold transition-colors md:h-12 md:rounded-t-xl md:border-x-0 md:border-t-0 md:border-b-2 md:px-3.5 ${
+                  isActive
+                    ? 'border-brand-primary bg-brand-primary/10 text-brand-primary md:bg-bg-surface'
+                    : 'border-border-subtle bg-bg-surface text-text-secondary hover:bg-hover-bg hover:text-text-primary md:border-transparent md:bg-transparent'
+                }`}
+                title={tab.title}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeTab === 'list' && (
@@ -1137,7 +1159,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       <div className={activeTab === 'simulation' ? '' : 'hidden'}>
         <CreditSimulationWorkspace
           title="Previsualizar crédito"
-          description="Usa la fórmula activa que crea créditos nuevos. Ajusta capital, tasa, plazo y política de mora para revisar cuota, costo financiero y cronograma antes de originar."
+          description="Calcula un crédito con la fórmula activa antes de registrarlo."
           modeLabel="Fórmula activa"
           actionLabel="Calcular"
           input={simulationInput}
@@ -1149,12 +1171,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           onInputChange={setSimulationInput}
           onSimulate={runSimulation}
           showScenarioTools
-          helperText="Esta previsualización ejecuta la fórmula activa en producción. Si editas la fórmula en el Editor, compara aquí contra la versión activa antes de publicar cambios."
+          helperText="Usa la misma fórmula activa que se aplicará al crear créditos nuevos."
           resultBadge={simulationResult?.graphVersionId != null ? `Fórmula v${simulationResult.graphVersionId}` : null}
           emptyTitle="Listo para proyectar un crédito"
           emptyDescription="Completa los parámetros y ejecuta el cálculo para revisar cuota estimada, interés total y cronograma mensual."
         />
       </div>
+
+      {activeTab === 'formulas' && isFormulasAvailable && (
+        <DashboardPage compact />
+      )}
 
     </div>
   );
