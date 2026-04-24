@@ -1,6 +1,6 @@
 import type { LateFeeMode } from '../types/dag';
 
-export type FormulaValueKind = 'currency' | 'percent' | 'integer' | 'mode' | 'date' | 'number';
+export type FormulaValueKind = 'currency' | 'percent' | 'integer' | 'mode' | 'date' | 'number' | 'formulaMethod';
 
 export interface FormulaOption {
   key: string;
@@ -50,6 +50,12 @@ export const FORMULA_INPUT_OPTIONS: FormulaOption[] = [
 
 export const FORMULA_TARGET_OPTIONS: FormulaOption[] = [
   {
+    key: 'calculationMethod',
+    label: 'Metodo de calculo',
+    description: 'Define si la cuota se calcula con sistema frances, interes simple o interes compuesto.',
+    valueKind: 'formulaMethod',
+  },
+  {
     key: 'lateFeeMode',
     label: 'Politica de mora',
     description: 'Define como se calcularan cargos por atraso.',
@@ -95,10 +101,10 @@ export const FORMULA_FLOW_STEPS = [
     editableTarget: 'termMonths',
   },
   {
-    key: 'installmentAmount',
-    label: 'Cuota de cobro',
-    description: 'Permite fijar una cuota o dejar que el sistema la calcule.',
-    editableTarget: 'installmentAmount',
+    key: 'calculationMethod',
+    label: 'Formula de cuota',
+    description: 'Define el metodo financiero que calcula la cuota.',
+    editableTarget: 'calculationMethod',
   },
   {
     key: 'lateFeeMode',
@@ -133,6 +139,11 @@ const OPTION_BY_KEY = new Map(
 );
 
 const LATE_FEE_MODE_BY_KEY = new Map(LATE_FEE_MODE_OPTIONS.map((option) => [option.key, option.label]));
+const CALCULATION_METHOD_LABELS = new Map([
+  ['FRENCH', 'Sistema frances'],
+  ['SIMPLE', 'Interes simple'],
+  ['COMPOUND', 'Interes compuesto'],
+]);
 
 export const getFormulaVariableLabel = (key: string): string => OPTION_BY_KEY.get(key)?.label || key;
 
@@ -155,6 +166,10 @@ export const getFormulaValueLabel = (value: string | undefined, outputVar?: stri
     const mode = normalizeModeValue(raw);
     return LATE_FEE_MODE_BY_KEY.get(mode as LateFeeMode) || mode;
   }
+  if (outputVar === 'calculationMethod') {
+    const method = raw.replace(/^['"]|['"]$/g, '') || 'FRENCH';
+    return CALCULATION_METHOD_LABELS.get(method) || method;
+  }
 
   return raw || '0';
 };
@@ -164,6 +179,7 @@ export const getInputKindLabel = (valueKind: FormulaValueKind): string => {
   if (valueKind === 'percent') return 'Porcentaje';
   if (valueKind === 'integer') return 'Entero';
   if (valueKind === 'mode') return 'Opcion';
+  if (valueKind === 'formulaMethod') return 'Metodo';
   if (valueKind === 'date') return 'Fecha';
   return 'Numero';
 };

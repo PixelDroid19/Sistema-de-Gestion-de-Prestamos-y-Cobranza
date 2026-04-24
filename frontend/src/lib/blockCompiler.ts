@@ -12,11 +12,16 @@
 //   GET /api → DagGraph → decompileGraphToContainers() → UI blocks (no pipeline)
 
 import type { BlockDefinition, FormulaContainer, DagGraph, DagNode, DagEdge } from '../types/dag';
+import {
+  FRENCH_INSTALLMENT_FORMULA,
+  findCreditFormulaTemplate,
+  getFormulaFromBlock,
+} from './creditFormulaTemplates';
 
 // ── Pipeline node IDs that are auto-generated (never shown in editor) ─────────
 const PIPELINE_NODE_IDS = new Set([
   'input_amount', 'input_rate', 'input_term', 'input_startDate', 'input_lateFeeMode',
-  'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
+  'calculation_method', 'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
   'amortization_schedule', 'financial_summary', 'credit_result',
   'schedule_node', 'summary_node', 'result', 'schedule', 'summary',
 ]);
@@ -35,21 +40,22 @@ function getFallbackExpressionForTarget(outputVar?: string): string {
   if (outputVar === 'interestRate') return 'interestRate';
   if (outputVar === 'termMonths') return 'termMonths';
   if (outputVar === 'lateFeeMode') return 'lateFeeMode';
+  if (outputVar === 'calculationMethod') return 'calculationMethod';
   if (outputVar === 'installmentAmount') return '0';
   return '0';
 }
 
 function normalizeConditionalValue(value: string | undefined, outputVar?: string): string {
   const raw = String(value ?? '').trim();
-  if (String(outputVar || '').trim() !== 'lateFeeMode') {
+  if (!['lateFeeMode', 'calculationMethod'].includes(String(outputVar || '').trim())) {
     return raw || '0';
   }
 
-  if (raw === 'lateFeeMode') {
+  if (raw === outputVar) {
     return raw;
   }
 
-  const fallback = 'NONE';
+  const fallback = outputVar === 'calculationMethod' ? 'FRENCH' : 'NONE';
   const normalized = raw || fallback;
   const isQuoted = /^'.*'$/.test(normalized) || /^".*"$/.test(normalized);
   if (isQuoted) return normalized;
@@ -97,7 +103,7 @@ function compileContainer(container: FormulaContainer): DagNode[] {
       id: `formula_${container.id}`,
       kind: 'formula',
       label: container.label,
-      formula: expressions.map((b) => b.label || '').filter(Boolean).join(' ') || '0',
+      formula: expressions.map((b) => getFormulaFromBlock(b)).filter(Boolean).join(' ') || '0',
       outputVar: container.outputVar,
     }];
   }
@@ -116,13 +122,14 @@ function getCreditCalculationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } 
     { id: 'input_term', kind: 'constant', label: 'Plazo', outputVar: 'termMonths' },
     { id: 'input_startDate', kind: 'constant', label: 'Fecha inicio', outputVar: 'startDate' },
     { id: 'input_lateFeeMode', kind: 'constant', label: 'Modo de mora', outputVar: 'lateFeeMode' },
+    { id: 'calculation_method', kind: 'formula', label: 'Metodo de calculo', formula: "'FRENCH'", outputVar: 'calculationMethod' },
     { id: 'monthly_rate', kind: 'formula', label: 'Tasa mensual', formula: 'interestRate / 100 / 12', outputVar: 'monthlyRate' },
-    { id: 'installment_amount', kind: 'formula', label: 'Cuota mensual', formula: 'monthlyRate == 0 ? round(amount / termMonths, 2) : round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2)', outputVar: 'installmentAmount' },
+    { id: 'installment_amount', kind: 'formula', label: 'Cuota mensual', formula: FRENCH_INSTALLMENT_FORMULA, outputVar: 'installmentAmount' },
     { id: 'total_payable', kind: 'formula', label: 'Total a pagar', formula: 'round(installmentAmount * termMonths, 2)', outputVar: 'totalPayable' },
     { id: 'total_interest', kind: 'formula', label: 'Total intereses', formula: 'round(totalPayable - amount, 2)', outputVar: 'totalInterest' },
-    { id: 'amortization_schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount)', outputVar: 'schedule' },
+    { id: 'amortization_schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount, calculationMethod)', outputVar: 'schedule' },
     { id: 'financial_summary', kind: 'formula', label: 'Resumen financiero', formula: 'summarizeSchedule(schedule)', outputVar: 'summary' },
-    { id: 'credit_result', kind: 'output', label: 'Resultado del credito', formula: 'buildCreditResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
+    { id: 'credit_result', kind: 'output', label: 'Resultado del credito', formula: 'buildCreditResult(lateFeeMode, schedule, summary, calculationMethod)', outputVar: 'result' },
   ];
 
   const edges: DagEdge[] = [
@@ -139,9 +146,11 @@ function getCreditCalculationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } 
     { source: 'input_term', target: 'amortization_schedule' },
     { source: 'input_startDate', target: 'amortization_schedule' },
     { source: 'input_lateFeeMode', target: 'amortization_schedule' },
+    { source: 'calculation_method', target: 'amortization_schedule' },
     { source: 'installment_amount', target: 'amortization_schedule' },
     { source: 'amortization_schedule', target: 'financial_summary' },
     { source: 'input_lateFeeMode', target: 'credit_result' },
+    { source: 'calculation_method', target: 'credit_result' },
     { source: 'amortization_schedule', target: 'credit_result' },
     { source: 'financial_summary', target: 'credit_result' },
   ];
@@ -256,7 +265,7 @@ export function decompileGraphToContainers(graph: DagGraph): FormulaContainer[] 
     if (helperMatch && DOMAIN_HELPERS.has(helperMatch[1])) continue;
 
     // Parse the formula back into visual blocks
-    const blocks = parseFormulaToBlocks(formula);
+    const blocks = parseFormulaToBlocks(formula, node.outputVar, node.label);
 
     containers.push({
       id: node.id.replace(/^(conditional_|formula_)/, ''),
@@ -271,7 +280,7 @@ export function decompileGraphToContainers(graph: DagGraph): FormulaContainer[] 
 
 // ── Formula → Blocks parser ───────────────────────────────────────────────────
 
-function parseFormulaToBlocks(formula: string): BlockDefinition[] {
+function parseFormulaToBlocks(formula: string, outputVar?: string, nodeLabel?: string): BlockDefinition[] {
   if (!formula) return [];
 
   const trimmed = formula.trim();
@@ -281,7 +290,17 @@ function parseFormulaToBlocks(formula: string): BlockDefinition[] {
     return blocks;
   }
 
-  return [{ id: generateBlockId('expr'), kind: 'expression', label: formula }];
+  const template = outputVar === 'calculationMethod' || outputVar === 'installmentAmount'
+    ? findCreditFormulaTemplate(trimmed)
+    : null;
+
+  return [{
+    id: generateBlockId('expr'),
+    kind: 'expression',
+    label: template?.name || nodeLabel || formula,
+    formula,
+    templateKey: template?.key,
+  }];
 }
 
 function parseConditionalFormula(formula: string, blocks: BlockDefinition[], isFirst: boolean): boolean {

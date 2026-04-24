@@ -12,6 +12,7 @@ import {
   getFormulaValueLabel,
   getFormulaVariableLabel,
 } from '../lib/formulaDisplay';
+import { findCreditFormulaTemplate, getFormulaFromBlock } from '../lib/creditFormulaTemplates';
 
 // ── Color Tokens ──────────────────────────────────────────────────────────────
 
@@ -301,39 +302,65 @@ function ExpressionBlockRow({
   isSelected,
   onSelect,
   onDelete,
+  outputVar,
 }: {
   block: BlockDefinition;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  outputVar?: string;
 }) {
+  const template = outputVar === 'calculationMethod' || outputVar === 'installmentAmount'
+    ? findCreditFormulaTemplate(getFormulaFromBlock(block), block.templateKey)
+    : null;
+
   return (
     <div
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
       style={{
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
+        flexDirection: 'column',
+        alignItems: 'stretch',
         gap: '8px',
-        padding: '10px 12px',
+        padding: '12px',
         borderRadius: '8px',
         border: `1px solid ${isSelected ? COLORS.block.activeBorder : '#dee1ea'}`,
-        backgroundColor: '#f8f9ff',
+        backgroundColor: template ? '#f0fdfa' : '#f8f9ff',
         cursor: 'pointer',
         transition: 'border-color 0.15s',
         position: 'relative',
       }}
     >
-      <span
-        style={{
-          fontSize: '12px',
-          fontFamily: "'JetBrains Mono', monospace",
-          color: '#5a6271',
-          fontStyle: 'italic',
-        }}
-      >
-        {block.label || 'Expression'}
-      </span>
+      {template ? (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#0f172a' }}>{template.name}</div>
+              <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4, marginTop: 3 }}>{template.useCase}</div>
+            </div>
+            {template.badge && (
+              <span style={{ borderRadius: 999, background: '#dcfce7', color: '#166534', padding: '3px 7px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                {template.badge}
+              </span>
+            )}
+          </div>
+          <div style={{ border: '1px solid #99f6e4', background: '#ffffff', color: '#0f766e', borderRadius: 8, padding: '8px 10px', fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" }}>
+            {template.equation}
+          </div>
+        </>
+      ) : (
+        <span
+          style={{
+            fontSize: '12px',
+            fontFamily: "'JetBrains Mono', monospace",
+            color: '#5a6271',
+            fontStyle: 'italic',
+            wordBreak: 'break-word',
+          }}
+        >
+          {block.label || block.formula || 'Formula'}
+        </span>
+      )}
       {isSelected && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -456,6 +483,7 @@ export function LogicBlock({ block, isSelected, onSelect, onDelete, outputVar }:
           isSelected={isSelected}
           onSelect={onSelect}
           onDelete={onDelete}
+          outputVar={outputVar}
         />
       );
     default:

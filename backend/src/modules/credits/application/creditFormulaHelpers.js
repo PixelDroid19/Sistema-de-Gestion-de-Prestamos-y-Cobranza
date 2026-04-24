@@ -43,27 +43,97 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
   return roundCurrency(installment);
 };
 
+const normalizeCalculationMethod = (value) => {
+  const method = String(value || 'FRENCH').trim().replace(/^['"]|['"]$/g, '').toUpperCase();
+  if (['FRENCH', 'SIMPLE', 'COMPOUND'].includes(method)) {
+    return method;
+  }
+  return 'FRENCH';
+};
+
+const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate }) => {
+  const principal = roundCurrency(amount);
+  const interestTotal = roundCurrency(Math.max(0, Number(totalInterest) || 0));
+  const term = Number(termMonths);
+  const schedule = [];
+  const scheduleStartDate = resolveScheduleStartDate(startDate);
+  const basePrincipal = term > 0 ? roundCurrency(principal / term) : 0;
+  const baseInterest = term > 0 ? roundCurrency(interestTotal / term) : 0;
+  let balance = principal;
+  let allocatedInterest = 0;
+
+  for (let month = 1; month <= term; month += 1) {
+    const openingBalance = balance;
+    const principalComponent = month === term
+      ? roundCurrency(openingBalance)
+      : roundCurrency(Math.min(openingBalance, basePrincipal));
+    const interestComponent = month === term
+      ? roundCurrency(Math.max(0, interestTotal - allocatedInterest))
+      : baseInterest;
+    const scheduledPayment = roundCurrency(principalComponent + interestComponent);
+    allocatedInterest = roundCurrency(allocatedInterest + interestComponent);
+    balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
+
+    schedule.push({
+      installmentNumber: month,
+      dueDate: addMonths(scheduleStartDate, month).toISOString(),
+      openingBalance,
+      scheduledPayment,
+      principalComponent,
+      interestComponent,
+      paidPrincipal: 0,
+      paidInterest: 0,
+      paidTotal: 0,
+      remainingPrincipal: principalComponent,
+      remainingInterest: interestComponent,
+      remainingBalance: balance,
+      status: 'pending',
+    });
+  }
+
+  return schedule;
+};
+
 /**
  * Create canonical amortization rows for a loan.
  * @param {{ amount: number, interestRate: number, termMonths: number, startDate?: Date|string }} input
  * @returns {Array<object>}
  */
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode, installmentAmount }) => {
+const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode, installmentAmount, calculationMethod }) => {
+  const method = normalizeCalculationMethod(calculationMethod);
+  const principal = Number(amount);
+  const term = Number(termMonths);
+  const annualRate = Number(interestRate) / 100;
+  const monthlyRate = annualRate / 12;
+
+  if (!term || term <= 0) {
+    return [];
+  }
+
+  if (method === 'SIMPLE') {
+    const totalInterest = roundCurrency(principal * annualRate * (term / 12));
+    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate });
+  }
+
+  if (method === 'COMPOUND') {
+    const totalInterest = roundCurrency(principal * (Math.pow(1 + monthlyRate, term) - 1));
+    return buildLevelTotalSchedule({ amount, totalInterest, termMonths, startDate });
+  }
+
   const customInstallmentAmount = Number(installmentAmount);
   const resolvedInstallmentAmount = Number.isFinite(customInstallmentAmount) && customInstallmentAmount > 0
     ? roundCurrency(customInstallmentAmount)
     : calculateInstallmentAmount({ amount, interestRate, termMonths });
   const schedule = [];
-  const monthlyRate = Number(interestRate) / 100 / 12;
   const scheduleStartDate = resolveScheduleStartDate(startDate);
   let balance = roundCurrency(amount);
 
-  for (let month = 1; month <= Number(termMonths); month += 1) {
+  for (let month = 1; month <= term; month += 1) {
     const openingBalance = balance;
     const interestComponent = monthlyRate === 0
       ? 0
       : roundCurrency(openingBalance * monthlyRate);
-    const principalComponent = month === Number(termMonths)
+    const principalComponent = month === term
       ? roundCurrency(openingBalance)
       : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - interestComponent)));
     const scheduledPayment = roundCurrency(principalComponent + interestComponent);

@@ -5,6 +5,7 @@ import {
   Undo2, Redo2, ZoomIn, ZoomOut, Save, Play, ChevronLeft,
   Plus, GripVertical, GitBranch, Trash2, Power, LockKeyhole,
   ShieldCheck, ArrowRight, CheckCircle2, ListChecks, SlidersHorizontal,
+  Calculator, BookOpen,
 } from 'lucide-react';
 import { useBlockEditorStore, generateBlockId } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
@@ -25,6 +26,14 @@ import {
   getInputKindLabel,
   normalizeModeValue,
 } from '../lib/formulaDisplay';
+import {
+  CREDIT_FORMULA_REFERENCE,
+  CREDIT_FORMULA_TEMPLATES,
+  FRENCH_INSTALLMENT_FORMULA,
+  findCreditFormulaTemplate,
+  getFormulaFromBlock,
+  type CreditFormulaTemplate,
+} from '../lib/creditFormulaTemplates';
 
 const MD3 = {
   surface: '#f8f9ff', onSurface: '#0b1c30', onSurfaceVariant: '#5a6271',
@@ -48,6 +57,7 @@ const sty = {
 
 function getDefaultValueForTarget(outputVar = 'lateFeeMode'): string {
   if (outputVar === 'lateFeeMode') return 'SIMPLE';
+  if (outputVar === 'calculationMethod') return 'FRENCH';
   if (outputVar === 'interestRate') return '60';
   if (outputVar === 'termMonths') return '12';
   if (outputVar === 'installmentAmount') return '200000';
@@ -56,6 +66,7 @@ function getDefaultValueForTarget(outputVar = 'lateFeeMode'): string {
 
 function getDefaultElseValueForTarget(outputVar = 'lateFeeMode'): string {
   if (outputVar === 'lateFeeMode') return 'NONE';
+  if (outputVar === 'calculationMethod') return 'calculationMethod';
   if (outputVar === 'interestRate') return 'interestRate';
   if (outputVar === 'termMonths') return 'termMonths';
   return '0';
@@ -96,6 +107,16 @@ function createDefaultContainerForTarget(outputVar = 'lateFeeMode'): FormulaCont
   }
 
   return container;
+}
+
+function createTemplateBlock(template: CreditFormulaTemplate): BlockDefinition {
+  return {
+    id: generateBlockId(`formula_${template.key}`),
+    kind: 'expression',
+    label: template.name,
+    formula: template.formula,
+    templateKey: template.key,
+  };
 }
 
 export default function FormulaEditorPage() {
@@ -239,7 +260,37 @@ export default function FormulaEditorPage() {
     store.selectBlock(null);
   };
 
+  const applyCreditFormulaTemplate = (template: CreditFormulaTemplate) => {
+    const existing = containers.find((container) => container.outputVar === template.outputVar);
+    const nextBlock = createTemplateBlock(template);
+    const nextContainer: FormulaContainer = {
+      id: existing?.id || generateBlockId(`container_${template.key}`),
+      label: template.name,
+      outputVar: template.outputVar,
+      blocks: [nextBlock],
+    };
+
+    store.setContainers(existing
+      ? containers.map((container) => (container.id === existing.id ? nextContainer : container))
+      : [...containers, nextContainer]);
+    setSelectedContainerId(nextContainer.id);
+    store.selectBlock(nextBlock.id);
+    setShowValidationPanel(false);
+  };
+
   const handleAddTargetRule = (outputVar: string) => {
+    if (outputVar === 'calculationMethod') {
+      const existing = containers.find((container) => container.outputVar === outputVar);
+      if (existing) {
+        setSelectedContainerId(existing.id);
+        store.selectBlock(null);
+        setShowValidationPanel(false);
+        return;
+      }
+      applyCreditFormulaTemplate(CREDIT_FORMULA_TEMPLATES[0]);
+      return;
+    }
+
     const existing = containers.find((container) => container.outputVar === outputVar);
     if (existing) {
       if (existing.blocks.length === 0) {
@@ -350,6 +401,16 @@ export default function FormulaEditorPage() {
   ];
   const configuredContainers = containers.filter((container) => container.blocks.length > 0);
   const configuredOutputVars = new Set(configuredContainers.map((container) => container.outputVar));
+  const calculationMethodContainer = containers.find((container) => container.outputVar === 'calculationMethod') || null;
+  const calculationMethodExpressionBlock = calculationMethodContainer?.blocks.find((block) => block.kind === 'expression') || null;
+  const installmentContainer = containers.find((container) => container.outputVar === 'installmentAmount') || null;
+  const activeCreditFormulaTemplate = findCreditFormulaTemplate(
+    calculationMethodExpressionBlock ? getFormulaFromBlock(calculationMethodExpressionBlock) : FRENCH_INSTALLMENT_FORMULA,
+    calculationMethodExpressionBlock?.templateKey,
+  );
+  const hasConditionalInstallmentRule = Boolean(
+    installmentContainer?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf' || block.kind === 'else'),
+  );
   const lockedText = isLockedByCredits
     ? `${usageCount} credito${usageCount === 1 ? '' : 's'} ya usan esta version. Sus condiciones quedan congeladas.`
     : 'Esta version aun no esta asociada a creditos.';
@@ -520,12 +581,114 @@ export default function FormulaEditorPage() {
           onClick={() => { store.selectBlock(null); setSelectedContainerId(null); }}>
           {/* Canvas content */}
           <div className="formula-editor-canvas-content" style={{ padding: '32px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <div className="formula-method-card" style={{ width: 'min(100%, 980px)', minWidth: 620, backgroundColor: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
+                    <Calculator size={18} color={MD3.secondary} />
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>Formula financiera de la cuota</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: MD3.onSurfaceVariant, lineHeight: 1.45, marginTop: 5 }}>
+                    Esta eleccion define la cuota real del credito nuevo. Las reglas de abajo solo son excepciones o ajustes por condicion.
+                  </div>
+                </div>
+                <div style={{ borderRadius: 999, padding: '6px 10px', background: hasConditionalInstallmentRule ? '#fff8e1' : '#e8f5e9', color: hasConditionalInstallmentRule ? '#8a5a00' : '#1b5e20', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  {hasConditionalInstallmentRule ? 'Cuota por condiciones' : activeCreditFormulaTemplate?.shortName || 'Sistema base'}
+                </div>
+              </div>
+
+              <div className="formula-method-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+                {CREDIT_FORMULA_TEMPLATES.map((template) => {
+                  const isSelected = !hasConditionalInstallmentRule && activeCreditFormulaTemplate?.key === template.key;
+                  return (
+                    <button
+                      key={template.key}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        applyCreditFormulaTemplate(template);
+                      }}
+                      className="formula-method-option"
+                      style={{
+                        textAlign: 'left',
+                        borderRadius: 12,
+                        border: `2px solid ${isSelected ? MD3.secondary : MD3.outlineVariant}`,
+                        background: isSelected ? '#eef7fb' : '#ffffff',
+                        color: MD3.onSurface,
+                        padding: 14,
+                        cursor: 'pointer',
+                        minHeight: 156,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 900 }}>{template.name}</div>
+                          <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, marginTop: 2 }}>{template.shortName}</div>
+                        </div>
+                        {template.badge && (
+                          <span style={{ alignSelf: 'flex-start', borderRadius: 999, background: '#dcfce7', color: '#166534', padding: '3px 7px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase' }}>
+                            {template.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ border: `1px solid ${isSelected ? '#90cdf4' : MD3.outlineVariant}`, background: MD3.surface, borderRadius: 8, padding: '8px 10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MD3.onSurface }}>
+                        {template.equation}
+                      </div>
+                      <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.4 }}>{template.useCase}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeCreditFormulaTemplate && !hasConditionalInstallmentRule && (
+                <div className="formula-method-summary" style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 10 }}>
+                  <div style={{ border: `1px solid ${MD3.outlineVariant}`, background: MD3.surface, borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: MD3.onSurface, marginBottom: 4 }}>
+                      {activeCreditFormulaTemplate.name}: que cambia en el credito
+                    </div>
+                    <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45 }}>
+                      {activeCreditFormulaTemplate.description}
+                    </div>
+                  </div>
+                  <div style={{ border: `1px solid ${MD3.outlineVariant}`, background: '#ffffff', borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: MD3.onSurfaceVariant, textTransform: 'uppercase', marginBottom: 6 }}>Variables</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {activeCreditFormulaTemplate.variables.slice(0, 4).map((item) => (
+                        <div key={item.symbol} style={{ display: 'flex', gap: 8, fontSize: 12, color: MD3.onSurfaceVariant }}>
+                          <strong style={{ color: MD3.onSurface, minWidth: 18 }}>{item.symbol}</strong>
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <details className="formula-reference-list" style={{ marginTop: 12 }}>
+                <summary style={{ cursor: 'pointer', color: MD3.secondary, fontSize: 13, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <BookOpen size={14} /> Ver otras formulas financieras
+                </summary>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                  {CREDIT_FORMULA_REFERENCE.map((item) => (
+                    <div key={item.name} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 10, background: MD3.surface, padding: 10 }}>
+                      <div style={{ fontWeight: 900, color: MD3.onSurface, fontSize: 12 }}>{item.name}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", color: MD3.secondary, fontSize: 11, fontWeight: 800, marginTop: 5 }}>{item.equation}</div>
+                      <div style={{ color: MD3.onSurfaceVariant, fontSize: 11, lineHeight: 1.35, marginTop: 5 }}>{item.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+
             <div className="formula-editor-workflow-card" style={{ width: 'min(100%, 980px)', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: MD3.onSurface }}>Flujo real del credito</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: MD3.onSurface }}>Ajustes opcionales del credito</div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, marginTop: 2 }}>
-                    Toca una etapa marcada con "Editar" para agregar o revisar una regla.
+                    Usa estas etapas solo cuando una condicion de negocio deba cambiar tasa, plazo, mora o cuota.
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
@@ -592,37 +755,10 @@ export default function FormulaEditorPage() {
                     <ListChecks size={18} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: MD3.onSurface }}>Esta version usa el calculo base del sistema.</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: MD3.onSurface }}>Sin ajustes adicionales.</div>
                     <div style={{ fontSize: 13, color: MD3.onSurfaceVariant, lineHeight: 1.45, marginTop: 4 }}>
-                      No hay condiciones personalizadas todavia. Puedes dejarla asi o crear una regla para cambiar tasa, plazo, cuota o politica de mora en los creditos nuevos.
-                    </div>
-                    <div className="formula-empty-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-                      {FORMULA_TARGET_OPTIONS.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleAddTargetRule(option.key);
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            border: `1px solid ${MD3.outlineVariant}`,
-                            background: configuredOutputVars.has(option.key) ? '#eef7fb' : '#ffffff',
-                            color: MD3.onSurface,
-                            borderRadius: 10,
-                            padding: '9px 11px',
-                            fontSize: 13,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Plus size={14} color={MD3.secondary} />
-                          Ajustar {option.label.toLowerCase()}
-                        </button>
-                      ))}
+                      El credito usara la formula financiera seleccionada arriba y la politica normal del sistema.
+                      Crea ajustes solo si necesitas excepciones por monto, tasa, plazo o mora.
                     </div>
                   </div>
                 </div>
@@ -645,7 +781,39 @@ export default function FormulaEditorPage() {
           {/* Properties */}
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
-              <div style={{ ...sty.heading, marginBottom: 12 }}>Editar decision</div>
+              <div style={{ ...sty.heading, marginBottom: 12 }}>
+                {selectedBlock.block.kind === 'expression' ? 'Formula aplicada' : 'Editar decision'}
+              </div>
+              {selectedBlock.block.kind === 'expression' && (() => {
+                const template = selectedBlockContainer?.outputVar === 'calculationMethod' || selectedBlockContainer?.outputVar === 'installmentAmount'
+                  ? findCreditFormulaTemplate(getFormulaFromBlock(selectedBlock.block), selectedBlock.block.templateKey)
+                  : null;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {template ? (
+                      <>
+                        <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, background: MD3.surface }}>
+                          <div style={{ color: MD3.onSurface, fontSize: 16, fontWeight: 900 }}>{template.name}</div>
+                          <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45, marginTop: 5 }}>{template.description}</div>
+                          <div style={{ marginTop: 10, borderRadius: 8, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, padding: '8px 10px', color: MD3.secondary, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 900 }}>
+                            {template.equation}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.45 }}>
+                          Cambia de metodo desde las tarjetas de formula financiera. Validar muestra la cuota y el costo total antes de guardar.
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, background: MD3.surface, color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45 }}>
+                        Esta regla viene de una formula avanzada. Se mantiene para no alterar creditos existentes, pero las nuevas formulas deben elegirse desde la biblioteca financiera.
+                      </div>
+                    )}
+                    <button onClick={() => handleDeleteBlock(selectedBlock.containerId, selectedBlock.block.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center' }}>
+                      <Trash2 size={14} /> Quitar formula aplicada
+                    </button>
+                  </div>
+                );
+              })()}
               {(selectedBlock.block.kind === 'if' || selectedBlock.block.kind === 'elseIf') && selectedBlock.block.condition && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Cuando</label>

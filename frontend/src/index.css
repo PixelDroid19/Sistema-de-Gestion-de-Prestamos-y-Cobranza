@@ -209,7 +209,8 @@
 }
 
 .formula-editor-workflow-card,
-.formula-editor-empty-guide {
+.formula-editor-empty-guide,
+.formula-method-card {
   width: min(100%, 960px) !important;
   min-width: 0 !important;
 }
@@ -225,6 +226,15 @@
 
 .formula-flow-step:not(:disabled):hover {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.formula-method-option {
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.formula-method-option:hover {
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
 }
 
@@ -363,6 +373,16 @@
 
   .formula-editor-empty-guide {
     padding: 14px !important;
+  }
+
+  .formula-method-card {
+    padding: 14px !important;
+  }
+
+  .formula-method-grid,
+  .formula-method-summary,
+  .formula-reference-list > div {
+    grid-template-columns: 1fr !important;
   }
 
   .formula-empty-actions {

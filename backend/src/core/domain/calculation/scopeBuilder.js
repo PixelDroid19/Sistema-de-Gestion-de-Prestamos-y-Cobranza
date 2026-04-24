@@ -44,7 +44,7 @@ const buildInitialScope = (contractVars = {}) => {
     if (args.length === 1 && typeof args[0] === 'object' && !Array.isArray(args[0])) {
       return buildAmortizationSchedule(args[0]);
     }
-    const [a, r, t, sd, lfm, installmentAmount] = args;
+    const [a, r, t, sd, lfm, installmentAmount, calculationMethod] = args;
     return buildAmortizationSchedule({
       amount: typeof a === 'object' && a?.toNumber ? a.toNumber() : Number(a),
       interestRate: typeof r === 'object' && r?.toNumber ? r.toNumber() : Number(r),
@@ -54,6 +54,9 @@ const buildInitialScope = (contractVars = {}) => {
       installmentAmount: typeof installmentAmount === 'object' && installmentAmount?.toNumber
         ? installmentAmount.toNumber()
         : installmentAmount,
+      calculationMethod: typeof calculationMethod === 'object' && calculationMethod?.toString
+        ? calculationMethod.toString()
+        : calculationMethod,
     });
   };
   scope.summarizeSchedule = summarizeSchedule;
@@ -65,8 +68,9 @@ const buildInitialScope = (contractVars = {}) => {
    * mathjs cannot construct `{ key: value }` literals, so graph output nodes
    * call this helper with positional args.
    */
-  const buildCreditResult = (lfm, sched, summ) => ({
+  const buildCreditResult = (lfm, sched, summ, calculationMethod) => ({
     lateFeeMode: lfm,
+    calculationMethod,
     schedule: sched,
     summary: summ,
   });

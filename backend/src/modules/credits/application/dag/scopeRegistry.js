@@ -92,6 +92,14 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
         // ── Mathematical formulas (visible in the workbench) ──────────────────
         {
+          id: 'calculation_method',
+          kind: 'formula',
+          label: 'Metodo de calculo',
+          description: 'Metodo financiero usado para construir el cronograma.',
+          formula: "'FRENCH'",
+          outputVar: 'calculationMethod',
+        },
+        {
           id: 'monthly_rate',
           kind: 'formula',
           label: 'Tasa mensual',
@@ -130,7 +138,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           kind: 'formula',
           label: 'Cronograma canonico',
           description: 'Genera la tabla de amortizacion mes a mes.',
-          formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount)',
+          formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount, calculationMethod)',
           outputVar: 'schedule',
         },
         {
@@ -148,7 +156,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           kind: 'output',
           label: 'Resultado del credito',
           description: 'Expone el resultado usado por la originacion y por cualquier vista previa.',
-          formula: 'buildCreditResult(lateFeeMode, schedule, summary)',
+          formula: 'buildCreditResult(lateFeeMode, schedule, summary, calculationMethod)',
           outputVar: 'result',
         },
       ],
@@ -174,6 +182,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
         { source: 'input_startDate', target: 'amortization_schedule' },
         { source: 'input_lateFeeMode', target: 'amortization_schedule' },
         { source: 'installment_amount', target: 'amortization_schedule' },
+        { source: 'calculation_method', target: 'amortization_schedule' },
 
         // schedule → summary (domain block)
         { source: 'amortization_schedule', target: 'financial_summary' },
@@ -182,6 +191,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
         { source: 'input_lateFeeMode', target: 'credit_result' },
         { source: 'amortization_schedule', target: 'credit_result' },
         { source: 'financial_summary', target: 'credit_result' },
+        { source: 'calculation_method', target: 'credit_result' },
       ],
     },
   },

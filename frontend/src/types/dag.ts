@@ -134,6 +134,7 @@ export interface AmortizationRow {
 
 export interface CreditCalculationResult {
   lateFeeMode: LateFeeMode;
+  calculationMethod?: 'FRENCH' | 'SIMPLE' | 'COMPOUND';
   summary: CreditCalculationSummary;
   schedule: AmortizationRow[];
   graphVersionId?: number | null;
@@ -337,6 +338,10 @@ export interface BlockDefinition {
   outputVar?: string;
   /** For expression blocks: a label or description */
   label?: string;
+  /** For expression blocks: the executable formula saved into the DAG */
+  formula?: string;
+  /** Optional financial template key used to render operator-friendly labels */
+  templateKey?: string;
   /** For container blocks: groups of child blocks */
   children?: BlockDefinition[];
 }

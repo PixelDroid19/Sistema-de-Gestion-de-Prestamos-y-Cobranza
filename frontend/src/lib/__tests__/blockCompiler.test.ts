@@ -5,12 +5,13 @@ import {
   generateBlockId,
 } from '../../lib/blockCompiler';
 import type { FormulaContainer, BlockDefinition, DagGraph } from '../../types/dag';
+import { CREDIT_FORMULA_TEMPLATES } from '../creditFormulaTemplates';
 
 // ── Required backend contract (from scopeRegistry.js) ─────────────────────────
 const REQUIRED_OUTPUT_VARS = ['lateFeeMode', 'schedule', 'summary', 'result'];
 const REQUIRED_PIPELINE_IDS = [
   'input_amount', 'input_rate', 'input_term', 'input_startDate', 'input_lateFeeMode',
-  'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
+  'calculation_method', 'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
   'amortization_schedule', 'financial_summary', 'credit_result',
 ];
 
@@ -161,6 +162,25 @@ describe('blockCompiler', () => {
       const node = graph.nodes.find((n) => n.id === 'formula_calc');
       expect(node).toBeDefined();
       expect(node!.formula).toBe('amount * 0.1');
+    });
+
+    it('compiles financial template formulas from executable formula fields', () => {
+      const template = CREDIT_FORMULA_TEMPLATES.find((item) => item.key === 'simple_interest')!;
+      const containers: FormulaContainer[] = [{
+        id: 'simple_interest',
+        label: template.name,
+        outputVar: 'calculationMethod',
+        blocks: [
+          { id: 'e1', kind: 'expression', label: template.name, formula: template.formula, templateKey: template.key },
+        ],
+      }];
+
+      const graph = compileBlocksToGraph(containers);
+      const node = graph.nodes.find((n) => n.id === 'formula_simple_interest');
+      expect(node).toBeDefined();
+      expect(node!.formula).toBe(template.formula);
+      expect(graph.nodes.find((n) => n.id === 'calculation_method')).toBeUndefined();
+      expect(graph.edges.some((edge) => edge.source === 'formula_simple_interest' && edge.target === 'amortization_schedule')).toBe(true);
     });
 
     it('wires user containers only when a later rule references an earlier output', () => {
@@ -317,6 +337,25 @@ describe('blockCompiler', () => {
       const containers = decompileGraphToContainers(graph);
       expect(containers.length).toBe(1);
       expect(containers[0].label).toBe('Calc');
+    });
+
+    it('restores known financial formulas as readable template blocks', () => {
+      const template = CREDIT_FORMULA_TEMPLATES.find((item) => item.key === 'compound_interest')!;
+      const graph: DagGraph = {
+        nodes: [
+          { id: 'formula_credit_compound', kind: 'formula', label: template.name, formula: template.formula, outputVar: 'calculationMethod' },
+        ],
+        edges: [],
+      };
+
+      const containers = decompileGraphToContainers(graph);
+      expect(containers).toHaveLength(1);
+      expect(containers[0].blocks[0]).toMatchObject({
+        kind: 'expression',
+        label: template.name,
+        formula: template.formula,
+        templateKey: template.key,
+      });
     });
   });
 

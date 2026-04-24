@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FormulaEditorPage from '../FormulaEditorPage';
 import { useBlockEditorStore } from '../../store/blockEditorStore';
+import { CREDIT_FORMULA_TEMPLATES } from '../../lib/creditFormulaTemplates';
 
 const mockNavigate = vi.fn();
 const mockListScopes = vi.fn();
@@ -120,6 +121,27 @@ describe('FormulaEditorPage', () => {
       expect(screen.getAllByText('Tasa anual').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('Plazo en meses').length).toBeGreaterThanOrEqual(1);
     }, { timeout: 3000 });
+  });
+
+  it('lets operators choose a real financial formula for the credit cuota', async () => {
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+    expect(screen.getByText(/Formula financiera de la cuota/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sistema frances/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Interes simple/i }));
+
+    const template = CREDIT_FORMULA_TEMPLATES.find((item) => item.key === 'simple_interest')!;
+    await waitFor(() => {
+      const container = useBlockEditorStore.getState().containers.find((item) => item.outputVar === 'calculationMethod');
+      expect(container?.label).toBe(template.name);
+      expect(container?.blocks[0]).toMatchObject({
+        kind: 'expression',
+        formula: template.formula,
+        templateKey: template.key,
+      });
+    });
   });
 
   it('renders logic block controls when tools are opened', async () => {
