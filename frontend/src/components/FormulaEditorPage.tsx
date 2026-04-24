@@ -269,6 +269,80 @@ function getAppliedExceptionRules(containers: FormulaContainer[], inputs: Record
   });
 }
 
+function normalizeRuleScalar(value: unknown): string {
+  return String(value ?? '').trim().replace(/^['"]|['"]$/g, '').toUpperCase();
+}
+
+function getRuleSignature(outputVar: string | undefined, block: BlockDefinition): string | null {
+  if (!isConditionalRule(block)) return null;
+  return [
+    outputVar || '',
+    normalizeRuleScalar(block.condition.variable),
+    String(block.condition.operator || '').trim(),
+    normalizeRuleScalar(block.condition.value),
+    normalizeRuleScalar(block.thenValue),
+  ].join('|');
+}
+
+function findDuplicateRuleIssue(containers: FormulaContainer[]): { containerId: string; blockId: string } | null {
+  for (const container of containers) {
+    const seen = new Set<string>();
+    for (const block of container.blocks) {
+      const signature = getRuleSignature(container.outputVar, block);
+      if (!signature) continue;
+      if (seen.has(signature)) {
+        return { containerId: container.id, blockId: block.id };
+      }
+      seen.add(signature);
+    }
+  }
+  return null;
+}
+
+function getNextRuleConditionValue(blocks: BlockDefinition[]): string {
+  const candidates = ['1000000', '500000', '250000', '100000', '50000'];
+  const usedValues = new Set(blocks
+    .filter(isConditionalRule)
+    .map((block) => normalizeRuleScalar(block.condition.value)));
+  return candidates.find((value) => !usedValues.has(normalizeRuleScalar(value))) || '0';
+}
+
+function getNextRuleThenValue(outputVar: string, blocks: BlockDefinition[], baseMethod: CalculationMethodKey): string {
+  const usedValues = new Set(blocks
+    .filter(isConditionalRule)
+    .map((block) => normalizeRuleScalar(block.thenValue)));
+  const candidatesByTarget: Record<string, string[]> = {
+    calculationMethod: ['COMPOUND', 'SIMPLE', 'FRENCH'].filter((method) => method !== baseMethod),
+    lateFeeMode: ['SIMPLE', 'COMPOUND', 'FLAT', 'TIERED', 'NONE'],
+    interestRate: ['60', '55', '65', '70', '45'],
+    termMonths: ['12', '18', '24', '36', '6'],
+    installmentAmount: ['200000', '180000', '250000', '300000', '150000'],
+  };
+
+  const candidates = candidatesByTarget[outputVar] || [getDefaultValueForTarget(outputVar)];
+  return candidates.find((value) => !usedValues.has(normalizeRuleScalar(value))) || getDefaultValueForTarget(outputVar);
+}
+
+function prepareNextRuleBlock(
+  outputVar: string,
+  blocks: BlockDefinition[] = [],
+  kind: BlockKind,
+  baseMethod: CalculationMethodKey,
+): BlockDefinition {
+  const block = makeBlock(kind, outputVar);
+  const existingRules = blocks.filter(isConditionalRule);
+
+  if (existingRules.length > 0 && (block.kind === 'if' || block.kind === 'elseIf')) {
+    block.condition = {
+      ...(block.condition || { variable: 'amount', operator: '>', value: '1000000' }),
+      value: getNextRuleConditionValue(blocks),
+    };
+    block.thenValue = getNextRuleThenValue(outputVar, blocks, baseMethod);
+  }
+
+  return block;
+}
+
 export default function FormulaEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -365,7 +439,25 @@ export default function FormulaEditorPage() {
     };
   };
 
+  const warnDuplicateRule = (containerId: string, blockId: string) => {
+    setSelectedContainerId(containerId);
+    store.selectBlock(blockId);
+    toast.warning({
+      title: 'Regla duplicada',
+      description: 'Ya existe una excepcion igual. Edita la existente, cambia la condicion o cambia el valor aplicado.',
+    });
+  };
+
+  const ensureNoDuplicateRules = (): boolean => {
+    const duplicate = findDuplicateRuleIssue(containers);
+    if (!duplicate) return true;
+    warnDuplicateRule(duplicate.containerId, duplicate.blockId);
+    return false;
+  };
+
   const persistGraph = async ({ activate }: { activate: boolean }) => {
+    if (!ensureNoDuplicateRules()) return;
+
     try {
       const graph = compileGraphWithEditorModel();
       const saveResult = await saveMutation.mutateAsync({ scopeKey, name: formulaName, graph });
@@ -402,6 +494,8 @@ export default function FormulaEditorPage() {
   const isSaving = saveMutation.isPending || activateMutation.isPending;
 
   const handleTest = async () => {
+    if (!ensureNoDuplicateRules()) return;
+
     setTestError(null); setTestResult(null);
     try {
       const graph = compileGraphWithEditorModel();
@@ -455,16 +549,29 @@ export default function FormulaEditorPage() {
   };
 
   const handleAddTargetRule = (outputVar: string) => {
-    const createRuleBlock = (target: string, kind: BlockKind): BlockDefinition => makeBlock(kind, target);
+    const createRuleBlock = (target: string, blocks: BlockDefinition[], kind: BlockKind): BlockDefinition => (
+      prepareNextRuleBlock(target, blocks, kind, getBaseMethodFromContainers(containers))
+    );
 
     if (outputVar === 'calculationMethod') {
       const existing = containers.find((container) => container.outputVar === outputVar);
       const currentBaseMethod = getBaseMethodFromContainers(containers);
-      const nextBlock = createRuleBlock(outputVar, existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf') ? 'elseIf' : 'if');
-      nextBlock.thenValue = currentBaseMethod === 'COMPOUND' ? 'SIMPLE' : 'COMPOUND';
+      const nextBlock = createRuleBlock(outputVar, existing?.blocks || [], existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf') ? 'elseIf' : 'if');
+      if (!existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf')) {
+        nextBlock.thenValue = currentBaseMethod === 'COMPOUND' ? 'SIMPLE' : 'COMPOUND';
+      }
 
       if (existing) {
         const conditionalBlocks = existing.blocks.filter((block) => block.kind !== 'expression' && block.kind !== 'else');
+        const duplicate = conditionalBlocks.find((block) => (
+          getRuleSignature(existing.outputVar, block) === getRuleSignature(outputVar, nextBlock)
+        ));
+
+        if (duplicate) {
+          warnDuplicateRule(existing.id, duplicate.id);
+          return;
+        }
+
         const fallback: BlockDefinition = {
           id: generateBlockId('else'),
           kind: 'else',
@@ -495,9 +602,18 @@ export default function FormulaEditorPage() {
 
     const existing = containers.find((container) => container.outputVar === outputVar);
     const nextKind: BlockKind = existing?.blocks.some((block) => block.kind === 'if' || block.kind === 'elseIf') ? 'elseIf' : 'if';
-    const nextBlock = createRuleBlock(outputVar, nextKind);
+    const nextBlock = createRuleBlock(outputVar, existing?.blocks || [], nextKind);
 
     if (existing) {
+      const duplicate = existing.blocks.find((block) => (
+        getRuleSignature(existing.outputVar, block) === getRuleSignature(outputVar, nextBlock)
+      ));
+
+      if (duplicate) {
+        warnDuplicateRule(existing.id, duplicate.id);
+        return;
+      }
+
       store.addBlock(existing.id, nextBlock);
       setSelectedContainerId(existing.id);
       store.selectBlock(nextBlock.id);
@@ -527,7 +643,21 @@ export default function FormulaEditorPage() {
     }
 
     const targetContainer = store.containers.find((container) => container.id === targetContainerId);
-    const block = makeBlock(kind, targetContainer?.outputVar);
+    const block = prepareNextRuleBlock(
+      targetContainer?.outputVar || 'lateFeeMode',
+      targetContainer?.blocks || [],
+      kind,
+      getBaseMethodFromContainers(containers),
+    );
+    const duplicate = targetContainer?.blocks.find((existingBlock) => (
+      getRuleSignature(targetContainer.outputVar, existingBlock) === getRuleSignature(targetContainer.outputVar, block)
+    ));
+
+    if (duplicate && block.kind !== 'else') {
+      warnDuplicateRule(targetContainerId, duplicate.id);
+      return;
+    }
+
     store.addBlock(targetContainerId, block);
     setSelectedContainerId(targetContainerId);
     store.selectBlock(block.id);
@@ -905,7 +1035,7 @@ export default function FormulaEditorPage() {
                     <span style={{ fontSize: 18, fontWeight: 900 }}>2. Reglas de excepcion</span>
                   </div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
-                    Si varias reglas cambian el mismo campo, se leen de arriba hacia abajo y gana la primera que aplique. Reglas de campos distintos se combinan.
+                    Usa varias reglas del mismo campo solo para tramos distintos. Se leen de arriba hacia abajo y gana la primera que aplique. Las reglas duplicadas se bloquean.
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FormulaEditorPage from '../FormulaEditorPage';
 import { useBlockEditorStore } from '../../store/blockEditorStore';
@@ -11,6 +11,7 @@ const mockListGraphs = vi.fn();
 const mockSaveGraph = vi.fn();
 const mockCalculateGraph = vi.fn();
 const mockToastError = vi.fn();
+const mockToastWarning = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: undefined }),
@@ -34,7 +35,7 @@ vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
     error: (opts: any) => mockToastError(opts),
-    warning: vi.fn(),
+    warning: (opts: any) => mockToastWarning(opts),
     info: vi.fn(),
   },
 }));
@@ -142,6 +143,53 @@ describe('FormulaEditorPage', () => {
         templateKey: template.key,
       });
     });
+  });
+
+  it('creates distinct tier rules instead of repeated default copies', async () => {
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+
+    const findInstallmentTarget = (label: string) => screen.getAllByRole('button').find((button) => (
+      button.textContent?.includes('Cuota fija') && button.textContent?.includes(label)
+    ));
+
+    fireEvent.click(findInstallmentTarget('Crear excepcion')!);
+    fireEvent.click(findInstallmentTarget('Agregar otra prioridad')!);
+
+    const installmentContainer = useBlockEditorStore.getState().containers.find((item) => item.outputVar === 'installmentAmount');
+    const rules = installmentContainer?.blocks.filter((block) => block.kind === 'if' || block.kind === 'elseIf') || [];
+    expect(rules).toHaveLength(2);
+    expect(rules[0].condition?.value).not.toBe(rules[1].condition?.value);
+    expect(rules[0].thenValue).not.toBe(rules[1].thenValue);
+  });
+
+  it('blocks validation when edited rules become exact duplicates', async () => {
+    renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+    act(() => {
+      useBlockEditorStore.getState().setContainers([{
+        id: 'container_installmentAmount',
+        label: 'Cuota fija',
+        outputVar: 'installmentAmount',
+        blocks: [
+          { id: 'rule_a', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: '200000' },
+          { id: 'rule_b', kind: 'elseIf', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: '200000' },
+        ],
+      }]);
+    });
+
+    await screen.findAllByText(/Si Monto del credito > 1000000/i);
+
+    fireEvent.click(screen.getAllByRole('button', { name: /validar/i })[0]);
+
+    await waitFor(() => {
+      expect(mockToastWarning).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Regla duplicada',
+      }));
+    });
+    expect(mockCalculateGraph).not.toHaveBeenCalled();
   });
 
   it('renders logic block controls when tools are opened', async () => {
