@@ -509,6 +509,95 @@ const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() })
   });
 };
 
+const normalizeCalendarOverviewLoanIds = (loanIds) => {
+  if (!Array.isArray(loanIds)) {
+    return [];
+  }
+
+  return [...new Set(
+    loanIds
+      .map((loanId) => Number(loanId))
+      .filter((loanId) => Number.isInteger(loanId) && loanId > 0),
+  )].slice(0, 25);
+};
+
+const getCalendarDateKey = (value) => normalizeDateOnly(value, 'asOfDate').toISOString().slice(0, 10);
+
+const getCalendarCustomerName = (loan) => {
+  const rawName = loan?.Customer?.name || loan?.customerName || loan?.customer?.name;
+  return rawName ? String(rawName).trim() : `Crédito #${loan.id}`;
+};
+
+const toCalendarOverviewEntry = ({ loan, entry }) => ({
+  loanId: Number(loan.id),
+  customerName: getCalendarCustomerName(loan),
+  totalInstallments: Number(loan.termMonths || loan.totalInstallments || 0),
+  loanStatus: String(loan.status || ''),
+  installmentNumber: Number(entry.installmentNumber || 0),
+  dueDate: entry.dueDate,
+  status: String(entry.status || 'pending'),
+  scheduledPayment: roundCurrency(entry.scheduledPayment || 0),
+  principalComponent: roundCurrency(entry.principalComponent || 0),
+  interestComponent: roundCurrency(entry.interestComponent || 0),
+  remainingBalance: roundCurrency(entry.remainingBalance || 0),
+  outstandingAmount: roundCurrency(entry.outstandingAmount || 0),
+  payableAmount: roundCurrency(entry.payableAmount || 0),
+  lateFeeDue: roundCurrency(entry.lateFeeDue || 0),
+  daysOverdue: Number(entry.daysOverdue || 0),
+  canPay: Boolean(entry.canPay),
+  disabledReason: entry.disabledReason || null,
+  isNextPayable: Boolean(entry.isNextPayable),
+  alertId: entry.alertId || null,
+});
+
+const buildPaymentCalendarOverview = ({ normalizedLoanIds, entries, asOfDate }) => {
+  const normalizedDateKey = getCalendarDateKey(asOfDate);
+  const pendingStatuses = new Set(['pending', 'partial']);
+  const actionableEntries = entries
+    .filter((entry) => entry.isNextPayable && entry.status !== 'paid' && entry.status !== 'annulled')
+    .sort((left, right) => {
+      const leftRank = left.status === 'overdue' ? 0 : left.status === 'partial' ? 1 : 2;
+      const rightRank = right.status === 'overdue' ? 0 : right.status === 'partial' ? 1 : 2;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
+      if (left.daysOverdue !== right.daysOverdue) {
+        return right.daysOverdue - left.daysOverdue;
+      }
+
+      const leftDue = normalizeDateOnly(left.dueDate, 'dueDate').getTime();
+      const rightDue = normalizeDateOnly(right.dueDate, 'dueDate').getTime();
+      if (leftDue !== rightDue) {
+        return leftDue - rightDue;
+      }
+
+      return left.loanId - right.loanId;
+    });
+
+  return {
+    asOfDate: normalizedDateKey,
+    summary: {
+      totalLoans: normalizedLoanIds.length,
+      totalEntries: entries.length,
+      paidCount: entries.filter((entry) => entry.status === 'paid').length,
+      pendingCount: entries.filter((entry) => pendingStatuses.has(entry.status)).length,
+      overdueCount: entries.filter((entry) => entry.status === 'overdue').length,
+      dueTodayCount: entries.filter((entry) => (
+        entry.status !== 'paid'
+        && entry.status !== 'annulled'
+        && getCalendarDateKey(entry.dueDate) === normalizedDateKey
+      )).length,
+      actionableCount: actionableEntries.length,
+      totalPayableAmount: roundCurrency(actionableEntries.reduce((sum, entry) => sum + entry.payableAmount, 0)),
+      totalLateFeeAmount: roundCurrency(entries.reduce((sum, entry) => sum + entry.lateFeeDue, 0)),
+    },
+    agenda: actionableEntries.slice(0, 8),
+    nextAction: actionableEntries[0] || null,
+    entries,
+  };
+};
+
 /**
  * Create the use case that lists loans, optionally filtered through the shared access policy.
  * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
@@ -992,6 +1081,45 @@ const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewS
     snapshot,
     alerts,
   };
+};
+
+const createGetPaymentCalendarOverview = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({
+  actor,
+  loanIds,
+  asOfDate,
+}) => {
+  const normalizedLoanIds = normalizeCalendarOverviewLoanIds(loanIds);
+  const effectiveAsOfDate = asOfDate || new Date();
+
+  if (normalizedLoanIds.length === 0) {
+    return buildPaymentCalendarOverview({
+      normalizedLoanIds,
+      entries: [],
+      asOfDate: effectiveAsOfDate,
+    });
+  }
+
+  const perLoanEntries = await Promise.all(
+    normalizedLoanIds.map(async (loanId) => {
+      const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+      const { schedule } = loanViewService.getCanonicalLoanView(loan);
+      const alerts = await alertRepository.listByLoan(loan.id);
+      const entries = buildCalendarEntries({
+        loan,
+        schedule,
+        alerts,
+        asOfDate: effectiveAsOfDate,
+      }).map((entry) => toCalendarOverviewEntry({ loan, entry }));
+
+      return entries;
+    }),
+  );
+
+  return buildPaymentCalendarOverview({
+    normalizedLoanIds,
+    entries: perLoanEntries.flat(),
+    asOfDate: effectiveAsOfDate,
+  });
 };
 
 const createGetInstallmentQuote = ({ loanAccessPolicy, loanViewService }) => async ({
@@ -1572,6 +1700,7 @@ module.exports = {
   createDownloadLoanAttachment,
   createListLoanAlerts,
   createGetPaymentCalendar,
+  createGetPaymentCalendarOverview,
   createGetInstallmentQuote,
   createGetPayoffQuote,
   createExecutePayoff,

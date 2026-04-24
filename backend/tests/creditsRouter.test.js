@@ -64,6 +64,7 @@ const createUseCases = (overrides) => ({
   downloadLoanAttachment: unexpectedUseCase('downloadLoanAttachment'),
   listLoanAlerts: unexpectedUseCase('listLoanAlerts'),
   getPaymentCalendar: unexpectedUseCase('getPaymentCalendar'),
+  getPaymentCalendarOverview: unexpectedUseCase('getPaymentCalendarOverview'),
   getPayoffQuote: unexpectedUseCase('getPayoffQuote'),
   executePayoff: unexpectedUseCase('executePayoff'),
   listPromisesToPay: unexpectedUseCase('listPromisesToPay'),
@@ -1027,6 +1028,53 @@ test('createCreditsRouter serves alert, calendar, and promise contracts', async 
   assert.equal(followUpResponse.statusCode, 201);
   assert.equal(resolveAlertResponse.statusCode, 200);
   assert.equal(updatePromiseResponse.statusCode, 200);
+});
+
+test('createCreditsRouter serves aggregated calendar overview contracts', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getPaymentCalendarOverview(input) {
+        calls.push(['getPaymentCalendarOverview', input]);
+        return {
+          summary: {
+            totalLoans: 2,
+            overdueCount: 1,
+            dueTodayCount: 1,
+          },
+          agenda: [{ loanId: 55, customerName: 'Cliente Uno', installmentNumber: 1 }],
+          entries: [{ loanId: 55, installmentNumber: 1, status: 'overdue' }],
+        };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/calendar/overview?loanIds=55,56&asOfDate=2026-04-24',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.data.calendar.summary.totalLoans, 2);
+  assert.equal(response.body.data.calendar.agenda[0].loanId, 55);
+  assert.deepEqual(calls, [[
+    'getPaymentCalendarOverview',
+    {
+      actor: { id: 1, role: 'admin' },
+      loanIds: [55, 56],
+      asOfDate: '2026-04-24',
+    },
+  ]]);
 });
 
 test('createCreditsRouter serves payoff quote and payoff execution contracts', async () => {

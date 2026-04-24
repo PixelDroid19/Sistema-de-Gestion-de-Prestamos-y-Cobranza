@@ -774,6 +774,53 @@ export default function CreditDetails() {
     });
   };
 
+  const DetailMetaCard = ({
+    icon: Icon,
+    label,
+    value,
+  }: {
+    icon: React.ElementType;
+    label: string;
+    value: React.ReactNode;
+  }) => (
+    <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/8 text-brand-primary">
+          <Icon size={18} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</p>
+          <div className="mt-1 text-base font-semibold leading-6 text-text-primary break-words">{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const SummaryMetricCard = ({
+    label,
+    value,
+    tone = 'default',
+  }: {
+    label: string;
+    value: React.ReactNode;
+    tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
+  }) => {
+    const toneClassName = {
+      default: 'border-border-subtle bg-bg-surface text-text-primary',
+      success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+      warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+      danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
+      brand: 'border-brand-primary/25 bg-brand-primary/10 text-brand-primary',
+    }[tone];
+
+    return (
+      <div className={`rounded-xl border px-4 py-4 ${toneClassName}`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</p>
+        <div className="mt-3 text-2xl font-bold leading-none">{value}</div>
+      </div>
+    );
+  };
+
   const TabButton = ({ id, icon: Icon, label, badge }: { id: typeof activeTab, icon: any, label: string, badge?: number }) => (
     <button
       onClick={() => setActiveTab(id)}
@@ -804,7 +851,7 @@ export default function CreditDetails() {
       {/* Top Section: Header & Summary in a single clean card */}
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
         <div className="border-b border-border-subtle p-5 md:p-7">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="space-y-5">
             <div className="flex min-w-0 items-start gap-4">
               <button 
                 onClick={() => navigate('/credits')}
@@ -813,69 +860,66 @@ export default function CreditDetails() {
               >
                 <ArrowLeft size={24} />
               </button>
-              <div className="min-w-0">
-                <div className="mb-3 flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-4xl">Crédito #{loan.id}</h1>
                   <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
                     {statusInfo.label}
                   </span>
                 </div>
-                <div className="grid gap-3 text-sm text-text-secondary sm:grid-cols-2 xl:max-w-3xl">
-                  <div className="flex min-w-0 items-start gap-2 rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5">
-                    <FileText size={16} className="mt-0.5 shrink-0 opacity-70" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cliente</p>
-                      <p className="mt-0.5 break-words font-semibold text-text-primary">{customerLabel}</p>
-                    </div>
-                  </div>
-                  {loan?.dagGraph && (
-                    <div className="flex min-w-0 items-start gap-2 rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5">
-                      <GitBranch size={16} className="mt-0.5 shrink-0 opacity-70" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Fórmula aplicada</p>
-                        <p className="mt-0.5 break-words font-semibold text-text-primary">
-                          {loan.dagGraph.name} <span className="whitespace-nowrap">(v{loan.dagGraph.version})</span>
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <p className="mt-2 max-w-3xl text-sm text-text-secondary">
+                  Gestiona pagos, mora, compromisos y seguimiento del crédito sin perder la fórmula que se congeló al momento de crearlo.
+                </p>
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:max-w-[640px] xl:flex-wrap xl:justify-end">
-               {isAdmin && (
-                  <>
-                  {installmentPaymentGuard.visible && (
-                    <button
-                      onClick={openNextInstallmentPayment}
-                      disabled={!installmentPaymentGuard.executable}
-                      title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none"
-                    >
-                      <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
-                    </button>
-                  )}
-                  {capitalPaymentGuard.visible && (
-                    <button
-                      onClick={() => setShowCapitalModal(true)}
-                      disabled={!capitalPaymentGuard.executable}
-                      title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
-                    >
-                      <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setLateFeeRate(String(loan.annualLateFeeRate || ''));
-                      setShowLateFeeModal(true);
-                    }}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg"
-                  >
-                    <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
-                  </button>
-                </>
+            <div className="grid gap-3 md:grid-cols-2">
+              <DetailMetaCard icon={FileText} label="Cliente" value={customerLabel} />
+              {loan?.dagGraph && (
+                <DetailMetaCard
+                  icon={GitBranch}
+                  label="Fórmula aplicada"
+                  value={
+                    <>
+                      {loan.dagGraph.name}{' '}
+                      <span className="whitespace-nowrap text-text-secondary">(v{loan.dagGraph.version})</span>
+                    </>
+                  }
+                />
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {isAdmin && installmentPaymentGuard.visible && (
+                <button
+                  onClick={openNextInstallmentPayment}
+                  disabled={!installmentPaymentGuard.executable}
+                  title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none"
+                >
+                  <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
+                </button>
+              )}
+              {isAdmin && capitalPaymentGuard.visible && (
+                <button
+                  onClick={() => setShowCapitalModal(true)}
+                  disabled={!capitalPaymentGuard.executable}
+                  title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                >
+                  <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setLateFeeRate(String(loan.annualLateFeeRate || ''));
+                    setShowLateFeeModal(true);
+                  }}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg"
+                >
+                  <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
+                </button>
               )}
               {isAdmin && (
                 <button
@@ -898,37 +942,33 @@ export default function CreditDetails() {
         </div>
 
         {/* Financial Summary */}
-        <div className="grid gap-3 bg-bg-base/50 p-4 sm:grid-cols-2 md:p-6 lg:grid-cols-3 xl:grid-cols-4">
-          <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-4 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cuotas Totales</p>
-            <p className="mt-2 text-2xl font-bold text-text-primary">{loan.termMonths ?? '—'}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-4 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cuotas a Pagar</p>
-            <p className="mt-2 text-2xl font-bold text-text-primary">{loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-4 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Interés Total</p>
-            <p className="mt-2 whitespace-nowrap text-xl font-bold text-text-primary 2xl:text-2xl" title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</p>
-          </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center dark:border-emerald-500/20 dark:bg-emerald-500/10">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800 dark:text-emerald-200">Capital Pagado</p>
-            <p className="mt-2 whitespace-nowrap text-xl font-bold text-emerald-700 dark:text-emerald-300 2xl:text-2xl" title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-center dark:border-amber-500/20 dark:bg-amber-500/10">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800 dark:text-amber-200">Interés Pagado</p>
-            <p className="mt-2 whitespace-nowrap text-xl font-bold text-amber-700 dark:text-amber-300 2xl:text-2xl" title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</p>
-          </div>
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-center dark:border-red-500/20 dark:bg-red-500/10">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-800 dark:text-red-200">Tasa Mora EA</p>
-            <p className="mt-2 text-2xl font-bold text-red-600 dark:text-red-300">{loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}</p>
-          </div>
-          <div className="rounded-xl border border-brand-primary/25 bg-brand-primary/10 px-4 py-4 text-center sm:col-span-2 lg:col-span-3 xl:col-span-1">
-            <p className="flex items-center justify-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-brand-primary">
-              <Activity size={13} className="shrink-0" /> Capital Vivo
-            </p>
-            <p className="mt-2 whitespace-nowrap text-xl font-black leading-tight tracking-tight text-brand-primary 2xl:text-2xl" title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</p>
-          </div>
+        <div className="grid gap-3 bg-bg-base/50 p-4 sm:grid-cols-2 md:p-6 xl:grid-cols-3 2xl:grid-cols-4">
+          <SummaryMetricCard label="Cuotas Totales" value={loan.termMonths ?? '—'} />
+          <SummaryMetricCard label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
+          <SummaryMetricCard
+            label="Interés Total"
+            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</span>}
+          />
+          <SummaryMetricCard
+            label="Capital Pagado"
+            tone="success"
+            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</span>}
+          />
+          <SummaryMetricCard
+            label="Interés Pagado"
+            tone="warning"
+            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</span>}
+          />
+          <SummaryMetricCard
+            label="Tasa Mora EA"
+            tone="danger"
+            value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
+          />
+          <SummaryMetricCard
+            label="Capital Vivo"
+            tone="brand"
+            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</span>}
+          />
         </div>
       </div>
 

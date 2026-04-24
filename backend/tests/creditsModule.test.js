@@ -17,6 +17,7 @@ const {
   createListLoanAlerts,
   createGetLoanById,
   createGetPaymentCalendar,
+  createGetPaymentCalendarOverview,
   createGetPayoffQuote,
   createExecutePayoff,
   createListPromisesToPay,
@@ -735,6 +736,119 @@ test('createGetPaymentCalendar keeps annulled installments hidden from overdue a
   assert.equal(calendar.entries[0].status, 'annulled');
   assert.equal(calendar.entries[0].outstandingAmount, 0);
   assert.equal(calendar.entries[0].alertId, null);
+});
+
+test('createGetPaymentCalendarOverview returns actionable agenda and portfolio summary', async () => {
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ loanId }) {
+        if (Number(loanId) === 22) {
+          return {
+            id: 22,
+            customerId: 7,
+            Customer: { name: 'Cliente Uno' },
+            status: 'active',
+            lateFeeMode: 'SIMPLE',
+            annualLateFeeRate: 7300,
+            termMonths: 12,
+            emiSchedule: [],
+          };
+        }
+
+        return {
+          id: 23,
+          customerId: 8,
+          Customer: { name: 'Cliente Dos' },
+          status: 'active',
+          termMonths: 10,
+          emiSchedule: [],
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(loan) {
+        if (loan.id === 22) {
+          return {
+            schedule: [
+              {
+                installmentNumber: 1,
+                dueDate: '2026-04-20T00:00:00.000Z',
+                remainingPrincipal: 100,
+                remainingInterest: 20,
+                scheduledPayment: 120,
+                paidTotal: 0,
+                status: 'pending',
+              },
+              {
+                installmentNumber: 2,
+                dueDate: '2026-05-20T00:00:00.000Z',
+                remainingPrincipal: 90,
+                remainingInterest: 10,
+                scheduledPayment: 100,
+                paidTotal: 0,
+                status: 'pending',
+              },
+            ],
+            snapshot: { outstandingBalance: 220 },
+          };
+        }
+
+        return {
+          schedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2026-04-24T00:00:00.000Z',
+              remainingPrincipal: 0,
+              remainingInterest: 0,
+              scheduledPayment: 80,
+              paidTotal: 80,
+              status: 'paid',
+            },
+            {
+              installmentNumber: 2,
+              dueDate: '2026-05-10T00:00:00.000Z',
+              remainingPrincipal: 70,
+              remainingInterest: 10,
+              scheduledPayment: 80,
+              paidTotal: 0,
+              status: 'pending',
+            },
+          ],
+          snapshot: { outstandingBalance: 80 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan(loanId) {
+        if (loanId === 22) {
+          return [{ id: 90, installmentNumber: 1, status: 'active' }];
+        }
+        return [];
+      },
+    },
+  });
+
+  const overview = await getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [22, 23],
+    asOfDate: '2026-04-24T00:00:00.000Z',
+  });
+
+  assert.equal(overview.summary.totalLoans, 2);
+  assert.equal(overview.summary.overdueCount, 1);
+  assert.equal(overview.summary.paidCount, 1);
+  assert.equal(overview.summary.pendingCount, 2);
+  assert.equal(overview.summary.dueTodayCount, 0);
+  assert.equal(overview.summary.actionableCount, 2);
+  assert.equal(overview.summary.totalPayableAmount, 216);
+  assert.equal(overview.summary.totalLateFeeAmount, 16);
+  assert.equal(overview.agenda.length, 2);
+  assert.equal(overview.agenda[0].loanId, 22);
+  assert.equal(overview.agenda[0].status, 'overdue');
+  assert.equal(overview.agenda[0].canPay, true);
+  assert.equal(overview.agenda[0].customerName, 'Cliente Uno');
+  assert.equal(overview.agenda[1].loanId, 23);
+  assert.equal(overview.entries.length, 4);
 });
 
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {

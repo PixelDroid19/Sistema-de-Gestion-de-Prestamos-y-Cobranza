@@ -9,6 +9,7 @@ const mockSetCurrentView = vi.fn();
 const mockToastError = vi.fn();
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 const mockApiPost = vi.fn();
+const mockApiGet = vi.fn();
 
 type SessionUser = {
   id: number;
@@ -33,6 +34,7 @@ vi.mock('react-big-calendar', () => ({
 
 vi.mock('../../api/client', () => ({
   apiClient: {
+    get: (...args: unknown[]) => mockApiGet(...args),
     post: (...args: unknown[]) => mockApiPost(...args),
   },
 }));
@@ -134,6 +136,62 @@ describe('Credits behavioral parity scenarios', () => {
     currentUser = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] };
     vi.stubGlobal('confirm', vi.fn(() => true));
     mockConfirmDanger.mockResolvedValue(true);
+    mockApiGet.mockResolvedValue({
+      data: {
+        data: {
+          calendar: {
+            summary: {
+              totalLoans: 1,
+              overdueCount: 1,
+              pendingCount: 0,
+              paidCount: 0,
+              dueTodayCount: 0,
+              actionableCount: 1,
+              totalPayableAmount: 125000,
+              totalLateFeeAmount: 5000,
+            },
+            agenda: [
+              {
+                loanId: 77,
+                customerName: 'Cliente Prueba',
+                installmentNumber: 1,
+                totalInstallments: 12,
+                dueDate: '2026-04-24T00:00:00.000Z',
+                status: 'overdue',
+                payableAmount: 125000,
+                scheduledPayment: 120000,
+                lateFeeDue: 5000,
+                daysOverdue: 4,
+                canPay: true,
+                isNextPayable: true,
+              },
+            ],
+            entries: [
+              {
+                loanId: 77,
+                customerName: 'Cliente Prueba',
+                totalInstallments: 12,
+                loanStatus: 'active',
+                installmentNumber: 1,
+                dueDate: '2026-04-24T00:00:00.000Z',
+                status: 'overdue',
+                scheduledPayment: 120000,
+                principalComponent: 80000,
+                interestComponent: 40000,
+                remainingBalance: 420000,
+                outstandingAmount: 120000,
+                payableAmount: 125000,
+                lateFeeDue: 5000,
+                daysOverdue: 4,
+                canPay: true,
+                isNextPayable: true,
+                disabledReason: null,
+              },
+            ],
+          },
+        },
+      },
+    });
     mockApiPost.mockResolvedValue({
       data: {
         data: {
@@ -206,7 +264,7 @@ describe('Credits behavioral parity scenarios', () => {
   it('renders the shared credit calculation workspace and preserves saved scenarios across tab switches', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
 
     expect(await screen.findByRole('heading', { name: 'Previsualizar crédito' })).toBeInTheDocument();
     expect(mockApiPost).toHaveBeenCalledWith('/loans/calculations', {
@@ -220,7 +278,7 @@ describe('Credits behavioral parity scenarios', () => {
     expect(await screen.findByText('1 escenario guardado.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
 
     expect(screen.getByText('1 escenario guardado.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ocultar comparación' })).toBeInTheDocument();
@@ -230,7 +288,7 @@ describe('Credits behavioral parity scenarios', () => {
   it('flags stale calculation results after parameter changes until the user reruns the calculation', async () => {
     renderCredits();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
 
     const amountInput = await screen.findByLabelText('Monto del crédito');
     fireEvent.change(amountInput, { target: { value: '2500000' } });
@@ -246,6 +304,29 @@ describe('Credits behavioral parity scenarios', () => {
         termMonths: 12,
         lateFeeMode: 'SIMPLE',
       });
+    });
+  });
+
+  it('turns the calendar tab into an operational agenda with actions for the next payable installment', async () => {
+    renderCredits();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+
+    expect(await screen.findByText('Agenda operativa')).toBeInTheDocument();
+    expect(screen.getByText('Cobros accionables')).toBeInTheDocument();
+    expect(await screen.findByText('Cliente Prueba')).toBeInTheDocument();
+    expect(screen.getByText('4 días de atraso')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Registrar pago' })[0]);
+
+    await waitFor(() => {
+      expect(mockApiGet).toHaveBeenCalledWith('/loans/calendar/overview', {
+        params: {
+          loanIds: '77',
+          asOfDate: expect.any(String),
+        },
+      });
+      expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');
     });
   });
 });

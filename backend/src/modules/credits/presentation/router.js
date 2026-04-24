@@ -256,6 +256,24 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
+  router.get('/calendar/overview', authMiddleware(), asyncHandler(async (req, res) => {
+    const rawLoanIds = Array.isArray(req.query.loanIds)
+      ? req.query.loanIds.join(',')
+      : String(req.query.loanIds || '');
+    const loanIds = rawLoanIds
+      .split(',')
+      .map((loanId) => Number(loanId.trim()))
+      .filter((loanId) => Number.isInteger(loanId) && loanId > 0);
+
+    const calendar = await useCases.getPaymentCalendarOverview({
+      actor: req.user,
+      loanIds,
+      asOfDate: req.query.asOfDate,
+    });
+
+    res.json({ success: true, data: { calendar } });
+  }));
+
   router.patch('/:id/status', authMiddleware(['admin']), loanValidation.updateStatus, asyncHandler(async (req, res) => {
     const loan = await useCases.updateLoanStatus({ actor: req.user, loanId: req.params.id, status: req.body.status });
     res.json({ success: true, message: `Loan status updated to ${req.body.status}`, data: { loan } });
