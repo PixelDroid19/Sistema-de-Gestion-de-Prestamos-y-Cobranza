@@ -76,6 +76,10 @@ function renderWithProviders(ui: React.ReactElement) {
   );
 }
 
+async function waitForEditorReady() {
+  await screen.findByDisplayValue('Nueva formula');
+}
+
 describe('FormulaEditorPage', () => {
   beforeEach(() => {
     useBlockEditorStore.getState().reset();
@@ -104,8 +108,12 @@ describe('FormulaEditorPage', () => {
     vi.clearAllMocks();
   });
 
-  it('renders scope variables in left panel', async () => {
+  it('renders scope variables when tools are opened', async () => {
     renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+    const toolsButton = await screen.findByRole('button', { name: /herramientas/i });
+    fireEvent.click(toolsButton);
 
     await waitFor(() => {
       expect(screen.getAllByText('Monto del credito').length).toBeGreaterThanOrEqual(1);
@@ -114,8 +122,12 @@ describe('FormulaEditorPage', () => {
     }, { timeout: 3000 });
   });
 
-  it('renders logic block controls in left panel', async () => {
+  it('renders logic block controls when tools are opened', async () => {
     renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+    const toolsButton = await screen.findByRole('button', { name: /herramientas/i });
+    fireEvent.click(toolsButton);
 
     await waitFor(() => {
       expect(screen.getAllByText('Si').length).toBeGreaterThanOrEqual(1);
@@ -124,8 +136,12 @@ describe('FormulaEditorPage', () => {
     });
   });
 
-  it('shows live test panel with inputs', async () => {
+  it('shows live test panel after validating', async () => {
     renderWithProviders(<FormulaEditorPage />);
+
+    await waitForEditorReady();
+    const validateButton = await screen.findByRole('button', { name: /validar/i });
+    fireEvent.click(validateButton);
 
     await waitFor(() => {
       expect(screen.getByText(/Validacion de credito/i)).toBeInTheDocument();
@@ -136,6 +152,7 @@ describe('FormulaEditorPage', () => {
   it('calls saveGraph when save button is clicked', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
+    await waitForEditorReady();
     await waitFor(() => {
       expect(screen.getAllByText(/Guardar|Save/i).length).toBeGreaterThanOrEqual(1);
     });
@@ -151,6 +168,7 @@ describe('FormulaEditorPage', () => {
   it('calls calculateGraph when test button is clicked', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
+    await waitForEditorReady();
     await waitFor(() => {
       expect(screen.getAllByText(/Validar/i).length).toBeGreaterThanOrEqual(1);
     });
@@ -168,6 +186,7 @@ describe('FormulaEditorPage', () => {
 
     renderWithProviders(<FormulaEditorPage />);
 
+    await waitForEditorReady();
     await waitFor(() => {
       expect(screen.getAllByText(/Validar/i).length).toBeGreaterThanOrEqual(1);
     });

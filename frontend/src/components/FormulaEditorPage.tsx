@@ -110,6 +110,8 @@ export default function FormulaEditorPage() {
   const [testResult, setTestResult] = useState<any>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  const [showToolbox, setShowToolbox] = useState(false);
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
 
   const { data: scopeData } = useQuery({ queryKey: queryKeys.loans.workbenchScopes, queryFn: () => dagService.listScopes() });
   const scope = scopeData?.data?.scopes?.[0];
@@ -134,31 +136,23 @@ export default function FormulaEditorPage() {
   // Init
   useEffect(() => {
     if (!scope) return;
+    setShowToolbox(false);
+    setShowValidationPanel(false);
+    setTestError(null);
+    setTestResult(null);
+    store.selectBlock(null);
     if (isNew) {
-      // New formula: start with one empty container
-      const baseContainer: FormulaContainer = {
-        id: 'base',
-        label: 'Regla principal',
-        blocks: [],
-        outputVar: 'lateFeeMode',
-      };
-      store.setContainers([baseContainer]);
-      setSelectedContainerId(baseContainer.id);
+      store.setContainers([]);
+      setSelectedContainerId(null);
       store.setFormulaName(scope.defaultName || 'Nueva formula');
       setTestInputs(scope.calculationInput || scope.simulationInput || {});
     } else if (existingGraphData?.data?.graph) {
       const existing = existingGraphData.data.graph;
       if (existing.graph) {
         const c = decompileGraphToContainers(existing.graph);
-        const fallbackContainer: FormulaContainer = {
-          id: 'base',
-          label: 'Regla principal',
-          blocks: [],
-          outputVar: 'lateFeeMode',
-        };
-        const nextContainers = c.length > 0 ? c : [fallbackContainer];
+        const nextContainers = c.length > 0 ? c : [];
         store.setContainers(nextContainers);
-        setSelectedContainerId(nextContainers[0]?.id || null);
+        setSelectedContainerId(null);
         store.setFormulaName(existing.name || 'Formula');
         store.setFormulaDescription(existing.description || '');
         store.setStatus(existing.status || 'inactive');
@@ -180,7 +174,7 @@ export default function FormulaEditorPage() {
       if (currentId && containers.some((container) => container.id === currentId)) {
         return currentId;
       }
-      return containers[0].id;
+      return null;
     });
   }, [containers]);
 
@@ -211,6 +205,13 @@ export default function FormulaEditorPage() {
           : 'Nueva version guardada como borrador',
       });
 
+      setShowToolbox(false);
+      setShowValidationPanel(false);
+      setSelectedContainerId(null);
+      setTestError(null);
+      setTestResult(null);
+      store.selectBlock(null);
+
       if (savedGraph?.id) {
         navigate(`/formulas/${savedGraph.id}`, { replace: true });
       }
@@ -223,6 +224,7 @@ export default function FormulaEditorPage() {
 
   const handleTest = async () => {
     setTestError(null); setTestResult(null);
+    setShowValidationPanel(true);
     try {
       const graph = store.compileGraph();
       const res = await dagService.calculateGraph({ scopeKey, graph, calculationInput: testInputs });
@@ -240,8 +242,17 @@ export default function FormulaEditorPage() {
   const handleAddTargetRule = (outputVar: string) => {
     const existing = containers.find((container) => container.outputVar === outputVar);
     if (existing) {
+      if (existing.blocks.length === 0) {
+        const block = makeBlock('if', outputVar);
+        store.addBlock(existing.id, block);
+        setSelectedContainerId(existing.id);
+        store.selectBlock(block.id);
+        setShowValidationPanel(false);
+        return;
+      }
       setSelectedContainerId(existing.id);
       store.selectBlock(null);
+      setShowValidationPanel(false);
       return;
     }
 
@@ -249,6 +260,7 @@ export default function FormulaEditorPage() {
     store.addContainer(container);
     setSelectedContainerId(container.id);
     store.selectBlock(container.blocks[0]?.id || null);
+    setShowValidationPanel(false);
   };
 
   const handleAddBlock = (kind: BlockKind, preferredContainerId?: string) => {
@@ -262,8 +274,11 @@ export default function FormulaEditorPage() {
     }
 
     const targetContainer = store.containers.find((container) => container.id === targetContainerId);
-    store.addBlock(targetContainerId, makeBlock(kind, targetContainer?.outputVar));
+    const block = makeBlock(kind, targetContainer?.outputVar);
+    store.addBlock(targetContainerId, block);
     setSelectedContainerId(targetContainerId);
+    store.selectBlock(block.id);
+    setShowValidationPanel(false);
   };
 
   const handleDeleteBlock = (containerId: string, blockId: string) => {
@@ -333,7 +348,8 @@ export default function FormulaEditorPage() {
       valueKind: variable.type === 'boolean' ? 'number' as const : variable.type === 'currency' ? 'currency' as const : variable.type === 'percent' ? 'percent' as const : 'integer' as const,
     })),
   ];
-  const activeOutputVars = new Set(containers.map((container) => container.outputVar));
+  const configuredContainers = containers.filter((container) => container.blocks.length > 0);
+  const configuredOutputVars = new Set(configuredContainers.map((container) => container.outputVar));
   const lockedText = isLockedByCredits
     ? `${usageCount} credito${usageCount === 1 ? '' : 's'} ya usan esta version. Sus condiciones quedan congeladas.`
     : 'Esta version aun no esta asociada a creditos.';
@@ -344,8 +360,12 @@ export default function FormulaEditorPage() {
       : isActiveVersion
         ? { label: 'Activa', bg: '#e8f5e9', fg: '#1b5e20', dot: '#2e7d32' }
         : { label: 'Inactiva', bg: MD3.secondaryContainer, fg: MD3.onSecondaryContainer, dot: MD3.secondary };
-  const ruleCountLabel = `${containers.length} regla${containers.length === 1 ? '' : 's'} - ${containers.reduce((a, c) => a + c.blocks.length, 0)} bloque${containers.reduce((a, c) => a + c.blocks.length, 0) === 1 ? '' : 's'}`;
-  const configuredBlockCount = containers.reduce((total, container) => total + container.blocks.length, 0);
+  const configuredBlockCount = configuredContainers.reduce((total, container) => total + container.blocks.length, 0);
+  const ruleCountLabel = `${configuredContainers.length} ajuste${configuredContainers.length === 1 ? '' : 's'} - ${configuredBlockCount} condicion${configuredBlockCount === 1 ? '' : 'es'}`;
+  const selectedContainerForEdit = selectedContainerId && !selectedBlock
+    ? containers.find((container) => container.id === selectedContainerId) || null
+    : null;
+  const shouldShowRightPanel = Boolean(selectedBlock || selectedContainerForEdit || showValidationPanel);
 
   const applyVariableToSelectedDecision = (variableName: string) => {
     if (!selectedBlock || (selectedBlock.block.kind !== 'if' && selectedBlock.block.kind !== 'elseIf')) {
@@ -379,6 +399,9 @@ export default function FormulaEditorPage() {
           <span style={{ fontSize: 12, width: 40, textAlign: 'center', color: MD3.onSurfaceVariant, fontFamily: "'JetBrains Mono'" }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => store.setZoom(Math.min(2, zoom + 0.1))} style={sty.btn('transparent', MD3.onSurfaceVariant)}><ZoomIn size={16} /></button>
           <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
+          <button onClick={() => setShowToolbox((value) => !value)} style={{ ...sty.btn(showToolbox ? MD3.secondaryContainer : '#fff', MD3.onSurface), border: `1px solid ${showToolbox ? MD3.secondary : MD3.outlineVariant}` }}>
+            <SlidersHorizontal size={14} /> Herramientas
+          </button>
           <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}` }}><Play size={14} /> Validar</button>
           <button onClick={() => persistGraph({ activate: false })} disabled={isSaving} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, opacity: isSaving ? 0.5 : 1 }}>
             <Save size={14} /> Guardar borrador
@@ -396,13 +419,14 @@ export default function FormulaEditorPage() {
             Version {existingGraph.version} {isActiveVersion ? 'activa' : 'inactiva'}
           </span>
           <span style={{ fontSize: 13, color: MD3.onSurfaceVariant }}>
-            {lockedText} Guardar cambios siempre crea otra version; no modifica creditos anteriores.
+            {isLockedByCredits ? lockedText : 'Sin creditos asociados.'} Los cambios se guardan como nueva version.
           </span>
         </div>
       )}
 
       <div className="formula-editor-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Toolbox */}
+        {showToolbox && (
         <aside className="formula-editor-toolbox" style={sty.aside}>
           <div className="formula-panel-intro">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface, fontWeight: 800, fontSize: 14 }}>
@@ -459,14 +483,14 @@ export default function FormulaEditorPage() {
             </div>
           </div>
 
-          <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
-            <div style={sty.heading}>Operaciones</div>
+          <details style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
+            <summary style={{ ...sty.heading, cursor: 'pointer', marginBottom: 10 }}>Avanzado</summary>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {['+', '-', '*', '/', '(', ')', '=', '>'].map(op => (
                 <div key={op} style={sty.opBtn} draggable>{op}</div>
               ))}
             </div>
-          </div>
+          </details>
 
           <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
             <div style={sty.heading}>Bloques de decision</div>
@@ -489,43 +513,36 @@ export default function FormulaEditorPage() {
             </button>
           </div>
         </aside>
+        )}
 
         {/* Center Canvas */}
         <section className="formula-editor-canvas" style={sty.canvas} onDrop={handleCanvasDrop} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
           onClick={() => { store.selectBlock(null); setSelectedContainerId(null); }}>
-          {/* Floating info bar */}
-          <div className="formula-editor-floating-info" style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', zIndex: 10, pointerEvents: 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)', border: `1px solid ${MD3.outlineVariant}`, backdropFilter: 'blur(8px)', pointerEvents: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-              <span style={{ fontWeight: 600, fontSize: 14, color: MD3.onSurface }}>{formulaName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: floatingStatus.bg, color: floatingStatus.fg, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: floatingStatus.dot }} /> {floatingStatus.label}
-              </span>
-            </div>
-            <div style={{ padding: '6px 12px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)', border: `1px solid ${MD3.outlineVariant}`, fontSize: 12, color: MD3.onSurfaceVariant, pointerEvents: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-              {ruleCountLabel}
-            </div>
-          </div>
-
           {/* Canvas content */}
-          <div className="formula-editor-canvas-content" style={{ padding: '80px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
-            <div className="formula-editor-workflow-card" style={{ width: 'min(960px, calc(100vw - 520px))', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+          <div className="formula-editor-canvas-content" style={{ padding: '32px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <div className="formula-editor-workflow-card" style={{ width: 'min(100%, 980px)', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 900, color: MD3.onSurface }}>Flujo real del credito</div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, marginTop: 2 }}>
-                    El sistema recorre estas etapas al crear un credito. Las tarjetas con "Editar" pueden tener reglas propias.
+                    Toca una etapa marcada con "Editar" para agregar o revisar una regla.
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isActiveVersion ? '#1b5e20' : '#8a5a00', backgroundColor: isActiveVersion ? '#e8f5e9' : '#fff8e1', padding: '5px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
-                  <CheckCircle2 size={13} />
-                  {isActiveVersion ? 'Version activa' : 'Borrador o historica'}
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isActiveVersion ? '#1b5e20' : '#8a5a00', backgroundColor: floatingStatus.bg, padding: '5px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
+                    <CheckCircle2 size={13} />
+                    {floatingStatus.label}
+                  </div>
+                  <div style={{ padding: '5px 9px', borderRadius: 999, backgroundColor: MD3.surface, border: `1px solid ${MD3.outlineVariant}`, fontSize: 11, color: MD3.onSurfaceVariant, fontWeight: 800 }}>
+                    {ruleCountLabel}
+                  </div>
                 </div>
               </div>
 
               <div className="formula-flow-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, alignItems: 'stretch' }}>
                 {FORMULA_FLOW_STEPS.map((step, index) => {
                   const editableTarget = step.editableTarget;
-                  const isConfigured = editableTarget ? activeOutputVars.has(editableTarget) : true;
+                  const isConfigured = editableTarget ? configuredOutputVars.has(editableTarget) : true;
                   return (
                     <div className="formula-flow-step-wrap" key={step.key} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
                       <button
@@ -568,8 +585,8 @@ export default function FormulaEditorPage() {
               </div>
             </div>
 
-            {configuredBlockCount === 0 && (
-              <div className="formula-editor-empty-guide" style={{ width: 'min(960px, calc(100vw - 520px))', minWidth: 620, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+            {containers.length === 0 && (
+              <div className="formula-editor-empty-guide" style={{ width: 'min(100%, 980px)', minWidth: 620, background: '#ffffff', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 18, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: '#e6fffa', color: '#0f766e', flexShrink: 0 }}>
                     <ListChecks size={18} />
@@ -593,7 +610,7 @@ export default function FormulaEditorPage() {
                             alignItems: 'center',
                             gap: 6,
                             border: `1px solid ${MD3.outlineVariant}`,
-                            background: activeOutputVars.has(option.key) ? '#eef7fb' : '#ffffff',
+                            background: configuredOutputVars.has(option.key) ? '#eef7fb' : '#ffffff',
                             color: MD3.onSurface,
                             borderRadius: 10,
                             padding: '9px 11px',
@@ -619,16 +636,11 @@ export default function FormulaEditorPage() {
                 onAddBlock={(containerId, kind) => handleAddBlock(kind, containerId)}
                 isContainerSelected={selectedContainerId === c.id} />
             ))}
-            {containers.length === 0 && (
-              <div style={{ textAlign: 'center', color: MD3.onSurfaceVariant, fontSize: 14, marginTop: 120 }}>
-                <p style={{ marginBottom: 12 }}>Agrega una regla para decidir valores de credito sin escribir codigo.</p>
-                <button onClick={handleAddContainer} style={{ ...sty.btn(MD3.secondary, '#fff') }}><Plus size={14} /> Crear primer bloque</button>
-              </div>
-            )}
           </div>
         </section>
 
         {/* Right Panel: Properties + Live Test */}
+        {shouldShowRightPanel && (
         <aside className="formula-editor-right-panel" style={sty.right}>
           {/* Properties */}
           {selectedBlock && (
@@ -685,18 +697,16 @@ export default function FormulaEditorPage() {
           )}
 
           {/* Selected container properties */}
-          {selectedContainerId && !selectedBlock && (() => {
-            const c = containers.find(ct => ct.id === selectedContainerId);
-            if (!c) return null;
-            const targetOption = FORMULA_TARGET_OPTIONS.find((option) => option.key === c.outputVar);
+          {selectedContainerForEdit && (() => {
+            const targetOption = FORMULA_TARGET_OPTIONS.find((option) => option.key === selectedContainerForEdit.outputVar);
             return (
               <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
                 <div style={{ ...sty.heading, marginBottom: 12 }}>Editar regla</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Nombre visible</label>
-                  <input style={sty.input} value={c.label} onChange={e => store.updateContainer(c.id, { label: e.target.value })} />
+                  <input style={sty.input} value={selectedContainerForEdit.label} onChange={e => store.updateContainer(selectedContainerForEdit.id, { label: e.target.value })} />
                   <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Que define esta regla</label>
-                  <select style={sty.input} value={c.outputVar} onChange={e => handleUpdateContainerOutput(c, e.target.value)}>
+                  <select style={sty.input} value={selectedContainerForEdit.outputVar} onChange={e => handleUpdateContainerOutput(selectedContainerForEdit, e.target.value)}>
                     {FORMULA_TARGET_OPTIONS.map((option) => (
                       <option key={option.key} value={option.key}>{option.label}</option>
                     ))}
@@ -705,7 +715,7 @@ export default function FormulaEditorPage() {
                     {targetOption?.description || 'Define un valor usado al crear creditos.'}
                     {' '}Si una condicion no aplica, el sistema conserva el valor original de esa etapa.
                   </span>
-                  <button onClick={() => store.removeContainer(c.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
+                  <button onClick={() => store.removeContainer(selectedContainerForEdit.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
                     <Trash2 size={14} /> Eliminar regla
                   </button>
                 </div>
@@ -714,6 +724,7 @@ export default function FormulaEditorPage() {
           })()}
 
           {/* Live Test */}
+          {showValidationPanel && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
             <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, backgroundColor: MD3.surface }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -792,8 +803,10 @@ export default function FormulaEditorPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Save button at bottom */}
+          {showValidationPanel && (
           <div style={{ padding: 16, borderTop: `1px solid ${MD3.outlineVariant}`, marginTop: 'auto' }}>
             <button onClick={() => persistGraph({ activate: true })} disabled={isSaving}
               style={{ ...sty.btn(MD3.secondary, '#fff'), width: '100%', justifyContent: 'center', padding: '10px 16px', opacity: isSaving ? 0.5 : 1 }}>
@@ -804,7 +817,9 @@ export default function FormulaEditorPage() {
               <Save size={16} /> Guardar solo como borrador
             </button>
           </div>
+          )}
         </aside>
+        )}
       </div>
     </div>
   );
