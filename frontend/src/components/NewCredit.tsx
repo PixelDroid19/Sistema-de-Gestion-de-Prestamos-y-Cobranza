@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Loader2, Save, ShieldCheck, User } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Save, User } from 'lucide-react';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { useAssociates } from '../services/associateService';
@@ -287,26 +287,26 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cliente seleccionado</p>
-            <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+        <dl className="mt-5 grid gap-x-8 gap-y-3 border-t border-border-subtle pt-4 text-sm md:grid-cols-3">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cliente seleccionado</dt>
+            <dd className="mt-1 truncate font-semibold text-text-primary">
               {selectedCustomer ? getDisplayName(selectedCustomer) : 'Pendiente'}
-            </p>
+            </dd>
           </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa sugerida</p>
-            <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa sugerida</dt>
+            <dd className="mt-1 truncate font-semibold text-text-primary">
               {resolvedRatePolicy ? `${resolvedRatePolicy.annualEffectiveRate}% · ${resolvedRatePolicy.label}` : `${input.interestRate}%`}
-            </p>
+            </dd>
           </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora sugerida</p>
-            <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora sugerida</dt>
+            <dd className="mt-1 truncate font-semibold text-text-primary">
               {resolvedLateFeePolicy ? `${resolvedLateFeePolicy.label}${annualLateFeeRate ? ` · ${annualLateFeeRate}% EA` : ''}` : 'Sin política activa'}
-            </p>
+            </dd>
           </div>
-        </div>
+        </dl>
 
         {selectedAssociate && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
@@ -342,27 +342,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         emptyTitle="Valida antes de registrar"
         emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
       />
-
-      <div className="sticky bottom-4 z-10 hidden rounded-2xl border border-border-subtle bg-bg-surface/95 p-4 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-bg-surface/80 md:block">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3 text-sm text-text-secondary">
-            <ShieldCheck size={18} className="mt-0.5 shrink-0 text-brand-primary" />
-            <span>
-              {hasValidatedResult
-                ? 'Validación lista. El crédito nuevo usará la fórmula activa sin cambiar créditos anteriores.'
-                : 'Primero valida la simulación; después podrás registrar el crédito real.'}
-            </span>
-          </div>
-          <button
-            type="submit"
-            disabled={!canRegister}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
-          >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Registrar crédito
-          </button>
-        </div>
-      </div>
     </form>
   );
 }

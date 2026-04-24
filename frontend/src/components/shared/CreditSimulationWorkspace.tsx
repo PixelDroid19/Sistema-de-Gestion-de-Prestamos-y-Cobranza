@@ -260,50 +260,50 @@ export default function CreditSimulationWorkspace({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+          <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <DollarSign size={14} />
                 Monto base
-              </div>
-              <p className="mt-2 text-lg font-semibold text-text-primary">{formatCurrency(input.amount)}</p>
+              </dt>
+              <dd className="mt-2 text-lg font-semibold text-text-primary">{formatCurrency(input.amount)}</dd>
             </div>
-            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+            <div>
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <Percent size={14} />
                 Tasa anual
-              </div>
-              <p className="mt-2 text-lg font-semibold text-text-primary">{input.interestRate}%</p>
+              </dt>
+              <dd className="mt-2 text-lg font-semibold text-text-primary">{input.interestRate}%</dd>
             </div>
-            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+            <div>
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <Clock3 size={14} />
                 Plazo
-              </div>
-              <p className="mt-2 text-lg font-semibold text-text-primary">{input.termMonths} meses</p>
+              </dt>
+              <dd className="mt-2 text-lg font-semibold text-text-primary">{input.termMonths} meses</dd>
             </div>
-            <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+            <div>
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                 <AlertCircle size={14} />
                 Mora
-              </div>
-              <p className="mt-2 text-lg font-semibold text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</p>
+              </dt>
+              <dd className="mt-2 text-lg font-semibold text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
             </div>
-          </div>
+          </dl>
         </div>
 
-        <div className="grid gap-6 bg-bg-base/40 p-6 sm:p-8 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
           <div className="space-y-5">
-            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm">
+            <section className="space-y-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
                 Parámetros
               </div>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
+              <p className="text-sm leading-6 text-text-secondary">
                 Configura capital, tasa, plazo y política de mora. Los resultados solo se actualizan al ejecutar.
               </p>
 
-              <div className="mt-5 grid gap-4">
+              <div className="grid gap-4">
                 <div>
                   <label htmlFor={amountInputId} className="block text-sm font-medium text-text-primary">
                     Monto del crédito
@@ -434,17 +434,17 @@ export default function CreditSimulationWorkspace({
                 </div>
               </div>
 
-              {helperText && (
-                <div className="mt-5 rounded-xl border border-blue-200 bg-blue-100 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
+              {helperText && !validationStatus?.valid && (
+                <div className="border-l-4 border-blue-300 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/50 dark:bg-blue-500/10 dark:text-blue-200">
                   {helperText}
                 </div>
               )}
 
               {validationStatus && (
                 <div
-                  className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-6 ${validationStatus.valid
-                    ? 'border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-200'
-                    : 'border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
+                  className={`border-l-4 px-4 py-3 text-sm leading-6 ${validationStatus.valid
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-500/10 dark:text-emerald-200'
+                    : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200'
                   }`}
                   role="status"
                 >
@@ -586,7 +586,7 @@ export default function CreditSimulationWorkspace({
                </div>
              )}
 
-            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Resumen del cálculo">
+            <section className="space-y-5" aria-label="Resumen del cálculo">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">Resumen financiero</h4>
@@ -630,7 +630,7 @@ export default function CreditSimulationWorkspace({
               )}
             </section>
 
-            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Tabla de amortización">
+            <section className="space-y-5" aria-label="Tabla de amortización">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -648,7 +648,7 @@ export default function CreditSimulationWorkspace({
                  )}
               </div>
 
-               <div className="mt-5 overflow-hidden rounded-xl border border-border-subtle bg-bg-base">
+               <div className="overflow-hidden rounded-xl border border-border-subtle bg-bg-base">
                 <div className="max-h-[540px] overflow-auto">
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
