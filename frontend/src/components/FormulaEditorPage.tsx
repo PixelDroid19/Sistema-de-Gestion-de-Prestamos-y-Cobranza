@@ -1,17 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Undo2, Redo2, ZoomIn, ZoomOut, Save, Play, ChevronLeft,
-  Plus, GripVertical, GitBranch, Equal, Variable, Trash2,
+  Plus, GripVertical, GitBranch, Trash2, Power, LockKeyhole,
+  ShieldCheck, ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import { useBlockEditorStore, generateBlockId } from '../store/blockEditorStore';
 import { dagService } from '../services/dagService';
+import { variableService } from '../services/variableService';
 import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
 import { FormulaContainerBlock } from './LogicBlock';
-import { decompileGraphToContainers, compileBlocksToGraph } from '../lib/blockCompiler';
-import type { BlockDefinition, FormulaContainer, BlockKind } from '../types/dag';
+import { decompileGraphToContainers } from '../lib/blockCompiler';
+import type { BlockDefinition, FormulaContainer, BlockKind, DagVariable } from '../types/dag';
+import {
+  FORMULA_FLOW_STEPS,
+  FORMULA_INPUT_OPTIONS,
+  FORMULA_TARGET_OPTIONS,
+  LATE_FEE_MODE_OPTIONS,
+  getFormulaTargetKind,
+  getFormulaValueLabel,
+  getFormulaVariableLabel,
+  getInputKindLabel,
+  normalizeModeValue,
+} from '../lib/formulaDisplay';
 
 const MD3 = {
   surface: '#f8f9ff', onSurface: '#0b1c30', onSurfaceVariant: '#5a6271',
@@ -33,16 +46,62 @@ const sty = {
   input: { width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${MD3.outlineVariant}`, backgroundColor: MD3.surface, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", color: MD3.onSurface, outline: 'none' },
 };
 
-function makeBlock(kind: BlockKind): BlockDefinition {
+function getDefaultValueForTarget(outputVar = 'lateFeeMode'): string {
+  if (outputVar === 'lateFeeMode') return 'SIMPLE';
+  if (outputVar === 'interestRate') return '60';
+  if (outputVar === 'termMonths') return '12';
+  if (outputVar === 'installmentAmount') return '200000';
+  return '0';
+}
+
+function getDefaultElseValueForTarget(outputVar = 'lateFeeMode'): string {
+  if (outputVar === 'lateFeeMode') return 'NONE';
+  if (outputVar === 'interestRate') return 'interestRate';
+  if (outputVar === 'termMonths') return 'termMonths';
+  return '0';
+}
+
+function makeBlock(kind: BlockKind, outputVar = 'lateFeeMode'): BlockDefinition {
   const id = generateBlockId(kind);
-  if (kind === 'if' || kind === 'elseIf') return { id, kind, condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: '0.035' };
-  if (kind === 'else') return { id, kind, elseValue: '0.05' };
+  if (kind === 'if') return { id, kind, condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: getDefaultValueForTarget(outputVar) };
+  if (kind === 'elseIf') return { id, kind, condition: { variable: 'amount', operator: '>', value: '500000' }, thenValue: getDefaultValueForTarget(outputVar) };
+  if (kind === 'else') return { id, kind, elseValue: getDefaultElseValueForTarget(outputVar) };
   return { id, kind, label: 'expression' };
+}
+
+function createDefaultContainer(label = 'Regla principal'): FormulaContainer {
+  return {
+    id: generateBlockId('container'),
+    label,
+    blocks: [],
+    outputVar: 'lateFeeMode',
+  };
+}
+
+function createDefaultContainerForTarget(outputVar = 'lateFeeMode'): FormulaContainer {
+  const option = FORMULA_TARGET_OPTIONS.find((item) => item.key === outputVar);
+  const container: FormulaContainer = {
+    id: generateBlockId(`container_${outputVar}`),
+    label: option?.label || 'Regla de credito',
+    outputVar,
+    blocks: [makeBlock('if', outputVar)],
+  };
+
+  if (outputVar === 'interestRate' || outputVar === 'termMonths') {
+    container.blocks.push({
+      id: generateBlockId('else'),
+      kind: 'else',
+      elseValue: getDefaultElseValueForTarget(outputVar),
+    });
+  }
+
+  return container;
 }
 
 export default function FormulaEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isNew = !id || id === 'new';
   const store = useBlockEditorStore();
   const { containers, selectedBlockId, zoom, formulaName, scopeKey } = store;
@@ -54,6 +113,11 @@ export default function FormulaEditorPage() {
 
   const { data: scopeData } = useQuery({ queryKey: queryKeys.loans.workbenchScopes, queryFn: () => dagService.listScopes() });
   const scope = scopeData?.data?.scopes?.[0];
+  const { data: variableData } = useQuery({
+    queryKey: queryKeys.variables.list({ status: 'active', page: 1, pageSize: 100 }),
+    queryFn: () => variableService.list({ status: 'active', page: 1, pageSize: 100 }),
+  });
+  const customVariables: DagVariable[] = variableData?.data?.variables ?? [];
 
   // Load existing graph by ID
   const { data: existingGraphData } = useQuery({
@@ -62,65 +126,170 @@ export default function FormulaEditorPage() {
     enabled: !isNew && !!id,
   });
 
+  const existingGraph = existingGraphData?.data?.graph || null;
+  const usageCount = Number(existingGraph?.usageCount || 0);
+  const isLockedByCredits = Boolean(existingGraph?.isLocked || usageCount > 0);
+  const isActiveVersion = existingGraph?.status === 'active';
+
   // Init
   useEffect(() => {
     if (!scope) return;
     if (isNew) {
       // New formula: start with one empty container
-      store.setContainers([{
+      const baseContainer: FormulaContainer = {
         id: 'base',
-        label: 'Logica principal',
+        label: 'Regla principal',
         blocks: [],
-        outputVar: 'custom_rate',
-      }]);
+        outputVar: 'lateFeeMode',
+      };
+      store.setContainers([baseContainer]);
+      setSelectedContainerId(baseContainer.id);
       store.setFormulaName(scope.defaultName || 'Nueva formula');
-      setTestInputs(scope.simulationInput || {});
+      setTestInputs(scope.calculationInput || scope.simulationInput || {});
     } else if (existingGraphData?.data?.graph) {
       const existing = existingGraphData.data.graph;
       if (existing.graph) {
         const c = decompileGraphToContainers(existing.graph);
-        store.setContainers(c.length > 0 ? c : [{ id: 'base', label: 'Logica principal', blocks: [], outputVar: 'custom_rate' }]);
+        const fallbackContainer: FormulaContainer = {
+          id: 'base',
+          label: 'Regla principal',
+          blocks: [],
+          outputVar: 'lateFeeMode',
+        };
+        const nextContainers = c.length > 0 ? c : [fallbackContainer];
+        store.setContainers(nextContainers);
+        setSelectedContainerId(nextContainers[0]?.id || null);
         store.setFormulaName(existing.name || 'Formula');
         store.setFormulaDescription(existing.description || '');
+        store.setStatus(existing.status || 'inactive');
       }
-      setTestInputs(scope.simulationInput || {});
+      setTestInputs(scope.calculationInput || scope.simulationInput || {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, existingGraphData, id, isNew]);
 
   useEffect(() => { return () => store.reset(); }, []);// eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveMutation = useMutation({
-    mutationFn: (payload: any) => dagService.saveGraph(payload),
-    onSuccess: () => toast.success({ description: 'Formula guardada exitosamente' }),
-    onError: (err: any) => toast.error({ description: err.message || 'Error al guardar' }),
+  useEffect(() => {
+    if (containers.length === 0) {
+      setSelectedContainerId(null);
+      return;
+    }
+
+    setSelectedContainerId((currentId) => {
+      if (currentId && containers.some((container) => container.id === currentId)) {
+        return currentId;
+      }
+      return containers[0].id;
+    });
+  }, [containers]);
+
+  const saveMutation = useMutation({ mutationFn: (payload: any) => dagService.saveGraph(payload) });
+
+  const activateMutation = useMutation({
+    mutationFn: ({ graphId, status }: { graphId: number; status: 'active' | 'inactive' }) =>
+      dagService.updateGraphStatus(graphId, status),
   });
 
-  const handleSave = () => {
-    const graph = store.compileGraph();
-    saveMutation.mutate({ scopeKey, name: formulaName, graph });
+  const persistGraph = async ({ activate }: { activate: boolean }) => {
+    try {
+      const graph = store.compileGraph();
+      const saveResult = await saveMutation.mutateAsync({ scopeKey, name: formulaName, graph });
+      const savedGraph = saveResult?.data?.graph || saveResult?.data?.graphVersion;
+
+      if (activate && savedGraph?.id) {
+        await activateMutation.mutateAsync({ graphId: Number(savedGraph.id), status: 'active' });
+      }
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dag.graphs(scopeKey) });
+      await queryClient.invalidateQueries({ queryKey: ['dag.graphDetails', id] });
+      await queryClient.invalidateQueries({ queryKey: ['dag.graphDetails', String(savedGraph?.id)] });
+
+      toast.success({
+        description: activate
+          ? 'Nueva version guardada y activada para creditos nuevos'
+          : 'Nueva version guardada como borrador',
+      });
+
+      if (savedGraph?.id) {
+        navigate(`/formulas/${savedGraph.id}`, { replace: true });
+      }
+    } catch (err: any) {
+      toast.error({ description: err.message || 'Error al guardar formula' });
+    }
   };
+
+  const isSaving = saveMutation.isPending || activateMutation.isPending;
 
   const handleTest = async () => {
     setTestError(null); setTestResult(null);
     try {
       const graph = store.compileGraph();
-      const res = await dagService.simulateGraph({ scopeKey, graph, simulationInput: testInputs });
-      setTestResult(res?.data?.simulation || null);
+      const res = await dagService.calculateGraph({ scopeKey, graph, calculationInput: testInputs });
+      setTestResult(res?.data?.calculation || res?.data?.simulation || null);
     } catch (err: any) { setTestError(err.message || 'Error en prueba'); }
   };
 
   const handleAddContainer = () => {
-    const c: FormulaContainer = { id: generateBlockId('container'), label: 'New Formula Block', blocks: [], outputVar: generateBlockId('output') };
+    const c = createDefaultContainer('Nuevo bloque de formula');
     store.addContainer(c);
+    setSelectedContainerId(c.id);
+    store.selectBlock(null);
   };
 
-  const handleAddBlock = (containerId: string, kind: BlockKind) => {
-    store.addBlock(containerId, makeBlock(kind));
+  const handleAddTargetRule = (outputVar: string) => {
+    const existing = containers.find((container) => container.outputVar === outputVar);
+    if (existing) {
+      setSelectedContainerId(existing.id);
+      store.selectBlock(null);
+      return;
+    }
+
+    const container = createDefaultContainerForTarget(outputVar);
+    store.addContainer(container);
+    setSelectedContainerId(container.id);
+    store.selectBlock(container.blocks[0]?.id || null);
+  };
+
+  const handleAddBlock = (kind: BlockKind, preferredContainerId?: string) => {
+    let targetContainerId = preferredContainerId || selectedContainerId || containers[0]?.id;
+
+    if (!targetContainerId) {
+      const fallbackContainer = createDefaultContainer();
+      store.addContainer(fallbackContainer);
+      targetContainerId = fallbackContainer.id;
+      setSelectedContainerId(targetContainerId);
+    }
+
+    const targetContainer = store.containers.find((container) => container.id === targetContainerId);
+    store.addBlock(targetContainerId, makeBlock(kind, targetContainer?.outputVar));
+    setSelectedContainerId(targetContainerId);
   };
 
   const handleDeleteBlock = (containerId: string, blockId: string) => {
     store.removeBlock(containerId, blockId);
+  };
+
+  const handleUpdateContainerOutput = (container: FormulaContainer, outputVar: string) => {
+    const currentKind = getFormulaTargetKind(container.outputVar);
+    const nextKind = getFormulaTargetKind(outputVar);
+    const shouldResetValues = currentKind !== nextKind;
+
+    const nextBlocks = shouldResetValues
+      ? container.blocks.map((block) => {
+          if (block.kind === 'if' || block.kind === 'elseIf') {
+            return { ...block, thenValue: getDefaultValueForTarget(outputVar) };
+          }
+          if (block.kind === 'else') {
+            return { ...block, elseValue: getDefaultElseValueForTarget(outputVar) };
+          }
+          return block;
+        })
+      : container.blocks;
+
+    store.setContainers(containers.map((item) => (
+      item.id === container.id ? { ...item, outputVar, blocks: nextBlocks } : item
+    )));
   };
 
   // Drop handler
@@ -129,9 +298,11 @@ export default function FormulaEditorPage() {
     const data = e.dataTransfer.getData('text/plain');
     if (!data) return;
     try {
-      const { action, kind } = JSON.parse(data);
-      if (action === 'addBlock' && selectedContainerId) {
-        handleAddBlock(selectedContainerId, kind);
+      const { action, kind, name } = JSON.parse(data);
+      if (action === 'addBlock' && kind) {
+        handleAddBlock(kind, selectedContainerId || undefined);
+      } else if (action === 'variable' && name) {
+        applyVariableToSelectedDecision(name);
       } else if (action === 'addContainer') {
         handleAddContainer();
       }
@@ -147,7 +318,48 @@ export default function FormulaEditorPage() {
     return null;
   })();
 
-  // ── Render ──
+  const selectedBlockContainer = selectedBlock
+    ? containers.find((container) => container.id === selectedBlock.containerId) || null
+    : null;
+  const selectedOutputKind = getFormulaTargetKind(selectedBlockContainer?.outputVar || '');
+  const conditionOptions = [
+    ...FORMULA_INPUT_OPTIONS.filter((option) => (
+      option.key !== 'startDate' && option.key !== 'lateFeeMode'
+    )),
+    ...customVariables.map((variable) => ({
+      key: variable.name,
+      label: variable.name,
+      description: variable.description || 'Parametro personalizado definido en Variables de formulas.',
+      valueKind: variable.type === 'boolean' ? 'number' as const : variable.type === 'currency' ? 'currency' as const : variable.type === 'percent' ? 'percent' as const : 'integer' as const,
+    })),
+  ];
+  const activeOutputVars = new Set(containers.map((container) => container.outputVar));
+  const lockedText = isLockedByCredits
+    ? `${usageCount} credito${usageCount === 1 ? '' : 's'} ya usan esta version. Sus condiciones quedan congeladas.`
+    : 'Esta version aun no esta asociada a creditos.';
+  const floatingStatus = isNew
+    ? { label: 'Borrador', bg: '#fff8e1', fg: '#8a5a00', dot: '#8a5a00' }
+    : isLockedByCredits
+      ? { label: 'Congelada', bg: '#fff8e1', fg: '#8a5a00', dot: '#8a5a00' }
+      : isActiveVersion
+        ? { label: 'Activa', bg: '#e8f5e9', fg: '#1b5e20', dot: '#2e7d32' }
+        : { label: 'Inactiva', bg: MD3.secondaryContainer, fg: MD3.onSecondaryContainer, dot: MD3.secondary };
+  const ruleCountLabel = `${containers.length} regla${containers.length === 1 ? '' : 's'} - ${containers.reduce((a, c) => a + c.blocks.length, 0)} bloque${containers.reduce((a, c) => a + c.blocks.length, 0) === 1 ? '' : 's'}`;
+
+  const applyVariableToSelectedDecision = (variableName: string) => {
+    if (!selectedBlock || (selectedBlock.block.kind !== 'if' && selectedBlock.block.kind !== 'elseIf')) {
+      return;
+    }
+
+    store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, {
+      condition: {
+        ...(selectedBlock.block.condition || { operator: '>', value: '0' }),
+        variable: variableName,
+      },
+    });
+  };
+
+  // -- Render --
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: MD3.surface, fontFamily: "'Inter', sans-serif" }}>
       {/* Toolbar */}
@@ -166,31 +378,79 @@ export default function FormulaEditorPage() {
           <span style={{ fontSize: 12, width: 40, textAlign: 'center', color: MD3.onSurfaceVariant, fontFamily: "'JetBrains Mono'" }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => store.setZoom(Math.min(2, zoom + 0.1))} style={sty.btn('transparent', MD3.onSurfaceVariant)}><ZoomIn size={16} /></button>
           <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
-          <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}` }}><Play size={14} /> Probar</button>
-          <button onClick={handleSave} disabled={saveMutation.isPending} style={{ ...sty.btn(MD3.onSurface, '#fff'), opacity: saveMutation.isPending ? 0.5 : 1 }}>
-            <Save size={14} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar'}
+          <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}` }}><Play size={14} /> Validar</button>
+          <button onClick={() => persistGraph({ activate: false })} disabled={isSaving} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, opacity: isSaving ? 0.5 : 1 }}>
+            <Save size={14} /> Guardar borrador
+          </button>
+          <button onClick={() => persistGraph({ activate: true })} disabled={isSaving} style={{ ...sty.btn(MD3.onSurface, '#fff'), opacity: isSaving ? 0.5 : 1 }}>
+            <Power size={14} /> {isSaving ? 'Guardando...' : 'Guardar y activar nueva'}
           </button>
         </div>
       </div>
+
+      {!isNew && existingGraph && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${MD3.outlineVariant}`, backgroundColor: isLockedByCredits ? '#fff8e1' : '#eef7fb', color: MD3.onSurface }}>
+          {isLockedByCredits ? <LockKeyhole size={16} color="#8a5a00" /> : <ShieldCheck size={16} color={MD3.secondary} />}
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            Version {existingGraph.version} {isActiveVersion ? 'activa' : 'inactiva'}
+          </span>
+          <span style={{ fontSize: 13, color: MD3.onSurfaceVariant }}>
+            {lockedText} Guardar cambios siempre crea otra version; no modifica creditos anteriores.
+          </span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Toolbox */}
         <aside style={sty.aside}>
           <div>
-            <div style={sty.heading}>Variables</div>
+            <div style={sty.heading}>Datos del credito</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {(scope?.requiredInputs || ['amount', 'interestRate', 'termMonths']).map((v: string) => (
-                <div key={v} style={sty.dragItem} draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ action: 'variable', name: v }))}>
+              {FORMULA_INPUT_OPTIONS.filter((option) => option.key !== 'startDate' && option.key !== 'lateFeeMode').map((option) => (
+                <div
+                  key={option.key}
+                  style={sty.dragItem}
+                  draggable
+                  onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ action: 'variable', name: option.key }))}
+                  onClick={() => applyVariableToSelectedDecision(option.key)}
+                  title={selectedBlock ? option.description : `${option.description} Selecciona una decision para aplicarla.`}
+                >
                   <GripVertical size={12} color={MD3.onSurfaceVariant} />
                   <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#40c2fd' }} />
-                  {v}
+                  <span>{option.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
           <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
-            <div style={sty.heading}>Operations</div>
+            <div style={sty.heading}>Variables personalizadas</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {customVariables.length === 0 ? (
+                <div style={{ fontSize: 12, lineHeight: 1.4, color: MD3.onSurfaceVariant, backgroundColor: MD3.surface, border: `1px dashed ${MD3.outlineVariant}`, borderRadius: 8, padding: 10 }}>
+                  No hay variables activas. Crealas en Variables para usarlas como parametros de formulas reales.
+                </div>
+              ) : (
+                customVariables.map((variable) => (
+                  <div
+                    key={variable.id}
+                    style={sty.dragItem}
+                    draggable
+                    onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ action: 'variable', name: variable.name }))}
+                    onClick={() => applyVariableToSelectedDecision(variable.name)}
+                    title={selectedBlock ? (variable.description || 'Variable personalizada activa') : 'Selecciona una decision para aplicar esta variable.'}
+                  >
+                    <GripVertical size={12} color={MD3.onSurfaceVariant} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#14b8a6' }} />
+                    <span>{variable.name}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
+            <div style={sty.heading}>Operaciones</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {['+', '-', '*', '/', '(', ')', '=', '>'].map(op => (
                 <div key={op} style={sty.opBtn} draggable>{op}</div>
@@ -199,12 +459,12 @@ export default function FormulaEditorPage() {
           </div>
 
           <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
-            <div style={sty.heading}>Logic Blocks</div>
+            <div style={sty.heading}>Bloques de decision</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {([['IF', 'if'], ['ELSE IF', 'elseIf'], ['ELSE', 'else']] as [string, BlockKind][]).map(([label, kind]) => (
+              {([['Si', 'if'], ['Si no, cuando', 'elseIf'], ['En cualquier otro caso', 'else']] as [string, BlockKind][]).map(([label, kind]) => (
                 <div key={kind} style={sty.logicDrag} draggable
                   onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ action: 'addBlock', kind }))}
-                  onClick={() => selectedContainerId && handleAddBlock(selectedContainerId, kind)}>
+                  onClick={() => handleAddBlock(kind, selectedContainerId || undefined)}>
                   <GripVertical size={12} />
                   <GitBranch size={14} />
                   {label}
@@ -215,7 +475,7 @@ export default function FormulaEditorPage() {
 
           <div style={{ borderTop: `1px solid ${MD3.outlineVariant}`, paddingTop: 12 }}>
             <button onClick={handleAddContainer} style={{ ...sty.btn(MD3.secondary, '#fff'), width: '100%', justifyContent: 'center' }}>
-              <Plus size={14} /> New Formula Block
+              <Plus size={14} /> Nueva regla
             </button>
           </div>
         </aside>
@@ -227,17 +487,76 @@ export default function FormulaEditorPage() {
           <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', zIndex: 10, pointerEvents: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)', border: `1px solid ${MD3.outlineVariant}`, backdropFilter: 'blur(8px)', pointerEvents: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <span style={{ fontWeight: 600, fontSize: 14, color: MD3.onSurface }}>{formulaName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: MD3.secondaryContainer, color: MD3.onSecondaryContainer, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: MD3.secondary }} /> DRAFT
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: floatingStatus.bg, color: floatingStatus.fg, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: floatingStatus.dot }} /> {floatingStatus.label}
               </span>
             </div>
             <div style={{ padding: '6px 12px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)', border: `1px solid ${MD3.outlineVariant}`, fontSize: 12, color: MD3.onSurfaceVariant, pointerEvents: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-              {containers.length} contenedores · {containers.reduce((a, c) => a + c.blocks.length, 0)} bloques
+              {ruleCountLabel}
             </div>
           </div>
 
           {/* Canvas content */}
           <div style={{ padding: '80px 40px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, minHeight: '100%', transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <div style={{ width: 'min(860px, calc(100vw - 520px))', minWidth: 620, backgroundColor: 'rgba(255,255,255,0.96)', border: `1px solid ${MD3.outlineVariant}`, borderRadius: 14, padding: 16, boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: MD3.onSurface }}>Flujo real del credito</div>
+                  <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, marginTop: 2 }}>
+                    Este es el orden que usa el sistema al crear creditos. Las etapas marcadas se pueden ajustar con reglas.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isActiveVersion ? '#1b5e20' : '#8a5a00', backgroundColor: isActiveVersion ? '#e8f5e9' : '#fff8e1', padding: '5px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
+                  <CheckCircle2 size={13} />
+                  {isActiveVersion ? 'Version activa' : 'Borrador o historica'}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, alignItems: 'stretch' }}>
+                {FORMULA_FLOW_STEPS.map((step, index) => {
+                  const editableTarget = step.editableTarget;
+                  const isConfigured = editableTarget ? activeOutputVars.has(editableTarget) : true;
+                  return (
+                    <div key={step.key} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                      <button
+                        type="button"
+                        disabled={!editableTarget}
+                        onClick={() => {
+                          if (editableTarget) {
+                            handleAddTargetRule(editableTarget);
+                          }
+                        }}
+                        style={{
+                          minHeight: 116,
+                          width: '100%',
+                          textAlign: 'left',
+                          borderRadius: 10,
+                          border: `1px solid ${editableTarget ? (isConfigured ? MD3.secondary : MD3.outlineVariant) : MD3.outlineVariant}`,
+                          backgroundColor: editableTarget ? (isConfigured ? '#eef7fb' : '#ffffff') : MD3.surface,
+                          padding: 10,
+                          cursor: editableTarget ? 'pointer' : 'default',
+                          color: MD3.onSurface,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: MD3.onSurface }}>{step.label}</span>
+                          {editableTarget && (
+                            <span style={{ fontSize: 9, fontWeight: 800, borderRadius: 999, padding: '2px 5px', color: isConfigured ? '#1b5e20' : MD3.onSurfaceVariant, backgroundColor: isConfigured ? '#e8f5e9' : MD3.surface }}>
+                              {isConfigured ? 'AJUSTADA' : 'EDITAR'}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, lineHeight: 1.35, color: MD3.onSurfaceVariant }}>{step.description}</div>
+                      </button>
+                      {index < FORMULA_FLOW_STEPS.length - 1 && (
+                        <ArrowRight size={14} color={MD3.outline} style={{ alignSelf: 'center', flexShrink: 0 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {containers.map(c => (
               <FormulaContainerBlock key={c.id} container={c} selectedBlockId={selectedBlockId}
                 onSelectBlock={bid => store.selectBlock(bid)} onDeleteBlock={handleDeleteBlock}
@@ -246,7 +565,7 @@ export default function FormulaEditorPage() {
             ))}
             {containers.length === 0 && (
               <div style={{ textAlign: 'center', color: MD3.onSurfaceVariant, fontSize: 14, marginTop: 120 }}>
-                <p style={{ marginBottom: 12 }}>Arrastrá bloques del Toolbox o hacé click en "New Formula Block"</p>
+                <p style={{ marginBottom: 12 }}>Agrega una regla para decidir valores de credito sin escribir codigo.</p>
                 <button onClick={handleAddContainer} style={{ ...sty.btn(MD3.secondary, '#fff') }}><Plus size={14} /> Crear primer bloque</button>
               </div>
             )}
@@ -258,30 +577,52 @@ export default function FormulaEditorPage() {
           {/* Properties */}
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
-              <div style={{ ...sty.heading, marginBottom: 12 }}>Block Properties</div>
+              <div style={{ ...sty.heading, marginBottom: 12 }}>Editar decision</div>
               {(selectedBlock.block.kind === 'if' || selectedBlock.block.kind === 'elseIf') && selectedBlock.block.condition && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Variable</label>
-                  <input style={sty.input} value={selectedBlock.block.condition.variable}
-                    onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { condition: { ...selectedBlock.block.condition!, variable: e.target.value } })} />
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Operator</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Cuando</label>
+                  <select style={sty.input} value={selectedBlock.block.condition.variable}
+                    onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { condition: { ...selectedBlock.block.condition!, variable: e.target.value } })}>
+                    {conditionOptions.map((option) => (
+                      <option key={option.key} value={option.key}>{option.label}</option>
+                    ))}
+                  </select>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Comparacion</label>
                   <select style={sty.input} value={selectedBlock.block.condition.operator}
                     onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { condition: { ...selectedBlock.block.condition!, operator: e.target.value as any } })}>
                     {['>', '<', '>=', '<=', '==', '!='].map(op => <option key={op} value={op}>{op}</option>)}
                   </select>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Value</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Valor de comparacion</label>
                   <input style={sty.input} value={selectedBlock.block.condition.value}
                     onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { condition: { ...selectedBlock.block.condition!, value: e.target.value } })} />
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Then Value</label>
-                  <input style={sty.input} value={selectedBlock.block.thenValue || ''}
-                    onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })} />
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Entonces usar</label>
+                  {selectedOutputKind === 'mode' ? (
+                    <select style={sty.input} value={normalizeModeValue(selectedBlock.block.thenValue)}
+                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })}>
+                      {LATE_FEE_MODE_OPTIONS.map((option) => (
+                        <option key={option.key} value={option.key}>{option.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input style={sty.input} value={selectedBlock.block.thenValue || ''}
+                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })} />
+                  )}
                 </div>
               )}
               {selectedBlock.block.kind === 'else' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Else Value</label>
-                  <input style={sty.input} value={selectedBlock.block.elseValue || ''}
-                    onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { elseValue: e.target.value })} />
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>En cualquier otro caso usar</label>
+                  {selectedOutputKind === 'mode' ? (
+                    <select style={sty.input} value={normalizeModeValue(selectedBlock.block.elseValue)}
+                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { elseValue: e.target.value })}>
+                      {LATE_FEE_MODE_OPTIONS.map((option) => (
+                        <option key={option.key} value={option.key}>{option.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input style={sty.input} value={selectedBlock.block.elseValue || ''}
+                      onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { elseValue: e.target.value })} />
+                  )}
                 </div>
               )}
             </div>
@@ -291,16 +632,25 @@ export default function FormulaEditorPage() {
           {selectedContainerId && !selectedBlock && (() => {
             const c = containers.find(ct => ct.id === selectedContainerId);
             if (!c) return null;
+            const targetOption = FORMULA_TARGET_OPTIONS.find((option) => option.key === c.outputVar);
             return (
               <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
-                <div style={{ ...sty.heading, marginBottom: 12 }}>Container Properties</div>
+                <div style={{ ...sty.heading, marginBottom: 12 }}>Editar regla</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Label</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Nombre visible</label>
                   <input style={sty.input} value={c.label} onChange={e => store.updateContainer(c.id, { label: e.target.value })} />
-                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Output Variable</label>
-                  <input style={sty.input} value={c.outputVar} onChange={e => store.updateContainer(c.id, { outputVar: e.target.value })} />
+                  <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Que define esta regla</label>
+                  <select style={sty.input} value={c.outputVar} onChange={e => handleUpdateContainerOutput(c, e.target.value)}>
+                    {FORMULA_TARGET_OPTIONS.map((option) => (
+                      <option key={option.key} value={option.key}>{option.label}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.4 }}>
+                    {targetOption?.description || 'Define un valor usado al crear creditos.'}
+                    {' '}Si una condicion no aplica, el sistema conserva el valor original de esa etapa.
+                  </span>
                   <button onClick={() => store.removeContainer(c.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
-                    <Trash2 size={14} /> Delete Container
+                    <Trash2 size={14} /> Eliminar regla
                   </button>
                 </div>
               </div>
@@ -309,29 +659,49 @@ export default function FormulaEditorPage() {
 
           {/* Live Test */}
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+            <div style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 12, padding: 12, backgroundColor: MD3.surface }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <ShieldCheck size={16} color={MD3.secondary} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: MD3.onSurface }}>Impacto real</span>
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.45, color: MD3.onSurfaceVariant }}>
+                Validar prueba esta version sin guardarla. Guardar y activar hace que los creditos nuevos usen esta formula.
+                Los creditos existentes mantienen la version que ya tienen registrada.
+              </div>
+            </div>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Play size={18} color={MD3.secondary} />
-              <span style={{ fontSize: 18, fontWeight: 700, color: MD3.onSurface }}>Live Test</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: MD3.onSurface }}>Validacion de credito</span>
             </div>
 
             <div>
-              <div style={sty.heading}>Input Values</div>
+              <div style={sty.heading}>Datos del credito de prueba</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {Object.entries(testInputs).map(([key, value]) => (
                   <div key={key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <label style={{ fontSize: 13, fontWeight: 500, color: MD3.onSurface }}>{key}</label>
-                      <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono'", color: MD3.onSurfaceVariant }}>{typeof value === 'number' ? 'Decimal' : 'Str'}</span>
+                      <label style={{ fontSize: 13, fontWeight: 500, color: MD3.onSurface }}>{getFormulaVariableLabel(key)}</label>
+                      <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono'", color: MD3.onSurfaceVariant }}>{getInputKindLabel(typeof value === 'number' ? 'number' : key === 'startDate' ? 'date' : key === 'lateFeeMode' ? 'mode' : 'number')}</span>
                     </div>
-                    <input type={typeof value === 'number' ? 'number' : 'text'} value={value as any} style={sty.input}
-                      onChange={e => setTestInputs(prev => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))} />
+                    {key === 'lateFeeMode' ? (
+                      <select value={normalizeModeValue(String(value))} style={sty.input}
+                        onChange={e => setTestInputs(prev => ({ ...prev, [key]: e.target.value }))}>
+                        {LATE_FEE_MODE_OPTIONS.map((option) => (
+                          <option key={option.key} value={option.key}>{option.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type={typeof value === 'number' ? 'number' : 'text'} value={value as any} style={sty.input}
+                        onChange={e => setTestInputs(prev => ({ ...prev, [key]: typeof value === 'number' ? Number(e.target.value) : e.target.value }))} />
+                    )}
                   </div>
                 ))}
               </div>
             </div>
 
             <button onClick={handleTest} style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, justifyContent: 'center', width: '100%' }}>
-              <Play size={16} /> Evaluate Formula
+              <Play size={16} /> Validar formula
             </button>
 
             {testError && (
@@ -340,16 +710,28 @@ export default function FormulaEditorPage() {
 
             {testResult && (
               <div>
-                <div style={sty.heading}>Execution Result</div>
+                <div style={sty.heading}>Resultado operativo</div>
                 <div style={{ borderRadius: 12, padding: 16, backgroundColor: MD3.surface, border: `1px solid ${MD3.outlineVariant}`, position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', backgroundColor: '#2e7d32' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: MD3.onSurface }}>Result</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: '#e8f5e9', color: '#1b5e20' }}>SUCCESS</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: MD3.onSurface }}>Calculo listo para credito</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, backgroundColor: '#e8f5e9', color: '#1b5e20' }}>OK</span>
                   </div>
-                  <pre style={{ fontSize: 12, fontFamily: "'JetBrains Mono'", color: MD3.onSurface, overflow: 'auto', maxHeight: 192, paddingLeft: 8, margin: 0 }}>
-                    {JSON.stringify(testResult, null, 2)}
-                  </pre>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingLeft: 8 }}>
+                    {[
+                      ['Cuota', testResult?.summary?.installmentAmount],
+                      ['Total a pagar', testResult?.summary?.totalPayable],
+                      ['Intereses', testResult?.summary?.totalInterest],
+                      ['Politica', getFormulaValueLabel(testResult?.lateFeeMode, 'lateFeeMode')],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 8, padding: '8px 10px', backgroundColor: '#fff' }}>
+                        <div style={{ fontSize: 10, color: MD3.onSurfaceVariant, textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+                        <div style={{ fontSize: 14, color: MD3.onSurface, fontWeight: 700, fontFamily: typeof value === 'number' ? "'JetBrains Mono'" : undefined }}>
+                          {typeof value === 'number' ? value.toLocaleString('es-CO') : value || '-'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -357,9 +739,13 @@ export default function FormulaEditorPage() {
 
           {/* Save button at bottom */}
           <div style={{ padding: 16, borderTop: `1px solid ${MD3.outlineVariant}`, marginTop: 'auto' }}>
-            <button onClick={handleSave} disabled={saveMutation.isPending}
-              style={{ ...sty.btn(MD3.secondary, '#fff'), width: '100%', justifyContent: 'center', padding: '10px 16px', opacity: saveMutation.isPending ? 0.5 : 1 }}>
-              <Save size={16} /> {saveMutation.isPending ? 'Guardando...' : 'Save Formula'}
+            <button onClick={() => persistGraph({ activate: true })} disabled={isSaving}
+              style={{ ...sty.btn(MD3.secondary, '#fff'), width: '100%', justifyContent: 'center', padding: '10px 16px', opacity: isSaving ? 0.5 : 1 }}>
+              <Power size={16} /> {isSaving ? 'Guardando...' : 'Guardar y activar nueva version'}
+            </button>
+            <button onClick={() => persistGraph({ activate: false })} disabled={isSaving}
+              style={{ ...sty.btn('#fff', MD3.onSurface), border: `1px solid ${MD3.outlineVariant}`, width: '100%', justifyContent: 'center', padding: '9px 16px', opacity: isSaving ? 0.5 : 1, marginTop: 8 }}>
+              <Save size={16} /> Guardar solo como borrador
             </button>
           </div>
         </aside>

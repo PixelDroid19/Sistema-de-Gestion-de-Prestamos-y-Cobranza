@@ -75,7 +75,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         termMonths: months,
         lateFeeMode: formData.lateFeeMode,
       });
-      setSimulation(result?.data?.simulation ?? null);
+      setSimulation(result?.data?.calculation ?? result?.data?.simulation ?? null);
     } catch (error: any) {
       console.error('Error in simulation', error);
       toast.apiErrorSafe(error, { domain: 'credits', action: 'credit.simulate' });
@@ -130,7 +130,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </button>
           <div>
             <h2 className="text-2xl font-semibold">Nuevo Crédito</h2>
-            <p className="text-sm text-text-secondary mt-1">Configurar y simular un nuevo préstamo.</p>
+            <p className="text-sm text-text-secondary mt-1">Configurar y validar un nuevo crédito con la fórmula activa.</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -247,11 +247,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             </form>
           </div>
 
-          {/* Right Column - Simulation */}
+          {/* Right Column - Credit calculation preview */}
           <div className="lg:col-span-1">
             <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6 sticky top-6">
               <h3 className="text-lg font-medium mb-6 flex items-center gap-2 border-b border-border-subtle pb-4">
-                <Calculator size={20} className="text-blue-500" /> Simulación
+                <Calculator size={20} className="text-blue-500" /> Cálculo del crédito
               </h3>
               
               <button 
@@ -261,7 +261,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 className="w-full mb-6 bg-brand-primary/10 text-brand-primary px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-brand-primary/20 transition-colors flex justify-center items-center gap-2"
               >
                 {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-                Calcular Cuotas
+                Calcular crédito
               </button>
 
               <div className="space-y-4">
@@ -282,7 +282,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   <span className="font-medium text-text-primary">{simulation?.schedule?.length || Number(formData.termMonths) || 0}</span>
                 </div>
                 <div className="flex justify-between items-center py-4 bg-brand-primary/5 -mx-6 px-6 mt-6 mb-2 border-y border-brand-primary/10">
-                  <span className="font-medium text-brand-primary">Cuota Estimada</span>
+                  <span className="font-medium text-brand-primary">Cuota calculada</span>
                   <span className="text-xl font-bold text-brand-primary">{formatCurrency(simulation?.summary?.installmentAmount || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
@@ -293,7 +293,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
               {simulation?.schedule && (
                 <div className="mt-6 pt-4 border-t border-border-subtle">
-                  <p className="text-sm text-text-secondary text-center">Simulación completada con éxito.</p>
+                  <p className="text-sm text-text-secondary text-center">Cálculo validado con la fórmula activa.</p>
                   {simulation.graphVersionId != null && (
                     <p className="text-xs text-text-secondary text-center mt-1">
                       Fórmula v{simulation.graphVersionId}

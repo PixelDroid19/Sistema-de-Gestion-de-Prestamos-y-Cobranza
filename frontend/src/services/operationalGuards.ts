@@ -41,7 +41,7 @@ type GuardResult = {
 
 const CLOSED_LOAN_STATUSES = new Set<string>(CLOSED_OR_BLOCKED_LOAN_STATUSES);
 const NON_EXECUTABLE_STATUSES = new Set<string>(NON_EXECUTABLE_INSTALLMENT_STATUSES);
-const PAYABLE_LOAN_STATUSES = new Set<string>(['approved', 'active', 'defaulted', 'overdue']);
+const PAYABLE_LOAN_STATUSES = new Set<string>(['pending', 'approved', 'active', 'defaulted', 'overdue']);
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
   'credit.delete': ['credits.delete', 'credit.delete'],

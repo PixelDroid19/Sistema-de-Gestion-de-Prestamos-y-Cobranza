@@ -114,7 +114,8 @@ function MainLayout() {
               <Route path="/payouts" element={<ProtectedRoute allowedRoles={['admin']}><Payouts /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Notifications /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
-              <Route path="/simulator" element={<ProtectedRoute allowedRoles={['admin']}><CreditSimulator /></ProtectedRoute>} />
+              <Route path="/credit-calculator" element={<ProtectedRoute allowedRoles={['admin']}><CreditSimulator /></ProtectedRoute>} />
+              <Route path="/simulator" element={<Navigate to="/credit-calculator" replace />} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><AuditLogPage /></ProtectedRoute>} />

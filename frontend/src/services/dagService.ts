@@ -3,8 +3,8 @@ import {
   LoadGraphResponse,
   SaveGraphRequest,
   SaveGraphResponse,
-  SimulateGraphRequest,
-  SimulateGraphResponse,
+  CalculateGraphRequest,
+  CalculateGraphResponse,
   ValidateGraphRequest,
   ValidateGraphResponse,
   GraphListResponse,
@@ -13,8 +13,8 @@ import {
   GraphDeleteResponse,
   DagWorkbenchScopesResponse,
   DagGraphStatus,
-  SimulationInput,
-  SimulationResponse,
+  CreditCalculationInput,
+  CreditCalculationResponse,
   GraphHistoryResponse,
   GraphDiffResponse,
 } from '../types/dag';
@@ -59,21 +59,35 @@ export const dagService = {
   },
 
   /**
-   * POST /api/v1/loans/workbench/graph/simulations
-   * Simulate a graph with given inputs
+   * POST /api/v1/loans/workbench/graph/calculations
+   * Calculate a draft graph with given inputs
    */
-  async simulateGraph(payload: SimulateGraphRequest): Promise<SimulateGraphResponse> {
-    const { data } = await apiClient.post('/loans/workbench/graph/simulations', payload);
+  async calculateGraph(payload: CalculateGraphRequest): Promise<CalculateGraphResponse> {
+    const { data } = await apiClient.post('/loans/workbench/graph/calculations', payload);
     return data;
   },
 
   /**
-   * POST /api/v1/loans/simulations
-   * Run a simple credit simulation (without custom graph)
+   * Backward-compatible method name used by existing components.
    */
-  async simulate(input: SimulationInput): Promise<SimulationResponse> {
-    const { data } = await apiClient.post('/loans/simulations', input);
+  async simulateGraph(payload: CalculateGraphRequest): Promise<CalculateGraphResponse> {
+    return dagService.calculateGraph(payload);
+  },
+
+  /**
+   * POST /api/v1/loans/calculations
+   * Run a canonical credit calculation against the active formula.
+   */
+  async calculate(input: CreditCalculationInput): Promise<CreditCalculationResponse> {
+    const { data } = await apiClient.post('/loans/calculations', input);
     return data;
+  },
+
+  /**
+   * Backward-compatible method name used by existing components.
+   */
+  async simulate(input: CreditCalculationInput): Promise<CreditCalculationResponse> {
+    return dagService.calculate(input);
   },
 
   // ── Formula Management Endpoints ─────────────────────────────────────────
@@ -123,9 +137,12 @@ export const dagService = {
     return data;
   },
 
-  async getGraphDiff(graphId: number, compareToVersionId: number): Promise<GraphDiffResponse> {
+  async getGraphDiff(
+    graphId: number,
+    params: { compareToGraphId?: number; compareToVersionId?: number },
+  ): Promise<GraphDiffResponse> {
     const { data } = await apiClient.get(`/loans/workbench/graphs/${graphId}/diff`, {
-      params: { compareToVersionId },
+      params,
     });
     return data;
   },

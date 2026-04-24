@@ -12,6 +12,7 @@ const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
 const PARTIAL_PAYMENT_TYPE = 'partial';
 const CAPITAL_PAYMENT_TYPE = 'capital';
+const VALID_PAYMENT_METHODS = ['cash', 'transfer', 'card', 'check', 'other'];
 
 const _INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
 const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
@@ -118,7 +119,7 @@ const normalizePaymentDate = (paymentDate) => new Date(paymentDate);
 
 const assertPayableLoanStatus = (loan) => {
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
-    throw new ValidationError('Payments can only be applied to approved, active, overdue, or defaulted loans');
+    throw new ValidationError('Payments can only be applied to pending, approved, active, overdue, or defaulted loans');
   }
 };
 
@@ -146,7 +147,7 @@ const persistLoanSnapshot = ({ loan, snapshot, schedule, paymentDate, closeLoan 
     loan.recoveryStatus = 'recovered';
     loan.closedAt = paymentDate;
     loan.closureReason = closureReason;
-  } else if (loan.status === 'approved') {
+  } else if (loan.status === 'pending' || loan.status === 'approved') {
     loan.status = 'active';
   }
 };
@@ -164,6 +165,7 @@ const buildInstallmentPaymentCreatePayload = ({
   snapshot,
   allocations,
   installmentNumber,
+  paymentMethod,
 }) => ({
   loanId: loan.id,
   amount,
@@ -181,6 +183,7 @@ const buildInstallmentPaymentCreatePayload = ({
     additionalPrincipalApplied,
     unappliedOverpaymentAmount,
   },
+  paymentMethod,
   installmentNumber,
 });
 
@@ -295,7 +298,7 @@ const createPaymentApplicationService = ({
    * 5. Capital de la cuota from current/future installments
    * 6. Abonos adicionales a capital (excess overpayment reduces future principal)
    */
-  const executeInstallmentPayment = async ({ loanId, amount, paymentDate = clock(), transaction, paymentMetadata = null }) => {
+  const executeInstallmentPayment = async ({ loanId, amount, paymentDate = clock(), transaction, paymentMetadata = null, paymentMethod = null }) => {
     const run = async (transactionContext) => {
       const transaction = transactionContext;
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
@@ -307,6 +310,9 @@ const createPaymentApplicationService = ({
       assertPayableLoanStatus(loan);
 
       const numericAmount = assertPositiveAmount(amount);
+      if (paymentMethod && !VALID_PAYMENT_METHODS.includes(paymentMethod)) {
+        throw new ValidationError(`Invalid payment method. Must be one of: ${VALID_PAYMENT_METHODS.join(', ')}`);
+      }
 
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
       const { schedule: canonicalSchedule } = loanViewService.getCanonicalLoanView(loan);
@@ -497,6 +503,7 @@ const createPaymentApplicationService = ({
         snapshot,
         allocations,
         installmentNumber: targetInstallment,
+        paymentMethod,
       }), { transaction });
 
       if (paymentMetadata && typeof payment.update === 'function') {
@@ -533,8 +540,8 @@ const createPaymentApplicationService = ({
     return sequelizeInstance.transaction(async (createdTransaction) => run(createdTransaction));
   };
 
-  const applyPayment = async ({ loanId, amount, paymentDate = clock() }) => {
-    return executeInstallmentPayment({ loanId, amount, paymentDate });
+  const applyPayment = async ({ loanId, amount, paymentDate = clock(), paymentMethod }) => {
+    return executeInstallmentPayment({ loanId, amount, paymentDate, paymentMethod });
   };
 
   /**
@@ -845,7 +852,7 @@ const createPaymentApplicationService = ({
         throw new NotFoundError('Loan');
       }
 
-      const cancellableLoanStatuses = new Set(['active', 'overdue', 'defaulted']);
+      const cancellableLoanStatuses = new Set(['pending', 'active', 'overdue', 'defaulted']);
       if (!cancellableLoanStatuses.has(loan.status)) {
         throw new ValidationError('Cannot annul installments on a loan with status: ' + loan.status);
       }
@@ -997,7 +1004,6 @@ const createPaymentApplicationService = ({
       throw new AuthorizationError('Only admins can update payment methods');
     }
 
-    const VALID_PAYMENT_METHODS = ['cash', 'transfer', 'card', 'check', 'other'];
     if (paymentMethod && !VALID_PAYMENT_METHODS.includes(paymentMethod)) {
       throw new ValidationError(`Invalid payment method. Must be one of: ${VALID_PAYMENT_METHODS.join(', ')}`);
     }
@@ -1089,7 +1095,7 @@ const createPaymentApplicationService = ({
     throw lastError;
   };
 
-  const processPayment = async ({ loanId, paymentAmount, paymentDate, actorId = 0, idempotencyKey: reqIdempotencyKey }) => {
+  const processPayment = async ({ loanId, paymentAmount, paymentDate, paymentMethod, actorId = 0, idempotencyKey: reqIdempotencyKey }) => {
     validateProcessPaymentInput({ loanId, paymentAmount, paymentDate });
 
     const idempotencyKey = reqIdempotencyKey || generateIdempotencyKey(loanId, paymentAmount, paymentDate);
@@ -1177,6 +1183,7 @@ const createPaymentApplicationService = ({
         loanId,
         amount: Number(paymentAmount),
         paymentDate,
+        paymentMethod,
         transaction: tx,
         paymentMetadata: buildProcessPaymentMetadata({ idempotencyKey }),
       });

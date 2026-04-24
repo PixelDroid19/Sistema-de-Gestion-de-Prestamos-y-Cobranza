@@ -46,7 +46,7 @@ test('createDagWorkbenchService restores a graph version as new version', async 
       { id: 'lateFeeMode', kind: 'conditional', label: 'Modo mora', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
       { id: 'schedule', kind: 'formula', label: 'Cronograma', outputVar: 'schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)' },
       { id: 'summary', kind: 'formula', label: 'Resumen', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
-      { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+      { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildCreditResult(lateFeeMode, schedule, summary)' },
     ],
     edges: [
       { source: 'amount', target: 'schedule' },
@@ -138,6 +138,57 @@ test('createDagWorkbenchService produces node-level diff', async () => {
   assert.ok(diff.diff.impactedVariables.includes('tier'));
   assert.ok(Array.isArray(diff.diff.previousGraph.nodes));
   assert.ok(Array.isArray(diff.diff.newGraph.nodes));
+});
+
+test('createDagWorkbenchService produces node-level diff using compareToGraphId', async () => {
+  const oldGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: 'Score > 700', outputVar: 'tier' },
+      { id: 'n2', kind: 'formula', formula: '0.03', outputVar: 'rate' },
+    ],
+    edges: [{ source: 'n1', target: 'n2' }],
+  };
+  const newGraph = {
+    nodes: [
+      { id: 'n1', kind: 'formula', formula: 'Score > 760', outputVar: 'tier' },
+      { id: 'n2', kind: 'formula', formula: '0.03', outputVar: 'rate' },
+    ],
+    edges: [{ source: 'n1', target: 'n2' }],
+  };
+
+  const graphs = [
+    { id: 10, scopeKey: 'credit-simulation', version: 1, graph: oldGraph },
+    { id: 22, scopeKey: 'credit-simulation', version: 2, graph: newGraph },
+  ];
+
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'shadow', workbenchEnabled: true },
+    dagGraphRepository: {
+      async findById(id) {
+        return graphs.find((g) => g.id === id) || null;
+      },
+      async findByScopeAndVersion(scopeKey, version) {
+        return graphs.find((g) => g.scopeKey === scopeKey && g.version === version) || null;
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() { throw new Error('should not be called'); },
+      async getLatest() { return null; },
+    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
+  });
+
+  const actor = { id: 1, role: 'admin' };
+  const diff = await service.getGraphDiff({
+    actor,
+    graphId: 22,
+    compareToGraphId: 10,
+    compareToVersionId: 999, // should be ignored when compareToGraphId is provided
+  });
+
+  assert.ok(diff.diff.impactedVariables.includes('tier'));
+  assert.equal(diff.diff.previousGraph.nodes[0].formula, 'Score > 700');
+  assert.equal(diff.diff.newGraph.nodes[0].formula, 'Score > 760');
 });
 
 // ── extractImpactedVariables unit tests ──

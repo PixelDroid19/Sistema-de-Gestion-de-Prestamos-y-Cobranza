@@ -170,7 +170,12 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
     method: 'POST',
     path: '/workbench/graph',
     headers: { authorization: 'Bearer valid-token' },
-    body: { scopeKey: 'personal-loan', name: 'Personal Loan', graph: graphVersion.graph },
+    body: {
+      scopeKey: 'personal-loan',
+      name: 'Personal Loan',
+      graph: graphVersion.graph,
+      commitMessage: 'Adjust active collection formula',
+    },
   });
   const validateResponse = await requestJson(activeServer, {
     method: 'POST',
@@ -206,7 +211,13 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   assert.deepEqual(calls, [
     ['listDagWorkbenchScopes', { actor: { id: 1, role: 'admin' } }],
     ['loadDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan' }],
-    ['saveDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan', name: 'Personal Loan', graph: graphVersion.graph }],
+    ['saveDagWorkbenchGraph', {
+      actor: { id: 1, role: 'admin' },
+      scopeKey: 'personal-loan',
+      name: 'Personal Loan',
+      graph: graphVersion.graph,
+      commitMessage: 'Adjust active collection formula',
+    }],
     ['validateDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan', graph: graphVersion.graph }],
     ['simulateDagWorkbenchGraph', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan', graph: graphVersion.graph, simulationInput: { amount: 1000, interestRate: 12, termMonths: 12 } }],
     ['getDagWorkbenchSummary', { actor: { id: 1, role: 'admin' }, scopeKey: 'personal-loan' }],

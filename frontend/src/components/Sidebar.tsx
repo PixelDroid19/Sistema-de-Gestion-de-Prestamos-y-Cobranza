@@ -216,10 +216,10 @@ export default function Sidebar({
                   </>
                 )}
                 <SubNavItem
-                  active={currentView === 'simulator'}
-                  onClick={() => setCurrentView('simulator')}
-                  title="Simulador de Crédito"
-                  tooltip="Calcula cuotas y genera tablas de amortización"
+                  active={currentView === 'credit-calculator' || currentView === 'simulator'}
+                  onClick={() => setCurrentView('credit-calculator')}
+                  title="Cálculo de Crédito"
+                  tooltip="Calcula cuotas con la fórmula activa del crédito"
                 />
 
               </div>

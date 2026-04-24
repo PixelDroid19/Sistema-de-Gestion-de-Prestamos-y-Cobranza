@@ -11,7 +11,7 @@ const REQUIRED_OUTPUT_VARS = ['lateFeeMode', 'schedule', 'summary', 'result'];
 const REQUIRED_PIPELINE_IDS = [
   'input_amount', 'input_rate', 'input_term', 'input_startDate', 'input_lateFeeMode',
   'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
-  'amortization_schedule', 'financial_summary', 'simulation_result',
+  'amortization_schedule', 'financial_summary', 'credit_result',
 ];
 
 describe('blockCompiler', () => {
@@ -55,9 +55,76 @@ describe('blockCompiler', () => {
       const userNode = graph.nodes.find((n) => n.id === 'conditional_risk');
       expect(userNode).toBeDefined();
       expect(userNode!.outputVar).toBe('riskRate');
-      expect(userNode!.formula).toBe('if(amount > 5000000, 0.02, 0.05)');
+      expect(userNode!.formula).toBe('(amount > 5000000) ? 0.02 : 0.05');
       // Pipeline nodes still present
-      expect(graph.nodes.find((n) => n.id === 'simulation_result')).toBeDefined();
+      expect(graph.nodes.find((n) => n.id === 'credit_result')).toBeDefined();
+    });
+
+    it('replaces matching pipeline nodes when outputVar is overridden', () => {
+      const containers: FormulaContainer[] = [{
+        id: 'custom_late_fee',
+        label: 'Custom Late Fee Mode',
+        outputVar: 'lateFeeMode',
+        blocks: [
+          { id: 'if1', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: "'COMPOUND'" },
+          { id: 'else1', kind: 'else', elseValue: "'SIMPLE'" },
+        ],
+      }];
+
+      const graph = compileBlocksToGraph(containers);
+      const userNode = graph.nodes.find((n) => n.id === 'conditional_custom_late_fee');
+      const pipelineNode = graph.nodes.find((n) => n.id === 'input_lateFeeMode');
+
+      expect(userNode).toBeDefined();
+      expect(pipelineNode).toBeUndefined();
+      expect(graph.edges.some((e) => e.source === 'conditional_custom_late_fee' && e.target === 'amortization_schedule')).toBe(true);
+      expect(graph.edges.some((e) => e.source === 'conditional_custom_late_fee' && e.target === 'credit_result')).toBe(true);
+    });
+
+    it('auto-quotes lateFeeMode values in conditional formulas', () => {
+      const containers: FormulaContainer[] = [{
+        id: 'late_fee_modes',
+        label: 'Late Fee Modes',
+        outputVar: 'lateFeeMode',
+        blocks: [
+          { id: 'if1', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: 'COMPOUND' },
+          { id: 'else1', kind: 'else', elseValue: 'SIMPLE' },
+        ],
+      }];
+
+      const graph = compileBlocksToGraph(containers);
+      const node = graph.nodes.find((n) => n.id === 'conditional_late_fee_modes');
+
+      expect(node).toBeDefined();
+      expect(node!.formula).toBe("(amount > 1000000) ? 'COMPOUND' : 'SIMPLE'");
+    });
+
+    it('keeps original system values when editable credit rules have no fallback branch', () => {
+      const containers: FormulaContainer[] = [
+        {
+          id: 'rate_policy',
+          label: 'Tasa aplicada',
+          outputVar: 'interestRate',
+          blocks: [
+            { id: 'if1', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: '55' },
+          ],
+        },
+        {
+          id: 'late_policy',
+          label: 'Politica de mora',
+          outputVar: 'lateFeeMode',
+          blocks: [
+            { id: 'if2', kind: 'if', condition: { variable: 'amount', operator: '>', value: '1000000' }, thenValue: 'COMPOUND' },
+          ],
+        },
+      ];
+
+      const graph = compileBlocksToGraph(containers);
+      const rateNode = graph.nodes.find((n) => n.id === 'conditional_rate_policy');
+      const lateFeeNode = graph.nodes.find((n) => n.id === 'conditional_late_policy');
+
+      expect(rateNode!.formula).toBe('(amount > 1000000) ? 55 : interestRate');
+      expect(lateFeeNode!.formula).toBe("(amount > 1000000) ? 'COMPOUND' : lateFeeMode");
     });
 
     it('compiles nested if/elseIf/else chain correctly', () => {
@@ -76,7 +143,7 @@ describe('blockCompiler', () => {
       const graph = compileBlocksToGraph(containers);
       const node = graph.nodes.find((n) => n.id === 'conditional_tier');
       expect(node!.formula).toBe(
-        'if(amount > 10000000, 0.03, if(amount > 5000000, 0.04, if(amount > 1000000, 0.05, 0.06)))'
+        '(amount > 10000000) ? 0.03 : (amount > 5000000) ? 0.04 : (amount > 1000000) ? 0.05 : 0.06'
       );
     });
 
@@ -96,17 +163,22 @@ describe('blockCompiler', () => {
       expect(node!.formula).toBe('amount * 0.1');
     });
 
-    it('wires multiple user containers sequentially', () => {
+    it('wires user containers only when a later rule references an earlier output', () => {
       const containers: FormulaContainer[] = [
         { id: 'a', label: 'Step A', outputVar: 'stepA', blocks: [{ id: 'e1', kind: 'expression', label: 'amount * 2' }] },
         { id: 'b', label: 'Step B', outputVar: 'stepB', blocks: [{ id: 'e2', kind: 'expression', label: 'stepA + 100' }] },
+        { id: 'c', label: 'Step C', outputVar: 'stepC', blocks: [{ id: 'e3', kind: 'expression', label: 'amount + 100' }] },
       ];
 
       const graph = compileBlocksToGraph(containers);
       const edgeBetween = graph.edges.find(
         (e) => e.source === 'formula_a' && e.target === 'formula_b'
       );
+      const unrelatedEdge = graph.edges.find(
+        (e) => e.source === 'formula_b' && e.target === 'formula_c'
+      );
       expect(edgeBetween).toBeDefined();
+      expect(unrelatedEdge).toBeUndefined();
     });
 
     it('does not duplicate pipeline nodes when user node IDs collide', () => {
@@ -221,9 +293,9 @@ describe('blockCompiler', () => {
       const graph: DagGraph = {
         nodes: [
           { id: 'user_node', kind: 'formula', label: 'User calc', formula: 'amount * 0.1', outputVar: 'userCalc' },
-          { id: 'helper_node', kind: 'formula', label: 'Schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)', outputVar: 'schedule' },
+          { id: 'helper_node', kind: 'formula', label: 'Schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount)', outputVar: 'schedule' },
           { id: 'helper_node2', kind: 'formula', label: 'Summary', formula: 'summarizeSchedule(schedule)', outputVar: 'summary' },
-          { id: 'result_node', kind: 'output', label: 'Result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
+          { id: 'result_node', kind: 'output', label: 'Result', formula: 'buildCreditResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
         ],
         edges: [],
       };

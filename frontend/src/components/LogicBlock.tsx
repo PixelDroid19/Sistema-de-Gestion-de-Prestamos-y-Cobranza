@@ -6,6 +6,11 @@
 
 import React from 'react';
 import type { BlockDefinition, BlockCondition } from '../types/dag';
+import {
+  getFormulaTargetLabel,
+  getFormulaValueLabel,
+  getFormulaVariableLabel,
+} from '../lib/formulaDisplay';
 
 // ── Color Tokens ──────────────────────────────────────────────────────────────
 
@@ -102,7 +107,7 @@ function VariableChip({ name }: { name: string }) {
           flexShrink: 0,
         }}
       />
-      {name}
+      {getFormulaVariableLabel(name)}
     </span>
   );
 }
@@ -128,7 +133,7 @@ function OperatorChip({ op }: { op: string }) {
   );
 }
 
-function ValueChip({ value }: { value: string }) {
+function ValueChip({ value, outputVar }: { value: string; outputVar?: string }) {
   return (
     <span
       style={{
@@ -145,7 +150,7 @@ function ValueChip({ value }: { value: string }) {
         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
       }}
     >
-      {value}
+      {getFormulaValueLabel(value, outputVar)}
     </span>
   );
 }
@@ -169,11 +174,13 @@ function IfBlockRow({
   isSelected,
   onSelect,
   onDelete,
+  outputVar,
 }: {
   block: BlockDefinition;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  outputVar?: string;
 }) {
   return (
     <div
@@ -196,7 +203,7 @@ function IfBlockRow({
       <KeywordChip text={block.kind === 'if' ? 'IF' : 'ELSE IF'} />
       {block.condition && <ConditionRow condition={block.condition} />}
       <KeywordChip text="THEN" />
-      <ValueChip value={block.thenValue || '0'} />
+      <ValueChip value={block.thenValue || '0'} outputVar={outputVar} />
       {isSelected && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -231,11 +238,13 @@ function ElseBlockRow({
   isSelected,
   onSelect,
   onDelete,
+  outputVar,
 }: {
   block: BlockDefinition;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  outputVar?: string;
 }) {
   return (
     <div
@@ -256,7 +265,7 @@ function ElseBlockRow({
       }}
     >
       <KeywordChip text="ELSE" />
-      <ValueChip value={block.elseValue || '0'} />
+      <ValueChip value={block.elseValue || '0'} outputVar={outputVar} />
       {isSelected && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -381,7 +390,7 @@ function OutputRow({ outputVar }: { outputVar: string }) {
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
-        {outputVar}
+        {getFormulaTargetLabel(outputVar)}
       </span>
       <span
         style={{
@@ -400,7 +409,7 @@ function OutputRow({ outputVar }: { outputVar: string }) {
           fontStyle: 'italic',
         }}
       >
-        Output from above logic
+        Resultado que usara el credito
       </span>
     </div>
   );
@@ -413,9 +422,10 @@ interface LogicBlockProps {
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  outputVar?: string;
 }
 
-export function LogicBlock({ block, isSelected, onSelect, onDelete }: LogicBlockProps) {
+export function LogicBlock({ block, isSelected, onSelect, onDelete, outputVar }: LogicBlockProps) {
   switch (block.kind) {
     case 'if':
     case 'elseIf':
@@ -425,6 +435,7 @@ export function LogicBlock({ block, isSelected, onSelect, onDelete }: LogicBlock
           isSelected={isSelected}
           onSelect={onSelect}
           onDelete={onDelete}
+          outputVar={outputVar}
         />
       );
     case 'else':
@@ -434,6 +445,7 @@ export function LogicBlock({ block, isSelected, onSelect, onDelete }: LogicBlock
           isSelected={isSelected}
           onSelect={onSelect}
           onDelete={onDelete}
+          outputVar={outputVar}
         />
       );
     case 'expression':
@@ -530,6 +542,7 @@ export function FormulaContainerBlock({
               isSelected={selectedBlockId === block.id}
               onSelect={() => onSelectBlock(block.id)}
               onDelete={() => onDeleteBlock(container.id, block.id)}
+              outputVar={container.outputVar}
             />
           </div>
         </div>

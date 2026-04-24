@@ -2,12 +2,12 @@ const { loanValidation } = require('@/middleware/validation');
 const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListLoans,
-  createCreateSimulation,
+  createCreateCreditCalculation,
   createListDagWorkbenchScopes,
   createLoadDagWorkbenchGraph,
   createSaveDagWorkbenchGraph,
   createValidateDagWorkbenchGraph,
-  createSimulateDagWorkbenchGraph,
+  createCalculateDagWorkbenchGraph,
   createGetDagWorkbenchSummary,
   createListDagWorkbenchGraphs,
   createGetDagWorkbenchGraphDetails,
@@ -78,12 +78,12 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listLoans: createListLoans({ loanRepository, loanAccessPolicy }),
-    createSimulation: createCreateSimulation({ creditDomainService }),
+    createCreditCalculation: createCreateCreditCalculation({ creditDomainService }),
     listDagWorkbenchScopes: createListDagWorkbenchScopes({ dagWorkbenchService, dagConfig: creditsDagConfig }),
     loadDagWorkbenchGraph: createLoadDagWorkbenchGraph({ dagWorkbenchService }),
     saveDagWorkbenchGraph: createSaveDagWorkbenchGraph({ dagWorkbenchService }),
     validateDagWorkbenchGraph: createValidateDagWorkbenchGraph({ dagWorkbenchService }),
-    simulateDagWorkbenchGraph: createSimulateDagWorkbenchGraph({ dagWorkbenchService }),
+    calculateDagWorkbenchGraph: createCalculateDagWorkbenchGraph({ dagWorkbenchService }),
     getDagWorkbenchSummary: createGetDagWorkbenchSummary({ dagWorkbenchService }),
     listDagWorkbenchGraphs: createListDagWorkbenchGraphs({ dagWorkbenchService }),
     getDagWorkbenchGraphDetails: createGetDagWorkbenchGraphDetails({ dagWorkbenchService }),

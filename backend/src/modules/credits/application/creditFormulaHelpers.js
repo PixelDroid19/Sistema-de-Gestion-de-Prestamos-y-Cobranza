@@ -48,8 +48,11 @@ const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {
  * @param {{ amount: number, interestRate: number, termMonths: number, startDate?: Date|string }} input
  * @returns {Array<object>}
  */
-const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode }) => {
-  const installmentAmount = calculateInstallmentAmount({ amount, interestRate, termMonths });
+const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate, lateFeeMode: _lateFeeMode, installmentAmount }) => {
+  const customInstallmentAmount = Number(installmentAmount);
+  const resolvedInstallmentAmount = Number.isFinite(customInstallmentAmount) && customInstallmentAmount > 0
+    ? roundCurrency(customInstallmentAmount)
+    : calculateInstallmentAmount({ amount, interestRate, termMonths });
   const schedule = [];
   const monthlyRate = Number(interestRate) / 100 / 12;
   const scheduleStartDate = resolveScheduleStartDate(startDate);
@@ -62,7 +65,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
       : roundCurrency(openingBalance * monthlyRate);
     const principalComponent = month === Number(termMonths)
       ? roundCurrency(openingBalance)
-      : roundCurrency(Math.min(openingBalance, installmentAmount - interestComponent));
+      : roundCurrency(Math.max(0, Math.min(openingBalance, resolvedInstallmentAmount - interestComponent)));
     const scheduledPayment = roundCurrency(principalComponent + interestComponent);
     balance = roundCurrency(Math.max(0, openingBalance - principalComponent));
 

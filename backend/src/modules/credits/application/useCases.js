@@ -308,8 +308,14 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
         installmentNumber: row.installmentNumber,
         dueDate: row.dueDate,
         scheduledPayment: roundCurrency(row.scheduledPayment || 0),
+        principalComponent: roundCurrency(row.principalComponent || 0),
+        interestComponent: roundCurrency(row.interestComponent || 0),
+        paidPrincipal: roundCurrency(row.paidPrincipal || 0),
+        paidInterest: roundCurrency(row.paidInterest || 0),
+        paidTotal: roundCurrency(row.paidTotal || 0),
         remainingPrincipal: roundCurrency(row.remainingPrincipal || 0),
         remainingInterest: roundCurrency(row.remainingInterest || 0),
+        remainingBalance: roundCurrency(row.remainingBalance || 0),
         outstandingAmount: 0,
         status: 'annulled',
         alertId: null,
@@ -324,8 +330,14 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
       installmentNumber: row.installmentNumber,
       dueDate: row.dueDate,
       scheduledPayment: roundCurrency(row.scheduledPayment || 0),
+      principalComponent: roundCurrency(row.principalComponent || 0),
+      interestComponent: roundCurrency(row.interestComponent || 0),
+      paidPrincipal: roundCurrency(row.paidPrincipal || 0),
+      paidInterest: roundCurrency(row.paidInterest || 0),
+      paidTotal: roundCurrency(row.paidTotal || 0),
       remainingPrincipal: roundCurrency(row.remainingPrincipal || 0),
       remainingInterest: roundCurrency(row.remainingInterest || 0),
+      remainingBalance: roundCurrency(row.remainingBalance || 0),
       outstandingAmount,
       status: formatCalendarEntryStatus({ row, isOverdue, outstandingAmount }),
       alertId: alertByInstallment.get(Number(row.installmentNumber))?.id || null,
@@ -358,11 +370,18 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
 };
 
 /**
- * Create the use case that returns a canonical credit simulation preview.
+ * Create the use case that returns canonical credit calculation data.
  * @param {{ creditDomainService: object }} dependencies
  * @returns {Function}
  */
-const createCreateSimulation = ({ creditDomainService }) => async (payload) => creditDomainService.simulate(payload);
+const createCreateCreditCalculation = ({ creditDomainService }) => async (payload) => {
+  if (typeof creditDomainService.calculate === 'function') {
+    return creditDomainService.calculate(payload);
+  }
+  return creditDomainService.simulate(payload);
+};
+
+const createCreateSimulation = createCreateCreditCalculation;
 
 const createListDagWorkbenchScopes = ({ dagWorkbenchService }) => async ({ actor }) => dagWorkbenchService.listScopes({ actor });
 
@@ -372,7 +391,15 @@ const createSaveDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor,
 
 const createValidateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph }) => dagWorkbenchService.validateGraph({ actor, scopeKey, graph });
 
-const createSimulateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph, simulationInput }) => dagWorkbenchService.simulateGraph({ actor, scopeKey, graph, simulationInput });
+const createCalculateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph, calculationInput, simulationInput }) => dagWorkbenchService.calculateGraph({
+  actor,
+  scopeKey,
+  graph,
+  calculationInput,
+  simulationInput,
+});
+
+const createSimulateDagWorkbenchGraph = createCalculateDagWorkbenchGraph;
 
 const createGetDagWorkbenchSummary = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.getSummary({ actor, scopeKey });
 
@@ -388,7 +415,17 @@ const createDeleteDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ acto
 
 const createGetDagWorkbenchGraphHistory = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.getGraphHistory({ actor, graphId });
 
-const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({ actor, graphId, compareToVersionId }) => dagWorkbenchService.getGraphDiff({ actor, graphId, compareToVersionId });
+const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({
+  actor,
+  graphId,
+  compareToGraphId,
+  compareToVersionId,
+}) => dagWorkbenchService.getGraphDiff({
+  actor,
+  graphId,
+  compareToGraphId,
+  compareToVersionId,
+});
 
 const createRestoreDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId, commitMessage }) => dagWorkbenchService.restoreGraph({ actor, graphId, commitMessage });
 
@@ -1283,11 +1320,13 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
 
 module.exports = {
   createListLoans,
+  createCreateCreditCalculation,
   createCreateSimulation,
   createListDagWorkbenchScopes,
   createLoadDagWorkbenchGraph,
   createSaveDagWorkbenchGraph,
   createValidateDagWorkbenchGraph,
+  createCalculateDagWorkbenchGraph,
   createSimulateDagWorkbenchGraph,
   createGetDagWorkbenchSummary,
   createListDagWorkbenchGraphs,

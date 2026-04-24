@@ -1,5 +1,5 @@
 /**
- * Calculation Adapter — the single entry point for credit simulation numbers.
+ * Calculation Adapter — the single entry point for credit calculation numbers.
  *
  * DAG is the single source of truth. There is no legacy fallback.
  */

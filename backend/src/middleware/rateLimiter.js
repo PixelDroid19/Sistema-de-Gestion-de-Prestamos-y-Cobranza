@@ -229,12 +229,12 @@ const paymentLimiter = createRateLimiter({
   message: 'Operación de pago en curso o demasiados intentos. Por favor, espere.',
 });
 
-// Workbench limiter: 20 simulations per 5 minutes
+// Workbench limiter: 20 formula calculations per 5 minutes
 const workbenchLimiter = createRateLimiter({
   windowMs: 5 * 60 * 1000,
   max: 20,
   keyPrefix: 'workbench',
-  message: 'Límite de simulaciones de grafo alcanzado. Por favor, espere.',
+  message: 'Límite de cálculos de fórmula alcanzado. Por favor, espere.',
 });
 
 module.exports = {

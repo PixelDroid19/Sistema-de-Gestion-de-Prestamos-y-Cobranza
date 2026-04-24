@@ -117,7 +117,7 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
     description: 'Revisa los datos ingresados e inténtalo nuevamente.',
   },
   'credit.simulate': {
-    title: 'No se pudo calcular la simulación',
+    title: 'No se pudo calcular el crédito',
     description: 'Verifica los datos ingresados e inténtalo nuevamente.',
   },
   'payment.register': {
@@ -173,7 +173,7 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
     description: 'Verifica la configuración e inténtalo nuevamente.',
   },
   'dag.simulate': {
-    title: 'No se pudo ejecutar la simulación',
+    title: 'No se pudo validar el cálculo',
     description: 'Revisa el grafo e inténtalo nuevamente.',
   },
   'dag.validate': {

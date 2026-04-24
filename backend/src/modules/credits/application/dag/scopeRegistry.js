@@ -5,7 +5,7 @@
  *  - requiredInputs:  variables the caller must provide (contractVars)
  *  - requiredOutputs: variables the result object must contain
  *  - helpers:         domain functions injected into the evaluation scope
- *  - simulationInput: default values used by the workbench "simulate" button
+ *  - calculationInput: default values used by the workbench calculation preview
  *  - defaultGraph:    the canonical graph seeded into DagGraphVersion on first boot
  *
  * Both `graphExecutor` and `workbenchService` read these contracts to validate
@@ -27,8 +27,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
     // Contract: what the graph's `result` output MUST contain
     requiredOutputs: ['lateFeeMode', 'schedule', 'summary'],
 
-    // Default simulation input for the workbench preview button
-    simulationInput: {
+    // Default input for the workbench calculation preview.
+    calculationInput: {
       amount: 2000000,
       interestRate: 60,
       termMonths: 12,
@@ -44,7 +44,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
     helpers: [
       { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera el cronograma canonico del credito.' },
       { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume el cronograma en totales y saldo pendiente.' },
-      { name: 'buildSimulationResult', label: 'Construir resultado final', description: 'Construye el objeto resultado (lateFeeMode, schedule, summary).' },
+      { name: 'buildCreditResult', label: 'Construir resultado del credito', description: 'Construye el resultado canonico del credito (lateFeeMode, schedule, summary).' },
     ],
 
     // Canonical default graph — seeded into DagGraphVersion on first boot
@@ -104,7 +104,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           kind: 'formula',
           label: 'Cuota mensual',
           description: 'Cuota fija del sistema frances (reducing balance).',
-          formula: 'ifThenElse(monthlyRate == 0, round(amount / termMonths, 2), round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2))',
+          formula: 'monthlyRate == 0 ? round(amount / termMonths, 2) : round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2)',
           outputVar: 'installmentAmount',
         },
         {
@@ -130,7 +130,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
           kind: 'formula',
           label: 'Cronograma canonico',
           description: 'Genera la tabla de amortizacion mes a mes.',
-          formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)',
+          formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount)',
           outputVar: 'schedule',
         },
         {
@@ -144,11 +144,11 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
         // ── Output ────────────────────────────────────────────────────────────
         {
-          id: 'simulation_result',
+          id: 'credit_result',
           kind: 'output',
-          label: 'Resultado final',
-          description: 'Expone el resultado usado por el simulador y por la originacion.',
-          formula: 'buildSimulationResult(lateFeeMode, schedule, summary)',
+          label: 'Resultado del credito',
+          description: 'Expone el resultado usado por la originacion y por cualquier vista previa.',
+          formula: 'buildCreditResult(lateFeeMode, schedule, summary)',
           outputVar: 'result',
         },
       ],
@@ -173,14 +173,15 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
         { source: 'input_term', target: 'amortization_schedule' },
         { source: 'input_startDate', target: 'amortization_schedule' },
         { source: 'input_lateFeeMode', target: 'amortization_schedule' },
+        { source: 'installment_amount', target: 'amortization_schedule' },
 
         // schedule → summary (domain block)
         { source: 'amortization_schedule', target: 'financial_summary' },
 
         // Assemble result
-        { source: 'input_lateFeeMode', target: 'simulation_result' },
-        { source: 'amortization_schedule', target: 'simulation_result' },
-        { source: 'financial_summary', target: 'simulation_result' },
+        { source: 'input_lateFeeMode', target: 'credit_result' },
+        { source: 'amortization_schedule', target: 'credit_result' },
+        { source: 'financial_summary', target: 'credit_result' },
       ],
     },
   },
@@ -190,7 +191,80 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
 const DEFAULT_SCOPE_KEY = WORKBENCH_SCOPE_DEFINITIONS[0].key;
 
+const LEGACY_GRAPH_NODE_ID_MAP = {
+  simulation_result: 'credit_result',
+};
+
 const normalizeScopeKey = (value) => String(value || '').trim().toLowerCase();
+
+const normalizeCreditGraphFormula = (formula) => {
+  if (typeof formula !== 'string') {
+    return formula;
+  }
+
+  return formula.replace(/\bbuildSimulationResult\s*\(/g, 'buildCreditResult(');
+};
+
+const normalizeCreditGraphNode = (node = {}) => {
+  const originalId = String(node.id || '').trim();
+  const id = LEGACY_GRAPH_NODE_ID_MAP[originalId] || originalId;
+  const normalized = {
+    ...node,
+    id,
+    formula: normalizeCreditGraphFormula(node.formula),
+  };
+
+  if (id === 'credit_result' && originalId === 'simulation_result') {
+    normalized.label = 'Resultado del credito';
+    normalized.description = 'Expone el resultado usado por la originacion y por cualquier vista previa.';
+  }
+
+  return normalized;
+};
+
+/**
+ * Normalize persisted graph versions saved before the credit-result contract
+ * rename. This keeps old records executable while the runtime whitelist only
+ * accepts the canonical credit helper.
+ */
+const normalizeCreditGraph = (graph = {}) => {
+  const rawNodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  const rawEdges = Array.isArray(graph.edges) ? graph.edges : [];
+  const nodesById = new Map();
+
+  for (const rawNode of rawNodes) {
+    const node = normalizeCreditGraphNode(rawNode);
+    const existing = nodesById.get(node.id);
+
+    if (existing) {
+      continue;
+    }
+
+    nodesById.set(node.id, node);
+  }
+
+  const edgesByKey = new Map();
+
+  for (const rawEdge of rawEdges) {
+    const source = LEGACY_GRAPH_NODE_ID_MAP[rawEdge?.source] || rawEdge?.source;
+    const target = LEGACY_GRAPH_NODE_ID_MAP[rawEdge?.target] || rawEdge?.target;
+    if (!source || !target || source === target) {
+      continue;
+    }
+
+    const edge = { ...rawEdge, source, target };
+    const key = `${source}->${target}`;
+    if (!edgesByKey.has(key)) {
+      edgesByKey.set(key, edge);
+    }
+  }
+
+  return {
+    ...graph,
+    nodes: Array.from(nodesById.values()),
+    edges: Array.from(edgesByKey.values()),
+  };
+};
 
 const getDagWorkbenchScopeDefinition = (scopeKey) => {
   const normalizedScopeKey = normalizeScopeKey(scopeKey);
@@ -204,7 +278,8 @@ const listDagWorkbenchScopes = () => WORKBENCH_SCOPE_DEFINITIONS.map((scope) => 
   defaultName: scope.defaultName,
   requiredInputs: scope.requiredInputs,
   requiredOutputs: scope.requiredOutputs,
-  simulationInput: scope.simulationInput,
+  calculationInput: scope.calculationInput,
+  simulationInput: scope.calculationInput,
   helpers: scope.helpers,
   defaultGraph: scope.defaultGraph,
 }));
@@ -235,6 +310,7 @@ const validateContractOutputs = (scopeKey, resultObj = {}) => {
 module.exports = {
   DEFAULT_SCOPE_KEY,
   normalizeScopeKey,
+  normalizeCreditGraph,
   getDagWorkbenchScopeDefinition,
   listDagWorkbenchScopes,
   validateContractInputs,

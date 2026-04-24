@@ -6,18 +6,17 @@ const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
 
 /**
- * Execute the simulation via calculationService (async — loads persisted graph).
+ * Execute the credit calculation via calculationService (async — loads persisted graph).
  *
- * Returns { selectedSource, result, graphVersionId }.
+ * Returns { result, graphVersionId }.
  */
-const resolveSimulationExecution = async ({ input, calculationService }) => {
+const resolveCreditCalculationExecution = async ({ input, calculationService }) => {
   if (!calculationService) {
     throw new Error('calculationService is required. DAG is the single source of truth.');
   }
 
   const execution = await calculationService.calculate(input);
   return {
-    selectedSource: execution.selectedSource,
     result: execution.result,
     graphVersionId: execution.graphVersionId || null,
   };
@@ -40,7 +39,7 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
 };
 
 /**
- * Create a loan record from canonical simulation data after validating linked records.
+ * Create a loan record from canonical credit calculation data after validating linked records.
  *
  * The `dagGraphVersionId` persisted on the loan now comes directly from the
  * calculation execution result, guaranteeing it is the exact graph that produced
@@ -68,16 +67,16 @@ const createLoanFromCanonicalDataFactory = ({
     }
   }
 
-  const simulationExecution = await resolveSimulationExecution({ input, calculationService });
-  const simulation = simulationExecution.result;
+  const calculationExecution = await resolveCreditCalculationExecution({ input, calculationService });
+  const calculation = calculationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input, financialProductModel });
 
   // graphVersionId comes from the execution — the exact graph that produced these numbers
-  const dagGraphVersionId = simulationExecution.graphVersionId;
+  const dagGraphVersionId = calculationExecution.graphVersionId;
 
   const snapshot = {
-    ...buildFinancialSnapshot(simulation.schedule),
-    ...(simulation.summary || {}),
+    ...buildFinancialSnapshot(calculation.schedule),
+    ...(calculation.summary || {}),
   };
 
   return loanModel.create({
@@ -88,8 +87,8 @@ const createLoanFromCanonicalDataFactory = ({
     interestRate: input.interestRate,
     termMonths: input.termMonths,
     status: 'pending',
-    lateFeeMode: simulation.lateFeeMode,
-    emiSchedule: simulation.schedule,
+    lateFeeMode: calculation.lateFeeMode,
+    emiSchedule: calculation.schedule,
     installmentAmount: snapshot.installmentAmount,
     totalPayable: snapshot.totalPayable,
     totalPaid: snapshot.totalPaid,

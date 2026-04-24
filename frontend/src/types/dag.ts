@@ -75,21 +75,24 @@ export interface DagGraphVersion {
   graphSummary: GraphSummary;
   validation: ValidationResult;
   usageCount?: number; // computed via subquery — how many loans reference this graph
+  isLocked?: boolean; // true when existing credits reference this exact formula version
   createdByUserId: number;
   createdAt: string;
   updatedAt: string;
 }
 
 // =============================================================================
-// SIMULATION
+// CREDIT CALCULATION
 // =============================================================================
-export interface SimulationInput {
+export interface CreditCalculationInput {
   amount: number;
   interestRate: number;
   termMonths: number;
   startDate?: string;
   lateFeeMode?: LateFeeMode;
 }
+
+export type SimulationInput = CreditCalculationInput;
 
 export interface NextInstallment {
   installmentNumber: number;
@@ -99,7 +102,7 @@ export interface NextInstallment {
   remainingInterest: number;
 }
 
-export interface SimulationSummary {
+export interface CreditCalculationSummary {
   installmentAmount: number;
   totalPrincipal: number;
   totalInterest: number;
@@ -110,6 +113,8 @@ export interface SimulationSummary {
   outstandingInstallments: number;
   nextInstallment: NextInstallment | null;
 }
+
+export type SimulationSummary = CreditCalculationSummary;
 
 export interface AmortizationRow {
   installmentNumber: number;
@@ -127,20 +132,25 @@ export interface AmortizationRow {
   status: InstallmentStatus;
 }
 
-export interface SimulationResult {
+export interface CreditCalculationResult {
   lateFeeMode: LateFeeMode;
-  summary: SimulationSummary;
+  summary: CreditCalculationSummary;
   schedule: AmortizationRow[];
   graphVersionId?: number | null;
 }
 
-export interface SimulationResponse {
+export type SimulationResult = CreditCalculationResult;
+
+export interface CreditCalculationResponse {
   success: boolean;
   message: string;
   data: {
-    simulation: SimulationResult;
+    calculation: CreditCalculationResult;
+    simulation?: CreditCalculationResult;
   };
 }
+
+export type SimulationResponse = CreditCalculationResponse;
 
 // =============================================================================
 // WORKBENCH APIS
@@ -213,7 +223,8 @@ export interface DagWorkbenchScope {
   defaultName: string;
   requiredInputs: string[];
   requiredOutputs: string[];
-  simulationInput: SimulationInput;
+  calculationInput?: CreditCalculationInput;
+  simulationInput: CreditCalculationInput;
   helpers: DagWorkbenchScopeHelper[];
   defaultGraph: DagGraph;
 }
@@ -232,51 +243,62 @@ export interface ValidateGraphResponse {
   };
 }
 
-export interface SimulateGraphRequest {
+export interface CalculateGraphRequest {
   scopeKey: string;
-  simulationInput: SimulationInput | Record<string, any>;
+  calculationInput?: CreditCalculationInput | Record<string, any>;
+  simulationInput?: CreditCalculationInput | Record<string, any>;
   graph: DagGraph;
 }
 
-export interface SimulateGraphResponse {
+export type SimulateGraphRequest = CalculateGraphRequest;
+
+export interface CalculateGraphResponse {
   success: boolean;
   message: string;
   data: {
-    graphVersion: DagGraphVersion;
+    graph?: DagGraphVersion;
+    graphVersion?: DagGraphVersion;
     validation: ValidationResult;
-    simulation: SimulationResult;
+    calculation: CreditCalculationResult;
+    simulation?: CreditCalculationResult;
     summary: {
       latestGraph: DagGraphVersion;
-      latestSimulation: DagSimulationSummary;
+      latestCalculation: DagCalculationSummary;
+      latestSimulation?: DagCalculationSummary;
     };
   };
 }
+
+export type SimulateGraphResponse = CalculateGraphResponse;
 
 export interface GraphSummaryResponse {
   success: boolean;
   data: {
     summary: {
       latestGraph: DagGraphVersion | null;
-      latestSimulation: DagSimulationSummary | null;
+      latestCalculation?: DagCalculationSummary | null;
+      latestSimulation: DagCalculationSummary | null;
     };
   };
 }
 
 // =============================================================================
-// SIMULATION SUMMARY (for history)
+// CALCULATION SUMMARY (for history)
 // =============================================================================
-export interface DagSimulationSummary {
+export interface DagCalculationSummary {
   id: number;
   scopeKey: string;
   graphVersionId: number | null;
   createdByUserId: number;
   selectedSource: 'dag' | 'draft';
   fallbackReason: string | null;
-  simulationInput: SimulationInput;
-  summary: SimulationSummary;
+  simulationInput: CreditCalculationInput;
+  summary: CreditCalculationSummary;
   schedulePreview: AmortizationRow[];
   createdAt: string;
 }
+
+export type DagSimulationSummary = DagCalculationSummary;
 
 // =============================================================================
 // BLOCK AST TYPES (Visual Formula Editor)
@@ -331,6 +353,7 @@ export interface FormulaContainer {
 }
 
 export interface GraphHistoryEntry {
+  id: number;
   version: number;
   commitMessage: string | null;
   authorName: string | null;

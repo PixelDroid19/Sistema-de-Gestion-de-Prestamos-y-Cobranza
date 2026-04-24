@@ -68,8 +68,10 @@ export const queryKeys = {
     payoffQuote: (loanId: number, asOfDate: string) => ['loans.payoffQuote', loanId, asOfDate] as const,
     statistics: ['loans.statistics'] as const,
     duePayments: (date: string) => ['loans.duePayments', date] as const,
+    calculation: (params: { amount: number; interestRate: number; termMonths: number }) =>
+      ['loans.calculation', params] as const,
     simulation: (params: { amount: number; interestRate: number; termMonths: number }) =>
-      ['loans.simulation', params] as const,
+      ['loans.calculation', params] as const,
   },
   payments: {
     all: ['payments'] as const,
@@ -113,7 +115,7 @@ export const queryKeys = {
   dag: {
     graphs: (scopeKey: string) => ['dag.graphs', scopeKey] as const,
     history: (graphId: number) => ['dag.history', graphId] as const,
-    diff: (graphId: number, compareToVersionId: number) => ['dag.diff', graphId, compareToVersionId] as const,
+    diff: (graphId: number, compareToGraphId: number) => ['dag.diff', graphId, compareToGraphId] as const,
   },
   variables: {
     all: ['variables'] as const,

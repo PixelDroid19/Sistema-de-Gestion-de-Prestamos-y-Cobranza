@@ -13,7 +13,7 @@ const mockToastError = vi.fn();
 vi.mock('../../services/dagService', () => ({
   default: {
     getGraphHistory: (graphId: number) => mockGetGraphHistory(graphId),
-    getGraphDiff: (graphId: number, compareToVersionId: number) => mockGetGraphDiff(graphId, compareToVersionId),
+    getGraphDiff: (graphId: number, params: { compareToGraphId?: number; compareToVersionId?: number }) => mockGetGraphDiff(graphId, params),
     restoreGraph: (graphId: number, message?: string) => mockRestoreGraph(graphId, message),
   },
 }));
@@ -55,6 +55,7 @@ function renderWithProviders(ui: React.ReactElement, { route = '/audit/1' } = {}
 
 const mockHistory = [
   {
+    id: 3,
     version: 3,
     commitMessage: 'Added late fee calculation',
     authorName: 'Admin User',
@@ -63,6 +64,7 @@ const mockHistory = [
     isActive: true,
   },
   {
+    id: 2,
     version: 2,
     commitMessage: 'Updated interest formula',
     authorName: 'Admin User',
@@ -71,6 +73,7 @@ const mockHistory = [
     isActive: false,
   },
   {
+    id: 1,
     version: 1,
     commitMessage: 'Initial version',
     authorName: 'Admin User',

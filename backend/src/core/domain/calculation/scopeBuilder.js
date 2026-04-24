@@ -44,13 +44,16 @@ const buildInitialScope = (contractVars = {}) => {
     if (args.length === 1 && typeof args[0] === 'object' && !Array.isArray(args[0])) {
       return buildAmortizationSchedule(args[0]);
     }
-    const [a, r, t, sd, lfm] = args;
+    const [a, r, t, sd, lfm, installmentAmount] = args;
     return buildAmortizationSchedule({
       amount: typeof a === 'object' && a?.toNumber ? a.toNumber() : Number(a),
       interestRate: typeof r === 'object' && r?.toNumber ? r.toNumber() : Number(r),
       termMonths: typeof t === 'object' && t?.toNumber ? t.toNumber() : Number(t),
       startDate: sd,
       lateFeeMode: lfm,
+      installmentAmount: typeof installmentAmount === 'object' && installmentAmount?.toNumber
+        ? installmentAmount.toNumber()
+        : installmentAmount,
     });
   };
   scope.summarizeSchedule = summarizeSchedule;
@@ -58,15 +61,16 @@ const buildInitialScope = (contractVars = {}) => {
   scope.assertSupportedLateFeeMode = assertSupportedLateFeeMode;
 
   /**
-   * Build the canonical simulation result object.
+   * Build the canonical credit result object.
    * mathjs cannot construct `{ key: value }` literals, so graph output nodes
    * call this helper with positional args.
    */
-  scope.buildSimulationResult = (lfm, sched, summ) => ({
+  const buildCreditResult = (lfm, sched, summ) => ({
     lateFeeMode: lfm,
     schedule: sched,
     summary: summ,
   });
+  scope.buildCreditResult = buildCreditResult;
 
   // Logical helpers for the visual block-based formula editor.
   // These allow IF/THEN/ELSE, AND, OR, NOT constructions in mathjs formulas.

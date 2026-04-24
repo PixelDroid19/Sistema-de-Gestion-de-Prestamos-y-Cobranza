@@ -17,14 +17,13 @@ import type { BlockDefinition, FormulaContainer, DagGraph, DagNode, DagEdge } fr
 const PIPELINE_NODE_IDS = new Set([
   'input_amount', 'input_rate', 'input_term', 'input_startDate', 'input_lateFeeMode',
   'monthly_rate', 'installment_amount', 'total_payable', 'total_interest',
-  'amortization_schedule', 'financial_summary', 'simulation_result',
-  // Legacy aliases
+  'amortization_schedule', 'financial_summary', 'credit_result',
   'schedule_node', 'summary_node', 'result', 'schedule', 'summary',
 ]);
 
 // Domain helper functions — never shown as editable formulas
 const DOMAIN_HELPERS = new Set([
-  'buildAmortizationSchedule', 'summarizeSchedule', 'buildSimulationResult',
+  'buildAmortizationSchedule', 'summarizeSchedule', 'buildCreditResult',
   'assertSupportedLateFeeMode', 'calculateLateFee', 'roundCurrency',
 ]);
 
@@ -32,20 +31,46 @@ const DOMAIN_HELPERS = new Set([
  * Compile a conditional chain (if/elseIf/else blocks) into a nested
  * mathjs-compatible formula string.
  */
-function compileConditionalChain(blocks: BlockDefinition[]): string {
-  if (blocks.length === 0) return '0';
+function getFallbackExpressionForTarget(outputVar?: string): string {
+  if (outputVar === 'interestRate') return 'interestRate';
+  if (outputVar === 'termMonths') return 'termMonths';
+  if (outputVar === 'lateFeeMode') return 'lateFeeMode';
+  if (outputVar === 'installmentAmount') return '0';
+  return '0';
+}
+
+function normalizeConditionalValue(value: string | undefined, outputVar?: string): string {
+  const raw = String(value ?? '').trim();
+  if (String(outputVar || '').trim() !== 'lateFeeMode') {
+    return raw || '0';
+  }
+
+  if (raw === 'lateFeeMode') {
+    return raw;
+  }
+
+  const fallback = 'NONE';
+  const normalized = raw || fallback;
+  const isQuoted = /^'.*'$/.test(normalized) || /^".*"$/.test(normalized);
+  if (isQuoted) return normalized;
+
+  return `'${normalized.replace(/'/g, "\\'")}'`;
+}
+
+function compileConditionalChain(blocks: BlockDefinition[], outputVar?: string): string {
+  if (blocks.length === 0) return getFallbackExpressionForTarget(outputVar);
   const first = blocks[0];
 
-  if (first.kind === 'else') return first.elseValue ?? '0';
+  if (first.kind === 'else') return normalizeConditionalValue(first.elseValue, outputVar);
 
   if (first.kind === 'if' || first.kind === 'elseIf') {
     const cond = first.condition;
-    if (!cond) return first.thenValue ?? '0';
+    if (!cond) return normalizeConditionalValue(first.thenValue, outputVar);
     const condStr = `${cond.variable} ${cond.operator} ${cond.value}`;
-    return `if(${condStr}, ${first.thenValue ?? '0'}, ${compileConditionalChain(blocks.slice(1))})`;
+    return `(${condStr}) ? ${normalizeConditionalValue(first.thenValue, outputVar)} : ${compileConditionalChain(blocks.slice(1), outputVar)}`;
   }
 
-  return compileConditionalChain(blocks.slice(1));
+  return compileConditionalChain(blocks.slice(1), outputVar);
 }
 
 /**
@@ -62,7 +87,7 @@ function compileContainer(container: FormulaContainer): DagNode[] {
       id: `conditional_${container.id}`,
       kind: 'conditional',
       label: container.label,
-      formula: compileConditionalChain(conditionals),
+      formula: compileConditionalChain(conditionals, container.outputVar),
       outputVar: container.outputVar,
     }];
   }
@@ -81,10 +106,10 @@ function compileContainer(container: FormulaContainer): DagNode[] {
 }
 
 /**
- * The standard pipeline nodes required by the backend for credit-simulation scope.
+ * The standard credit calculation nodes required by the backend contract.
  * These are injected automatically when compiling — the user never sees them.
  */
-function getCreditSimulationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } {
+function getCreditCalculationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } {
   const nodes: DagNode[] = [
     { id: 'input_amount', kind: 'constant', label: 'Monto del credito', outputVar: 'amount' },
     { id: 'input_rate', kind: 'constant', label: 'Tasa nominal', outputVar: 'interestRate' },
@@ -92,12 +117,12 @@ function getCreditSimulationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } {
     { id: 'input_startDate', kind: 'constant', label: 'Fecha inicio', outputVar: 'startDate' },
     { id: 'input_lateFeeMode', kind: 'constant', label: 'Modo de mora', outputVar: 'lateFeeMode' },
     { id: 'monthly_rate', kind: 'formula', label: 'Tasa mensual', formula: 'interestRate / 100 / 12', outputVar: 'monthlyRate' },
-    { id: 'installment_amount', kind: 'formula', label: 'Cuota mensual', formula: 'ifThenElse(monthlyRate == 0, round(amount / termMonths, 2), round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2))', outputVar: 'installmentAmount' },
+    { id: 'installment_amount', kind: 'formula', label: 'Cuota mensual', formula: 'monthlyRate == 0 ? round(amount / termMonths, 2) : round(amount * monthlyRate * pow(1 + monthlyRate, termMonths) / (pow(1 + monthlyRate, termMonths) - 1), 2)', outputVar: 'installmentAmount' },
     { id: 'total_payable', kind: 'formula', label: 'Total a pagar', formula: 'round(installmentAmount * termMonths, 2)', outputVar: 'totalPayable' },
     { id: 'total_interest', kind: 'formula', label: 'Total intereses', formula: 'round(totalPayable - amount, 2)', outputVar: 'totalInterest' },
-    { id: 'amortization_schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)', outputVar: 'schedule' },
+    { id: 'amortization_schedule', kind: 'formula', label: 'Cronograma', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode, installmentAmount)', outputVar: 'schedule' },
     { id: 'financial_summary', kind: 'formula', label: 'Resumen financiero', formula: 'summarizeSchedule(schedule)', outputVar: 'summary' },
-    { id: 'simulation_result', kind: 'output', label: 'Resultado final', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
+    { id: 'credit_result', kind: 'output', label: 'Resultado del credito', formula: 'buildCreditResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
   ];
 
   const edges: DagEdge[] = [
@@ -114,10 +139,11 @@ function getCreditSimulationPipeline(): { nodes: DagNode[]; edges: DagEdge[] } {
     { source: 'input_term', target: 'amortization_schedule' },
     { source: 'input_startDate', target: 'amortization_schedule' },
     { source: 'input_lateFeeMode', target: 'amortization_schedule' },
+    { source: 'installment_amount', target: 'amortization_schedule' },
     { source: 'amortization_schedule', target: 'financial_summary' },
-    { source: 'input_lateFeeMode', target: 'simulation_result' },
-    { source: 'amortization_schedule', target: 'simulation_result' },
-    { source: 'financial_summary', target: 'simulation_result' },
+    { source: 'input_lateFeeMode', target: 'credit_result' },
+    { source: 'amortization_schedule', target: 'credit_result' },
+    { source: 'financial_summary', target: 'credit_result' },
   ];
 
   return { nodes, edges };
@@ -136,27 +162,74 @@ export function compileBlocksToGraph(containers: FormulaContainer[]): DagGraph {
   }
 
   // 2. Get the pipeline that the backend requires
-  const pipeline = getCreditSimulationPipeline();
+  const pipeline = getCreditCalculationPipeline();
 
-  // 3. Merge: user nodes first, then pipeline (avoiding ID collisions)
-  const userNodeIds = new Set(userNodes.map((n) => n.id));
-  const pipelineNodes = pipeline.nodes.filter((n) => !userNodeIds.has(n.id));
-  const pipelineEdges = pipeline.edges.filter(
-    (e) => !userNodeIds.has(e.source) || PIPELINE_NODE_IDS.has(e.source)
-  );
+  // 3. Allow user blocks to override pipeline calculations by outputVar.
+  //    Example: if a container outputs "lateFeeMode", that node replaces
+  //    the default input_lateFeeMode step and drives downstream nodes.
+  const replacementByPipelineNodeId = new Map<string, string>();
+  const replacementByOutputVar = new Map<string, DagNode>();
 
-  // 4. Wire user nodes into the pipeline: last user node → first formula pipeline node
-  const allEdges = [...pipelineEdges];
-  if (userNodes.length > 0) {
-    // Wire user nodes sequentially
-    for (let i = 0; i < userNodes.length - 1; i++) {
-      allEdges.push({ source: userNodes[i].id, target: userNodes[i + 1].id });
+  userNodes.forEach((node) => {
+    const outputVar = String(node.outputVar || '').trim();
+    if (outputVar) {
+      replacementByOutputVar.set(outputVar, node);
+    }
+  });
+
+  pipeline.nodes.forEach((pipelineNode) => {
+    const outputVar = String(pipelineNode.outputVar || '').trim();
+    if (!outputVar) return;
+    const replacementNode = replacementByOutputVar.get(outputVar);
+    if (replacementNode) {
+      replacementByPipelineNodeId.set(pipelineNode.id, replacementNode.id);
+    }
+  });
+
+  const pipelineNodes = pipeline.nodes.filter((node) => !replacementByPipelineNodeId.has(node.id));
+
+  // 4. Rewire pipeline edges through replacements.
+  const rewiredPipelineEdges: DagEdge[] = [];
+  for (const edge of pipeline.edges) {
+    const source = replacementByPipelineNodeId.get(edge.source) || edge.source;
+    const target = replacementByPipelineNodeId.get(edge.target) || edge.target;
+    if (!source || !target || source === target) continue;
+    rewiredPipelineEdges.push({ source, target });
+  }
+
+  // 5. Connect user containers only when a later formula references an earlier
+  //    output variable. Blindly chaining all user nodes can introduce false
+  //    cycles when independent business rules override pipeline values.
+  const userEdges: DagEdge[] = [];
+  for (let targetIndex = 0; targetIndex < userNodes.length; targetIndex += 1) {
+    const targetNode = userNodes[targetIndex];
+    const formula = String(targetNode.formula || '');
+    for (let sourceIndex = 0; sourceIndex < targetIndex; sourceIndex += 1) {
+      const sourceNode = userNodes[sourceIndex];
+      const outputVar = String(sourceNode.outputVar || '').trim();
+      if (!outputVar) continue;
+      const referencesOutput = new RegExp(`\\b${outputVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(formula);
+      if (referencesOutput) {
+        userEdges.push({ source: sourceNode.id, target: targetNode.id });
+      }
     }
   }
 
+  const allNodes = [...pipelineNodes, ...userNodes];
+  const validNodeIds = new Set(allNodes.map((node) => node.id));
+  const uniqueEdges = new Map<string, DagEdge>();
+
+  [...rewiredPipelineEdges, ...userEdges].forEach((edge) => {
+    if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) return;
+    const key = `${edge.source}->${edge.target}`;
+    if (!uniqueEdges.has(key)) {
+      uniqueEdges.set(key, edge);
+    }
+  });
+
   return {
-    nodes: [...userNodes, ...pipelineNodes],
-    edges: allEdges,
+    nodes: allNodes,
+    edges: Array.from(uniqueEdges.values()),
   };
 }
 
@@ -201,26 +274,190 @@ export function decompileGraphToContainers(graph: DagGraph): FormulaContainer[] 
 function parseFormulaToBlocks(formula: string): BlockDefinition[] {
   if (!formula) return [];
 
-  const ifMatch = formula.match(/^if\((.+)\)$/);
-  if (!ifMatch) {
-    return [{ id: generateBlockId('expr'), kind: 'expression', label: formula }];
+  const trimmed = formula.trim();
+  const blocks: BlockDefinition[] = [];
+
+  if (parseConditionalFormula(trimmed, blocks, true)) {
+    return blocks;
   }
 
-  const blocks: BlockDefinition[] = [];
-  parseIfChain(formula, blocks, true);
-  return blocks;
+  return [{ id: generateBlockId('expr'), kind: 'expression', label: formula }];
+}
+
+function parseConditionalFormula(formula: string, blocks: BlockDefinition[], isFirst: boolean): boolean {
+  const normalized = stripBalancedOuterParens(formula.trim());
+  const functionBody = getConditionalFunctionBody(normalized);
+
+  if (functionBody) {
+    parseFunctionConditionalChain(functionBody, blocks, isFirst);
+    return true;
+  }
+
+  const ternaryParts = splitTopLevelTernary(normalized);
+  if (!ternaryParts) {
+    return false;
+  }
+
+  const condParsed = parseCondition(stripBalancedOuterParens(ternaryParts.condition.trim()));
+  blocks.push({
+    id: generateBlockId(isFirst ? 'if' : 'elseIf'),
+    kind: isFirst ? 'if' : 'elseIf',
+    condition: condParsed,
+    thenValue: stripBalancedOuterParens(ternaryParts.thenValue.trim()),
+  });
+
+  const elseStr = stripBalancedOuterParens(ternaryParts.elseValue.trim());
+  if (!parseConditionalFormula(elseStr, blocks, false) && elseStr && elseStr !== '0') {
+    blocks.push({ id: generateBlockId('else'), kind: 'else', elseValue: elseStr });
+  }
+
+  return true;
+}
+
+function parseFunctionConditionalChain(functionBody: string, blocks: BlockDefinition[], isFirst: boolean): void {
+  const parts = splitTopLevelCommas(functionBody);
+  if (parts.length < 3) {
+    blocks.push({ id: generateBlockId('expr'), kind: 'expression', label: functionBody });
+    return;
+  }
+
+  const condParsed = parseCondition(parts[0].trim());
+  blocks.push({
+    id: generateBlockId(isFirst ? 'if' : 'elseIf'),
+    kind: isFirst ? 'if' : 'elseIf',
+    condition: condParsed,
+    thenValue: parts[1].trim(),
+  });
+
+  const elseStr = parts.slice(2).join(',').trim();
+  if (!parseConditionalFormula(elseStr, blocks, false) && elseStr && elseStr !== '0') {
+    blocks.push({ id: generateBlockId('else'), kind: 'else', elseValue: elseStr });
+  }
+}
+
+function getConditionalFunctionBody(formula: string): string | null {
+  const candidates = ['ifThenElse', 'if'];
+  for (const name of candidates) {
+    const prefix = `${name}(`;
+    if (!formula.startsWith(prefix) || !formula.endsWith(')')) {
+      continue;
+    }
+
+    const body = formula.slice(prefix.length, -1);
+    if (hasBalancedParens(body)) {
+      return body;
+    }
+  }
+
+  return null;
+}
+
+function stripBalancedOuterParens(value: string): string {
+  let result = value.trim();
+
+  while (result.startsWith('(') && result.endsWith(')')) {
+    const inner = result.slice(1, -1);
+    if (!hasBalancedParens(inner)) {
+      break;
+    }
+
+    let depth = 0;
+    let wrapsWholeExpression = true;
+    for (let index = 0; index < result.length; index += 1) {
+      const char = result[index];
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (depth === 0 && index < result.length - 1) {
+        wrapsWholeExpression = false;
+        break;
+      }
+    }
+
+    if (!wrapsWholeExpression) {
+      break;
+    }
+
+    result = inner.trim();
+  }
+
+  return result;
+}
+
+function hasBalancedParens(value: string): boolean {
+  let depth = 0;
+  for (const char of value) {
+    if (char === '(') depth += 1;
+    if (char === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+    }
+  }
+  return depth === 0;
+}
+
+function splitTopLevelTernary(str: string): { condition: string; thenValue: string; elseValue: string } | null {
+  let depth = 0;
+  let questionIndex = -1;
+
+  for (let index = 0; index < str.length; index += 1) {
+    const char = str[index];
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === '?' && depth === 0) {
+      questionIndex = index;
+      break;
+    }
+  }
+
+  if (questionIndex === -1) {
+    return null;
+  }
+
+  depth = 0;
+  let nestedTernaries = 0;
+  let colonIndex = -1;
+
+  for (let index = questionIndex + 1; index < str.length; index += 1) {
+    const char = str[index];
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (depth !== 0) continue;
+
+    if (char === '?') {
+      nestedTernaries += 1;
+      continue;
+    }
+
+    if (char === ':') {
+      if (nestedTernaries === 0) {
+        colonIndex = index;
+        break;
+      }
+      nestedTernaries -= 1;
+    }
+  }
+
+  if (colonIndex === -1) {
+    return null;
+  }
+
+  return {
+    condition: str.slice(0, questionIndex),
+    thenValue: str.slice(questionIndex + 1, colonIndex),
+    elseValue: str.slice(colonIndex + 1),
+  };
 }
 
 function parseIfChain(formula: string, blocks: BlockDefinition[], isFirst: boolean): void {
-  const ifMatch = formula.match(/^if\((.+)\)$/);
-  if (!ifMatch) {
+  const functionBody = getConditionalFunctionBody(formula.trim());
+  if (!functionBody) {
     if (formula.trim() && formula.trim() !== '0') {
       blocks.push({ id: generateBlockId('else'), kind: 'else', elseValue: formula.trim() });
     }
     return;
   }
 
-  const parts = splitTopLevelCommas(ifMatch[1]);
+  const parts = splitTopLevelCommas(functionBody);
   if (parts.length < 3) {
     blocks.push({ id: generateBlockId('expr'), kind: 'expression', label: formula });
     return;
@@ -235,7 +472,7 @@ function parseIfChain(formula: string, blocks: BlockDefinition[], isFirst: boole
   });
 
   const elseStr = parts.slice(2).join(',').trim();
-  if (elseStr.startsWith('if(')) {
+  if (getConditionalFunctionBody(elseStr)) {
     parseIfChain(elseStr, blocks, false);
   } else if (elseStr && elseStr !== '0') {
     blocks.push({ id: generateBlockId('else'), kind: 'else', elseValue: elseStr });

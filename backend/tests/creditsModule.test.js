@@ -7,7 +7,7 @@ const path = require('node:path');
 const {
   createListLoans,
   createSearchLoans,
-  createCreateSimulation,
+  createCreateCreditCalculation,
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
   createDeleteLoan,
@@ -139,10 +139,10 @@ test('createSearchLoans scopes visible rows before applying customer search filt
   assert.deepEqual(result.items.map((loan) => loan.id), [41]);
 });
 
-test('createCreateSimulation returns canonical preview data from the domain service', async () => {
-  const createSimulation = createCreateSimulation({
+test('createCreateCreditCalculation returns canonical credit data from the domain service', async () => {
+  const createCreditCalculation = createCreateCreditCalculation({
     creditDomainService: {
-      simulate(input) {
+      calculate(input) {
         return {
           lateFeeMode: 'NONE',
           schedule: [{ installmentNumber: 1 }],
@@ -152,10 +152,10 @@ test('createCreateSimulation returns canonical preview data from the domain serv
     },
   });
 
-  const simulation = await createSimulation({ amount: 12000, interestRate: 12, termMonths: 12 });
+  const calculation = await createCreditCalculation({ amount: 12000, interestRate: 12, termMonths: 12 });
 
-  assert.equal(simulation.lateFeeMode, 'NONE');
-  assert.equal(simulation.summary.amount, 12000);
+  assert.equal(calculation.lateFeeMode, 'NONE');
+  assert.equal(calculation.summary.amount, 12000);
 });
 
 test('createGetLoanById enriches the loan with canonical payment context and eligibility', async () => {

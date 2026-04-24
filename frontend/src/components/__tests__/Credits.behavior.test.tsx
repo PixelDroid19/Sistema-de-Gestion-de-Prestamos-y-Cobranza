@@ -137,7 +137,7 @@ describe('Credits behavioral parity scenarios', () => {
     mockApiPost.mockResolvedValue({
       data: {
         data: {
-          simulation: {
+          calculation: {
             summary: {
               installmentAmount: 100000,
               totalInterest: 50000,
@@ -203,13 +203,13 @@ describe('Credits behavioral parity scenarios', () => {
     });
   });
 
-  it('renders the shared simulation workspace and preserves saved scenarios across tab switches', async () => {
+  it('renders the shared credit calculation workspace and preserves saved scenarios across tab switches', async () => {
     renderCredits();
 
     fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
 
     expect(await screen.findByRole('heading', { name: 'Previsualizar crédito' })).toBeInTheDocument();
-    expect(mockApiPost).toHaveBeenCalledWith('/loans/simulations', {
+    expect(mockApiPost).toHaveBeenCalledWith('/loans/calculations', {
       amount: 2000000,
       interestRate: 60,
       termMonths: 12,
@@ -227,7 +227,7 @@ describe('Credits behavioral parity scenarios', () => {
     expect(screen.getByText('Fórmula v7')).toBeInTheDocument();
   });
 
-  it('flags stale simulation results after parameter changes until the user reruns the calculation', async () => {
+  it('flags stale calculation results after parameter changes until the user reruns the calculation', async () => {
     renderCredits();
 
     fireEvent.click(screen.getByRole('button', { name: 'Previsualizar' }));
@@ -240,7 +240,7 @@ describe('Credits behavioral parity scenarios', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Calcular' })[0]);
 
     await waitFor(() => {
-      expect(mockApiPost).toHaveBeenLastCalledWith('/loans/simulations', {
+      expect(mockApiPost).toHaveBeenLastCalledWith('/loans/calculations', {
         amount: 2500000,
         interestRate: 60,
         termMonths: 12,

@@ -53,7 +53,7 @@ export const useLoans = (
 
   const simulateLoan = useMutation({
     mutationFn: async (simulationData: any) => {
-      const { data } = await apiClient.post('/loans/simulations', simulationData);
+      const { data } = await apiClient.post('/loans/calculations', simulationData);
       return data;
     },
   });

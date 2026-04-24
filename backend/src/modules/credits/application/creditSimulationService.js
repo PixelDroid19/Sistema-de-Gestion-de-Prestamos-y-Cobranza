@@ -2,24 +2,14 @@ const {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
-} = require('./dag/lateFeeMode');
+  createCreditCalculationService,
+} = require('./creditCalculationService');
 
-const createCreditSimulationService = ({ calculationService } = {}) => {
-  if (!calculationService) {
-    throw new Error('createCreditSimulationService requires calculationService. DAG is the single source of truth.');
-  }
-
+const createCreditSimulationService = (deps) => {
+  const service = createCreditCalculationService(deps);
   return {
-    async simulate(input) {
-      const execution = await calculationService.calculate(input);
-      return {
-        ...execution.result,
-        graphVersionId: execution.graphVersionId ?? null,
-      };
-    },
-    async simulateDetailed(input) {
-      return calculationService.calculate(input);
-    },
+    simulate: service.calculate,
+    simulateDetailed: service.calculateDetailed,
   };
 };
 
@@ -27,5 +17,6 @@ module.exports = {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
+  createCreditCalculationService,
   createCreditSimulationService,
 };

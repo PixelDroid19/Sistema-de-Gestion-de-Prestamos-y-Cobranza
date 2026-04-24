@@ -24,21 +24,32 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, count: result.length, data: { loans: result } });
   }));
 
-  router.post('/simulations', authMiddleware(), loanValidation.simulate, asyncHandler(async (req, res) => {
-    const simulation = await useCases.createSimulation(req.body);
+  const sendCreditCalculation = async (req, res) => {
+    const calculation = await (useCases.createCreditCalculation || useCases.createSimulation)(req.body);
     res.json({
       success: true,
-      message: 'Loan simulation generated successfully',
+      message: 'Credit calculation generated successfully',
       data: {
+        calculation: {
+          lateFeeMode: calculation.lateFeeMode,
+          summary: calculation.summary,
+          schedule: calculation.schedule,
+          graphVersionId: calculation.graphVersionId ?? null,
+        },
         simulation: {
-          lateFeeMode: simulation.lateFeeMode,
-          summary: simulation.summary,
-          schedule: simulation.schedule,
-          graphVersionId: simulation.graphVersionId ?? null,
+          lateFeeMode: calculation.lateFeeMode,
+          summary: calculation.summary,
+          schedule: calculation.schedule,
+          graphVersionId: calculation.graphVersionId ?? null,
         },
       },
     });
-  }));
+  };
+
+  router.post('/calculations', authMiddleware(), loanValidation.simulate, asyncHandler(sendCreditCalculation));
+
+  // Compatibility alias for older clients. New frontend code uses /calculations.
+  router.post('/simulations', authMiddleware(), loanValidation.simulate, asyncHandler(sendCreditCalculation));
 
   router.get('/workbench/scopes', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.listDagWorkbenchScopes({ actor: req.user });
@@ -56,6 +67,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       scopeKey: req.body.scopeKey,
       name: req.body.name,
       graph: req.body.graph,
+      commitMessage: req.body.commitMessage,
     });
     res.status(201).json({
       success: true,
@@ -76,24 +88,37 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { validation } });
   }));
 
-  router.post('/workbench/graph/simulations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
-    const result = await useCases.simulateDagWorkbenchGraph({
+  const sendWorkbenchCalculation = async (req, res) => {
+    const workbenchPayload = {
       actor: req.user,
       scopeKey: req.body.scopeKey,
       graph: req.body.graph,
-      simulationInput: req.body.simulationInput,
-    });
+    };
+    if (req.body.calculationInput !== undefined) {
+      workbenchPayload.calculationInput = req.body.calculationInput;
+    }
+    if (req.body.simulationInput !== undefined) {
+      workbenchPayload.simulationInput = req.body.simulationInput;
+    }
+
+    const result = await (useCases.calculateDagWorkbenchGraph || useCases.simulateDagWorkbenchGraph)(workbenchPayload);
     res.json({
       success: true,
-      message: 'DAG workbench simulation generated successfully',
+      message: 'DAG workbench calculation generated successfully',
       data: {
         graph: result.graphVersion,
         validation: result.validation,
+        calculation: result.calculation,
         simulation: result.simulation,
         summary: result.summary,
       },
     });
-  }));
+  };
+
+  router.post('/workbench/graph/calculations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(sendWorkbenchCalculation));
+
+  // Compatibility alias for older clients. New frontend code uses /graph/calculations.
+  router.post('/workbench/graph/simulations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(sendWorkbenchCalculation));
 
   router.get('/workbench/graph/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const summary = await useCases.getDagWorkbenchSummary({ actor: req.user, scopeKey: req.query.scope });
@@ -137,6 +162,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     const result = await useCases.getDagWorkbenchGraphDiff({
       actor: req.user,
       graphId: Number(req.params.graphId),
+      compareToGraphId: req.query.compareToGraphId ? Number(req.query.compareToGraphId) : undefined,
       compareToVersionId: Number(req.query.compareToVersionId),
     });
     res.json({ success: true, data: { diff: result.diff } });

@@ -470,9 +470,9 @@ test('createCreditsRouter protects admin-only portfolio analytics routes', async
   assert.equal(duePaymentsResponse.statusCode, 403);
 });
 
-test('createCreditsRouter POST /simulations preserves the legacy-compatible response while shadow comparison runs behind the use-case seam', async () => {
+test('createCreditsRouter POST /calculations returns canonical credit calculation data', async () => {
   const calls = [];
-  const simulation = {
+  const calculation = {
     lateFeeMode: 'NONE',
     summary: {
       installmentAmount: 100,
@@ -496,9 +496,9 @@ test('createCreditsRouter POST /simulations preserves the legacy-compatible resp
     loanValidation: noopLoanValidation,
     useCases: {
       ...createUseCases({
-        async createSimulation(input) {
-          calls.push(['createSimulation', input]);
-          return simulation;
+        async createCreditCalculation(input) {
+          calls.push(['createCreditCalculation', input]);
+          return calculation;
         },
       }),
     },
@@ -519,7 +519,7 @@ test('createCreditsRouter POST /simulations preserves the legacy-compatible resp
 
   const response = await requestJson(activeServer, {
     method: 'POST',
-    path: '/simulations',
+    path: '/calculations',
     headers: { authorization: 'Bearer valid-token' },
     body: payload,
   });
@@ -527,17 +527,23 @@ test('createCreditsRouter POST /simulations preserves the legacy-compatible resp
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Loan simulation generated successfully',
+    message: 'Credit calculation generated successfully',
     data: {
+      calculation: {
+        lateFeeMode: 'NONE',
+        summary: calculation.summary,
+        schedule: calculation.schedule,
+        graphVersionId: null,
+      },
       simulation: {
         lateFeeMode: 'NONE',
-        summary: simulation.summary,
-        schedule: simulation.schedule,
+        summary: calculation.summary,
+        schedule: calculation.schedule,
         graphVersionId: null,
       },
     },
   });
-  assert.deepEqual(calls, [['createSimulation', payload]]);
+  assert.deepEqual(calls, [['createCreditCalculation', payload]]);
 });
 
 test('createCreditsRouter GET / scopes loans to the authenticated customer at runtime', async () => {

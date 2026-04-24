@@ -51,7 +51,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {})
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {
-      const { loanId, paymentAmount, paymentDate, idempotencyKey: bodyKey } = req.body;
+      const { loanId, paymentAmount, paymentDate, paymentMethod, idempotencyKey: bodyKey } = req.body;
       const actorId = req.user?.id || 0;
       const idempotencyKey = req.headers['idempotency-key'] || bodyKey;
 
@@ -59,6 +59,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {})
         loanId,
         paymentAmount,
         paymentDate,
+        paymentMethod,
         actorId,
         idempotencyKey,
       });

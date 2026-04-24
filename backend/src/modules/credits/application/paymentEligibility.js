@@ -1,7 +1,7 @@
 const { roundCurrency } = require('./creditFormulaHelpers');
 const { BusinessRuleViolationError } = require('@/utils/errorHandler');
 
-const PAYABLE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
+const PAYABLE_LOAN_STATUSES = new Set(['pending', 'approved', 'active', 'defaulted', 'overdue']);
 
 const PAYMENT_DENIAL_CODES = Object.freeze({
   OVERDUE_UNPAID_INSTALLMENTS: 'OVERDUE_UNPAID_INSTALLMENTS',

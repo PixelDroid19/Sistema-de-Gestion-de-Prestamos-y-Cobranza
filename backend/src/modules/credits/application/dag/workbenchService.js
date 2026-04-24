@@ -9,6 +9,7 @@ const BigNumberEngine = require('@/core/domain/calculation/BigNumberEngine');
 const {
   getDagWorkbenchScopeDefinition,
   listDagWorkbenchScopes,
+  normalizeCreditGraph,
   normalizeScopeKey,
   validateContractOutputs,
 } = require('./scopeRegistry');
@@ -24,6 +25,21 @@ const buildGraphSummary = ({ nodes, edges }) => ({
   outputCount: nodes.filter((node) => node.kind === 'output').length,
   formulaNodeCount: nodes.filter((node) => typeof node.formula === 'string' && node.formula.trim()).length,
 });
+
+const normalizeGraphVersionRecord = (record) => {
+  if (!record) {
+    return record;
+  }
+
+  const plain = typeof record.toJSON === 'function' ? record.toJSON() : record;
+  const usageCount = Number(plain.usageCount || 0);
+  return {
+    ...plain,
+    usageCount: Number.isFinite(usageCount) ? usageCount : 0,
+    isLocked: Number.isFinite(usageCount) && usageCount > 0,
+    graph: plain.graph ? normalizeCreditGraph(plain.graph) : plain.graph,
+  };
+};
 
 const hasFormula = (node) => typeof node?.formula === 'string' && node.formula.trim();
 
@@ -62,7 +78,7 @@ const validateFormulaInput = (formula, nodeId) => {
     }
   }
 
-  // Compile the formula so invalid syntax is rejected before save/simulate time.
+  // Compile the formula so invalid syntax is rejected before save/calculate time.
   try {
     BigNumberEngine.compileFormula(trimmedFormula);
     return { valid: true };
@@ -152,7 +168,7 @@ const validateScopeContractGraph = ({ nodes, edges, scopeKey }) => {
   }
 
   try {
-    const execution = CalculationEngine.execute({ nodes, edges }, scopeDef.simulationInput || {});
+    const execution = CalculationEngine.execute({ nodes, edges }, scopeDef.calculationInput || scopeDef.simulationInput || {});
     const resultObj = execution.result?.result || execution.scope?.result || {};
     const missingOutputs = validateContractOutputs(scopeKey, resultObj);
 
@@ -175,6 +191,9 @@ const validateScopeContractGraph = ({ nodes, edges, scopeKey }) => {
 const validateDagWorkbenchGraph = (graph = {}, { scopeKey } = {}) => {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const normalizedGraph = normalizeCreditGraph(graph);
+  const normalizedNodes = Array.isArray(normalizedGraph.nodes) ? normalizedGraph.nodes : [];
+  const normalizedEdges = Array.isArray(normalizedGraph.edges) ? normalizedGraph.edges : [];
   const errors = [];
   const warnings = [];
   const seenNodeIds = new Set();
@@ -249,7 +268,7 @@ const validateDagWorkbenchGraph = (graph = {}, { scopeKey } = {}) => {
   }
 
   // Validate formula nodes for dangerous patterns and syntax
-  const formulaErrors = validateFormulaNodes(nodes);
+  const formulaErrors = validateFormulaNodes(normalizedNodes);
   errors.push(...formulaErrors);
 
   if (!nodes.some((node) => node.kind === 'output')) {
@@ -257,7 +276,7 @@ const validateDagWorkbenchGraph = (graph = {}, { scopeKey } = {}) => {
   }
 
   if (scopeKey && errors.length === 0) {
-    errors.push(...validateScopeContractGraph({ nodes, edges, scopeKey }));
+    errors.push(...validateScopeContractGraph({ nodes: normalizedNodes, edges: normalizedEdges, scopeKey }));
   }
 
   return {
@@ -412,14 +431,15 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      return { graphVersion };
+      return { graphVersion: normalizeGraphVersionRecord(graphVersion) };
     },
 
     async saveGraph({ actor, scopeKey, name, graph, commitMessage }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
-      const validation = validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
+      const normalizedGraph = normalizeCreditGraph(graph);
+      const validation = validateDagWorkbenchGraph(normalizedGraph, { scopeKey: normalizedScopeKey });
       if (!validation.valid) {
         const error = new ValidationError('DAG graph validation failed');
         error.errors = validation.errors;
@@ -429,7 +449,7 @@ const createDagWorkbenchService = ({
       const graphVersion = await dagGraphRepository.saveVersion({
         scopeKey: normalizedScopeKey,
         name: String(name || 'Untitled DAG Graph').trim() || 'Untitled DAG Graph',
-        graph,
+        graph: normalizedGraph,
         graphSummary: validation.summary,
         validation,
         status: latestGraph ? 'inactive' : 'active',
@@ -447,7 +467,7 @@ const createDagWorkbenchService = ({
         status: graphVersion.status,
       });
 
-      return { graphVersion, validation };
+      return { graphVersion: normalizeGraphVersionRecord(graphVersion), validation };
     },
 
     async validateGraph({ actor, scopeKey, graph }) {
@@ -456,11 +476,13 @@ const createDagWorkbenchService = ({
       return validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
     },
 
-    async simulateGraph({ actor, scopeKey, graph, simulationInput = {} }) {
+    async calculateGraph({ actor, scopeKey, graph, simulationInput, calculationInput }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
-      const validation = validateDagWorkbenchGraph(graph, { scopeKey: normalizedScopeKey });
+      const normalizedGraph = normalizeCreditGraph(graph);
+      const effectiveInput = calculationInput || simulationInput || {};
+      const validation = validateDagWorkbenchGraph(normalizedGraph, { scopeKey: normalizedScopeKey });
       if (!validation.valid) {
         const error = new ValidationError('DAG graph validation failed');
         error.errors = validation.errors;
@@ -471,9 +493,9 @@ const createDagWorkbenchService = ({
 
       // Execute the draft graph via graphExecutor.executeDraft — no legacy fallback.
       // The workbench user needs to see actual formula errors so they can fix them.
-      const dagExecution = graphExecutor.executeDraft({
-        graph,
-        contractVars: simulationInput,
+      const dagExecution = await graphExecutor.executeDraft({
+        graph: normalizedGraph,
+        contractVars: effectiveInput,
       });
 
       const latestSimulation = await dagSimulationSummaryRepository.save({
@@ -482,29 +504,37 @@ const createDagWorkbenchService = ({
         createdByUserId: actor.id,
         selectedSource: dagExecution.source || 'draft',
         fallbackReason: null,
-        simulationInput,
+        simulationInput: effectiveInput,
         summary: dagExecution.result?.summary || dagExecution.result || {},
         schedulePreview: Array.isArray(dagExecution.result?.schedule) ? dagExecution.result.schedule.slice(0, 5) : [],
       });
 
       return {
-        graphVersion,
+        graphVersion: normalizeGraphVersionRecord(graphVersion),
         validation,
+        calculation: dagExecution.result,
         simulation: dagExecution.result,
         summary: {
-          latestGraph: graphVersion,
+          latestGraph: normalizeGraphVersionRecord(graphVersion),
+          latestCalculation: latestSimulation,
           latestSimulation,
         },
       };
     },
 
+    async simulateGraph(input) {
+      return this.calculateGraph(input);
+    },
+
     async getSummary({ actor, scopeKey }) {
       const normalizedScopeKey = assertScopeKey(scopeKey);
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
+      const latestCalculation = await dagSimulationSummaryRepository.getLatest(normalizedScopeKey);
 
       return {
-        latestGraph: await dagGraphRepository.getLatest(normalizedScopeKey),
-        latestSimulation: await dagSimulationSummaryRepository.getLatest(normalizedScopeKey),
+        latestGraph: normalizeGraphVersionRecord(await dagGraphRepository.getLatest(normalizedScopeKey)),
+        latestCalculation,
+        latestSimulation: latestCalculation,
       };
     },
 
@@ -513,7 +543,7 @@ const createDagWorkbenchService = ({
       assertWorkbenchAccess({ actor, dagConfig, scopeKey: normalizedScopeKey });
 
       const graphs = await dagGraphRepository.listByScopeKey(normalizedScopeKey);
-      return { graphs };
+      return { graphs: graphs.map(normalizeGraphVersionRecord) };
     },
 
     async getGraphDetails({ actor, graphId }) {
@@ -529,7 +559,7 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      return { graph };
+      return { graph: normalizeGraphVersionRecord(graph) };
     },
 
     async activateGraph({ actor, graphId }) {
@@ -555,7 +585,7 @@ const createDagWorkbenchService = ({
         version: graph.version,
       });
 
-      return { graph: updated };
+      return { graph: normalizeGraphVersionRecord(updated) };
     },
 
     async deactivateGraph({ actor, graphId }) {
@@ -588,7 +618,7 @@ const createDagWorkbenchService = ({
         version: graph.version,
       });
 
-      return { graph: updated };
+      return { graph: normalizeGraphVersionRecord(updated) };
     },
 
     async deleteGraph({ actor, graphId }) {
@@ -645,6 +675,7 @@ const createDagWorkbenchService = ({
 
       const graphs = await dagGraphRepository.listByScopeKey(graph.scopeKey);
       const history = graphs.map((g) => ({
+        id: g.id,
         version: g.version,
         commitMessage: g.commitMessage || null,
         authorName: g.authorName || null,
@@ -656,7 +687,7 @@ const createDagWorkbenchService = ({
       return { history };
     },
 
-    async getGraphDiff({ actor, graphId, compareToVersionId }) {
+    async getGraphDiff({ actor, graphId, compareToGraphId, compareToVersionId }) {
       if (!actor || !ALLOWED_WORKBENCH_ROLES.has(actor.role)) {
         throw new AuthorizationError('Only admins can access the DAG workbench');
       }
@@ -669,20 +700,45 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      const previousGraphVersion = await dagGraphRepository.findById(compareToVersionId);
+      const normalizedCompareToGraphId = Number(compareToGraphId);
+      const normalizedCompareToVersionId = Number(compareToVersionId);
+
+      let previousGraphVersion = null;
+
+      if (Number.isFinite(normalizedCompareToGraphId) && normalizedCompareToGraphId > 0) {
+        previousGraphVersion = await dagGraphRepository.findById(normalizedCompareToGraphId);
+      } else if (Number.isFinite(normalizedCompareToVersionId) && normalizedCompareToVersionId > 0) {
+        if (typeof dagGraphRepository.findByScopeAndVersion === 'function') {
+          previousGraphVersion = await dagGraphRepository.findByScopeAndVersion(
+            newGraphVersion.scopeKey,
+            normalizedCompareToVersionId,
+          );
+        }
+
+        // Backward compatibility: legacy callers used compareToVersionId but routed by id.
+        if (!previousGraphVersion) {
+          previousGraphVersion = await dagGraphRepository.findById(normalizedCompareToVersionId);
+        }
+      } else {
+        throw new ValidationError('compareToGraphId or compareToVersionId is required');
+      }
+
       if (!previousGraphVersion) {
         throw new NotFoundError('Comparison DAG graph');
       }
 
-      const { deltas, impactedVariables } = extractImpactedVariables(
-        previousGraphVersion.graph,
-        newGraphVersion.graph
-      );
+      if (String(previousGraphVersion.scopeKey) !== String(newGraphVersion.scopeKey)) {
+        throw new ValidationError('Comparison graph must belong to the same scope');
+      }
+
+      const previousGraph = normalizeCreditGraph(previousGraphVersion.graph);
+      const newGraph = normalizeCreditGraph(newGraphVersion.graph);
+      const { deltas, impactedVariables } = extractImpactedVariables(previousGraph, newGraph);
 
       return {
         diff: {
-          previousGraph: previousGraphVersion.graph,
-          newGraph: newGraphVersion.graph,
+          previousGraph,
+          newGraph,
           impactedVariables,
           deltas,
         },
@@ -702,7 +758,8 @@ const createDagWorkbenchService = ({
         throw new NotFoundError('DAG graph');
       }
 
-      const validation = validateDagWorkbenchGraph(graph.graph, { scopeKey: graph.scopeKey });
+      const normalizedGraph = normalizeCreditGraph(graph.graph);
+      const validation = validateDagWorkbenchGraph(normalizedGraph, { scopeKey: graph.scopeKey });
       if (!validation.valid) {
         const error = new ValidationError('DAG graph validation failed');
         error.errors = validation.errors;
@@ -712,7 +769,7 @@ const createDagWorkbenchService = ({
       const restoredGraphVersion = await dagGraphRepository.saveVersion({
         scopeKey: graph.scopeKey,
         name: graph.name,
-        graph: graph.graph,
+        graph: normalizedGraph,
         graphSummary: validation.summary,
         validation,
         status: 'inactive',
@@ -731,7 +788,7 @@ const createDagWorkbenchService = ({
         version: restoredGraphVersion.version,
       });
 
-      return { graph: restoredGraphVersion };
+      return { graph: normalizeGraphVersionRecord(restoredGraphVersion) };
     },
   };
 };

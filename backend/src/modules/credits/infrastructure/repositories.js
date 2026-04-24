@@ -13,7 +13,7 @@ const {
   DagVariable,
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
-const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
+const { createCreditCalculationService } = require('@/modules/credits/application/creditCalculationService');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
@@ -256,6 +256,19 @@ const createCreditsInfrastructure = ({
       });
       return graph;
     },
+    async findByScopeAndVersion(scopeKey, version) {
+      return dagGraphVersionModel.findOne({
+        where: { scopeKey, version },
+        attributes: {
+          include: [
+            [
+              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
+              'usageCount',
+            ],
+          ],
+        },
+      });
+    },
     async getUsageCount(id) {
       const count = await loanModel.count({ where: { dagGraphVersionId: id } });
       return count;
@@ -340,14 +353,51 @@ const createCreditsInfrastructure = ({
     },
   };
 
-  // ── Build the dependency chain: graphExecutor → calculationService → simulators ──
-  const graphExecutor = graphExecutorOverride || createGraphExecutor({ dagGraphRepository });
+  const dagVariableRepository = {
+    async list({ type, source, status, page = 1, pageSize = 20 } = {}) {
+      const where = {};
+      if (type) where.type = type;
+      if (source) where.source = source;
+      if (status) where.status = status;
+      return paginateModel({
+        model: dagVariableModel,
+        page,
+        pageSize,
+        where,
+        order: [['createdAt', 'DESC']],
+      });
+    },
+    async findById(id) {
+      return dagVariableModel.findByPk(id);
+    },
+    async findByName(name) {
+      return dagVariableModel.findOne({ where: { name } });
+    },
+    async create(payload) {
+      return dagVariableModel.create(payload);
+    },
+    async update(id, payload) {
+      const variable = await dagVariableModel.findByPk(id);
+      if (!variable) return null;
+      await variable.update(payload);
+      return variable;
+    },
+    async delete(id) {
+      const variable = await dagVariableModel.findByPk(id);
+      if (!variable) return null;
+      await variable.destroy();
+      return true;
+    },
+  };
+
+  // ── Build the dependency chain: graphExecutor → calculationService → credit calculations ──
+  const graphExecutor = graphExecutorOverride || createGraphExecutor({ dagGraphRepository, dagVariableRepository });
   const calculationService = calculationServiceOverride || createCreditsCalculationService({
     graphExecutor,
   });
-  const simService = createCreditSimulationService({ calculationService });
-  const creditSimulator = creditSimulatorOverride || simService.simulate;
-  const detailedCreditSimulator = detailedCreditSimulatorOverride || simService.simulateDetailed;
+  const creditCalculationService = createCreditCalculationService({ calculationService });
+  const creditCalculator = creditSimulatorOverride || creditCalculationService.calculate;
+  const detailedCreditCalculator = detailedCreditSimulatorOverride || creditCalculationService.calculateDetailed;
   const loanCreator = loanCreatorOverride || createLoanFromCanonicalDataFactory({
     calculationService,
     customerModel,
@@ -643,50 +693,21 @@ const createCreditsInfrastructure = ({
       },
     },
     creditDomainService: {
+      calculate(input) {
+        return creditCalculator(input);
+      },
+      calculateDetailed(input) {
+        return detailedCreditCalculator(input);
+      },
       simulate(input) {
-        return creditSimulator(input);
+        return creditCalculator(input);
       },
       simulateDetailed(input) {
-        return detailedCreditSimulator(input);
+        return detailedCreditCalculator(input);
       },
     },
     dagGraphRepository,
-    dagVariableRepository: {
-      async list({ type, source, status, page = 1, pageSize = 20 } = {}) {
-        const where = {};
-        if (type) where.type = type;
-        if (source) where.source = source;
-        if (status) where.status = status;
-        return paginateModel({
-          model: dagVariableModel,
-          page,
-          pageSize,
-          where,
-          order: [['createdAt', 'DESC']],
-        });
-      },
-      async findById(id) {
-        return dagVariableModel.findByPk(id);
-      },
-      async findByName(name) {
-        return dagVariableModel.findOne({ where: { name } });
-      },
-      async create(payload) {
-        return dagVariableModel.create(payload);
-      },
-      async update(id, payload) {
-        const variable = await dagVariableModel.findByPk(id);
-        if (!variable) return null;
-        await variable.update(payload);
-        return variable;
-      },
-      async delete(id) {
-        const variable = await dagVariableModel.findByPk(id);
-        if (!variable) return null;
-        await variable.destroy();
-        return true;
-      },
-    },
+    dagVariableRepository,
     dagSimulationSummaryRepository: {
       save(payload) {
         return dagSimulationSummaryModel.create(payload);

@@ -13,7 +13,6 @@ const normalizeKey = (value: string) => value
 
 const mapPaymentMethod = (pm: any) => ({
   ...pm,
-  // FE legacy fields
   name: pm.name ?? pm.label ?? '',
   type: pm.type ?? pm.key ?? 'other',
 });
@@ -30,7 +29,7 @@ export const useConfig = () => {
   const createPaymentMethod = useInvalidatingMutation(async (paymentMethodData: any) => {
     const payload = {
       label: paymentMethodData.label ?? paymentMethodData.name,
-      key: paymentMethodData.key ?? normalizeKey(paymentMethodData.type ?? paymentMethodData.name ?? ''),
+      key: paymentMethodData.key ?? normalizeKey(paymentMethodData.name ?? paymentMethodData.label ?? ''),
       description: paymentMethodData.description,
       isActive: paymentMethodData.isActive,
     };

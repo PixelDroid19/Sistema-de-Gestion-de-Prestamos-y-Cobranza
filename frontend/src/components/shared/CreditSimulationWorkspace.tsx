@@ -86,6 +86,15 @@ const formatDate = (value: string) => {
   }).format(parsed);
 };
 
+const formatScheduleStatus = (status?: string) => {
+  const normalizedStatus = String(status || '').toLowerCase();
+  if (normalizedStatus === 'pending') return 'Pendiente';
+  if (normalizedStatus === 'paid' || normalizedStatus === 'settled') return 'Pagada';
+  if (normalizedStatus === 'overdue' || normalizedStatus === 'defaulted') return 'En mora';
+  if (normalizedStatus === 'cancelled' || normalizedStatus === 'annulled') return 'Anulada';
+  return status || '-';
+};
+
 const getDefaultScenarioName = (savedScenariosCount: number) => `Escenario ${savedScenariosCount + 1}`;
 
 export default function CreditSimulationWorkspace({
@@ -108,7 +117,7 @@ export default function CreditSimulationWorkspace({
   validationStatus,
   actionLabel = tTerm('dag.actions.simulate'),
   emptyTitle = 'Sin resultados todavía',
-  emptyDescription = 'Ajusta los parámetros y ejecuta la simulación para revisar la cuota, el costo financiero y el cronograma.',
+  emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
 }: CreditSimulationWorkspaceProps) {
   const instanceId = useId();
   const titleId = `${instanceId}-credit-simulation-title`;
@@ -504,7 +513,7 @@ export default function CreditSimulationWorkspace({
                     <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-text-primary">Simulación actual</h4>
+                          <h4 className="text-sm font-semibold text-text-primary">Cálculo actual</h4>
                           <p className="mt-1 text-xs leading-5 text-text-secondary">
                             {formatCurrency(input.amount)} · {input.interestRate}% · {input.termMonths} meses
                           </p>
@@ -577,7 +586,7 @@ export default function CreditSimulationWorkspace({
                </div>
              )}
 
-            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Resumen de simulación">
+            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Resumen del cálculo">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">Resumen financiero</h4>
@@ -684,7 +693,7 @@ export default function CreditSimulationWorkspace({
                              <td className="px-4 py-3 text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
                              <td className="px-4 py-3 text-right">
                                <span className="rounded-full border border-border-subtle bg-bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                                 {row.status}
+                                 {formatScheduleStatus(row.status)}
                                </span>
                              </td>
                            </tr>

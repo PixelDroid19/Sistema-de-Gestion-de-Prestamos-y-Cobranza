@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import VariablesRegistryPage from '../VariablesRegistryPage';
 
 const mockList = vi.fn();
@@ -34,7 +35,9 @@ function renderWithProviders(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
-      {ui}
+      <MemoryRouter>
+        {ui}
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -44,6 +47,10 @@ const mockVariables = [
   { id: 2, name: 'score', type: 'integer', source: 'bureau_api', value: '750', status: 'active' },
   { id: 3, name: 'oldFee', type: 'currency', source: 'app_data', value: '100', status: 'deprecated' },
 ];
+
+const expectVariableRendered = (name: string) => {
+  expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+};
 
 describe('VariablesRegistryPage', () => {
   beforeEach(() => {
@@ -64,16 +71,16 @@ describe('VariablesRegistryPage', () => {
     renderWithProviders(<VariablesRegistryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('rate')).toBeInTheDocument();
-      expect(screen.getByText('score')).toBeInTheDocument();
-      expect(screen.getByText('oldFee')).toBeInTheDocument();
+      expectVariableRendered('rate');
+      expectVariableRendered('score');
+      expectVariableRendered('oldFee');
     });
   });
 
   it('applies type filter and refetches', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
     const typeSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(typeSelect, { target: { value: 'percent' } });
@@ -88,7 +95,7 @@ describe('VariablesRegistryPage', () => {
   it('applies source filter and refetches', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
     const sourceSelect = screen.getAllByRole('combobox')[1];
     fireEvent.change(sourceSelect, { target: { value: 'bureau_api' } });
@@ -103,7 +110,7 @@ describe('VariablesRegistryPage', () => {
   it('applies status filter and refetches', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
     const statusSelect = screen.getAllByRole('combobox')[2];
     fireEvent.change(statusSelect, { target: { value: 'deprecated' } });
@@ -115,61 +122,64 @@ describe('VariablesRegistryPage', () => {
     });
   });
 
-  it('renders deprecated variables with line-through and Dep badge', async () => {
+  it('renders deprecated variables with line-through and retired badge', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('oldFee')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('oldFee'));
 
-    const oldFeeCell = screen.getByText('oldFee');
+    const oldFeeCell = screen.getAllByText('oldFee').find((element) => element.classList.contains('line-through') && element.closest('tr'));
+    expect(oldFeeCell).toBeDefined();
+    if (!oldFeeCell) throw new Error('oldFee row not found');
     expect(oldFeeCell.classList.contains('line-through')).toBe(true);
 
-    // Find the Dep badge in the same row
     const row = oldFeeCell.closest('tr');
     expect(row).toBeTruthy();
-    expect(row?.textContent).toContain('Dep');
+    expect(row?.textContent).toContain('Retirada');
   });
 
-  it('renders active status badge for active variables', async () => {
+  it('renders active status badge for active variables in Spanish', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
-    const rateCell = screen.getByText('rate');
+    const rateCell = screen.getAllByText('rate').find((element) => element.closest('tr'));
+    expect(rateCell).toBeDefined();
+    if (!rateCell) throw new Error('rate row not found');
     const row = rateCell.closest('tr');
-    expect(row?.textContent).toContain('Active');
+    expect(row?.textContent).toContain('Activa');
   });
 
   it('opens New Variable modal when CTA is clicked', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
-    const newButton = screen.getByRole('button', { name: /new variable/i });
+    const newButton = screen.getByRole('button', { name: /nueva variable/i });
     fireEvent.click(newButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'New Variable' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Nueva variable' })).toBeInTheDocument();
     });
   });
 
   it('calls createVariable on modal submit', async () => {
     renderWithProviders(<VariablesRegistryPage />);
 
-    await waitFor(() => expect(screen.getByText('rate')).toBeInTheDocument());
+    await waitFor(() => expectVariableRendered('rate'));
 
-    fireEvent.click(screen.getByRole('button', { name: /new variable/i }));
+    fireEvent.click(screen.getByRole('button', { name: /nueva variable/i }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'New Variable' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Nueva variable' })).toBeInTheDocument());
 
-    const nameInput = screen.getByPlaceholderText('e.g. rate');
-    fireEvent.change(nameInput, { target: { value: 'newVar' } });
+    const nameInput = screen.getByPlaceholderText('ej. tasa_anual');
+    fireEvent.change(nameInput, { target: { value: 'new_var' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    fireEvent.click(screen.getByRole('button', { name: /crear/i }));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalledTimes(1);
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'newVar' })
+        expect.objectContaining({ name: 'new_var' })
       );
     });
   });

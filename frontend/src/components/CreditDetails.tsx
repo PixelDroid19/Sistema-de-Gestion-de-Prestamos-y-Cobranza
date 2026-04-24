@@ -831,10 +831,12 @@ export default function CreditDetails() {
                         </tr>
                       {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
                         const scheduledPayment = installment.scheduledPayment ?? 0;
-                        const interestComponent = installment.remainingInterest ?? 0;
-                        const principalComponent = scheduledPayment - interestComponent;
+                        const interestComponent = installment.interestComponent ?? installment.remainingInterest ?? 0;
+                        const principalComponent = installment.principalComponent ?? Math.max(0, scheduledPayment - interestComponent);
                         const openingBalance = index === 0 ? Number(loan.amount) : rows[index - 1].closingBalance;
-                        const closingBalance = Math.max(0, openingBalance - principalComponent);
+                        const closingBalance = Number.isFinite(Number(installment.remainingBalance))
+                          ? Number(installment.remainingBalance)
+                          : Math.max(0, openingBalance - principalComponent);
                         
                         const normalizedInstallmentNumber = Number(installment.installmentNumber);
 

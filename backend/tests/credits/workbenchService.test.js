@@ -14,7 +14,7 @@ const buildGraph = () => ({
     { id: 'lateFeeMode', kind: 'conditional', label: 'Modo mora', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
     { id: 'schedule', kind: 'formula', label: 'Cronograma', outputVar: 'schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)' },
     { id: 'summary', kind: 'formula', label: 'Resumen', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
-    { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+    { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildCreditResult(lateFeeMode, schedule, summary)' },
   ],
   edges: [
     { id: 'edge-1', source: 'amount', target: 'schedule' },
@@ -75,7 +75,7 @@ test('validateDagWorkbenchGraph rejects malformed formulas before runtime execut
       { id: 'lateFeeMode', kind: 'conditional', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
       { id: 'schedule', kind: 'formula', outputVar: 'schedule', formula: '1 +' },
       { id: 'summary', kind: 'formula', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
-      { id: 'result', kind: 'output', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+      { id: 'result', kind: 'output', outputVar: 'result', formula: 'buildCreditResult(lateFeeMode, schedule, summary)' },
     ],
     edges: [
       { source: 'amount', target: 'schedule' },
@@ -329,6 +329,40 @@ test('createDagWorkbenchService rejects deactivating the only active version in 
     () => service.deactivateGraph({ actor: { id: 1, role: 'admin' }, graphId: 3 }),
     (error) => {
       assert.match(error.message, /only active formula/i);
+      return true;
+    },
+  );
+});
+
+test('createDagWorkbenchService rejects deleting formula versions already used by credits', async () => {
+  const service = createDagWorkbenchService({
+    dagConfig: { mode: 'primary', workbenchEnabled: true },
+    dagGraphRepository: {
+      async findById(id) {
+        return { id, scopeKey: 'credit-simulation', version: 7, status: 'inactive', name: 'Used formula' };
+      },
+      async getUsageCount() {
+        return 3;
+      },
+      async deleteGraph() {
+        throw new Error('deleteGraph should not be called for used formulas');
+      },
+    },
+    dagSimulationSummaryRepository: {
+      async save() {
+        throw new Error('save should not be called');
+      },
+      async getLatest() {
+        return null;
+      },
+    },
+    graphExecutor: { executeDraft() { throw new Error('should not be called'); } },
+  });
+
+  await assert.rejects(
+    () => service.deleteGraph({ actor: { id: 1, role: 'admin' }, graphId: 7 }),
+    (error) => {
+      assert.match(error.message, /3 credit\(s\) are using it/i);
       return true;
     },
   );

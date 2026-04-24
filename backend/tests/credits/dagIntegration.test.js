@@ -2,7 +2,7 @@
  * Integration tests for the unified DAG formula system.
  *
  * These tests wire the real production chain:
- *   graphExecutor  ->  calculationAdapter  ->  creditSimulationService  ->  loanCreation
+ *   graphExecutor  ->  calculationAdapter  ->  creditCalculationService  ->  loanCreation
  *
  * The only mock is the database repository — the CalculationEngine, FormulaCompiler,
  * BigNumberEngine, scopeBuilder helpers, and scopeRegistry are all real.
@@ -13,9 +13,10 @@ const assert = require('node:assert/strict');
 const models = require('@/models');
 const { createGraphExecutor } = require('@/modules/credits/application/dag/graphExecutor');
 const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
-const { createCreditSimulationService } = require('@/modules/credits/application/creditSimulationService');
+const { createCreditCalculationService } = require('@/modules/credits/application/creditCalculationService');
 const { createLoanFromCanonicalDataFactory } = require('@/modules/credits/infrastructure/loanCreation');
 const { getDagWorkbenchScopeDefinition } = require('@/modules/credits/application/dag/scopeRegistry');
+const BigNumberEngine = require('@/core/domain/calculation/BigNumberEngine');
 
 // ─── Shared Fixtures ────────────────────────────────────────────────────────
 
@@ -80,6 +81,93 @@ test('graphExecutor executes the seeded default graph and returns a valid result
   assert.ok(result.result.summary.totalInterest > 0);
 });
 
+test('graphExecutor injects active custom variables into real formula execution', async () => {
+  const graph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  graph.nodes.push({
+    id: 'minimum_rate_rule',
+    kind: 'formula',
+    label: 'Tasa minima personalizada',
+    formula: 'max(interestRate, minimum_rate)',
+    outputVar: 'interestRate',
+  });
+  graph.edges = graph.edges.map((edge) => (
+    edge.source === 'input_rate'
+      ? { ...edge, source: 'minimum_rate_rule' }
+      : edge
+  ));
+  graph.edges.push({ source: 'input_rate', target: 'minimum_rate_rule' });
+
+  const record = createMockGraphVersionRecord({ graph });
+  const dagVariableRepository = {
+    list: async () => ({
+      items: [
+        { name: 'minimum_rate', type: 'percent', value: '24', status: 'active' },
+      ],
+    }),
+  };
+  const executor = createGraphExecutor({
+    dagGraphRepository: createMockRepo(record),
+    dagVariableRepository,
+  });
+
+  const result = await executor.execute({
+    scopeKey: 'credit-simulation',
+    contractVars: standardInput,
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(result.result.summary.installmentAmount > 900);
+  assert.ok(result.result.summary.totalInterest > 800);
+});
+
+test('graphExecutor handles zero-interest formulas without evaluating the interest branch', async () => {
+  const record = createMockGraphVersionRecord();
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
+
+  const result = await executor.execute({
+    scopeKey: 'credit-simulation',
+    contractVars: {
+      amount: 12000,
+      interestRate: 0,
+      termMonths: 12,
+      lateFeeMode: 'SIMPLE',
+    },
+  });
+
+  assert.equal(result.result.schedule.length, 12);
+  assert.equal(result.result.summary.installmentAmount, 1000);
+  assert.equal(result.result.summary.totalInterest, 0);
+});
+
+test('graphExecutor normalizes persisted legacy result nodes before execution', async () => {
+  const legacyGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const resultNode = legacyGraph.nodes.find((n) => n.id === 'credit_result');
+  resultNode.id = 'simulation_result';
+  resultNode.formula = 'buildSimulationResult(lateFeeMode, schedule, summary)';
+  legacyGraph.edges = legacyGraph.edges.map((edge) => ({
+    ...edge,
+    source: edge.source === 'credit_result' ? 'simulation_result' : edge.source,
+    target: edge.target === 'credit_result' ? 'simulation_result' : edge.target,
+  }));
+
+  assert.throws(
+    () => BigNumberEngine.validateFormula('buildSimulationResult(lateFeeMode, schedule, summary)'),
+    /disallowed functions/i,
+  );
+
+  const record = createMockGraphVersionRecord({ graph: legacyGraph });
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
+  const result = await executor.execute({
+    scopeKey: 'credit-simulation',
+    contractVars: standardInput,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.graphVersionId, 42);
+  assert.equal(result.result.schedule.length, 12);
+  assert.ok(result.result.summary.installmentAmount > 0);
+});
+
 test('graphExecutor rejects execution when no active version exists', async () => {
   const executor = createGraphExecutor({
     dagGraphRepository: {
@@ -110,9 +198,9 @@ test('graphExecutor rejects execution with missing required inputs', async () =>
   );
 });
 
-// ─── Full chain: graphExecutor -> calculationAdapter -> creditSimulationService ─
+// ─── Full chain: graphExecutor -> calculationAdapter -> creditCalculationService ─
 
-test('full chain: simulateDetailed returns DAG result with graphVersionId', async () => {
+test('full chain: calculateDetailed returns DAG result with graphVersionId', async () => {
   const record = createMockGraphVersionRecord();
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
 
@@ -120,15 +208,15 @@ test('full chain: simulateDetailed returns DAG result with graphVersionId', asyn
     graphExecutor: executor,
   });
 
-  const creditSimulator = createCreditSimulationService({ calculationService });
-  const detailed = await creditSimulator.simulateDetailed(standardInput);
+  const creditCalculator = createCreditCalculationService({ calculationService });
+  const detailed = await creditCalculator.calculateDetailed(standardInput);
 
   assert.equal(detailed.graphVersionId, 42);
   assert.equal(detailed.result.schedule.length, 12);
   assert.ok(detailed.result.summary.installmentAmount > 0);
 });
 
-test('full chain: simulate returns simulation result with graphVersionId', async () => {
+test('full chain: calculate returns credit result with graphVersionId', async () => {
   const record = createMockGraphVersionRecord();
   const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
 
@@ -136,10 +224,10 @@ test('full chain: simulate returns simulation result with graphVersionId', async
     graphExecutor: executor,
   });
 
-  const creditSimulator = createCreditSimulationService({ calculationService });
-  const result = await creditSimulator.simulate(standardInput);
+  const creditCalculator = createCreditCalculationService({ calculationService });
+  const result = await creditCalculator.calculate(standardInput);
 
-  // simulate() now spreads graphVersionId onto the result
+  // calculate() spreads graphVersionId onto the result
   assert.equal(result.graphVersionId, 42);
   assert.equal(result.lateFeeMode, 'SIMPLE');
   assert.equal(result.schedule.length, 12);
@@ -185,7 +273,7 @@ test('full chain: loanCreation uses DAG result and persists correct graphVersion
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
 });
 
-// ─── Formula Editor Integration: edited graph affects simulation ────────────
+// ─── Formula Editor Integration: edited graph affects real credit calculations ─
 
 test('edited formula graph is executed and used in primary mode — DAG is source of truth', async () => {
   // Clone the default graph and modify the amortization formula
@@ -209,10 +297,10 @@ test('edited formula graph is executed and used in primary mode — DAG is sourc
     graphExecutor: executor,
   });
 
-  const creditSimulator = createCreditSimulationService({ calculationService });
+  const creditCalculator = createCreditCalculationService({ calculationService });
 
   // Pass 12 months as input, but the edited formula uses 6
-  const detailed = await creditSimulator.simulateDetailed({
+  const detailed = await creditCalculator.calculateDetailed({
     amount: 10000,
     interestRate: 12,
     termMonths: 12,
@@ -222,6 +310,140 @@ test('edited formula graph is executed and used in primary mode — DAG is sourc
   // DAG is the single source of truth — edited formula is always used
   assert.equal(detailed.graphVersionId, 99);
   assert.equal(detailed.result.schedule.length, 6, 'Edited formula produces 6 installments');
+});
+
+test('edited installment formula changes the generated amortization schedule', async () => {
+  const modifiedGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const installmentNode = modifiedGraph.nodes.find((n) => n.id === 'installment_amount');
+  assert.ok(installmentNode, 'installment_amount node should exist in default graph');
+
+  installmentNode.formula = '1500';
+
+  const modifiedRecord = createMockGraphVersionRecord({
+    id: 100,
+    name: 'Edited installment formula',
+    graph: modifiedGraph,
+  });
+
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(modifiedRecord) });
+  const calculationService = createCreditsCalculationService({ graphExecutor: executor });
+  const creditCalculator = createCreditCalculationService({ calculationService });
+
+  const detailed = await creditCalculator.calculateDetailed({
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  assert.equal(detailed.graphVersionId, 100);
+  assert.equal(detailed.result.schedule[0].scheduledPayment, 1500);
+  assert.equal(detailed.result.summary.installmentAmount, 1500);
+});
+
+test('edited installment formula is persisted through real loan creation payload', async () => {
+  let persistedPayload;
+
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Formula Customer' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Formula Product' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    persistedPayload = payload;
+    return { id: 101, ...payload };
+  });
+
+  const modifiedGraph = JSON.parse(JSON.stringify(scope.defaultGraph));
+  const installmentNode = modifiedGraph.nodes.find((n) => n.id === 'installment_amount');
+  assert.ok(installmentNode, 'installment_amount node should exist in default graph');
+  installmentNode.formula = '1500';
+
+  const modifiedRecord = createMockGraphVersionRecord({
+    id: 100,
+    name: 'Edited installment formula',
+    graph: modifiedGraph,
+  });
+
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(modifiedRecord) });
+  const calculationService = createCreditsCalculationService({ graphExecutor: executor });
+  const createLoan = createLoanFromCanonicalDataFactory({ calculationService });
+
+  const loan = await createLoan({
+    customerId: 1,
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  assert.equal(loan.id, 101);
+  assert.equal(persistedPayload.dagGraphVersionId, 100);
+  assert.equal(persistedPayload.installmentAmount, 1500);
+  assert.equal(persistedPayload.emiSchedule[0].scheduledPayment, 1500);
+  assert.equal(persistedPayload.financialSnapshot.installmentAmount, 1500);
+});
+
+test('new active formula affects only new loans while old graph versions remain executable', async () => {
+  const graphV1 = JSON.parse(JSON.stringify(scope.defaultGraph));
+  graphV1.nodes.find((n) => n.id === 'installment_amount').formula = '1500';
+
+  const graphV2 = JSON.parse(JSON.stringify(scope.defaultGraph));
+  graphV2.nodes.find((n) => n.id === 'installment_amount').formula = '1800';
+
+  const records = new Map([
+    [501, createMockGraphVersionRecord({ id: 501, version: 1, name: 'Formula cuota 1500', graph: graphV1 })],
+    [502, createMockGraphVersionRecord({ id: 502, version: 2, name: 'Formula cuota 1800', graph: graphV2 })],
+  ]);
+  let activeGraphId = 501;
+
+  const executor = createGraphExecutor({
+    dagGraphRepository: {
+      getLatestActive: async () => records.get(activeGraphId),
+      findById: async (id) => records.get(id) || null,
+    },
+  });
+  const calculationService = createCreditsCalculationService({ graphExecutor: executor });
+
+  let nextLoanId = 200;
+  const persistedLoans = [];
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Versioned Customer' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Versioned Product' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    const loan = { id: nextLoanId += 1, ...payload };
+    persistedLoans.push(loan);
+    return loan;
+  });
+
+  const createLoan = createLoanFromCanonicalDataFactory({ calculationService });
+
+  const oldLoan = await createLoan({
+    customerId: 1,
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  activeGraphId = 502;
+  const newLoan = await createLoan({
+    customerId: 1,
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+  });
+
+  const oldVersionExecution = await executor.execute({
+    graphVersionId: oldLoan.dagGraphVersionId,
+    contractVars: standardInput,
+  });
+
+  assert.equal(oldLoan.dagGraphVersionId, 501);
+  assert.equal(oldLoan.installmentAmount, 1500);
+  assert.equal(newLoan.dagGraphVersionId, 502);
+  assert.equal(newLoan.installmentAmount, 1800);
+  assert.equal(oldVersionExecution.result.summary.installmentAmount, 1500);
+  assert.equal(persistedLoans.length, 2);
 });
 
 test('formula editor save flow: graphExecutor.executeDraft validates edited formulas', async () => {

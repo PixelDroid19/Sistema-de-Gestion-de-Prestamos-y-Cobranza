@@ -2,8 +2,8 @@
  * Unified Graph Executor Service
  *
  * This is the single runtime entrypoint that loads a persisted DagGraphVersion
- * from the database and executes it via the CalculationEngine. Both simulation
- * and loan origination MUST use this service so the exact same graph version
+ * from the database and executes it via the CalculationEngine. Both credit
+ * previews and loan origination MUST use this service so the exact same graph version
  * drives the numbers and gets recorded on the resulting loan.
  *
  * Key guarantees:
@@ -16,7 +16,7 @@
 const { CalculationEngine } = require('@/core/domain/calculation/CalculationEngine');
 const { ValidationError } = require('@/utils/errorHandler');
 const { logBusiness } = require('@/utils/logger');
-const { validateContractInputs, validateContractOutputs } = require('./scopeRegistry');
+const { normalizeCreditGraph, validateContractInputs, validateContractOutputs } = require('./scopeRegistry');
 
 // ─── Execution Result ────────────────────────────────────────────────────────
 
@@ -30,6 +30,51 @@ const { validateContractInputs, validateContractOutputs } = require('./scopeRegi
  * @property {object}       result            - The output object (lateFeeMode, schedule, summary)
  * @property {object}       executionMetrics  - Timing and node count
  */
+
+const parseVariableDefaultValue = (variable) => {
+  const rawValue = variable?.value;
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return undefined;
+  }
+
+  if (variable.type === 'boolean') {
+    return ['true', '1', 'si', 'sí', 'yes'].includes(String(rawValue).trim().toLowerCase());
+  }
+
+  if (variable.type === 'integer') {
+    const parsed = Number.parseInt(String(rawValue), 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  if (variable.type === 'currency' || variable.type === 'percent') {
+    const parsed = Number(String(rawValue).replace(/[,$\s]/g, ''));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return rawValue;
+};
+
+const buildVariableDefaults = async (dagVariableRepository) => {
+  if (!dagVariableRepository?.list) {
+    return {};
+  }
+
+  const listed = await dagVariableRepository.list({ status: 'active', page: 1, pageSize: 500 });
+  const variables = listed?.items || listed || [];
+
+  return variables.reduce((defaults, variable) => {
+    const name = String(variable?.name || '').trim();
+    if (!name) {
+      return defaults;
+    }
+
+    const value = parseVariableDefaultValue(variable);
+    if (value !== undefined) {
+      defaults[name] = value;
+    }
+    return defaults;
+  }, {});
+};
 
 const createExecutionResult = ({ graphVersionRecord, result, executionMetrics }) => ({
   ok: true,
@@ -51,7 +96,7 @@ const createExecutionResult = ({ graphVersionRecord, result, executionMetrics })
  * @param {object}   [deps.engine]           - Calculation engine (defaults to CalculationEngine)
  * @returns {object} graphExecutor
  */
-const createGraphExecutor = ({ dagGraphRepository, engine = CalculationEngine } = {}) => {
+const createGraphExecutor = ({ dagGraphRepository, dagVariableRepository, engine = CalculationEngine } = {}) => {
   if (!dagGraphRepository) {
     throw new Error('graphExecutor requires dagGraphRepository');
   }
@@ -105,7 +150,7 @@ const createGraphExecutor = ({ dagGraphRepository, engine = CalculationEngine } 
       );
     }
 
-    const graph = graphVersionRecord.graph;
+    const graph = normalizeCreditGraph(graphVersionRecord.graph);
     if (!graph || !Array.isArray(graph.nodes)) {
       throw new ValidationError(
         `Graph version ${graphVersionRecord.id} has no valid graph data`,
@@ -114,11 +159,17 @@ const createGraphExecutor = ({ dagGraphRepository, engine = CalculationEngine } 
 
     const startTime = Date.now();
 
+    const variableDefaults = await buildVariableDefaults(dagVariableRepository);
+    const executionVars = {
+      ...variableDefaults,
+      ...contractVars,
+    };
+
     // Execute the graph through the CalculationEngine which handles:
     // - Topological sorting
     // - Formula compilation (with BigNumber + whitelist)
     // - Scoped evaluation with helpers (buildAmortizationSchedule, etc.)
-    const engineResult = engine.execute(graph, contractVars);
+    const engineResult = engine.execute(graph, executionVars);
 
     const executionTimeMs = Date.now() - startTime;
 
@@ -169,13 +220,18 @@ const createGraphExecutor = ({ dagGraphRepository, engine = CalculationEngine } 
    * @param {object} opts.contractVars  - The input variables
    * @returns {object}
    */
-  const executeDraft = ({ graph, contractVars = {} }) => {
+  const executeDraft = async ({ graph, contractVars = {} }) => {
     if (!graph || !Array.isArray(graph.nodes)) {
       throw new ValidationError('Draft graph must have a nodes array');
     }
+    const normalizedGraph = normalizeCreditGraph(graph);
 
     const startTime = Date.now();
-    const engineResult = engine.execute(graph, contractVars);
+    const variableDefaults = await buildVariableDefaults(dagVariableRepository);
+    const engineResult = engine.execute(normalizedGraph, {
+      ...variableDefaults,
+      ...contractVars,
+    });
     const executionTimeMs = Date.now() - startTime;
 
     const resultObj = engineResult.result?.result || engineResult.scope?.result || {};
@@ -189,8 +245,8 @@ const createGraphExecutor = ({ dagGraphRepository, engine = CalculationEngine } 
       result: resultObj,
       executionMetrics: {
         executionTimeMs,
-        nodeCount: graph.nodes.length,
-        edgeCount: (graph.edges || []).length,
+        nodeCount: normalizedGraph.nodes.length,
+        edgeCount: (normalizedGraph.edges || []).length,
         graphVersionId: null,
         graphVersion: null,
       },

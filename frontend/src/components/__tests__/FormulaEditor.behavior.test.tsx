@@ -8,7 +8,7 @@ const mockNavigate = vi.fn();
 const mockListScopes = vi.fn();
 const mockListGraphs = vi.fn();
 const mockSaveGraph = vi.fn();
-const mockSimulateGraph = vi.fn();
+const mockCalculateGraph = vi.fn();
 const mockToastError = vi.fn();
 
 vi.mock('react-router-dom', () => ({
@@ -21,7 +21,7 @@ vi.mock('../../services/dagService', () => ({
     listScopes: () => mockListScopes(),
     listGraphs: (scopeKey: string) => mockListGraphs(scopeKey),
     saveGraph: (payload: any) => mockSaveGraph(payload),
-    simulateGraph: (payload: any) => mockSimulateGraph(payload),
+    calculateGraph: (payload: any) => mockCalculateGraph(payload),
   },
 }));
 
@@ -41,11 +41,11 @@ vi.mock('../../lib/toast', () => ({
 const mockScope = {
   key: 'credit-simulation',
   label: 'Credito',
-  description: 'Scope para simulacion',
+  description: 'Scope para calculo de credito',
   defaultName: 'Nueva formula',
   requiredInputs: ['amount', 'interestRate', 'termMonths'],
   requiredOutputs: ['lateFeeMode', 'schedule', 'summary'],
-  simulationInput: {
+  calculationInput: {
     amount: 2000000,
     interestRate: 60,
     termMonths: 12,
@@ -55,7 +55,7 @@ const mockScope = {
   defaultGraph: {
     nodes: [
       { id: 'monthly_rate', kind: 'formula', label: 'Tasa mensual', formula: 'interestRate / 12', outputVar: 'monthly_rate' },
-      { id: 'result', kind: 'output', label: 'Resultado final', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
+      { id: 'result', kind: 'output', label: 'Resultado final', formula: 'buildCreditResult(lateFeeMode, schedule, summary)', outputVar: 'result' },
     ],
     edges: [{ source: 'monthly_rate', target: 'result' }],
   },
@@ -91,12 +91,12 @@ describe('FormulaEditorPage', () => {
       success: true,
       data: { graph: { id: 1, status: 'active' } },
     });
-    mockSimulateGraph.mockResolvedValue({
+    mockCalculateGraph.mockResolvedValue({
       success: true,
       data: {
-        simulation: {
+        calculation: {
           lateFeeMode: 'SIMPLE',
-          summary: { totalPayable: 2200000 },
+          summary: { installmentAmount: 210000, totalPayable: 2200000, totalInterest: 200000 },
           schedule: [],
         },
       },
@@ -108,9 +108,9 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('amount').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('interestRate').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('termMonths').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Monto del credito').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Tasa anual').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Plazo en meses').length).toBeGreaterThanOrEqual(1);
     }, { timeout: 3000 });
   });
 
@@ -118,9 +118,9 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('IF').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('ELSE IF').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('ELSE').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Si').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Si no, cuando').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('En cualquier otro caso').length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -128,8 +128,8 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Live Test/i)).toBeInTheDocument();
-      expect(screen.getByText(/Input Values/i)).toBeInTheDocument();
+      expect(screen.getByText(/Validacion de credito/i)).toBeInTheDocument();
+      expect(screen.getByText(/Datos del credito de prueba/i)).toBeInTheDocument();
     });
   });
 
@@ -148,31 +148,31 @@ describe('FormulaEditorPage', () => {
     });
   });
 
-  it('calls simulateGraph when test button is clicked', async () => {
+  it('calls calculateGraph when test button is clicked', async () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Probar|Evaluate/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/Validar/i).length).toBeGreaterThanOrEqual(1);
     });
 
-    const testButtons = screen.getAllByRole('button', { name: /probar|evaluate/i });
+    const testButtons = screen.getAllByRole('button', { name: /validar/i });
     fireEvent.click(testButtons[0]);
 
     await waitFor(() => {
-      expect(mockSimulateGraph).toHaveBeenCalledTimes(1);
+      expect(mockCalculateGraph).toHaveBeenCalledTimes(1);
     });
   });
 
   it('shows error message when evaluation fails', async () => {
-    mockSimulateGraph.mockRejectedValueOnce(new Error('Evaluation failed: missing variable'));
+    mockCalculateGraph.mockRejectedValueOnce(new Error('Evaluation failed: missing variable'));
 
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Evaluate|Probar/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/Validar/i).length).toBeGreaterThanOrEqual(1);
     });
 
-    const evalButtons = screen.getAllByRole('button', { name: /evaluate|probar/i });
+    const evalButtons = screen.getAllByRole('button', { name: /validar/i });
     fireEvent.click(evalButtons[0]);
 
     await waitFor(() => {

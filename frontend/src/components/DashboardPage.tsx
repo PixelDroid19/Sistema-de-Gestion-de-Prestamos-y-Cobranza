@@ -3,27 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   FileText, Activity, GitBranch, Plus, Loader2, Power, PowerOff, Trash2,
-  History, TrendingUp, TrendingDown, Clock, AlertCircle,
+  History, TrendingUp, TrendingDown, AlertCircle,
 } from 'lucide-react';
 import dagService from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
-
-// Material Design 3 color tokens mapped to Tailwind arbitrary values
-const MD3 = {
-  surface: '#f8f9ff',
-  onSurface: '#0b1c30',
-  onSurfaceVariant: '#5a6271',
-  secondary: '#00668a',
-  secondaryContainer: '#cce5f3',
-  onSecondaryContainer: '#00344a',
-  error: '#ba1a1a',
-  errorContainer: '#ffdad6',
-  onErrorContainer: '#410002',
-  outline: '#c4c6cf',
-  outlineVariant: '#dee1ea',
-} as const;
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -37,33 +22,34 @@ export default function DashboardPage() {
   const graphs = graphsData?.data?.graphs ?? [];
   const activeGraph = graphs.find((g: any) => g.status === 'active');
   const draftCount = graphs.filter((g: any) => g.status === 'inactive').length;
+  const lockedCount = graphs.filter((g: any) => Number(g.usageCount || 0) > 0 || g.isLocked).length;
 
   const stats = [
     {
-      label: 'Total Formulas',
+      label: 'Total formulas',
+      shortLabel: 'Total',
       value: graphs.length,
       icon: <FileText size={18} />,
-      bg: `bg-[${MD3.secondaryContainer}]`,
-      text: `text-[${MD3.onSecondaryContainer}]`,
-      trend: '+3 this month',
+      iconClassName: 'bg-teal-100 text-teal-900 dark:bg-teal-500/20 dark:text-teal-100',
+      trend: 'Versiones registradas',
       trendUp: true,
     },
     {
-      label: 'Active Version',
+      label: 'Version activa',
+      shortLabel: 'Activa',
       value: activeGraph ? `v${activeGraph.version}` : '—',
       icon: <Activity size={18} />,
-      bg: `bg-[#e8f5e9]`,
-      text: `text-[#1b5e20]`,
-      trend: activeGraph ? 'Currently live' : 'No active version',
+      iconClassName: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100',
+      trend: activeGraph ? 'En uso para nuevos creditos' : 'Sin version activa',
       trendUp: true,
     },
     {
-      label: 'Pending Reviews',
+      label: 'Borradores',
+      shortLabel: 'Borradores',
       value: draftCount,
       icon: <AlertCircle size={18} />,
-      bg: `bg-[#fff3e0]`,
-      text: `text-[#e65100]`,
-      trend: 'Needs approval',
+      iconClassName: 'bg-amber-100 text-amber-950 dark:bg-amber-500/20 dark:text-amber-100',
+      trend: 'Pendientes de activar',
       trendUp: false,
     },
   ];
@@ -111,52 +97,52 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6 lg:p-8 h-full overflow-y-auto" style={{ backgroundColor: MD3.surface }}>
+    <div className="flex h-full flex-col gap-3 overflow-y-auto bg-bg-base p-3 sm:gap-5 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight" style={{ color: MD3.onSurface, fontFamily: "'Inter', sans-serif" }}>
-            Dashboard Overview
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-3xl">
+            Dashboard de formulas
           </h2>
-          <p className="mt-1 text-sm" style={{ color: MD3.onSurfaceVariant }}>
-            Monitor and manage active credit calculation models.
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary sm:text-sm sm:leading-6">
+            Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.
           </p>
         </div>
         <button
           onClick={() => navigate('/formulas/new')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: MD3.secondary }}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary/90 sm:w-auto sm:rounded-xl sm:py-2.5"
         >
           <Plus size={16} />
-          New Formula
+          Nueva formula
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl p-5 shadow-sm border"
-            style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}
+            className="min-w-0 rounded-xl border border-border-subtle bg-bg-surface p-2.5 shadow-sm sm:rounded-2xl sm:p-5"
           >
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: MD3.onSurfaceVariant }}>
+            <div className="mb-1.5 flex items-start justify-between gap-1.5 sm:mb-3 sm:gap-2">
+              <span className="hidden min-w-0 break-words text-[11px] font-bold uppercase leading-4 tracking-wider text-text-secondary sm:inline">
                 {stat.label}
               </span>
+              <span className="min-w-0 break-words text-[9px] font-bold uppercase leading-3 tracking-wider text-text-secondary sm:hidden">
+                {stat.shortLabel}
+              </span>
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.bg} ${stat.text}`}
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${stat.iconClassName}`}
               >
                 {stat.icon}
               </div>
             </div>
             <div
-              className="text-3xl font-bold mb-1 font-mono tracking-tight"
-              style={{ color: MD3.onSurface }}
+              className="font-mono text-xl font-bold tracking-tight text-text-primary sm:mb-1 sm:text-3xl"
             >
               {stat.value}
             </div>
-            <div className="flex items-center gap-1 text-xs" style={{ color: MD3.onSurfaceVariant }}>
+            <div className="hidden items-center gap-1 text-xs text-text-secondary sm:flex">
               {stat.trendUp ? (
                 <TrendingUp size={14} className="text-emerald-600" />
               ) : (
@@ -168,170 +154,161 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {lockedCount > 0 && (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs leading-5 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
+        >
+          <span className="sm:hidden">
+            {lockedCount} version{lockedCount === 1 ? '' : 'es'} bloqueada{lockedCount === 1 ? '' : 's'} por creditos existentes. Los cambios se guardan como nueva version.
+          </span>
+          <span className="hidden sm:inline">
+            {lockedCount} version{lockedCount === 1 ? '' : 'es'} ya tienen creditos asociados. No se pueden eliminar ni modificar en sitio; cualquier cambio debe guardarse como nueva version.
+          </span>
+        </div>
+      )}
+
       {/* Table */}
       <div
-        className="rounded-2xl shadow-sm border overflow-hidden"
-        style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant }}
+        className="min-w-0 overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-sm"
       >
         <div
-          className="px-5 py-4 border-b flex justify-between items-center"
-          style={{ borderColor: MD3.outlineVariant, backgroundColor: 'rgba(248,249,255,0.5)' }}
+          className="flex items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3 sm:px-5 sm:py-4"
         >
-          <h3 className="text-lg font-bold" style={{ color: MD3.onSurface }}>Active Formulas</h3>
-          <button
-            onClick={() => navigate('/formulas')}
-            className="text-sm font-semibold hover:underline flex items-center gap-1"
-            style={{ color: MD3.secondary }}
-          >
-            View All <GitBranch size={16} />
-          </button>
+          <h3 className="text-base font-bold text-text-primary sm:text-lg">Formulas de credito</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => navigate('/formulas/variables')}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"
+            >
+              Variables <GitBranch size={16} />
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="min-w-[760px] w-full text-left text-sm xl:min-w-[920px]">
             <thead
-              className="border-b text-[11px] font-bold uppercase tracking-wider"
-              style={{ backgroundColor: 'rgba(248,249,255,0.5)', borderColor: MD3.outlineVariant, color: MD3.onSurfaceVariant }}
+              className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary"
             >
               <tr>
-                <th className="px-5 py-3 w-1/2">Formula Name</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3 text-right">Version</th>
-                <th className="px-5 py-3 text-right">Last Edited</th>
-                <th className="px-5 py-3 text-center w-24">Actions</th>
+                <th className="min-w-[180px] px-3 py-3 font-semibold">Nombre</th>
+                <th className="px-3 py-3 font-semibold">Estado</th>
+                <th className="px-3 py-3 text-right font-semibold">Creditos</th>
+                <th className="px-3 py-3 text-right font-semibold">Version</th>
+                <th className="hidden px-3 py-3 text-right font-semibold xl:table-cell">Ultimo cambio</th>
+                <th className="px-3 py-3 text-right font-semibold">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: MD3.outlineVariant }}>
+            <tbody className="divide-y divide-border-subtle">
               {graphsLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center">
-                    <Loader2 className="animate-spin mx-auto" size={24} style={{ color: MD3.secondary }} />
+                  <td colSpan={6} className="px-4 py-8 text-center">
+                    <Loader2 className="mx-auto animate-spin text-brand-primary" size={24} />
                   </td>
                 </tr>
               ) : graphs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center" style={{ color: MD3.onSurfaceVariant }}>
+                  <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
                     No hay formulas. Crea la primera para empezar.
                   </td>
                 </tr>
               ) : (
-                graphs.map((formula: any) => (
-                  <tr
-                    key={formula.id}
-                    className="hover:bg-[#f8f9ff]/60 transition-colors group"
-                  >
-                    <td className="px-5 py-3 font-semibold" style={{ color: MD3.onSurface }}>
-                      {formula.name}
+                graphs.map((formula: any) => {
+                  const formulaUsageCount = Number(formula.usageCount || 0);
+                  const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
+                  return (
+                    <tr
+                      key={formula.id}
+                      className="group transition-colors hover:bg-hover-bg/60"
+                    >
+                    <td className="px-3 py-4 font-semibold text-text-primary">
+                      <span className="block max-w-[220px] truncate" title={formula.name}>{formula.name}</span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="whitespace-nowrap px-3 py-4">
                       <span
-                        className="inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style={{
-                          color: formula.status === 'active' ? '#1b5e20' : '#e65100',
-                          backgroundColor: formula.status === 'active' ? '#e8f5e9' : '#fff3e0',
-                        }}
+                        className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                          formula.status === 'active'
+                            ? 'border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-100'
+                            : 'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-100'
+                        }`}
                       >
                         <span
-                          className="w-2 h-2 rounded-full"
-                          style={{
-                            backgroundColor: formula.status === 'active' ? '#2e7d32' : '#ef6c00',
-                          }}
+                          className={`h-2 w-2 rounded-full ${formula.status === 'active' ? 'bg-emerald-700 dark:bg-emerald-300' : 'bg-amber-700 dark:bg-amber-300'}`}
                         />
-                        {formula.status === 'active' ? 'Active' : 'Draft'}
+                        {formula.status === 'active' ? 'Activa' : 'Borrador'}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs" style={{ color: MD3.onSurfaceVariant }}>
+                    <td className="whitespace-nowrap px-3 py-4 text-right">
+                      <span
+                        className={`inline-flex items-center justify-end gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                          isFormulaLocked
+                            ? 'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-100'
+                            : 'border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-500/30 dark:bg-slate-500/20 dark:text-slate-100'
+                        }`}
+                      >
+                        {formulaUsageCount}
+                        {isFormulaLocked ? ' bloqueada' : ' sin uso'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-right font-mono text-xs text-text-secondary">
                       v{formula.version}
                     </td>
-                    <td className="px-5 py-3 text-right" style={{ color: MD3.onSurfaceVariant }}>
+                    <td className="hidden whitespace-nowrap px-3 py-4 text-right text-text-secondary xl:table-cell">
                       {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}
                     </td>
-                    <td className="px-5 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="px-3 py-4">
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => navigate(`/formulas/${formula.id}`)}
-                          className="p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                          style={{ color: MD3.onSurfaceVariant }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = MD3.secondary;
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = MD3.surface;
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = MD3.onSurfaceVariant;
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                          }}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Editar"
                         >
                           <FileText size={14} />
+                          <span>{isFormulaLocked ? 'Abrir copia' : 'Abrir'}</span>
                         </button>
                         {formula.status !== 'active' && (
                           <button
                             onClick={() => handleActivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            className="p-1.5 rounded-lg transition-colors disabled:opacity-30 opacity-0 group-hover:opacity-100"
-                            style={{ color: '#2e7d32' }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f5e9';
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                            }}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 disabled:text-slate-500 disabled:opacity-60 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
                             title="Activar"
                           >
                             <Power size={14} />
+                            <span>Activar</span>
                           </button>
                         )}
                         {formula.status === 'active' && (
                           <button
                             onClick={() => handleDeactivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            className="p-1.5 rounded-lg transition-colors disabled:opacity-30 opacity-0 group-hover:opacity-100"
-                            style={{ color: '#e65100' }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#fff3e0';
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                            }}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-orange-800 transition-colors hover:bg-orange-50 disabled:text-slate-500 disabled:opacity-60 dark:text-orange-200 dark:hover:bg-orange-500/10"
                             title="Desactivar"
                           >
                             <PowerOff size={14} />
+                            <span>Desactivar</span>
                           </button>
                         )}
                         <button
                           onClick={() => navigate(`/audit/${formula.id}`)}
-                          className="p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                          style={{ color: MD3.onSurfaceVariant }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = MD3.secondary;
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = MD3.surface;
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = MD3.onSurfaceVariant;
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                          }}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Historial"
                         >
                           <History size={14} />
+                          <span>Historial</span>
                         </button>
                         <button
                           onClick={() => handleDelete(formula.id, formula.name)}
-                          disabled={deleteMutation.isPending}
-                          className="p-1.5 rounded-lg transition-colors disabled:opacity-30 opacity-0 group-hover:opacity-100"
-                          style={{ color: MD3.error }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = MD3.errorContainer;
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                          }}
-                          title="Eliminar"
+                          disabled={deleteMutation.isPending || isFormulaLocked}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-slate-500 disabled:opacity-60 dark:text-red-200 dark:hover:bg-red-500/10"
+                          title={isFormulaLocked ? 'No se puede eliminar: tiene creditos asociados' : 'Eliminar'}
                         >
                           <Trash2 size={14} />
+                          <span>Eliminar</span>
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -35,7 +35,7 @@ const ALLOWED_FUNCTIONS = new Set([
   'summarizeSchedule',
   'roundCurrency',
   'assertSupportedLateFeeMode',
-  'buildSimulationResult',
+  'buildCreditResult',
   // Logical operators for block-based formula editor
   'ifThenElse',
   'and',

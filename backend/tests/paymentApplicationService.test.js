@@ -403,7 +403,16 @@ test('applyPayment rejects invalid amounts before persistence', async () => {
   });
 });
 
-test('applyPayment rejects pending loans before persistence', async () => {
+test('applyPayment activates pending loans with a real schedule and stores payment method', async () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 2,
+    startDate: '2026-01-15T00:00:00.000Z',
+  });
+  let savedLoan;
+  let savedPayment;
+
   const loan = {
     id: 10,
     status: 'pending',
@@ -411,26 +420,31 @@ test('applyPayment rejects pending loans before persistence', async () => {
     amount: 1000,
     interestRate: 12,
     termMonths: 2,
-    emiSchedule: [],
+    emiSchedule: schedule,
     async save() {
-      throw new Error('loan.save should not be called');
+      savedLoan = this;
+      return this;
     },
   };
 
   mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-pending' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
-  mock.method(models.Payment, 'create', async () => {
-    throw new Error('Payment.create should not be called');
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 710, ...payload };
   });
 
-  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayment({
+  const result = await createPaymentApplicationService({ loanViewService }).applyPayment({
     loanId: 10,
     amount: 50,
-  }), (error) => {
-    assert.equal(error.name, 'ValidationError');
-    assert.match(error.message, /approved, active, overdue, or defaulted/i);
-    return true;
+    paymentDate: '2026-02-15T00:00:00.000Z',
+    paymentMethod: 'cash',
   });
+
+  assert.equal(result.loan.status, 'active');
+  assert.equal(savedLoan.status, 'active');
+  assert.equal(savedPayment.paymentMethod, 'cash');
+  assert.equal(savedPayment.installmentNumber, 1);
 });
 
 test('createPaymentApplicationService requires an injected loan view service seam', () => {

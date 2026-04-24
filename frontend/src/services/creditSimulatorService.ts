@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import type { SimulationResponse } from '../types/dag';
+import type { CreditCalculationResponse } from '../types/dag';
 
 export type PaymentMethod = 'french' | 'simple';
 
@@ -40,10 +40,13 @@ export interface LoanSimulationResponse {
 }
 
 const mapSimulationResponse = (
-  payload: SimulationResponse,
+  payload: CreditCalculationResponse,
   input: LoanCalculationInput,
 ): LoanSimulationResponse => {
-  const simulation = payload.data.simulation;
+  const simulation = payload.data.calculation || payload.data.simulation;
+  if (!simulation) {
+    throw new Error('Credit calculation response is missing calculation data');
+  }
 
   return {
     success: payload.success,
@@ -73,7 +76,7 @@ const mapSimulationResponse = (
 export const useCalculateLoan = () => {
   const calculateLoan = useMutation<LoanSimulationResponse, Error, LoanCalculationInput>({
     mutationFn: async (input: LoanCalculationInput) => {
-      const { data } = await apiClient.post<SimulationResponse>('/loans/simulations', {
+      const { data } = await apiClient.post<CreditCalculationResponse>('/loans/calculations', {
         amount: input.principal,
         interestRate: input.interestRate,
         termMonths: input.term,

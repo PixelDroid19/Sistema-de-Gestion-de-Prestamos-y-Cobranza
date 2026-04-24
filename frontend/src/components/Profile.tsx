@@ -10,9 +10,9 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
 
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    name: '',
     email: '',
+    phone: '',
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -24,17 +24,25 @@ export default function Profile() {
   useEffect(() => {
     if (profile) {
       setFormData({
-        firstName: profile.firstName || '',
-        lastName: profile.lastName || '',
+        name: profile.name || user?.name || '',
         email: profile.email || '',
+        phone: profile.phone || '',
       });
     }
-  }, [profile]);
+  }, [profile, user?.name]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim()) {
+      toast.warning({ description: 'El nombre es obligatorio' });
+      return;
+    }
     try {
-      await updateProfile.mutateAsync(formData);
+      await updateProfile.mutateAsync({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+      });
       toast.success({ description: 'Perfil actualizado correctamente' });
     } catch (error) {
       console.error('[profile] updateProfile failed', error);
@@ -48,10 +56,14 @@ export default function Profile() {
       toast.warning({ description: 'Las contraseñas nuevas no coinciden' });
       return;
     }
+    if (passwordData.newPassword.length < 8) {
+      toast.warning({ description: 'La nueva contraseña debe tener al menos 8 caracteres' });
+      return;
+    }
     try {
       await changePassword.mutateAsync({
         currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword
+        nextPassword: passwordData.newPassword
       });
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       toast.success({ description: 'Contraseña actualizada correctamente' });
@@ -63,21 +75,21 @@ export default function Profile() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 h-full pb-8">
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex shrink-0 items-center justify-center text-brand-primary">
           <User size={32} />
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">Mi Perfil</h2>
           <p className="text-sm text-text-secondary mt-1">Administra tu información personal y seguridad.</p>
         </div>
-        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm">
+        <div className="sm:ml-auto flex w-fit items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm">
           <Shield size={16} className="text-emerald-500" />
           <span className="font-medium capitalize">{user?.role || 'Usuario'}</span>
         </div>
       </div>
 
-      <div className="flex border-b border-border-subtle">
+      <div className="flex overflow-x-auto border-b border-border-subtle">
         <button
           onClick={() => setActiveTab('info')}
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
@@ -96,36 +108,36 @@ export default function Profile() {
         </button>
       </div>
 
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
+      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 sm:p-6">
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Nombre</label>
-                <input 
-                  type="text" 
-                  value={formData.firstName}
-                  onChange={e => setFormData({...formData, firstName: e.target.value})}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Apellido</label>
-                <input 
-                  type="text" 
-                  value={formData.lastName}
-                  onChange={e => setFormData({...formData, lastName: e.target.value})}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Nombre completo</label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={e => setFormData({...formData, name: e.target.value})}
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Correo Electrónico</label>
-              <input 
-                type="email" 
+              <input
+                type="email"
+                required
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Teléfono</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={e => setFormData({...formData, phone: e.target.value})}
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
             <div className="pt-4">
@@ -140,32 +152,32 @@ export default function Profile() {
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Contraseña Actual</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 value={passwordData.currentPassword}
                 onChange={e => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Nueva Contraseña</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 value={passwordData.newPassword}
                 onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Confirmar Nueva Contraseña</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 value={passwordData.confirmPassword}
                 onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2" 
+                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
             <div className="pt-4">

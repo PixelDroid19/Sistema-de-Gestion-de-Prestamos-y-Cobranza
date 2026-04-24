@@ -86,7 +86,7 @@ function DeltaLine({ delta }: { delta: NodeDelta }) {
 export default function AuditHistoryPage() {
   const { id } = useParams<{ id: string }>();
   const graphId = Number(id);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
 
   const { data: historyData, isLoading } = useQuery({
     queryKey: queryKeys.dag.history(graphId),
@@ -94,24 +94,29 @@ export default function AuditHistoryPage() {
     enabled: !!graphId,
   });
 
-  const selectedEntry = historyData?.data?.history?.find((h: GraphHistoryEntry) => h.version === selectedVersion);
-  const prevEntry = historyData?.data?.history?.find((h: GraphHistoryEntry, idx: number, arr: GraphHistoryEntry[]) => {
-    return arr[idx + 1]?.version === selectedVersion;
-  });
-
-  const compareToVersionId = prevEntry ? historyData?.data?.history?.find((h: GraphHistoryEntry) => h.version === prevEntry.version)?.version : undefined;
-
-  const { data: diffData, isLoading: diffLoading } = useQuery({
-    queryKey: queryKeys.dag.diff(graphId, compareToVersionId || 0),
-    queryFn: () => dagService.getGraphDiff(graphId, compareToVersionId || 0),
-    enabled: !!graphId && !!selectedVersion && !!compareToVersionId,
-  });
-
   const history: GraphHistoryEntry[] = historyData?.data?.history ?? [];
+  const effectiveSelectedGraphId = selectedGraphId ?? history[0]?.id ?? null;
+  const selectedIndex = history.findIndex((entry) => entry.id === effectiveSelectedGraphId);
+  const selectedEntry = selectedIndex >= 0 ? history[selectedIndex] : null;
+  const prevEntry = selectedIndex >= 0 ? history[selectedIndex + 1] || null : null;
+  const compareToGraphId = prevEntry?.id;
+
+  const {
+    data: diffData,
+    isLoading: diffLoading,
+    isError: diffError,
+    error: diffErrorData,
+  } = useQuery({
+    queryKey: queryKeys.dag.diff(graphId, compareToGraphId || 0),
+    queryFn: () => dagService.getGraphDiff(graphId, {
+      compareToGraphId,
+      compareToVersionId: prevEntry?.version,
+    }),
+    enabled: !!graphId && !!selectedEntry && !!compareToGraphId,
+  });
 
   const handleRestore = async () => {
-    if (!selectedVersion) return;
-    const entry = history.find((h) => h.version === selectedVersion);
+    const entry = selectedEntry;
     if (!entry) return;
     const confirmed = await confirmModal({
       title: 'Restore Version',
@@ -200,13 +205,13 @@ export default function AuditHistoryPage() {
               <div className="absolute left-[19px] top-2 bottom-2 w-px" style={{ backgroundColor: MD3.outlineVariant }} />
 
               {history.map((entry) => {
-                const isSelected = selectedVersion === entry.version;
+                const isSelected = effectiveSelectedGraphId === entry.id;
                 const isActive = entry.isActive;
 
                 return (
                   <button
-                    key={entry.version}
-                    onClick={() => setSelectedVersion(entry.version)}
+                    key={entry.id}
+                    onClick={() => setSelectedGraphId(entry.id)}
                     className="relative flex items-start gap-3 text-left p-3 rounded-xl transition-all mb-2"
                     style={{
                       backgroundColor: isActive ? '#ffffff' : isSelected ? 'rgba(0,102,138,0.05)' : 'transparent',
@@ -301,6 +306,13 @@ export default function AuditHistoryPage() {
                 {diffLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="animate-spin" size={24} style={{ color: MD3.secondary }} />
+                  </div>
+                ) : diffError ? (
+                  <div
+                    className="p-8 rounded-2xl border text-center text-sm"
+                    style={{ backgroundColor: '#ffffff', borderColor: MD3.outlineVariant, color: MD3.onSurfaceVariant }}
+                  >
+                    {`Unable to load diff: ${(diffErrorData as Error)?.message || 'Unknown error'}`}
                   </div>
                 ) : diffData?.data?.diff ? (
                   <div className="flex flex-col gap-4">

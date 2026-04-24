@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { dagService } from '../../services/dagService';
 import { getSafeErrorText } from '../../services/safeErrorMessages';
-import type { SimulationInput, SimulationResult } from '../../types/dag';
+import type { CreditCalculationInput, CreditCalculationResult } from '../../types/dag';
 
-export const DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT: SimulationInput = {
+export const DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT: CreditCalculationInput = {
   amount: 2000000,
   interestRate: 60,
   termMonths: 12,
   lateFeeMode: 'SIMPLE',
 };
 
-export type SimulationFieldErrors = Record<string, string>;
+export const DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT = DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT;
 
-const validateSimulationInput = (input: SimulationInput): SimulationFieldErrors => {
-  const errors: SimulationFieldErrors = {};
+export type CreditCalculationFieldErrors = Record<string, string>;
+export type SimulationFieldErrors = CreditCalculationFieldErrors;
+
+const validateCalculationInput = (input: CreditCalculationInput): CreditCalculationFieldErrors => {
+  const errors: CreditCalculationFieldErrors = {};
 
   if (typeof input.amount !== 'number' || !Number.isFinite(input.amount) || input.amount <= 0) {
     errors.amount = 'El monto debe ser un número mayor a 0.';
@@ -47,9 +50,9 @@ const extractBackendFieldErrors = (error: unknown): SimulationFieldErrors => {
   return fieldErrors;
 };
 
-const areSimulationInputsEqual = (
-  left: SimulationInput | null,
-  right: SimulationInput | null,
+const areCalculationInputsEqual = (
+  left: CreditCalculationInput | null,
+  right: CreditCalculationInput | null,
 ) => {
   if (!left || !right) {
     return false;
@@ -63,27 +66,27 @@ const areSimulationInputsEqual = (
 };
 
 type UseActiveCreditSimulationOptions = {
-  initialInput?: SimulationInput;
+  initialInput?: CreditCalculationInput;
   autoRun?: boolean;
 };
 
 export const useActiveCreditSimulation = ({
-  initialInput = DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT,
+  initialInput = DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
   autoRun = false,
 }: UseActiveCreditSimulationOptions = {}) => {
-  const [input, setInput] = useState<SimulationInput>(initialInput);
-  const [result, setResult] = useState<SimulationResult | null>(null);
+  const [input, setInput] = useState<CreditCalculationInput>(initialInput);
+  const [result, setResult] = useState<CreditCalculationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<SimulationFieldErrors>({});
   const [isSimulating, setIsSimulating] = useState(false);
-  const [lastSimulatedInput, setLastSimulatedInput] = useState<SimulationInput | null>(null);
+  const [lastSimulatedInput, setLastSimulatedInput] = useState<CreditCalculationInput | null>(null);
   const hasAutoRunOnceRef = useRef(false);
 
   const simulate = useCallback(async () => {
-    const localFieldErrors = validateSimulationInput(input);
+    const localFieldErrors = validateCalculationInput(input);
     if (Object.keys(localFieldErrors).length > 0) {
       setFieldErrors(localFieldErrors);
-      setError('Corrige los campos marcados antes de simular.');
+      setError('Corrige los campos marcados antes de calcular.');
       return;
     }
 
@@ -92,8 +95,8 @@ export const useActiveCreditSimulation = ({
     setError(null);
 
     try {
-      const response = await dagService.simulate(input);
-      setResult(response.data.simulation);
+      const response = await dagService.calculate(input);
+      setResult(response.data.calculation || response.data.simulation || null);
       setLastSimulatedInput({ ...input });
     } catch (simulationError) {
       const backendFields = extractBackendFieldErrors(simulationError);
@@ -120,7 +123,7 @@ export const useActiveCreditSimulation = ({
     void simulate();
   }, [autoRun, simulate]);
 
-  const updateInput = useCallback((partialInput: Partial<SimulationInput>) => {
+  const updateInput = useCallback((partialInput: Partial<CreditCalculationInput>) => {
     setInput((currentInput) => ({
       ...currentInput,
       ...partialInput,
@@ -135,7 +138,7 @@ export const useActiveCreditSimulation = ({
     });
   }, []);
 
-  const isResultStale = result !== null && !areSimulationInputsEqual(input, lastSimulatedInput);
+  const isResultStale = result !== null && !areCalculationInputsEqual(input, lastSimulatedInput);
 
   return {
     input,

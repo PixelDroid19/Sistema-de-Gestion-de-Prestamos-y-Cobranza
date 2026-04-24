@@ -18,7 +18,7 @@ describe('Visual Formula Editor E2E Integration', () => {
         { id: 'lateFeeMode', kind: 'conditional', label: 'Modo mora', outputVar: 'lateFeeMode', formula: 'assertSupportedLateFeeMode(lateFeeMode)' },
         { id: 'schedule', kind: 'formula', label: 'Cronograma', outputVar: 'schedule', formula: 'buildAmortizationSchedule(amount, interestRate, termMonths, startDate, lateFeeMode)' },
         { id: 'summary', kind: 'formula', label: 'Resumen', outputVar: 'summary', formula: 'summarizeSchedule(schedule)' },
-        { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildSimulationResult(lateFeeMode, schedule, summary)' },
+        { id: 'result', kind: 'output', label: 'Resultado', outputVar: 'result', formula: 'buildCreditResult(lateFeeMode, schedule, summary)' },
       ],
       edges: [
         { source: 'amount', target: 'schedule' },

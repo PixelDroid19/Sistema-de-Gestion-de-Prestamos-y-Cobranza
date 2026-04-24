@@ -1,6 +1,6 @@
 export type {
-  SimulationSummary,
   AmortizationRow,
-  SimulationResult,
-  SimulationInput,
+  CreditCalculationSummary,
+  CreditCalculationResult,
+  CreditCalculationInput,
 } from './dag';

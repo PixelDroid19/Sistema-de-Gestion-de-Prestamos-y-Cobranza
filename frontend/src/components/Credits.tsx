@@ -20,7 +20,7 @@ import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
-import { DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
+import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
 
 const locales = {
   'es': es,
@@ -170,7 +170,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     setInput: setSimulationInput,
     simulate: runSimulation,
   } = useActiveCreditSimulation({
-    initialInput: DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT,
+    initialInput: DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
     autoRun: activeTab === 'simulation',
   });
 
@@ -480,33 +480,37 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   );
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
   return (
     <div className="flex flex-col gap-6 h-full">
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">{tTerm('credits.module.title')}</h2>
           <p className="text-sm text-text-secondary mt-1">{tTerm('credits.module.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {isAdmin && (
-            <button 
+            <button
               onClick={handleExportCreditsExcel}
               disabled={isExporting}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
             >
               <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
             </button>
           )}
-          <button onClick={() => updateActiveTab('simulation')} className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg">
+          <button onClick={() => updateActiveTab('simulation')} className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg">
             <Calculator size={16} /> Previsualizar crédito
           </button>
           {isAdmin && (
-            <button 
+            <button
               onClick={() => setCurrentView?.('credits-new')}
-              className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+              className="flex items-center justify-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base hover:opacity-90"
             >
               <Plus size={16} /> {tTerm('credits.cta.new')}
             </button>
@@ -515,32 +519,32 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-border-subtle">
-        <button 
+      <div className="flex gap-6 overflow-x-auto border-b border-border-subtle">
+        <button
           onClick={() => updateActiveTab('list')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={`whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Creditos vigentes con saldo o cuotas pendientes"
         >
           Creditos vigentes
         </button>
-        <button 
+        <button
           onClick={() => updateActiveTab('calendar')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'calendar' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={`flex items-center gap-2 whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'calendar' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Calendario de cuotas pagadas, pendientes y vencidas"
         >
           <CalendarIcon size={16} /> Calendario
         </button>
-        <button 
+        <button
           onClick={() => updateActiveTab('simulation')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={`whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'simulation' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Previsualiza cuota, interes total y cronograma estimado"
         >
           Previsualizar
         </button>
         {isFormulasAvailable && (
-          <button 
+          <button
             onClick={() => updateActiveTab('formulas')}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'formulas' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+            className={`flex items-center gap-2 whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'formulas' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
             title="Editor de la fórmula operativa que gobierna créditos nuevos"
           >
             <Calculator size={16} /> Fórmulas
@@ -549,52 +553,52 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {activeTab === 'list' && (
-        <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col gap-6">
+        <div className="bg-bg-surface rounded-2xl border border-border-subtle p-4 sm:p-5 flex-1 flex flex-col gap-6 min-w-0">
           {/* Statistics Widget */}
           {statisticsData?.data?.statistics && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
-                <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 mb-1">
-                  <DollarSign size={14} /> Total Préstamos
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
+                  <span className="rounded-lg bg-blue-100 p-1 text-blue-900 dark:bg-blue-500/20 dark:text-blue-100"><DollarSign size={14} /></span> Total préstamos
                 </div>
-                <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                <div className="text-2xl font-bold text-text-primary">
                   {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
                 </div>
               </div>
-              <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-500/20">
-                <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 mb-1">
-                  <TrendingUp size={14} /> Cobrado
+              <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
+                  <span className="rounded-lg bg-emerald-100 p-1 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100"><TrendingUp size={14} /></span> Cobrado
                 </div>
-                <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                <div className="text-2xl font-bold text-text-primary">
                   {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
                 </div>
               </div>
-              <div className="bg-amber-50 dark:bg-amber-500/10 p-4 rounded-xl border border-amber-100 dark:border-amber-500/20">
-                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1">
-                  <AlertTriangle size={14} /> Mora
+              <div className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
+                  <span className="rounded-lg bg-amber-100 p-1 text-amber-950 dark:bg-amber-500/20 dark:text-amber-100"><AlertTriangle size={14} /></span> Mora
                 </div>
-                <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
+                <div className="text-2xl font-bold text-text-primary">
                   {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
                 </div>
               </div>
-              <div className="bg-bg-base p-4 rounded-xl border border-border-subtle">
-                <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
-                  <Users size={14} /> Créditos Activos
+              <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-base">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
+                  <span className="rounded-lg bg-hover-bg p-1 text-text-primary"><Users size={14} /></span> Créditos activos
                 </div>
-                <div className="text-xl font-bold">
+                <div className="text-2xl font-bold text-text-primary">
                   {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
                 </div>
               </div>
             </div>
           )}
 
-          <div className="flex justify-between items-center">
-            <div className="flex gap-3">
-              <div className="relative">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative w-full sm:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar por cliente..." 
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(event) => {
@@ -603,25 +607,25 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       applyFilters();
                     }
                   }}
-                  className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
+                  className="w-full rounded-lg border border-border-subtle bg-bg-base py-2 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
                 />
               </div>
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${showFilters ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30' : 'bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary'}`}
               >
                 <Filter size={16} /> Filtrar
               </button>
             </div>
-            <div className="text-sm text-text-secondary">
+            <div className="text-sm font-medium text-text-secondary">
               Total: {pagination?.totalItems ?? creditsList.length} créditos
             </div>
           </div>
 
           {selectedCreditIds.length > 0 && (
-            <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm">
+            <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-bg-base px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleDownloadSelectedReports}
                   className="px-3 py-1 rounded border border-border-subtle hover:bg-hover-bg"
@@ -641,7 +645,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {/* Filter Panel */}
           {showFilters && (
             <div className="bg-bg-base rounded-xl border border-border-subtle p-4">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Estado</label>
                   <select
@@ -718,11 +722,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-text-secondary border-b border-border-subtle">
+          <div className="overflow-x-auto rounded-xl border border-border-subtle">
+            <table className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
+              <thead className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary">
                 <tr>
-                  <th className="pb-3 font-medium w-10">
+                  <th className="w-10 px-3 py-3 font-semibold">
                     <input
                       type="checkbox"
                       aria-label="Seleccionar todos los créditos visibles"
@@ -730,48 +734,48 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       onChange={handleToggleSelectAllVisible}
                     />
                   </th>
-                  <th className="pb-3 font-medium">ID</th>
-                  <th className="pb-3 font-medium">Cliente</th>
-                  <th className="pb-3 font-medium">Capital</th>
-                  <th className="pb-3 font-medium">Tasa Anual</th>
-                  <th className="pb-3 font-medium">Cuota Estimada</th>
-                  <th className="pb-3 font-medium">Saldo Pendiente</th>
-                  <th className="pb-3 font-medium">% Mora</th>
-                  <th className="pb-3 font-medium">Estado</th>
-                  <th className="pb-3 font-medium">Situación</th>
-                  <th className="pb-3 font-medium">Fecha Inicio</th>
-                  <th className="pb-3 font-medium">Acciones</th>
+                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">ID</th>
+                  <th className="min-w-[150px] px-3 py-3 font-semibold">Cliente</th>
+                  <th className="px-3 py-3 text-right font-semibold">Capital</th>
+                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Tasa</th>
+                  <th className="px-3 py-3 text-right font-semibold">Cuota</th>
+                  <th className="px-3 py-3 text-right font-semibold">Saldo</th>
+                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Mora</th>
+                  <th className="px-3 py-3 font-semibold">Estado</th>
+                  <th className="px-3 py-3 font-semibold">Situación</th>
+                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">Inicio</th>
+                  <th className="px-3 py-3 text-right font-semibold">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {                isLoading ? (
-                  <tr><td colSpan={11} className="py-4 text-center text-text-secondary">Cargando créditos...</td></tr>
+                {isLoading ? (
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">Cargando créditos...</td></tr>
                 ) : isError ? (
-                  <tr><td colSpan={11} className="py-4 text-center text-red-500">Error al cargar créditos.</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-red-600">Error al cargar créditos.</td></tr>
                 ) : creditsList.length === 0 ? (
-                  <tr><td colSpan={11} className="py-4 text-center text-text-secondary">No hay créditos registrados.</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">No hay créditos registrados.</td></tr>
                 ) : (
                   creditsList.map((credit: any) => {
                     // Calculate outstanding amount (principalOutstanding + interestOutstanding)
                     const principalOutstanding = Number(credit.principalOutstanding) || 0;
                     const interestOutstanding = Number(credit.interestOutstanding) || 0;
                     const outstandingAmount = principalOutstanding + interestOutstanding;
-                    
+
                     // Calculate delinquency percentage based on status
                     const isDelinquent = credit.status === 'defaulted' || credit.status === 'overdue' || credit.recoveryStatus === 'overdue';
                     const totalAmount = Number(credit.amount) || 0;
-                    const delinquencyPercentage = totalAmount > 0 && isDelinquent 
-                      ? (outstandingAmount / totalAmount) * 100 
+                    const delinquencyPercentage = totalAmount > 0 && isDelinquent
+                      ? (outstandingAmount / totalAmount) * 100
                       : 0;
 
                     // Format creation date
-                    const creationDate = credit.createdAt 
+                    const creationDate = credit.createdAt
                       ? format(new Date(credit.createdAt), "dd/MM/yyyy", { locale: es })
                       : '-';
 
                     return (
                       <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
-                        <td className="py-4">
+                        <td className="px-3 py-4">
                           <input
                             type="checkbox"
                             aria-label={`Seleccionar crédito ${credit.id}`}
@@ -779,16 +783,20 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                             onChange={() => toggleSelectedCredit(Number(credit.id))}
                           />
                         </td>
-                        <td className="py-4 text-text-secondary font-mono">{String(credit.id).substring(0, 8)}</td>
-                        <td className="py-4 font-medium">{getCreditLabel(credit)}</td>
-                        <td className="py-4">{formatCurrency(credit.amount)}</td>
-                        <td className="py-4 text-text-secondary">
+                        <td className="hidden whitespace-nowrap px-3 py-4 font-mono text-text-secondary 2xl:table-cell">{String(credit.id).substring(0, 8)}</td>
+                        <td className="px-3 py-4 font-medium text-text-primary">
+                          <span className="block max-w-[180px] truncate" title={getCreditLabel(credit)}>
+                            {getCreditLabel(credit)}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-right font-medium text-text-primary">{formatCurrency(credit.amount)}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-4 text-right text-text-secondary 2xl:table-cell">
                           {credit.interestRate ? `${Number(credit.interestRate).toFixed(2)}%` : '-'}
                         </td>
-                        <td className="py-4 text-text-secondary">
+                        <td className="whitespace-nowrap px-3 py-4 text-right text-text-secondary">
                           {credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}
                         </td>
-                        <td className="py-4">
+                        <td className="hidden whitespace-nowrap px-3 py-4 text-right 2xl:table-cell">
                           {outstandingAmount > 0 ? (
                             <span className={isDelinquent ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
                               {formatCurrency(outstandingAmount)}
@@ -797,14 +805,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                             <span className="text-text-secondary">-</span>
                           )}
                         </td>
-                        <td className="py-4">
+                        <td className="whitespace-nowrap px-3 py-4 text-right">
                           {delinquencyPercentage > 0 ? (
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              delinquencyPercentage > 50 
-                                ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' 
-                                : delinquencyPercentage > 25 
-                                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
-                                  : 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300'
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
+                              delinquencyPercentage > 50
+                                ? 'border border-red-200 bg-red-100 text-red-900 dark:border-red-500/30 dark:bg-red-500/20 dark:text-red-200'
+                                : delinquencyPercentage > 25
+                                  ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
+                                  : 'border border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/20 dark:text-yellow-200'
                             }`}>
                               {delinquencyPercentage.toFixed(1)}%
                             </span>
@@ -812,19 +820,19 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                             <span className="text-text-secondary">0%</span>
                           )}
                         </td>
-                        <td className="py-4">
-                          <span className={`px-2 py-1 rounded text-xs ${credit.status === 'active' ? getChipClassName('success') : credit.status === 'pending' ? getChipClassName('warning') : getChipClassName('info')}`}>
+                        <td className="whitespace-nowrap px-3 py-4">
+                          <span className={`inline-flex rounded-md px-2 py-1 text-xs ${credit.status === 'active' ? getChipClassName('success') : credit.status === 'pending' ? getChipClassName('warning') : getChipClassName('info')}`}>
                             {getLoanStatusLabel(credit.status)}
                           </span>
                         </td>
-                        <td className="py-4">
-                            <span className={`px-2 py-1 rounded text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
+                        <td className="whitespace-nowrap px-3 py-4">
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
                              {getRecoveryStatusLabel(credit)}
                             </span>
                           </td>
-                        <td className="py-4 text-text-secondary text-xs">{creationDate}</td>
-                        <td className="py-4">
-                          <div className="flex items-center gap-1.5">
+                        <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{creationDate}</td>
+                        <td className="px-3 py-4">
+                          <div className="flex items-center justify-end gap-1.5">
                             {(() => {
                               const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
                               const paymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
@@ -908,11 +916,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination Controls */}
           {loansData && (
-            <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
-              <div className="flex items-center gap-4">
+            <div className="mt-4 flex flex-col gap-3 text-sm text-text-secondary lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
                 <label className="flex items-center gap-2">
                   <span>Filas por página</span>
@@ -931,14 +939,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 </label>
               </div>
               <div className="flex gap-2">
-                <button 
+                <button
                   disabled={page === 1}
                   onClick={() => setPage(page - 1)}
                   className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
                 >
                   Anterior
                 </button>
-                <button 
+                <button
                   disabled={page === (pagination?.totalPages || 1)}
                   onClick={() => setPage(page + 1)}
                   className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
@@ -1008,14 +1016,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     <h3 className="text-lg font-semibold text-text-primary mb-1">Detalle de Cuota</h3>
                     <p className="text-sm text-text-secondary">{selectedEvent.clientName}</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setSelectedEvent(null)}
                     className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
                   >
                     <X size={20} />
                   </button>
                 </div>
-                
+
                 <div className="p-5 flex-1 overflow-y-auto">
                   <div className="flex items-center gap-3 mb-6">
                     <div className={`p-3 rounded-full ${
@@ -1079,7 +1087,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 </div>
 
                 <div className="p-5 border-t border-border-subtle bg-bg-base flex gap-3">
-                  <button 
+                  <button
                     onClick={() => setSelectedEvent(null)}
                     className="flex-1 px-4 py-2 border border-border-strong rounded-lg text-sm font-medium hover:bg-hover-bg transition-colors"
                   >
