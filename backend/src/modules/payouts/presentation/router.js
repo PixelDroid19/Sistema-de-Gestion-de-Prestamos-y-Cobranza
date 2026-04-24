@@ -81,7 +81,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.json({ success: true, data: result });
   }));
 
-  router.post('/pay-total-debt', authMiddleware(['customer']), asyncHandler(async (req, res) => {
+  router.post('/pay-total-debt', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
     const result = await useCases.payTotalDebt({
       actor: req.user,
       loanId: req.body.loanId,

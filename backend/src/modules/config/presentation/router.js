@@ -17,6 +17,56 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: { paymentMethods } });
   }));
 
+  router.get('/rate-policies', asyncHandler(async (_req, res) => {
+    const policies = await useCases.listRatePolicies();
+    res.json({ success: true, data: { policies } });
+  }));
+
+  router.get('/rate-policies/resolve', asyncHandler(async (req, res) => {
+    const policy = await useCases.resolveRatePolicy({ amount: req.query.amount });
+    res.json({ success: true, data: { policy } });
+  }));
+
+  router.post('/rate-policies', asyncHandler(async (req, res) => {
+    const policy = await useCases.createRatePolicy(req.body);
+    res.status(201).json({ success: true, message: 'Rate policy created successfully', data: { policy } });
+  }));
+
+  router.put('/rate-policies/:policyId', asyncHandler(async (req, res) => {
+    const policy = await useCases.updateRatePolicy(req.params.policyId, req.body);
+    res.json({ success: true, message: 'Rate policy updated successfully', data: { policy } });
+  }));
+
+  router.delete('/rate-policies/:policyId', asyncHandler(async (req, res) => {
+    const result = await useCases.deleteRatePolicy(req.params.policyId);
+    res.json({ success: true, message: 'Rate policy deleted successfully', data: result });
+  }));
+
+  router.get('/late-fee-policies', asyncHandler(async (_req, res) => {
+    const policies = await useCases.listLateFeePolicies();
+    res.json({ success: true, data: { policies } });
+  }));
+
+  router.get('/late-fee-policies/resolve', asyncHandler(async (_req, res) => {
+    const policy = await useCases.resolveLateFeePolicy();
+    res.json({ success: true, data: { policy } });
+  }));
+
+  router.post('/late-fee-policies', asyncHandler(async (req, res) => {
+    const policy = await useCases.createLateFeePolicy(req.body);
+    res.status(201).json({ success: true, message: 'Late fee policy created successfully', data: { policy } });
+  }));
+
+  router.put('/late-fee-policies/:policyId', asyncHandler(async (req, res) => {
+    const policy = await useCases.updateLateFeePolicy(req.params.policyId, req.body);
+    res.json({ success: true, message: 'Late fee policy updated successfully', data: { policy } });
+  }));
+
+  router.delete('/late-fee-policies/:policyId', asyncHandler(async (req, res) => {
+    const result = await useCases.deleteLateFeePolicy(req.params.policyId);
+    res.json({ success: true, message: 'Late fee policy deleted successfully', data: result });
+  }));
+
   router.get('/pmconfig', asyncHandler(async (_req, res) => {
     const paymentMethods = await useCases.listPaymentMethodsLegacy();
     res.json({ success: true, data: { paymentMethods } });

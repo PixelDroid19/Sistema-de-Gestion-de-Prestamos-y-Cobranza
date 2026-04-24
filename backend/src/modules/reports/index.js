@@ -42,7 +42,7 @@ const { createReportsRouter } = require('./presentation/router');
  */
 const createReportsModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
-  const { loanViewService, loanAccessPolicy } = createCreditsPublicPorts({ sharedRuntime });
+  const { loanViewService, loanAccessPolicy, alertRepository, promiseRepository } = createCreditsPublicPorts({ sharedRuntime });
   const useCases = {
     getRecoveredLoans: createGetRecoveredLoans({ reportRepository, paymentRepository, loanViewService }),
     getOutstandingLoans: createGetOutstandingLoans({ reportRepository, paymentRepository, loanViewService }),
@@ -50,10 +50,10 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getDashboardSummary: createGetDashboardSummary({ reportRepository, paymentRepository, loanViewService }),
     getCustomerHistory: createGetCustomerHistory({ reportRepository }),
     getCustomerCreditProfile: createGetCustomerCreditProfile({ reportRepository }),
-    getCustomerCreditHistory: createGetCustomerCreditHistory({ reportRepository, paymentRepository, loanViewService, loanAccessPolicy }),
+    getCustomerCreditHistory: createGetCustomerCreditHistory({ reportRepository, paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository }),
     exportCustomerHistory: createExportCustomerHistory({ reportRepository }),
     exportCustomerCreditProfile: createExportCustomerCreditProfile({ reportRepository }),
-    exportCustomerCreditHistory: createExportCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy }),
+    exportCustomerCreditHistory: createExportCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository }),
     exportRecoveryReport: createExportRecoveryReport({ reportRepository, paymentRepository, loanViewService }),
     getAssociateProfitabilityReport: createGetAssociateProfitabilityReport({ associateRepository }),
     exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ reportRepository, associateRepository }),

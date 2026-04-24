@@ -17,6 +17,7 @@ const { createCreditCalculationService } = require('@/modules/credits/applicatio
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
+const { normalizeUtcDateOnly } = require('@/modules/credits/application/loanFinancials');
 const { createCreditsDagConfig } = require('@/modules/credits/application/dag/config');
 const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
 const { createGraphExecutor } = require('@/modules/credits/application/dag/graphExecutor');
@@ -67,6 +68,27 @@ const getLatestLoan = (loans) => loans.reduce((latest, current) => {
 
   return currentTimestamp > latestTimestamp ? current : latest;
 }, null);
+
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizeGraphRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
+
+const graphReferencesVariable = (graph = {}, variableName) => {
+  const normalizedName = String(variableName || '').trim();
+  if (!normalizedName) return false;
+
+  const tokenPattern = new RegExp(`(^|[^A-Za-z0-9_])${escapeRegExp(normalizedName)}([^A-Za-z0-9_]|$)`);
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+
+  return nodes.some((node) => {
+    if (String(node?.outputVar || '') === normalizedName) return true;
+    if (Array.isArray(node?.dependencies) && node.dependencies.includes(normalizedName)) return true;
+    if (typeof node?.formula === 'string' && tokenPattern.test(node.formula)) return true;
+    if (typeof node?.label === 'string' && tokenPattern.test(node.label)) return true;
+    if (node?.metadata && tokenPattern.test(JSON.stringify(node.metadata))) return true;
+    return false;
+  });
+};
 
 const buildCustomerSummary = (loans = []) => {
   const latestLoan = getLatestLoan(loans);
@@ -272,6 +294,43 @@ const createCreditsInfrastructure = ({
     async getUsageCount(id) {
       const count = await loanModel.count({ where: { dagGraphVersionId: id } });
       return count;
+    },
+    async getVariableUsage(variableName) {
+      const graphs = await dagGraphVersionModel.findAll({
+        order: [['version', 'DESC'], ['createdAt', 'DESC']],
+        attributes: {
+          include: [
+            [
+              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
+              'usageCount',
+            ],
+          ],
+        },
+      });
+
+      const references = graphs
+        .map(normalizeGraphRecord)
+        .filter((graph) => graphReferencesVariable(graph.graph, variableName))
+        .map((graph) => {
+          const graphUsageCount = Number(graph.usageCount || 0);
+          return {
+            graphId: graph.id,
+            graphName: graph.name,
+            version: graph.version,
+            status: graph.status,
+            usageCount: graphUsageCount,
+            isActive: graph.status === 'active',
+            isLocked: graphUsageCount > 0,
+          };
+        });
+
+      return {
+        count: references.length,
+        references,
+        isReferencedByActiveGraph: references.some((reference) => reference.isActive),
+        isReferencedByLockedGraph: references.some((reference) => reference.isLocked),
+        isReferencedByProtectedGraph: references.some((reference) => reference.isActive || reference.isLocked),
+      };
     },
     countByScopeKey(scopeKey) {
       return dagGraphVersionModel.count({ where: { scopeKey } });
@@ -648,6 +707,7 @@ const createCreditsInfrastructure = ({
         return promise.save();
       },
       async expireBrokenPromises({ loanId, asOf = new Date() }) {
+        const asOfDateOnly = normalizeUtcDateOnly(asOf, 'Promise expiration date');
         const promises = await promiseToPayModel.findAll({
           where: {
             loanId,
@@ -662,7 +722,7 @@ const createCreditsInfrastructure = ({
             continue;
           }
 
-          if (new Date(promise.promisedDate) >= asOf) {
+          if (normalizeUtcDateOnly(promise.promisedDate, 'Promise date') >= asOfDateOnly) {
             nextEntries.push(promise);
             continue;
           }
@@ -741,6 +801,24 @@ const createCreditsInfrastructure = ({
           'loan_reminder',
           payload,
           { dedupeKey: `loan-reminder:${payload.loanId}:${payload.alertId || payload.installmentNumber}:${userId}` },
+        );
+      },
+      sendPaymentRegistered(userId, payload) {
+        return notifications.sendNotification(
+          userId,
+          `Pago registrado en el crédito #${payload.loanId} por $${payload.amount}.`,
+          'payment_registered',
+          payload,
+          { dedupeKey: `payment-registered:${payload.paymentId}:${userId}` },
+        );
+      },
+      sendPromiseCreated(userId, payload) {
+        return notifications.sendNotification(
+          userId,
+          `Compromiso de pago creado para el crédito #${payload.loanId} por $${payload.amount}.`,
+          'promise_created',
+          payload,
+          { dedupeKey: `promise-created:${payload.promiseId}:${userId}` },
         );
       },
       sendPromiseStatus(userId, payload) {

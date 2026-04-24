@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
+import { downloadBlob } from './blobDownload';
 import {
   invalidateAfterDelete,
   invalidateAfterPayment,
@@ -206,6 +207,40 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
     },
   });
 
+  const updateAlertStatus = useMutation({
+    mutationFn: async ({ alertId, status, notes }: { alertId: number; status: 'active' | 'resolved'; notes?: string }) => {
+      const { data } = await apiClient.patch(`/loans/${loanId}/alerts/${alertId}/status`, {
+        status,
+        notes,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+    },
+  });
+
+  const updatePromiseStatus = useMutation({
+    mutationFn: async ({ promiseId, status, notes }: { promiseId: number; status: 'pending' | 'kept' | 'broken' | 'cancelled'; notes?: string }) => {
+      const { data } = await apiClient.patch(`/loans/${loanId}/promises/${promiseId}/status`, {
+        status,
+        notes,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+    },
+  });
+
+  const downloadPromiseDocument = useMutation({
+    mutationFn: async (promiseId: number) => downloadBlob({
+      url: `/loans/${loanId}/promises/${promiseId}/download`,
+      fileName: `compromiso-pago-${promiseId}.pdf`,
+      mimeType: 'application/pdf',
+    }),
+  });
+
   const recordCapitalPayment = useMutation({
     mutationFn: async (paymentData: { amount: number; paymentDate?: string; strategy?: CapitalStrategy }) => {
       const { data } = await apiClient.post(`/payments/capital`, {
@@ -242,9 +277,31 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
     recordPayment,
     annulInstallment,
     updatePaymentMethod,
+    updateAlertStatus,
+    updatePromiseStatus,
+    downloadPromiseDocument,
     recordCapitalPayment,
     updateLateFeeRate,
   };
+};
+
+export const useInstallmentQuote = (
+  loanId: number,
+  installmentNumber: number | null,
+  asOfDate: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery({
+    queryKey: queryKeys.loans.installmentQuote(loanId, installmentNumber, asOfDate),
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/loans/${loanId}/installments/${installmentNumber}/quote`, {
+        params: { asOfDate },
+      });
+      return data;
+    },
+    enabled: Boolean(loanId && installmentNumber && asOfDate) && (options?.enabled ?? true),
+    retry: false,
+  });
 };
 
 export const useLoanById = (loanId: number) => {

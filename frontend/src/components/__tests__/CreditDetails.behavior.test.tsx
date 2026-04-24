@@ -8,6 +8,9 @@ const mockCreatePromise = vi.fn();
 const mockCreateFollowUp = vi.fn();
 const mockAnnulInstallment = vi.fn();
 const mockUpdatePaymentMethod = vi.fn().mockResolvedValue(undefined);
+const mockUpdateAlertStatus = vi.fn().mockResolvedValue(undefined);
+const mockUpdatePromiseStatus = vi.fn().mockResolvedValue(undefined);
+const mockDownloadPromiseDocument = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 let mockCalendarEntries: Array<{
   installmentNumber: number | string;
@@ -17,6 +20,8 @@ let mockCalendarEntries: Array<{
 }> = [
   { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
 ];
+let mockAlerts: any[] = [];
+let mockPromises: any[] = [];
 const mockUseSessionStore = vi.fn(() => ({
   user: { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] },
 }));
@@ -114,11 +119,28 @@ vi.mock('../../services/loanService', () => {
       updateLoanStatus: { mutateAsync: vi.fn() },
     }),
     useLoanById: () => ({ data: { data: { loan } }, isLoading: false }),
+    useInstallmentQuote: () => ({
+      data: {
+        data: {
+          quote: {
+            installmentNumber: 1,
+            canPay: true,
+            baseAmount: 250000,
+            lateFeeDue: 0,
+            totalDue: 250000,
+            daysOverdue: 0,
+            disabledReason: null,
+          },
+        },
+      },
+      isFetching: false,
+      isError: false,
+    }),
     useLoanDetails: () => ({
       calendar: mockCalendarEntries,
       calendarSnapshot: { outstandingBalance: 750000 },
-      alerts: [],
-      promises: [],
+      alerts: mockAlerts,
+      promises: mockPromises,
       payoffQuote: null,
       isLoading: false,
       createPromise: { mutateAsync: mockCreatePromise },
@@ -127,6 +149,9 @@ vi.mock('../../services/loanService', () => {
       recordPayment: { mutateAsync: mockRecordPayment },
       annulInstallment: { mutateAsync: mockAnnulInstallment },
       updatePaymentMethod: { mutateAsync: mockUpdatePaymentMethod },
+      updateAlertStatus: { mutateAsync: mockUpdateAlertStatus, isPending: false },
+      updatePromiseStatus: { mutateAsync: mockUpdatePromiseStatus, isPending: false },
+      downloadPromiseDocument: { mutateAsync: mockDownloadPromiseDocument, isPending: false },
       recordCapitalPayment: { mutateAsync: vi.fn() },
       updateLateFeeRate: { mutateAsync: vi.fn() },
     }),
@@ -149,6 +174,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
     mockCalendarEntries = [
       { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
     ];
+    mockAlerts = [];
+    mockPromises = [];
   });
 
   const setSessionUser = (user: {
@@ -170,7 +197,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('button', { name: 'Cronograma' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
-    expect(screen.getByText('Pago aplicado a cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
 
     const submitButtons = screen.getAllByRole('button', { name: 'Registrar Pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
@@ -199,7 +226,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     renderCreditDetails();
 
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
-    expect(screen.getByText('Pago aplicado a cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
   });
 
   it('routes top-level payment CTA to the next payable installment', async () => {
@@ -208,7 +235,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar Pago' }));
 
-    expect(screen.getByText('Pago aplicado a cuota #1')).toBeInTheDocument();
+    expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
 
     const submitButtons = screen.getAllByRole('button', { name: 'Registrar Pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
@@ -293,6 +320,49 @@ describe('CreditDetails behavioral parity scenarios', () => {
         paymentId: 9001,
         paymentMethod: 'cash',
       });
+    });
+  });
+
+  it('resolves alerts and updates promise statuses from their detail tabs', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockAlerts = [{
+      id: 44,
+      alertType: 'payment_reminder',
+      installmentNumber: 1,
+      outstandingAmount: 250000,
+      status: 'active',
+      dueDate: '2026-03-15T00:00:00.000Z',
+      createdAt: '2026-03-10T00:00:00.000Z',
+    }];
+    mockPromises = [{
+      id: 77,
+      amount: 250000,
+      promisedDate: '2026-03-20T00:00:00.000Z',
+      status: 'pending',
+      createdAt: '2026-03-10T00:00:00.000Z',
+      statusHistory: [{ status: 'pending', changedAt: '2026-03-10T00:00:00.000Z' }],
+    }];
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
+
+    await waitFor(() => {
+      expect(mockUpdateAlertStatus).toHaveBeenCalledWith(expect.objectContaining({
+        alertId: 44,
+        status: 'resolved',
+      }));
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Compromisos de pago/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cumplida' }));
+
+    await waitFor(() => {
+      expect(mockUpdatePromiseStatus).toHaveBeenCalledWith(expect.objectContaining({
+        promiseId: 77,
+        status: 'kept',
+      }));
     });
   });
 

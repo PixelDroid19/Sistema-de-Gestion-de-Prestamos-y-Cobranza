@@ -296,8 +296,18 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   }));
 
   router.get('/:id/calendar', authMiddleware(), asyncHandler(async (req, res) => {
-    const calendar = await useCases.getPaymentCalendar({ actor: req.user, loanId: req.params.id });
+    const calendar = await useCases.getPaymentCalendar({ actor: req.user, loanId: req.params.id, asOfDate: req.query.asOfDate });
     res.json({ success: true, data: { calendar } });
+  }));
+
+  router.get('/:loanId/installments/:installmentNumber/quote', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+    const quote = await useCases.getInstallmentQuote({
+      actor: req.user,
+      loanId: req.params.loanId,
+      installmentNumber: req.params.installmentNumber,
+      asOfDate: req.query.asOfDate,
+    });
+    res.json({ success: true, data: { quote } });
   }));
 
   router.get('/:id/payoff-quote', authMiddleware(), loanValidation.payoffQuote, asyncHandler(async (req, res) => {
@@ -305,7 +315,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     res.json({ success: true, data: { payoffQuote } });
   }));
 
-  router.post('/:id/payoff-executions', authMiddleware(['customer']), loanValidation.payoffExecute, asyncHandler(async (req, res) => {
+  router.post('/:id/payoff-executions', authMiddleware(['admin', 'customer']), loanValidation.payoffExecute, asyncHandler(async (req, res) => {
     const result = await useCases.executePayoff({
       actor: req.user,
       loanId: req.params.id,

@@ -248,6 +248,7 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
     asOfDate: effectiveAsOfDate,
     quotedTotal: effectiveQuotedTotal,
     paymentDate: clock(),
+    actor,
   });
 };
 

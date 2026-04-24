@@ -1207,9 +1207,9 @@ test('createCreditsRouter returns structured denial reasons for payoff execution
   }]);
 });
 
-test('createCreditsRouter blocks payoff execution for non-customer actors at the auth boundary', async () => {
+test('createCreditsRouter blocks payoff execution for unsupported actors at the auth boundary', async () => {
   const app = createRuntimeApp({
-    actor: { id: 1, role: 'admin' },
+    actor: { id: 1, role: 'socio' },
     useCases: createUseCases({}),
   });
 

@@ -39,8 +39,8 @@ describe('E2E: /formulas/variables route', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Variables Registry')).toBeInTheDocument();
-      expect(screen.getByText('rate')).toBeInTheDocument();
+      expect(screen.getByText('Variables de fórmulas')).toBeInTheDocument();
+      expect(screen.getAllByText('rate').length).toBeGreaterThanOrEqual(1);
     });
   });
 });

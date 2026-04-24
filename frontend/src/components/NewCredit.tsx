@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Save, Calculator, User, DollarSign, Calendar, Percent, FileText, Loader2 } from 'lucide-react';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { extractValidationErrors } from '../services/apiErrors';
+import { useConfig } from '../services/configService';
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { createLoan, simulateLoan } = useLoans();
   const { data: customersData } = useCustomers({ pageSize: 100 });
   const { data: associatesData } = useAssociates({ pageSize: 100 });
+  const { ratePolicies, lateFeePolicies } = useConfig();
   const formId = 'new-credit-form';
   
   const customers = Array.isArray(customersData?.data?.customers)
@@ -33,9 +35,43 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     interestRate: '',
     termMonths: '',
     lateFeeMode: 'SIMPLE',
+    annualLateFeeRate: '',
   });
 
   const [simulation, setSimulation] = useState<any>(null);
+  const resolvedRatePolicy = useMemo<any>(() => {
+    const amount = Number(formData.amount || 0);
+    return ratePolicies
+      .filter((policy: any) => policy.isActive)
+      .filter((policy: any) => {
+        if (!amount) return true;
+        if (policy.minAmount != null && amount < Number(policy.minAmount)) return false;
+        if (policy.maxAmount != null && amount > Number(policy.maxAmount)) return false;
+        return true;
+      })
+      .sort((left: any, right: any) => Number(left.priority || 100) - Number(right.priority || 100))[0] || null;
+  }, [formData.amount, ratePolicies]);
+  const resolvedLateFeePolicy = useMemo<any>(() => (
+    lateFeePolicies
+      .filter((policy: any) => policy.isActive)
+      .sort((left: any, right: any) => Number(left.priority || 100) - Number(right.priority || 100))[0] || null
+  ), [lateFeePolicies]);
+
+  useEffect(() => {
+    setFormData((current) => {
+      const next = { ...current };
+      if (!current.interestRate && resolvedRatePolicy?.annualEffectiveRate != null) {
+        next.interestRate = String(resolvedRatePolicy.annualEffectiveRate);
+      }
+      if (!current.annualLateFeeRate && resolvedLateFeePolicy?.annualEffectiveRate != null) {
+        next.annualLateFeeRate = String(resolvedLateFeePolicy.annualEffectiveRate);
+      }
+      if (resolvedLateFeePolicy?.lateFeeMode && current.lateFeeMode === 'SIMPLE') {
+        next.lateFeeMode = String(resolvedLateFeePolicy.lateFeeMode);
+      }
+      return next;
+    });
+  }, [resolvedLateFeePolicy, resolvedRatePolicy]);
 
   const getDisplayName = (entity: any) => {
     if (entity?.name) return entity.name;
@@ -74,6 +110,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         interestRate: rate,
         termMonths: months,
         lateFeeMode: formData.lateFeeMode,
+        annualLateFeeRate: parseFloat(formData.annualLateFeeRate || '0'),
       });
       setSimulation(result?.data?.calculation ?? result?.data?.simulation ?? null);
     } catch (error: any) {
@@ -95,6 +132,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         interestRate: parseFloat(formData.interestRate),
         termMonths: parseInt(formData.termMonths),
         lateFeeMode: formData.lateFeeMode,
+        annualLateFeeRate: parseFloat(formData.annualLateFeeRate || '0'),
       });
       toast.success({ description: 'Crédito registrado correctamente.' });
       onBack();
@@ -242,7 +280,32 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       La originación usa el cronograma mensual definido por la fórmula activa del workbench.
                     </p>
                   </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-text-secondary">Tasa de Mora Anual (%)</label>
+                    <div className="relative">
+                      <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                      <input
+                        type="number"
+                        name="annualLateFeeRate"
+                        value={formData.annualLateFeeRate}
+                        onChange={handleChange}
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        className="w-full bg-bg-base border border-border-subtle rounded-lg pl-10 pr-4 py-2.5 text-text-primary focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                        placeholder="0"
+                      />
+                    </div>
+                    {resolvedLateFeePolicy && (
+                      <p className="text-xs text-text-secondary">Sugerida por política: {resolvedLateFeePolicy.label}</p>
+                    )}
+                  </div>
                 </div>
+                {resolvedRatePolicy && (
+                  <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    Política aplicada: {resolvedRatePolicy.label} · {resolvedRatePolicy.annualEffectiveRate}% EA
+                  </div>
+                )}
               </div>
             </form>
           </div>

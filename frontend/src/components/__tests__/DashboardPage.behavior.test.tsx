@@ -110,7 +110,7 @@ describe('DashboardPage', () => {
 
     // Wait for the async query to resolve and data to appear
     await waitFor(() => {
-      expect(screen.getByText('Formula A')).toBeInTheDocument();
+      expect(screen.getAllByText('Formula A').length).toBeGreaterThanOrEqual(1);
     }, { timeout: 3000 });
 
     // Stats values: total=3, active version v3, drafts=2
@@ -124,15 +124,15 @@ describe('DashboardPage', () => {
     expect(draftValues.length).toBeGreaterThanOrEqual(1);
 
     // Table should list formulas
-    expect(screen.getByText('Formula B')).toBeInTheDocument();
-    expect(screen.getByText('Formula C')).toBeInTheDocument();
+    expect(screen.getAllByText('Formula B').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Formula C').length).toBeGreaterThanOrEqual(1);
   });
 
   it('navigates to editor when Edit is clicked', async () => {
     renderWithProviders(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Formula A')).toBeInTheDocument();
+      expect(screen.getAllByText('Formula A').length).toBeGreaterThanOrEqual(1);
     });
 
     const editButtons = screen.getAllByTitle('Editar');

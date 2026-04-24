@@ -723,9 +723,13 @@ const createGetCustomerCreditProfile = ({ reportRepository }) => async ({ actor,
   };
 };
 
-const createGetCustomerCreditHistory = ({ paymentRepository, loanViewService, loanAccessPolicy }) => async ({ actor, loanId }) => {
+const createGetCustomerCreditHistory = ({ paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository }) => async ({ actor, loanId }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
-  const payments = await paymentRepository.listByLoan(loan.id);
+  const [payments, alerts, promises] = await Promise.all([
+    paymentRepository.listByLoan(loan.id),
+    alertRepository?.listByLoan ? alertRepository.listByLoan(loan.id) : [],
+    promiseRepository?.listByLoan ? promiseRepository.listByLoan(loan.id) : [],
+  ]);
   const snapshot = loanViewService.getSnapshot(loan);
   const normalizedLoan = typeof loan.toJSON === 'function' ? loan.toJSON() : loan;
   const payoffPayments = payments.filter((payment) => payment.paymentType === 'payoff');
@@ -734,6 +738,8 @@ const createGetCustomerCreditHistory = ({ paymentRepository, loanViewService, lo
     loan: normalizedLoan,
     snapshot,
     payments,
+    alerts,
+    promises,
     payoffHistory: payoffPayments.map((payment) => ({
       id: payment.id,
       paymentDate: payment.paymentDate,
@@ -844,8 +850,8 @@ const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ act
   };
 };
 
-const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService, loanAccessPolicy }) => async ({ actor, loanId, format = 'pdf' }) => {
-  const history = await createGetCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy })({ actor, loanId });
+const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository }) => async ({ actor, loanId, format = 'pdf' }) => {
+  const history = await createGetCustomerCreditHistory({ paymentRepository, loanViewService, loanAccessPolicy, alertRepository, promiseRepository })({ actor, loanId });
 
   if (String(format).toLowerCase() === 'csv') {
     const csv = buildCsv({

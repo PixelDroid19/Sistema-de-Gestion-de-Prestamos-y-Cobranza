@@ -9,6 +9,7 @@ import dagService from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
+import TableShell from './shared/TableShell';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -184,7 +185,60 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <TableShell
+          isLoading={graphsLoading}
+          isError={false}
+          hasData={graphs.length > 0}
+          recordsLabel="formulas"
+          loadingContent={<div className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-brand-primary" size={24} /></div>}
+          errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las formulas.</div>}
+          emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay formulas. Crea la primera para empezar.</div>}
+        >
+          <div className="divide-y divide-border-subtle md:hidden">
+            {graphs.map((formula: any) => {
+              const formulaUsageCount = Number(formula.usageCount || 0);
+              const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
+              return (
+                <article key={formula.id} className="space-y-3 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-text-primary">{formula.name}</h4>
+                      <p className="mt-1 text-xs text-text-secondary">v{formula.version} · {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${formula.status === 'active' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-950'}`}>
+                      {formula.status === 'active' ? 'Activa' : 'Borrador'}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-secondary">
+                    {formulaUsageCount} crédito(s){isFormulaLocked ? ' · bloqueada' : ' · sin uso'}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => navigate(`/formulas/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-primary">
+                      {isFormulaLocked ? 'Abrir copia' : 'Abrir'}
+                    </button>
+                    <button
+                      onClick={() => formula.status === 'active' ? handleDeactivate(formula.id) : handleActivate(formula.id)}
+                      disabled={updateStatusMutation.isPending}
+                      className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50"
+                    >
+                      {formula.status === 'active' ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button onClick={() => navigate(`/audit/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-secondary">
+                      Historial
+                    </button>
+                    <button
+                      onClick={() => handleDelete(formula.id, formula.name)}
+                      disabled={deleteMutation.isPending || isFormulaLocked}
+                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[760px] w-full text-left text-sm xl:min-w-[920px]">
             <thead
               className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary"
@@ -312,7 +366,8 @@ export default function DashboardPage() {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </TableShell>
       </div>
     </div>
   );

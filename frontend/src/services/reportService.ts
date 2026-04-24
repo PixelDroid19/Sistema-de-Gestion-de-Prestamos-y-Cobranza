@@ -546,9 +546,9 @@ export const exportCreditsExcel = async (): Promise<void> => {
 
 export const downloadCreditReport = async (loanId: number): Promise<void> => {
   await downloadBlob({
-    url: `/reports/credit-history/loan/${loanId}`,
-    fileName: `credit-${loanId}-report.json`,
-    mimeType: 'application/json',
+    url: `/reports/credit-history/loan/${loanId}/export?format=pdf`,
+    fileName: `credit-${loanId}-report.pdf`,
+    mimeType: 'application/pdf',
   });
 };
 

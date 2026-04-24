@@ -2,6 +2,8 @@ const { ConflictError, NotFoundError, ValidationError } = require('@/utils/error
 const {
   PAYMENT_METHOD_CATEGORY,
   BUSINESS_SETTING_CATEGORY,
+  RATE_POLICY_CATEGORY,
+  LATE_FEE_POLICY_CATEGORY,
 } = require('@/modules/config/infrastructure/repositories');
 const { ROLES } = require('@/modules/shared/roles');
 
@@ -47,6 +49,144 @@ const buildSetting = (entry) => ({
   description: entry.value?.description || '',
   updatedAt: entry.updatedAt,
 });
+
+const toOptionalNumber = (value, field) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    throw new ValidationError(`${field} must be numeric`);
+  }
+
+  return numericValue;
+};
+
+const assertPercent = (value, field) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+    throw new ValidationError(`${field} must be between 0 and 100`);
+  }
+
+  return numericValue;
+};
+
+const normalizePolicyPriority = (value) => {
+  if (value === undefined || value === null || value === '') return 100;
+  const numericValue = Number(value);
+  if (!Number.isInteger(numericValue) || numericValue < 0) {
+    throw new ValidationError('priority must be a non-negative integer');
+  }
+  return numericValue;
+};
+
+const assertAmountRange = ({ minAmount, maxAmount }) => {
+  if (minAmount !== null && minAmount < 0) {
+    throw new ValidationError('minAmount must be greater than or equal to 0');
+  }
+  if (maxAmount !== null && maxAmount < 0) {
+    throw new ValidationError('maxAmount must be greater than or equal to 0');
+  }
+  if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+    throw new ValidationError('minAmount cannot be greater than maxAmount');
+  }
+};
+
+const buildRatePolicy = (entry) => ({
+  id: entry.id,
+  key: entry.key,
+  label: entry.label,
+  isActive: entry.isActive !== false,
+  minAmount: entry.value?.minAmount ?? null,
+  maxAmount: entry.value?.maxAmount ?? null,
+  annualEffectiveRate: entry.value?.annualEffectiveRate ?? 0,
+  priority: entry.value?.priority ?? 100,
+  description: entry.value?.description || '',
+  metadata: entry.value?.metadata || {},
+  createdAt: entry.createdAt,
+  updatedAt: entry.updatedAt,
+});
+
+const buildLateFeePolicy = (entry) => ({
+  id: entry.id,
+  key: entry.key,
+  label: entry.label,
+  isActive: entry.isActive !== false,
+  annualEffectiveRate: entry.value?.annualEffectiveRate ?? 0,
+  lateFeeMode: entry.value?.lateFeeMode || 'SIMPLE',
+  priority: entry.value?.priority ?? 100,
+  description: entry.value?.description || '',
+  metadata: entry.value?.metadata || {},
+  createdAt: entry.createdAt,
+  updatedAt: entry.updatedAt,
+});
+
+const normalizeRatePolicyPayload = (payload = {}, existing = null) => {
+  const label = payload.label !== undefined ? requireText(payload.label, 'label') : existing?.label;
+  const key = payload.key !== undefined ? normalizeKey(payload.key) : existing?.key || normalizeKey(label);
+  if (!label) {
+    throw new ValidationError('label is required');
+  }
+  const minAmount = payload.minAmount !== undefined ? toOptionalNumber(payload.minAmount, 'minAmount') : existing?.value?.minAmount ?? null;
+  const maxAmount = payload.maxAmount !== undefined ? toOptionalNumber(payload.maxAmount, 'maxAmount') : existing?.value?.maxAmount ?? null;
+  assertAmountRange({ minAmount, maxAmount });
+
+  return {
+    key,
+    label,
+    isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : existing?.isActive !== false,
+    value: {
+      minAmount,
+      maxAmount,
+      annualEffectiveRate: payload.annualEffectiveRate !== undefined
+        ? assertPercent(payload.annualEffectiveRate, 'annualEffectiveRate')
+        : Number(existing?.value?.annualEffectiveRate || 0),
+      priority: normalizePolicyPriority(payload.priority ?? existing?.value?.priority),
+      description: payload.description !== undefined
+        ? String(payload.description || '').trim()
+        : existing?.value?.description || '',
+      metadata: existing?.value?.metadata || {},
+    },
+  };
+};
+
+const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
+  const label = payload.label !== undefined ? requireText(payload.label, 'label') : existing?.label;
+  const key = payload.key !== undefined ? normalizeKey(payload.key) : existing?.key || normalizeKey(label);
+  if (!label) {
+    throw new ValidationError('label is required');
+  }
+  const mode = String(payload.lateFeeMode ?? existing?.value?.lateFeeMode ?? 'SIMPLE').trim().toUpperCase();
+  if (!['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'].includes(mode)) {
+    throw new ValidationError('lateFeeMode is invalid');
+  }
+
+  return {
+    key,
+    label,
+    isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : existing?.isActive !== false,
+    value: {
+      annualEffectiveRate: payload.annualEffectiveRate !== undefined
+        ? assertPercent(payload.annualEffectiveRate, 'annualEffectiveRate')
+        : Number(existing?.value?.annualEffectiveRate || 0),
+      lateFeeMode: mode,
+      priority: normalizePolicyPriority(payload.priority ?? existing?.value?.priority),
+      description: payload.description !== undefined
+        ? String(payload.description || '').trim()
+        : existing?.value?.description || '',
+      metadata: existing?.value?.metadata || {},
+    },
+  };
+};
+
+const pickHighestPriorityPolicy = (policies) => policies
+  .filter((policy) => policy.isActive)
+  .sort((left, right) => {
+    const priorityDelta = Number(left.priority || 100) - Number(right.priority || 100);
+    if (priorityDelta !== 0) return priorityDelta;
+    return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+  })[0] || null;
 
 const createListPaymentMethods = ({ configRepository }) => async () => {
   const entries = await configRepository.listByCategory(PAYMENT_METHOD_CATEGORY);
@@ -142,6 +282,106 @@ const createListSettings = ({ configRepository }) => async () => {
   return entries.map(buildSetting);
 };
 
+const createListRatePolicies = ({ configRepository }) => async () => {
+  const entries = await configRepository.listByCategory(RATE_POLICY_CATEGORY);
+  return entries.map(buildRatePolicy);
+};
+
+const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) => {
+  const normalized = normalizeRatePolicyPayload(payload);
+  if (!normalized.key) throw new ValidationError('key is required');
+
+  const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
+  if (existing) throw new ConflictError('Rate policy key already exists');
+
+  const entry = await configRepository.create({
+    category: RATE_POLICY_CATEGORY,
+    ...normalized,
+  });
+
+  return buildRatePolicy(entry);
+};
+
+const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
+  const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY);
+  if (!existing) throw new NotFoundError('Rate policy');
+
+  const normalized = normalizeRatePolicyPayload(payload, existing);
+  const duplicate = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
+  if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
+    throw new ConflictError('Rate policy key already exists');
+  }
+
+  const updated = await configRepository.update(existing.id, normalized);
+  return buildRatePolicy(updated);
+};
+
+const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => {
+  const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY);
+  if (!existing) throw new NotFoundError('Rate policy');
+  await configRepository.destroy(existing.id);
+  return { id: Number(policyId) };
+};
+
+const createResolveRatePolicy = ({ configRepository }) => async ({ amount } = {}) => {
+  const numericAmount = toOptionalNumber(amount, 'amount');
+  const policies = (await configRepository.listActiveByCategory(RATE_POLICY_CATEGORY)).map(buildRatePolicy);
+  const matchingPolicies = policies.filter((policy) => {
+    if (numericAmount === null) return true;
+    if (policy.minAmount !== null && numericAmount < Number(policy.minAmount)) return false;
+    if (policy.maxAmount !== null && numericAmount > Number(policy.maxAmount)) return false;
+    return true;
+  });
+
+  return pickHighestPriorityPolicy(matchingPolicies);
+};
+
+const createListLateFeePolicies = ({ configRepository }) => async () => {
+  const entries = await configRepository.listByCategory(LATE_FEE_POLICY_CATEGORY);
+  return entries.map(buildLateFeePolicy);
+};
+
+const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {}) => {
+  const normalized = normalizeLateFeePolicyPayload(payload);
+  if (!normalized.key) throw new ValidationError('key is required');
+
+  const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
+  if (existing) throw new ConflictError('Late fee policy key already exists');
+
+  const entry = await configRepository.create({
+    category: LATE_FEE_POLICY_CATEGORY,
+    ...normalized,
+  });
+
+  return buildLateFeePolicy(entry);
+};
+
+const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, payload = {}) => {
+  const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY);
+  if (!existing) throw new NotFoundError('Late fee policy');
+
+  const normalized = normalizeLateFeePolicyPayload(payload, existing);
+  const duplicate = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
+  if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
+    throw new ConflictError('Late fee policy key already exists');
+  }
+
+  const updated = await configRepository.update(existing.id, normalized);
+  return buildLateFeePolicy(updated);
+};
+
+const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => {
+  const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY);
+  if (!existing) throw new NotFoundError('Late fee policy');
+  await configRepository.destroy(existing.id);
+  return { id: Number(policyId) };
+};
+
+const createResolveLateFeePolicy = ({ configRepository }) => async () => {
+  const policies = (await configRepository.listActiveByCategory(LATE_FEE_POLICY_CATEGORY)).map(buildLateFeePolicy);
+  return pickHighestPriorityPolicy(policies);
+};
+
 const createUpsertSetting = ({ configRepository }) => async (settingKey, { label, value, description }) => {
   const normalizedKey = normalizeKey(settingKey);
   if (!normalizedKey) {
@@ -198,6 +438,16 @@ module.exports = {
   createDeletePaymentMethod,
   createListSettings,
   createUpsertSetting,
+  createListRatePolicies,
+  createCreateRatePolicy,
+  createUpdateRatePolicy,
+  createDeleteRatePolicy,
+  createResolveRatePolicy,
+  createListLateFeePolicies,
+  createCreateLateFeePolicy,
+  createUpdateLateFeePolicy,
+  createDeleteLateFeePolicy,
+  createResolveLateFeePolicy,
   createListAdminCatalogs,
   createListRoles,
 };

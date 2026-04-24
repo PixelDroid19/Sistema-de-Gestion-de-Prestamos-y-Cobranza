@@ -209,7 +209,7 @@ const buildPayoffAllocationBreakdown = (quote) => {
   return breakdown;
 };
 
-const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, executedTotal }) => ({
+const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, executedTotal, actor }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -229,6 +229,10 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
       quotedTotal: quote.total,
       executedTotal,
     },
+    registeredBy: actor ? {
+      userId: actor.id,
+      role: actor.role,
+    } : null,
   },
 });
 
@@ -274,6 +278,19 @@ const buildProcessPaymentMetadata = ({ idempotencyKey }) => ({
   processedVia: 'canonical_waterfall',
 });
 
+const sendOptionalNotification = async (sendFn) => {
+  try {
+    await sendFn();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const uniqueNotificationRecipients = (...ids) => [...new Set(ids
+  .map((id) => Number(id))
+  .filter((id) => Number.isInteger(id) && id > 0))];
+
 /**
  * Create the payment application service that mutates canonical schedules and payment records together.
  */
@@ -284,6 +301,7 @@ const createPaymentApplicationService = ({
   loanViewService,
   clock = () => new Date(),
   eventPublisher = { publishAmortizationCalculatedEvent: async () => {} },
+  notificationPort = null,
 } = {}) => {
   if (!loanViewService || typeof loanViewService.getCanonicalLoanView !== 'function') {
     throw new Error('paymentApplicationService requires a loanViewService with getCanonicalLoanView()');
@@ -754,7 +772,7 @@ const createPaymentApplicationService = ({
   /**
    * Apply payoff (total payment to close the loan)
    */
-  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock() }) => {
+  const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock(), actor = null }) => {
     return sequelizeInstance.transaction(async (transaction) => {
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
 
@@ -817,6 +835,7 @@ const createPaymentApplicationService = ({
         paymentDate: normalizedPaymentDate,
         quote: recomputedQuote,
         executedTotal: normalizedQuotedTotal,
+        actor,
       }), { transaction });
 
       return {
@@ -1235,8 +1254,23 @@ const createPaymentApplicationService = ({
             penalty,
           },
           paymentId: payment.id,
+          customerId: loan.customerId,
         };
       });
+
+      if (notificationPort?.sendPaymentRegistered) {
+        const recipients = uniqueNotificationRecipients(result.customerId, actorId);
+        await Promise.all(recipients.map((userId) => sendOptionalNotification(() => notificationPort.sendPaymentRegistered(userId, {
+          loanId,
+          paymentId: result.paymentId,
+          amount: Number(paymentAmount),
+          paymentDate,
+          paymentMethod: paymentMethod || null,
+          actorId,
+          breakdown: result.breakdown,
+          newBalance: result.newBalance,
+        }))));
+      }
 
       return result;
     } catch (error) {

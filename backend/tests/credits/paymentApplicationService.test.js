@@ -121,6 +121,7 @@ test('processPayment returns cached payload when idempotency key was already com
 test('processPayment uses canonical payment waterfall and publishes the resulting breakdown', async () => {
   let publishedEvent;
   let idempotencyUpdatePayload;
+  const notifications = [];
   const loan = {
     id: 100,
     customerId: 1,
@@ -185,6 +186,11 @@ test('processPayment uses canonical payment waterfall and publishes the resultin
         publishedEvent = data;
       },
     },
+    notificationPort: {
+      sendPaymentRegistered: async (userId, payload) => {
+        notifications.push({ userId, payload });
+      },
+    },
   }).processPayment({
     loanId: 100,
     paymentAmount: '170',
@@ -202,4 +208,6 @@ test('processPayment uses canonical payment waterfall and publishes the resultin
   assert.equal(publishedEvent.transactionId, 'tx-process');
   assert.equal(idempotencyUpdatePayload.status, 'completed');
   assert.equal(idempotencyUpdatePayload.responsePayload.paymentId, 200);
+  assert.deepEqual(notifications.map((entry) => entry.userId).sort(), [1, 5]);
+  assert.equal(notifications[0].payload.paymentId, 200);
 });

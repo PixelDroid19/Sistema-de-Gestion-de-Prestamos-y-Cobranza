@@ -374,6 +374,21 @@ export interface DagVariable {
   value: string | null;
   status: VariableStatus;
   description?: string;
+  usage?: {
+    count: number;
+    references: Array<{
+      graphId: number;
+      graphName: string;
+      version: number;
+      status: string;
+      usageCount: number;
+      isActive: boolean;
+      isLocked: boolean;
+    }>;
+    isReferencedByActiveGraph: boolean;
+    isReferencedByLockedGraph: boolean;
+    isReferencedByProtectedGraph: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,5 @@
 const { Loan, Customer, Associate, FinancialProduct } = require('@/models');
-const { NotFoundError } = require('@/utils/errorHandler');
+const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const { buildFinancialSnapshot } = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
@@ -73,6 +73,9 @@ const createLoanFromCanonicalDataFactory = ({
 
   // graphVersionId comes from the execution — the exact graph that produced these numbers
   const dagGraphVersionId = calculationExecution.graphVersionId;
+  if (!dagGraphVersionId) {
+    throw new ValidationError('Credit calculation did not return a DAG formula version. Production credit creation requires an active DAG formula.');
+  }
 
   const snapshot = {
     ...buildFinancialSnapshot(calculation.schedule),
@@ -88,6 +91,7 @@ const createLoanFromCanonicalDataFactory = ({
     termMonths: input.termMonths,
     status: 'pending',
     lateFeeMode: calculation.lateFeeMode,
+    annualLateFeeRate: input.annualLateFeeRate ?? input.lateFeeRate ?? 0,
     emiSchedule: calculation.schedule,
     installmentAmount: snapshot.installmentAmount,
     totalPayable: snapshot.totalPayable,

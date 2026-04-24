@@ -27,7 +27,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     calculationService: {
       async calculate(input) {
         return {
-          graphVersionId: null,
+          graphVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
             schedule: Array.from({ length: input.termMonths }, (_, i) => ({
@@ -78,6 +78,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.emiSchedule.length, 12);
   assert.equal(persistedPayload.installmentAmount, 1066.19);
   assert.equal(persistedPayload.totalPayable, 12794.23);
+  assert.equal(persistedPayload.dagGraphVersionId, 501);
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 12794.23);
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
 });

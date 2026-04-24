@@ -52,6 +52,8 @@ export const queryKeys = {
   },
   config: {
     paymentMethods: ['config.paymentMethods'] as const,
+    ratePolicies: ['config.ratePolicies'] as const,
+    lateFeePolicies: ['config.lateFeePolicies'] as const,
     settings: ['config.settings'] as const,
     catalogs: ['config.catalogs'] as const,
     roles: ['config.roles'] as const,
@@ -63,6 +65,8 @@ export const queryKeys = {
     workbenchScopes: ['loans.workbench.scopes'] as const,
     detail: (loanId: number) => ['loans.detail', loanId] as const,
     calendar: (loanId: number) => ['loans.calendar', loanId] as const,
+    installmentQuote: (loanId: number, installmentNumber: number | null, asOfDate: string) =>
+      ['loans.installmentQuote', loanId, installmentNumber, asOfDate] as const,
     alerts: (loanId: number) => ['loans.alerts', loanId] as const,
     promises: (loanId: number) => ['loans.promises', loanId] as const,
     payoffQuote: (loanId: number, asOfDate: string) => ['loans.payoffQuote', loanId, asOfDate] as const,

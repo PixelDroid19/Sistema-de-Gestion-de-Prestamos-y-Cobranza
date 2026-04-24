@@ -794,7 +794,7 @@ test('createGetPayoffQuote rejects already settled loans', async () => {
   });
 });
 
-test('createExecutePayoff requires customer payment authority and forwards execution inputs', async () => {
+test('createExecutePayoff allows customer payment authority and forwards execution inputs with actor', async () => {
   let executionInput;
   const executePayoff = createExecutePayoff({
     loanAccessPolicy: {
@@ -826,10 +826,11 @@ test('createExecutePayoff requires customer payment authority and forwards execu
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
     paymentDate: new Date('2026-03-15T18:30:00.000Z'),
+    actor: { id: 7, role: 'customer' },
   });
 });
 
-test('createExecutePayoff rejects non-customer actors before payment execution', async () => {
+test('createExecutePayoff rejects unsupported actors before payment execution', async () => {
   const executePayoff = createExecutePayoff({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
@@ -844,7 +845,7 @@ test('createExecutePayoff rejects non-customer actors before payment execution',
   });
 
   await assert.rejects(() => executePayoff({
-    actor: { id: 1, role: 'admin' },
+    actor: { id: 1, role: 'socio' },
     loanId: 22,
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
@@ -853,16 +854,22 @@ test('createExecutePayoff rejects non-customer actors before payment execution',
 
 test('createCreatePromiseToPay records a pending promise with status history', async () => {
   let createdPayload;
+  const notifications = [];
   const createPromiseToPay = createCreatePromiseToPay({
     loanAccessPolicy: {
       async findAuthorizedMutationLoan() {
-        return { id: 22 };
+        return { id: 22, customerId: 7 };
       },
     },
     promiseRepository: {
       async create(payload) {
         createdPayload = payload;
         return { id: 4, ...payload };
+      },
+    },
+    notificationPort: {
+      async sendPromiseCreated(userId, payload) {
+        notifications.push({ userId, payload });
       },
     },
   });
@@ -875,7 +882,10 @@ test('createCreatePromiseToPay records a pending promise with status history', a
 
   assert.equal(promise.id, 4);
   assert.equal(createdPayload.status, 'pending');
+  assert.equal(createdPayload.promisedDate.toISOString(), '2026-03-25T00:00:00.000Z');
   assert.equal(createdPayload.statusHistory[0].status, 'pending');
+  assert.deepEqual(notifications.map((entry) => entry.userId).sort(), [7, 9]);
+  assert.equal(notifications[0].payload.promiseId, 4);
 });
 
 test('createListPromisesToPay expires broken pending promises before returning history', async () => {

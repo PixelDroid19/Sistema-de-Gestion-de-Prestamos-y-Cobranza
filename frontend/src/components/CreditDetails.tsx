@@ -5,7 +5,7 @@ import {
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
   Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
 } from 'lucide-react';
-import { useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
+import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
 import { downloadVoucher } from '../services/paymentService';
@@ -29,7 +29,7 @@ export default function CreditDetails() {
   const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history'>('calendar');
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
-  const canViewPayoff = user?.role === 'customer';
+  const canViewPayoff = user?.role === 'customer' || isAdmin;
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const operationalModal = useOperationalModalState();
 
@@ -62,6 +62,9 @@ export default function CreditDetails() {
     recordPayment,
     annulInstallment,
     updatePaymentMethod,
+    updateAlertStatus,
+    updatePromiseStatus,
+    downloadPromiseDocument,
     recordCapitalPayment,
     updateLateFeeRate,
   } = useLoanDetails(loanId, {
@@ -75,7 +78,9 @@ export default function CreditDetails() {
     if (!value) return 'Sin fecha';
     const date = new Date(String(value));
     if (Number.isNaN(date.getTime())) return 'Sin fecha';
-    return withTime ? date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : date.toLocaleDateString('es-ES', { dateStyle: 'medium' });
+    return withTime
+      ? date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+      : date.toLocaleDateString('es-ES', { dateStyle: 'medium', timeZone: 'UTC' });
   };
 
   const formatCurrency = (value: unknown) => {
@@ -115,6 +120,20 @@ export default function CreditDetails() {
 
   const statusInfo = getStatusInfo(loan?.status);
   const promiseDate = (promise: any) => promise?.promisedDate || promise?.promiseDate || promise?.createdAt;
+  const formatPromiseStatus = (status: unknown) => {
+    switch (String(status || '').toLowerCase()) {
+      case 'kept':
+        return 'Cumplida';
+      case 'broken':
+        return 'Incumplida';
+      case 'cancelled':
+        return 'Cancelada';
+      case 'pending':
+        return 'Pendiente';
+      default:
+        return String(status || 'Sin estado');
+    }
+  };
   const installmentPaymentGuard = resolveOperationalGuard('installment.pay', {
     role: user?.role,
     permissions: user?.permissions,
@@ -126,7 +145,7 @@ export default function CreditDetails() {
     loanStatus: loan?.status,
   });
 
-  const historyEntries = useMemo(() => {
+  const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
     const payments = Array.isArray(source?.payments) ? source.payments : [];
     const payoffHistory = Array.isArray(source?.payoffHistory) ? source.payoffHistory : [];
@@ -165,8 +184,64 @@ export default function CreditDetails() {
   }
   customerLabel = customerLabel || (loan?.customerId ? `Cliente #${loan.customerId}` : 'Sin cliente');
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
-  const alertEntries = Array.isArray(alerts) ? alerts : [];
-  const promiseEntries = Array.isArray(promises) ? promises : [];
+  const reportHistorySource = history?.data?.history ?? history;
+  const reportAlertEntries = Array.isArray(reportHistorySource?.alerts) ? reportHistorySource.alerts : [];
+  const reportPromiseEntries = Array.isArray(reportHistorySource?.promises) ? reportHistorySource.promises : [];
+  const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
+  const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
+  const operationalHistoryEntries = useMemo(() => {
+    const alertEvents = alertEntries.flatMap((alert: any) => {
+      const events = [{
+        id: `alert-created-${alert.id}`,
+        action: alert.status === 'resolved' ? 'Alerta resuelta' : 'Alerta activa',
+        description: `${alert.alertType || 'Seguimiento'} ${alert.installmentNumber ? `cuota #${alert.installmentNumber}` : ''} · ${formatCurrency(alert.outstandingAmount)}`,
+        date: alert.resolvedAt || alert.createdAt || alert.dueDate,
+        type: 'alert',
+        status: alert.status,
+      }];
+
+      if (alert.notes) {
+        events.push({
+          id: `alert-note-${alert.id}`,
+          action: 'Seguimiento registrado',
+          description: String(alert.notes),
+          date: alert.updatedAt || alert.createdAt || alert.dueDate,
+          type: 'alert',
+          status: alert.status,
+        });
+      }
+
+      return events;
+    });
+
+    const promiseEvents = promiseEntries.flatMap((promise: any) => {
+      const baseEvents = [{
+        id: `promise-created-${promise.id}`,
+        action: 'Compromiso de pago creado',
+        description: `${formatCurrency(promise.amount)} para el ${formatDate(promiseDate(promise))}`,
+        date: promise.createdAt || promise.promisedDate,
+        type: 'promise',
+        status: promise.status,
+      }];
+
+      const statusEvents = Array.isArray(promise.statusHistory)
+        ? promise.statusHistory.map((entry: any, index: number) => ({
+          id: `promise-status-${promise.id}-${index}`,
+          action: 'Estado de compromiso actualizado',
+          description: `${formatPromiseStatus(entry.status)}${entry.note ? ` · ${entry.note}` : ''}`,
+          date: entry.changedAt || promise.updatedAt || promise.promisedDate,
+          type: 'promise',
+          status: entry.status,
+        }))
+        : [];
+
+      return [...baseEvents, ...statusEvents];
+    });
+
+    return [...paymentHistoryEntries, ...alertEvents, ...promiseEvents]
+      .filter((entry) => entry.date)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [alertEntries, paymentHistoryEntries, promiseEntries]);
   const visibleTabs = useMemo(() => {
     const tabs: Array<typeof activeTab> = ['calendar'];
 
@@ -258,6 +333,10 @@ export default function CreditDetails() {
   const isRecordPaymentModalOpen = operationalModal.is('record-payment');
   const isPromiseModalOpen = operationalModal.is('create-promise');
   const isFollowUpModalOpen = operationalModal.is('create-follow-up');
+  const installmentQuoteQuery = useInstallmentQuote(loanId, selectedInstallmentNumber, paymentDate, {
+    enabled: isRecordPaymentModalOpen && Boolean(selectedInstallmentNumber),
+  });
+  const installmentQuote = installmentQuoteQuery.data?.data?.quote;
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
@@ -499,6 +578,66 @@ export default function CreditDetails() {
     });
   };
 
+  const handleUpdateAlertStatus = async (alert: any, status: 'active' | 'resolved') => {
+    const alertId = Number(alert?.id);
+    if (!Number.isFinite(alertId)) {
+      toast.error({ title: 'No se pudo identificar la alerta.' });
+      return;
+    }
+
+    const label = status === 'resolved' ? 'resolver' : 'reactivar';
+    const confirmed = await confirmDanger({
+      title: status === 'resolved' ? 'Resolver alerta' : 'Reactivar alerta',
+      message: `¿Confirmar ${label} esta alerta del crédito?`,
+      confirmLabel: status === 'resolved' ? 'Resolver' : 'Reactivar',
+    });
+
+    if (!confirmed) return;
+
+    await updateAlertStatus.mutateAsync({
+      alertId,
+      status,
+      notes: status === 'resolved' ? 'Resuelta manualmente desde detalle de crédito.' : 'Reactivada manualmente desde detalle de crédito.',
+    });
+    await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+    toast.success({ title: status === 'resolved' ? 'Alerta resuelta' : 'Alerta reactivada' });
+  };
+
+  const handleUpdatePromiseStatus = async (promise: any, status: 'pending' | 'kept' | 'broken' | 'cancelled') => {
+    const promiseId = Number(promise?.id);
+    if (!Number.isFinite(promiseId)) {
+      toast.error({ title: 'No se pudo identificar el compromiso.' });
+      return;
+    }
+
+    const confirmed = await confirmDanger({
+      title: 'Actualizar compromiso',
+      message: `¿Cambiar el compromiso a "${formatPromiseStatus(status)}"?`,
+      confirmLabel: 'Actualizar',
+    });
+
+    if (!confirmed) return;
+
+    await updatePromiseStatus.mutateAsync({
+      promiseId,
+      status,
+      notes: `Actualizado a ${formatPromiseStatus(status)} desde detalle de crédito.`,
+    });
+    await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
+    toast.success({ title: 'Compromiso actualizado' });
+  };
+
+  const handleDownloadPromise = async (promise: any) => {
+    const promiseId = Number(promise?.id);
+    if (!Number.isFinite(promiseId)) {
+      toast.error({ title: 'No se pudo identificar el compromiso.' });
+      return;
+    }
+
+    await downloadPromiseDocument.mutateAsync(promiseId);
+    toast.success({ title: 'Documento de compromiso descargado' });
+  };
+
   const handleRecordCapital = async () => {
     const amount = parseFloat(capitalAmount);
     if (!amount || amount <= 0) {
@@ -571,13 +710,13 @@ export default function CreditDetails() {
     }
 
     setSelectedInstallmentNumber(installmentNumber);
-    setPaymentAmount(String(row.scheduledPayment ?? ''));
+    setPaymentAmount(String(row.payableAmount ?? row.outstandingAmount ?? row.scheduledPayment ?? ''));
     operationalModal.openModal('record-payment', {
       loanId,
       installment: {
         installmentId: installmentNumber,
         installmentNumber,
-        amount: row.scheduledPayment,
+        amount: row.payableAmount ?? row.scheduledPayment,
         status: row.status,
       },
     });
@@ -792,7 +931,7 @@ export default function CreditDetails() {
           <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
           {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
           {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
-          <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={historyEntries.length} />
+          <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={paymentHistoryEntries.length} />
           {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
           <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
         </div>
@@ -810,6 +949,7 @@ export default function CreditDetails() {
                           <th className="py-4 px-6 font-semibold text-center w-16">N°</th>
                           <th className="py-4 px-6 font-semibold text-right">Cuota a Pagar</th>
                           <th className="py-4 px-6 font-semibold text-right">Interés</th>
+                          <th className="py-4 px-6 font-semibold text-right">Mora</th>
                           <th className="py-4 px-6 font-semibold text-right">Amortización</th>
                           <th className="py-4 px-6 font-semibold text-right">Capital Vivo</th>
                           <th className="py-4 px-6 font-semibold text-center w-32">Estado</th>
@@ -820,6 +960,7 @@ export default function CreditDetails() {
                         {/* Initial balance row */}
                         <tr className="bg-bg-base/30">
                           <td className="py-3 px-6 text-center text-text-secondary font-medium">0</td>
+                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
                           <td className="py-3 px-6 text-right text-text-secondary">—</td>
                           <td className="py-3 px-6 text-right text-text-secondary">—</td>
                           <td className="py-3 px-6 text-right text-text-secondary">—</td>
@@ -845,6 +986,12 @@ export default function CreditDetails() {
                             ? normalizedInstallmentNumber
                             : installment.installmentNumber,
                           scheduledPayment, interestComponent, principalComponent, openingBalance, closingBalance,
+                          outstandingAmount: installment.outstandingAmount,
+                          payableAmount: installment.payableAmount,
+                          lateFeeDue: installment.lateFeeDue,
+                          daysOverdue: installment.daysOverdue,
+                          canPay: installment.canPay,
+                          disabledReason: installment.disabledReason,
                           status: installment.status,
                         });
                         return rows;
@@ -856,6 +1003,9 @@ export default function CreditDetails() {
                           </td>
                           <td className="py-3 px-5 text-right text-text-secondary">
                             {formatCurrency(row.interestComponent)}
+                          </td>
+                          <td className="py-3 px-5 text-right text-red-600 dark:text-red-400">
+                            {row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}
                           </td>
                           <td className="py-3 px-5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
                             {formatCurrency(row.principalComponent)}
@@ -949,7 +1099,7 @@ export default function CreditDetails() {
                     {calendarSnapshot && (
                       <tfoot className="bg-bg-base border-t border-border-strong">
                         <tr>
-                          <td colSpan={4} className="py-4 px-5 text-right text-text-secondary">Balance pendiente total:</td>
+                          <td colSpan={5} className="py-4 px-5 text-right text-text-secondary">Balance pendiente total:</td>
                           <td className="py-4 px-5 text-right font-bold text-brand-primary text-base">
                             {formatCurrency(calendarSnapshot.outstandingBalance)}
                           </td>
@@ -975,14 +1125,43 @@ export default function CreditDetails() {
               {alertEntries.length > 0 ? (
                 <div className="space-y-4">
                   {alertEntries.map((alert: any, index: number) => (
-                    <div key={index} className="flex gap-4 pb-4 border-b border-border-subtle last:border-0">
-                      <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={20} />
-                      <div>
-                        <p className="font-medium text-text-primary">{alert.type || alert.alertType}</p>
-                        <p className="text-sm text-text-secondary mt-1">
-                          {alert.message || `Cuota ${alert.installmentNumber} con saldo ${formatCurrency(alert.outstandingAmount)}`}
-                        </p>
-                        <p className="text-xs text-text-secondary mt-2">{formatDate(alert.createdAt, true)}</p>
+                    <div key={alert.id || index} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div className="flex gap-4">
+                          <AlertCircle className={alert.status === 'resolved' ? 'text-emerald-500 shrink-0 mt-0.5' : 'text-amber-500 shrink-0 mt-0.5'} size={20} />
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-text-primary">{alert.type || alert.alertType || 'Alerta de crédito'}</p>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                alert.status === 'resolved'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                              }`}>
+                                {alert.status === 'resolved' ? 'Resuelta' : 'Activa'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-text-secondary mt-1">
+                              {alert.message || `Cuota ${alert.installmentNumber || '—'} con saldo ${formatCurrency(alert.outstandingAmount)}`}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+                              <span>Vence: {formatDate(alert.dueDate)}</span>
+                              <span>Creada: {formatDate(alert.createdAt, true)}</span>
+                              {alert.resolvedAt && <span>Resuelta: {formatDate(alert.resolvedAt, true)}</span>}
+                            </div>
+                            {alert.notes && (
+                              <p className="mt-3 rounded-lg bg-bg-base p-3 text-sm text-text-secondary whitespace-pre-wrap">{alert.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateAlertStatus(alert, alert.status === 'resolved' ? 'active' : 'resolved')}
+                          disabled={updateAlertStatus.isPending}
+                          className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                        >
+                          {alert.status === 'resolved' ? <Bell size={16} /> : <CheckCircle size={16} />}
+                          {alert.status === 'resolved' ? 'Reactivar' : 'Resolver'}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1007,7 +1186,7 @@ export default function CreditDetails() {
                     const isPending = promise.status === 'pending';
                     
                     return (
-                      <div key={index} className="p-5 border border-border-subtle rounded-xl bg-bg-surface">
+                      <div key={promise.id || index} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
                         <div className="flex justify-between items-start mb-4">
                           <div>
                             <p className="text-sm text-text-secondary mb-1">Monto Prometido</p>
@@ -1054,6 +1233,53 @@ export default function CreditDetails() {
                             </div>
                           </details>
                         )}
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          {isPending ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePromiseStatus(promise, 'kept')}
+                                disabled={updatePromiseStatus.isPending}
+                                className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                              >
+                                <CheckCircle size={16} /> Cumplida
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePromiseStatus(promise, 'broken')}
+                                disabled={updatePromiseStatus.isPending}
+                                className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                              >
+                                <AlertTriangle size={16} /> Incumplida
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePromiseStatus(promise, 'cancelled')}
+                                disabled={updatePromiseStatus.isPending}
+                                className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-secondary hover:bg-hover-bg disabled:opacity-50"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdatePromiseStatus(promise, 'pending')}
+                              disabled={updatePromiseStatus.isPending}
+                              className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                            >
+                              <Clock size={16} /> Reabrir
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPromise(promise)}
+                            disabled={downloadPromiseDocument.isPending}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                          >
+                            <FileText size={16} /> Descargar
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -1070,7 +1296,7 @@ export default function CreditDetails() {
           {/* TAB: HISTORIAL DE PAGOS */}
           {activeTab === 'payouts' && (
             <div className="animate-in fade-in duration-300">
-              {historyEntries.length > 0 ? (
+              {paymentHistoryEntries.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-bg-base border-b border-border-subtle">
@@ -1088,7 +1314,7 @@ export default function CreditDetails() {
                       </tr>
                     </thead>
                     <tbody>
-                      {historyEntries.map((entry: any, index: number) => (
+                      {paymentHistoryEntries.map((entry: any, index: number) => (
                         <tr key={index} className="border-b border-border-subtle hover:bg-hover-bg">
                           <td className="py-3 px-4 text-text-secondary">{entry.paymentId ? `#${entry.paymentId}` : entry.id ? `#${entry.id}` : '—'}</td>
                           <td className="py-3 px-4">
@@ -1148,7 +1374,7 @@ export default function CreditDetails() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-text-secondary">Intereses a la fecha:</span>
-                      <span className="text-text-primary">{formatCurrency(payoffQuote.accruedInterest ?? 0)}</span>
+                    <span className="text-text-primary">{formatCurrency(payoffQuote.accruedInterest ?? payoffQuote.breakdown?.accruedInterest ?? 0)}</span>
                     </div>
                     {Number(payoffQuote.lateFees) > 0 && (
                       <div className="flex justify-between text-sm text-amber-600">
@@ -1165,14 +1391,14 @@ export default function CreditDetails() {
 
                   <button 
                     onClick={handlePayoff}
-                    disabled={user?.role !== 'customer'}
+                    disabled={!canViewPayoff}
                     className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                      user?.role === 'customer' 
+                      canViewPayoff
                         ? 'bg-text-primary text-bg-base hover:bg-text-secondary' 
                         : 'bg-bg-base border border-border-subtle text-text-secondary cursor-not-allowed'
                     }`}
                   >
-                    {user?.role === 'customer' ? 'Confirmar pago total' : 'Acción reservada para clientes'}
+                    {canViewPayoff ? 'Confirmar pago total' : 'Acción no disponible'}
                   </button>
                 </div>
               ) : (
@@ -1192,15 +1418,22 @@ export default function CreditDetails() {
             <div className="animate-in fade-in duration-300 max-w-3xl">
               {isLoadingHistory ? (
                 <p className="text-text-secondary">Cargando historial...</p>
-              ) : historyEntries.length > 0 ? (
+              ) : operationalHistoryEntries.length > 0 ? (
                 <div className="space-y-6">
-                  {historyEntries.map((event: any, index: number) => {
+                  {operationalHistoryEntries.map((event: any, index: number) => {
                     const paymentId = extractPaymentId(event.id);
                     const isPayment = event.type === 'payment';
+                    const isAlert = event.type === 'alert';
+                    const isPromise = event.type === 'promise';
                     return (
                       <div key={event.id || index} className="flex gap-4">
-                        <div className={`mt-1 p-2 rounded-full h-fit ${isPayment ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                          {isPayment ? <DollarSign size={16} /> : <CreditCard size={16} />}
+                        <div className={`mt-1 p-2 rounded-full h-fit ${
+                          isPayment ? 'bg-emerald-100 text-emerald-600' :
+                          isAlert ? 'bg-amber-100 text-amber-600' :
+                          isPromise ? 'bg-blue-100 text-blue-600' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
+                          {isPayment ? <DollarSign size={16} /> : isAlert ? <Bell size={16} /> : isPromise ? <Clock size={16} /> : <CreditCard size={16} />}
                         </div>
                         <div className="flex-1 pb-6 border-b border-border-subtle last:border-0">
                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
@@ -1302,8 +1535,46 @@ export default function CreditDetails() {
             </div>
             <div className="p-6 space-y-4">
               {selectedInstallmentNumber && (
-                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
-                  Pago aplicado a cuota #{selectedInstallmentNumber}
+                <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">Cotización cuota #{selectedInstallmentNumber}</span>
+                    {installmentQuoteQuery.isFetching && <span className="text-xs">Calculando...</span>}
+                  </div>
+                  {installmentQuote ? (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="block text-blue-700 dark:text-blue-300">Base pendiente</span>
+                        <span className="font-semibold text-text-primary">{formatCurrency(installmentQuote.outstandingAmount)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-blue-700 dark:text-blue-300">Mora</span>
+                        <span className="font-semibold text-red-700 dark:text-red-300">{formatCurrency(installmentQuote.lateFeeDue)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-blue-700 dark:text-blue-300">Días vencidos</span>
+                        <span className="font-semibold text-text-primary">{installmentQuote.daysOverdue || 0}</span>
+                      </div>
+                      <div>
+                        <span className="block text-blue-700 dark:text-blue-300">Total sugerido</span>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentAmount(String(installmentQuote.totalDue ?? ''))}
+                          className="font-semibold text-brand-primary hover:underline"
+                        >
+                          {formatCurrency(installmentQuote.totalDue)}
+                        </button>
+                      </div>
+                      {!installmentQuote.canPay && installmentQuote.disabledReason && (
+                        <div className="col-span-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                          {installmentQuote.disabledReason}
+                        </div>
+                      )}
+                    </div>
+                  ) : installmentQuoteQuery.isError ? (
+                    <p className="text-xs text-red-700 dark:text-red-300">No se pudo calcular la cotización. Revisa la cuota y la fecha.</p>
+                  ) : (
+                    <p className="text-xs text-blue-700 dark:text-blue-300">Pago aplicado a esta cuota usando la regla real de cartera.</p>
+                  )}
                 </div>
               )}
               <div>
@@ -1345,7 +1616,13 @@ export default function CreditDetails() {
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleRecordPayment} disabled={!paymentAmount || parseFloat(paymentAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Pago</button>
+              <button
+                onClick={handleRecordPayment}
+                disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || Boolean(installmentQuote && !installmentQuote.canPay)}
+                className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50"
+              >
+                Registrar Pago
+              </button>
             </div>
           </div>
         </div>

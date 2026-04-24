@@ -26,6 +26,22 @@ export const useConfig = () => {
     },
   });
 
+  const getRatePolicies = useQuery({
+    queryKey: queryKeys.config.ratePolicies,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/config/rate-policies');
+      return data;
+    },
+  });
+
+  const getLateFeePolicies = useQuery({
+    queryKey: queryKeys.config.lateFeePolicies,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/config/late-fee-policies');
+      return data;
+    },
+  });
+
   const createPaymentMethod = useInvalidatingMutation(async (paymentMethodData: any) => {
     const payload = {
       label: paymentMethodData.label ?? paymentMethodData.name,
@@ -46,6 +62,42 @@ export const useConfig = () => {
     const { data } = await apiClient.delete(`/config/payment-methods/${id}`);
     return data;
   }, queryKeys.config.paymentMethods);
+
+  const createRatePolicy = useInvalidatingMutation(async (payload: any) => {
+    const { data } = await apiClient.post('/config/rate-policies', {
+      ...payload,
+      key: payload.key ?? normalizeKey(payload.label ?? ''),
+    });
+    return data;
+  }, queryKeys.config.ratePolicies);
+
+  const updateRatePolicy = useInvalidatingMutation(async ({ id, ...payload }: any) => {
+    const { data } = await apiClient.put(`/config/rate-policies/${id}`, payload);
+    return data;
+  }, queryKeys.config.ratePolicies);
+
+  const deleteRatePolicy = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.delete(`/config/rate-policies/${id}`);
+    return data;
+  }, queryKeys.config.ratePolicies);
+
+  const createLateFeePolicy = useInvalidatingMutation(async (payload: any) => {
+    const { data } = await apiClient.post('/config/late-fee-policies', {
+      ...payload,
+      key: payload.key ?? normalizeKey(payload.label ?? ''),
+    });
+    return data;
+  }, queryKeys.config.lateFeePolicies);
+
+  const updateLateFeePolicy = useInvalidatingMutation(async ({ id, ...payload }: any) => {
+    const { data } = await apiClient.put(`/config/late-fee-policies/${id}`, payload);
+    return data;
+  }, queryKeys.config.lateFeePolicies);
+
+  const deleteLateFeePolicy = useInvalidatingMutation(async (id: number) => {
+    const { data } = await apiClient.delete(`/config/late-fee-policies/${id}`);
+    return data;
+  }, queryKeys.config.lateFeePolicies);
 
   const getSettings = useQuery({
     queryKey: queryKeys.config.settings,
@@ -78,13 +130,21 @@ export const useConfig = () => {
 
   return {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
+    ratePolicies: toArray(getRatePolicies.data?.data?.policies),
+    lateFeePolicies: toArray(getLateFeePolicies.data?.data?.policies),
     settings: toArray(getSettings.data?.data?.settings),
     catalogs: getCatalogs.data?.data?.catalogs,
     roles: toArray(getRoles.data?.data?.roles),
-    isLoading: getPaymentMethods.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading,
+    isLoading: getPaymentMethods.isLoading || getRatePolicies.isLoading || getLateFeePolicies.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
+    createRatePolicy,
+    updateRatePolicy,
+    deleteRatePolicy,
+    createLateFeePolicy,
+    updateLateFeePolicy,
+    deleteLateFeePolicy,
     updateSetting,
   };
 };

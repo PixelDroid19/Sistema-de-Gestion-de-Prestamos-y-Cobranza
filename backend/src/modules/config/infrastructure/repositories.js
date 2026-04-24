@@ -2,6 +2,8 @@ const { ConfigEntry } = require('@/models');
 
 const PAYMENT_METHOD_CATEGORY = 'payment_method';
 const BUSINESS_SETTING_CATEGORY = 'business_setting';
+const RATE_POLICY_CATEGORY = 'rate_policy';
+const LATE_FEE_POLICY_CATEGORY = 'late_fee_policy';
 
 const serializeConfigEntry = (entry) => {
   if (!entry) {
@@ -33,6 +35,14 @@ const configRepository = {
   async findPaymentMethodById(id) {
     const entry = await ConfigEntry.findOne({
       where: { id, category: PAYMENT_METHOD_CATEGORY },
+    });
+
+    return serializeConfigEntry(entry);
+  },
+
+  async findByIdAndCategory(id, category) {
+    const entry = await ConfigEntry.findOne({
+      where: { id, category },
     });
 
     return serializeConfigEntry(entry);
@@ -83,5 +93,7 @@ const configRepository = {
 module.exports = {
   PAYMENT_METHOD_CATEGORY,
   BUSINESS_SETTING_CATEGORY,
+  RATE_POLICY_CATEGORY,
+  LATE_FEE_POLICY_CATEGORY,
   configRepository,
 };

@@ -11,15 +11,17 @@ const { createOutboxEventRepository } = require('./infrastructure/outboxEventRep
 /**
  * Select the credit ports that other modules are allowed to depend on.
  * @param {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }} composition
- * @returns {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object }}
+ * @returns {{ loanAccessPolicy: object, loanViewService: object, paymentApplicationService: object, attachmentStorage: object, creditsDagConfig: object, dagWorkbenchService: object, alertRepository: object, promiseRepository: object }}
  */
-const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService, attachmentStorage, creditsDagConfig, dagWorkbenchService }) => ({
+const pickCreditsPublicPorts = ({ loanAccessPolicy, loanViewService, paymentApplicationService, attachmentStorage, creditsDagConfig, dagWorkbenchService, alertRepository, promiseRepository }) => ({
   loanAccessPolicy,
   loanViewService,
   paymentApplicationService,
   attachmentStorage,
   creditsDagConfig,
   dagWorkbenchService,
+  alertRepository,
+  promiseRepository,
 });
 
 /**
@@ -34,7 +36,7 @@ const createCreditsComposition = ({
   loanAccessPolicy = createLoanAccessPolicy({ loanRepository: infrastructure.loanRepository }),
   loanViewService = createLoanViewService(),
   recoveryStatusGuard = createRecoveryStatusGuard({ loanViewService }),
-  paymentApplicationService = createPaymentApplicationService({ loanViewService }),
+  paymentApplicationService = createPaymentApplicationService({ loanViewService, notificationPort: infrastructure.notificationPort }),
   dagWorkbenchService = createDagWorkbenchService({
     dagConfig,
     dagGraphRepository: infrastructure.dagGraphRepository,

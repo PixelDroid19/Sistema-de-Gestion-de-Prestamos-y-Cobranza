@@ -196,6 +196,14 @@ export default function VariablesRegistryPage() {
   };
 
   const handleDelete = async (variable: DagVariable) => {
+    if (variable.usage?.isReferencedByProtectedGraph) {
+      toast.error({ description: 'Esta variable está referenciada por una fórmula activa o usada por créditos reales.' });
+      return;
+    }
+    if (variable.status === 'active') {
+      toast.error({ description: 'Retira la variable antes de eliminarla para evitar cambios accidentales en fórmulas reales.' });
+      return;
+    }
     const confirmed = await confirmModal({
       title: 'Eliminar variable',
       message: `¿Seguro que quieres eliminar "${variable.name}"? Solo se pueden eliminar variables sin uso.`,
@@ -208,6 +216,16 @@ export default function VariablesRegistryPage() {
 
   const handleDeprecate = (variable: DagVariable) => {
     updateMutation.mutate({ id: variable.id, payload: { status: 'deprecated' } });
+  };
+
+  const getDeleteBlockReason = (variable: DagVariable) => {
+    if (variable.usage?.isReferencedByProtectedGraph) {
+      return 'Está usada por una fórmula activa o bloqueada';
+    }
+    if (variable.status === 'active') {
+      return 'Retira la variable antes de eliminarla';
+    }
+    return '';
   };
 
   return (
@@ -377,13 +395,27 @@ export default function VariablesRegistryPage() {
                     <div className="font-bold uppercase tracking-wide text-text-secondary">Valor</div>
                     <div className="mt-1 font-mono font-semibold text-text-primary">{v.value ?? '-'}</div>
                   </div>
+                  <div className="col-span-2 rounded-lg border border-border-subtle bg-bg-base px-3 py-2">
+                    <div className="font-bold uppercase tracking-wide text-text-secondary">Uso</div>
+                    <div className="mt-1 font-semibold text-text-primary">
+                      {v.usage?.count ? `${v.usage.count} fórmula(s)` : 'Sin referencias'}
+                      {v.usage?.isReferencedByProtectedGraph ? ' · Protegida' : ''}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <button onClick={() => openModal(v)} className="rounded-lg border border-border-subtle px-3 py-2 text-xs font-semibold text-text-primary hover:bg-hover-bg">Editar</button>
                   {v.status !== 'deprecated' && (
                     <button onClick={() => handleDeprecate(v)} disabled={updateMutation.isPending} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 disabled:opacity-60">Retirar</button>
                   )}
-                  <button onClick={() => handleDelete(v)} disabled={deleteMutation.isPending} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 disabled:opacity-60">Eliminar</button>
+                  <button
+                    onClick={() => handleDelete(v)}
+                    disabled={deleteMutation.isPending || Boolean(getDeleteBlockReason(v))}
+                    title={getDeleteBlockReason(v) || 'Eliminar'}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 disabled:opacity-60"
+                  >
+                    Eliminar
+                  </button>
                 </div>
               </article>
             ))
@@ -397,6 +429,7 @@ export default function VariablesRegistryPage() {
                 <th className="px-5 py-3">Tipo</th>
                 <th className="px-5 py-3">Origen</th>
                 <th className="px-5 py-3">Valor por defecto</th>
+                <th className="px-5 py-3">Uso</th>
                 <th className="px-5 py-3">Estado</th>
                 <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
@@ -404,13 +437,13 @@ export default function VariablesRegistryPage() {
             <tbody className="divide-y divide-border-subtle">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center">
+                  <td colSpan={7} className="px-5 py-8 text-center">
                     <Loader2 className="animate-spin mx-auto text-brand-primary" size={24} />
                   </td>
                 </tr>
               ) : filteredVariables.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-text-secondary">
+                  <td colSpan={7} className="px-5 py-8 text-center text-text-secondary">
                     No hay variables personalizadas con estos filtros.
                   </td>
                 </tr>
@@ -423,6 +456,16 @@ export default function VariablesRegistryPage() {
                     <td className="px-5 py-3 text-text-secondary">{TYPE_LABELS[v.type] ?? v.type}</td>
                     <td className="px-5 py-3 text-text-secondary">{SOURCE_LABELS[v.source] ?? v.source}</td>
                     <td className="px-5 py-3 font-mono text-text-secondary">{v.value ?? '-'}</td>
+                    <td className="px-5 py-3 text-text-secondary">
+                      <div className="flex flex-col gap-1">
+                        <span>{v.usage?.count ? `${v.usage.count} fórmula(s)` : 'Sin referencias'}</span>
+                        {v.usage?.references?.slice(0, 2).map((reference) => (
+                          <span key={`${v.id}-${reference.graphId}`} className="text-xs">
+                            {reference.graphName} v{reference.version}{reference.isLocked ? ' · bloqueada' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded font-medium ${
                         v.status === 'active' ? 'border border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-200' :
@@ -454,9 +497,9 @@ export default function VariablesRegistryPage() {
                         )}
                         <button
                           onClick={() => handleDelete(v)}
-                          disabled={deleteMutation.isPending}
+                          disabled={deleteMutation.isPending || Boolean(getDeleteBlockReason(v))}
+                          title={getDeleteBlockReason(v) || 'Eliminar'}
                           className="p-1.5 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30"
-                          title="Eliminar"
                         >
                           <Trash2 size={14} />
                         </button>

@@ -1,5 +1,5 @@
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
-const { roundCurrency } = require('./creditFormulaHelpers');
+const { roundCurrency, calculateLateFee } = require('./creditFormulaHelpers');
 const { paginateArray } = require('@/modules/shared/pagination');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const {
@@ -16,6 +16,7 @@ const {
   evaluatePayoffEligibility,
   PAYABLE_LOAN_STATUSES,
 } = require('./paymentEligibility');
+const { normalizeUtcDateOnly } = require('./loanFinancials');
 
 const SIGNATURE_LENGTH = 12;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -71,6 +72,19 @@ const getMinimumSignatureLength = (mimetype) => {
   }
   return 1;
 };
+
+const sendOptionalNotification = async (sendFn) => {
+  try {
+    await sendFn();
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+const uniqueNotificationRecipients = (...ids) => [...new Set(ids
+  .map((id) => Number(id))
+  .filter((id) => Number.isInteger(id) && id > 0))];
 
 const validateAttachmentFileSignature = async (file, fsModule) => {
   if (!file?.path || typeof file.mimetype !== 'string') {
@@ -274,6 +288,130 @@ const buildFollowUpNoteEntry = ({ actor, note, status = null, kind = 'follow_up'
   return pieces.join(' ');
 };
 
+const normalizeDateOnly = (value, field = 'date') => {
+  if (!value) {
+    return new Date();
+  }
+
+  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ValidationError(`${field} must be a valid date`);
+  }
+
+  return parsed;
+};
+
+const calculateDaysOverdue = ({ dueDate, asOfDate }) => {
+  const parsedDueDate = normalizeDateOnly(dueDate, 'dueDate');
+  const parsedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
+  const diffMs = parsedAsOfDate.getTime() - parsedDueDate.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / (24 * 60 * 60 * 1000));
+};
+
+const calculateInstallmentLateFeeDue = ({ loan, row, asOfDate }) => {
+  const daysOverdue = calculateDaysOverdue({ dueDate: row.dueDate, asOfDate });
+  if (daysOverdue <= 0 || row.status === 'paid' || row.status === 'annulled') {
+    return { daysOverdue: 0, lateFeeDue: 0, lateFeeBase: 0, lateFeeBaseType: null };
+  }
+
+  const outstandingInterest = roundCurrency(row.remainingInterest || 0);
+  const outstandingAmount = roundCurrency((row.remainingPrincipal || 0) + outstandingInterest);
+  const lateFeeBase = outstandingInterest > 0 ? outstandingInterest : outstandingAmount;
+  if (lateFeeBase <= 0) {
+    return { daysOverdue, lateFeeDue: 0, lateFeeBase: 0, lateFeeBaseType: null };
+  }
+
+  const lateFeeDue = calculateLateFee({
+    overdueAmount: lateFeeBase,
+    daysOverdue,
+    feeMode: String(loan.lateFeeMode || 'SIMPLE').toUpperCase(),
+    annualRate: Number(loan.annualLateFeeRate || 0),
+  });
+
+  return {
+    daysOverdue,
+    lateFeeDue: roundCurrency(lateFeeDue),
+    lateFeeBase,
+    lateFeeBaseType: outstandingInterest > 0 ? 'OVERDUE_INTEREST' : 'OVERDUE_INSTALLMENT',
+  };
+};
+
+const getOutstandingAmount = (row) => roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+
+const getNextPayableInstallmentNumber = (schedule) => {
+  const row = schedule.find((entry) => (
+    entry.status !== 'annulled'
+    && getOutstandingAmount(entry) > 0.01
+  ));
+
+  return row ? Number(row.installmentNumber) : null;
+};
+
+const buildInstallmentQuote = ({ loan, schedule, installmentNumber, asOfDate = new Date() }) => {
+  const targetInstallmentNumber = Number(installmentNumber);
+  if (!Number.isInteger(targetInstallmentNumber) || targetInstallmentNumber <= 0) {
+    throw new ValidationError('installmentNumber must be a positive integer');
+  }
+
+  const parsedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
+  const targetRow = schedule.find((row) => Number(row.installmentNumber) === targetInstallmentNumber);
+
+  if (!targetRow) {
+    throw new NotFoundError('Installment');
+  }
+
+  const outstandingPrincipal = roundCurrency(targetRow.remainingPrincipal || 0);
+  const outstandingInterest = roundCurrency(targetRow.remainingInterest || 0);
+  const outstandingAmount = getOutstandingAmount(targetRow);
+  const nextPayableInstallmentNumber = getNextPayableInstallmentNumber(schedule);
+  const isNextPayable = nextPayableInstallmentNumber === targetInstallmentNumber;
+  const lateFee = calculateInstallmentLateFeeDue({ loan, row: targetRow, asOfDate: parsedAsOfDate });
+  const totalDue = roundCurrency(outstandingAmount + lateFee.lateFeeDue);
+  const canPay = outstandingAmount > 0.01
+    && targetRow.status !== 'annulled'
+    && targetRow.status !== 'paid'
+    && isNextPayable
+    && PAYABLE_LOAN_STATUSES.has(loan.status);
+
+  let disabledReason = null;
+  if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
+    disabledReason = `Loan status ${loan.status} does not allow payments`;
+  } else if (targetRow.status === 'annulled') {
+    disabledReason = 'Installment is annulled';
+  } else if (outstandingAmount <= 0.01 || targetRow.status === 'paid') {
+    disabledReason = 'Installment is already paid';
+  } else if (!isNextPayable) {
+    disabledReason = nextPayableInstallmentNumber
+      ? `Pay installment #${nextPayableInstallmentNumber} first`
+      : 'No payable installments are available';
+  }
+
+  return {
+    loanId: loan.id,
+    installmentNumber: targetInstallmentNumber,
+    asOfDate: parsedAsOfDate.toISOString().slice(0, 10),
+    dueDate: targetRow.dueDate,
+    status: targetRow.status,
+    scheduledPayment: roundCurrency(targetRow.scheduledPayment || 0),
+    outstandingPrincipal,
+    outstandingInterest,
+    outstandingAmount,
+    lateFeeDue: lateFee.lateFeeDue,
+    lateFeeBase: lateFee.lateFeeBase,
+    lateFeeBaseType: lateFee.lateFeeBaseType,
+    annualLateFeeRate: Number(loan.annualLateFeeRate || 0),
+    lateFeeMode: loan.lateFeeMode || 'SIMPLE',
+    daysOverdue: lateFee.daysOverdue,
+    totalDue,
+    minimumSuggestedPayment: totalDue,
+    canPay,
+    disabledReason,
+    isNextPayable,
+    nextPayableInstallmentNumber,
+  };
+};
+
 const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
   if (outstandingAmount <= 0.01) {
     return 'paid';
@@ -290,7 +428,7 @@ const formatCalendarEntryStatus = ({ row, isOverdue, outstandingAmount }) => {
   return 'pending';
 };
 
-const buildCalendarEntries = ({ schedule, alerts }) => {
+const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() }) => {
   const activeAlertByInstallment = new Map(
     alerts
       .filter((alert) => alert.status === 'active')
@@ -301,6 +439,8 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
     alerts
       .map((alert) => [Number(alert.installmentNumber), alert]),
   );
+
+  const nextPayableInstallmentNumber = getNextPayableInstallmentNumber(schedule);
 
   return schedule.map((row) => {
     if (row.status === 'annulled') {
@@ -317,14 +457,28 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
         remainingInterest: roundCurrency(row.remainingInterest || 0),
         remainingBalance: roundCurrency(row.remainingBalance || 0),
         outstandingAmount: 0,
+        payableAmount: 0,
+        lateFeeDue: 0,
+        daysOverdue: 0,
+        canPay: false,
+        disabledReason: 'Installment is annulled',
+        isNextPayable: false,
         status: 'annulled',
         alertId: null,
       };
     }
 
-    const outstandingAmount = roundCurrency((row.remainingPrincipal || 0) + (row.remainingInterest || 0));
+    const outstandingAmount = getOutstandingAmount(row);
     const alert = activeAlertByInstallment.get(Number(row.installmentNumber)) || null;
-    const isOverdue = Boolean(alert);
+    const lateFee = calculateInstallmentLateFeeDue({ loan, row, asOfDate });
+    const isOverdue = Boolean(alert) || lateFee.daysOverdue > 0;
+    const isNextPayable = nextPayableInstallmentNumber === Number(row.installmentNumber);
+    const status = formatCalendarEntryStatus({ row, isOverdue, outstandingAmount });
+    const canPay = outstandingAmount > 0.01
+      && status !== 'paid'
+      && status !== 'annulled'
+      && isNextPayable
+      && PAYABLE_LOAN_STATUSES.has(loan.status);
 
     return {
       installmentNumber: row.installmentNumber,
@@ -339,7 +493,17 @@ const buildCalendarEntries = ({ schedule, alerts }) => {
       remainingInterest: roundCurrency(row.remainingInterest || 0),
       remainingBalance: roundCurrency(row.remainingBalance || 0),
       outstandingAmount,
-      status: formatCalendarEntryStatus({ row, isOverdue, outstandingAmount }),
+      payableAmount: roundCurrency(outstandingAmount + lateFee.lateFeeDue),
+      lateFeeDue: lateFee.lateFeeDue,
+      lateFeeBase: lateFee.lateFeeBase,
+      lateFeeBaseType: lateFee.lateFeeBaseType,
+      daysOverdue: lateFee.daysOverdue,
+      canPay,
+      disabledReason: canPay
+        ? null
+        : (isNextPayable ? null : `Pay installment #${nextPayableInstallmentNumber || row.installmentNumber} first`),
+      isNextPayable,
+      status,
       alertId: alertByInstallment.get(Number(row.installmentNumber))?.id || null,
     };
   });
@@ -429,7 +593,25 @@ const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({
 
 const createRestoreDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId, commitMessage }) => dagWorkbenchService.restoreGraph({ actor, graphId, commitMessage });
 
-const createListDagVariables = ({ dagVariableRepository }) => async ({ filters = {}, pagination }) => dagVariableRepository.list({ ...filters, ...pagination });
+const createListDagVariables = ({ dagVariableRepository, dagGraphRepository }) => async ({ filters = {}, pagination }) => {
+  const result = await dagVariableRepository.list({ ...filters, ...pagination });
+  const variables = result.items || result || [];
+
+  if (!dagGraphRepository || typeof dagGraphRepository.getVariableUsage !== 'function') {
+    return result;
+  }
+
+  const enrichedItems = await Promise.all(variables.map(async (variable) => ({
+    ...(typeof variable?.toJSON === 'function' ? variable.toJSON() : variable),
+    usage: await dagGraphRepository.getVariableUsage(variable.name),
+  })));
+
+  if (result.items) {
+    return { ...result, items: enrichedItems };
+  }
+
+  return enrichedItems;
+};
 
 const createCreateDagVariable = ({ dagVariableRepository }) => async ({ actor, payload }) => {
   const existing = await dagVariableRepository.findByName(payload.name);
@@ -456,13 +638,19 @@ const createUpdateDagVariable = ({ dagVariableRepository }) => async ({ id, payl
   return dagVariableRepository.update(id, payload);
 };
 
-const createDeleteDagVariable = ({ dagVariableRepository }) => async ({ id }) => {
+const createDeleteDagVariable = ({ dagVariableRepository, dagGraphRepository }) => async ({ id }) => {
   const variable = await dagVariableRepository.findById(id);
   if (!variable) {
     throw new NotFoundError('Variable');
   }
-  if (variable.status !== 'idle') {
-    throw new ValidationError('Only idle variables can be deleted');
+  if (dagGraphRepository && typeof dagGraphRepository.getVariableUsage === 'function') {
+    const usage = await dagGraphRepository.getVariableUsage(variable.name);
+    if (usage?.isReferencedByProtectedGraph) {
+      throw new ValidationError('Variable is used by an active or locked formula and cannot be deleted');
+    }
+  }
+  if (!['idle', 'deprecated'].includes(variable.status)) {
+    throw new ValidationError('Only idle or retired variables can be deleted');
   }
   return dagVariableRepository.delete(id);
 };
@@ -793,17 +981,33 @@ const createListLoanAlerts = ({ alertRepository, loanAccessPolicy, loanViewServi
   return alertRepository.listByLoan(loan.id);
 };
 
-const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId }) => {
+const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
   const alerts = await alertRepository.listByLoan(loan.id);
 
   return {
     loanId: loan.id,
-    entries: buildCalendarEntries({ schedule, alerts }),
+    entries: buildCalendarEntries({ loan, schedule, alerts, asOfDate: asOfDate || new Date() }),
     snapshot,
     alerts,
   };
+};
+
+const createGetInstallmentQuote = ({ loanAccessPolicy, loanViewService }) => async ({
+  actor,
+  loanId,
+  installmentNumber,
+  asOfDate,
+}) => {
+  const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+  const { schedule } = loanViewService.getCanonicalLoanView(loan);
+  return buildInstallmentQuote({
+    loan,
+    schedule,
+    installmentNumber,
+    asOfDate: asOfDate || new Date(),
+  });
 };
 
 const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
@@ -814,8 +1018,8 @@ const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({
 
 const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, auditService, clock = () => new Date() }) => {
   const useCase = async ({ actor, loanId, asOfDate, quotedTotal }) => {
-    if (actor?.role !== 'customer') {
-      throw new AuthorizationError('Only customers can execute payoff payments');
+    if (!['admin', 'customer'].includes(actor?.role)) {
+      throw new AuthorizationError('Only admins or customers can execute payoff payments');
     }
 
     const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -825,6 +1029,7 @@ const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, audi
       asOfDate,
       quotedTotal,
       paymentDate: clock(),
+      actor,
     });
   };
 
@@ -839,15 +1044,17 @@ const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => asy
   return promiseRepository.expireBrokenPromises({ loanId: loan.id });
 };
 
-const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, auditService }) => {
+const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
   const useCase = async ({ actor, loanId, payload }) => {
     if (actor.role !== 'admin') {
       throw new AuthorizationError('Only admins can create promises to pay');
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
-    const promisedDate = new Date(payload.promisedDate);
-    if (Number.isNaN(promisedDate.getTime())) {
+    let promisedDate;
+    try {
+      promisedDate = normalizeUtcDateOnly(payload.promisedDate, 'Promised date');
+    } catch {
       throw new ValidationError('Promised date is required');
     }
 
@@ -863,7 +1070,7 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, auditSe
       actorId: actor.id,
     }];
 
-    return promiseRepository.create({
+    const promise = await promiseRepository.create({
       loanId: loan.id,
       createdByUserId: actor.id,
       promisedDate,
@@ -873,6 +1080,19 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, auditSe
       statusHistory,
       lastStatusChangedAt: now,
     });
+
+    if (notificationPort?.sendPromiseCreated) {
+      const recipients = uniqueNotificationRecipients(loan.customerId, actor.id);
+      await Promise.all(recipients.map((userId) => sendOptionalNotification(() => notificationPort.sendPromiseCreated(userId, {
+        loanId: loan.id,
+        promiseId: promise.id,
+        amount,
+        promisedDate: promisedDate.toISOString().slice(0, 10),
+        createdByUserId: actor.id,
+      }))));
+    }
+
+    return promise;
   };
 
   if (auditService) {
@@ -933,8 +1153,8 @@ const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificat
   }
 
   const shouldNotifyCustomer = payload.notifyCustomer !== false;
-  if (shouldNotifyCustomer && loan.customerId) {
-    await notificationPort.sendLoanReminder(loan.customerId, {
+  const notificationSent = shouldNotifyCustomer && loan.customerId
+    ? await sendOptionalNotification(() => notificationPort.sendLoanReminder(loan.customerId, {
       alertId: reminder.id,
       customerId: loan.customerId,
       loanId: loan.id,
@@ -942,12 +1162,12 @@ const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificat
       installmentNumber: reminder.installmentNumber,
       outstandingAmount: reminder.outstandingAmount,
       notes: payload.notes ? String(payload.notes).trim() : null,
-    });
-  }
+    }))
+    : false;
 
   return {
     reminder,
-    notificationSent: shouldNotifyCustomer && Boolean(loan.customerId),
+    notificationSent,
   };
 };
 
@@ -1027,13 +1247,13 @@ const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, n
     const updatedPromise = await promiseRepository.save(promise);
 
     if (payload.notifyCustomer !== false && loan.customerId) {
-      await notificationPort.sendPromiseStatus(loan.customerId, {
+      await sendOptionalNotification(() => notificationPort.sendPromiseStatus(loan.customerId, {
         customerId: loan.customerId,
         loanId: loan.id,
         promiseId: updatedPromise.id,
         status: updatedPromise.status,
         fulfilledPaymentId: updatedPromise.fulfilledPaymentId,
-      });
+      }));
     }
 
     return updatedPromise;
@@ -1352,6 +1572,7 @@ module.exports = {
   createDownloadLoanAttachment,
   createListLoanAlerts,
   createGetPaymentCalendar,
+  createGetInstallmentQuote,
   createGetPayoffQuote,
   createExecutePayoff,
   createListPromisesToPay,
