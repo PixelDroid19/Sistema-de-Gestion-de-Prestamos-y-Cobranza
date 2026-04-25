@@ -22,9 +22,20 @@ const { runWithRequestContext } = require('./modules/shared/requestContext');
 const createApp = ({
   sharedRuntime = createSharedRuntime(),
   moduleRegistry = buildModuleRegistry({ sharedRuntime }),
+  rateLimiters = {},
 } = {}) => {
   const app = express();
-  const { globalLimiter } = require('./middleware/rateLimiter');
+  const defaultRateLimiters = require('./middleware/rateLimiter');
+  const effectiveRateLimiters = {
+    ...defaultRateLimiters,
+    ...rateLimiters,
+  };
+  const {
+    globalLimiter,
+    readLimiter = globalLimiter,
+    isReadOnlyRequest = () => false,
+    shouldBypassGlobalRateLimit = () => false,
+  } = effectiveRateLimiters;
 
   if (helmet) {
     app.use(helmet());
@@ -65,7 +76,19 @@ const createApp = ({
   };
 
   app.use(cors(corsOptions));
-  app.use(globalLimiter);
+  app.use((req, res, next) => {
+    if (shouldBypassGlobalRateLimit(req)) {
+      next();
+      return;
+    }
+
+    if (isReadOnlyRequest(req)) {
+      readLimiter(req, res, next);
+      return;
+    }
+
+    globalLimiter(req, res, next);
+  });
   app.use((req, res, next) => runWithRequestContext({ req, res }, next));
   app.use(express.json({ limit: '2mb' })); // Reduced limit for better security
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
