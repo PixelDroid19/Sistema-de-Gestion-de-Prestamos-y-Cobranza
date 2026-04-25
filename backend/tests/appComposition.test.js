@@ -216,3 +216,83 @@ test('createApp preserves request context for async route handlers', async () =>
     userAgent: 'context-test',
   });
 });
+
+test('createApp keeps auth routes out of the global limiter and uses a read limiter for navigation traffic', async () => {
+  const authRouter = express.Router();
+  authRouter.post('/login', (req, res) => {
+    res.json({ success: true, source: 'auth-login' });
+  });
+
+  const creditsRouter = express.Router();
+  creditsRouter.get('/', (req, res) => {
+    res.json({ success: true, source: 'credits-read' });
+  });
+  creditsRouter.post('/', (req, res) => {
+    res.json({ success: true, source: 'credits-write' });
+  });
+
+  const calls = [];
+  const readLimiter = (req, res, next) => {
+    calls.push(`read:${req.method}:${req.path}`);
+    next();
+  };
+  const globalLimiter = (req, res, next) => {
+    calls.push(`global:${req.method}:${req.path}`);
+    res.status(429).json({
+      status: 'error',
+      code: 'TOO_MANY_REQUESTS',
+      message: 'blocked-by-global',
+    });
+  };
+
+  const app = createApp({
+    sharedRuntime: { id: 'runtime-5' },
+    rateLimiters: { readLimiter, globalLimiter },
+    moduleRegistry: [
+      {
+        name: 'auth',
+        basePath: '/api/auth',
+        router: authRouter,
+      },
+      {
+        name: 'credits',
+        basePath: '/api/loans',
+        router: creditsRouter,
+      },
+    ],
+  });
+
+  activeServer = await listen(app);
+
+  const loginResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/api/auth/login',
+    body: { email: 'admin@example.com', password: 'Admin1234' },
+  });
+  const creditsReadResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/api/loans',
+  });
+  const creditsWriteResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/api/loans',
+    body: { amount: 1000 },
+  });
+
+  assert.equal(loginResponse.statusCode, 200);
+  assert.deepEqual(loginResponse.body, {
+    success: true,
+    source: 'auth-login',
+  });
+  assert.equal(creditsReadResponse.statusCode, 200);
+  assert.deepEqual(creditsReadResponse.body, {
+    success: true,
+    source: 'credits-read',
+  });
+  assert.equal(creditsWriteResponse.statusCode, 429);
+  assert.equal(creditsWriteResponse.body.message, 'blocked-by-global');
+  assert.deepEqual(calls, [
+    'read:GET:/api/loans',
+    'global:POST:/api/loans',
+  ]);
+});

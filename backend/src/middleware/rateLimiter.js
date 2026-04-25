@@ -35,6 +35,13 @@ const buildRateLimitIdentifier = (req, keyPrefix) => {
   return ip;
 };
 
+const isReadOnlyRequest = (req) => ['GET', 'HEAD', 'OPTIONS'].includes(String(req?.method || '').toUpperCase());
+
+const shouldBypassGlobalRateLimit = (req) => {
+  const path = String(req?.originalUrl || req?.url || req?.path || '');
+  return path.startsWith('/api/auth');
+};
+
 /**
  * Create a rate limiter backed by PostgreSQL using sliding window algorithm.
  * This provides:
@@ -213,6 +220,14 @@ const globalLimiter = createRateLimiter({
   message: 'Demasiadas peticiones desde esta IP. Intente de nuevo en un minuto.',
 });
 
+// Read limiter: 600 navigation/data requests per minute per IP
+const readLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 600,
+  keyPrefix: 'read',
+  message: 'Demasiadas consultas desde esta IP. Intente de nuevo en un minuto.',
+});
+
 // Auth limiter: 10 attempts per 15 minutes
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
@@ -239,6 +254,7 @@ const workbenchLimiter = createRateLimiter({
 
 module.exports = {
   globalLimiter,
+  readLimiter,
   authLimiter,
   paymentLimiter,
   workbenchLimiter,
@@ -247,4 +263,6 @@ module.exports = {
   createInMemoryRateLimiter,
   buildRateLimitIdentifier,
   resolveClientIp,
+  isReadOnlyRequest,
+  shouldBypassGlobalRateLimit,
 };
