@@ -1,0 +1,18 @@
+# Docker Compose override para desarrollo
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      DB_SCHEMA_MODE: alter
+    command: npm run dev
+    # Puerto expuesto en el host (cambia a 5000 si querés el mismo puerto)
+    ports:
+      - "5001:5000"

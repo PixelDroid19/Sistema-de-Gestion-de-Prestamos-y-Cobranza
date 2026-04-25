@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   db:
     image: postgres:16
@@ -7,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-loan_recovery_system}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,22 +14,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
   backend:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
-      - NODE_ENV=development
-      - DB_HOST=db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - DB_NAME=${DB_NAME:-loan_recovery_system}
-      - DB_PORT=${DB_PORT:-5432}
-      - JWT_SECRET=${JWT_SECRET}
+      NODE_ENV: development
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-loan_recovery_system}
+      DB_PORT: ${DB_PORT:-5432}
+      JWT_SECRET: ${JWT_SECRET:-change_me}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - .:/app
+
 volumes:
   pgdata:

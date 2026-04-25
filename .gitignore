@@ -8,3 +8,4 @@ frontend/package-lock.json
 .atl/
 nul
 openspec/
+node_modules/
