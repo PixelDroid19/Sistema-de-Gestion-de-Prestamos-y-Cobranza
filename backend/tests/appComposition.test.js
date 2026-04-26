@@ -46,7 +46,38 @@ test('createApp mounts injected routes from the module registry and documents on
   });
   assert.equal(docsResponse.statusCode, 200);
   assert.equal(docsResponse.body.endpoints.auth, '/api/auth');
+  assert.equal(docsResponse.body.docs.openapi, '/api/docs/openapi.json');
   assert.equal('notifications' in docsResponse.body.endpoints, false);
+});
+
+test('createApp exposes OpenAPI documentation for registered production surfaces', async () => {
+  const app = createApp({
+    sharedRuntime: { id: 'runtime-docs' },
+    moduleRegistry: [
+      {
+        name: 'credits',
+        basePath: '/api/loans',
+        router: express.Router(),
+      },
+      {
+        name: 'config',
+        basePath: '/api/config',
+        router: express.Router(),
+      },
+    ],
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/api/docs/openapi.json',
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.openapi, '3.0.3');
+  assert.equal(response.body.paths['/loans/calculations'].post.tags[0], 'Credits');
+  assert.equal(response.body.paths['/config/rate-policies'].get.tags[0], 'Config');
+  assert.equal(response.body['x-module-endpoints'].credits, '/api/loans');
 });
 
 test('createApp forwards all modularized business surfaces from injected module routers', async () => {

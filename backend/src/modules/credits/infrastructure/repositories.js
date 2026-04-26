@@ -14,6 +14,8 @@ const {
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
 const { createCreditCalculationService } = require('@/modules/credits/application/creditCalculationService');
+const { createCreditPolicyResolver } = require('@/modules/credits/application/creditPolicyResolver');
+const { configRepository } = require('@/modules/config/infrastructure/repositories');
 const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
@@ -201,7 +203,7 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
  * dagGraphRepository → graphExecutor → calculationService → creditSimulator
  * ordering is guaranteed.
  *
- * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, dagConfig?: object }} [options]
+ * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, dagConfig?: object, configRepositoryPort?: object, policyResolverOverride?: object }} [options]
  * @returns {object}
  */
 const createCreditsInfrastructure = ({
@@ -217,6 +219,7 @@ const createCreditsInfrastructure = ({
   dagSimulationSummaryModel = DagSimulationSummary,
   dagVariableModel = DagVariable,
   dagConfig = createCreditsDagConfig(),
+  configRepositoryPort = configRepository,
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
   // Overridable for testing — if not provided, built below from the dag graph repository
@@ -225,6 +228,7 @@ const createCreditsInfrastructure = ({
   creditSimulatorOverride,
   detailedCreditSimulatorOverride,
   loanCreatorOverride,
+  policyResolverOverride,
 } = {}) => {
   const loanIncludes = [
     customerModel,
@@ -454,11 +458,13 @@ const createCreditsInfrastructure = ({
   const calculationService = calculationServiceOverride || createCreditsCalculationService({
     graphExecutor,
   });
-  const creditCalculationService = createCreditCalculationService({ calculationService });
+  const policyResolver = policyResolverOverride || createCreditPolicyResolver({ configRepository: configRepositoryPort });
+  const creditCalculationService = createCreditCalculationService({ calculationService, policyResolver });
   const creditCalculator = creditSimulatorOverride || creditCalculationService.calculate;
   const detailedCreditCalculator = detailedCreditSimulatorOverride || creditCalculationService.calculateDetailed;
   const loanCreator = loanCreatorOverride || createLoanFromCanonicalDataFactory({
     calculationService,
+    policyResolver,
     customerModel,
     associateModel,
     loanModel,

@@ -135,6 +135,81 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results with grap
   assert.equal(persistedPayload.emiSchedule[0].scheduledPayment, 90);
 });
 
+test('createLoanFromCanonicalDataFactory persists resolved rate and late-fee policies in the loan snapshot', async () => {
+  let persistedPayload;
+  let calculationInput;
+
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    persistedPayload = payload;
+    return { id: 90, ...payload };
+  });
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    policyResolver: {
+      async resolve({ input }) {
+        return {
+          calculationInput: {
+            ...input,
+            interestRate: 48,
+            lateFeeMode: 'SIMPLE',
+            annualLateFeeRate: 30,
+          },
+          policySnapshot: {
+            ratePolicyId: 10,
+            ratePolicyLabel: 'Tasa estándar',
+            lateFeePolicyId: 20,
+            lateFeePolicyLabel: 'Mora simple',
+            appliedInterestRate: 48,
+            appliedLateFeeMode: 'SIMPLE',
+            appliedAnnualLateFeeRate: 30,
+          },
+        };
+      },
+    },
+    calculationService: {
+      async calculate(input) {
+        calculationInput = input;
+        return {
+          graphVersionId: 701,
+          result: {
+            lateFeeMode: input.lateFeeMode,
+            schedule: [{ installmentNumber: 1, scheduledPayment: 120, principalComponent: 100, interestComponent: 20 }],
+            summary: {
+              installmentAmount: 120,
+              totalPayable: 120,
+              totalPaid: 0,
+              outstandingPrincipal: 100,
+              outstandingInterest: 20,
+              outstandingBalance: 120,
+              outstandingInstallments: 1,
+            },
+          },
+        };
+      },
+    },
+  });
+
+  const loan = await createLoan({
+    customerId: 1,
+    amount: 100,
+    interestRate: 12,
+    termMonths: 1,
+    rateSource: 'policy',
+    lateFeeSource: 'policy',
+  });
+
+  assert.equal(loan.id, 90);
+  assert.equal(calculationInput.interestRate, 48);
+  assert.equal(calculationInput.lateFeeMode, 'SIMPLE');
+  assert.equal(persistedPayload.interestRate, 48);
+  assert.equal(persistedPayload.annualLateFeeRate, 30);
+  assert.equal(persistedPayload.financialSnapshot.policySnapshot.ratePolicyId, 10);
+  assert.equal(persistedPayload.financialSnapshot.policySnapshot.lateFeePolicyId, 20);
+});
+
 test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fallback', async () => {
   let persistedPayload;
 

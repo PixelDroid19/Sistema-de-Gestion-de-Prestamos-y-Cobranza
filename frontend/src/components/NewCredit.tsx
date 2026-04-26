@@ -104,10 +104,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
     if (!rateWasEdited && resolvedRatePolicy?.annualEffectiveRate != null) {
       nextInput.interestRate = Number(resolvedRatePolicy.annualEffectiveRate);
+      nextInput.rateSource = 'policy';
     }
 
     if (!lateFeeWasEdited && resolvedLateFeePolicy?.lateFeeMode) {
       nextInput.lateFeeMode = String(resolvedLateFeePolicy.lateFeeMode) as SimulationInput['lateFeeMode'];
+      nextInput.annualLateFeeRate = Number(resolvedLateFeePolicy.annualEffectiveRate || 0);
+      nextInput.lateFeeSource = 'policy';
     }
 
     if (Object.keys(nextInput).length > 0) {
@@ -134,9 +137,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const handleSimulationInputChange = (partialInput: Partial<SimulationInput>) => {
     if (Object.prototype.hasOwnProperty.call(partialInput, 'interestRate')) {
       setRateWasEdited(true);
+      partialInput.rateSource = 'manual';
     }
     if (Object.prototype.hasOwnProperty.call(partialInput, 'lateFeeMode')) {
       setLateFeeWasEdited(true);
+      partialInput.lateFeeSource = 'manual';
     }
     setInput(partialInput);
   };
@@ -181,6 +186,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         startDate: input.startDate,
         lateFeeMode: input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate,
+        rateSource: rateWasEdited ? 'manual' : 'policy',
+        lateFeeSource: lateFeeWasEdited ? 'manual' : 'policy',
       });
       const createdLoanId = Number(response?.data?.loan?.id);
       const versionLabel = result?.graphVersionId != null ? ` fórmula v${result.graphVersionId}` : ' fórmula activa';
