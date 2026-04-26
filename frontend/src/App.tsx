@@ -8,7 +8,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Toaster } from './lib/toast';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { GuestRoute, ProtectedRoute } from './components/ProtectedRoute';
 import { useSessionStore } from './store/sessionStore';
 import { getDefaultRouteForUser } from './constants/appAccess';
 
@@ -102,6 +102,7 @@ function MainLayout() {
               <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin']}><Customers setCurrentView={setCurrentView} /></ProtectedRoute>} />
               <Route path="/customers/:id" element={<ProtectedRoute allowedRoles={['admin']}><CustomerDetails /></ProtectedRoute>} />
               <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
+              <Route path="/customers/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
               <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
               <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
               <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
@@ -110,6 +111,7 @@ function MainLayout() {
               <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><PaymentSchedule /></ProtectedRoute>} />
               <Route path="/associates" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociatesLandingRoute setCurrentView={setCurrentView} /></ProtectedRoute>} />
               <Route path="/associates-new" element={<ProtectedRoute allowedRoles={['admin']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
+              <Route path="/associates/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
               <Route path="/associates/:id" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociateDetails /></ProtectedRoute>} />
               
               <Route path="/payouts" element={<ProtectedRoute allowedRoles={['admin']}><Payouts /></ProtectedRoute>} />
@@ -150,7 +152,7 @@ export default function App() {
       />
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
           <Route
             path="/*"
             element={

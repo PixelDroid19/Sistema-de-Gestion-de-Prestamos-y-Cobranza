@@ -18,7 +18,20 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
   };
 
   router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listAssociates({ pagination: req.pagination });
+    const filters = {
+      search: req.query.search,
+      status: req.query.status,
+    };
+    const hasFilters = Object.values(filters).some((value) => value !== undefined);
+    const input = {
+      pagination: req.pagination,
+    };
+
+    if (hasFilters) {
+      input.filters = filters;
+    }
+
+    const result = await useCases.listAssociates(input);
     if (result?.pagination) {
       res.json({ success: true, count: result.pagination.totalItems, data: { associates: result.items, pagination: result.pagination } });
       return;

@@ -13,17 +13,17 @@ interface Contribution {
 interface ContributionModalProps {
   contributions: Contribution[] | undefined;
   isLoading: boolean;
-  associateId: number;
-  onAddContribution: (data: { amount: number; date: string }) => Promise<void>;
+  onAddContribution: (data: { amount: number; contributionDate: string }) => Promise<void>;
   onClose: () => void;
+  canAddContribution?: boolean;
 }
 
 export default function ContributionModal({
   contributions,
   isLoading,
-  associateId,
   onAddContribution,
   onClose,
+  canAddContribution = true,
 }: ContributionModalProps) {
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,7 +37,7 @@ export default function ContributionModal({
     try {
       await onAddContribution({
         amount: parseFloat(amount),
-        date: new Date().toISOString(),
+        contributionDate: new Date().toISOString(),
       });
       setAmount('');
       setShowAddForm(false);
@@ -69,7 +69,7 @@ export default function ContributionModal({
         {/* Content */}
         <div className="p-4 max-h-[60vh] overflow-y-auto">
           {/* Add Contribution Button */}
-          {!showAddForm && (
+          {canAddContribution && !showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
               className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors mb-4"
@@ -79,7 +79,7 @@ export default function ContributionModal({
           )}
 
           {/* Add Contribution Form */}
-          {showAddForm && (
+          {canAddContribution && showAddForm && (
             <form onSubmit={handleSubmit} className="bg-bg-base border border-border-subtle rounded-xl p-4 mb-4">
               <h4 className="text-sm font-medium text-text-primary mb-3">Registrar Nueva Aportación</h4>
               <div className="space-y-3">

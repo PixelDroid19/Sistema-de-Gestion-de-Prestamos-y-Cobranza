@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, FlaskConical, UserRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
 import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
+import { APP_BRAND } from '../constants/appShell';
+import { useAuth } from '../services/authService';
 
 export default function Sidebar({ 
   currentView, 
@@ -19,17 +22,20 @@ export default function Sidebar({
   isMobileOpen: boolean,
   setIsMobileOpen: (v: boolean) => void
 }) {
+  const navigate = useNavigate();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     clientes: false,
     creditos: false,
     socios: false,
     formulas: false,
   });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
   const isCreditsView = currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator';
   const isAssociatesView = currentView.startsWith('associate');
-  const { user, logout } = useSessionStore();
+  const { user } = useSessionStore();
+  const { logout: requestLogout } = useAuth();
   const resolvedRole = user?.role ?? 'admin';
   const isAdmin = resolvedRole === 'admin';
   const isCustomer = resolvedRole === 'customer';
@@ -58,6 +64,21 @@ export default function Sidebar({
     }
   };
 
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+    try {
+      await requestLogout();
+    } finally {
+      setIsMobileOpen(false);
+      navigate('/login', { replace: true });
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -80,9 +101,9 @@ export default function Sidebar({
         <div className={`flex items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView(homeView)}>
             <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm transition-transform group-hover:scale-105">
-              L
+              {APP_BRAND.monogram}
             </div>
-            {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">LendFlow</span>}
+            {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">{APP_BRAND.name}</span>}
           </div>
           
           {/* Botón cerrar (Solo Móvil) */}
@@ -201,8 +222,8 @@ export default function Sidebar({
                 />
                 {isAdmin && (
                   <>
-                    <SubNavItem
-                      active={currentView === 'credits-new'}
+                <SubNavItem
+                      active={currentView === 'credits-new' || currentView === 'credits/new'}
                       onClick={() => setCurrentView('credits-new')}
                       title={tTerm('sidebar.credits.origination')}
                       tooltip="Crear y registrar un credito nuevo"
@@ -287,13 +308,13 @@ export default function Sidebar({
                       ? 'text-brand-primary font-medium'
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                 }`}
-                title={isCollapsed ? 'Formulas' : undefined}
+                title={isCollapsed ? 'Fórmulas' : undefined}
               >
                 <div className="flex items-center gap-3">
                   <div className={`${(currentView === 'formulas' || currentView.startsWith('formulas/')) ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                     <FlaskConical size={20} />
                   </div>
-                  {!isCollapsed && <span className="text-sm whitespace-nowrap">Formulas</span>}
+                  {!isCollapsed && <span className="text-sm whitespace-nowrap">Fórmulas</span>}
                 </div>
                 {!isCollapsed && (
                   <div className={`transition-transform duration-200 ${openMenus['formulas'] ? 'rotate-180' : ''}`}>
@@ -311,13 +332,13 @@ export default function Sidebar({
                     active={currentView === 'formulas' || currentView.startsWith('formulas/') && currentView !== 'formulas/variables'}
                     onClick={() => setCurrentView('formulas')}
                     title="Editor"
-                    tooltip="Visual formula editor and DAG workbench"
+                    tooltip="Gestiona versiones activas y reglas de cálculo"
                   />
                   <SubNavItem
                     active={currentView === 'formulas/variables'}
                     onClick={() => setCurrentView('formulas/variables')}
                     title="Variables"
-                    tooltip="Manage DAG variables registry"
+                    tooltip="Administra parámetros usados por las fórmulas"
                   />
                 </div>
               )}
@@ -349,8 +370,14 @@ export default function Sidebar({
         <div className="flex flex-col gap-1 w-full px-3 mt-auto pt-6 border-t border-border-subtle">
           {isAdmin && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
           {isAdmin && <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />}
-          <NavItem icon={<Settings size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />
-          <NavItem icon={<LogOut size={20} />} onClick={logout} title={tTerm('sidebar.logout')} isCollapsed={isCollapsed} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" />
+          <NavItem icon={<UserRound size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />
+          <NavItem
+            icon={<LogOut size={20} />}
+            onClick={handleLogout}
+            title={isLoggingOut ? 'Cerrando sesión...' : tTerm('sidebar.logout')}
+            isCollapsed={isCollapsed}
+            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+          />
           
           {/* Botón Colapsar (Solo Escritorio) */}
           <button 

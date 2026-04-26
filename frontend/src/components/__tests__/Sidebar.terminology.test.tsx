@@ -4,7 +4,22 @@ import Sidebar from '../Sidebar';
 const mockLogout = vi.fn();
 
 vi.mock('../../store/sessionStore', () => ({
-  useSessionStore: () => ({ logout: mockLogout }),
+  useSessionStore: () => ({
+    logout: mockLogout,
+    user: {
+      id: 1,
+      name: 'Administrador QA',
+      email: 'admin@example.com',
+      role: 'admin',
+      associateId: null,
+    },
+  }),
+}));
+
+vi.mock('../../services/authService', () => ({
+  useAuth: () => ({
+    logout: mockLogout,
+  }),
 }));
 
 vi.mock('react-router-dom', () => ({

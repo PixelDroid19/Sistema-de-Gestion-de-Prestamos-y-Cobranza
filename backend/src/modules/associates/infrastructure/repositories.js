@@ -13,19 +13,76 @@ const { paginateModel } = require('@/modules/shared/pagination');
 
 const PROPORTIONAL_DISTRIBUTION_SCOPE = 'associates.proportional-distribution';
 
+const buildAssociateListWhere = (filters = {}) => {
+  const clauses = [];
+  const search = String(filters.search || '').trim();
+
+  if (search) {
+    const pattern = `%${search}%`;
+    clauses.push({
+      [Op.or]: [
+        { name: { [Op.iLike]: pattern } },
+        { email: { [Op.iLike]: pattern } },
+        { phone: { [Op.iLike]: pattern } },
+      ],
+    });
+  }
+
+  if (filters.status) {
+    clauses.push({ status: filters.status });
+  }
+
+  if (clauses.length === 0) {
+    return undefined;
+  }
+
+  return { [Op.and]: clauses };
+};
+
 /**
  * Persistence port for associate CRUD and contact-conflict checks.
  */
 const associateRepository = {
-  list() {
-    return Associate.findAll({ order: [['name', 'ASC']] });
+  list(filters = {}) {
+    return Associate.findAll({
+      where: buildAssociateListWhere(filters),
+      order: [['name', 'ASC']],
+    });
   },
-  listPage({ page, pageSize }) {
+  listPage({ page, pageSize, filters = {} }) {
     return paginateModel({
       model: Associate,
       page,
       pageSize,
+      where: buildAssociateListWhere(filters),
       order: [['name', 'ASC']],
+    });
+  },
+  async attachLoanCounts(associates) {
+    if (!Array.isArray(associates) || associates.length === 0) {
+      return [];
+    }
+
+    const associateIds = [...new Set(associates.map((associate) => Number(associate?.id)).filter(Number.isFinite))];
+    const loans = associateIds.length > 0
+      ? await Loan.findAll({
+        where: { associateId: associateIds },
+        attributes: ['id', 'associateId'],
+      })
+      : [];
+
+    const countsByAssociateId = new Map();
+    loans.forEach((loan) => {
+      const loanAssociateId = Number(loan.associateId);
+      countsByAssociateId.set(loanAssociateId, (countsByAssociateId.get(loanAssociateId) || 0) + 1);
+    });
+
+    return associates.map((associateRecord) => {
+      const associate = typeof associateRecord?.toJSON === 'function' ? associateRecord.toJSON() : associateRecord;
+      return {
+        ...associate,
+        loanCount: countsByAssociateId.get(Number(associate.id)) || 0,
+      };
     });
   },
   findById(id) {

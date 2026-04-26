@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../services/authService';
 import { toast } from '../lib/toast';
-import { getSafeErrorText } from '../services/safeErrorMessages';
+import { extractStatusCode, getSafeErrorText } from '../services/safeErrorMessages';
 import { getDefaultRouteForUser } from '../constants/appAccess';
+import { APP_BRAND } from '../constants/appShell';
 import {
   Mail,
   Lock,
@@ -39,7 +40,9 @@ export default function Login() {
     } catch (err: any) {
       console.error('[auth] login failed', err);
       setError(getSafeErrorText(err, { domain: 'auth', action: 'login' }));
-      toast.apiErrorSafe(err, { domain: 'auth', action: 'login' });
+      if (extractStatusCode(err) !== 401) {
+        toast.apiErrorSafe(err, { domain: 'auth', action: 'login' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +78,7 @@ export default function Login() {
           </div>
           
           <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
-            CrediCobranza
+            {APP_BRAND.name}
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed">
             Plataforma integral para la gestión de préstamos, cobranzas y seguimiento financiero.
@@ -90,7 +93,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 mb-4">
             <Lock className="w-5 h-5 text-white" strokeWidth={1.5} />
           </div>
-          <h1 className="text-xl font-bold text-text-primary">CrediCobranza</h1>
+          <h1 className="text-xl font-bold text-text-primary">{APP_BRAND.name}</h1>
         </div>
 
         <div className="w-full max-w-[380px]">

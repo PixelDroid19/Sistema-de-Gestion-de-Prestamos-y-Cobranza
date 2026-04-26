@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, TrendingUp, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
+import { ArrowLeft, Wallet, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
 import { useAssociateDetails } from '../services/associateService';
 import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
+import { useSessionStore } from '../store/sessionStore';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
@@ -12,6 +13,9 @@ export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const associateId = Number(id);
+  const { user } = useSessionStore();
+  const isAdmin = user?.role === 'admin';
+  const isSocio = user?.role === 'socio';
 
   const { portal, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
   const associate = portal?.associate ?? null;
@@ -58,18 +62,27 @@ export default function AssociateDetails() {
       const payload = { amount: parseFloat(amount), date: new Date().toISOString() };
       
       if (showModal === 'contribution') {
-        await createContribution.mutateAsync(payload);
+        await createContribution.mutateAsync({
+          amount: payload.amount,
+          contributionDate: new Date().toISOString(),
+        });
       } else if (showModal === 'distribution') {
-        await createDistribution.mutateAsync(payload);
+        await createDistribution.mutateAsync({
+          amount: payload.amount,
+          distributionDate: new Date().toISOString(),
+        });
       } else if (showModal === 'reinvestment') {
-        await createReinvestment.mutateAsync(payload);
+        await createReinvestment.mutateAsync({
+          amount: payload.amount,
+          reinvestmentDate: new Date().toISOString(),
+        });
       }
       
       setShowModal(null);
       setAmount('');
       toast.success({ title: 'Operación registrada exitosamente' });
     } catch (error) {
-      toast.error({ title: 'Error al registrar la operación' });
+      toast.apiErrorSafe(error, { domain: 'associates' });
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +93,7 @@ export default function AssociateDetails() {
       await payInstallment.mutateAsync(installmentNumber);
       toast.success({ title: 'Cuota marcada como pagada' });
     } catch (error) {
-      toast.error({ title: 'Error al marcar la cuota como pagada' });
+      toast.apiErrorSafe(error, { domain: 'associates' });
     }
   };
 
@@ -195,7 +208,7 @@ export default function AssociateDetails() {
                     </span>
                   </td>
                   <td className="py-4">
-                    {inst.status === 'pending' && (
+                    {isAdmin && inst.status === 'pending' && (
                       <button
                         onClick={() => handlePayInstallment(inst.installmentNumber)}
                         className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
@@ -301,22 +314,32 @@ export default function AssociateDetails() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowContributionsModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
-            <History size={16} /> Aportaciones
+            <History size={16} /> Historial de aportes
           </button>
           <button onClick={() => setShowInstallmentsModal(true)} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
             <Clock size={16} /> Cuotas
           </button>
-          <button onClick={() => setShowModal('contribution')} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
-            <Wallet size={16} /> Aportar
-          </button>
-          <button onClick={() => setShowModal('distribution')} className="flex items-center gap-2 bg-brand-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors">
-            <Download size={16} /> Retirar Ganancias
-          </button>
-          <button onClick={() => setShowModal('reinvestment')} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-            <RefreshCw size={16} /> Reinvertir
-          </button>
+          {isAdmin && (
+            <>
+              <button onClick={() => setShowModal('contribution')} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+                <Wallet size={16} /> Registrar aporte
+              </button>
+              <button onClick={() => setShowModal('distribution')} className="flex items-center gap-2 bg-brand-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors">
+                <Download size={16} /> Registrar retiro
+              </button>
+              <button onClick={() => setShowModal('reinvestment')} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                <RefreshCw size={16} /> Registrar reinversión
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {isSocio && (
+        <div className="rounded-2xl border border-border-subtle bg-bg-surface px-5 py-4 text-sm text-text-secondary">
+          Este portal te permite revisar tus aportes, distribuciones, cuotas y calendario. Los movimientos financieros se registran desde la mesa operativa.
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-border-subtle">
@@ -406,11 +429,11 @@ export default function AssociateDetails() {
         <ContributionModal
           contributions={contributions}
           isLoading={false}
-          associateId={associateId}
           onAddContribution={async (data) => {
             await createContribution.mutateAsync(data);
           }}
           onClose={() => setShowContributionsModal(false)}
+          canAddContribution={isAdmin}
         />
       )}
 

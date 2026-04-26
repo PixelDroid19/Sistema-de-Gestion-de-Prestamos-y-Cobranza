@@ -259,6 +259,105 @@ test('createCustomersRouter serves update contract responses', async () => {
   ]);
 });
 
+test('createCustomersRouter serves customer detail contract responses', async () => {
+  const calls = [];
+  const router = createCustomersRouter({
+    customerValidation,
+    authMiddleware: allowAuth,
+    attachmentUpload: { single() { return (req, res, next) => next(); } },
+    useCases: {
+      async listCustomers() { return []; },
+      async createCustomer() { return {}; },
+      async getCustomerById(input) {
+        calls.push(['getCustomerById', input]);
+        return {
+          id: 7,
+          name: 'Cliente Detalle',
+          status: 'active',
+          loanCount: 1,
+        };
+      },
+      async listCustomerDocuments() { return []; },
+      async uploadCustomerDocument() { return { id: 1 }; },
+      async downloadCustomerDocument() { return { document: { originalName: 'doc.pdf' }, absolutePath: __filename }; },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/7',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    data: {
+      customer: {
+        id: 7,
+        name: 'Cliente Detalle',
+        status: 'active',
+        loanCount: 1,
+      },
+    },
+    message: 'Customer retrieved successfully',
+  });
+  assert.deepEqual(calls, [
+    ['getCustomerById', { customerId: '7' }],
+  ]);
+});
+
+test('createCustomersRouter forwards list filters to the customer use case', async () => {
+  const calls = [];
+  const router = createCustomersRouter({
+    customerValidation,
+    authMiddleware: allowAuth,
+    attachmentUpload: { single() { return (req, res, next) => next(); } },
+    useCases: {
+      async listCustomers(input) {
+        calls.push(input);
+        return {
+          items: [],
+          pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+        };
+      },
+      async createCustomer() { return {}; },
+      async updateCustomer() { return {}; },
+      async deleteCustomer() { return { success: true }; },
+      async findCustomerByDocument() { return {}; },
+      async listCustomerDocuments() { return []; },
+      async uploadCustomerDocument() { return { id: 1 }; },
+      async downloadCustomerDocument() { return { document: { originalName: 'doc.pdf' }, absolutePath: __filename }; },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/?page=2&pageSize=10&search=ana&status=inactive&registeredWithin=month',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls, [
+    {
+      pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 },
+      filters: { search: 'ana', status: 'inactive', registeredWithin: 'month' },
+    },
+  ]);
+});
+
 test('globalErrorHandler returns conflict payload when unique constraint path metadata is missing', async () => {
   const app = express();
 

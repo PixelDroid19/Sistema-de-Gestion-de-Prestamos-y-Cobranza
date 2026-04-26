@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   createListCustomers,
+  createGetCustomerById,
   createCreateCustomer,
   createListCustomerDocuments,
   createUploadCustomerDocument,
@@ -40,6 +41,61 @@ test('createListCustomers preserves repository pagination results', async () => 
   assert.deepEqual(result, {
     items: [{ id: 4 }, { id: 3 }],
     pagination: { page: 2, pageSize: 2, totalItems: 5, totalPages: 3 },
+  });
+});
+
+test('createListCustomers forwards normalized filters to the repository', async () => {
+  const calls = [];
+  const listCustomers = createListCustomers({
+    customerRepository: {
+      async listPage(input) {
+        calls.push(input);
+        return {
+          items: [{ id: 8 }],
+          pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+        };
+      },
+    },
+  });
+
+  await listCustomers({
+    pagination: { page: 1, pageSize: 10 },
+    filters: {
+      search: ' ana@example.com ',
+      status: 'ACTIVE',
+      registeredWithin: 'MONTH',
+    },
+  });
+
+  assert.deepEqual(calls, [
+    {
+      page: 1,
+      pageSize: 10,
+      filters: {
+        search: 'ana@example.com',
+        status: 'active',
+        registeredWithin: 'month',
+      },
+    },
+  ]);
+});
+
+test('createListCustomers rejects unsupported list filters with a validation error', async () => {
+  const listCustomers = createListCustomers({
+    customerRepository: {
+      async listPage() {
+        throw new Error('should not reach repository');
+      },
+    },
+  });
+
+  await assert.rejects(() => listCustomers({
+    pagination: { page: 1, pageSize: 10 },
+    filters: { status: 'pending' },
+  }), (error) => {
+    assert.equal(error.name, 'ValidationError');
+    assert.equal(error.message, 'Customer status filter must be active, inactive, or blacklisted');
+    return true;
   });
 });
 
@@ -99,6 +155,46 @@ test('createListCustomers enriches rows with linked loan summary fields when ava
       },
     },
   ]);
+});
+
+test('createGetCustomerById returns an enriched customer record', async () => {
+  const getCustomerById = createGetCustomerById({
+    customerRepository: {
+      async findById(id) {
+        return { id: Number(id), name: 'Cliente Detalle' };
+      },
+      async attachLoanSummaries(customers) {
+        return customers.map((customer) => ({
+          ...customer,
+          loanCount: 1,
+          activeLoans: 1,
+          loanSummary: {
+            totalLoans: 1,
+            activeLoans: 1,
+            totalOutstandingBalance: 320,
+            latestLoanId: 12,
+            latestLoanStatus: 'approved',
+          },
+        }));
+      },
+    },
+  });
+
+  const customer = await getCustomerById({ customerId: 9 });
+
+  assert.deepEqual(customer, {
+    id: 9,
+    name: 'Cliente Detalle',
+    loanCount: 1,
+    activeLoans: 1,
+    loanSummary: {
+      totalLoans: 1,
+      activeLoans: 1,
+      totalOutstandingBalance: 320,
+      latestLoanId: 12,
+      latestLoanStatus: 'approved',
+    },
+  });
 });
 
 test('createCreateCustomer delegates persistence to the repository', async () => {

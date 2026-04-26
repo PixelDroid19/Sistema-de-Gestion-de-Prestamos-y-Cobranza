@@ -1,6 +1,7 @@
 const Customer = require('@/models/Customer');
 const { sequelize, DocumentAttachment, Loan, User } = require('@/models');
 const { paginateModel } = require('@/modules/shared/pagination');
+const { Op } = require('sequelize');
 
 const ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
 
@@ -67,18 +68,75 @@ const buildLoanSummary = (loans = []) => {
   };
 };
 
+const getRegisteredAtFilter = (registeredWithin) => {
+  if (!registeredWithin) {
+    return null;
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  if (registeredWithin === 'week') {
+    const currentWeekDay = start.getDay() || 7;
+    start.setDate(start.getDate() - currentWeekDay + 1);
+  } else if (registeredWithin === 'month') {
+    start.setDate(1);
+  } else if (registeredWithin === 'year') {
+    start.setMonth(0, 1);
+  }
+
+  return { [Op.gte]: start };
+};
+
+const buildCustomerListWhere = (filters = {}) => {
+  const clauses = [];
+  const search = String(filters.search || '').trim();
+
+  if (search) {
+    const pattern = `%${search}%`;
+    clauses.push({
+      [Op.or]: [
+        { name: { [Op.iLike]: pattern } },
+        { email: { [Op.iLike]: pattern } },
+        { phone: { [Op.iLike]: pattern } },
+        { documentNumber: { [Op.iLike]: pattern } },
+        { address: { [Op.iLike]: pattern } },
+      ],
+    });
+  }
+
+  if (filters.status) {
+    clauses.push({ status: filters.status });
+  }
+
+  const registeredAtFilter = getRegisteredAtFilter(filters.registeredWithin);
+  if (registeredAtFilter) {
+    clauses.push({ createdAt: registeredAtFilter });
+  }
+
+  if (clauses.length === 0) {
+    return undefined;
+  }
+
+  return { [Op.and]: clauses };
+};
+
 /**
  * Persistence port for customer list and creation workflows.
  */
 const customerRepository = {
-  list() {
-    return Customer.findAll({ order: [['createdAt', 'DESC']] });
+  list(filters = {}) {
+    return Customer.findAll({
+      where: buildCustomerListWhere(filters),
+      order: [['createdAt', 'DESC']],
+    });
   },
-  listPage({ page, pageSize }) {
+  listPage({ page, pageSize, filters = {} }) {
     return paginateModel({
       model: Customer,
       page,
       pageSize,
+      where: buildCustomerListWhere(filters),
       order: [['createdAt', 'DESC']],
     });
   },

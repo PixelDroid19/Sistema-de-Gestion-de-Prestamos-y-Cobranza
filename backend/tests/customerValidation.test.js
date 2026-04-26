@@ -22,6 +22,17 @@ test('customerValidation.update accepts partial customer profile updates', async
   }));
 });
 
+test('customerValidation.create accepts supported customer statuses', async () => {
+  await assert.doesNotReject(() => runMiddleware(customerValidation.create, {
+    body: {
+      name: 'Camila Torres',
+      email: 'camila@example.com',
+      phone: '+573001112244',
+      status: 'blacklisted',
+    },
+  }));
+});
+
 test('customerValidation.update rejects invalid partial customer updates with structured errors', async () => {
   const error = await captureMiddlewareError(customerValidation.update, {
     body: {
@@ -44,7 +55,7 @@ test('customerValidation.update rejects invalid partial customer updates with st
     { field: 'name', message: 'Name must be at least 2 characters long' },
     { field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' },
     { field: 'phone', message: 'Valid phone number is required' },
-    { field: 'status', message: 'Status must be active or inactive' },
+    { field: 'status', message: 'Status must be active, inactive, or blacklisted' },
     { field: 'birthDate', message: 'Birth date must be a valid YYYY-MM-DD date' },
     { field: 'documentNumber', message: 'Document number cannot be empty' },
     { field: 'occupation', message: 'Occupation cannot be empty' },

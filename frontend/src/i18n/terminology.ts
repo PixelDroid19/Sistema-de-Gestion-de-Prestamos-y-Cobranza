@@ -331,12 +331,12 @@ const TERMINOLOGY = {
 
   // Dashboard
   'dashboard.module.title': 'Dashboard',
-  'dashboard.module.subtitle': 'Resumen general de tu cuenta.',
+  'dashboard.module.subtitle': 'Resumen operativo de la cartera.',
   'dashboard.loading': 'Cargando dashboard...',
-  'dashboard.cta.widgets': 'Widgets',
-  'dashboard.cta.editLayout': 'Editar diseño',
-  'dashboard.cta.saveLayout': 'Guardar diseño',
-  'dashboard.widgetManager.title': 'Administrar widgets',
+  'dashboard.cta.widgets': 'Bloques',
+  'dashboard.cta.editLayout': 'Reordenar panel',
+  'dashboard.cta.saveLayout': 'Guardar orden',
+  'dashboard.widgetManager.title': 'Mostrar u ocultar bloques',
   'dashboard.kpi.scope.label': 'Alcance KPI',
   'dashboard.kpi.scope.lifetime': 'Totales acumulados históricos de la cartera.',
   'dashboard.chart.scope.label': 'Alcance gráfico',

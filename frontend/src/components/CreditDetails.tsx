@@ -337,6 +337,41 @@ export default function CreditDetails() {
     enabled: isRecordPaymentModalOpen && Boolean(selectedInstallmentNumber),
   });
   const installmentQuote = installmentQuoteQuery.data?.data?.quote;
+  const installmentRows = useMemo(() => {
+    const initialAmount = Number(loan?.amount ?? 0);
+
+    return calendarEntries.reduce((rows: any[], installment: any, index: number) => {
+      const scheduledPayment = installment.scheduledPayment ?? 0;
+      const interestComponent = installment.interestComponent ?? installment.remainingInterest ?? 0;
+      const principalComponent = installment.principalComponent ?? Math.max(0, scheduledPayment - interestComponent);
+      const openingBalance = index === 0 ? initialAmount : rows[index - 1].closingBalance;
+      const closingBalance = Number.isFinite(Number(installment.remainingBalance))
+        ? Number(installment.remainingBalance)
+        : Math.max(0, openingBalance - principalComponent);
+
+      const normalizedInstallmentNumber = Number(installment.installmentNumber);
+
+      rows.push({
+        installmentNumber: Number.isFinite(normalizedInstallmentNumber)
+          ? normalizedInstallmentNumber
+          : installment.installmentNumber,
+        scheduledPayment,
+        interestComponent,
+        principalComponent,
+        openingBalance,
+        closingBalance,
+        outstandingAmount: installment.outstandingAmount,
+        payableAmount: installment.payableAmount,
+        lateFeeDue: installment.lateFeeDue,
+        daysOverdue: installment.daysOverdue,
+        canPay: installment.canPay,
+        disabledReason: installment.disabledReason,
+        status: installment.status,
+      });
+
+      return rows;
+    }, []);
+  }, [calendarEntries, loan?.amount]);
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
@@ -774,7 +809,111 @@ export default function CreditDetails() {
     });
   };
 
-  const DetailMetaCard = ({
+  const formulaSummary = loan?.dagGraph?.name
+    ? `${loan.dagGraph.name} (v${loan.dagGraph.version})`
+    : 'Versión congelada del sistema';
+
+  const getInstallmentStatusInfo = (status: unknown) => {
+    switch (String(status || '').toLowerCase()) {
+      case 'paid':
+        return {
+          label: 'Pagada',
+          className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
+        };
+      case 'overdue':
+        return {
+          label: 'Vencida',
+          className: 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30',
+        };
+      case 'partial':
+        return {
+          label: 'Parcial',
+          className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/30',
+        };
+      case 'annulled':
+        return {
+          label: 'Anulada',
+          className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
+        };
+      default:
+        return {
+          label: 'Pendiente',
+          className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
+        };
+    }
+  };
+
+  const renderInstallmentActions = (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => {
+    if (!isAdmin || !['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) {
+      return null;
+    }
+
+    const alignClassName = options?.alignClassName ?? 'justify-center';
+    const titlePrefix = options?.titlePrefix ?? '';
+    const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
+    const paymentGuard = resolveOperationalGuard('installment.pay', {
+      role: user?.role,
+      permissions: user?.permissions,
+      loanStatus: loan?.status,
+      installmentStatus: row.status,
+    });
+    const annulGuard = resolveOperationalGuard('installment.annul', {
+      role: user?.role,
+      permissions: user?.permissions,
+      loanStatus: loan?.status,
+      installmentStatus: row.status,
+    });
+    const installmentReason = isNextPendingInstallment
+      ? ''
+      : (nextPayableInstallmentNumber
+        ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
+        : 'No hay cuotas pendientes para operar.');
+    const paymentActionReason = paymentGuard.executable ? installmentReason : (paymentGuard.reason || installmentReason);
+    const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
+
+    return (
+      <div className={`flex flex-wrap items-center gap-2 ${alignClassName}`}>
+        <button
+          onClick={() => openInstallmentPayment(row)}
+          disabled={!isNextPendingInstallment || !paymentGuard.executable}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}Registrar pago de cuota` : paymentActionReason}
+          aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}Registrar pago de cuota` : paymentActionReason}
+        >
+          <DollarSign size={16} />
+        </button>
+        <button
+          onClick={() => openPromiseFromInstallment(row)}
+          disabled={!isNextPendingInstallment}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          title={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
+          aria-label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
+        >
+          <Clock size={16} />
+        </button>
+        <button
+          onClick={() => openFollowUpFromInstallment(row)}
+          disabled={!isNextPendingInstallment}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          title={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
+          aria-label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
+        >
+          <Bell size={16} />
+        </button>
+        <button
+          onClick={() => openAnnulModal(row.installmentNumber)}
+          disabled={!isNextPendingInstallment || !annulGuard.executable}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          title={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+          aria-label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+        >
+          <ShieldAlert size={16} />
+        </button>
+      </div>
+    );
+  };
+
+  const InlineMetaItem = ({
     icon: Icon,
     label,
     value,
@@ -783,51 +922,92 @@ export default function CreditDetails() {
     label: string;
     value: React.ReactNode;
   }) => (
-    <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/8 text-brand-primary">
-          <Icon size={18} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</p>
-          <div className="mt-1 text-base font-semibold leading-6 text-text-primary break-words">{value}</div>
-        </div>
+    <div className="flex min-w-0 self-start items-start gap-3 rounded-2xl border border-border-subtle bg-bg-base/70 px-4 py-3">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary">
+        <Icon size={17} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
+        <div className="mt-1 text-sm font-semibold leading-6 text-text-primary break-words">{value}</div>
       </div>
     </div>
   );
 
   const SummaryMetricCard = ({
+    icon: Icon,
     label,
     value,
     tone = 'default',
   }: {
+    icon: React.ElementType;
     label: string;
     value: React.ReactNode;
     tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
   }) => {
     const toneClassName = {
-      default: 'border-border-subtle bg-bg-surface text-text-primary',
-      success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
-      warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
-      danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
-      brand: 'border-brand-primary/25 bg-brand-primary/10 text-brand-primary',
+      default: 'border-border-subtle bg-bg-surface',
+      success: 'border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10',
+      warning: 'border-amber-200/80 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10',
+      danger: 'border-rose-200/80 bg-rose-50/80 dark:border-rose-500/20 dark:bg-rose-500/10',
+      brand: 'border-brand-primary/20 bg-brand-primary/10',
+    }[tone];
+
+    const iconClassName = {
+      default: 'bg-hover-bg text-text-secondary',
+      success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+      warning: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+      danger: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+      brand: 'bg-brand-primary/15 text-brand-primary',
+    }[tone];
+
+    const valueClassName = {
+      default: 'text-text-primary',
+      success: 'text-emerald-700 dark:text-emerald-300',
+      warning: 'text-amber-700 dark:text-amber-300',
+      danger: 'text-rose-700 dark:text-rose-300',
+      brand: 'text-brand-primary',
     }[tone];
 
     return (
-      <div className={`rounded-xl border px-4 py-4 ${toneClassName}`}>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</p>
-        <div className="mt-3 text-2xl font-bold leading-none">{value}</div>
+      <div className={`rounded-2xl border px-4 py-4 shadow-sm ${toneClassName}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
+            <div className={`mt-3 text-2xl font-bold leading-tight ${valueClassName}`}>{value}</div>
+          </div>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}>
+            <Icon size={18} />
+          </div>
+        </div>
       </div>
     );
   };
 
+  const TabEmptyState = ({
+    icon: Icon,
+    title,
+    description,
+  }: {
+    icon: React.ElementType;
+    title: string;
+    description: string;
+  }) => (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border-strong bg-bg-base/70 px-6 py-12 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-hover-bg text-text-secondary">
+        <Icon size={24} />
+      </div>
+      <p className="mt-4 text-base font-semibold text-text-primary">{title}</p>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">{description}</p>
+    </div>
+  );
+
   const TabButton = ({ id, icon: Icon, label, badge }: { id: typeof activeTab, icon: any, label: string, badge?: number }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`relative flex items-center gap-2 px-5 py-4 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
+      className={`relative flex items-center gap-2 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
         activeTab === id 
-          ? 'text-brand-primary' 
-          : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg/50 rounded-t-xl'
+          ? 'bg-brand-primary/8 text-brand-primary' 
+          : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
       }`}
     >
       <Icon size={18} className={activeTab === id ? 'text-brand-primary' : 'text-text-secondary opacity-70'} />
@@ -846,14 +1026,12 @@ export default function CreditDetails() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12 animate-in fade-in duration-300">
-      
-      {/* Top Section: Header & Summary in a single clean card */}
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-        <div className="border-b border-border-subtle p-5 md:p-7">
-          <div className="space-y-5">
-            <div className="flex min-w-0 items-start gap-4">
-              <button 
+    <div className="mx-auto w-full max-w-[88rem] space-y-6 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6">
+      <section className="rounded-3xl border border-border-subtle bg-bg-surface p-5 shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)] lg:p-6">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1 xl:max-w-4xl">
+            <div className="flex items-start gap-4">
+              <button
                 onClick={() => navigate('/credits')}
                 className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                 aria-label="Volver a créditos"
@@ -867,35 +1045,26 @@ export default function CreditDetails() {
                     {statusInfo.label}
                   </span>
                 </div>
-                <p className="mt-2 max-w-3xl text-sm text-text-secondary">
-                  Gestiona pagos, mora, compromisos y seguimiento del crédito sin perder la fórmula que se congeló al momento de crearlo.
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
+                  Cobra la próxima cuota operable, actualiza mora y registra seguimientos sin alterar la fórmula que se congeló al originar este crédito.
                 </p>
+
+                <div className="mt-5 grid items-start gap-3 md:grid-cols-[minmax(14rem,0.9fr)_minmax(18rem,1.1fr)]">
+                  <InlineMetaItem icon={FileText} label="Cliente" value={customerLabel} />
+                  <InlineMetaItem icon={GitBranch} label="Fórmula aplicada" value={formulaSummary} />
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <DetailMetaCard icon={FileText} label="Cliente" value={customerLabel} />
-              {loan?.dagGraph && (
-                <DetailMetaCard
-                  icon={GitBranch}
-                  label="Fórmula aplicada"
-                  value={
-                    <>
-                      {loan.dagGraph.name}{' '}
-                      <span className="whitespace-nowrap text-text-secondary">(v{loan.dagGraph.version})</span>
-                    </>
-                  }
-                />
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
+          <div className="w-full xl:max-w-[34rem]">
+            <div className="flex flex-wrap gap-2 xl:justify-end">
               {isAdmin && installmentPaymentGuard.visible && (
                 <button
                   onClick={openNextInstallmentPayment}
                   disabled={!installmentPaymentGuard.executable}
                   title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:w-auto sm:min-w-[13rem]"
                 >
                   <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
                 </button>
@@ -905,7 +1074,7 @@ export default function CreditDetails() {
                   onClick={() => setShowCapitalModal(true)}
                   disabled={!capitalPaymentGuard.executable}
                   title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto sm:min-w-[13rem]"
                 >
                   <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
                 </button>
@@ -916,7 +1085,7 @@ export default function CreditDetails() {
                     setLateFeeRate(String(loan.annualLateFeeRate || ''));
                     setShowLateFeeModal(true);
                   }}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
                 >
                   <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
                 </button>
@@ -924,7 +1093,7 @@ export default function CreditDetails() {
               {isAdmin && (
                 <button
                   onClick={() => setShowStatusModal(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
                   title="Cambiar estado del crédito"
                 >
                   <Edit2 size={16} /> Estado
@@ -932,7 +1101,7 @@ export default function CreditDetails() {
               )}
               <button
                 onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
                 title="Ver plan de pagos completo"
               >
                 <Table size={16} /> Plan de Pagos
@@ -940,57 +1109,127 @@ export default function CreditDetails() {
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Financial Summary */}
-        <div className="grid gap-3 bg-bg-base/50 p-4 sm:grid-cols-2 md:p-6 xl:grid-cols-3 2xl:grid-cols-4">
-          <SummaryMetricCard label="Cuotas Totales" value={loan.termMonths ?? '—'} />
-          <SummaryMetricCard label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+          <SummaryMetricCard icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
+          <SummaryMetricCard icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
           <SummaryMetricCard
+            icon={Percent}
             label="Interés Total"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</span>}
           />
           <SummaryMetricCard
+            icon={CheckCircle}
             label="Capital Pagado"
             tone="success"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</span>}
           />
           <SummaryMetricCard
+            icon={DollarSign}
             label="Interés Pagado"
             tone="warning"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</span>}
           />
           <SummaryMetricCard
+            icon={ShieldAlert}
             label="Tasa Mora EA"
             tone="danger"
             value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
           />
           <SummaryMetricCard
+            icon={Activity}
             label="Capital Vivo"
             tone="brand"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</span>}
           />
-        </div>
-      </div>
+      </section>
 
-      {/* Main Content Area */}
-      <div className="space-y-6">
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-border-subtle overflow-x-auto hide-scrollbar">
-          <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
-          {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
-          {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
-          <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={paymentHistoryEntries.length} />
-          {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
-          <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
+      <section className="overflow-hidden rounded-3xl border border-border-subtle bg-bg-surface shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)]">
+        <div className="overflow-x-auto border-b border-border-subtle px-3 py-3 hide-scrollbar sm:px-4">
+          <div className="flex min-w-max items-center gap-2">
+            <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
+            {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
+            {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
+            <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={paymentHistoryEntries.length} />
+            {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
+            <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
+          </div>
         </div>
 
-        <div className="pt-2">
+        <div className="p-4 sm:p-5 lg:p-6">
           {/* TAB: CALENDAR */}
           {activeTab === 'calendar' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               {calendarEntries.length > 0 ? (
-                <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-                  <div className="overflow-x-auto">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-border-subtle bg-bg-base/70 px-4 py-4">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-base font-semibold text-text-primary">Calendario operativo del crédito</p>
+                        <p className="mt-1 text-sm leading-6 text-text-secondary">
+                          Opera primero la próxima cuota pendiente. El sistema bloquea pagos y anulaciones fuera de secuencia para no romper la cartera.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs font-medium">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-2 text-text-secondary ring-1 ring-border-subtle">
+                          Próxima cuota operable: {nextPayableInstallmentNumber ?? 'Sin pendientes'}
+                        </span>
+                        {calendarSnapshot && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-2 text-text-secondary ring-1 ring-border-subtle">
+                            Balance pendiente: {formatCurrency(calendarSnapshot.outstandingBalance)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:hidden">
+                    {installmentRows.map((row: any, idx: number) => {
+                      const installmentStatusInfo = getInstallmentStatusInfo(row.status);
+
+                      return (
+                        <div key={`installment-card-${idx}`} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">Cuota #{row.installmentNumber}</p>
+                              <p className="mt-2 text-xl font-bold text-text-primary">{formatCurrency(row.scheduledPayment)}</p>
+                            </div>
+                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
+                              {installmentStatusInfo.label}
+                            </span>
+                          </div>
+
+                          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Interés</dt>
+                              <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.interestComponent)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
+                              <dd className="mt-1 text-sm font-medium text-rose-600 dark:text-rose-300">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Amortización</dt>
+                              <dd className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Capital vivo</dt>
+                              <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.closingBalance)}</dd>
+                            </div>
+                          </dl>
+
+                          {isAdmin && (
+                            <div className="mt-4 border-t border-border-subtle pt-3">
+                              {renderInstallmentActions(row, { alignClassName: 'justify-start', titlePrefix: 'Tarjeta · ' })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="hidden overflow-x-auto lg:block">
                     <table className="w-full text-sm text-left whitespace-nowrap">
                       <thead className="text-xs text-text-secondary uppercase bg-hover-bg/50 border-b border-border-subtle">
                         <tr>
@@ -1018,32 +1257,10 @@ export default function CreditDetails() {
                           <td className="py-3 px-6"></td>
                           {isAdmin && <td></td>}
                         </tr>
-                      {calendarEntries.reduce((rows: any[], installment: any, index: number) => {
-                        const scheduledPayment = installment.scheduledPayment ?? 0;
-                        const interestComponent = installment.interestComponent ?? installment.remainingInterest ?? 0;
-                        const principalComponent = installment.principalComponent ?? Math.max(0, scheduledPayment - interestComponent);
-                        const openingBalance = index === 0 ? Number(loan.amount) : rows[index - 1].closingBalance;
-                        const closingBalance = Number.isFinite(Number(installment.remainingBalance))
-                          ? Number(installment.remainingBalance)
-                          : Math.max(0, openingBalance - principalComponent);
-                        
-                        const normalizedInstallmentNumber = Number(installment.installmentNumber);
+                      {installmentRows.map((row: any, idx: number) => {
+                        const installmentStatusInfo = getInstallmentStatusInfo(row.status);
 
-                        rows.push({
-                          installmentNumber: Number.isFinite(normalizedInstallmentNumber)
-                            ? normalizedInstallmentNumber
-                            : installment.installmentNumber,
-                          scheduledPayment, interestComponent, principalComponent, openingBalance, closingBalance,
-                          outstandingAmount: installment.outstandingAmount,
-                          payableAmount: installment.payableAmount,
-                          lateFeeDue: installment.lateFeeDue,
-                          daysOverdue: installment.daysOverdue,
-                          canPay: installment.canPay,
-                          disabledReason: installment.disabledReason,
-                          status: installment.status,
-                        });
-                        return rows;
-                      }, []).map((row: any, idx: number) => (
+                        return (
                         <tr key={idx} className="hover:bg-hover-bg/50 transition-colors group">
                           <td className="py-3 px-5 text-center font-medium text-text-secondary">{row.installmentNumber}</td>
                           <td className="py-3 px-5 text-right font-medium text-text-primary">
@@ -1062,87 +1279,17 @@ export default function CreditDetails() {
                             {formatCurrency(row.closingBalance)}
                           </td>
                           <td className="py-3 px-5 text-center">
-                            <span className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium w-full ${
-                              row.status === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' :
-                              row.status === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
-                              row.status === 'partial' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
-                              row.status === 'annulled' ? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300' :
-                              'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                            }`}>
-                              {row.status === 'paid' ? 'Pagada' : row.status === 'overdue' ? 'Vencida' : row.status === 'partial' ? 'Parcial' : row.status === 'annulled' ? 'Anulada' : 'Pendiente'}
+                            <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
+                              {installmentStatusInfo.label}
                             </span>
                           </td>
                            {isAdmin && (
                            <td className="py-3 px-5 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                                {(row.status === 'pending' || row.status === 'overdue' || row.status === 'partial') && (
-                                  <>
-                                     {(() => {
-                                       const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
-                                       const paymentGuard = resolveOperationalGuard('installment.pay', {
-                                         role: user?.role,
-                                         permissions: user?.permissions,
-                                         loanStatus: loan?.status,
-                                         installmentStatus: row.status,
-                                       });
-                                       const annulGuard = resolveOperationalGuard('installment.annul', {
-                                         role: user?.role,
-                                         permissions: user?.permissions,
-                                         loanStatus: loan?.status,
-                                         installmentStatus: row.status,
-                                       });
-                                       const installmentReason = isNextPendingInstallment
-                                         ? ''
-                                         : (nextPayableInstallmentNumber
-                                           ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
-                                           : 'No hay cuotas pendientes para operar.');
-                                       const paymentActionReason = paymentGuard.executable ? installmentReason : (paymentGuard.reason || installmentReason);
-                                       const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
-
-                                       return (
-                                         <>
-                                     <button
-                                        onClick={() => openInstallmentPayment(row)}
-                                        disabled={!isNextPendingInstallment || !paymentGuard.executable}
-                                        className="p-1.5 text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        title={isNextPendingInstallment && paymentGuard.executable ? 'Registrar pago de cuota' : paymentActionReason}
-                                      >
-                                        <DollarSign size={16} />
-                                      </button>
-                                    <button
-                                      onClick={() => openPromiseFromInstallment(row)}
-                                      disabled={!isNextPendingInstallment}
-                                      className="p-1.5 text-text-secondary hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={isNextPendingInstallment ? 'Crear compromiso de pago' : installmentReason}
-                                    >
-                                      <Clock size={16} />
-                                    </button>
-                                    <button
-                                      onClick={() => openFollowUpFromInstallment(row)}
-                                      disabled={!isNextPendingInstallment}
-                                      className="p-1.5 text-text-secondary hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={isNextPendingInstallment ? 'Crear seguimiento' : installmentReason}
-                                    >
-                                      <Bell size={16} />
-                                    </button>
-                                       <button
-                                          onClick={() => openAnnulModal(row.installmentNumber)}
-                                          disabled={!isNextPendingInstallment || !annulGuard.executable}
-                                        className="p-1.5 text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        title={isNextPendingInstallment && annulGuard.executable ? 'Anular cuota' : annulActionReason}
-                                       >
-                                         <ShieldAlert size={16} />
-                                       </button>
-                                         </>
-                                       );
-                                     })()}
-                                  </>
-                                )}
-                              </div>
+                            {renderInstallmentActions(row)}
                             </td>
                           )}
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                     {calendarSnapshot && (
                       <tfoot className="bg-bg-base border-t border-border-strong">
@@ -1159,10 +1306,11 @@ export default function CreditDetails() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Calendar className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No hay cuotas programadas para este crédito.</p>
-                </div>
+                <TabEmptyState
+                  icon={Calendar}
+                  title="No hay cuotas programadas"
+                  description="Este crédito todavía no tiene un plan operativo visible. Revisa la originación o genera el plan de pagos completo."
+                />
               )}
             </div>
           )}
@@ -1215,10 +1363,11 @@ export default function CreditDetails() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <CheckCircle className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No hay alertas activas para este crédito.</p>
-                </div>
+                <TabEmptyState
+                  icon={CheckCircle}
+                  title="Sin alertas activas"
+                  description="No hay vencimientos ni seguimientos abiertos que requieran acción sobre este crédito."
+                />
               )}
             </div>
           )}
@@ -1333,10 +1482,11 @@ export default function CreditDetails() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Clock className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No hay compromisos de pago registrados.</p>
-                </div>
+                <TabEmptyState
+                  icon={Clock}
+                  title="Sin compromisos de pago"
+                  description="Todavía no hay promesas asociadas. Crea una desde la cuota pendiente cuando acuerdes una fecha con el cliente."
+                />
               )}
             </div>
           )}
@@ -1399,10 +1549,11 @@ export default function CreditDetails() {
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <DollarSign className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">No hay pagos registrados aún.</p>
-                </div>
+                <TabEmptyState
+                  icon={DollarSign}
+                  title="Sin pagos registrados"
+                  description="Cuando registres un recaudo, aquí verás capital, interés, mora y el método usado para cada movimiento."
+                />
               )}
             </div>
           )}
@@ -1450,12 +1601,12 @@ export default function CreditDetails() {
                   </button>
                 </div>
               ) : (
-                <div className="text-center py-12 max-w-md">
-                  <Info className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-primary font-medium mb-2">El pago total no está disponible para este crédito.</p>
-                  <p className="text-text-secondary">
-                    {primaryPayoffDenialReason?.message || 'Verifica el estado del crédito para continuar con esta operación.'}
-                  </p>
+                <div className="max-w-2xl">
+                  <TabEmptyState
+                    icon={Info}
+                    title="El pago total no está disponible"
+                    description={primaryPayoffDenialReason?.message || 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.'}
+                  />
                 </div>
               )}
             </div>
@@ -1531,15 +1682,16 @@ export default function CreditDetails() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Activity className="mx-auto h-12 w-12 text-border-strong mb-3" />
-                  <p className="text-text-secondary">Aún no hay transacciones registradas.</p>
-                </div>
+                <TabEmptyState
+                  icon={Activity}
+                  title="Sin historial operativo"
+                  description="Aquí aparecerán pagos, alertas, compromisos y actualizaciones relevantes del crédito en orden cronológico."
+                />
               )}
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* --- MODALS --- */}
       {/* ... keeping modals logic as is, but ensuring their classes are correct */}

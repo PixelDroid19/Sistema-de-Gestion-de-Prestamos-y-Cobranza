@@ -191,6 +191,12 @@ const pushActiveInactiveStatusValidation = ({ errors, status }) => {
   }
 };
 
+const pushCustomerStatusValidation = ({ errors, status }) => {
+  if (status !== undefined && !['active', 'inactive', 'blacklisted'].includes(status)) {
+    errors.push({ field: 'status', message: 'Status must be active, inactive, or blacklisted' });
+  }
+};
+
 const pushParticipationValidation = ({ req, errors, participationPercentage }) => {
   if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
     errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
@@ -355,7 +361,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode } = req.body;
+    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -378,6 +384,14 @@ const loanValidation = {
       errors.push({ field: 'termMonths', message: 'Term must be between 1 and 360 months' });
     }
 
+    if (!validateOptionalDateInput(startDate)) {
+      errors.push({ field: 'startDate', message: 'Loan start date must be a valid date' });
+    }
+
+    if (annualLateFeeRate !== undefined && annualLateFeeRate !== null && annualLateFeeRate !== '' && !validateInterestRate(Number(annualLateFeeRate))) {
+      errors.push({ field: 'annualLateFeeRate', message: 'Annual late fee rate must be between 0 and 100' });
+    }
+
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);
 
     if (errors.length > 0) {
@@ -389,7 +403,7 @@ const loanValidation = {
 
   /** @type {import('express').RequestHandler} */
   simulate: (req, res, next) => {
-    const { amount, interestRate, termMonths, lateFeeMode } = req.body;
+    const { amount, interestRate, termMonths, lateFeeMode, startDate } = req.body;
     const errors = [];
 
     if (!validateAmount(amount)) {
@@ -402,6 +416,10 @@ const loanValidation = {
 
     if (!validateTermMonths(termMonths)) {
       errors.push({ field: 'termMonths', message: 'Term must be between 1 and 360 months' });
+    }
+
+    if (!validateOptionalDateInput(startDate)) {
+      errors.push({ field: 'startDate', message: 'Loan start date must be a valid date' });
     }
 
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);
@@ -545,12 +563,13 @@ const paymentValidation = {
 const customerValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { name, email, phone } = req.body;
+    const { name, email, phone, status } = req.body;
     const errors = [];
 
     pushNameValidation({ errors, name, required: true });
     pushEmailValidation({ errors, email, required: true });
     pushPhoneValidation({ errors, phone, required: true });
+    pushCustomerStatusValidation({ errors, status });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -578,7 +597,7 @@ const customerValidation = {
     pushNameValidation({ errors, name, required: false });
     pushEmailValidation({ errors, email, required: false });
     pushPhoneValidation({ errors, phone, required: false });
-    pushActiveInactiveStatusValidation({ errors, status });
+    pushCustomerStatusValidation({ errors, status });
 
     if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
       const parsedBirthDate = new Date(`${String(birthDate).trim()}T00:00:00.000Z`);

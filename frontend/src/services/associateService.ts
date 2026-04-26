@@ -28,13 +28,8 @@ export const useAssociates = (
   }, queryKeys.associates.all);
 
   const restoreAssociate = useInvalidatingMutation(async (id: number) => {
-    try {
-      const { data } = await apiClient.patch(`/associates/${id}/restore`);
-      return data;
-    } catch {
-      const { data } = await apiClient.patch(`/associates/${id}`, { status: 'active' });
-      return data;
-    }
+    const { data } = await apiClient.patch(`/associates/${id}`, { status: 'active' });
+    return data;
   }, queryKeys.associates.all);
 
   return {
@@ -46,6 +41,17 @@ export const useAssociates = (
     deleteAssociate,
     restoreAssociate,
   };
+};
+
+export const useAssociateById = (associateId: number) => {
+  return useQuery({
+    queryKey: queryKeys.associates.detail(associateId),
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/associates/${associateId}`);
+      return data;
+    },
+    enabled: Number.isFinite(associateId) && associateId > 0,
+  });
 };
 
 export const useAssociateDetails = (associateId: number) => {
@@ -85,6 +91,7 @@ export const useAssociateDetails = (associateId: number) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
 
@@ -95,6 +102,7 @@ export const useAssociateDetails = (associateId: number) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
 
@@ -105,6 +113,7 @@ export const useAssociateDetails = (associateId: number) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
 
@@ -116,6 +125,7 @@ export const useAssociateDetails = (associateId: number) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
     },
   });
 

@@ -31,12 +31,14 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       message: 'Credit calculation generated successfully',
       data: {
         calculation: {
+          calculationMethod: calculation.calculationMethod || 'FRENCH',
           lateFeeMode: calculation.lateFeeMode,
           summary: calculation.summary,
           schedule: calculation.schedule,
           graphVersionId: calculation.graphVersionId ?? null,
         },
         simulation: {
+          calculationMethod: calculation.calculationMethod || 'FRENCH',
           lateFeeMode: calculation.lateFeeMode,
           summary: calculation.summary,
           schedule: calculation.schedule,

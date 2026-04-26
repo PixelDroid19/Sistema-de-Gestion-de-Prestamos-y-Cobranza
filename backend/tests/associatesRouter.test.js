@@ -96,7 +96,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
 
   const listResponse = await requestJson(activeServer, {
     method: 'GET',
-    path: '/',
+    path: '/?search=Ana&status=active',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const createResponse = await requestJson(activeServer, {
@@ -170,7 +170,10 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       },
     },
   });
-  assert.deepEqual(calls[0], ['listAssociates', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }]);
+  assert.deepEqual(calls[0], ['listAssociates', {
+    pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
+    filters: { search: 'Ana', status: 'active' },
+  }]);
   assert.deepEqual(calls[1], ['createAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload }]);
   assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5', payload: { status: 'inactive' } }]);
   assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5' }]);

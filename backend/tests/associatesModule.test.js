@@ -53,6 +53,47 @@ test('createListAssociates preserves pagination metadata with normalized associa
   });
 });
 
+test('createListAssociates forwards normalized search and status filters to the repository', async () => {
+  let forwardedFilters = null;
+  const listAssociates = createListAssociates({
+    associateRepository: {
+      async listPage({ filters }) {
+        forwardedFilters = filters;
+        return {
+          items: [{ id: 9, participationPercentage: null }],
+          pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+        };
+      },
+    },
+  });
+
+  const result = await listAssociates({
+    pagination: { page: 1, pageSize: 25 },
+    filters: { search: 'Ana', status: 'ACTIVE' },
+  });
+
+  assert.deepEqual(forwardedFilters, { search: 'Ana', status: 'active' });
+  assert.equal(result.items[0].id, 9);
+});
+
+test('createListAssociates rejects unsupported status filters', async () => {
+  const listAssociates = createListAssociates({
+    associateRepository: {
+      async list() {
+        throw new Error('list should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => listAssociates({
+    filters: { status: 'blocked' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'Associate status filter must be active or inactive');
+    return true;
+  });
+});
+
 test('createGetAssociateById rejects when the record is missing', async () => {
   const getAssociateById = createGetAssociateById({
     associateRepository: {

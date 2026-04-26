@@ -261,49 +261,13 @@ describe('Credits behavioral parity scenarios', () => {
     });
   });
 
-  it('renders the shared credit calculation workspace and preserves saved scenarios across tab switches', async () => {
+  it('sends the operator to the dedicated preview route from credits', async () => {
     renderCredits();
 
     fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
-
-    expect(await screen.findByRole('heading', { name: 'Previsualizar crédito' })).toBeInTheDocument();
-    expect(mockApiPost).toHaveBeenCalledWith('/loans/calculations', {
-      amount: 2000000,
-      interestRate: 60,
-      termMonths: 12,
-      lateFeeMode: 'SIMPLE',
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar escenario' }));
-    expect(await screen.findByText('1 escenario guardado.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
-
-    expect(screen.getByText('1 escenario guardado.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ocultar comparación' })).toBeInTheDocument();
-    expect(screen.getByText('Fórmula v7')).toBeInTheDocument();
-  });
-
-  it('flags stale calculation results after parameter changes until the user reruns the calculation', async () => {
-    renderCredits();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Previsualizar crédito' }));
-
-    const amountInput = await screen.findByLabelText('Monto del crédito');
-    fireEvent.change(amountInput, { target: { value: '2500000' } });
-
-    expect(await screen.findByText('Cambiaste parámetros después del último cálculo. Ejecuta nuevamente para actualizar los resultados.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Calcular' })[0]);
 
     await waitFor(() => {
-      expect(mockApiPost).toHaveBeenLastCalledWith('/loans/calculations', {
-        amount: 2500000,
-        interestRate: 60,
-        termMonths: 12,
-        lateFeeMode: 'SIMPLE',
-      });
+      expect(mockSetCurrentView).toHaveBeenCalledWith('credit-calculator');
     });
   });
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, MoreVertical, Filter, Calendar, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
@@ -13,11 +13,12 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
-  const { data, isLoading, isError, restoreCustomer, updateCustomer, deleteCustomer } = useCustomers({
+  const { data, isLoading, isError, updateCustomer, deleteCustomer } = useCustomers({
     page,
     pageSize,
     search: searchTerm || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
+    registeredWithin: dateFilter !== 'all' ? dateFilter : undefined,
   });
 
   const customers = Array.isArray(data?.data?.customers)
@@ -53,22 +54,6 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     return name || `Cliente #${customer?.id || 'N/A'}`;
   };
 
-  const handleRestore = async (customerId: number) => {
-    const confirmed = await confirmDanger({
-      title: tTerm('confirm.customer.restore.title'),
-      message: tTerm('confirm.customer.restore.message'),
-      confirmLabel: tTerm('confirm.customer.restore.confirm'),
-    });
-    if (!confirmed) return;
-    try {
-      await restoreCustomer.mutateAsync(customerId);
-      toast.success({ description: tTerm('customers.toast.restore.success') });
-    } catch (error) {
-      console.error('[customers] restoreCustomer failed', error);
-      toast.apiErrorSafe(error, { domain: 'customers', action: 'customer.restore' });
-    }
-  };
-
   const handleDelete = async (customer: any) => {
     const customerId = Number(customer?.id);
     if (!Number.isFinite(customerId)) return;
@@ -93,15 +78,22 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     const customerId = Number(customer?.id);
     if (!Number.isFinite(customerId)) return;
 
-    const currentStatus = customer?.status === 'active' ? 'active' : 'inactive';
+    const currentStatus = String(customer?.status || '').toLowerCase();
     const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const actionLabel = currentStatus === 'active'
+      ? 'Desactivar'
+      : currentStatus === 'blacklisted'
+        ? 'Quitar bloqueo'
+        : 'Reactivar';
 
     const confirmed = await confirmDanger({
-      title: nextStatus === 'inactive' ? 'Desactivar cliente' : 'Reactivar cliente',
+      title: nextStatus === 'inactive' ? 'Desactivar cliente' : actionLabel === 'Quitar bloqueo' ? 'Quitar bloqueo del cliente' : 'Reactivar cliente',
       message: nextStatus === 'inactive'
         ? `¿Desea desactivar a ${getCustomerName(customer)}?`
-        : `¿Desea reactivar a ${getCustomerName(customer)}?`,
-      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : 'Reactivar',
+        : actionLabel === 'Quitar bloqueo'
+          ? `¿Desea quitar el bloqueo de ${getCustomerName(customer)} y dejarlo activo?`
+          : `¿Desea reactivar a ${getCustomerName(customer)}?`,
+      confirmLabel: nextStatus === 'inactive' ? 'Desactivar' : actionLabel,
     });
     if (!confirmed) return;
 
@@ -139,7 +131,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
               type="text" 
-              placeholder="Buscar clientes..." 
+              placeholder="Buscar por nombre, correo o documento..." 
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
@@ -156,7 +148,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 <option value="all">Todos los estados</option>
                 <option value="active">Activo</option>
                 <option value="inactive">Inactivo</option>
-                <option value="pending">Pendiente</option>
+                <option value="blacklisted">Bloqueado</option>
               </select>
             </div>
             <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Acota clientes por fecha de registro">
@@ -188,7 +180,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           errorContent={<div className="flex items-center justify-center h-64 text-red-500">Error al cargar los clientes.</div>}
           emptyContent={
             <div className="flex flex-col items-center justify-center h-64 text-text-secondary">
-              <p>No se encontraron clientes.</p>
+              <p>No se encontraron clientes con esos filtros.</p>
             </div>
           }
           recordsLabel="registros"
@@ -227,11 +219,13 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     <td className="py-4 text-text-secondary">{customer.email}</td>
                     <td className="py-4">
                       <span className={`px-2 py-1 rounded text-xs ${
-                        customer.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 
-                        customer.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' : 
-                        'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                        customer.status === 'active'
+                          ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : customer.status === 'blacklisted'
+                            ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                            : 'bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-300'
                       }`}>
-                        {customer.status === 'active' ? 'Activo' : customer.status === 'pending' ? 'Pendiente' : 'Inactivo'}
+                        {customer.status === 'active' ? 'Activo' : customer.status === 'blacklisted' ? 'Bloqueado' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="py-4 text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
@@ -239,16 +233,16 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                       <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
                         <button
-                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)}
+                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
                           className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <Edit size={16} />
                         </button>
-                        <button 
-                          onClick={() => (customer.status === 'inactive' ? handleRestore(customer.id) : handleToggleStatus(customer))}
+                        <button
+                          onClick={() => handleToggleStatus(customer)}
                           className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" 
-                          title={customer.status === 'inactive' ? tTerm('customers.cta.restore') : 'Desactivar'}
+                          title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
                         >
                           <RotateCcw size={16} />
                         </button>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Loader2, Save, User } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { useAssociates } from '../services/associateService';
@@ -15,6 +16,11 @@ import type { SimulationInput } from '../types/dag';
 
 const todayAsIsoDate = () => new Date().toISOString().slice(0, 10);
 
+type NewCreditLocationState = {
+  simulationInput?: Partial<SimulationInput>;
+  source?: 'credit-calculator';
+};
+
 const getDisplayName = (entity: any) => {
   if (entity?.name) return entity.name;
 
@@ -27,6 +33,9 @@ const getDisplayName = (entity: any) => {
 };
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = (location.state || null) as NewCreditLocationState | null;
   const { createLoan } = useLoans();
   const { data: customersData } = useCustomers({ pageSize: 100 });
   const { data: associatesData } = useAssociates({ pageSize: 100 });
@@ -49,8 +58,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     customerId: '',
     associateId: '',
   });
-  const [rateWasEdited, setRateWasEdited] = useState(false);
-  const [lateFeeWasEdited, setLateFeeWasEdited] = useState(false);
+  const [rateWasEdited, setRateWasEdited] = useState(Boolean(routeState?.simulationInput?.interestRate));
+  const [lateFeeWasEdited, setLateFeeWasEdited] = useState(Boolean(routeState?.simulationInput?.lateFeeMode));
+  const initialSimulationInput = useMemo<SimulationInput>(() => ({
+    ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
+    ...routeState?.simulationInput,
+    startDate: routeState?.simulationInput?.startDate || todayAsIsoDate(),
+  }), [routeState?.simulationInput]);
 
   const {
     input,
@@ -62,10 +76,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     setInput,
     simulate,
   } = useActiveCreditSimulation({
-    initialInput: {
-      ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-      startDate: todayAsIsoDate(),
-    },
+    initialInput: initialSimulationInput,
+    autoRun: Boolean(routeState?.simulationInput),
   });
 
   const resolvedRatePolicy = useMemo<any>(() => {
@@ -160,7 +172,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
     setIsSubmitting(true);
     try {
-      await createLoan.mutateAsync({
+      const response = await createLoan.mutateAsync({
         customerId: Number(borrower.customerId),
         associateId: borrower.associateId ? Number(borrower.associateId) : undefined,
         amount: Number(input.amount),
@@ -170,7 +182,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         lateFeeMode: input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate,
       });
-      toast.success({ description: 'Crédito registrado con la fórmula activa.' });
+      const createdLoanId = Number(response?.data?.loan?.id);
+      const versionLabel = result?.graphVersionId != null ? ` fórmula v${result.graphVersionId}` : ' fórmula activa';
+      toast.success({ description: `Crédito registrado con${versionLabel}.` });
+
+      if (Number.isFinite(createdLoanId) && createdLoanId > 0) {
+        navigate(`/credits/${createdLoanId}`);
+        return;
+      }
+
       onBack();
     } catch (error: any) {
       const validationErrors = extractValidationErrors(error);
@@ -238,6 +258,12 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
               Esta selección define a quién se le crea el crédito. La simulación no registra nada hasta usar “Registrar crédito”.
             </p>
+            {routeState?.source === 'credit-calculator' && (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800">
+                <CheckCircle2 size={14} />
+                Escenario precargado desde Previsualizar crédito
+              </div>
+            )}
           </div>
 
           <div className="grid flex-1 gap-4 md:grid-cols-2 xl:max-w-4xl">

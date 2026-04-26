@@ -126,7 +126,9 @@ describe('Dashboard behavior', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Resumen general de tu cuenta.')).toBeInTheDocument();
+    expect(screen.getByText('Resumen operativo de la cartera.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bloques' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reordenar panel' })).toBeInTheDocument();
     expect(screen.getByText('Balance total')).toBeInTheDocument();
     expect(screen.getByText('Préstamos activos')).toBeInTheDocument();
     expect(screen.getByText('Recuperado vs desembolsado')).toBeInTheDocument();

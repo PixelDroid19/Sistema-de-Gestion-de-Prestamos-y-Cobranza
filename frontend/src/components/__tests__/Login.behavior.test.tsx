@@ -26,6 +26,7 @@ vi.mock('../../lib/toast', () => ({
 
 vi.mock('../../services/safeErrorMessages', () => ({
   getSafeErrorText: () => 'No se pudo iniciar sesión',
+  extractStatusCode: (error: { statusCode?: number }) => error?.statusCode,
 }));
 
 describe('Login behavior', () => {
@@ -112,5 +113,28 @@ describe('Login behavior', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/77', { replace: true });
     });
+  });
+
+  it('shows the safe login error text when credentials are rejected', async () => {
+    mockLogin.mockRejectedValue({
+      statusCode: 401,
+      message: 'Please enter correct email/password',
+    });
+
+    render(<Login />);
+
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
+      target: { value: 'admin@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
+      target: { value: 'mal-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('No se pudo iniciar sesión')).toBeInTheDocument();
+    });
+
+    expect(mockToastApiErrorSafe).not.toHaveBeenCalled();
   });
 });
