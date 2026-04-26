@@ -50,9 +50,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
 
   router.post('/calculations', authMiddleware(), loanValidation.simulate, asyncHandler(sendCreditCalculation));
 
-  // Compatibility alias for older clients. New frontend code uses /calculations.
-  router.post('/simulations', authMiddleware(), loanValidation.simulate, asyncHandler(sendCreditCalculation));
-
   router.get('/workbench/scopes', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.listDagWorkbenchScopes({ actor: req.user });
     res.json({ success: true, data: { scopes: result.scopes } });
@@ -118,9 +115,6 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   };
 
   router.post('/workbench/graph/calculations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(sendWorkbenchCalculation));
-
-  // Compatibility alias for older clients. New frontend code uses /graph/calculations.
-  router.post('/workbench/graph/simulations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(sendWorkbenchCalculation));
 
   router.get('/workbench/graph/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const summary = await useCases.getDagWorkbenchSummary({ actor: req.user, scopeKey: req.query.scope });

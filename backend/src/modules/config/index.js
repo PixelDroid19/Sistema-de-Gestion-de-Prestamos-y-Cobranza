@@ -1,7 +1,6 @@
 const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListPaymentMethods,
-  createListPaymentMethodsLegacy,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
@@ -27,7 +26,6 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {
     listPaymentMethods: createListPaymentMethods({ configRepository }),
-    listPaymentMethodsLegacy: createListPaymentMethodsLegacy({ configRepository }),
     createPaymentMethod: createCreatePaymentMethod({ configRepository }),
     updatePaymentMethod: createUpdatePaymentMethod({ configRepository }),
     deletePaymentMethod: createDeletePaymentMethod({ configRepository }),

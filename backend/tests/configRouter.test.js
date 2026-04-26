@@ -35,10 +35,6 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
         calls.push(['listPaymentMethods']);
         return [{ id: 11, label: 'Transferencia', key: 'transferencia', isActive: true, requiresReference: true, description: '' }];
       },
-      async listPaymentMethodsLegacy() {
-        calls.push(['listPaymentMethodsLegacy']);
-        return [{ id: 11, nombre: 'Transferencia', activo: true }];
-      },
       async createPaymentMethod(payload) {
         calls.push(['createPaymentMethod', payload]);
         return { id: 12, ...payload };
@@ -107,11 +103,6 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     path: '/settings',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
-  const legacyPaymentMethodsResponse = await requestJson(activeServer, {
-    method: 'GET',
-    path: '/pmconfig',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
-  });
   const saveSettingResponse = await requestJson(activeServer, {
     method: 'PUT',
     path: '/settings/company-name',
@@ -134,7 +125,6 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   assert.equal(updateResponse.statusCode, 200);
   assert.equal(deleteResponse.statusCode, 200);
   assert.equal(settingsResponse.statusCode, 200);
-  assert.equal(legacyPaymentMethodsResponse.statusCode, 200);
   assert.equal(saveSettingResponse.statusCode, 200);
   assert.equal(rolesResponse.statusCode, 200);
   assert.equal(catalogsResponse.statusCode, 200);
@@ -148,12 +138,6 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   assert.equal(createResponse.body.message, 'Payment method created successfully');
   assert.equal(updateResponse.body.message, 'Payment method updated successfully');
   assert.equal(deleteResponse.body.message, 'Payment method deleted successfully');
-  assert.deepEqual(legacyPaymentMethodsResponse.body, {
-    success: true,
-    data: {
-      paymentMethods: [{ id: 11, nombre: 'Transferencia', activo: true }],
-    },
-  });
   assert.equal(saveSettingResponse.body.message, 'Setting saved successfully');
   assert.deepEqual(rolesResponse.body, {
     success: true,
@@ -173,7 +157,6 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
     ['updatePaymentMethod', '12', { label: 'Transferencia editada', isActive: false }],
     ['deletePaymentMethod', '12'],
     ['listSettings'],
-    ['listPaymentMethodsLegacy'],
     ['upsertSetting', 'company-name', { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' }],
     ['listRoles'],
     ['listAdminCatalogs'],
@@ -240,4 +223,43 @@ test('createConfigRouter denies non-admin access without invoking config use cas
       statusCode: 403,
     },
   });
+});
+
+test('createConfigRouter does not expose legacy /pmconfig', async () => {
+  let called = false;
+  const app = express();
+
+  app.use(express.json());
+  app.use(createConfigRouter({
+    authMiddleware: allowAdminOnly,
+    useCases: {
+      async listPaymentMethods() {
+        called = true;
+        return [];
+      },
+      async listSettings() {
+        called = true;
+        return [];
+      },
+      async listRoles() {
+        return ['admin', 'customer', 'socio'];
+      },
+      async listAdminCatalogs() {
+        return { roles: ['admin', 'customer', 'socio'] };
+      },
+    },
+  }));
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/pmconfig',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(called, false);
+  assert.equal(typeof response.body, 'string');
 });

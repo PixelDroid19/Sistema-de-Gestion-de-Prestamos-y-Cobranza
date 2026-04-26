@@ -193,18 +193,6 @@ const createListPaymentMethods = ({ configRepository }) => async () => {
   return entries.map(buildPaymentMethod);
 };
 
-const createListPaymentMethodsLegacy = ({ configRepository }) => async () => {
-  const entries = await configRepository.listByCategory(PAYMENT_METHOD_CATEGORY);
-  return entries.map((entry) => ({
-    id: entry.id,
-    name: entry.label,
-    key: entry.key,
-    active: entry.isActive !== false,
-    requiresReference: Boolean(entry.value?.requiresReference),
-    description: entry.value?.description || '',
-  }));
-};
-
 const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key, description, requiresReference, isActive }) => {
   const normalizedLabel = requireText(label, 'label');
   const normalizedKey = normalizeKey(key || normalizedLabel);
@@ -432,7 +420,6 @@ const createListRoles = () => async () => {
 module.exports = {
   ADMIN_CATALOGS,
   createListPaymentMethods,
-  createListPaymentMethodsLegacy,
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,

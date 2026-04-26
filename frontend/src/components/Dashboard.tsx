@@ -1,14 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { GripHorizontal, Plus, Settings2, X } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
-import { Responsive, WidthProvider, Layout, LayoutItem, ResponsiveLayouts } from 'react-grid-layout/legacy';
+import * as ReactGridLayout from 'react-grid-layout';
 import { useDashboardReport } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
 import MeasuredChart from './shared/MeasuredChart';
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+type LayoutType = {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+  maxW?: number;
+  maxH?: number;
+  static?: boolean;
+};
+
+type LayoutItemType = LayoutType;
+type ResponsiveLayouts = Record<string, LayoutType[]>;
+
+const { Responsive, WidthProvider } = ReactGridLayout as unknown as {
+  Responsive: React.ComponentType<any>;
+  WidthProvider: (gridComponent: React.ComponentType<any>) => React.ComponentType<any>;
+};
+const ResponsiveGridLayout = typeof WidthProvider === 'function'
+  ? WidthProvider(Responsive)
+  : Responsive;
 
 const AVAILABLE_WIDGETS = [
   { id: 'balance_total', titleKey: 'dashboard.widget.balanceTotal.title' as const, defaultLayout: { w: 1, h: 2, minW: 1, minH: 2 } },
@@ -95,7 +117,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const handleLayoutChange = (_layout: Layout, allLayouts: ResponsiveLayouts) => {
+  const handleLayoutChange = (_layout: LayoutType, allLayouts: ResponsiveLayouts) => {
     setLayouts(allLayouts);
     safeLocalStorage.setItem('dashboard_layouts', JSON.stringify(allLayouts));
   };
@@ -112,7 +134,7 @@ export default function Dashboard() {
           const nextLayouts = { ...layouts };
           Object.keys(nextLayouts).forEach((breakpoint) => {
             const currentLayout = nextLayouts[breakpoint as keyof typeof nextLayouts] || [];
-            if (!currentLayout.find((entry: LayoutItem) => entry.i === widgetId)) {
+            if (!currentLayout.find((entry: LayoutItemType) => entry.i === widgetId)) {
               nextLayouts[breakpoint as keyof typeof nextLayouts] = [
                 ...currentLayout,
                 {
