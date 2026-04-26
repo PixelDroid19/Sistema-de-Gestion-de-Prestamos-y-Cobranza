@@ -234,6 +234,52 @@ test('full chain: calculate returns credit result with graphVersionId', async ()
   assert.ok(result.summary.installmentAmount > 0);
 });
 
+test('full chain: credit calculation applies configured policies before DAG execution', async () => {
+  const record = createMockGraphVersionRecord();
+  const executor = createGraphExecutor({ dagGraphRepository: createMockRepo(record) });
+
+  const calculationService = createCreditsCalculationService({
+    graphExecutor: executor,
+  });
+  const creditCalculator = createCreditCalculationService({
+    calculationService,
+    policyResolver: {
+      async resolve({ input }) {
+        return {
+          calculationInput: {
+            ...input,
+            interestRate: 36,
+            lateFeeMode: 'COMPOUND',
+            annualLateFeeRate: 24,
+          },
+          policySnapshot: {
+            ratePolicyId: 91,
+            lateFeePolicyId: 92,
+            appliedInterestRate: 36,
+            appliedLateFeeMode: 'COMPOUND',
+            appliedAnnualLateFeeRate: 24,
+          },
+        };
+      },
+    },
+  });
+
+  const result = await creditCalculator.calculate({
+    amount: 10000,
+    interestRate: 12,
+    termMonths: 12,
+    lateFeeMode: 'SIMPLE',
+    rateSource: 'policy',
+    lateFeeSource: 'policy',
+  });
+
+  assert.equal(result.graphVersionId, 42);
+  assert.equal(result.lateFeeMode, 'COMPOUND');
+  assert.equal(result.policySnapshot.ratePolicyId, 91);
+  assert.equal(result.policySnapshot.lateFeePolicyId, 92);
+  assert.ok(result.summary.totalInterest > 1900);
+});
+
 // ─── Full chain through loanCreation ────────────────────────────────────────
 
 test('full chain: loanCreation uses DAG result and persists correct graphVersionId', async () => {

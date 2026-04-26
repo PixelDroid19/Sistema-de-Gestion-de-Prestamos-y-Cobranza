@@ -150,6 +150,8 @@ describe('NewCredit behavior', () => {
         startDate: '2026-05-01',
         lateFeeMode: 'COMPOUND',
         annualLateFeeRate: 0,
+        rateSource: 'manual',
+        lateFeeSource: 'manual',
       });
       expect(mockNavigate).toHaveBeenCalledWith('/credits/55');
     });

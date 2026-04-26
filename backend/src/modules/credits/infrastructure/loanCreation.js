@@ -22,6 +22,17 @@ const resolveCreditCalculationExecution = async ({ input, calculationService }) 
   };
 };
 
+const resolvePolicyContext = async ({ input, policyResolver }) => {
+  if (!policyResolver || typeof policyResolver.resolve !== 'function') {
+    return {
+      calculationInput: { ...input },
+      policySnapshot: null,
+    };
+  }
+
+  return policyResolver.resolve({ input });
+};
+
 const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   if (input.financialProductId) {
     return input.financialProductId;
@@ -63,6 +74,7 @@ const resolveLoanStartDate = (value) => {
  */
 const createLoanFromCanonicalDataFactory = ({
   calculationService,
+  policyResolver,
   customerModel = Customer,
   associateModel = Associate,
   loanModel = Loan,
@@ -80,10 +92,12 @@ const createLoanFromCanonicalDataFactory = ({
     }
   }
 
-  const calculationExecution = await resolveCreditCalculationExecution({ input, calculationService });
+  const policyContext = await resolvePolicyContext({ input, policyResolver });
+  const calculationInput = policyContext.calculationInput;
+  const calculationExecution = await resolveCreditCalculationExecution({ input: calculationInput, calculationService });
   const calculation = calculationExecution.result;
-  const financialProductId = await resolveFinancialProductId({ input, financialProductModel });
-  const startDate = resolveLoanStartDate(input.startDate);
+  const financialProductId = await resolveFinancialProductId({ input: calculationInput, financialProductModel });
+  const startDate = resolveLoanStartDate(calculationInput.startDate);
 
   // graphVersionId comes from the execution — the exact graph that produced these numbers
   const dagGraphVersionId = calculationExecution.graphVersionId;
@@ -95,20 +109,21 @@ const createLoanFromCanonicalDataFactory = ({
     ...buildFinancialSnapshot(calculation.schedule),
     ...(calculation.summary || {}),
     calculationMethod: calculation.calculationMethod || 'FRENCH',
+    policySnapshot: policyContext.policySnapshot || calculation.policySnapshot || null,
     startDate: startDate.toISOString(),
   };
 
   return loanModel.create({
-    customerId: input.customerId,
-    associateId: input.associateId || null,
+    customerId: calculationInput.customerId,
+    associateId: calculationInput.associateId || null,
     financialProductId,
-    amount: input.amount,
-    interestRate: input.interestRate,
-    termMonths: input.termMonths,
+    amount: calculationInput.amount,
+    interestRate: calculationInput.interestRate,
+    termMonths: calculationInput.termMonths,
     status: 'pending',
     startDate,
     lateFeeMode: calculation.lateFeeMode,
-    annualLateFeeRate: input.annualLateFeeRate ?? input.lateFeeRate ?? 0,
+    annualLateFeeRate: calculationInput.annualLateFeeRate ?? calculationInput.lateFeeRate ?? 0,
     emiSchedule: calculation.schedule,
     installmentAmount: snapshot.installmentAmount,
     totalPayable: snapshot.totalPayable,

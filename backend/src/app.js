@@ -13,6 +13,7 @@ const { globalErrorHandler, notFoundHandler } = require('./utils/errorHandler');
 const { logRequest } = require('./utils/logger');
 const { buildModuleRegistry } = require('./modules');
 const { runWithRequestContext } = require('./modules/shared/requestContext');
+const { buildOpenApiDocument } = require('./docs/openapi');
 
 /**
  * Create the backend HTTP application with the registered module routers.
@@ -112,6 +113,7 @@ const createApp = ({
         <h1>🏦 CrediCobranza</h1>
         <p>Sistema de Gestion de Prestamos y Cobranza ejecutandose en ${process.env.NODE_ENV || 'development'}.</p>
         <p><a href="/api">View API documentation</a></p>
+        <p><a href="/api/docs/openapi.json">OpenAPI JSON</a></p>
       </body>
       </html>
     `);
@@ -124,7 +126,14 @@ const createApp = ({
       message: 'CrediCobranza API',
       version: '1.0.0',
       endpoints,
+      docs: {
+        openapi: '/api/docs/openapi.json',
+      },
     });
+  });
+
+  app.get('/api/docs/openapi.json', (req, res) => {
+    res.json(buildOpenApiDocument({ moduleRegistry }));
   });
 
   moduleRegistry.forEach((moduleRegistration) => {

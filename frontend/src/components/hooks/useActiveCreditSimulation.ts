@@ -62,7 +62,10 @@ const areCalculationInputsEqual = (
     && left.interestRate === right.interestRate
     && left.termMonths === right.termMonths
     && (left.lateFeeMode || 'SIMPLE') === (right.lateFeeMode || 'SIMPLE')
-    && (left.startDate || '') === (right.startDate || '');
+    && (left.startDate || '') === (right.startDate || '')
+    && (left.rateSource || 'manual') === (right.rateSource || 'manual')
+    && (left.lateFeeSource || 'manual') === (right.lateFeeSource || 'manual')
+    && (left.annualLateFeeRate ?? null) === (right.annualLateFeeRate ?? null);
 };
 
 type UseActiveCreditSimulationOptions = {

@@ -490,6 +490,12 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
       remainingPrincipal: 90,
       remainingInterest: 10,
     }],
+    policySnapshot: {
+      ratePolicyId: 91,
+      lateFeePolicyId: 92,
+      appliedInterestRate: 36,
+      appliedLateFeeMode: 'NONE',
+    },
   };
 
   const router = createCreditsRouter({
@@ -537,6 +543,7 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
         summary: calculation.summary,
         schedule: calculation.schedule,
         graphVersionId: null,
+        policySnapshot: calculation.policySnapshot,
       },
       simulation: {
         calculationMethod: 'COMPOUND',
@@ -544,6 +551,7 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
         summary: calculation.summary,
         schedule: calculation.schedule,
         graphVersionId: null,
+        policySnapshot: calculation.policySnapshot,
       },
     },
   });

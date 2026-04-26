@@ -115,6 +115,9 @@ export interface CreditCalculationInput {
   termMonths: number;
   startDate?: string;
   lateFeeMode?: LateFeeMode;
+  annualLateFeeRate?: number;
+  rateSource?: 'policy' | 'manual';
+  lateFeeSource?: 'policy' | 'manual';
 }
 
 export type SimulationInput = CreditCalculationInput;
@@ -160,6 +163,7 @@ export interface AmortizationRow {
 export interface CreditCalculationResult {
   lateFeeMode: LateFeeMode;
   calculationMethod?: CalculationMethodKey;
+  policySnapshot?: Record<string, unknown> | null;
   summary: CreditCalculationSummary;
   schedule: AmortizationRow[];
   graphVersionId?: number | null;
