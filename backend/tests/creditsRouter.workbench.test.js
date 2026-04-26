@@ -185,7 +185,7 @@ test('createCreditsRouter serves DAG workbench contracts behind the existing loa
   });
   const simulateResponse = await requestJson(activeServer, {
     method: 'POST',
-    path: '/workbench/graph/simulations',
+    path: '/workbench/graph/calculations',
     headers: { authorization: 'Bearer valid-token' },
     body: { scopeKey: 'personal-loan', graph: graphVersion.graph, simulationInput: { amount: 1000, interestRate: 12, termMonths: 12 } },
   });
@@ -263,7 +263,7 @@ test('createCreditsRouter preserves fallback metadata in DAG workbench simulatio
 
   const response = await requestJson(activeServer, {
     method: 'POST',
-    path: '/workbench/graph/simulations',
+    path: '/workbench/graph/calculations',
     headers: { authorization: 'Bearer valid-token' },
     body: { scopeKey: 'personal-loan', graph: { nodes: [{ id: 'amount', kind: 'input' }], edges: [] }, simulationInput: { amount: 1000 } },
   });
@@ -272,6 +272,34 @@ test('createCreditsRouter preserves fallback metadata in DAG workbench simulatio
   assert.equal(response.body.data.summary.latestSimulation.selectedSource, 'legacy');
   assert.equal(response.body.data.summary.latestSimulation.fallbackReason, 'parity_mismatch');
   assert.equal(response.body.data.summary.latestSimulation.parity.passed, false);
+});
+
+test('createCreditsRouter does not expose legacy workbench simulation alias', async () => {
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async simulateDagWorkbenchGraph() {
+        throw new Error('simulateDagWorkbenchGraph should not be called');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/workbench/graph/simulations',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { scopeKey: 'credit-simulation', graph: { nodes: [], edges: [] }, simulationInput: { amount: 1000 } },
+  });
+
+  assert.equal(response.statusCode, 404);
 });
 
 test('createCreditsRouter returns 403 for scope catalog when the DAG workbench is disabled', async () => {

@@ -55,10 +55,11 @@ vi.mock('recharts', () => {
   };
 });
 
-vi.mock('react-grid-layout/legacy', () => {
+vi.mock('react-grid-layout', () => {
   const Responsive = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   return {
     Responsive,
+    default: Responsive,
     WidthProvider: (component: unknown) => component,
   };
 });

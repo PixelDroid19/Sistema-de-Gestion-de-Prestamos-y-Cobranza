@@ -43,10 +43,18 @@ const requestJson = (server, { method = 'GET', path = '/', headers = {}, body } 
       rawBody += chunk;
     });
     response.on('end', () => {
+      let parsedBody = null;
+      if (rawBody) {
+        try {
+          parsedBody = JSON.parse(rawBody);
+        } catch {
+          parsedBody = rawBody;
+        }
+      }
       resolve({
         statusCode: response.statusCode,
         headers: response.headers,
-        body: rawBody ? JSON.parse(rawBody) : null,
+        body: parsedBody,
       });
     });
   });

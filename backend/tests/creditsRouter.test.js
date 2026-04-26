@@ -550,6 +550,35 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
   assert.deepEqual(calls, [['createCreditCalculation', payload]]);
 });
 
+test('createCreditsRouter does not expose legacy /simulations endpoint', async () => {
+  const calls = [];
+  const app = createRuntimeApp({
+    actor: { id: 2, role: 'admin' },
+    useCases: createUseCases({
+      async createCreditCalculation(input) {
+        calls.push(['createCreditCalculation', input]);
+        return {};
+      },
+    }),
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/simulations',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      amount: 1500,
+      interestRate: 12,
+      termMonths: 12,
+    },
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(calls.length, 0);
+});
+
 test('createCreditsRouter GET / scopes loans to the authenticated customer at runtime', async () => {
   const loanRepository = {
     async list() {

@@ -67,11 +67,6 @@ const createConfigRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, message: 'Late fee policy deleted successfully', data: result });
   }));
 
-  router.get('/pmconfig', asyncHandler(async (_req, res) => {
-    const paymentMethods = await useCases.listPaymentMethodsLegacy();
-    res.json({ success: true, data: { paymentMethods } });
-  }));
-
   router.post('/payment-methods', asyncHandler(async (req, res) => {
     const paymentMethod = await useCases.createPaymentMethod(req.body);
     res.status(201).json({ success: true, message: 'Payment method created successfully', data: { paymentMethod } });
