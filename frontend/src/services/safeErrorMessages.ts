@@ -21,8 +21,10 @@ export type SafeErrorAction =
   | 'payment.register'
   | 'payout.register'
   | 'customer.create'
+  | 'customer.update'
   | 'customer.restore'
   | 'associate.create'
+  | 'associate.update'
   | 'permission.grant'
   | 'permission.revoke'
   | 'config.update'
@@ -132,12 +134,20 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
     title: 'No se pudo crear el cliente',
     description: 'Revisa los datos e inténtalo nuevamente.',
   },
+  'customer.update': {
+    title: 'No se pudo actualizar el cliente',
+    description: 'Revisa los datos e inténtalo nuevamente.',
+  },
   'customer.restore': {
     title: 'No se pudo restaurar el cliente',
     description: 'Recarga la lista e inténtalo nuevamente.',
   },
   'associate.create': {
     title: 'No se pudo crear el socio',
+    description: 'Revisa los datos e inténtalo nuevamente.',
+  },
+  'associate.update': {
+    title: 'No se pudo actualizar el socio',
     description: 'Revisa los datos e inténtalo nuevamente.',
   },
   'permission.grant': {

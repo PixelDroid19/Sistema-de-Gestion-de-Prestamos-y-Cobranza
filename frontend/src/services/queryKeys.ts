@@ -17,6 +17,7 @@ export type CustomerListParams = {
   pageSize?: number;
   search?: string;
   status?: string;
+  registeredWithin?: string;
 };
 
 export type UserListParams = {
@@ -36,8 +37,9 @@ export type AssociateListParams = {
 export const queryKeys = {
   customers: {
     all: ['customers'] as const,
-    list: (params?: CustomerListParams) => ['customers.list', params ?? {}] as const,
-    documents: (customerId: number) => ['customers.documents', customerId] as const,
+    list: (params?: CustomerListParams) => ['customers', 'list', params ?? {}] as const,
+    detail: (customerId: number) => ['customers', 'detail', customerId] as const,
+    documents: (customerId: number) => ['customers', 'documents', customerId] as const,
   },
   users: {
     all: ['users'] as const,
@@ -45,10 +47,11 @@ export const queryKeys = {
   },
   associates: {
     all: ['associates'] as const,
-    list: (params?: AssociateListParams) => ['associates.list', params ?? {}] as const,
-    portal: (associateId: number) => ['associates.portal', associateId] as const,
-    installments: (associateId: number) => ['associates.installments', associateId] as const,
-    calendar: (associateId: number) => ['associates.calendar', associateId] as const,
+    list: (params?: AssociateListParams) => ['associates', 'list', params ?? {}] as const,
+    detail: (associateId: number) => ['associates', 'detail', associateId] as const,
+    portal: (associateId: number) => ['associates', 'portal', associateId] as const,
+    installments: (associateId: number) => ['associates', 'installments', associateId] as const,
+    calendar: (associateId: number) => ['associates', 'calendar', associateId] as const,
   },
   config: {
     paymentMethods: ['config.paymentMethods'] as const,

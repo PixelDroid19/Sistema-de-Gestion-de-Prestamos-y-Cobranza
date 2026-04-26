@@ -12,6 +12,7 @@ const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(
 const formatCurrency = (value) => roundCurrency(value).toFixed(2);
 const PERCENTAGE_SCALE = 10000;
 const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
+const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -47,6 +48,44 @@ const normalizeAssociatePayload = (payload) => {
     ...payload,
     participationPercentage: normalizeParticipationPercentage(payload.participationPercentage),
   };
+};
+
+const normalizeAssociateListFilters = (filters = {}) => {
+  const normalized = {};
+
+  const rawSearch = String(filters.search || '').trim();
+  if (rawSearch) {
+    normalized.search = rawSearch;
+  }
+
+  const rawStatus = String(filters.status || '').trim().toLowerCase();
+  if (rawStatus) {
+    if (!ALLOWED_ASSOCIATE_STATUSES.has(rawStatus)) {
+      throw new ValidationError('Associate status filter must be active or inactive');
+    }
+    normalized.status = rawStatus;
+  }
+
+  return normalized;
+};
+
+const enrichAssociatesWithLoanCounts = async ({ associateRepository, result }) => {
+  if (typeof associateRepository.attachLoanCounts !== 'function') {
+    return result;
+  }
+
+  if (Array.isArray(result)) {
+    return associateRepository.attachLoanCounts(result);
+  }
+
+  if (Array.isArray(result?.items)) {
+    return {
+      ...result,
+      items: await associateRepository.attachLoanCounts(result.items),
+    };
+  }
+
+  return result;
 };
 
 const normalizeAssociateRecord = (associate) => {
@@ -270,16 +309,24 @@ const ensureUniqueAssociateContact = async ({ associateRepository, email, phone,
  * @param {{ associateRepository: object }} dependencies
  * @returns {Function}
  */
-const createListAssociates = ({ associateRepository }) => async ({ pagination } = {}) => {
+const createListAssociates = ({ associateRepository }) => async ({ pagination, filters } = {}) => {
+  const normalizedFilters = normalizeAssociateListFilters(filters);
+
   if (pagination) {
-    const result = await associateRepository.listPage(pagination);
+    const result = await enrichAssociatesWithLoanCounts({
+      associateRepository,
+      result: await associateRepository.listPage({ ...pagination, filters: normalizedFilters }),
+    });
     return {
       items: result.items.map(normalizeAssociateRecord),
       pagination: result.pagination,
     };
   }
 
-  const associates = await associateRepository.list();
+  const associates = await enrichAssociatesWithLoanCounts({
+    associateRepository,
+    result: await associateRepository.list(normalizedFilters),
+  });
   return associates.map(normalizeAssociateRecord);
 };
 

@@ -18,11 +18,13 @@ interface SessionState {
   // Refresh token - used to obtain new access tokens
   refreshToken: string | null;
   user: User | null;
+  hasHydrated: boolean;
   // Login with token pair from login/refresh endpoints
   login: (tokens: { accessToken: string; refreshToken: string; user: User }) => void;
   // Update just the access token (after refresh)
   updateAccessToken: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
+  markHydrated: () => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -31,9 +33,11 @@ export const useSessionStore = create<SessionState>()(
       accessToken: null,
       refreshToken: null,
       user: null,
+      hasHydrated: false,
       login: ({ accessToken, refreshToken, user }) => set({ accessToken, refreshToken, user }),
       updateAccessToken: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
       logout: () => set({ accessToken: null, refreshToken: null, user: null }),
+      markHydrated: () => set({ hasHydrated: true }),
     }),
     {
       name: 'lendflow-session',
@@ -43,6 +47,9 @@ export const useSessionStore = create<SessionState>()(
         user: state.user,
         // Don't persist accessToken for security - it should be short-lived
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.markHydrated();
+      },
     }
   )
 );

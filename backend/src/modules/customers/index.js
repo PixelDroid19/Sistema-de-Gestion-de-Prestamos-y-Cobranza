@@ -2,6 +2,7 @@ const { customerValidation } = require('@/middleware/validation');
 const { createModule, resolveAuthContext } = require('@/modules/shared');
 const {
   createListCustomers,
+  createGetCustomerById,
   createCreateCustomer,
   createFindCustomerByDocument,
   createUpdateCustomer,
@@ -28,6 +29,7 @@ const createCustomersModule = ({ sharedRuntime, auditService } = {}) => {
   const attachmentUpload = createAttachmentUpload({ storage: attachmentStorage });
   const useCases = {
     listCustomers: createListCustomers({ customerRepository }),
+    getCustomerById: createGetCustomerById({ customerRepository }),
     createCustomer: createCreateCustomer({ customerRepository, auditService }),
     findCustomerByDocument: createFindCustomerByDocument({ customerRepository }),
     updateCustomer: createUpdateCustomer({ customerRepository, auditService }),

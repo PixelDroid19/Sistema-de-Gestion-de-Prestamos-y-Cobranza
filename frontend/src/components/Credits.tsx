@@ -17,8 +17,6 @@ import { tTerm } from '../i18n/terminology';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
-import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
 
 const locales = {
   'es': es,
@@ -182,20 +180,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       setIsExporting(false);
     }
   };
-
-  const {
-    input: simulationInput,
-    result: simulationResult,
-    error: simulationError,
-    fieldErrors: simulationFieldErrors,
-    isSimulating,
-    isResultStale,
-    setInput: setSimulationInput,
-    simulate: runSimulation,
-  } = useActiveCreditSimulation({
-    initialInput: DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-    autoRun: activeTab === 'simulation',
-  });
 
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
 
@@ -593,7 +577,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
             </button>
           )}
-          <button onClick={() => updateActiveTab('simulation')} className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg">
+          <button onClick={() => setCurrentView?.('credit-calculator')} className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg">
             <Calculator size={16} /> Previsualizar crédito
           </button>
           {isAdmin && (
@@ -1348,28 +1332,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           )}
         </div>
       )}
-
-      <div className={activeTab === 'simulation' ? '' : 'hidden'}>
-        <CreditSimulationWorkspace
-          title="Previsualizar crédito"
-          description="Calcula un crédito con la fórmula activa antes de registrarlo."
-          modeLabel="Fórmula activa"
-          actionLabel="Calcular"
-          input={simulationInput}
-          result={simulationResult}
-          isSimulating={isSimulating}
-          error={simulationError}
-          fieldErrors={simulationFieldErrors}
-          isResultStale={isResultStale}
-          onInputChange={setSimulationInput}
-          onSimulate={runSimulation}
-          showScenarioTools
-          helperText="Usa la misma fórmula activa que se aplicará al crear créditos nuevos."
-          resultBadge={simulationResult?.graphVersionId != null ? `Fórmula v${simulationResult.graphVersionId}` : null}
-          emptyTitle="Listo para proyectar un crédito"
-          emptyDescription="Completa los parámetros y ejecuta el cálculo para revisar cuota estimada, interés total y cronograma mensual."
-        />
-      </div>
 
     </div>
   );

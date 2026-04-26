@@ -42,19 +42,65 @@ const isCustomerPrimaryKeyConflict = (error) => {
   return /Customers_pkey/u.test(String(error?.message || ''));
 };
 
+const ALLOWED_CUSTOMER_STATUSES = new Set(['active', 'inactive', 'blacklisted']);
+const ALLOWED_CUSTOMER_REGISTERED_WINDOWS = new Set(['today', 'week', 'month', 'year']);
+
+const normalizeCustomerListFilters = (filters = {}) => {
+  const normalized = {};
+
+  const rawSearch = String(filters.search || '').trim();
+  if (rawSearch) {
+    normalized.search = rawSearch;
+  }
+
+  const rawStatus = String(filters.status || '').trim().toLowerCase();
+  if (rawStatus) {
+    if (!ALLOWED_CUSTOMER_STATUSES.has(rawStatus)) {
+      throw new ValidationError('Customer status filter must be active, inactive, or blacklisted');
+    }
+    normalized.status = rawStatus;
+  }
+
+  const rawRegisteredWithin = String(filters.registeredWithin || '').trim().toLowerCase();
+  if (rawRegisteredWithin) {
+    if (!ALLOWED_CUSTOMER_REGISTERED_WINDOWS.has(rawRegisteredWithin)) {
+      throw new ValidationError('Customer date filter must be today, week, month, or year');
+    }
+    normalized.registeredWithin = rawRegisteredWithin;
+  }
+
+  return normalized;
+};
+
 /**
  * Create the use case that lists customers in repository-defined order.
  * @param {{ customerRepository: object }} dependencies
  * @returns {Function}
  */
-const createListCustomers = ({ customerRepository }) => async ({ pagination } = {}) => {
+const createListCustomers = ({ customerRepository }) => async ({ pagination, filters } = {}) => {
+  const normalizedFilters = normalizeCustomerListFilters(filters);
+
   if (pagination) {
-    const result = await customerRepository.listPage(pagination);
+    const result = await customerRepository.listPage({ ...pagination, filters: normalizedFilters });
     return enrichCustomersWithLoanSummaries({ customerRepository, result });
   }
 
-  const customers = await customerRepository.list();
+  const customers = await customerRepository.list(normalizedFilters);
   return enrichCustomersWithLoanSummaries({ customerRepository, result: customers });
+};
+
+const createGetCustomerById = ({ customerRepository }) => async ({ customerId }) => {
+  const customer = await customerRepository.findById(customerId);
+  if (!customer) {
+    throw new NotFoundError('Customer');
+  }
+
+  const [enrichedCustomer] = await enrichCustomersWithLoanSummaries({
+    customerRepository,
+    result: [customer],
+  });
+
+  return enrichedCustomer || customer;
 };
 
 /**
@@ -271,6 +317,7 @@ const createRestoreCustomer = ({ customerRepository, auditService }) => {
 
 module.exports = {
   createListCustomers,
+  createGetCustomerById,
   createCreateCustomer,
   createFindCustomerByDocument,
   createUpdateCustomer,

@@ -15,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
+import { getFormulaValueLabel } from '../../lib/formulaDisplay';
 import type { SimulationInput, SimulationResult } from '../../types/dag';
 
 type SavedScenario = {
@@ -95,6 +96,10 @@ const formatScheduleStatus = (status?: string) => {
   if (normalizedStatus === 'cancelled' || normalizedStatus === 'annulled') return 'Anulada';
   return status || '-';
 };
+
+const formatCalculationMethod = (value?: SimulationResult['calculationMethod']) => (
+  getFormulaValueLabel(value || 'FRENCH', 'calculationMethod')
+);
 
 const getDefaultScenarioName = (savedScenariosCount: number) => `Escenario ${savedScenariosCount + 1}`;
 
@@ -630,10 +635,15 @@ export default function CreditSimulationWorkspace({
                   </p>
                 </div>
                 {result && (
-                   <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                     Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
-                   </div>
-                 )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                      Método: {formatCalculationMethod(result.calculationMethod)}
+                    </div>
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                      Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {isSimulating ? (
@@ -677,10 +687,15 @@ export default function CreditSimulationWorkspace({
                   </p>
                 </div>
                 {result && (
-                   <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                     Fórmula: {result.graphVersionId != null ? `v${result.graphVersionId}` : 'Legado'}
-                   </div>
-                 )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                      Fórmula: {result.graphVersionId != null ? `v${result.graphVersionId}` : 'Activa sin versión visible'}
+                    </div>
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                      Método: {formatCalculationMethod(result.calculationMethod)}
+                    </div>
+                  </div>
+                )}
               </div>
 
                <div className="overflow-hidden rounded-xl border border-border-subtle bg-bg-base">

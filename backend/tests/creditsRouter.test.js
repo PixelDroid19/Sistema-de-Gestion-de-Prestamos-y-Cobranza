@@ -474,6 +474,7 @@ test('createCreditsRouter protects admin-only portfolio analytics routes', async
 test('createCreditsRouter POST /calculations returns canonical credit calculation data', async () => {
   const calls = [];
   const calculation = {
+    calculationMethod: 'COMPOUND',
     lateFeeMode: 'NONE',
     summary: {
       installmentAmount: 100,
@@ -531,12 +532,14 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
     message: 'Credit calculation generated successfully',
     data: {
       calculation: {
+        calculationMethod: 'COMPOUND',
         lateFeeMode: 'NONE',
         summary: calculation.summary,
         schedule: calculation.schedule,
         graphVersionId: null,
       },
       simulation: {
+        calculationMethod: 'COMPOUND',
         lateFeeMode: 'NONE',
         summary: calculation.summary,
         schedule: calculation.schedule,

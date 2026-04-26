@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock, DollarSign, TrendingUp, Calendar, AlertTriangle, CreditCard } from 'lucide-react';
-import { useCustomers, useCustomerDocuments } from '../services/customerService';
+import { useCustomerById, useCustomerDocuments } from '../services/customerService';
 import { useCustomerReports } from '../services/reportService';
 import { useLoans } from '../services/loanService';
 import { toast } from '../lib/toast';
@@ -18,13 +18,12 @@ export default function CustomerDetails() {
   const navigate = useNavigate();
   const customerId = Number(id);
 
-  const { data: customersData } = useCustomers({ pageSize: 100 });
-  const customers = Array.isArray(customersData?.data?.customers)
-    ? customersData.data.customers
-    : Array.isArray(customersData?.data)
-      ? customersData.data
-      : [];
-  const customer = customers.find((c: any) => c.id === customerId);
+  const {
+    data: customerResponse,
+    isLoading: isCustomerLoading,
+    isError: isCustomerError,
+  } = useCustomerById(customerId);
+  const customer = customerResponse?.data?.customer || customerResponse?.data || null;
 
   const { documents, uploadDocument, deleteDocument, downloadDocumentUrl } = useCustomerDocuments(customerId);
   const { history, creditProfile } = useCustomerReports(customerId);
@@ -46,6 +45,7 @@ export default function CustomerDetails() {
     : Array.isArray(history?.timeline)
       ? history.timeline
       : [];
+  const normalizedCustomerStatus = String(customer?.status || '').toLowerCase();
 
   // Calculate loan statistics
   const activeLoans = customerLoans.filter((l: any) => l.status === 'active' || l.status === 'ACTIVE');
@@ -116,7 +116,15 @@ export default function CustomerDetails() {
     );
   };
 
-  if (!customer) {
+  if (isCustomerLoading) {
+    return (
+      <div className="p-8 text-center text-text-secondary">
+        <p>Cargando cliente...</p>
+      </div>
+    );
+  }
+
+  if (isCustomerError || !customer) {
     return (
       <div className="p-8 text-center text-text-secondary">
         <p>Cliente no encontrado.</p>
@@ -166,9 +174,13 @@ export default function CustomerDetails() {
         </div>
         <div className="ml-auto">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            customer.status === 'active' ? 'bg-status-success-bg text-status-success' : 'bg-status-warning-bg text-status-warning'
+            normalizedCustomerStatus === 'active'
+              ? 'bg-status-success-bg text-status-success'
+              : normalizedCustomerStatus === 'blacklisted'
+                ? 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                : 'bg-status-warning-bg text-status-warning'
           }`}>
-            {customer.status}
+            {normalizedCustomerStatus === 'active' ? 'Activo' : normalizedCustomerStatus === 'blacklisted' ? 'Bloqueado' : 'Inactivo'}
           </span>
         </div>
       </div>

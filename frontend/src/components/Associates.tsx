@@ -11,10 +11,12 @@ import { confirmDanger } from '../lib/confirmModal';
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const { data: associatesData, isLoading, isError, updateAssociate, deleteAssociate, restoreAssociate } = useAssociates({
     page,
     pageSize,
     search: searchTerm || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter,
   });
   const [isExporting, setIsExporting] = useState(false);
 
@@ -54,6 +56,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       .map((part: string) => part.charAt(0).toUpperCase())
       .join('');
   };
+
+  const getStatusLabel = (status: string) => (status === 'active' ? 'Activo' : 'Inactivo');
+
+  const getStatusClasses = (status: string) => (status === 'active'
+    ? 'bg-emerald-100 text-emerald-700'
+    : 'bg-slate-100 text-slate-600');
 
   const handleDelete = async (associate: any) => {
     const associateId = Number(associate?.id);
@@ -131,18 +139,32 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
       <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
         <div className="flex justify-between items-center mb-6">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input 
-              type="text" 
-              placeholder="Buscar socios..." 
-              value={searchTerm}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+              <input 
+                type="text" 
+                placeholder="Buscar por nombre, correo o teléfono..." 
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setPage(1);
+                }}
+                className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-72 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
+              />
+            </div>
+            <select
+              value={statusFilter}
               onChange={(event) => {
-                setSearchTerm(event.target.value);
+                setStatusFilter(event.target.value);
                 setPage(1);
               }}
-              className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
-            />
+              className="rounded-lg border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-primary"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
           </div>
         </div>
 
@@ -172,7 +194,8 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
               <tr>
                 <th className="pb-3 font-medium">ID</th>
                 <th className="pb-3 font-medium">Nombre del Socio</th>
-                <th className="pb-3 font-medium">Rol</th>
+                <th className="pb-3 font-medium">Estado</th>
+                <th className="pb-3 font-medium">Participación</th>
                 <th className="pb-3 font-medium">Préstamos Relacionados</th>
                 <th className="pb-3 font-medium">Acciones</th>
               </tr>
@@ -187,13 +210,20 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     </div>
                     {getAssociateName(associate)}
                   </td>
-                  <td className="py-4 text-text-secondary capitalize">{associate.role || 'socio'}</td>
-                  <td className="py-4">{associate.relatedLoans?.length || 0}</td>
+                  <td className="py-4">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(associate.status)}`}>
+                      {getStatusLabel(associate.status)}
+                    </span>
+                  </td>
+                  <td className="py-4 text-text-secondary">
+                    {associate.participationPercentage ? `${associate.participationPercentage}%` : 'Sin definir'}
+                  </td>
+                  <td className="py-4">{associate.loanCount ?? associate.relatedLoans?.length ?? 0}</td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setCurrentView(`associates/${associate.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
                       <button
-                        onClick={() => setCurrentView(`associates/${associate.id}`)}
+                        onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
                         className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
                         title="Editar"
                       >

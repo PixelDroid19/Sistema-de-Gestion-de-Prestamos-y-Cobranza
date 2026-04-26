@@ -3,7 +3,13 @@ import { API_BASE_URL, apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
 
-export const useCustomers = (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+export const useCustomers = (params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  registeredWithin?: string;
+}) => {
   const getCustomers = useCrudListQuery(queryKeys.customers.list(params), async () => {
     const { data } = await apiClient.get('/customers', { params });
     return data;
@@ -38,6 +44,17 @@ export const useCustomers = (params?: { page?: number; pageSize?: number; search
     deleteCustomer,
     restoreCustomer,
   };
+};
+
+export const useCustomerById = (customerId: number) => {
+  return useQuery({
+    queryKey: queryKeys.customers.detail(customerId),
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/customers/${customerId}`);
+      return data;
+    },
+    enabled: Number.isFinite(customerId) && customerId > 0,
+  });
 };
 
 export const useCustomerDocuments = (customerId: number) => {

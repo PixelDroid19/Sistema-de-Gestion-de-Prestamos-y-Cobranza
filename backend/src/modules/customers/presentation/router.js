@@ -7,7 +7,21 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
   const router = express.Router();
 
   router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const result = await useCases.listCustomers({ pagination: req.pagination });
+    const filters = {
+      search: req.query.search,
+      status: req.query.status,
+      registeredWithin: req.query.registeredWithin,
+    };
+    const hasFilters = Object.values(filters).some((value) => value !== undefined);
+    const input = {
+      pagination: req.pagination,
+    };
+
+    if (hasFilters) {
+      input.filters = filters;
+    }
+
+    const result = await useCases.listCustomers(input);
     if (result?.pagination) {
       res.json({ success: true, count: result.pagination.totalItems, data: { customers: result.items, pagination: result.pagination }, message: 'Customers retrieved successfully' });
       return;
@@ -24,6 +38,11 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
   router.get('/lookup/by-document', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const customer = await useCases.findCustomerByDocument({ documentNumber: req.query.documentNumber });
     res.json({ success: true, data: { customer }, message: 'Customer found successfully' });
+  }));
+
+  router.get('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const customer = await useCases.getCustomerById({ customerId: req.params.id });
+    res.json({ success: true, data: { customer }, message: 'Customer retrieved successfully' });
   }));
 
   router.patch('/:id', authMiddleware(['admin']), customerValidation.update, asyncHandler(async (req, res) => {
