@@ -109,7 +109,7 @@ export default function Profile() {
         </button>
       </div>
 
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 sm:p-6">
+      <section className="min-w-0 border-y border-border-subtle bg-bg-surface/60 py-5">
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
             <div>
@@ -200,7 +200,7 @@ export default function Profile() {
             </div>
           </form>
         )}
-      </div>
+      </section>
     </div>
   );
 }

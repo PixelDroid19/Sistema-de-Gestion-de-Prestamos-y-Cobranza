@@ -324,9 +324,9 @@ export default function Payouts() {
         </button>
       </div>
 
-        <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
         {selectedPayments.length > 0 && (
-          <div className="mb-4 rounded-lg border border-border-subtle bg-bg-base px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 border-y border-border-subtle bg-bg-surface/60 py-3">
             <p className="text-sm text-text-secondary">
               {selectedPayments.length} pago(s) seleccionado(s)
             </p>
@@ -349,7 +349,7 @@ export default function Payouts() {
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center justify-between border-y border-border-subtle bg-bg-surface/60 py-4">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
