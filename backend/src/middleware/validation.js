@@ -254,7 +254,7 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
 const authValidation = {
   /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
-    const { name, email, password, role, roleIds } = req.body;
+    const { name, email, password, role, roleIds, phone } = req.body;
     const errors = [];
     const roleFromRoleIds = mapRoleIdsToRole(roleIds);
     const normalizedRole = normalizeApplicationRole(role || roleFromRoleIds);
@@ -280,6 +280,10 @@ const authValidation = {
 
     if (normalizedRole !== 'customer') {
       errors.push({ field: 'role', message: 'Public registration only allows the customer role' });
+    }
+
+    if (!phone || !validatePhone(phone)) {
+      errors.push({ field: 'phone', message: 'Valid phone number is required' });
     }
 
     if (errors.length > 0) {

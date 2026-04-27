@@ -266,11 +266,15 @@ const createRegisterUser = ({
 
   try {
     if (normalizedRole === 'customer') {
+      if (!phone || String(phone).trim().length === 0) {
+        throw new ValidationError('Phone number is required for customer registration');
+      }
+
       await customerProfileRepository.create({
         id: user.id,
         name,
         email,
-        phone: phone || '',
+        phone,
         address: '',
       });
     }
