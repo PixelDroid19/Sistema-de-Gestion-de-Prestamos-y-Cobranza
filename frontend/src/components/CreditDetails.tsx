@@ -999,8 +999,8 @@ export default function CreditDetails() {
     }[tone];
 
     return (
-      <div className="relative min-w-0 border-b border-border-subtle/80 px-4 py-4 last:border-b-0 sm:px-5 sm:[&:nth-child(2n)]:border-l sm:[&:nth-child(2n)]:border-border-subtle/80 xl:[&:nth-child(2n)]:border-l-0 xl:[&:nth-child(n)]:border-l xl:[&:nth-child(4n+1)]:border-l-0 2xl:border-b-0 2xl:[&:nth-child(n)]:border-l 2xl:[&:nth-child(1)]:border-l-0">
-        <span className={`absolute inset-y-4 left-0 w-0.5 rounded-full ${railClassName}`} aria-hidden="true" />
+      <div className="relative min-w-0 rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface sm:px-5">
+        <span className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${railClassName}`} aria-hidden="true" />
         <div className="flex items-center gap-2 text-text-secondary">
           <Icon size={16} />
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">{label}</p>
@@ -1144,8 +1144,7 @@ export default function CreditDetails() {
         </div>
       </section>
 
-      <section className="-mx-4 border-y border-border-subtle bg-bg-surface/70 px-4 lg:-mx-6 lg:px-6" data-tour="credit-detail-metrics">
-        <div className="grid min-w-0 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7" data-tour="credit-detail-metrics">
           <SummaryMetricItem icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
           <SummaryMetricItem icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
           <SummaryMetricItem
@@ -1177,7 +1176,6 @@ export default function CreditDetails() {
             tone="brand"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</span>}
           />
-        </div>
       </section>
 
       <section className="min-w-0">

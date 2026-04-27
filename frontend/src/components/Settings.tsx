@@ -194,7 +194,7 @@ export default function Settings() {
               Estas políticas son datos formales de operación. Se usan como fuente controlada para alimentar la tasa aplicada en créditos nuevos y pruebas de fórmula.
             </p>
 
-            <form onSubmit={handleCreateRatePolicy} className="mb-6 grid grid-cols-1 gap-4 border-y border-border-subtle bg-bg-surface/60 py-4 lg:grid-cols-6 lg:items-end">
+            <form onSubmit={handleCreateRatePolicy} className="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface lg:grid-cols-6 lg:items-end">
               <div className="lg:col-span-2">
                 <label className="block text-xs text-text-secondary mb-1">Nombre</label>
                 <input required value={newRatePolicy.label} onChange={e => setNewRatePolicy({ ...newRatePolicy, label: e.target.value })} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary" placeholder="Ej: Crédito estándar" />
@@ -216,7 +216,7 @@ export default function Settings() {
               </button>
             </form>
 
-            <div className="overflow-x-auto border-y border-border-subtle">
+            <div className="overflow-x-auto rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
               <table className="min-w-[760px] w-full text-left text-sm">
                 <thead className="bg-bg-base text-xs uppercase tracking-wide text-text-secondary">
                   <tr>
@@ -298,7 +298,7 @@ export default function Settings() {
             <h3 className="font-medium text-lg mb-1">Políticas de mora</h3>
             <p className="mb-4 text-sm text-text-secondary">Define cómo se calcula la mora real sobre cuotas vencidas.</p>
 
-            <form onSubmit={handleCreateLateFeePolicy} className="mb-6 grid grid-cols-1 gap-4 border-y border-border-subtle bg-bg-surface/60 py-4 md:grid-cols-[1fr_160px_180px_120px_auto] md:items-end">
+            <form onSubmit={handleCreateLateFeePolicy} className="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface md:grid-cols-[1fr_160px_180px_120px_auto] md:items-end">
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Nombre</label>
                 <input required value={newLateFeePolicy.label} onChange={e => setNewLateFeePolicy({ ...newLateFeePolicy, label: e.target.value })} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary" placeholder="Ej: Mora simple estándar" />
@@ -324,7 +324,7 @@ export default function Settings() {
               </button>
             </form>
 
-            <div className="divide-y divide-border-subtle border-y border-border-subtle">
+            <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
               {lateFeePolicies.map((policy: any) => (
                 <div key={policy.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -378,7 +378,7 @@ export default function Settings() {
           <div>
             <h3 className="font-medium text-lg mb-4">Métodos de Pago Activos</h3>
             
-            <form onSubmit={handleCreatePaymentMethod} className="mb-6 grid grid-cols-1 gap-4 border-y border-border-subtle bg-bg-surface/60 py-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+            <form onSubmit={handleCreatePaymentMethod} className="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface md:grid-cols-[1fr_220px_auto] md:items-end">
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Nombre</label>
                 <input required type="text" value={newPaymentMethod.name} onChange={e => setNewPaymentMethod({...newPaymentMethod, name: e.target.value})} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary" placeholder="Ej: Transferencia Banco X" />
@@ -396,7 +396,7 @@ export default function Settings() {
               </button>
             </form>
 
-            <div className="divide-y divide-border-subtle border-y border-border-subtle">
+            <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
               {paymentMethods.map((pm: any) => (
                 <div key={pm.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">

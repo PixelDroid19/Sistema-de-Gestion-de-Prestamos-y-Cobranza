@@ -97,7 +97,7 @@ export default function Notifications() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col divide-y divide-border-subtle border-y border-border-subtle bg-bg-surface/60">
+      <div className="flex flex-1 flex-col divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
         {isLoading ? (
           <div className="p-4 text-center text-text-secondary">Cargando notificaciones...</div>
         ) : isError ? (

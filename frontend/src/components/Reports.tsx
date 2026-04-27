@@ -213,7 +213,7 @@ export default function Reports() {
       </div>
 
       {reportExportGuard.visible && (
-      <div className="border-y border-border-subtle bg-bg-surface/60 py-4">
+      <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label htmlFor="report-type" className="block text-xs text-text-secondary mb-1">Tipo de reporte</label>
@@ -304,33 +304,31 @@ export default function Reports() {
       {activeTab === 'dashboard' && (
         <>
           {/* KPI Cards */}
-      <section className="border-y border-border-subtle bg-bg-surface/70">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4">
-          <div className="border-b border-border-subtle px-4 py-4 md:border-r lg:border-b-0">
+      <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               <DollarSign size={14} className="text-blue-600 dark:text-blue-400" /> Total Desembolsado
             </div>
             <p className="text-2xl font-bold text-text-primary">${metrics.totalDisbursed.toLocaleString()}</p>
           </div>
-          <div className="border-b border-border-subtle px-4 py-4 lg:border-r lg:border-b-0">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" /> Total Recuperado
             </div>
             <p className="text-2xl font-bold text-text-primary">${metrics.totalRecovered.toLocaleString()}</p>
           </div>
-          <div className="border-b border-border-subtle px-4 py-4 md:border-r md:border-b-0 lg:border-r">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               <Users size={14} className="text-amber-600 dark:text-amber-400" /> Créditos Activos
             </div>
             <p className="text-2xl font-bold text-text-primary">{metrics.totalActiveLoans}</p>
           </div>
-          <div className="px-4 py-4">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-red-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               <AlertCircle size={14} className="text-red-600 dark:text-red-400" /> Tasa de Morosidad
             </div>
             <p className="text-2xl font-bold text-text-primary">{metrics.arrearsRate}%</p>
           </div>
-        </div>
       </section>
       <p className="text-xs text-text-secondary mt-1">
         <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
