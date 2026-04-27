@@ -282,8 +282,8 @@ const authValidation = {
       errors.push({ field: 'role', message: 'Public registration only allows the customer role' });
     }
 
-    if (!phone || !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required' });
+    if (phone && !validatePhone(phone)) {
+      errors.push({ field: 'phone', message: 'Please enter a valid phone number' });
     }
 
     if (errors.length > 0) {

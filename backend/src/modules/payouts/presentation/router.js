@@ -39,8 +39,8 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
-  // Create partial payment (admin or customer)
-  router.post('/partial', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  // Create partial payment (admin only; customers use installment or payoff flows).
+  router.post('/partial', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: resolveIdempotencyKey(req) });
     res.status(201).json({
       success: true,

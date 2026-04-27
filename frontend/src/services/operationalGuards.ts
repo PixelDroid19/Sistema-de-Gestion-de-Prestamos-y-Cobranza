@@ -168,14 +168,14 @@ const canRegisterPayout = (
     };
   }
 
-  if (role === 'admin' || role === 'customer') {
+  if (role === 'admin') {
     return { visible: true, executable: true };
   }
 
   return {
     visible: false,
     executable: false,
-    reason: 'El pago parcial solo está disponible para administradores o clientes.',
+    reason: 'El pago parcial solo está disponible para administradores.',
   };
 };
 

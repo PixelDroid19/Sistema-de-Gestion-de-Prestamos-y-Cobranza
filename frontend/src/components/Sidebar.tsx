@@ -34,7 +34,7 @@ export default function Sidebar({
   const isCustomersView = currentView === 'customers' || currentView.startsWith('customers/');
   const isCreditsView = currentView.startsWith('credit') || currentView === 'reports' || currentView === 'simulator';
   const isAssociatesView = currentView.startsWith('associate');
-  const { user } = useSessionStore();
+  const { user, logout: clearSession } = useSessionStore();
   const { logout: requestLogout } = useAuth();
   const resolvedRole = user?.role ?? 'admin';
   const isAdmin = resolvedRole === 'admin';
@@ -72,7 +72,12 @@ export default function Sidebar({
 
     setIsLoggingOut(true);
     try {
-      await requestLogout();
+      const remoteLogout = requestLogout().catch(() => undefined);
+      clearSession();
+      await Promise.race([
+        remoteLogout,
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
     } finally {
       setIsMobileOpen(false);
       navigate('/login', { replace: true });

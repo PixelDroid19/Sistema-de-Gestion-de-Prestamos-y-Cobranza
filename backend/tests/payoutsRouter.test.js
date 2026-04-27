@@ -21,6 +21,20 @@ const allowAuth = () => (req, res, next) => {
   next();
 };
 
+const enforceAuth = (allowedRoles) => (req, res, next) => {
+  const role = req.headers['x-test-role'] || 'admin';
+  if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+    res.status(403).json({
+      success: false,
+      error: { message: 'Forbidden', statusCode: 403 },
+    });
+    return;
+  }
+
+  req.user = { id: 3, role };
+  next();
+};
+
 const paymentValidation = {
   create(req, res, next) {
     next();
@@ -62,7 +76,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
     { id: 72, loanId: 8, amount: 125 },
   ];
   const router = createPayoutsRouter({
-    authMiddleware: allowAuth,
+    authMiddleware: enforceAuth,
     attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
@@ -157,7 +171,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
   ];
   const loan = { id: 22, status: 'approved', paymentContext: { isPayable: true } };
   const router = createPayoutsRouter({
-    authMiddleware: allowAuth,
+    authMiddleware: enforceAuth,
     attachmentUpload: noopAttachmentUpload,
     paymentValidation,
     useCases: {
@@ -382,6 +396,38 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
     ['calculateTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01' }],
     ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: null }],
   ]);
+});
+
+test('createPayoutsRouter blocks customer access to free partial payments', async () => {
+  const router = createPayoutsRouter({
+    authMiddleware: enforceAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      createPartialPayment: unexpectedUseCase('createPartialPayment'),
+      createCapitalPayment: unexpectedUseCase('createCapitalPayment'),
+      annulInstallment: unexpectedUseCase('annulInstallment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/partial',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    body: { loanId: 15, amount: 40 },
+  });
+
+  assert.equal(response.statusCode, 403);
 });
 
 test('createPayoutsRouter returns structured denial reasons for capital payment denials', async () => {
