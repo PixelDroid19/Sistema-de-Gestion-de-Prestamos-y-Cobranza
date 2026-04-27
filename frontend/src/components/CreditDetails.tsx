@@ -171,6 +171,10 @@ export default function CreditDetails() {
     permissions: user?.permissions,
     loanStatus: loan?.status,
   });
+  const showInstallmentActionColumn = isAdmin || installmentPaymentGuard.visible;
+  const creditDetailSubtitle = isAdmin
+    ? 'Opera pagos, mora y seguimientos usando la fórmula congelada al crear este crédito.'
+    : 'Consulta tu plan de pagos, historial y opciones de pago disponibles para este crédito.';
 
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
@@ -886,7 +890,7 @@ export default function CreditDetails() {
   };
 
   const renderInstallmentActions = (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => {
-    if (!isAdmin || !['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) {
+    if (!['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) {
       return null;
     }
 
@@ -915,42 +919,48 @@ export default function CreditDetails() {
 
     return (
       <div className={`flex flex-wrap items-center gap-2 ${alignClassName}`}>
-        <button
-          onClick={() => openInstallmentPayment(row)}
-          disabled={!isNextPendingInstallment || !paymentGuard.executable}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-          title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}Registrar pago de cuota` : paymentActionReason}
-          aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}Registrar pago de cuota` : paymentActionReason}
-        >
-          <DollarSign size={16} />
-        </button>
-        <button
-          onClick={() => openPromiseFromInstallment(row)}
-          disabled={!isNextPendingInstallment}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-          title={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
-          aria-label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
-        >
-          <Clock size={16} />
-        </button>
-        <button
-          onClick={() => openFollowUpFromInstallment(row)}
-          disabled={!isNextPendingInstallment}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-          title={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
-          aria-label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
-        >
-          <Bell size={16} />
-        </button>
-        <button
-          onClick={() => openAnnulModal(row.installmentNumber)}
-          disabled={!isNextPendingInstallment || !annulGuard.executable}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-          title={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
-          aria-label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
-        >
-          <ShieldAlert size={16} />
-        </button>
+        {paymentGuard.visible && (
+          <button
+            onClick={() => openInstallmentPayment(row)}
+            disabled={!isNextPendingInstallment || !paymentGuard.executable}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
+            aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
+          >
+            <DollarSign size={16} />
+          </button>
+        )}
+        {isAdmin && (
+          <>
+            <button
+              onClick={() => openPromiseFromInstallment(row)}
+              disabled={!isNextPendingInstallment}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              title={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
+              aria-label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
+            >
+              <Clock size={16} />
+            </button>
+            <button
+              onClick={() => openFollowUpFromInstallment(row)}
+              disabled={!isNextPendingInstallment}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              title={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
+              aria-label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
+            >
+              <Bell size={16} />
+            </button>
+            <button
+              onClick={() => openAnnulModal(row.installmentNumber)}
+              disabled={!isNextPendingInstallment || !annulGuard.executable}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              title={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+              aria-label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+            >
+              <ShieldAlert size={16} />
+            </button>
+          </>
+        )}
       </div>
     );
   };
@@ -1071,7 +1081,7 @@ export default function CreditDetails() {
               </span>
             </div>
             <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
-              Opera pagos, mora y seguimientos usando la fórmula congelada al crear este crédito.
+              {creditDetailSubtitle}
             </p>
 
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
@@ -1089,14 +1099,14 @@ export default function CreditDetails() {
               >
                 <CircleHelp size={16} /> Guía rápida
               </button>
-              {isAdmin && installmentPaymentGuard.visible && (
+              {installmentPaymentGuard.visible && (
                 <button
                   onClick={openNextInstallmentPayment}
                   disabled={!installmentPaymentGuard.executable}
                   title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
                   className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:w-auto sm:min-w-[12rem]"
                 >
-                  <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
+                  <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
                 </button>
               )}
               {isAdmin && capitalPaymentGuard.visible && (
@@ -1252,7 +1262,7 @@ export default function CreditDetails() {
                             </div>
                           </dl>
 
-                          {isAdmin && (
+                          {showInstallmentActionColumn && (
                             <div className="mt-4 border-t border-border-subtle pt-3">
                               {renderInstallmentActions(row, { alignClassName: 'justify-start', titlePrefix: 'Tarjeta · ' })}
                             </div>
@@ -1273,7 +1283,7 @@ export default function CreditDetails() {
                           <th className="py-4 px-6 font-semibold text-right">Amortización</th>
                           <th className="py-4 px-6 font-semibold text-right">Capital Vivo</th>
                           <th className="py-4 px-6 font-semibold text-center w-32">Estado</th>
-                          {isAdmin && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
+                          {showInstallmentActionColumn && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border-subtle">
@@ -1288,7 +1298,7 @@ export default function CreditDetails() {
                             {formatCurrency(loan.amount)}
                           </td>
                           <td className="py-3 px-6"></td>
-                          {isAdmin && <td></td>}
+                          {showInstallmentActionColumn && <td></td>}
                         </tr>
                       {installmentRows.map((row: any, idx: number) => {
                         const installmentStatusInfo = getInstallmentStatusInfo(row.status);
@@ -1320,7 +1330,7 @@ export default function CreditDetails() {
                               {installmentStatusInfo.label}
                             </span>
                           </td>
-                           {isAdmin && (
+                           {showInstallmentActionColumn && (
                            <td className="py-3 px-5 text-center">
                             {renderInstallmentActions(row)}
                             </td>
@@ -1335,7 +1345,7 @@ export default function CreditDetails() {
                           <td className="py-4 px-5 text-right font-bold text-brand-primary text-base">
                             {formatCurrency(calendarSnapshot.outstandingBalance)}
                           </td>
-                          <td colSpan={isAdmin ? 2 : 1}></td>
+                          <td colSpan={showInstallmentActionColumn ? 2 : 1}></td>
                         </tr>
                       </tfoot>
                     )}

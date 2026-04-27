@@ -136,6 +136,7 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
       loanValidation,
       useCases,
       paymentApplicationService,
+      loanAccessPolicy,
     }),
   });
 };
