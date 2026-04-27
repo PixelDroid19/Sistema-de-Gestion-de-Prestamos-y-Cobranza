@@ -51,6 +51,38 @@ export const resolveNotificationDestination = (notification: any): string | null
   return null;
 };
 
+export const resolveNotificationDestinationForUser = (
+  notification: any,
+  user: AppUserLike,
+): string | null => {
+  const destination = resolveNotificationDestination(notification);
+
+  if (!destination || !user?.role) {
+    return null;
+  }
+
+  if (destination.startsWith('/credits/')) {
+    return destination;
+  }
+
+  if (destination.startsWith('/customers/')) {
+    return user.role === 'admin' ? destination : null;
+  }
+
+  if (destination.startsWith('/associates/')) {
+    if (user.role === 'admin') {
+      return destination;
+    }
+
+    if (user.role === 'socio') {
+      const associateId = toPositiveInteger(destination.split('/')[2]);
+      return associateId && associateId === toPositiveInteger(user.associateId) ? destination : null;
+    }
+  }
+
+  return null;
+};
+
 const normalizeNotification = (notification: any) => ({
   ...notification,
   title: getNotificationTitle(notification),
@@ -117,3 +149,4 @@ export const useUnreadNotificationsCount = () => {
     isLoading: getUnreadCount.isLoading,
   };
 };
+import type { AppUserLike } from '../constants/appAccess';

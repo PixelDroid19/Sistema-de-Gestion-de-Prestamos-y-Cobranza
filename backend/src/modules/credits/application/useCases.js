@@ -960,12 +960,12 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
  */
 const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) => {
   const useCase = async ({ actor, loanId }) => {
-    if (actor.role === 'socio') {
-      throw new AuthorizationError('Socio users cannot delete loans');
+    if (actor.role !== 'admin') {
+      throw new AuthorizationError('Only admins can delete loans');
     }
 
     const loan = loanAccessPolicy
-      ? await loanAccessPolicy.findAuthorizedLoan({ actor, loanId })
+      ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })
       : await loanRepository.findById(loanId);
 
     if (!loan) {

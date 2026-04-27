@@ -607,13 +607,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
             </button>
           )}
-          <button
-            onClick={() => setCurrentView?.('credit-calculator')}
-            data-tour="credits-preview"
-            className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3.5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg dark:bg-bg-base"
-          >
-            <Calculator size={16} /> Previsualizar crédito
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setCurrentView?.('credit-calculator')}
+              data-tour="credits-preview"
+              className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3.5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg dark:bg-bg-base"
+            >
+              <Calculator size={16} /> Previsualizar crédito
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setCurrentView?.('credits-new')}

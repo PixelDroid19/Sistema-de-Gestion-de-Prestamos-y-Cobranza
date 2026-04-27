@@ -9,7 +9,7 @@ const mockMarkAllAsRead = vi.fn().mockResolvedValue(undefined);
 const mockClearNotifications = vi.fn().mockResolvedValue(undefined);
 const mockConfirm = vi.fn().mockResolvedValue(true);
 
-const notifications = [
+let notifications = [
   {
     id: 71,
     title: 'Pago registrado',
@@ -28,6 +28,20 @@ const notifications = [
   },
 ];
 
+let currentUser: {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'customer' | 'socio';
+  associateId: number | null;
+} = {
+  id: 1,
+  name: 'Administrador QA',
+  email: 'admin@example.com',
+  role: 'admin' as const,
+  associateId: null as number | null,
+};
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
@@ -45,6 +59,18 @@ vi.mock('../../services/notificationService', () => ({
     markAsRead: { mutateAsync: mockMarkAsRead, isPending: false },
     markAllAsRead: { mutateAsync: mockMarkAllAsRead, isPending: false },
     clearNotifications: { mutateAsync: mockClearNotifications, isPending: false },
+  }),
+  resolveNotificationDestinationForUser: (notification: any, user: any) => {
+    if (notification?.destination?.startsWith('/customers/')) {
+      return user?.role === 'admin' ? notification.destination : null;
+    }
+    return notification?.destination ?? null;
+  },
+}));
+
+vi.mock('../../store/sessionStore', () => ({
+  useSessionStore: () => ({
+    user: currentUser,
   }),
 }));
 
@@ -75,6 +101,31 @@ describe('Notifications behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfirm.mockResolvedValue(true);
+    notifications = [
+      {
+        id: 71,
+        title: 'Pago registrado',
+        message: 'Pago registrado en el crédito #5 por $180000.',
+        createdAt: '2026-04-26T20:00:00.000Z',
+        read: false,
+        destination: '/credits/5',
+      },
+      {
+        id: 72,
+        title: 'Aviso general',
+        message: 'Sin origen navegable.',
+        createdAt: '2026-04-26T21:00:00.000Z',
+        read: true,
+        destination: null,
+      },
+    ];
+    currentUser = {
+      id: 1,
+      name: 'Administrador QA',
+      email: 'admin@example.com',
+      role: 'admin',
+      associateId: null,
+    };
   });
 
   it('opens the linked credit and marks the notification as read', async () => {
@@ -108,5 +159,25 @@ describe('Notifications behavior', () => {
       expect(mockConfirm).toHaveBeenCalledOnce();
       expect(mockClearNotifications).toHaveBeenCalledOnce();
     });
+  });
+
+  it('hides restricted notification destinations for non-admin users', () => {
+    currentUser = {
+      id: 9,
+      name: 'Cliente QA',
+      email: 'customer@example.com',
+      role: 'customer',
+      associateId: null,
+    };
+
+    notifications = [{
+      ...notifications[0],
+      destination: '/customers/5',
+      title: 'Cliente actualizado',
+    }];
+
+    renderNotifications();
+
+    expect(screen.queryByText('Abrir')).not.toBeInTheDocument();
   });
 });

@@ -333,7 +333,7 @@ test('createDeleteLoan rejects deletion of a foreign rejected loan before destro
       },
     },
     loanAccessPolicy: {
-      async findAuthorizedLoan() {
+      async findAuthorizedMutationLoan() {
         throw new AuthorizationError('You can only access loans assigned to you');
       },
     },
@@ -351,7 +351,7 @@ test('createDeleteLoan rejects deletion of a foreign rejected loan before destro
   assert.equal(destroyed, false);
 });
 
-test('createDeleteLoan deletes an authorized rejected loan', async () => {
+test('createDeleteLoan deletes an authorized rejected loan for admins only', async () => {
   let destroyedLoan = null;
   const rejectedLoan = { id: 77, status: 'rejected', customerId: 7 };
   const deleteLoan = createDeleteLoan({
@@ -361,9 +361,9 @@ test('createDeleteLoan deletes an authorized rejected loan', async () => {
       },
     },
     loanAccessPolicy: {
-      async findAuthorizedLoan({ actor, loanId }) {
-        assert.equal(actor.id, 7);
-        assert.equal(actor.role, 'customer');
+      async findAuthorizedMutationLoan({ actor, loanId }) {
+        assert.equal(actor.id, 1);
+        assert.equal(actor.role, 'admin');
         assert.equal(loanId, 77);
         return rejectedLoan;
       },
@@ -371,11 +371,39 @@ test('createDeleteLoan deletes an authorized rejected loan', async () => {
   });
 
   await deleteLoan({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 1, role: 'admin' },
     loanId: 77,
   });
 
   assert.equal(destroyedLoan, rejectedLoan);
+});
+
+test('createDeleteLoan rejects non-admin actors before touching the repository', async () => {
+  let checkedMutationAccess = false;
+  const deleteLoan = createDeleteLoan({
+    loanRepository: {
+      async destroy() {
+        throw new Error('should not destroy');
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        checkedMutationAccess = true;
+        throw new Error('should not reach policy');
+      },
+    },
+  });
+
+  await assert.rejects(() => deleteLoan({
+    actor: { id: 7, role: 'customer' },
+    loanId: 77,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only admins can delete loans');
+    return true;
+  });
+
+  assert.equal(checkedMutationAccess, false);
 });
 
 test('createListLoanAttachments hides internal-only documents from customers', async () => {
