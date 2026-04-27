@@ -26,6 +26,20 @@ export default function CreditSimulator() {
     },
     autoRun: true,
   });
+  const canContinueToRegistration = Boolean(result) && !isResultStale;
+
+  const navigateToCreditRegistration = React.useCallback(() => {
+    if (!canContinueToRegistration) {
+      return;
+    }
+
+    navigate('/credits/new', {
+      state: {
+        simulationInput: input,
+        source: 'credit-calculator',
+      },
+    });
+  }, [canContinueToRegistration, input, navigate]);
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -46,13 +60,8 @@ export default function CreditSimulator() {
           </Link>
           <button
             type="button"
-            disabled={!result}
-            onClick={() => navigate('/credits/new', {
-              state: {
-                simulationInput: input,
-                source: 'credit-calculator',
-              },
-            })}
+            disabled={!canContinueToRegistration}
+            onClick={navigateToCreditRegistration}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
           >
             <ClipboardPlus size={16} />
@@ -91,13 +100,9 @@ export default function CreditSimulator() {
             </div>
             <button
               type="button"
-              onClick={() => navigate('/credits/new', {
-                state: {
-                  simulationInput: input,
-                  source: 'credit-calculator',
-                },
-              })}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary/5 px-4 py-3 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/10"
+              disabled={!canContinueToRegistration}
+              onClick={navigateToCreditRegistration}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary/5 px-4 py-3 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/10 disabled:cursor-not-allowed disabled:border-border-strong disabled:bg-slate-100 disabled:text-text-secondary"
             >
               Continuar a registro
               <ArrowRight size={16} />

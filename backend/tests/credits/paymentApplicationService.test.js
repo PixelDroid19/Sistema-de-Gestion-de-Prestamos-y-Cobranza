@@ -256,6 +256,28 @@ test('processPayment uses canonical payment waterfall and publishes the resultin
   assert.equal(notifications[0].payload.paymentId, 200);
 });
 
+test('processPayment auto-generated idempotency keys differ across installment numbers', async () => {
+  const service = createPaymentApplicationService({ loanViewService });
+  const firstKey = service.buildPaymentOperationIdempotencyKey({
+    operationType: 'installment_payment',
+    loanId: 3,
+    amount: 160673.23,
+    paymentDate: '2026-04-27',
+    paymentMethod: 'cash',
+    installmentNumber: 1,
+  });
+  const secondKey = service.buildPaymentOperationIdempotencyKey({
+    operationType: 'installment_payment',
+    loanId: 3,
+    amount: 160673.23,
+    paymentDate: '2026-04-27',
+    paymentMethod: 'cash',
+    installmentNumber: 2,
+  });
+
+  assert.notEqual(firstKey, secondKey);
+});
+
 test('applyCapitalPayment accepts configured payment method keys and caches idempotent result', async () => {
   let createdPaymentPayload;
   let idempotencyUpdatePayload;
