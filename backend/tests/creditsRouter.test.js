@@ -10,7 +10,7 @@ const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('@
 const { createCreditsRouter } = require('@/modules/credits/presentation/router');
 const { createAuthMiddleware } = require('@/modules/shared/auth');
 const { createLoanAccessPolicy } = require('@/modules/shared/loanAccessPolicy');
-const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
+const { globalErrorHandler, AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -349,13 +349,101 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   ]);
 });
 
-test('createCreditsRouter blocks canonical payment processing for non-admin actors at the auth boundary', async () => {
-  const app = createRuntimeApp({
-    actor: { id: 7, role: 'customer' },
+test('createCreditsRouter lets customers process payments only after loan ownership validation', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
     useCases: createUseCases({}),
-    validation: noopLoanValidation,
+    loanAccessPolicy: {
+      async findAuthorizedLoan(input) {
+        calls.push(['findAuthorizedLoan', input]);
+        return { id: Number(input.loanId), customerId: 7 };
+      },
+    },
+    paymentApplicationService: createPaymentApplicationServiceStub({
+      async processPayment(input) {
+        calls.push(['processPayment', input]);
+        return {
+          transactionId: 9,
+          status: 'APPLIED',
+          newBalance: 750,
+          breakdown: { capital: 200, interest: 50, penalty: 0 },
+          paymentId: 15,
+        };
+      },
+    }),
   });
 
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payments/process',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      loanId: 55,
+      paymentAmount: 250,
+      paymentDate: '2026-03-15T00:00:00.000Z',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    success: true,
+    message: 'Payment processed successfully',
+    data: {
+      transactionId: 9,
+      status: 'APPLIED',
+      newBalance: 750,
+      breakdown: { capital: 200, interest: 50, penalty: 0 },
+      paymentId: 15,
+      idempotent: false,
+    },
+  });
+  assert.deepEqual(calls, [
+    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
+    ['processPayment', {
+      loanId: 55,
+      paymentAmount: 250,
+      paymentDate: '2026-03-15T00:00:00.000Z',
+      paymentMethod: undefined,
+      actorId: 7,
+      idempotencyKey: undefined,
+    }],
+  ]);
+});
+
+test('createCreditsRouter blocks customer payment processing for loans outside their account', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({}),
+    loanAccessPolicy: {
+      async findAuthorizedLoan(input) {
+        calls.push(['findAuthorizedLoan', input]);
+        throw new AuthorizationError('You can only access your own loans');
+      },
+    },
+    paymentApplicationService: createPaymentApplicationServiceStub({
+      async processPayment() {
+        calls.push(['processPayment']);
+        throw new Error('processPayment should not be called');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
   activeServer = await listen(app);
 
   const response = await requestJson(activeServer, {
@@ -370,6 +458,9 @@ test('createCreditsRouter blocks canonical payment processing for non-admin acto
   });
 
   assert.equal(response.statusCode, 403);
+  assert.deepEqual(calls, [
+    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
+  ]);
 });
 
 test('createCreditsRouter keeps static routes above /:id to avoid shadowing', async () => {

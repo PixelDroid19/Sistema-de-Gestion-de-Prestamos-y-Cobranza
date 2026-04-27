@@ -424,7 +424,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Estado' })).toBeDisabled();
   });
 
-  it('renders a customer-safe detail view without admin-only tabs or actions', () => {
+  it('renders a customer-safe detail view with own payment actions only', () => {
     setSessionUser({ id: 10, name: 'QA Customer', email: 'customer@test.com', role: 'customer', permissions: [] });
 
     renderCreditDetails();
@@ -432,9 +432,13 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Pagar cuota' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: 'Registrar Pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Registrar pago de cuota')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Pagar cuota')).toBeInTheDocument();
+    expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Anular cuota')).not.toBeInTheDocument();
   });
 
   it('renders a socio read-only detail view without admin-only tabs or payoff', () => {

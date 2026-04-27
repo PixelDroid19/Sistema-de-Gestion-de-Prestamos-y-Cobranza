@@ -5,13 +5,14 @@ const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
 const { workbenchLimiter } = require('@/middleware/rateLimiter');
 
-const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
+const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService, loanAccessPolicy }) => {
   const router = express.Router();
   const resolveIdempotencyKey = (req) => req.headers['idempotency-key'] || req.body?.idempotencyKey || null;
 
   const paymentRouter = createPaymentRouter({
     authMiddleware,
     paymentApplicationService,
+    loanAccessPolicy,
   });
   router.use('/payments', paymentRouter);
 

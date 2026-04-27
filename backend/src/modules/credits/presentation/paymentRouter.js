@@ -1,9 +1,9 @@
 const express = require('express');
-const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
+const { asyncHandler, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { createPaymentApplicationService } = require('@/modules/credits/application/paymentApplicationService');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 
-const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {}) => {
+const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAccessPolicy } = {}) => {
   const router = express.Router();
 
   const loanViewService = createLoanViewService();
@@ -44,14 +44,21 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService } = {})
   const { paymentLimiter } = require('@/middleware/rateLimiter');
 
   /**
-   * Process a payment using the DAG workbench logic.
+   * Process an installment payment after validating loan ownership for customer self-service.
    */
   router.post('/process', 
-    authMiddleware ? authMiddleware(['admin']) : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); }, 
+    authMiddleware ? authMiddleware(['admin', 'customer']) : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); },
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {
       const { loanId, paymentAmount, paymentDate, paymentMethod, idempotencyKey: bodyKey } = req.body;
+      if (req.user?.role === 'customer') {
+        if (!loanAccessPolicy?.findAuthorizedLoan) {
+          throw new AuthorizationError('No se pudo validar el crédito del cliente');
+        }
+        await loanAccessPolicy.findAuthorizedLoan({ actor: req.user, loanId });
+      }
+
       const actorId = req.user?.id || 0;
       const idempotencyKey = req.headers['idempotency-key'] || bodyKey;
 

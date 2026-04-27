@@ -100,10 +100,6 @@ const canOperateInstallment = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
-  if (role === 'customer') {
-    return { visible: false, executable: false, reason: `Clientes no pueden ejecutar ${actionLabel}.` };
-  }
-
   if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
     return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
   }
@@ -214,6 +210,9 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'installment.pay':
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
+      if (role === 'customer') {
+        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      }
       if (paymentReconciled) {
         return {
           visible: true,
@@ -223,10 +222,19 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'edición de método de pago');
     case 'installment.promise':
+      if (role === 'customer') {
+        return { visible: false, executable: false, reason: 'Los compromisos de pago son gestión interna del equipo de cobranza.' };
+      }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'promesas de pago');
     case 'installment.followUp':
+      if (role === 'customer') {
+        return { visible: false, executable: false, reason: 'Los seguimientos son gestión interna del equipo de cobranza.' };
+      }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'seguimientos');
     case 'installment.annul':
+      if (role === 'customer') {
+        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'anulación de cuotas');
     case 'capital.payment':
       if (role === 'customer') {
