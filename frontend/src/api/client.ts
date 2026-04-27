@@ -1,6 +1,14 @@
 import { useSessionStore } from '../store/sessionStore';
 
-export const API_BASE_URL = '/api';
+const normalizeApiBaseUrl = (value?: string): string => {
+  if (!value || value.trim().length === 0) {
+    return '/api';
+  }
+
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+};
+
+export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 type Primitive = string | number | boolean;
 type QueryParamValue = Primitive | Primitive[] | null | undefined;
