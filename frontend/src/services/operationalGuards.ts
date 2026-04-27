@@ -100,6 +100,10 @@ const canOperateInstallment = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
+  if (role !== 'admin') {
+    return { visible: false, executable: false, reason: `Solo administradores pueden gestionar ${actionLabel}.` };
+  }
+
   if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
     return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
   }
@@ -117,6 +121,10 @@ const canProcessLoanPayments = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
+  if (role !== 'admin' && role !== 'customer') {
+    return { visible: false, executable: false, reason: 'Acción no disponible para este tipo de usuario.' };
+  }
+
   const installmentGuard = canOperateInstallment(role, loanStatus, installmentStatus, actionLabel);
 
   if (!installmentGuard.visible || !installmentGuard.executable) {
@@ -208,10 +216,22 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'credit.delete':
       return canDeleteCredit(role, loanStatus);
     case 'installment.pay':
+      if (role === 'customer') {
+        if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
+          return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        }
+        if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
+          return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        }
+        if (installmentStatus && NON_EXECUTABLE_STATUSES.has(installmentStatus)) {
+          return { visible: true, executable: false, reason: `Cuota ${installmentStatus}: acción no disponible.` };
+        }
+        return { visible: true, executable: true };
+      }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
-      if (role === 'customer') {
-        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      if (role !== 'admin') {
+        return { visible: false, executable: false, reason: 'Solo administradores pueden editar métodos de pago.' };
       }
       if (paymentReconciled) {
         return {
@@ -222,23 +242,23 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'edición de método de pago');
     case 'installment.promise':
-      if (role === 'customer') {
+      if (role !== 'admin') {
         return { visible: false, executable: false, reason: 'Los compromisos de pago son gestión interna del equipo de cobranza.' };
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'promesas de pago');
     case 'installment.followUp':
-      if (role === 'customer') {
+      if (role !== 'admin') {
         return { visible: false, executable: false, reason: 'Los seguimientos son gestión interna del equipo de cobranza.' };
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'seguimientos');
     case 'installment.annul':
-      if (role === 'customer') {
-        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      if (role !== 'admin') {
+        return { visible: false, executable: false, reason: 'Solo administradores pueden anular cuotas.' };
       }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'anulación de cuotas');
     case 'capital.payment':
-      if (role === 'customer') {
-        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      if (role !== 'admin') {
+        return { visible: false, executable: false, reason: 'El abono a capital solo está disponible para administradores.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };

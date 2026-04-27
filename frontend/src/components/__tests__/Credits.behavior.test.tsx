@@ -253,6 +253,10 @@ describe('Credits behavioral parity scenarios', () => {
     const viewButton = screen.getByTitle('Ver detalles del crédito');
     expect(viewButton).toBeInTheDocument();
     expect(viewButton).not.toBeDisabled();
+    expect(screen.queryByTitle('Registrar pago de cuota')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Anular cuota')).not.toBeInTheDocument();
 
     fireEvent.click(viewButton);
 
