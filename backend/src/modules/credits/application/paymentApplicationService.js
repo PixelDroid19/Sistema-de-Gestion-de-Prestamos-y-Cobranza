@@ -327,8 +327,9 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   },
 });
 
-const buildProcessPaymentMetadata = ({ idempotencyKey }) => ({
+const buildProcessPaymentMetadata = ({ idempotencyKey, installmentNumber = null }) => ({
   ...(idempotencyKey ? { idempotencyKey } : {}),
+  ...(installmentNumber ? { installmentNumber } : {}),
   processedVia: 'canonical_waterfall',
 });
 
@@ -1164,13 +1165,7 @@ const createPaymentApplicationService = ({
     });
   };
 
-  const generateIdempotencyKey = (loanId, paymentAmount, paymentDate) => {
-    const hash = crypto.createHash('sha256');
-    hash.update(`${loanId}:${paymentAmount}:${paymentDate}`);
-    return hash.digest('hex').substring(0, 64);
-  };
-
-  const validateProcessPaymentInput = ({ loanId, paymentAmount, paymentDate }) => {
+  const validateProcessPaymentInput = ({ loanId, paymentAmount, paymentDate, installmentNumber }) => {
     if (!loanId) {
       throw new ValidationError('loanId is required');
     }
@@ -1187,6 +1182,13 @@ const createPaymentApplicationService = ({
     const parsedDate = new Date(paymentDate);
     if (isNaN(parsedDate.getTime())) {
       throw new ValidationError('paymentDate must be a valid date');
+    }
+
+    if (installmentNumber !== undefined && installmentNumber !== null) {
+      const parsedInstallmentNumber = Number(installmentNumber);
+      if (!Number.isInteger(parsedInstallmentNumber) || parsedInstallmentNumber <= 0) {
+        throw new ValidationError('installmentNumber must be a positive integer');
+      }
     }
   };
 
@@ -1408,10 +1410,28 @@ const createPaymentApplicationService = ({
     }
   };
 
-  const processPayment = async ({ loanId, paymentAmount, paymentDate, paymentMethod, actorId = 0, idempotencyKey: reqIdempotencyKey }) => {
-    validateProcessPaymentInput({ loanId, paymentAmount, paymentDate });
+  const processPayment = async ({
+    loanId,
+    paymentAmount,
+    paymentDate,
+    paymentMethod,
+    installmentNumber = null,
+    actorId = 0,
+    idempotencyKey: reqIdempotencyKey,
+  }) => {
+    validateProcessPaymentInput({ loanId, paymentAmount, paymentDate, installmentNumber });
 
-    const idempotencyKey = reqIdempotencyKey || generateIdempotencyKey(loanId, paymentAmount, paymentDate);
+    const normalizedInstallmentNumber = installmentNumber === null || installmentNumber === undefined
+      ? null
+      : Number(installmentNumber);
+    const idempotencyKey = reqIdempotencyKey || buildPaymentOperationIdempotencyKey({
+      operationType: 'installment_payment',
+      loanId,
+      amount: Number(paymentAmount),
+      paymentDate,
+      paymentMethod,
+      installmentNumber: normalizedInstallmentNumber,
+    });
 
     const result = await runPaymentOperationWithIdempotency({
       operationType: 'installment_payment',
@@ -1419,6 +1439,7 @@ const createPaymentApplicationService = ({
       amount: Number(paymentAmount),
       paymentDate,
       paymentMethod,
+      installmentNumber: normalizedInstallmentNumber,
       actorId,
       idempotencyKey,
       operation: async (tx) => {
@@ -1438,7 +1459,10 @@ const createPaymentApplicationService = ({
           paymentDate,
           paymentMethod,
           transaction: tx,
-          paymentMetadata: buildProcessPaymentMetadata({ idempotencyKey }),
+          paymentMetadata: buildProcessPaymentMetadata({
+            idempotencyKey,
+            installmentNumber: normalizedInstallmentNumber,
+          }),
         });
 
         const payment = applied.payment;
@@ -1497,6 +1521,7 @@ const createPaymentApplicationService = ({
     applyCapitalPayment,
     applyPayoff,
     annulInstallment,
+    buildPaymentOperationIdempotencyKey,
     processPayment,
     updatePaymentMethod,
   };

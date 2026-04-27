@@ -10,7 +10,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
   const paymentService = paymentApplicationService || createPaymentApplicationService({ loanViewService });
 
   const validateProcessPaymentBody = (req, res, next) => {
-    const { loanId, paymentAmount, paymentDate } = req.body;
+    const { loanId, paymentAmount, paymentDate, installmentNumber } = req.body;
 
     if (!loanId) {
       throw new ValidationError('loanId is required');
@@ -38,6 +38,13 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
       throw new ValidationError('paymentDate must be a valid ISO8601 date string');
     }
 
+    if (installmentNumber !== undefined && installmentNumber !== null && installmentNumber !== '') {
+      const parsedInstallmentNumber = Number.parseInt(String(installmentNumber), 10);
+      if (!Number.isInteger(parsedInstallmentNumber) || parsedInstallmentNumber <= 0) {
+        throw new ValidationError('installmentNumber must be a positive integer');
+      }
+    }
+
     next();
   };
 
@@ -51,7 +58,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {
-      const { loanId, paymentAmount, paymentDate, paymentMethod, idempotencyKey: bodyKey } = req.body;
+      const { loanId, paymentAmount, paymentDate, paymentMethod, installmentNumber, idempotencyKey: bodyKey } = req.body;
       if (req.user?.role === 'customer') {
         if (!loanAccessPolicy?.findAuthorizedLoan) {
           throw new AuthorizationError('No se pudo validar el crédito del cliente');
@@ -67,6 +74,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
         paymentAmount,
         paymentDate,
         paymentMethod,
+        installmentNumber,
         actorId,
         idempotencyKey,
       });

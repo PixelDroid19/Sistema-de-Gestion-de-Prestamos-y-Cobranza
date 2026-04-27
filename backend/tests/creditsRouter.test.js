@@ -390,6 +390,7 @@ test('createCreditsRouter lets customers process payments only after loan owners
       loanId: 55,
       paymentAmount: 250,
       paymentDate: '2026-03-15T00:00:00.000Z',
+      installmentNumber: 2,
     },
   });
 
@@ -413,6 +414,7 @@ test('createCreditsRouter lets customers process payments only after loan owners
       paymentAmount: 250,
       paymentDate: '2026-03-15T00:00:00.000Z',
       paymentMethod: undefined,
+      installmentNumber: 2,
       actorId: 7,
       idempotencyKey: undefined,
     }],
