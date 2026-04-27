@@ -157,6 +157,11 @@ const permissionsCatalog = [
     description: 'Grant permissions to users',
   },
   {
+    name: 'PERMISSIONS_ASSIGN',
+    module: 'PERMISOS',
+    description: 'Assign explicit permissions during user provisioning',
+  },
+  {
     name: 'PERMISSIONS_REVOKE',
     module: 'PERMISOS',
     description: 'Revoke permissions from users',

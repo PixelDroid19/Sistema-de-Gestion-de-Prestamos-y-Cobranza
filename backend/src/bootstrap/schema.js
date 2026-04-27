@@ -17,12 +17,16 @@ const {
   FinancialProduct,
   OutboxEvent,
   ConfigEntry,
+  Permission,
+  RolePermission,
+  UserPermission,
   AuditLog,
   RefreshToken,
   AssociateInstallment,
   RateLimitEntry,
 } = require('@/models');
 const { AUDIT_ACTIONS } = require('@/models/AuditLog');
+const { permissionsCatalog } = require('@/db/seeds/permissions_catalog');
 
 // The required schema models are ordered to respect foreign-key dependencies
 // (e.g. Customers must exist before Loans which reference them).
@@ -32,6 +36,9 @@ const REQUIRED_SCHEMA_MODELS = [
   FinancialProduct,
   OutboxEvent,
   ConfigEntry,
+  Permission,
+  RolePermission,
+  UserPermission,
   User,
   DagGraphVersion,
   Loan,
@@ -397,6 +404,58 @@ const FINANCIAL_PRODUCT_SEEDS = [
   },
 ];
 
+const DEFAULT_ROLE_PERMISSION_NAMES = Object.freeze({
+  admin: permissionsCatalog.map((permission) => permission.name),
+  customer: [],
+  socio: [],
+});
+
+/**
+ * Seed the permission catalog and baseline role assignments used by
+ * operational authorization and the settings permission workbench.
+ * Admins receive the full catalog by default so user provisioning and
+ * permission management are never blocked on a fresh database.
+ * @returns {Promise<void>}
+ */
+const seedPermissionCatalogAndRoleDefaults = async () => {
+  const permissionsByName = new Map();
+
+  for (const seed of permissionsCatalog) {
+    const [permission, created] = await Permission.findOrCreate({
+      where: { name: seed.name },
+      defaults: seed,
+    });
+
+    if (!created && (permission.module !== seed.module || permission.description !== seed.description)) {
+      await permission.update({
+        module: seed.module,
+        description: seed.description,
+      });
+    }
+
+    permissionsByName.set(seed.name, permission);
+  }
+
+  for (const [role, permissionNames] of Object.entries(DEFAULT_ROLE_PERMISSION_NAMES)) {
+    for (const permissionName of permissionNames) {
+      const permission = permissionsByName.get(permissionName);
+      if (!permission) continue;
+
+      await RolePermission.findOrCreate({
+        where: {
+          role,
+          permissionId: permission.id,
+        },
+        defaults: {
+          role,
+          permissionId: permission.id,
+          grantedBy: null,
+        },
+      });
+    }
+  }
+};
+
 const seedFinancialProductsAndGraphs = async () => {
   for (const seed of FINANCIAL_PRODUCT_SEEDS) {
     const [product, created] = await FinancialProduct.findOrCreate({
@@ -440,6 +499,8 @@ const seedFinancialProductsAndGraphs = async () => {
       createdByUserId: null,
     });
   }
+
+  await seedPermissionCatalogAndRoleDefaults();
 };
 
 module.exports = {
@@ -456,5 +517,6 @@ module.exports = {
   resetDatabaseSchema,
   syncDatabaseSchema,
   ensureAuditLogEnums,
+  seedPermissionCatalogAndRoleDefaults,
   seedFinancialProductsAndGraphs,
 };

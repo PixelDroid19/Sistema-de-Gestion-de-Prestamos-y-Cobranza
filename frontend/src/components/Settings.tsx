@@ -15,6 +15,7 @@ export default function Settings() {
     isLoading,
     updateSetting,
     createPaymentMethod,
+    updatePaymentMethod,
     deletePaymentMethod,
     createRatePolicy,
     updateRatePolicy,
@@ -40,6 +41,13 @@ export default function Settings() {
     priority: '100',
     description: '',
   });
+
+  const paymentMethodTypeLabels: Record<string, string> = {
+    bank_transfer: 'Transferencia bancaria',
+    cash: 'Efectivo',
+    card: 'Tarjeta',
+    other: 'Otro',
+  };
 
   if (isLoading) return <div className="p-8 text-center text-text-secondary">Cargando configuración...</div>;
 
@@ -109,6 +117,11 @@ export default function Settings() {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
+
+  const getPaymentMethodTypeLabel = (type: unknown) => {
+    const normalizedType = String(type || 'other').trim().toLowerCase();
+    return paymentMethodTypeLabels[normalizedType] || 'Otro';
+  };
 
   const TabButton = ({
     id,
@@ -233,10 +246,40 @@ export default function Settings() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-3">
-                          <button onClick={() => updateRatePolicy.mutateAsync({ id: policy.id, isActive: !policy.isActive })} className="text-sm font-medium text-brand-primary">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateRatePolicy.mutateAsync({ id: policy.id, isActive: !policy.isActive });
+                                toast.success({ description: policy.isActive ? 'Política de tasa desactivada' : 'Política de tasa activada' });
+                              } catch (error) {
+                                console.error('[settings] updateRatePolicy failed', error);
+                                toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                              }
+                            }}
+                            className="text-sm font-medium text-brand-primary"
+                          >
                             {policy.isActive ? 'Desactivar' : 'Activar'}
                           </button>
-                          <button onClick={() => deleteRatePolicy.mutateAsync(policy.id)} className="text-sm font-medium text-red-600">Eliminar</button>
+                          <button
+                            onClick={async () => {
+                              const confirmed = await confirmDanger({
+                                title: 'Eliminar política de tasa',
+                                message: `Se eliminará la política "${policy.label}".`,
+                                confirmLabel: 'Eliminar',
+                              });
+                              if (!confirmed) return;
+                              try {
+                                await deleteRatePolicy.mutateAsync(policy.id);
+                                toast.success({ description: 'Política de tasa eliminada' });
+                              } catch (error) {
+                                console.error('[settings] deleteRatePolicy failed', error);
+                                toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                              }
+                            }}
+                            className="text-sm font-medium text-red-600"
+                          >
+                            Eliminar
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -289,10 +332,40 @@ export default function Settings() {
                     <p className="text-sm text-text-secondary">{policy.annualEffectiveRate}% EA · {policy.lateFeeMode} · Prioridad {policy.priority}</p>
                   </div>
                   <div className="flex gap-3">
-                    <button onClick={() => updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: !policy.isActive })} className="text-sm font-medium text-brand-primary">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: !policy.isActive });
+                          toast.success({ description: policy.isActive ? 'Política de mora desactivada' : 'Política de mora activada' });
+                        } catch (error) {
+                          console.error('[settings] updateLateFeePolicy failed', error);
+                          toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                        }
+                      }}
+                      className="text-sm font-medium text-brand-primary"
+                    >
                       {policy.isActive ? 'Desactivar' : 'Activar'}
                     </button>
-                    <button onClick={() => deleteLateFeePolicy.mutateAsync(policy.id)} className="text-sm font-medium text-red-600">Eliminar</button>
+                    <button
+                      onClick={async () => {
+                        const confirmed = await confirmDanger({
+                          title: 'Eliminar política de mora',
+                          message: `Se eliminará la política "${policy.label}".`,
+                          confirmLabel: 'Eliminar',
+                        });
+                        if (!confirmed) return;
+                        try {
+                          await deleteLateFeePolicy.mutateAsync(policy.id);
+                          toast.success({ description: 'Política de mora eliminada' });
+                        } catch (error) {
+                          console.error('[settings] deleteLateFeePolicy failed', error);
+                          toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                        }
+                      }}
+                      className="text-sm font-medium text-red-600"
+                    >
+                      Eliminar
+                    </button>
                   </div>
                 </div>
               ))}
@@ -328,29 +401,58 @@ export default function Settings() {
                 <div key={pm.id} className="flex flex-col gap-3 p-4 border border-border-subtle rounded-xl sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-medium">{pm.name}</p>
-                    <p className="text-xs text-text-secondary uppercase">{pm.type}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-bg-base px-2 py-1 text-[11px] font-medium text-text-secondary">
+                        {getPaymentMethodTypeLabel(pm.type)}
+                      </span>
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${pm.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {pm.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                      {pm.requiresReference && (
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-700">
+                          Requiere referencia
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <button 
-                    onClick={async () => {
-                      const confirmed = await confirmDanger({
-                        title: tTerm('confirm.paymentMethod.delete.title'),
-                        message: tTerm('confirm.paymentMethod.delete.message'),
-                        confirmLabel: tTerm('confirm.paymentMethod.delete.confirm'),
-                      });
-                      if (!confirmed) return;
-                      try {
-                        await deletePaymentMethod.mutateAsync(pm.id);
-                        toast.success({ description: 'Método de pago eliminado' });
-                      } catch (error) {
-                        console.error('[settings] deletePaymentMethod failed', error);
-                        toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
-                      }
-                    }}
-                    disabled={deletePaymentMethod.isPending}
-                    className="text-left text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 sm:text-right"
-                  >
-                    Eliminar
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await updatePaymentMethod.mutateAsync({ id: pm.id, isActive: !pm.isActive, type: pm.type });
+                          toast.success({ description: pm.isActive ? 'Método de pago desactivado' : 'Método de pago activado' });
+                        } catch (error) {
+                          console.error('[settings] updatePaymentMethod failed', error);
+                          toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                        }
+                      }}
+                      disabled={updatePaymentMethod.isPending}
+                      className="text-left text-sm font-medium text-brand-primary disabled:opacity-50 sm:text-right"
+                    >
+                      {pm.isActive ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        const confirmed = await confirmDanger({
+                          title: tTerm('confirm.paymentMethod.delete.title'),
+                          message: tTerm('confirm.paymentMethod.delete.message'),
+                          confirmLabel: tTerm('confirm.paymentMethod.delete.confirm'),
+                        });
+                        if (!confirmed) return;
+                        try {
+                          await deletePaymentMethod.mutateAsync(pm.id);
+                          toast.success({ description: 'Método de pago eliminado' });
+                        } catch (error) {
+                          console.error('[settings] deletePaymentMethod failed', error);
+                          toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
+                        }
+                      }}
+                      disabled={deletePaymentMethod.isPending}
+                      className="text-left text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 sm:text-right"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               ))}
               {paymentMethods.length === 0 && (

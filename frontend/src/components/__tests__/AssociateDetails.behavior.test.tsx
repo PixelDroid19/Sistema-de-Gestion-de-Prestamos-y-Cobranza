@@ -118,8 +118,32 @@ describe('AssociateDetails behavior', () => {
     expect(screen.queryByRole('button', { name: 'Registrar reinversión' })).not.toBeInTheDocument();
     expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Cuotas' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
 
     expect(screen.queryByRole('button', { name: /Marcar como pagado/i })).not.toBeInTheDocument();
+  });
+
+  it('translates associated loan statuses into operator-friendly labels', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 7, role: 'socio', name: 'Socio', email: 'socio@test.com', permissions: [], associateId: 1 },
+    });
+
+    useAssociateDetailsSpy.mockReturnValue({
+      ...buildDetailsResponse(),
+      portal: {
+        ...buildDetailsResponse().portal,
+        loans: [
+          { id: 4, amount: 360000, totalInterest: 0, status: 'active' },
+          { id: 3, amount: 350000, totalInterest: 0, status: 'pending' },
+        ],
+      },
+    });
+
+    render(<AssociateDetails />);
+
+    expect(screen.getByText('Activo')).toBeInTheDocument();
+    expect(screen.getByText('Pendiente')).toBeInTheDocument();
+    expect(screen.queryByText(/^active$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
   });
 });

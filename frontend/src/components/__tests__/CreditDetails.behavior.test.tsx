@@ -7,6 +7,10 @@ const mockRecordPayment = vi.fn();
 const mockCreatePromise = vi.fn();
 const mockCreateFollowUp = vi.fn();
 const mockAnnulInstallment = vi.fn();
+const mockExecutePayoff = vi.fn();
+const mockRecordCapitalPayment = vi.fn();
+const mockUpdateLateFeeRate = vi.fn();
+const mockUpdateLoanStatus = vi.fn();
 const mockUpdatePaymentMethod = vi.fn().mockResolvedValue(undefined);
 const mockUpdateAlertStatus = vi.fn().mockResolvedValue(undefined);
 const mockUpdatePromiseStatus = vi.fn().mockResolvedValue(undefined);
@@ -22,6 +26,29 @@ let mockCalendarEntries: Array<{
 ];
 let mockAlerts: any[] = [];
 let mockPromises: any[] = [];
+let mockPayoffQuote: any = null;
+const buildMockLoan = () => ({
+  id: 101,
+  status: 'active',
+  amount: 1000000,
+  termMonths: 12,
+  annualLateFeeRate: 20,
+  paymentContext: {
+    snapshot: {
+      outstandingInstallments: 3,
+      totalInterest: 200000,
+      totalPaidPrincipal: 150000,
+      outstandingPrincipal: 850000,
+      outstandingBalance: 850000,
+    },
+	    payoffEligibility: {
+	      allowed: true,
+	      denialReasons: [] as Array<string | { message?: string }>,
+	    },
+	  },
+  Customer: { name: 'Cliente Demo' },
+});
+let mockLoan = buildMockLoan();
 const mockUseSessionStore = vi.fn(() => ({
   user: { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] },
 }));
@@ -99,23 +126,6 @@ vi.mock('../../services/configService', () => ({
 }));
 
 vi.mock('../../services/loanService', () => {
-  const loan = {
-    id: 101,
-    status: 'active',
-    amount: 1000000,
-    termMonths: 12,
-    annualLateFeeRate: 20,
-    paymentContext: {
-      snapshot: {
-        outstandingInstallments: 3,
-        totalInterest: 200000,
-        totalPaidPrincipal: 150000,
-        outstandingPrincipal: 850000,
-      },
-    },
-    Customer: { name: 'Cliente Demo' },
-  };
-
   return {
     PAYMENT_METHODS: [
       { value: 'transfer', label: 'Transferencia' },
@@ -123,11 +133,11 @@ vi.mock('../../services/loanService', () => {
     ],
     CAPITAL_STRATEGIES: [{ value: 'reduce_term', label: 'Reducir plazo' }],
     useLoans: () => ({
-      data: { data: { loans: [loan] } },
+      data: { data: { loans: [mockLoan] } },
       isLoading: false,
-      updateLoanStatus: { mutateAsync: vi.fn() },
+      updateLoanStatus: { mutateAsync: mockUpdateLoanStatus },
     }),
-    useLoanById: () => ({ data: { data: { loan } }, isLoading: false }),
+    useLoanById: () => ({ data: { data: { loan: mockLoan } }, isLoading: false }),
     useInstallmentQuote: () => ({
       data: {
         data: {
@@ -150,19 +160,19 @@ vi.mock('../../services/loanService', () => {
       calendarSnapshot: { outstandingBalance: 750000 },
       alerts: mockAlerts,
       promises: mockPromises,
-      payoffQuote: null,
+      payoffQuote: mockPayoffQuote,
       isLoading: false,
       createPromise: { mutateAsync: mockCreatePromise },
       createFollowUp: { mutateAsync: mockCreateFollowUp },
-      executePayoff: { mutateAsync: vi.fn() },
+      executePayoff: { mutateAsync: mockExecutePayoff },
       recordPayment: { mutateAsync: mockRecordPayment },
       annulInstallment: { mutateAsync: mockAnnulInstallment },
       updatePaymentMethod: { mutateAsync: mockUpdatePaymentMethod },
       updateAlertStatus: { mutateAsync: mockUpdateAlertStatus, isPending: false },
       updatePromiseStatus: { mutateAsync: mockUpdatePromiseStatus, isPending: false },
       downloadPromiseDocument: { mutateAsync: mockDownloadPromiseDocument, isPending: false },
-      recordCapitalPayment: { mutateAsync: vi.fn() },
-      updateLateFeeRate: { mutateAsync: vi.fn() },
+      recordCapitalPayment: { mutateAsync: mockRecordCapitalPayment },
+      updateLateFeeRate: { mutateAsync: mockUpdateLateFeeRate },
     }),
   };
 });
@@ -180,6 +190,8 @@ describe('CreditDetails behavioral parity scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfirmDanger.mockResolvedValue(true);
+    mockLoan = buildMockLoan();
+    mockPayoffQuote = null;
     mockCalendarEntries = [
       { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
     ];
@@ -373,6 +385,43 @@ describe('CreditDetails behavioral parity scenarios', () => {
         status: 'kept',
       }));
     });
+  });
+
+  it('hides stale payoff data and disables financial actions once the credit is completed', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      status: 'closed',
+      paymentContext: {
+        snapshot: {
+          outstandingInstallments: 0,
+          totalInterest: 200000,
+          totalPaidPrincipal: 1000000,
+          outstandingPrincipal: 0,
+          outstandingBalance: 0,
+        },
+        payoffEligibility: {
+          allowed: false,
+          denialReasons: [{ message: 'Este crédito ya no tiene saldo pendiente para liquidar.' }],
+        },
+      },
+    };
+    mockPayoffQuote = {
+      asOfDate: '2026-03-10',
+      outstandingPrincipal: 850000,
+      total: 850000,
+    };
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pago total' }));
+
+    expect(screen.getByText('El pago total no está disponible')).toBeInTheDocument();
+    expect(screen.getByText('Este crédito ya no tiene saldo pendiente para liquidar.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar Pago' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Tasa de mora' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Estado' })).toBeDisabled();
   });
 
   it('renders a customer-safe detail view without admin-only tabs or actions', () => {

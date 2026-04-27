@@ -7,6 +7,8 @@ const {
 } = require('@/modules/config/infrastructure/repositories');
 const { ROLES } = require('@/modules/shared/roles');
 
+const PAYMENT_METHOD_TYPES = new Set(['bank_transfer', 'cash', 'card', 'other']);
+
 const ADMIN_CATALOGS = {
   roles: ['admin', 'customer', 'socio'],
   customerStatuses: ['active', 'inactive'],
@@ -34,6 +36,7 @@ const buildPaymentMethod = (entry) => ({
   key: entry.key,
   label: entry.label,
   isActive: entry.isActive !== false,
+  type: entry.value?.metadata?.type || 'other',
   description: entry.value?.description || '',
   requiresReference: Boolean(entry.value?.requiresReference),
   metadata: entry.value?.metadata || {},
@@ -80,6 +83,16 @@ const normalizePolicyPriority = (value) => {
   }
   return numericValue;
 };
+
+const normalizePaymentMethodType = (value) => {
+  const normalizedValue = String(value || 'other').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!PAYMENT_METHOD_TYPES.has(normalizedValue)) {
+    throw new ValidationError(`payment method type must be one of: ${Array.from(PAYMENT_METHOD_TYPES).join(', ')}`);
+  }
+  return normalizedValue;
+};
+
+const inferReferenceRequirement = (type) => type === 'bank_transfer' || type === 'card';
 
 const assertAmountRange = ({ minAmount, maxAmount }) => {
   if (minAmount !== null && minAmount < 0) {
@@ -193,9 +206,10 @@ const createListPaymentMethods = ({ configRepository }) => async () => {
   return entries.map(buildPaymentMethod);
 };
 
-const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key, description, requiresReference, isActive }) => {
+const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key, description, requiresReference, isActive, type, metadata }) => {
   const normalizedLabel = requireText(label, 'label');
   const normalizedKey = normalizeKey(key || normalizedLabel);
+  const normalizedType = normalizePaymentMethodType(type);
 
   if (!normalizedKey) {
     throw new ValidationError('key is required');
@@ -213,7 +227,13 @@ const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key,
     isActive: isActive !== false,
     value: {
       description: String(description || '').trim(),
-      requiresReference: Boolean(requiresReference),
+      requiresReference: requiresReference !== undefined
+        ? Boolean(requiresReference)
+        : inferReferenceRequirement(normalizedType),
+      metadata: {
+        ...(metadata && typeof metadata === 'object' ? metadata : {}),
+        type: normalizedType,
+      },
     },
   });
 
@@ -228,6 +248,9 @@ const createUpdatePaymentMethod = ({ configRepository }) => async (paymentMethod
 
   const nextLabel = payload.label !== undefined ? requireText(payload.label, 'label') : existing.label;
   const nextKey = payload.key !== undefined ? normalizeKey(payload.key) : existing.key;
+  const nextType = payload.type !== undefined
+    ? normalizePaymentMethodType(payload.type)
+    : String(existing.value?.metadata?.type || 'other');
   if (!nextKey) {
     throw new ValidationError('key is required');
   }
@@ -247,8 +270,14 @@ const createUpdatePaymentMethod = ({ configRepository }) => async (paymentMethod
         : existing.value?.description || '',
       requiresReference: payload.requiresReference !== undefined
         ? Boolean(payload.requiresReference)
-        : Boolean(existing.value?.requiresReference),
-      metadata: existing.value?.metadata || {},
+        : existing.value?.requiresReference !== undefined
+          ? Boolean(existing.value?.requiresReference)
+          : inferReferenceRequirement(nextType),
+      metadata: {
+        ...(existing.value?.metadata || {}),
+        ...(payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {}),
+        type: nextType,
+      },
     },
   });
 

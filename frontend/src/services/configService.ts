@@ -11,10 +11,19 @@ const normalizeKey = (value: string) => value
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
 
+const normalizePaymentMethodType = (value: unknown) => {
+  const normalizedValue = String(value || 'other').trim().toLowerCase();
+  return ['bank_transfer', 'cash', 'card', 'other'].includes(normalizedValue)
+    ? normalizedValue
+    : 'other';
+};
+
+const inferRequiresReference = (type: string) => type === 'bank_transfer' || type === 'card';
+
 const mapPaymentMethod = (pm: any) => ({
   ...pm,
   name: pm.name ?? pm.label ?? '',
-  type: pm.type ?? pm.key ?? 'other',
+  type: normalizePaymentMethodType(pm.type ?? pm.metadata?.type ?? pm.key),
 });
 
 export const useConfig = () => {
@@ -43,18 +52,30 @@ export const useConfig = () => {
   });
 
   const createPaymentMethod = useInvalidatingMutation(async (paymentMethodData: any) => {
+    const normalizedType = normalizePaymentMethodType(paymentMethodData.type);
     const payload = {
       label: paymentMethodData.label ?? paymentMethodData.name,
       key: paymentMethodData.key ?? normalizeKey(paymentMethodData.name ?? paymentMethodData.label ?? ''),
       description: paymentMethodData.description,
       isActive: paymentMethodData.isActive,
+      type: normalizedType,
+      requiresReference: paymentMethodData.requiresReference ?? inferRequiresReference(normalizedType),
     };
     const { data } = await apiClient.post('/config/payment-methods', payload);
     return data;
   }, queryKeys.config.paymentMethods);
 
   const updatePaymentMethod = useInvalidatingMutation(async ({ id, ...paymentMethodData }: any) => {
-    const { data } = await apiClient.put(`/config/payment-methods/${id}`, paymentMethodData);
+    const normalizedType = paymentMethodData.type !== undefined
+      ? normalizePaymentMethodType(paymentMethodData.type)
+      : undefined;
+    const { data } = await apiClient.put(`/config/payment-methods/${id}`, {
+      ...paymentMethodData,
+      ...(normalizedType ? { type: normalizedType } : {}),
+      ...(normalizedType && paymentMethodData.requiresReference === undefined
+        ? { requiresReference: inferRequiresReference(normalizedType) }
+        : {}),
+    });
     return data;
   }, queryKeys.config.paymentMethods);
 

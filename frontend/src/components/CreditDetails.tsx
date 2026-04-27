@@ -160,6 +160,16 @@ export default function CreditDetails() {
     permissions: user?.permissions,
     loanStatus: loan?.status,
   });
+  const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus: loan?.status,
+  });
+  const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus: loan?.status,
+  });
 
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
@@ -205,6 +215,14 @@ export default function CreditDetails() {
   const reportPromiseEntries = Array.isArray(reportHistorySource?.promises) ? reportHistorySource.promises : [];
   const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
   const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
+  const activePayoffQuote = payoffEligibility?.allowed ? payoffQuote : null;
+  const payoffUnavailableDescription = primaryPayoffDenialReason?.message
+    || (
+      (loan?.paymentContext?.snapshot?.outstandingBalance ?? 0) <= 0.01
+      || ['closed', 'completed', 'paid', 'cancelled'].includes(String(loan?.status || '').toLowerCase())
+    )
+      ? 'Este crédito ya no tiene saldo pendiente para liquidar.'
+      : 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.';
   const operationalHistoryEntries = useMemo(() => {
     const alertEvents = alertEntries.flatMap((alert: any) => {
       const events = [{
@@ -1102,22 +1120,25 @@ export default function CreditDetails() {
                   <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
                 </button>
               )}
-              {isAdmin && (
+              {isAdmin && lateFeeUpdateGuard.visible && (
                 <button
                   onClick={() => {
                     setLateFeeRate(String(loan.annualLateFeeRate || ''));
                     setShowLateFeeModal(true);
                   }}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
+                  disabled={!lateFeeUpdateGuard.executable}
+                  title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
                 >
                   <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
                 </button>
               )}
-              {isAdmin && (
+              {isAdmin && creditStatusUpdateGuard.visible && (
                 <button
                   onClick={() => setShowStatusModal(true)}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
-                  title="Cambiar estado del crédito"
+                  disabled={!creditStatusUpdateGuard.executable}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
+                  title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
                 >
                   <Edit2 size={16} /> Estado
                 </button>
@@ -1584,43 +1605,43 @@ export default function CreditDetails() {
           {/* TAB: PAYOFF */}
           {activeTab === 'payoff' && (
             <div className="animate-in fade-in duration-300">
-              {payoffQuote ? (
+              {activePayoffQuote ? (
                 <div className="max-w-md border border-border-subtle rounded-xl p-6 bg-bg-surface">
                   <h3 className="text-lg font-medium text-text-primary mb-1">Cotización de pago total</h3>
-                  <p className="text-sm text-text-secondary mb-6">Válida al {formatDate(payoffQuote.asOfDate)}</p>
+                  <p className="text-sm text-text-secondary mb-6">Válida al {formatDate(activePayoffQuote.asOfDate)}</p>
                     
                   <div className="space-y-4 mb-6">
                     <div className="flex justify-between text-sm">
                       <span className="text-text-secondary">Capital restante:</span>
-                      <span className="text-text-primary">{formatCurrency(payoffQuote.outstandingPrincipal ?? payoffQuote.principalBalance)}</span>
+                      <span className="text-text-primary">{formatCurrency(activePayoffQuote.outstandingPrincipal ?? activePayoffQuote.principalBalance)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-text-secondary">Intereses a la fecha:</span>
-                    <span className="text-text-primary">{formatCurrency(payoffQuote.accruedInterest ?? payoffQuote.breakdown?.accruedInterest ?? 0)}</span>
+                    <span className="text-text-primary">{formatCurrency(activePayoffQuote.accruedInterest ?? activePayoffQuote.breakdown?.accruedInterest ?? 0)}</span>
                     </div>
-                    {Number(payoffQuote.lateFees) > 0 && (
+                    {Number(activePayoffQuote.lateFees) > 0 && (
                       <div className="flex justify-between text-sm text-amber-600">
                         <span>Cargos por mora:</span>
-                        <span>{formatCurrency(payoffQuote.lateFees)}</span>
+                        <span>{formatCurrency(activePayoffQuote.lateFees)}</span>
                       </div>
                     )}
                     
                     <div className="pt-4 border-t border-border-subtle flex justify-between items-end">
                       <span className="font-medium text-text-primary">Total a Pagar</span>
-                      <span className="text-2xl font-bold text-brand-primary">{formatCurrency(payoffQuote.total ?? payoffQuote.totalPayoffAmount)}</span>
+                      <span className="text-2xl font-bold text-brand-primary">{formatCurrency(activePayoffQuote.total ?? activePayoffQuote.totalPayoffAmount)}</span>
                     </div>
                   </div>
 
                   <button 
                     onClick={handlePayoff}
-                    disabled={!canViewPayoff}
+                    disabled={!canViewPayoff || !payoffEligibility?.allowed}
                     className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                      canViewPayoff
+                      canViewPayoff && payoffEligibility?.allowed
                         ? 'bg-text-primary text-bg-base hover:bg-text-secondary' 
                         : 'bg-bg-base border border-border-subtle text-text-secondary cursor-not-allowed'
                     }`}
                   >
-                    {canViewPayoff ? 'Confirmar pago total' : 'Acción no disponible'}
+                    {canViewPayoff && payoffEligibility?.allowed ? 'Confirmar pago total' : 'Acción no disponible'}
                   </button>
                 </div>
               ) : (
@@ -1628,7 +1649,7 @@ export default function CreditDetails() {
                   <TabEmptyState
                     icon={Info}
                     title="El pago total no está disponible"
-                    description={primaryPayoffDenialReason?.message || 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.'}
+                    description={payoffUnavailableDescription}
                   />
                 </div>
               )}

@@ -327,3 +327,43 @@ test('createApp keeps auth routes out of the global limiter and uses a read limi
     'global:POST:/api/loans',
   ]);
 });
+
+test('createApp exposes PATCH and Idempotency-Key in CORS preflight responses', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+
+  process.env.NODE_ENV = 'development';
+  process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
+
+  try {
+    const app = createApp({
+      sharedRuntime: { id: 'runtime-cors' },
+      moduleRegistry: [
+        {
+          name: 'credits',
+          basePath: '/api/loans',
+          router: express.Router(),
+        },
+      ],
+    });
+
+    activeServer = await listen(app);
+
+    const response = await requestJson(activeServer, {
+      method: 'OPTIONS',
+      path: '/api/loans',
+      headers: {
+        origin: 'http://localhost:3000',
+        'access-control-request-method': 'PATCH',
+        'access-control-request-headers': 'content-type,idempotency-key',
+      },
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.match(String(response.headers['access-control-allow-methods'] || ''), /PATCH/);
+    assert.match(String(response.headers['access-control-allow-headers'] || ''), /Idempotency-Key/i);
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+    process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+  }
+});

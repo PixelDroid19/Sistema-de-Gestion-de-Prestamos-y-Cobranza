@@ -8,6 +8,7 @@ export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
   const { user } = useSessionStore();
   const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
+  const supportsPhoneProfile = user?.role === 'customer' || user?.role === 'socio';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,7 +42,7 @@ export default function Profile() {
       await updateProfile.mutateAsync({
         name: formData.name.trim(),
         email: formData.email.trim(),
-        phone: formData.phone.trim(),
+        ...(supportsPhoneProfile ? { phone: formData.phone.trim() } : {}),
       });
       toast.success({ description: 'Perfil actualizado correctamente' });
     } catch (error) {
@@ -112,8 +113,9 @@ export default function Profile() {
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Nombre completo</label>
+              <label htmlFor="profile-name" className="block text-sm font-medium text-text-secondary mb-1">Nombre completo</label>
               <input
+                id="profile-name"
                 type="text"
                 required
                 value={formData.name}
@@ -122,8 +124,9 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Correo Electrónico</label>
+              <label htmlFor="profile-email" className="block text-sm font-medium text-text-secondary mb-1">Correo Electrónico</label>
               <input
+                id="profile-email"
                 type="email"
                 required
                 value={formData.email}
@@ -131,15 +134,22 @@ export default function Profile() {
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Teléfono</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
-              />
-            </div>
+            {supportsPhoneProfile ? (
+              <div>
+                <label htmlFor="profile-phone" className="block text-sm font-medium text-text-secondary mb-1">Teléfono</label>
+                <input
+                  id="profile-phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-secondary">
+                Este perfil usa solo nombre y correo. El teléfono aplica para clientes y socios.
+              </div>
+            )}
             <div className="pt-4">
               <button type="submit" disabled={updateProfile.isPending} className="bg-text-primary text-bg-base px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
                 <Save size={16} /> Guardar Cambios
@@ -151,8 +161,9 @@ export default function Profile() {
         {activeTab === 'security' && (
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Contraseña Actual</label>
+              <label htmlFor="profile-current-password" className="block text-sm font-medium text-text-secondary mb-1">Contraseña Actual</label>
               <input
+                id="profile-current-password"
                 type="password"
                 required
                 value={passwordData.currentPassword}
@@ -161,8 +172,9 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Nueva Contraseña</label>
+              <label htmlFor="profile-new-password" className="block text-sm font-medium text-text-secondary mb-1">Nueva Contraseña</label>
               <input
+                id="profile-new-password"
                 type="password"
                 required
                 value={passwordData.newPassword}
@@ -171,8 +183,9 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Confirmar Nueva Contraseña</label>
+              <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-text-secondary mb-1">Confirmar Nueva Contraseña</label>
               <input
+                id="profile-confirm-password"
                 type="password"
                 required
                 value={passwordData.confirmPassword}

@@ -10,6 +10,15 @@ const notificationQueryKeys = {
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
+const toPositiveInteger = (value: unknown): number | null => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+};
+
 const getNotificationTitle = (notification: any) => {
   if (notification?.title) return notification.title;
 
@@ -22,11 +31,32 @@ const getNotificationTitle = (notification: any) => {
   return labels[String(notification?.type || '')] || 'Notificación';
 };
 
+export const resolveNotificationDestination = (notification: any): string | null => {
+  const payload = notification?.data ?? notification?.payload ?? {};
+  const loanId = toPositiveInteger(payload?.loanId ?? notification?.loanId);
+  if (loanId) {
+    return `/credits/${loanId}`;
+  }
+
+  const customerId = toPositiveInteger(payload?.customerId ?? notification?.customerId);
+  if (customerId) {
+    return `/customers/${customerId}`;
+  }
+
+  const associateId = toPositiveInteger(payload?.associateId ?? notification?.associateId);
+  if (associateId) {
+    return `/associates/${associateId}`;
+  }
+
+  return null;
+};
+
 const normalizeNotification = (notification: any) => ({
   ...notification,
   title: getNotificationTitle(notification),
   read: Boolean(notification?.read ?? notification?.isRead),
   isRead: Boolean(notification?.isRead ?? notification?.read),
+  destination: resolveNotificationDestination(notification),
 });
 
 export const useNotifications = () => {
