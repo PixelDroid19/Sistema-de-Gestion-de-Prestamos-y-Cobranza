@@ -32,6 +32,58 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }
     return `general-${date}`;
   };
+  /**
+   * Builds a compact operator-friendly workbook for dashboard exports.
+   * Keeps the summary sheet first and adds activity sheets only when data exists.
+   */
+  const buildDashboardWorkbook = (dashboardPayload = {}) => {
+    const workbook = XLSX.utils.book_new();
+    const summary = dashboardPayload?.summary || {};
+    const collections = dashboardPayload?.collections || {};
+    const monthlyPerformance = Array.isArray(dashboardPayload?.monthlyPerformance)
+      ? dashboardPayload.monthlyPerformance
+      : [];
+    const recentActivity = dashboardPayload?.recentActivity || {};
+
+    const summaryRows = [
+      { indicador: 'Créditos totales', valor: summary.totalLoans ?? 0 },
+      { indicador: 'Créditos activos', valor: summary.activeLoans ?? 0 },
+      { indicador: 'Créditos en mora', valor: summary.defaultedLoans ?? 0 },
+      { indicador: 'Créditos recuperados', valor: summary.recoveredLoans ?? 0 },
+      { indicador: 'Capital colocado', valor: summary.totalPortfolioAmount ?? '0.00' },
+      { indicador: 'Capital recuperado', valor: summary.totalRecoveredAmount ?? '0.00' },
+      { indicador: 'Saldo pendiente', valor: summary.totalOutstandingAmount ?? '0.00' },
+      { indicador: 'Alertas vencidas', valor: collections.overdueAlerts ?? 0 },
+      { indicador: 'Compromisos pendientes', valor: collections.pendingPromises ?? 0 },
+      { indicador: 'Notificaciones no leídas', valor: collections.unreadNotifications ?? 0 },
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Resumen');
+
+    if (monthlyPerformance.length > 0) {
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(monthlyPerformance),
+        'Evolucion',
+      );
+    }
+
+    const activitySheets = [
+      ['Prestamos recientes', Array.isArray(recentActivity.loans) ? recentActivity.loans : []],
+      ['Pagos recientes', Array.isArray(recentActivity.payments) ? recentActivity.payments : []],
+      ['Alertas', Array.isArray(recentActivity.alerts) ? recentActivity.alerts : []],
+      ['Compromisos', Array.isArray(recentActivity.promises) ? recentActivity.promises : []],
+      ['Notificaciones', Array.isArray(recentActivity.notifications) ? recentActivity.notifications : []],
+    ];
+
+    activitySheets.forEach(([sheetName, rows]) => {
+      if (rows.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), String(sheetName).slice(0, 31));
+      }
+    });
+
+    return workbook;
+  };
 
   router.get('/recovered', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getRecoveredLoans({ actor: req.user, pagination: req.pagination }));
@@ -47,6 +99,18 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/dashboard', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     res.json(await useCases.getDashboardSummary({ actor: req.user }));
+  }));
+
+  router.get('/dashboard/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const dashboardSummary = await useCases.getDashboardSummary({ actor: req.user });
+    const workbook = buildDashboardWorkbook(dashboardSummary?.data);
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: `dashboard-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      buffer,
+    });
   }));
 
   router.get('/customer-history/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
