@@ -8,8 +8,13 @@ WORKDIR /app
 # Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
+# Copy backend manifests (this Dockerfile is built with backend/ as context root)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN if [ -f package-lock.json ]; then \
+      npm ci --only=production; \
+    else \
+      npm install --only=production; \
+    fi
 
 # ==========================================
 # Stage 2: Production image
@@ -22,14 +27,18 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy only production dependencies from builder
+# Copy backend production dependencies from builder
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 
 # Copy application code
+# Copy backend source
 COPY --chown=nodejs:nodejs . .
 
 # Remove unnecessary files that might contain secrets or dev data
 RUN rm -f .env .env.local .env.*.local docker-compose.yml Dockerfile.dev
+
+# Ensure runtime writable directories for non-root user
+RUN mkdir -p logs uploads uploads/attachments && chown -R nodejs:nodejs /app
 
 # Switch to non-root user
 USER nodejs
