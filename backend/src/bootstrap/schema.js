@@ -25,7 +25,7 @@ const {
   AssociateInstallment,
   RateLimitEntry,
 } = require('@/models');
-const { AUDIT_ACTIONS } = require('@/models/AuditLog');
+const { AUDIT_ACTIONS, AUDIT_MODULES } = require('@/models/AuditLog');
 const { permissionsCatalog } = require('@/db/seeds/permissions_catalog');
 
 // The required schema models are ordered to respect foreign-key dependencies
@@ -377,6 +377,11 @@ const ensureAuditLogEnums = async ({ database }) => {
     database,
     enumTypeName: 'enum_AuditLogs_action',
     values: AUDIT_ACTIONS,
+  });
+  await ensureEnumValues({
+    database,
+    enumTypeName: 'enum_AuditLogs_module',
+    values: AUDIT_MODULES,
   });
 };
 

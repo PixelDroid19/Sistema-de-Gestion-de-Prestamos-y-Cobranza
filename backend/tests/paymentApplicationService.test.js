@@ -462,9 +462,11 @@ test('createPaymentApplicationService requires an injected loan view service sea
 test('applyPayoff closes the loan, stores payoff metadata, and leaves no future scheduled interest charged', async () => {
   let savedLoan;
   let savedPayment;
+  const notifications = [];
 
   const loan = {
     id: 10,
+    customerId: 44,
     status: 'active',
     recoveryStatus: 'in_progress',
     amount: 1000,
@@ -494,11 +496,19 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
     return { id: 900, ...payload };
   });
 
-  const result = await createPaymentApplicationService({ loanViewService }).applyPayoff({
+  const result = await createPaymentApplicationService({
+    loanViewService,
+    notificationPort: {
+      async sendPaymentRegistered(userId, payload) {
+        notifications.push({ userId, payload });
+      },
+    },
+  }).applyPayoff({
     loanId: 10,
     asOfDate: '2026-03-15',
     quotedTotal: 1024,
     paymentDate: '2026-03-15T16:00:00.000Z',
+    actor: { id: 55, role: 'customer' },
   });
 
   assert.equal(result.loan.status, 'closed');
@@ -513,6 +523,11 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 0);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.accruedInterest, 24);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.futurePrincipal, 1000);
+  assert.deepEqual(notifications.map((notification) => notification.userId), [44, 55]);
+  assert.equal(notifications[0].payload.loanId, 10);
+  assert.equal(notifications[0].payload.paymentId, 900);
+  assert.equal(notifications[0].payload.paymentType, 'payoff');
+  assert.equal(notifications[0].payload.newBalance, 0);
 });
 
 test('applyPayoff rejects stale payoff quotes before persistence', async () => {
