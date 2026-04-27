@@ -19,7 +19,10 @@ WORKDIR /app
 RUN npm install -g serve
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/scripts ./scripts
+
+RUN chmod +x ./scripts/write-runtime-config.sh
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000}"]
+CMD ["sh", "-c", "./scripts/write-runtime-config.sh dist && serve -s dist -l ${PORT:-3000}"]
