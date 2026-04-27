@@ -35,8 +35,8 @@ test('createCreatePaymentMethod normalizes keys and persists payment-method meta
   const result = await createPaymentMethod({
     label: 'Transferencia bancaria',
     description: 'Requiere soporte bancario',
-    requiresReference: true,
     isActive: false,
+    type: 'bank_transfer',
   });
 
   assert.deepEqual(createdPayload, {
@@ -47,6 +47,9 @@ test('createCreatePaymentMethod normalizes keys and persists payment-method meta
     value: {
       description: 'Requiere soporte bancario',
       requiresReference: true,
+      metadata: {
+        type: 'bank_transfer',
+      },
     },
   });
   assert.deepEqual(result, {
@@ -54,9 +57,12 @@ test('createCreatePaymentMethod normalizes keys and persists payment-method meta
     key: 'transferencia-bancaria',
     label: 'Transferencia bancaria',
     isActive: false,
+    type: 'bank_transfer',
     description: 'Requiere soporte bancario',
     requiresReference: true,
-    metadata: {},
+    metadata: {
+      type: 'bank_transfer',
+    },
     createdAt: '2026-03-22T00:00:00.000Z',
     updatedAt: '2026-03-22T00:00:00.000Z',
   });

@@ -19,7 +19,7 @@ type PermissionRecord = {
 
 export default function PermissionsTab() {
   const { permissions, isLoading: isLoadingPermissions } = usePermissions();
-  const { data: usersData, isLoading: isLoadingUsers } = useUsers({ pageSize: 200 });
+  const { data: usersData, isLoading: isLoadingUsers } = useUsers({ page: 1, pageSize: 100 });
   const { grantBatchPermissions } = useGrantBatchPermissions();
   const { revokePermission } = useRevokePermission();
 

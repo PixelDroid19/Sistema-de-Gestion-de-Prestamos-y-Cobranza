@@ -9,6 +9,37 @@ import { useSessionStore } from '../store/sessionStore';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
+const formatCurrency = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
+
+const getLoanStatusPresentation = (status: unknown) => {
+  const normalizedStatus = String(status || '').toLowerCase();
+
+  switch (normalizedStatus) {
+    case 'active':
+    case 'approved':
+      return {
+        label: 'Activo',
+        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+      };
+    case 'pending':
+      return {
+        label: 'Pendiente',
+        className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      };
+    case 'completed':
+    case 'closed':
+      return {
+        label: 'Completado',
+        className: 'bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200',
+      };
+    default:
+      return {
+        label: normalizedStatus ? normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1) : 'Sin estado',
+        className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200',
+      };
+  }
+};
+
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -131,11 +162,11 @@ export default function AssociateDetails() {
               {participatedLoans.map((loan: any) => (
                 <tr key={loan.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4 font-mono">{String(loan.id).substring(0, 8)}</td>
-                  <td className="py-4 font-medium">${loan.amount.toLocaleString()}</td>
-                  <td className="py-4 text-emerald-600">${loan.totalInterest?.toLocaleString() || '0'}</td>
+                  <td className="py-4 font-medium">{formatCurrency(loan?.amount)}</td>
+                  <td className="py-4 text-emerald-600">{formatCurrency(loan?.totalInterest)}</td>
                   <td className="py-4">
-                    <span className="px-2 py-1 bg-status-info-bg text-status-info rounded-full text-xs">
-                      {loan.status}
+                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${getLoanStatusPresentation(loan?.status).className}`}>
+                      {getLoanStatusPresentation(loan?.status).label}
                     </span>
                   </td>
                 </tr>
@@ -317,7 +348,7 @@ export default function AssociateDetails() {
             <History size={16} /> Historial de aportes
           </button>
           <button onClick={() => setShowInstallmentsModal(true)} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
-            <Clock size={16} /> Cuotas
+            <Clock size={16} /> Cobros rápidos
           </button>
           {isAdmin && (
             <>

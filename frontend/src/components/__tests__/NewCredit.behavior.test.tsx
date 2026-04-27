@@ -7,6 +7,10 @@ const mockSetInput = vi.fn();
 const mockSimulate = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockUseActiveCreditSimulation = vi.fn();
+const mockConfigState = {
+  ratePolicies: [] as any[],
+  lateFeePolicies: [] as any[],
+};
 
 const routeState = {
   simulationInput: {
@@ -58,8 +62,8 @@ vi.mock('../../services/associateService', () => ({
 
 vi.mock('../../services/configService', () => ({
   useConfig: () => ({
-    ratePolicies: [],
-    lateFeePolicies: [],
+    ratePolicies: mockConfigState.ratePolicies,
+    lateFeePolicies: mockConfigState.lateFeePolicies,
   }),
 }));
 
@@ -90,6 +94,8 @@ vi.mock('../../services/apiErrors', () => ({
 describe('NewCredit behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfigState.ratePolicies = [];
+    mockConfigState.lateFeePolicies = [];
 
     mockUseActiveCreditSimulation.mockReturnValue({
       input: routeState.simulationInput,
@@ -154,6 +160,50 @@ describe('NewCredit behavior', () => {
         lateFeeSource: 'manual',
       });
       expect(mockNavigate).toHaveBeenCalledWith('/credits/55');
+    });
+  });
+
+  it('falls back to manual rate source when no active rate policy matches the current amount', async () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 1,
+        label: 'Tasa hasta 1M',
+        annualEffectiveRate: 42,
+        minAmount: 0,
+        maxAmount: 1000000,
+        isActive: true,
+        priority: 1,
+      },
+    ];
+    mockConfigState.lateFeePolicies = [
+      {
+        id: 2,
+        label: 'Mora simple',
+        annualEffectiveRate: 24,
+        lateFeeMode: 'SIMPLE',
+        isActive: true,
+        priority: 1,
+      },
+    ];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
+
+    await waitFor(() => {
+      expect(mockCreateLoan).toHaveBeenCalledWith({
+        customerId: 10,
+        associateId: undefined,
+        amount: 2300000,
+        interestRate: 42,
+        termMonths: 16,
+        startDate: '2026-05-01',
+        lateFeeMode: 'COMPOUND',
+        annualLateFeeRate: 24,
+        rateSource: 'manual',
+        lateFeeSource: 'manual',
+      });
     });
   });
 });

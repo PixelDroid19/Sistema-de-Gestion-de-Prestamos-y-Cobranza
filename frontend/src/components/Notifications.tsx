@@ -1,5 +1,6 @@
 import React from 'react';
 import { Bell, CheckCircle2, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../services/notificationService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
@@ -15,6 +16,7 @@ const formatNotificationDate = (value: unknown) => {
 };
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const { notifications, isLoading, isError, error, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
 
   const unreadCount = notifications.filter((n: any) => !n?.read).length;
@@ -43,6 +45,24 @@ export default function Notifications() {
       toast.success({ description: 'Notificaciones eliminadas.' });
     } catch (clearError) {
       toast.apiErrorSafe(clearError, { domain: 'notifications', action: 'notifications.load' });
+    }
+  };
+
+  const handleOpenNotification = async (notification: any) => {
+    if (!notification) {
+      return;
+    }
+
+    if (!notification.read && notification.id != null) {
+      try {
+        await markAsRead.mutateAsync(notification.id);
+      } catch (readError) {
+        toast.apiErrorSafe(readError, { domain: 'notifications', action: 'notifications.load' });
+      }
+    }
+
+    if (notification.destination) {
+      navigate(notification.destination);
     }
   };
 
@@ -87,32 +107,61 @@ export default function Notifications() {
         ) : notifications.length === 0 ? (
           <div className="p-4 text-center text-text-secondary">No tienes notificaciones.</div>
         ) : (
-          notifications.map((notification: any) => (
-            <div 
-              key={notification.id ?? `${notification.title}-${notification.createdAt ?? 'sin-fecha'}`} 
-              className={`p-4 rounded-xl flex items-start gap-4 transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'}`}
-              onClick={() => {
-                if (!notification.read && notification.id != null) {
-                  markAsRead.mutateAsync(notification.id).catch((readError) => {
-                    toast.apiErrorSafe(readError, { domain: 'notifications', action: 'notifications.load' });
-                  });
-                }
-              }}
-            >
-              <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notification.read ? 'bg-blue-500' : 'bg-transparent'}`}></div>
-              <div className="flex-1">
-                <h4 className={`text-sm ${!notification.read ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
-                  {notification.title}
-                </h4>
-                <p className="text-sm text-text-secondary mt-1">
-                  {notification.message || 'Sin contenido'}
-                </p>
-                <span className="text-xs text-text-secondary mt-2 block">
-                  {formatNotificationDate(notification.createdAt)}
-                </span>
+          notifications.map((notification: any) => {
+            const canOpen = Boolean(notification?.destination);
+            const key = notification.id ?? `${notification.title}-${notification.createdAt ?? 'sin-fecha'}`;
+            const containerClassName = `w-full rounded-xl p-4 text-left transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40' : ''}`;
+
+            const content = (
+              <>
+                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notification.read ? 'bg-blue-500' : 'bg-transparent'}`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h4 className={`text-sm ${!notification.read ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
+                        {notification.title}
+                      </h4>
+                      <p className="mt-1 text-sm text-text-secondary">
+                        {notification.message || 'Sin contenido'}
+                      </p>
+                    </div>
+                    {canOpen ? (
+                      <span className="shrink-0 rounded-full border border-border-strong bg-bg-surface px-2.5 py-1 text-xs font-medium text-text-primary">
+                        Abrir
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="mt-2 block text-xs text-text-secondary">
+                    {formatNotificationDate(notification.createdAt)}
+                  </span>
+                </div>
+              </>
+            );
+
+            if (canOpen) {
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={containerClassName}
+                  onClick={() => handleOpenNotification(notification)}
+                  title="Abrir origen de la notificación"
+                >
+                  <div className="flex items-start gap-4">
+                    {content}
+                  </div>
+                </button>
+              );
+            }
+
+            return (
+              <div key={key} className={containerClassName}>
+                <div className="flex items-start gap-4">
+                  {content}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

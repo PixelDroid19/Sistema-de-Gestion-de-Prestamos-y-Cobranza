@@ -40,6 +40,7 @@ export default function Sidebar({
   const isAdmin = resolvedRole === 'admin';
   const isCustomer = resolvedRole === 'customer';
   const isSocio = resolvedRole === 'socio';
+  const canAccessCredits = isAdmin || isCustomer || isSocio;
   const homeView = getDefaultRouteForUser(user ?? { role: resolvedRole, associateId: undefined }).replace(/^\//u, '');
   const associatesHomeView = isSocio && Number.isFinite(Number(user?.associateId))
     ? `associates/${Number(user?.associateId)}`
@@ -180,7 +181,7 @@ export default function Sidebar({
           )}
 
           {/* Menú Créditos */}
-          {(isAdmin || isCustomer) && (
+          {canAccessCredits && (
           <div className="mt-1">
               <button 
                 onClick={() => handleSectionClick('creditos', 'credits', isCreditsView)}
@@ -236,12 +237,14 @@ export default function Sidebar({
                     />
                   </>
                 )}
-                <SubNavItem
-                  active={currentView === 'credit-calculator' || currentView === 'simulator'}
-                  onClick={() => setCurrentView('credit-calculator')}
-                  title="Cálculo de Crédito"
-                  tooltip="Calcula cuotas con la fórmula activa del crédito"
-                />
+                {isAdmin && (
+                  <SubNavItem
+                    active={currentView === 'credit-calculator' || currentView === 'simulator'}
+                    onClick={() => setCurrentView('credit-calculator')}
+                    title="Cálculo de Crédito"
+                    tooltip="Calcula cuotas con la fórmula activa del crédito"
+                  />
+                )}
 
               </div>
             )}

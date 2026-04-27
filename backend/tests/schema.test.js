@@ -8,6 +8,7 @@ const {
   REQUIRED_SCHEMA_MODELS,
   resolveSchemaMode,
   resetDatabaseSchema,
+  seedPermissionCatalogAndRoleDefaults,
   syncDatabaseSchema,
   verifyRequiredSchema,
 } = require('@/bootstrap/schema');
@@ -60,6 +61,24 @@ const buildDescribedTable = (tableName) => {
   if (tableName === 'ConfigEntries') {
     return {
       id: {}, category: {}, key: {}, label: {}, value: {}, isActive: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'Permissions') {
+    return {
+      id: {}, name: {}, module: {}, description: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'RolePermissions') {
+    return {
+      id: {}, role: {}, permissionId: {}, grantedBy: {},
+    };
+  }
+
+  if (tableName === 'UserPermissions') {
+    return {
+      id: {}, userId: {}, permissionId: {}, grantedBy: {}, createdAt: {},
     };
   }
 
@@ -165,7 +184,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'refresh_tokens', 'rate_limit_entries'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'Permissions', 'RolePermissions', 'UserPermissions', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -186,6 +205,9 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
   const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
   const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
+  const permissions = requiredSchema.find((entry) => entry.tableName === 'Permissions');
+  const rolePermissions = requiredSchema.find((entry) => entry.tableName === 'RolePermissions');
+  const userPermissions = requiredSchema.find((entry) => entry.tableName === 'UserPermissions');
   const rateLimitEntries = requiredSchema.find((entry) => entry.tableName === 'rate_limit_entries');
 
   assert.ok(associates);
@@ -205,6 +227,9 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(financialProducts);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
+  assert.ok(permissions);
+  assert.ok(rolePermissions);
+  assert.ok(userPermissions);
   assert.ok(rateLimitEntries);
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'AuditLogs'));
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('associateId'));
@@ -241,6 +266,11 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(outboxEvents.columns.includes('eventType'));
   assert.ok(configEntries.columns.includes('category'));
   assert.ok(configEntries.columns.includes('value'));
+  assert.ok(permissions.columns.includes('name'));
+  assert.ok(rolePermissions.columns.includes('role'));
+  assert.ok(rolePermissions.columns.includes('permissionId'));
+  assert.ok(userPermissions.columns.includes('userId'));
+  assert.ok(userPermissions.columns.includes('grantedBy'));
   assert.ok(rateLimitEntries.columns.includes('keyPrefix'));
   assert.ok(rateLimitEntries.columns.includes('identifier'));
   assert.ok(rateLimitEntries.columns.includes('created_at'));
@@ -327,6 +357,51 @@ test('syncDatabaseSchema verifies schema without altering tables by default', as
   assert.deepEqual(calls, []);
   assert.equal(result.mode, 'verify');
   assert.deepEqual(result.tables.slice().sort(), allTables.slice().sort());
+});
+
+test('seedPermissionCatalogAndRoleDefaults seeds the permission catalog and grants admin defaults', async () => {
+  const createdPermissions = [];
+  const updatedPermissions = [];
+  const grantedRolePermissions = [];
+  const { Permission, RolePermission } = require('@/models');
+  const originalFindOrCreatePermission = Permission.findOrCreate;
+  const originalFindOrCreateRolePermission = RolePermission.findOrCreate;
+
+  Permission.findOrCreate = async ({ where, defaults }) => {
+    createdPermissions.push(where.name);
+    return [
+      {
+        id: createdPermissions.length,
+        name: defaults.name,
+        module: defaults.module,
+        description: defaults.description,
+        async update(payload) {
+          updatedPermissions.push(payload);
+          Object.assign(this, payload);
+          return this;
+        },
+      },
+      true,
+    ];
+  };
+
+  RolePermission.findOrCreate = async ({ where, defaults }) => {
+    grantedRolePermissions.push({ ...where, grantedBy: defaults.grantedBy });
+    return [{ id: grantedRolePermissions.length, ...defaults }, true];
+  };
+
+  try {
+    await seedPermissionCatalogAndRoleDefaults();
+  } finally {
+    Permission.findOrCreate = originalFindOrCreatePermission;
+    RolePermission.findOrCreate = originalFindOrCreateRolePermission;
+  }
+
+  assert.ok(createdPermissions.includes('PERMISSIONS_ASSIGN'));
+  assert.equal(updatedPermissions.length, 0);
+  assert.ok(grantedRolePermissions.length > 0);
+  assert.ok(grantedRolePermissions.every((entry) => entry.role === 'admin'));
+  assert.ok(grantedRolePermissions.some((entry) => Number.isInteger(entry.permissionId) && entry.permissionId > 0));
 });
 
 test('syncDatabaseSchema alters schema only when alter mode is explicitly requested', async () => {

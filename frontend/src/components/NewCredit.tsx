@@ -120,7 +120,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
   const selectedCustomer = customers.find((customer: any) => String(customer.id) === borrower.customerId);
   const selectedAssociate = associates.find((associate: any) => String(associate.id) === borrower.associateId);
-  const annualLateFeeRate = Number(resolvedLateFeePolicy?.annualEffectiveRate || 0);
+  const resolvedRateSource = rateWasEdited || !resolvedRatePolicy ? 'manual' : 'policy';
+  const resolvedLateFeeSource = lateFeeWasEdited || !resolvedLateFeePolicy ? 'manual' : 'policy';
+  const annualLateFeeRate = Number(
+    input.annualLateFeeRate
+    ?? resolvedLateFeePolicy?.annualEffectiveRate
+    ?? 0,
+  );
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && hasValidatedResult && !isSubmitting && !isSimulating;
 
@@ -186,8 +192,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         startDate: input.startDate,
         lateFeeMode: input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate,
-        rateSource: rateWasEdited ? 'manual' : 'policy',
-        lateFeeSource: lateFeeWasEdited ? 'manual' : 'policy',
+        rateSource: resolvedRateSource,
+        lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
       const versionLabel = result?.graphVersionId != null ? ` fórmula v${result.graphVersionId}` : ' fórmula activa';

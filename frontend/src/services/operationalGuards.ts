@@ -243,6 +243,9 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       if (role !== 'admin') {
         return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar la tasa de mora.' };
       }
+      if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
+        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+      }
       return { visible: true, executable: true };
     case 'payout.register':
       return canRegisterPayout(role, payoutType);
@@ -255,6 +258,9 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'credit.status.update':
       if (role !== 'admin') {
         return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar el estado del crédito.' };
+      }
+      if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
+        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
       }
       return { visible: true, executable: true };
     case 'payout.metadata.edit':

@@ -7,6 +7,16 @@ import { useLoans } from '../services/loanService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
+import { extractRawErrorMessage } from '../services/safeErrorMessages';
+
+const CUSTOMER_DOCUMENT_OPTIONS = [
+  { value: 'identification', label: 'Identificación (INE/Pasaporte)' },
+  { value: 'proof_of_address', label: 'Comprobante de Domicilio' },
+  { value: 'income_proof', label: 'Comprobante de Ingresos' },
+  { value: 'other', label: 'Otro' },
+];
+
+const CUSTOMER_DOCUMENT_ACCEPT = '.pdf,image/jpeg,image/png,image/webp';
 
 /**
  * CustomerDetails displays a customer's profile, documents, loan history,
@@ -58,6 +68,8 @@ export default function CustomerDetails() {
   const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'loans' | 'history'>('profile');
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('identification');
+  const [customerVisible, setCustomerVisible] = useState(true);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const formatDisplayDate = (value: unknown, includeTime = false) => {
     if (!value) return 'Fecha no disponible';
@@ -90,6 +102,11 @@ export default function CustomerDetails() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const getDocumentTypeLabel = (value: unknown) => {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+    return CUSTOMER_DOCUMENT_OPTIONS.find((option) => option.value === normalizedValue)?.label || 'Documento';
   };
 
   const getLoanStatusBadge = (status: string) => {
@@ -137,11 +154,31 @@ export default function CustomerDetails() {
     e.preventDefault();
     if (!file) return;
     try {
-      await uploadDocument.mutateAsync({ file, metadata: { documentType: docType } });
+      await uploadDocument.mutateAsync({
+        file,
+        metadata: {
+          category: docType,
+          customerVisible,
+        },
+      });
       setFile(null);
+      setFileInputKey((current) => current + 1);
       toast.success({ title: tTerm('customerDetails.toast.document.upload.success') });
     } catch (error) {
-      toast.error({ title: tTerm('customerDetails.toast.document.upload.error') });
+      const rawMessage = extractRawErrorMessage(error);
+      if (/unsupported attachment file type/i.test(rawMessage)) {
+        toast.error({
+          title: 'Formato de archivo no permitido',
+          description: 'Solo se permiten PDF o imágenes JPG, PNG y WEBP.',
+        });
+        return;
+      }
+
+      toast.apiErrorSafe(error, {
+        domain: 'customers',
+        action: 'customer.update',
+        fallbackMessage: tTerm('customerDetails.toast.document.upload.error'),
+      });
     }
   };
 
@@ -155,7 +192,11 @@ export default function CustomerDetails() {
     try {
       await deleteDocument.mutateAsync(docId);
     } catch (error) {
-      toast.error({ title: tTerm('customerDetails.toast.document.delete.error') });
+      toast.apiErrorSafe(error, {
+        domain: 'customers',
+        action: 'customer.update',
+        fallbackMessage: tTerm('customerDetails.toast.document.delete.error'),
+      });
     }
   };
 
@@ -260,21 +301,37 @@ export default function CustomerDetails() {
               <h3 className="font-bold">Gestión Documental</h3>
             </div>
             
-            <form onSubmit={handleUpload} className="mb-8 p-4 border border-dashed border-border-strong rounded-xl bg-bg-base flex items-end gap-4">
-              <div className="flex-1">
+            <form onSubmit={handleUpload} className="mb-8 flex flex-col gap-4 rounded-xl border border-dashed border-border-strong bg-bg-base p-4 lg:flex-row lg:items-end">
+              <div className="w-full lg:flex-1">
                 <label className="block text-xs text-text-secondary mb-1">Tipo de Documento</label>
                 <select value={docType} onChange={(e) => setDocType(e.target.value)} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm">
-                  <option value="identification">Identificación (INE/Pasaporte)</option>
-                  <option value="proof_of_address">Comprobante de Domicilio</option>
-                  <option value="income_proof">Comprobante de Ingresos</option>
-                  <option value="other">Otro</option>
+                  {CUSTOMER_DOCUMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
-              <div className="flex-1">
+              <div className="w-full lg:flex-1">
                 <label className="block text-xs text-text-secondary mb-1">Archivo</label>
-                <input type="file" required onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm" />
+                <input
+                  key={fileInputKey}
+                  type="file"
+                  accept={CUSTOMER_DOCUMENT_ACCEPT}
+                  required
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm"
+                />
+                <p className="mt-1 text-xs text-text-secondary">Formato permitido: PDF, JPG, PNG o WEBP.</p>
               </div>
-              <button type="submit" disabled={!file || uploadDocument.isPending} className="bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+              <label className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={customerVisible}
+                  onChange={(e) => setCustomerVisible(e.target.checked)}
+                  className="rounded border-border-subtle"
+                />
+                Visible para el cliente
+              </label>
+              <button type="submit" disabled={!file || uploadDocument.isPending} className="flex items-center justify-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-medium text-bg-base">
                 <Upload size={16} /> Subir
               </button>
             </form>
@@ -286,14 +343,19 @@ export default function CustomerDetails() {
                     <FileText className="text-text-secondary" size={20} />
                     <div>
                       <p className="font-medium text-sm">{doc.originalName}</p>
-                       <p className="text-xs text-text-secondary">{doc.documentType} • {formatDisplayDate(doc.createdAt)}</p>
+                      <p className="text-xs text-text-secondary">
+                        {getDocumentTypeLabel(doc.category)}
+                        {doc.customerVisible === false ? ' • Uso interno' : ' • Visible para cliente'}
+                        {' • '}
+                        {formatDisplayDate(doc.createdAt)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <a href={downloadDocumentUrl(doc.id)} target="_blank" rel="noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                    <a href={downloadDocumentUrl(doc.id)} target="_blank" rel="noreferrer" title="Descargar documento" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
                       <Download size={16} />
                     </a>
-                    <button onClick={() => handleDeleteDoc(doc.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                    <button onClick={() => handleDeleteDoc(doc.id)} title="Eliminar documento" className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                       <Trash2 size={16} />
                     </button>
                   </div>
