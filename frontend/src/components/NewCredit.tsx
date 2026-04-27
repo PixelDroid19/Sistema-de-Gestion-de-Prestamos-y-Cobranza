@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Loader2, Save, User } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Save, User, CircleHelp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
@@ -13,6 +13,7 @@ import {
   useActiveCreditSimulation,
 } from './hooks/useActiveCreditSimulation';
 import type { SimulationInput } from '../types/dag';
+import { startNewCreditTour } from '../lib/creditGuidedTours';
 
 const todayAsIsoDate = () => new Date().toISOString().slice(0, 10);
 
@@ -223,7 +224,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+    <form
+      onSubmit={handleSubmit}
+      className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10"
+      data-tour="new-credit-page"
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <button
@@ -234,7 +239,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           >
             <ArrowLeft size={20} />
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0" data-tour="new-credit-header">
             <h2 className="text-3xl font-bold tracking-tight text-text-primary">Nuevo crédito</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
               Selecciona el cliente, valida la fórmula activa y registra el crédito real con el mismo cálculo que se usará en producción.
@@ -245,6 +250,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
           <button
             type="button"
+            onClick={() => startNewCreditTour()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition hover:bg-hover-bg"
+          >
+            <CircleHelp size={16} /> Guía rápida
+          </button>
+          <button
+            type="button"
             onClick={onBack}
             className="inline-flex items-center justify-center rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition hover:bg-hover-bg"
           >
@@ -253,6 +265,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <button
             type="submit"
             disabled={!canRegister}
+            data-tour="new-credit-submit"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
           >
             {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -261,7 +274,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:p-6">
+      <section
+        className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:p-6"
+        data-tour="new-credit-customer"
+      >
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -279,8 +295,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             )}
           </div>
 
-          <div className="grid flex-1 gap-4 md:grid-cols-2 xl:max-w-4xl">
-            <div>
+            <div className="grid flex-1 gap-4 md:grid-cols-2 xl:max-w-4xl" data-tour="new-credit-associate">
+              <div>
               <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
                 Cliente
               </label>
@@ -326,7 +342,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <dl className="mt-5 grid gap-x-8 gap-y-3 border-t border-border-subtle pt-4 text-sm md:grid-cols-3">
+        <dl className="mt-5 grid gap-x-8 gap-y-3 border-t border-border-subtle pt-4 text-sm md:grid-cols-3" data-tour="new-credit-policy-summary">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cliente seleccionado</dt>
             <dd className="mt-1 truncate font-semibold text-text-primary">
@@ -355,19 +371,21 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         )}
       </section>
 
-      <CreditSimulationWorkspace
+      <section data-tour="new-credit-simulation">
+        <CreditSimulationWorkspace
         title="Simulación y cronograma"
         description="Ajusta capital, tasa, plazo y fecha. La validación usa la fórmula activa; al registrar, el crédito queda guardado con esa versión exacta."
         modeLabel="Creación real"
         actionLabel="Validar crédito"
+        simulateButtonDataTour="new-credit-validate"
         input={input}
         result={result}
         isSimulating={isSimulating}
         error={simulationError}
         fieldErrors={simulationFieldErrors}
         isResultStale={isResultStale}
-        onInputChange={handleSimulationInputChange}
         onSimulate={simulate}
+        onInputChange={handleSimulationInputChange}
         onReset={resetSimulation}
         showScenarioTools={false}
         helperText="La validación no crea el crédito. Revisa la cuota, el total a pagar y el cronograma antes de registrar."
@@ -381,6 +399,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         emptyTitle="Valida antes de registrar"
         emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
       />
+      </section>
     </form>
   );
 }
