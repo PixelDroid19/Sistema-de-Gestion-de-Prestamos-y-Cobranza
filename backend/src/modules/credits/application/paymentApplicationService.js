@@ -873,7 +873,7 @@ const createPaymentApplicationService = ({
    * Apply payoff (total payment to close the loan)
    */
   const applyPayoff = async ({ loanId, asOfDate, quotedTotal, paymentDate = clock(), actor = null, idempotencyKey = null }) => {
-    return runPaymentOperationWithIdempotency({
+    const result = await runPaymentOperationWithIdempotency({
       operationType: PAYOFF_PAYMENT_TYPE,
       loanId,
       amount: quotedTotal,
@@ -963,6 +963,25 @@ const createPaymentApplicationService = ({
       };
       },
     });
+
+    if (!result.idempotent && notificationPort?.sendPaymentRegistered) {
+      const payment = typeof result.payment?.toJSON === 'function' ? result.payment.toJSON() : result.payment;
+      const loan = typeof result.loan?.toJSON === 'function' ? result.loan.toJSON() : result.loan;
+      const recipients = uniqueNotificationRecipients(loan?.customerId, actor?.id);
+      await Promise.all(recipients.map((userId) => sendOptionalNotification(() => notificationPort.sendPaymentRegistered(userId, {
+        loanId,
+        paymentId: payment?.id,
+        amount: Number(payment?.amount ?? quotedTotal),
+        paymentDate,
+        paymentMethod: payment?.paymentMethod || null,
+        paymentType: PAYOFF_PAYMENT_TYPE,
+        actorId: actor?.id || null,
+        breakdown: payment?.allocationBreakdown || result.allocation?.allocations || [],
+        newBalance: 0,
+      }))));
+    }
+
+    return result;
   };
 
   /**

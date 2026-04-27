@@ -22,8 +22,9 @@ const {
 const { configRepository } = require('./infrastructure/repositories');
 const { createConfigRouter } = require('./presentation/router');
 
-const createConfigModule = ({ sharedRuntime } = {}) => {
+const createConfigModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
+  const notificationService = sharedRuntime?.notificationService;
   const useCases = {
     listPaymentMethods: createListPaymentMethods({ configRepository }),
     createPaymentMethod: createCreatePaymentMethod({ configRepository }),
@@ -48,7 +49,7 @@ const createConfigModule = ({ sharedRuntime } = {}) => {
   return createModule({
     name: 'config',
     basePath: '/api/config',
-    router: createConfigRouter({ authMiddleware, useCases }),
+    router: createConfigRouter({ authMiddleware, useCases, auditService, notificationService }),
   });
 };
 

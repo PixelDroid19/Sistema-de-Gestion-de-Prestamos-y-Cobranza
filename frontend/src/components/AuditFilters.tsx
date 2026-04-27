@@ -15,7 +15,7 @@ interface AuditFiltersProps {
   onReset: () => void;
 }
 
-const AUDIT_MODULES_LIST = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'USUARIOS', 'PERMISOS', 'AUDITORIA', 'AUTH'];
+const AUDIT_MODULES_LIST = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'USUARIOS', 'PERMISOS', 'CONFIGURACION', 'AUDITORIA', 'AUTH'];
 const AUDIT_ACTIONS_LIST = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT'];
 
 export default function AuditFilters({ onFilter, onReset }: AuditFiltersProps) {

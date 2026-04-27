@@ -16,6 +16,10 @@ const AUDIT_MODULE_ALIASES = new Map([
   ['usuarios', 'USUARIOS'],
   ['permissions', 'PERMISOS'],
   ['permisos', 'PERMISOS'],
+  ['config', 'CONFIGURACION'],
+  ['configuration', 'CONFIGURACION'],
+  ['configuracion', 'CONFIGURACION'],
+  ['configuración', 'CONFIGURACION'],
   ['audit', 'AUDITORÍA'],
   ['audits', 'AUDITORÍA'],
   ['auditoria', 'AUDITORÍA'],
@@ -31,6 +35,7 @@ const AUDIT_MODULE_REVERSE_ALIASES = new Map([
   ['REPORTES', 'reports'],
   ['USUARIOS', 'users'],
   ['PERMISOS', 'permissions'],
+  ['CONFIGURACION', 'config'],
   ['AUDITORÍA', 'audit'],
   ['AUTH', 'auth'],
 ]);

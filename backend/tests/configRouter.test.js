@@ -163,6 +163,67 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   ]);
 });
 
+test('createConfigRouter emits audit entries and notifications for config mutations', async () => {
+  const auditEntries = [];
+  const notifications = [];
+  const app = express();
+
+  app.use(express.json());
+  app.use(createConfigRouter({
+    authMiddleware: allowAdminOnly,
+    auditService: {
+      async log(entry) {
+        auditEntries.push(entry);
+      },
+    },
+    notificationService: {
+      async sendNotification(userId, message, type, data) {
+        notifications.push({ userId, message, type, data });
+      },
+    },
+    useCases: {
+      async createPaymentMethod() {
+        return { id: 12, label: 'Transferencia QA', key: 'transferencia-qa' };
+      },
+      async createLateFeePolicy() {
+        return { id: 22, label: 'Mora QA', key: 'mora-qa' };
+      },
+      async listRoles() {
+        return ['admin', 'customer', 'socio'];
+      },
+    },
+  }));
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const paymentMethodResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payment-methods',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { label: 'Transferencia QA' },
+  });
+  const lateFeeResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/late-fee-policies',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { label: 'Mora QA', annualEffectiveRate: 12, lateFeeMode: 'SIMPLE' },
+  });
+
+  assert.equal(paymentMethodResponse.statusCode, 201);
+  assert.equal(lateFeeResponse.statusCode, 201);
+  assert.deepEqual(auditEntries.map((entry) => [entry.action, entry.module, entry.entityType]), [
+    ['CREATE', 'config', 'PaymentMethod'],
+    ['CREATE', 'config', 'LateFeePolicy'],
+  ]);
+  assert.deepEqual(notifications.map((notification) => [notification.userId, notification.type]), [
+    [5, 'config_changed'],
+    [5, 'config_changed'],
+  ]);
+  assert.match(notifications[0].message, /Método de pago/);
+  assert.match(notifications[1].message, /Política de mora/);
+});
+
 test('createConfigRouter denies non-admin access without invoking config use cases', async () => {
   let invoked = false;
   const app = express();
