@@ -39,6 +39,19 @@ const buildPaymentDateWhere = ({ fromDate = null, toDate = null } = {}) => {
   return paymentDateWhere;
 };
 
+const normalizeSequelizeWhereOperators = (where = {}) => {
+  const normalizedWhere = { ...where };
+  if (normalizedWhere.paymentDate && typeof normalizedWhere.paymentDate === 'object') {
+    const paymentDate = normalizedWhere.paymentDate;
+    normalizedWhere.paymentDate = {
+      ...(paymentDate.gte ? { [Op.gte]: paymentDate.gte } : {}),
+      ...(paymentDate.lte ? { [Op.lte]: paymentDate.lte } : {}),
+    };
+  }
+
+  return normalizedWhere;
+};
+
 const TOTAL_PAYMENT_EARNINGS_LITERAL = literal('"principalApplied" + "interestApplied" + "penaltyApplied"');
 
 /**
@@ -436,9 +449,13 @@ const paymentRepository = {
    */
   async listPayoutsReport({ pagination, ...where }) {
     const queryOptions = {
-      where,
+      where: normalizeSequelizeWhereOperators(where),
       include: [
-        { model: Loan, attributes: ['id', 'amount', 'status'] },
+        {
+          model: Loan,
+          attributes: ['id', 'amount', 'status', 'customerId', 'dagGraphVersionId', 'financialSnapshot'],
+          include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
+        },
       ],
       order: [['paymentDate', 'DESC'], ['createdAt', 'DESC'], ['id', 'DESC']],
     };

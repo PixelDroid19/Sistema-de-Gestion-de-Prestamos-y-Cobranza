@@ -11,13 +11,15 @@ import { useNavigate } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
-import { PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
+import { PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
+import { useConfig } from '../services/configService';
 
 export default function Payouts() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
+  const { paymentMethods: configuredPaymentMethods } = useConfig();
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -42,6 +44,20 @@ export default function Payouts() {
   const [editedMethod, setEditedMethod] = useState<PaymentMethod>('transfer');
   const [editedReference, setEditedReference] = useState('');
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<number[]>([]);
+  const paymentMethodOptions = useMemo(() => {
+    const activeConfiguredMethods = configuredPaymentMethods
+      .filter((method: any) => method?.isActive !== false)
+      .map((method: any) => ({
+        value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
+        label: String(method?.label ?? method?.name ?? method?.key ?? method?.type ?? '').trim(),
+      }))
+      .filter((method) => method.value && method.label);
+
+    return activeConfiguredMethods.length > 0
+      ? activeConfiguredMethods
+      : [...FALLBACK_PAYMENT_METHODS];
+  }, [configuredPaymentMethods]);
+  const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
 
   const role = user?.role;
   const permissions = user?.permissions;
@@ -113,7 +129,7 @@ export default function Payouts() {
       return 'Sin método';
     }
 
-    const matchingMethod = PAYMENT_METHODS.find((method) => method.value === rawMethod);
+    const matchingMethod = paymentMethodOptions.find((method) => method.value === rawMethod);
     return matchingMethod?.label || rawMethod;
   };
 
@@ -174,9 +190,9 @@ export default function Payouts() {
       return;
     }
 
-    const normalizedMethod = String(payment?.paymentMethod || payment?.method || 'transfer').toLowerCase();
-    const hasMethod = PAYMENT_METHODS.some((method) => method.value === normalizedMethod);
-    setEditedMethod((hasMethod ? normalizedMethod : 'transfer') as PaymentMethod);
+    const normalizedMethod = String(payment?.paymentMethod || payment?.method || defaultPaymentMethod).toLowerCase();
+    const hasMethod = paymentMethodOptions.some((method) => method.value === normalizedMethod);
+    setEditedMethod((hasMethod ? normalizedMethod : defaultPaymentMethod) as PaymentMethod);
     setEditedReference(payment?.paymentMetadata?.reference || '');
     setEditingPayment(payment);
     setShowEditMethodModal(true);
@@ -590,7 +606,7 @@ export default function Payouts() {
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {PAYMENT_METHODS.map((method) => (
+                  {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
                 </select>

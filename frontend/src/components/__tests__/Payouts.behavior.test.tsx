@@ -32,6 +32,15 @@ vi.mock('../../store/paginationStore', () => ({
   usePaginationStore: () => ({ page: 1, pageSize: 20, setPage: vi.fn(), setPageSize: vi.fn() }),
 }));
 
+vi.mock('../../services/configService', () => ({
+  useConfig: () => ({
+    paymentMethods: [
+      { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
+      { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
+    ],
+  }),
+}));
+
 vi.mock('../../services/paymentService', () => ({
   usePayments: () => ({
     data: {

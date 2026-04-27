@@ -26,6 +26,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     { name: 'Credit formulas' },
     { name: 'Config' },
     { name: 'Payments' },
+    { name: 'Reports' },
     { name: 'Notifications' },
     { name: 'Audits' },
   ],
@@ -36,6 +37,15 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
+      },
+    },
+    parameters: {
+      IdempotencyKeyHeader: {
+        name: 'Idempotency-Key',
+        in: 'header',
+        required: false,
+        schema: { type: 'string', maxLength: 160 },
+        description: 'Clave opcional para evitar doble aplicación ante reintentos o concurrencia.',
       },
     },
     schemas: {
@@ -60,6 +70,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           interestRate: { type: 'number', minimum: 0, maximum: 100 },
           termMonths: { type: 'integer', minimum: 1, maximum: 360 },
           startDate: { type: 'string', format: 'date' },
+          calculationMethod: { type: 'string', enum: ['FRENCH', 'SIMPLE', 'COMPOUND'], description: 'Método de cálculo operativo. Si se omite, el backend usa FRENCH.' },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
           rateSource: { type: 'string', enum: ['policy', 'manual'] },
@@ -165,7 +176,82 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       post: { tags: ['Config'], summary: 'Crear política de mora', responses: { 201: { description: 'Política creada' } } },
     },
     '/payments/capital': {
-      post: { tags: ['Payments'], summary: 'Registrar abono a capital', responses: { 201: { description: 'Abono aplicado' } } },
+      post: {
+        tags: ['Payments'],
+        summary: 'Registrar abono a capital',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        responses: { 201: { description: 'Abono aplicado' } },
+      },
+    },
+    '/payments/partial': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Registrar pago parcial',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        responses: { 201: { description: 'Pago parcial aplicado' } },
+      },
+    },
+    '/payments/pay-total-debt': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Pagar la deuda total de un crédito',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        responses: {
+          201: { description: 'Crédito liquidado' },
+          400: { description: 'Cotización vencida o bloqueo financiero', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+        },
+      },
+    },
+    '/payments/{paymentId}/voucher/pdf': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Descargar comprobante PDF de un pago',
+        parameters: [{ name: 'paymentId', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Comprobante PDF' } },
+      },
+    },
+    '/loans/{loanId}/payoff-executions': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Ejecutar pago total desde detalle de crédito',
+        parameters: [
+          { name: 'loanId', in: 'path', required: true, schema: { type: 'integer' } },
+          { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+        ],
+        responses: {
+          201: { description: 'Pago total aplicado' },
+          400: { description: 'Cotización vencida o bloqueo financiero', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+        },
+      },
+    },
+    '/reports/credits/excel': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar créditos a Excel con trazabilidad de fórmula y políticas',
+        parameters: [
+          { name: 'customerId', in: 'query', schema: { type: 'integer' } },
+          { name: 'loanId', in: 'query', schema: { type: 'integer' } },
+          { name: 'creditId', in: 'query', schema: { type: 'integer' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: { 200: { description: 'Archivo Excel de créditos' } },
+      },
+    },
+    '/reports/payouts/excel': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar pagos a Excel desde backend',
+        parameters: [
+          { name: 'customerId', in: 'query', schema: { type: 'integer' } },
+          { name: 'loanId', in: 'query', schema: { type: 'integer' } },
+          { name: 'creditId', in: 'query', schema: { type: 'integer' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
+        ],
+        responses: { 200: { description: 'Archivo Excel de pagos' } },
+      },
     },
     '/notifications': {
       get: { tags: ['Notifications'], summary: 'Listar notificaciones', responses: { 200: { description: 'Notificaciones visibles' } } },

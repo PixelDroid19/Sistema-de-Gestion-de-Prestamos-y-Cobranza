@@ -6,6 +6,32 @@ const { sendBufferDownload } = require('@/modules/shared/http');
 
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
+  const buildCreditExportFilters = (query = {}) => ({
+    customerId: query.customerId,
+    loanId: query.loanId,
+    creditId: query.creditId,
+    startDate: query.startDate || query.fromDate,
+    endDate: query.endDate || query.toDate,
+  });
+  const buildPayoutExportFilters = (query = {}) => ({
+    customerId: query.customerId,
+    loanId: query.loanId,
+    creditId: query.creditId,
+    startDate: query.startDate || query.fromDate,
+    endDate: query.endDate || query.toDate,
+    status: query.status,
+    paymentType: query.paymentType,
+  });
+  const buildExportSuffix = (query = {}) => {
+    const date = new Date().toISOString().slice(0, 10);
+    if (query.loanId || query.creditId) {
+      return `credito-${query.loanId || query.creditId}-${date}`;
+    }
+    if (query.customerId) {
+      return `cliente-${query.customerId}-${date}`;
+    }
+    return `general-${date}`;
+  };
 
   router.get('/recovered', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getRecoveredLoans({ actor: req.user, pagination: req.pagination }));
@@ -163,14 +189,27 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   // Credits Excel Export and Summary
   router.get('/credits/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const exportData = await useCases.exportCreditsExcel({ actor: req.user });
+    const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters: buildCreditExportFilters(req.query) });
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Credits');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     sendBufferDownload(res, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: 'credits-export.xlsx',
+      fileName: `reporte-creditos-${buildExportSuffix(req.query)}.xlsx`,
+      buffer,
+    });
+  }));
+
+  router.get('/payouts/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+    const exportData = await useCases.exportPayoutsExcel({ actor: req.user, filters: buildPayoutExportFilters(req.query) });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Payments');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: `reporte-pagos-${buildExportSuffix(req.query)}.xlsx`,
       buffer,
     });
   }));
@@ -200,25 +239,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       format,
     });
     sendBufferDownload(res, exportFile);
-  }));
-
-  router.get('/file/reports/recovery/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const format = String(req.query.format || 'csv').toLowerCase();
-    const exportFile = await useCases.exportRecoveryReport({ actor: req.user, format });
-    sendBufferDownload(res, exportFile);
-  }));
-
-  router.get('/file/reports/credits/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const exportData = await useCases.exportCreditsExcel({ actor: req.user });
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(exportData.data.rows);
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Credits');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    sendBufferDownload(res, {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileName: 'credits-export.xlsx',
-      buffer,
-    });
   }));
 
   // === Enhanced Reports: Payouts and Payment Schedule ===

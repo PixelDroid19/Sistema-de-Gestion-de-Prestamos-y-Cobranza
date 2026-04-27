@@ -1145,7 +1145,7 @@ const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({
 };
 
 const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, auditService, clock = () => new Date() }) => {
-  const useCase = async ({ actor, loanId, asOfDate, quotedTotal }) => {
+  const useCase = async ({ actor, loanId, asOfDate, quotedTotal, idempotencyKey }) => {
     if (!['admin', 'customer'].includes(actor?.role)) {
       throw new AuthorizationError('Only admins or customers can execute payoff payments');
     }
@@ -1158,6 +1158,7 @@ const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, audi
       quotedTotal,
       paymentDate: clock(),
       actor,
+      idempotencyKey,
     });
   };
 

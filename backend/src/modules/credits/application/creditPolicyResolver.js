@@ -2,6 +2,7 @@ const {
   createResolveRatePolicy,
   createResolveLateFeePolicy,
 } = require('@/modules/config/application/useCases');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const MANUAL_SOURCE = 'manual';
 const POLICY_SOURCE = 'policy';
@@ -19,6 +20,8 @@ const toNumberOrNull = (value) => {
 };
 
 const normalizeSource = (value) => String(value || '').trim().toLowerCase();
+
+const isPolicySource = (value) => normalizeSource(value) === POLICY_SOURCE;
 
 const shouldApplyPolicy = ({ source, policy, explicitValue }) => {
   if (!policy) {
@@ -94,6 +97,14 @@ const createCreditPolicyResolver = ({ configRepository } = {}) => {
         resolveRatePolicy({ amount: input.amount }),
         resolveLateFeePolicy(),
       ]);
+
+      if (isPolicySource(input.rateSource) && !ratePolicy) {
+        throw new ValidationError('No active rate policy is available for this credit amount');
+      }
+
+      if (isPolicySource(input.lateFeeSource) && !lateFeePolicy) {
+        throw new ValidationError('No active late fee policy is available');
+      }
 
       const applyRatePolicy = shouldApplyPolicy({
         source: input.rateSource,

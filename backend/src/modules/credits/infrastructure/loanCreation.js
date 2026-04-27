@@ -112,6 +112,8 @@ const createLoanFromCanonicalDataFactory = ({
     policySnapshot: policyContext.policySnapshot || calculation.policySnapshot || null,
     startDate: startDate.toISOString(),
   };
+  const policySnapshot = snapshot.policySnapshot || null;
+  const calculationMethod = snapshot.calculationMethod || calculationInput.calculationMethod || 'FRENCH';
 
   return loanModel.create({
     customerId: calculationInput.customerId,
@@ -120,6 +122,10 @@ const createLoanFromCanonicalDataFactory = ({
     amount: calculationInput.amount,
     interestRate: calculationInput.interestRate,
     termMonths: calculationInput.termMonths,
+    calculationMethod,
+    ratePolicyId: policySnapshot?.ratePolicyId ?? null,
+    lateFeePolicyId: policySnapshot?.lateFeePolicyId ?? null,
+    policySnapshot,
     status: 'pending',
     startDate,
     lateFeeMode: calculation.lateFeeMode,

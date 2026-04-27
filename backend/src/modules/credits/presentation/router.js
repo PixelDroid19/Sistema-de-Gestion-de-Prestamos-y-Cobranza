@@ -7,6 +7,7 @@ const { workbenchLimiter } = require('@/middleware/rateLimiter');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService }) => {
   const router = express.Router();
+  const resolveIdempotencyKey = (req) => req.headers['idempotency-key'] || req.body?.idempotencyKey || null;
 
   const paymentRouter = createPaymentRouter({
     authMiddleware,
@@ -337,6 +338,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       loanId: req.params.id,
       asOfDate: req.body.asOfDate,
       quotedTotal: req.body.quotedTotal,
+      idempotencyKey: resolveIdempotencyKey(req),
     });
 
     res.status(201).json({
@@ -436,6 +438,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       installmentNumber: req.params.installmentNumber,
       actor: req.user,
       reason: req.body.reason,
+      idempotencyKey: resolveIdempotencyKey(req),
     });
     res.status(201).json({
       success: true,

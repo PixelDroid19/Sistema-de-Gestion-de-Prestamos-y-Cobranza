@@ -145,7 +145,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
       pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 },
       filters: { search: 'ana', status: 'completed' },
     }],
-    ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload }],
+    ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload, idempotencyKey: null }],
   ]);
 });
 
@@ -295,19 +295,19 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   const partialResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/partial',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'partial-15-40' },
     body: { loanId: 15, amount: 40 },
   });
   const capitalResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/capital',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'capital-15-60' },
     body: { loanId: 15, amount: 60, paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA' },
   });
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/annul/15',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'annul-15-2' },
     body: { installmentNumber: 2 },
   });
 
@@ -315,9 +315,9 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(capitalResponse.statusCode, 201);
   assert.equal(annulResponse.statusCode, 201);
   assert.deepEqual(calls, [
-    ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40 }],
-    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA' }],
-    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined }],
+    ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40, idempotencyKey: 'partial-15-40' }],
+    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA', idempotencyKey: 'capital-15-60' }],
+    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined, idempotencyKey: 'annul-15-2' }],
   ]);
   assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');
   assert.equal(capitalResponse.body.data.strategyApplied, 'REDUCE_TIME');
@@ -380,7 +380,7 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
   assert.equal(payResponse.statusCode, 201);
   assert.deepEqual(calls, [
     ['calculateTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01' }],
-    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12 }],
+    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: null }],
   ]);
 });
 

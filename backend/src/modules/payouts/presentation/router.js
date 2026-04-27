@@ -5,6 +5,7 @@ const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http'
 
 const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();
+  const resolveIdempotencyKey = (req) => req.headers['idempotency-key'] || req.body?.idempotencyKey || null;
 
   // List all payments (admin only)
   router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
@@ -26,7 +27,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create regular payment (customer)
   router.post('/', authMiddleware(['customer']), paymentValidation.create, asyncHandler(async (req, res) => {
-    const result = await useCases.createPayment({ actor: req.user, ...req.body });
+    const result = await useCases.createPayment({ actor: req.user, ...req.body, idempotencyKey: resolveIdempotencyKey(req) });
     res.status(201).json({
       success: true,
       message: 'Payment created successfully',
@@ -40,7 +41,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create partial payment (admin or customer)
   router.post('/partial', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
-    const result = await useCases.createPartialPayment({ actor: req.user, ...req.body });
+    const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: resolveIdempotencyKey(req) });
     res.status(201).json({
       success: true,
       message: 'Partial payment created successfully',
@@ -58,6 +59,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       actor: req.user,
       ...req.body,
       strategy: req.body?.strategy,
+      idempotencyKey: resolveIdempotencyKey(req),
     });
     res.status(201).json({
       success: true,
@@ -87,6 +89,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       loanId: req.body.loanId,
       asOfDate: req.body.asOfDate,
       quotedTotal: req.body.quotedTotal,
+      idempotencyKey: resolveIdempotencyKey(req),
     });
     res.status(201).json({
       success: true,
@@ -106,6 +109,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
       loanId: req.params.loanId,
       installmentNumber: req.body?.installmentNumber,
       reason: req.body?.reason,
+      idempotencyKey: resolveIdempotencyKey(req),
     });
     res.status(201).json({
       success: true,

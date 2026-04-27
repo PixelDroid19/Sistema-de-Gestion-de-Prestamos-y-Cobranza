@@ -43,6 +43,19 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
   }));
 });
 
+test('loanValidation.create allows policy-driven rate without a manual interestRate', async () => {
+  await assert.doesNotReject(() => runMiddleware(loanValidation.create, {
+    body: {
+      customerId: 1,
+      associateId: 2,
+      amount: 12000,
+      rateSource: 'policy',
+      termMonths: 12,
+      lateFeeSource: 'policy',
+    },
+  }));
+});
+
 test('associateValidation.create accepts a valid associate payload', async () => {
   await assert.doesNotReject(() => runMiddleware(associateValidation.create, {
     user: { role: 'admin' },

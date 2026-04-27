@@ -89,6 +89,15 @@ vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => mockUseSessionStore(),
 }));
 
+vi.mock('../../services/configService', () => ({
+  useConfig: () => ({
+    paymentMethods: [
+      { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
+      { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
+    ],
+  }),
+}));
+
 vi.mock('../../services/loanService', () => {
   const loan = {
     id: 101,

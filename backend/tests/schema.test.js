@@ -38,7 +38,7 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Loans') {
     return {
-      id: {}, customerId: {}, associateId: {}, dagGraphVersionId: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
+      id: {}, customerId: {}, associateId: {}, dagGraphVersionId: {}, calculationMethod: {}, ratePolicyId: {}, lateFeePolicyId: {}, policySnapshot: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
       startDate: {}, endDate: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
       annualLateFeeRate: {}, financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},

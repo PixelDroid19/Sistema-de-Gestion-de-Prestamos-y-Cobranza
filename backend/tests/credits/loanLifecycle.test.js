@@ -82,6 +82,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.installmentAmount, 1066.19);
   assert.equal(persistedPayload.totalPayable, 12794.23);
   assert.equal(persistedPayload.dagGraphVersionId, 501);
+  assert.equal(persistedPayload.calculationMethod, 'FRENCH');
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 12794.23);
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
 });
@@ -208,6 +209,9 @@ test('createLoanFromCanonicalDataFactory persists resolved rate and late-fee pol
   assert.equal(persistedPayload.annualLateFeeRate, 30);
   assert.equal(persistedPayload.financialSnapshot.policySnapshot.ratePolicyId, 10);
   assert.equal(persistedPayload.financialSnapshot.policySnapshot.lateFeePolicyId, 20);
+  assert.equal(persistedPayload.ratePolicyId, 10);
+  assert.equal(persistedPayload.lateFeePolicyId, 20);
+  assert.equal(persistedPayload.policySnapshot.appliedInterestRate, 48);
 });
 
 test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fallback', async () => {

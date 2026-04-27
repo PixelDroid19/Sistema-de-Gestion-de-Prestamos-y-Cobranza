@@ -941,6 +941,7 @@ test('createExecutePayoff allows customer payment authority and forwards executi
     quotedTotal: 104.56,
     paymentDate: new Date('2026-03-15T18:30:00.000Z'),
     actor: { id: 7, role: 'customer' },
+    idempotencyKey: undefined,
   });
 });
 
