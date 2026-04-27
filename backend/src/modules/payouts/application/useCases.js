@@ -190,11 +190,12 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
 };
 
 /**
- * Create the use case that applies a partial payment (free amount within limits).
+ * Create the use case that applies an admin-only partial payment (free amount within limits).
+ * Customer self-service payments must use the installment or payoff flows.
  */
 const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, idempotencyKey }) => {
-  if (actor?.role !== 'admin' && actor?.role !== 'customer') {
-    throw new AuthorizationError('Only admins and customers can create partial payments');
+  if (actor?.role !== 'admin') {
+    throw new AuthorizationError('Only admins can create partial payments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });

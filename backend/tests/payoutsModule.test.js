@@ -475,6 +475,26 @@ test('createCreatePartialPayment allows admins and delegates partial application
   });
 });
 
+test('createCreatePartialPayment rejects customer self-service partial payments', async () => {
+  const createPartialPayment = createCreatePartialPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        throw new Error('findAuthorizedLoan should not be called');
+      },
+    },
+    paymentApplicationService: {
+      async applyPartialPayment() {
+        throw new Error('applyPartialPayment should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createPartialPayment({ actor: { id: 7, role: 'customer' }, loanId: 5, amount: 80 }),
+    /Only admins can create partial payments/,
+  );
+});
+
 test('createCreateCapitalPayment only allows admins', async () => {
   const createCapitalPayment = createCreateCapitalPayment({
     loanAccessPolicy: {
