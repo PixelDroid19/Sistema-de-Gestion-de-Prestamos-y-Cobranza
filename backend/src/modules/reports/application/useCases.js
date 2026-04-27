@@ -1193,6 +1193,7 @@ module.exports = {
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
   createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
   createExportAssociatesExcel: require('./useCases/createExportAssociatesExcel').createExportAssociatesExcel,
+  createExportPayoutsExcel: require('./useCases/createExportPayoutsExcel').createExportPayoutsExcel,
   // Enhanced reports use cases
   createGetPayoutsReport: require('./useCases/createGetPayoutsReport').createGetPayoutsReport,
   createGetPaymentSchedule: require('./useCases/createGetPaymentSchedule').createGetPaymentSchedule,

@@ -17,7 +17,7 @@ const {
 } = require('@/modules/shared/documentOperations');
 
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
-const VALID_PAYMENT_METHODS = new Set(['cash', 'transfer', 'card', 'check', 'other']);
+const PAYMENT_METHOD_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
  * Normalize free-text payment filters into a comparable lowercase token.
@@ -83,8 +83,8 @@ const resolvePaymentMethodInput = (payload = {}) => {
   }
 
   const normalizedValue = directValue.toLowerCase();
-  if (!VALID_PAYMENT_METHODS.has(normalizedValue)) {
-    throw new ValidationError(`Payment method must be one of: ${[...VALID_PAYMENT_METHODS].join(', ')}`);
+  if (!PAYMENT_METHOD_KEY_PATTERN.test(normalizedValue)) {
+    throw new ValidationError('Payment method must be a configured key using letters, numbers, hyphen or underscore');
   }
 
   return normalizedValue;
@@ -172,7 +172,7 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
 /**
  * Create the use case that applies a customer payment against an authorized loan.
  */
-const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount }) => {
+const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, idempotencyKey }) => {
   if (actor?.role !== 'customer') {
     throw new AuthorizationError('Only customers can create payments');
   }
@@ -183,13 +183,16 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
     loanId: loan.id,
     amount,
     paymentDate: clock(),
+    paymentMethod,
+    actorId: actor?.id || 0,
+    idempotencyKey,
   });
 };
 
 /**
  * Create the use case that applies a partial payment (free amount within limits).
  */
-const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount }) => {
+const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, idempotencyKey }) => {
   if (actor?.role !== 'admin' && actor?.role !== 'customer') {
     throw new AuthorizationError('Only admins and customers can create partial payments');
   }
@@ -200,13 +203,16 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
     loanId: loan.id,
     amount,
     paymentDate: clock(),
+    paymentMethod,
+    actorId: actor?.id || 0,
+    idempotencyKey,
   });
 };
 
 /**
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
-const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, strategy }) => {
+const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, strategy, idempotencyKey }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can create capital reduction payments');
   }
@@ -219,6 +225,8 @@ const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolic
     paymentDate: clock(),
     paymentMethod,
     strategy,
+    actorId: actor?.id || 0,
+    idempotencyKey,
   });
 };
 
@@ -239,6 +247,7 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
   loanId,
   asOfDate,
   quotedTotal,
+  idempotencyKey,
 }) => {
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const effectiveAsOfDate = asOfDate || new Date().toISOString().slice(0, 10);
@@ -250,13 +259,14 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
     quotedTotal: effectiveQuotedTotal,
     paymentDate: clock(),
     actor,
+    idempotencyKey,
   });
 };
 
 /**
  * Create the use case that annuls the nearest pending or overdue installment.
  */
-const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason, installmentNumber }) => {
+const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason, installmentNumber, idempotencyKey }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can annul installments');
   }
@@ -269,6 +279,7 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
     reason,
     installmentNumber,
     paymentDate: clock(),
+    idempotencyKey,
   });
 };
 

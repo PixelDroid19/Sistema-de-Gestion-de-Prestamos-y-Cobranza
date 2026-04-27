@@ -7,6 +7,10 @@ const Loan = sequelize.define('Loan', {
   associateId: { type: DataTypes.INTEGER, allowNull: true },
   financialProductId: { type: DataTypes.UUID, allowNull: true },
   dagGraphVersionId: { type: DataTypes.INTEGER, allowNull: true }, // FK to DagGraphVersion used for this loan's calculation
+  calculationMethod: { type: DataTypes.STRING, allowNull: true }, // Method frozen from the formula result, e.g. FRENCH/SIMPLE/COMPOUND
+  ratePolicyId: { type: DataTypes.INTEGER, allowNull: true }, // Configuration policy applied at origination, if any
+  lateFeePolicyId: { type: DataTypes.INTEGER, allowNull: true }, // Late-fee policy applied at origination, if any
+  policySnapshot: { type: DataTypes.JSONB, allowNull: true }, // Full immutable policy trace used for this loan
   amount: { type: DataTypes.FLOAT, allowNull: false, validate: { min: 0.01 } },
   interestRate: { type: DataTypes.FLOAT, allowNull: false, validate: { min: 0, max: 100 } },
   termMonths: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 360, isInt: true } },

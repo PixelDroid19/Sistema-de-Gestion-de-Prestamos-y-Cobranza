@@ -97,6 +97,8 @@ const validateInterestRate = (rate) => {
   return typeof rate === 'number' && rate >= 0 && rate <= 100;
 };
 
+const usesPolicySource = (value) => String(value || '').trim().toLowerCase() === 'policy';
+
 /**
  * Validate supported loan terms in months.
  * @param {number} term
@@ -361,7 +363,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate } = req.body;
+    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -376,7 +378,7 @@ const loanValidation = {
       errors.push({ field: 'amount', message: 'Amount must be a positive number' });
     }
 
-    if (!validateInterestRate(interestRate)) {
+    if (!usesPolicySource(rateSource) && !validateInterestRate(interestRate)) {
       errors.push({ field: 'interestRate', message: 'Interest rate must be between 0 and 100' });
     }
 
@@ -403,14 +405,14 @@ const loanValidation = {
 
   /** @type {import('express').RequestHandler} */
   simulate: (req, res, next) => {
-    const { amount, interestRate, termMonths, lateFeeMode, startDate } = req.body;
+    const { amount, interestRate, termMonths, lateFeeMode, startDate, rateSource } = req.body;
     const errors = [];
 
     if (!validateAmount(amount)) {
       errors.push({ field: 'amount', message: 'Amount must be a positive number' });
     }
 
-    if (!validateInterestRate(interestRate)) {
+    if (!usesPolicySource(rateSource) && !validateInterestRate(interestRate)) {
       errors.push({ field: 'interestRate', message: 'Interest rate must be between 0 and 100' });
     }
 

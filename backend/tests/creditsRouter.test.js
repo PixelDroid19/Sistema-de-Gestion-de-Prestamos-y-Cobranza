@@ -344,6 +344,7 @@ test('createCreditsRouter delegates payment method edits and installment annulme
       installmentNumber: '3',
       actor: { id: 2, role: 'admin' },
       reason: 'Cliente reestructurado',
+      idempotencyKey: null,
     }],
   ]);
 });
@@ -1196,7 +1197,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
   });
   assert.deepEqual(calls, [
     ['getPayoffQuote', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15' }],
-    ['executePayoff', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15', quotedTotal: 955.12 }],
+    ['executePayoff', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15', quotedTotal: 955.12, idempotencyKey: null }],
   ]);
 });
 

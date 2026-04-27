@@ -6,7 +6,7 @@ import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportRespon
 import { tTerm } from '../i18n/terminology';
 
 type ReportContextualType = 'credits' | 'payouts';
-type ReportContextualFilters = { fromDate?: string; toDate?: string };
+type ReportContextualFilters = { fromDate?: string; toDate?: string; customerId?: number; loanId?: number };
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
@@ -536,11 +536,17 @@ export const usePaymentSchedule = (loanId: number | null) => {
 
 // === Export Functions ===
 
-export const exportCreditsExcel = async (): Promise<void> => {
-  await downloadBlob({
+export const exportCreditsExcel = async (filters: ReportContextualFilters = {}): Promise<void> => {
+  await downloadBlobWithParams({
     url: '/reports/credits/excel',
     fileName: 'credits-export.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    params: {
+      startDate: filters.fromDate,
+      endDate: filters.toDate,
+      customerId: filters.customerId,
+      loanId: filters.loanId,
+    },
   });
 };
 
@@ -596,18 +602,6 @@ const downloadBlobWithParams = async ({
   window.URL.revokeObjectURL(objectUrl);
 };
 
-const downloadCsv = (fileName: string, rows: string[]): void => {
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const objectUrl = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = objectUrl;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(objectUrl);
-};
-
 export const exportContextualReport = async (
   type: ReportContextualType,
   filters: ReportContextualFilters = {},
@@ -624,38 +618,22 @@ export const exportContextualReport = async (
       params: {
         startDate: fromDate,
         endDate: toDate,
+        customerId: filters.customerId,
+        loanId: filters.loanId,
       },
     });
     return;
   }
 
-  const { data } = await apiClient.get('/reports/payouts', {
+  await downloadBlobWithParams({
+    url: '/reports/payouts/excel',
+    fileName: `reporte_pagos_${suffix}.xlsx`,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     params: {
-      fromDate,
-      toDate,
-      page: 1,
-      pageSize: 5000,
+      startDate: fromDate,
+      endDate: toDate,
+      customerId: filters.customerId,
+      loanId: filters.loanId,
     },
   });
-
-  const payouts = toArray<any>(data?.data?.payouts ?? data?.data?.data?.payouts ?? data?.data);
-  const csvRows = [
-    'id_pago,id_credito,fecha,monto,capital,interes,mora,tipo,metodo',
-    ...payouts.map((payout) => {
-      const values = [
-        payout?.id,
-        payout?.loanId,
-        payout?.paymentDate || '',
-        toNumber(payout?.amount),
-        toNumber(payout?.principalApplied),
-        toNumber(payout?.interestApplied),
-        toNumber(payout?.penaltyApplied),
-        payout?.paymentType || '',
-        payout?.paymentMethod || '',
-      ];
-      return values.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',');
-    }),
-  ];
-
-  downloadCsv(`reporte_pagos_${suffix}.csv`, csvRows);
 };

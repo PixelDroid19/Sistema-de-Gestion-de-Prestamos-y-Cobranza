@@ -1,4 +1,4 @@
-const { test, afterEach, mock } = require('node:test');
+const { test, beforeEach, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
 const models = require('@/models');
@@ -13,6 +13,12 @@ afterEach(() => {
 });
 
 const loanViewService = createLoanViewService();
+
+beforeEach(() => {
+  mock.method(models.IdempotencyKey, 'findOne', async () => null);
+  mock.method(models.IdempotencyKey, 'create', async () => ({ id: 1 }));
+  mock.method(models.IdempotencyKey, 'update', async () => [1]);
+});
 
 test('root paymentApplicationService stays a thin compatibility adapter to the credits module implementation', () => {
   assert.equal(createPaymentApplicationService, moduleOwnedPaymentApplicationService.createPaymentApplicationService);

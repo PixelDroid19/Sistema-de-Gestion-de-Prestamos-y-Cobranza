@@ -469,7 +469,7 @@ test('createReportsRouter limits associate export routes to admin and socio role
   assert.equal(response.status, 403);
 });
 
-test('createReportsRouter exposes legacy-compatible comparative, earnings, and file export aliases', async () => {
+test('createReportsRouter exposes comparative/earnings routes and removes legacy file export aliases', async () => {
   const calls = [];
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
@@ -511,6 +511,15 @@ test('createReportsRouter exposes legacy-compatible comparative, earnings, and f
           },
         };
       },
+      async exportPayoutsExcel(input) {
+        calls.push(['exportPayoutsExcel', input.filters]);
+        return {
+          success: true,
+          data: {
+            rows: [{ paymentId: 9, loanId: 44, amount: '100.00' }],
+          },
+        };
+      },
     },
   });
 
@@ -534,10 +543,13 @@ test('createReportsRouter exposes legacy-compatible comparative, earnings, and f
   const partnerReportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/partner-report/7?format=xlsx`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
-  const legacyRecoveryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/file/reports/recovery/export?format=csv`, {
+  const canonicalPayoutExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/excel?startDate=2026-01-01&endDate=2026-01-31`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const legacyCreditsExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/file/reports/credits/excel`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const legacyRecoveryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/file/reports/recovery/export?format=csv`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
@@ -559,18 +571,25 @@ test('createReportsRouter exposes legacy-compatible comparative, earnings, and f
   assert.equal(partnerReportResponse.status, 200);
   assert.equal((await partnerReportResponse.arrayBuffer()).byteLength > 0, true);
 
-  assert.equal(legacyRecoveryExportResponse.status, 200);
-  assert.match(await legacyRecoveryExportResponse.text(), /header/);
+  assert.equal(canonicalPayoutExportResponse.status, 200);
+  assert.equal((await canonicalPayoutExportResponse.arrayBuffer()).byteLength > 0, true);
 
-  assert.equal(legacyCreditsExportResponse.status, 200);
-  assert.equal((await legacyCreditsExportResponse.arrayBuffer()).byteLength > 0, true);
+  assert.equal(legacyCreditsExportResponse.status, 404);
+  assert.equal(legacyRecoveryExportResponse.status, 404);
 
   assert.deepEqual(calls, [
     ['getComparativeAnalysis', 2025],
     ['getMonthlyEarnings', 2024],
     ['getInterestEarnings', 2024],
     ['exportAssociateProfitabilityReport'],
-    ['exportRecoveryReport'],
-    ['exportCreditsExcel'],
+    ['exportPayoutsExcel', {
+      customerId: undefined,
+      loanId: undefined,
+      creditId: undefined,
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+      status: undefined,
+      paymentType: undefined,
+    }],
   ]);
 });

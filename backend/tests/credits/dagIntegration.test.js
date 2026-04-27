@@ -465,6 +465,7 @@ test('calculation method selected by active formula is persisted in loan snapsho
 
   assert.equal(loan.id, 102);
   assert.equal(persistedPayload.dagGraphVersionId, 101);
+  assert.equal(persistedPayload.calculationMethod, 'COMPOUND');
   assert.equal(persistedPayload.financialSnapshot.calculationMethod, 'COMPOUND');
   assert.equal(persistedPayload.emiSchedule.length, 12);
 });

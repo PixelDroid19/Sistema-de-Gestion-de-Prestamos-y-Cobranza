@@ -5,7 +5,8 @@ import {
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
   Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
 } from 'lucide-react';
-import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
+import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
+import { useConfig } from '../services/configService';
 import { useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
 import { downloadVoucher } from '../services/paymentService';
@@ -30,6 +31,21 @@ export default function CreditDetails() {
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
   const canViewPayoff = user?.role === 'customer' || isAdmin;
+  const { paymentMethods: configuredPaymentMethods } = useConfig();
+  const paymentMethodOptions = useMemo(() => {
+    const activeConfiguredMethods = configuredPaymentMethods
+      .filter((method: any) => method?.isActive !== false)
+      .map((method: any) => ({
+        value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
+        label: String(method?.label ?? method?.name ?? method?.key ?? method?.type ?? '').trim(),
+      }))
+      .filter((method) => method.value && method.label);
+
+    return activeConfiguredMethods.length > 0
+      ? activeConfiguredMethods
+      : [...FALLBACK_PAYMENT_METHODS];
+  }, [configuredPaymentMethods]);
+  const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const operationalModal = useOperationalModalState();
 
@@ -266,7 +282,7 @@ export default function CreditDetails() {
   // Modals state
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [selectedInstallmentNumber, setSelectedInstallmentNumber] = useState<number | null>(null);
   const [promiseAmount, setPromiseAmount] = useState('');
   const [promiseDateInput, setPromiseDateInput] = useState(new Date().toISOString().slice(0, 10));
@@ -280,11 +296,11 @@ export default function CreditDetails() {
   const [showEditPaymentMethodModal, setShowEditPaymentMethodModal] = useState(false);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editingPaymentReconciled, setEditingPaymentReconciled] = useState(false);
-  const [newPaymentMethod, setNewPaymentMethod] = useState<PaymentMethod>('transfer');
+  const [newPaymentMethod, setNewPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
 
   const [showCapitalModal, setShowCapitalModal] = useState(false);
   const [capitalAmount, setCapitalAmount] = useState('');
-  const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>('transfer');
+  const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
 
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
@@ -303,6 +319,13 @@ export default function CreditDetails() {
   });
 
   const payableStatuses = new Set(['pending', 'overdue', 'partial']);
+
+  React.useEffect(() => {
+    const validMethods = new Set(paymentMethodOptions.map((method) => method.value));
+    if (!validMethods.has(paymentMethod)) setPaymentMethod(defaultPaymentMethod);
+    if (!validMethods.has(newPaymentMethod)) setNewPaymentMethod(defaultPaymentMethod);
+    if (!validMethods.has(capitalMethod)) setCapitalMethod(defaultPaymentMethod);
+  }, [capitalMethod, defaultPaymentMethod, newPaymentMethod, paymentMethod, paymentMethodOptions]);
 
   React.useEffect(() => {
     if (!visibleTabs.includes(activeTab)) {
@@ -727,12 +750,12 @@ export default function CreditDetails() {
       return;
     }
 
-    const normalizedMethod = String(entry?.paymentMethod || 'transfer').toLowerCase();
-    const hasMethod = PAYMENT_METHODS.some((method) => method.value === normalizedMethod);
+    const normalizedMethod = String(entry?.paymentMethod || defaultPaymentMethod).toLowerCase();
+    const hasMethod = paymentMethodOptions.some((method) => method.value === normalizedMethod);
 
     setEditingPaymentId(paymentId);
     setEditingPaymentReconciled(Boolean(entry?.paymentReconciled));
-    setNewPaymentMethod((hasMethod ? normalizedMethod : 'transfer') as PaymentMethod);
+    setNewPaymentMethod((hasMethod ? normalizedMethod : defaultPaymentMethod) as PaymentMethod);
     setShowEditPaymentMethodModal(true);
   };
 
@@ -1807,7 +1830,7 @@ export default function CreditDetails() {
                     onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                     className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   >
-                    {PAYMENT_METHODS.map((method) => (
+                    {paymentMethodOptions.map((method) => (
                       <option key={method.value} value={method.value}>{method.label}</option>
                     ))}
                   </select>
@@ -1954,7 +1977,7 @@ export default function CreditDetails() {
                     onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
                     className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   >
-                    {PAYMENT_METHODS.map((method) => (
+                    {paymentMethodOptions.map((method) => (
                       <option key={method.value} value={method.value}>{method.label}</option>
                     ))}
                   </select>
@@ -2002,7 +2025,7 @@ export default function CreditDetails() {
                   disabled={editingPaymentReconciled}
                   className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {PAYMENT_METHODS.map((method) => (
+                  {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
                 </select>

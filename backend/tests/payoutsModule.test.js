@@ -48,6 +48,9 @@ test('createCreatePayment delegates actor-aware canonical payment application', 
     loanId: 4,
     amount: 250,
     paymentDate: new Date('2026-03-19T00:00:00.000Z'),
+    paymentMethod: undefined,
+    actorId: 12,
+    idempotencyKey: undefined,
   });
 });
 
@@ -466,6 +469,9 @@ test('createCreatePartialPayment allows admins and delegates partial application
     loanId: 5,
     amount: 80,
     paymentDate: new Date('2026-03-20T00:00:00.000Z'),
+    paymentMethod: undefined,
+    actorId: 1,
+    idempotencyKey: undefined,
   });
 });
 
@@ -518,6 +524,8 @@ test('createCreateCapitalPayment delegates payment method to capital application
     paymentDate: new Date('2026-03-20T00:00:00.000Z'),
     paymentMethod: 'transfer',
     strategy: 'REDUCE_QUOTA',
+    actorId: 1,
+    idempotencyKey: undefined,
   });
 });
 
@@ -548,6 +556,7 @@ test('createAnnulInstallment uses mutation access policy and delegates to the se
     reason: undefined,
     installmentNumber: 2,
     paymentDate: new Date('2026-03-21T00:00:00.000Z'),
+    idempotencyKey: undefined,
   });
 });
 

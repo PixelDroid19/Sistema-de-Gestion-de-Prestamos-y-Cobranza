@@ -38,6 +38,13 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
       async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async exportCreditsExcel(input) {
         assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          customerId: undefined,
+          loanId: '1',
+          creditId: undefined,
+          startDate: '2026-01-01',
+          endDate: '2026-01-31',
+        });
         return {
           success: true,
           data: {
@@ -61,16 +68,56 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
   app.use(router);
   activeServer = await listen(app);
 
-  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/credits/excel`, {
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/credits/excel?loanId=1&startDate=2026-01-01&endDate=2026-01-31`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  assert.equal(response.headers.get('content-disposition'), 'attachment; filename="credits-export.xlsx"');
+  assert.match(response.headers.get('content-disposition') || '', /reporte-creditos-credito-1-/);
 
   const arrayBuffer = await response.arrayBuffer();
   assert.ok(arrayBuffer.byteLength > 0, 'Should return non-empty buffer');
+});
+
+test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportPayoutsExcel(input) {
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          customerId: '10',
+          loanId: undefined,
+          creditId: undefined,
+          startDate: '2026-02-01',
+          endDate: '2026-02-28',
+          status: undefined,
+          paymentType: undefined,
+        });
+        return {
+          success: true,
+          data: {
+            rows: [{ paymentId: 7, loanId: 4, customerName: 'Ana', amount: '100.00' }],
+          },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/excel?customerId=10&startDate=2026-02-01&endDate=2026-02-28`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.match(response.headers.get('content-disposition') || '', /reporte-pagos-cliente-10-/);
+  assert.ok((await response.arrayBuffer()).byteLength > 0, 'Should return non-empty buffer');
 });
 
 test('GET /reports/credits/excel rejects non-admin users', async () => {

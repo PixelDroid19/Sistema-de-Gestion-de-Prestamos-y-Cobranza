@@ -17,7 +17,7 @@ export const PAYMENT_METHODS = [
   { value: 'other', label: 'Otro' },
 ] as const;
 
-export type PaymentMethod = typeof PAYMENT_METHODS[number]['value'];
+export type PaymentMethod = string;
 
 // Capital payment strategy
 export const CAPITAL_STRATEGIES = [

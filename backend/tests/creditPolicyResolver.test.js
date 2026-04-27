@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createCreditPolicyResolver } = require('@/modules/credits/application/creditPolicyResolver');
+const { ValidationError } = require('@/utils/errorHandler');
 
 const createConfigRepository = () => ({
   async listActiveByCategory(category) {
@@ -87,4 +88,19 @@ test('credit policy resolver preserves explicit manual operator values and still
   assert.equal(result.policySnapshot.lateFeePolicyId, 20);
   assert.equal(result.policySnapshot.rateSource, 'manual');
   assert.equal(result.policySnapshot.lateFeeSource, 'manual');
+});
+
+test('credit policy resolver fails clearly when a policy-driven credit has no active rate policy', async () => {
+  const resolver = createCreditPolicyResolver({
+    configRepository: {
+      async listActiveByCategory() {
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => resolver.resolve({ input: { amount: 2000000, termMonths: 12, rateSource: 'policy' } }),
+    (error) => error instanceof ValidationError && error.message === 'No active rate policy is available for this credit amount',
+  );
 });
