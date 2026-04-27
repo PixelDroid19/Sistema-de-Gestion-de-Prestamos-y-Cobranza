@@ -145,11 +145,15 @@ const customerRepository = {
   },
   async syncPrimaryKeySequence() {
     await sequelize.query(`
+      WITH max_ids AS (
+        SELECT COALESCE((SELECT MAX(id) FROM "Customers"), 0) AS max_id
+      )
       SELECT setval(
         pg_get_serial_sequence('"Customers"', 'id'),
-        COALESCE((SELECT MAX(id) FROM "Customers"), 0),
-        true
-      );
+        CASE WHEN max_id > 0 THEN max_id ELSE 1 END,
+        max_id > 0
+      )
+      FROM max_ids;
     `);
   },
   async attachLoanSummaries(customers) {

@@ -44,14 +44,18 @@ const userRepository = {
   },
   syncPrimaryKeySequenceWithCustomerProfiles() {
     return sequelize.query(`
-      SELECT setval(
-        pg_get_serial_sequence('"Users"', 'id'),
-        GREATEST(
+      WITH max_ids AS (
+        SELECT GREATEST(
           COALESCE((SELECT MAX(id) FROM "Users"), 0),
           COALESCE((SELECT MAX(id) FROM "Customers"), 0)
-        ),
-        true
-      );
+        ) AS max_id
+      )
+      SELECT setval(
+        pg_get_serial_sequence('"Users"', 'id'),
+        CASE WHEN max_id > 0 THEN max_id ELSE 1 END,
+        max_id > 0
+      )
+      FROM max_ids;
     `);
   },
   create(payload) {
