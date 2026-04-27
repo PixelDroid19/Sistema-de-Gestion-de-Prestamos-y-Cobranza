@@ -120,6 +120,60 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   assert.ok((await response.arrayBuffer()).byteLength > 0, 'Should return non-empty buffer');
 });
 
+test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getDashboardSummary(input) {
+        assert.equal(input.actor.role, 'admin');
+        return {
+          success: true,
+          data: {
+            summary: {
+              totalLoans: 4,
+              activeLoans: 3,
+              defaultedLoans: 1,
+              recoveredLoans: 2,
+              totalPortfolioAmount: '400000.00',
+              totalRecoveredAmount: '210000.00',
+              totalOutstandingAmount: '190000.00',
+            },
+            collections: {
+              overdueAlerts: 1,
+              pendingPromises: 2,
+              unreadNotifications: 3,
+            },
+            monthlyPerformance: [
+              { month: '2026-03', disbursed: 100000, recovered: 80000 },
+            ],
+            recentActivity: {
+              loans: [{ loanId: 4, customerName: 'QA Cliente', status: 'active' }],
+              payments: [{ paymentId: 10, amount: '50000.00' }],
+              alerts: [],
+              promises: [],
+              notifications: [],
+            },
+          },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/dashboard/excel`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.match(response.headers.get('content-disposition') || '', /dashboard-report-/);
+  assert.ok((await response.arrayBuffer()).byteLength > 0, 'Should return non-empty buffer');
+});
+
 test('GET /reports/credits/excel rejects non-admin users', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,

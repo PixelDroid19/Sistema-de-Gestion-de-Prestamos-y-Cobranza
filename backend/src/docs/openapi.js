@@ -238,6 +238,13 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Archivo Excel de créditos' } },
       },
     },
+    '/reports/dashboard/excel': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar dashboard ejecutivo a Excel',
+        responses: { 200: { description: 'Archivo Excel del dashboard' } },
+      },
+    },
     '/reports/payouts/excel': {
       get: {
         tags: ['Reports'],

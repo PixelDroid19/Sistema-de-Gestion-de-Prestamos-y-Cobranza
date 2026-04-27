@@ -568,10 +568,9 @@ export const exportAssociatesExcel = async (): Promise<void> => {
 
 export const exportDashboardSummary = async (): Promise<void> => {
   await downloadBlob({
-    url: '/reports/dashboard',
-    fileName: 'dashboard-report.json',
-    mimeType: 'application/json',
-    headers: { Accept: 'application/json' },
+    url: '/reports/dashboard/excel',
+    fileName: 'dashboard-report.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 };
 
