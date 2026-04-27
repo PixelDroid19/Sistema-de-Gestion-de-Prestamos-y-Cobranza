@@ -126,7 +126,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex flex-col items-start justify-between gap-4 border-y border-border-subtle bg-bg-surface/60 py-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface sm:flex-row sm:items-center">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 

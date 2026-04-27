@@ -22,17 +22,17 @@
 
 @layer base {
   :root {
-    --bg-base: #f8fafc;
+    --bg-base: #f6fbfa;
     --bg-surface: #ffffff;
     --bg-elevated: #ffffff;
-    --hover-bg: #f1f5f9;
+    --hover-bg: #eef7f5;
     
     --text-primary: #0f172a;
     --text-secondary: #64748b;
     --brand-primary: #0f766e;
     
-    --border-subtle: #e2e8f0;
-    --border-strong: #cbd5e1;
+    --border-subtle: #dbe7e4;
+    --border-strong: #bed1cc;
   }
   
   .dark {

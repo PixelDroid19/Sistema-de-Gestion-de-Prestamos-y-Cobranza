@@ -140,58 +140,54 @@ export default function PaymentSchedule() {
 
       {/* Loan Summary */}
       {loan && (
-        <section className="border-y border-border-subtle bg-bg-surface/70">
-        <div className="grid grid-cols-2 md:grid-cols-4">
-          <div className="border-b border-r border-border-subtle px-4 py-4 md:border-b-0">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Monto del Préstamo</p>
             <p className="text-lg font-bold text-text-primary">{formatCurrency(loan.amount)}</p>
           </div>
-          <div className="border-b border-border-subtle px-4 py-4 md:border-b-0 md:border-r">
+          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa de Interés</p>
             <p className="text-lg font-bold text-text-primary">{loan.interestRate}%</p>
           </div>
-          <div className="border-r border-border-subtle px-4 py-4">
+          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Plazo</p>
             <p className="text-lg font-bold text-text-primary">{loan.termMonths} meses</p>
           </div>
-          <div className="px-4 py-4">
+          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Estado</p>
             <p className="text-lg font-bold text-text-primary capitalize">{loan.status}</p>
           </div>
-        </div>
         </section>
       )}
 
       {/* Summary Stats */}
       {summary && (
-        <section className="border-y border-border-subtle bg-bg-surface/70">
-        <div className="grid grid-cols-2 md:grid-cols-5">
-          <div className="border-b border-r border-border-subtle px-4 py-4 md:border-b-0">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Total Capital</p>
             <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(parseFloat(summary.totalPrincipal))}</p>
           </div>
-          <div className="border-b border-border-subtle px-4 py-4 md:border-r md:border-b-0">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Total Intereses</p>
             <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{formatCurrency(parseFloat(summary.totalInterest))}</p>
           </div>
-          <div className="border-b border-r border-border-subtle px-4 py-4 md:border-b-0">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Total a Pagar</p>
             <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(parseFloat(summary.totalPayment))}</p>
           </div>
-          <div className="border-r border-border-subtle px-4 py-4">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-purple-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-purple-600 dark:text-purple-400">Cuotas Pagadas</p>
             <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{summary.paidInstallments}</p>
           </div>
-          <div className="px-4 py-4">
+          <div className="rounded-xl border border-border-subtle border-l-4 border-l-slate-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600 dark:text-gray-400">Cuotas Pendientes</p>
             <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{summary.pendingInstallments}</p>
           </div>
-        </div>
         </section>
       )}
 
       {/* Amortization Table */}
-      <div className="overflow-hidden border-y border-border-subtle bg-bg-surface/70">
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
         <div className="px-6 py-4 border-b border-border-subtle">
           <h3 className="text-lg font-medium flex items-center gap-2">
             <BarChart3 size={20} className="text-blue-500" />

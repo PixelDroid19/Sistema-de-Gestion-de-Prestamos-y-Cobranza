@@ -580,19 +580,20 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   ];
 
   return (
-    <div className="flex flex-col gap-6 h-full" data-tour="credits-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-2xl font-semibold" data-tour="credits-page-title">
-            {tTerm('credits.module.title')}
-          </h2>
-          <p className="text-sm text-text-secondary mt-1">{tTerm('credits.module.subtitle')}</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+    <div className="flex h-full flex-col gap-6" data-tour="credits-page">
+      <section className="shrink-0 border-b border-border-subtle pb-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-semibold tracking-tight text-text-primary" data-tour="credits-page-title">
+              {tTerm('credits.module.title')}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">{tTerm('credits.module.subtitle')}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => startCreditsTour()}
-            className="flex items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-hover-bg"
+            className="flex items-center justify-center gap-2 rounded-lg border border-border-subtle bg-white px-3.5 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary dark:bg-bg-base"
           >
             <CircleHelp size={16} /> Guía rápida
           </button>
@@ -609,7 +610,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           <button
             onClick={() => setCurrentView?.('credit-calculator')}
             data-tour="credits-preview"
-            className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg"
+            className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3.5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg dark:bg-bg-base"
           >
             <Calculator size={16} /> Previsualizar crédito
           </button>
@@ -622,8 +623,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <Plus size={16} /> {tTerm('credits.cta.new')}
             </button>
           )}
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Tabs */}
       <div className="border-b border-border-subtle" data-tour="credits-tabs">
@@ -670,9 +672,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* Statistics Widget */}
           {statisticsData?.data?.statistics && (
-            <section className="border-y border-border-subtle bg-bg-surface/70">
-              <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-                <div className="border-b border-border-subtle px-4 py-4 sm:border-r xl:border-b-0">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
                   <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
                     <DollarSign size={14} className="text-blue-600" /> Total préstamos
                   </div>
@@ -680,7 +681,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
                   </div>
                 </div>
-                <div className="border-b border-border-subtle px-4 py-4 xl:border-b-0 xl:border-r">
+                <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
                   <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
                     <TrendingUp size={14} className="text-emerald-600" /> Cobrado
                   </div>
@@ -688,7 +689,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
                   </div>
                 </div>
-                <div className="border-b border-border-subtle px-4 py-4 sm:border-r sm:border-b-0">
+                <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
                   <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
                     <AlertTriangle size={14} className="text-amber-600" /> Mora
                   </div>
@@ -696,7 +697,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
                   </div>
                 </div>
-                <div className="px-4 py-4">
+                <div className="rounded-xl border border-border-subtle border-l-4 border-l-teal-600 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
                   <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
                     <Users size={14} className="text-brand-primary" /> Créditos activos
                   </div>
@@ -704,11 +705,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
                   </div>
                 </div>
-              </div>
             </section>
           )}
 
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 rounded-xl border border-border-subtle bg-white p-3 shadow-sm dark:bg-bg-surface lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative w-full sm:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
@@ -724,13 +724,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       applyFilters();
                     }
                   }}
-                  className="w-full rounded-lg border border-border-subtle bg-bg-base py-2 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                  className="w-full rounded-lg border border-border-subtle bg-white py-2 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 data-tour="credits-filters"
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${showFilters ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30' : 'bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary'}`}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${showFilters ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200' : 'border-border-subtle bg-white text-text-secondary hover:border-border-strong hover:text-text-primary dark:bg-bg-base'}`}
               >
                 <Filter size={16} /> Filtrar
               </button>
@@ -741,18 +741,18 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           </div>
 
           {selectedCreditIds.length > 0 && (
-            <div className="flex flex-col gap-3 border-y border-border-subtle bg-bg-surface/60 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleDownloadSelectedReports}
-                  className="px-3 py-1 rounded border border-border-subtle hover:bg-hover-bg"
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-bg-base dark:text-blue-200"
                 >
                   Descargar reportes
                 </button>
                 <button
                   onClick={() => setSelectedCreditIds([])}
-                  className="px-3 py-1 rounded border border-border-subtle hover:bg-hover-bg"
+                  className="rounded-lg border border-border-subtle bg-white px-3 py-1.5 font-semibold hover:bg-hover-bg dark:bg-bg-base"
                 >
                   Limpiar selección
                 </button>
@@ -762,14 +762,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           {/* Filter Panel */}
           {showFilters && (
-            <div className="border-y border-border-subtle bg-bg-surface/60 py-4">
+            <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Estado</label>
                   <select
                     value={filters.status}
                     onChange={(e) => setFilters({...filters, status: e.target.value})}
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   >
                     <option value="">Todos</option>
                     <option value="active">Activo</option>
@@ -789,7 +789,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     value={filters.minAmount}
                     onChange={(e) => setFilters({...filters, minAmount: e.target.value})}
                     placeholder="0"
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
@@ -799,7 +799,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     value={filters.maxAmount}
                     onChange={(e) => setFilters({...filters, maxAmount: e.target.value})}
                     placeholder="Sin límite"
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
@@ -808,7 +808,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     type="date"
                     value={filters.startDate}
                     onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
@@ -817,7 +817,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     type="date"
                     value={filters.endDate}
                     onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-border-strong"
+                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
               </div>
@@ -845,11 +845,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           <div className="space-y-3 md:hidden">
             {isLoading ? (
-              <div className="border-y border-border-subtle py-8 text-center text-sm text-text-secondary">Cargando créditos...</div>
+              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">Cargando créditos...</div>
             ) : isError ? (
-              <div className="border-y border-border-subtle py-8 text-center text-sm text-red-600">Error al cargar créditos.</div>
+              <div className="rounded-xl border border-red-200 bg-red-50 py-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">Error al cargar créditos.</div>
             ) : creditsList.length === 0 ? (
-              <div className="border-y border-border-subtle py-8 text-center text-sm text-text-secondary">No hay créditos registrados.</div>
+              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">No hay créditos registrados.</div>
             ) : (
               creditsList.map((credit: any) => {
                 const principalOutstanding = Number(credit.principalOutstanding) || 0;
@@ -858,7 +858,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
 
                 return (
-                  <article key={`mobile-credit-${credit.id}`} className="border-y border-border-subtle bg-bg-surface/70 px-3 py-4">
+                  <article key={`mobile-credit-${credit.id}`} className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold text-text-primary">{getCreditLabel(credit)}</p>
@@ -895,7 +895,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         type="button"
                         onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                         disabled={!viewGuard.executable}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 dark:bg-bg-base"
                         title={viewGuard.executable ? 'Abrir crédito' : (viewGuard.reason || 'Acción no disponible')}
                       >
                         <Eye size={16} /> Ver detalle
@@ -907,9 +907,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             )}
           </div>
 
-          <div className="hidden overflow-x-auto border-y border-border-subtle md:block">
+          <div className="hidden overflow-x-auto rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface md:block">
             <table data-tour="credits-list-table" className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
-              <thead className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary">
+              <thead className="border-b border-border-subtle bg-slate-50 text-xs uppercase tracking-wide text-text-secondary dark:bg-bg-base">
                 <tr>
                   <th className="w-10 px-3 py-3 font-semibold">
                     <input
@@ -959,7 +959,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       : '-';
 
                     return (
-                      <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
+                      <tr key={credit.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60">
                         <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
                           <input
                             type="checkbox"
@@ -1104,7 +1104,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           {/* Pagination Controls */}
           {loansData && (
-            <div className="mt-4 flex flex-col gap-3 text-sm text-text-secondary lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-3 text-sm text-text-secondary shadow-sm ring-1 ring-border-subtle dark:bg-bg-surface lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
                 <label className="flex items-center gap-2">

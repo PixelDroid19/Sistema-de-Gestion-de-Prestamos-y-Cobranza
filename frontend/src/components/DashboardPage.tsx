@@ -128,12 +128,11 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       </div>
 
       {/* Stats */}
-      <section className="border-y border-border-subtle bg-bg-surface/70">
-      <div className="grid grid-cols-3">
+      <section className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="min-w-0 border-r border-border-subtle p-2.5 last:border-r-0 sm:p-5"
+            className="min-w-0 rounded-xl border border-border-subtle bg-white p-2.5 shadow-sm dark:bg-bg-surface sm:p-5"
           >
             <div className="mb-1.5 flex items-start justify-between gap-1.5 sm:mb-3 sm:gap-2">
               <span className="hidden min-w-0 break-words text-[11px] font-bold uppercase leading-4 tracking-wider text-text-secondary sm:inline">
@@ -163,7 +162,6 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
             </div>
           </div>
         ))}
-      </div>
       </section>
 
       {lockedCount > 0 && (
@@ -180,7 +178,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       )}
 
       {/* Table */}
-      <div className="min-w-0 overflow-hidden border-y border-border-subtle bg-bg-surface/70">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
         <div
           className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5 sm:py-4"
         >

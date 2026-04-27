@@ -138,7 +138,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex items-center justify-between border-y border-border-subtle bg-bg-surface/60 py-4">
+        <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
