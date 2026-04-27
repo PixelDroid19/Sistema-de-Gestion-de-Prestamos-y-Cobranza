@@ -964,14 +964,10 @@ export default function CreditDetails() {
     label: string;
     value: React.ReactNode;
   }) => (
-    <div className="flex min-w-0 items-start gap-3">
-      <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center text-brand-primary">
-        <Icon size={17} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
-        <div className="mt-0.5 text-sm font-semibold leading-6 text-text-primary break-words">{value}</div>
-      </div>
+    <div className="flex min-w-0 items-center gap-2 text-sm">
+      <Icon size={15} className="shrink-0 text-brand-primary" />
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</span>
+      <span className="min-w-0 break-words font-semibold leading-5 text-text-primary">{value}</span>
     </div>
   );
 
@@ -1058,37 +1054,33 @@ export default function CreditDetails() {
 
   return (
     <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
-      <section className="border-b border-border-subtle pb-5" data-tour="credit-detail-header">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1 xl:max-w-5xl">
-            <div className="flex items-start gap-3 sm:gap-4">
+      <section className="border-b border-border-subtle pb-4" data-tour="credit-detail-header">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
               <button
                 onClick={() => navigate('/credits')}
-                className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                 aria-label="Volver a créditos"
               >
-                <ArrowLeft size={22} />
+                <ArrowLeft size={20} />
               </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-4xl">Crédito #{loan.id}</h1>
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
-                    {statusInfo.label}
-                  </span>
-                </div>
-                <p className="mt-2 max-w-4xl text-sm leading-6 text-text-secondary">
-                  Cobra la próxima cuota operable, actualiza mora y registra seguimientos sin alterar la fórmula que se congeló al originar este crédito.
-                </p>
+              <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loan.id}</h1>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            </div>
+            <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
+              Opera pagos, mora y seguimientos usando la fórmula congelada al crear este crédito.
+            </p>
 
-                <div className="mt-5 grid gap-4 border-l-2 border-brand-primary/20 pl-4 md:grid-cols-[minmax(12rem,0.7fr)_minmax(18rem,1.3fr)]">
-                  <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
-                  <InlineMetaLine icon={GitBranch} label="Fórmula aplicada" value={formulaSummary} />
-                </div>
-              </div>
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+              <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
+              <InlineMetaLine icon={GitBranch} label="Fórmula" value={formulaSummary} />
             </div>
           </div>
 
-          <div className="w-full xl:max-w-[34rem]" data-tour="credit-detail-primary-actions">
+          <div className="w-full xl:max-w-[34rem] xl:pt-1" data-tour="credit-detail-primary-actions">
             <div className="flex flex-wrap gap-2 xl:justify-end">
               <button
                 type="button"
