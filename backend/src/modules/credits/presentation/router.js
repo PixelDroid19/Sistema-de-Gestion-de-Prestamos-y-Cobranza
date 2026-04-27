@@ -411,7 +411,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
     });
   }));
 
-  router.delete('/:id', authMiddleware(['customer', 'admin']), asyncHandler(async (req, res) => {
+  router.delete('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     await useCases.deleteLoan({ actor: req.user, loanId: req.params.id });
     res.json({ success: true, message: 'Loan deleted successfully' });
   }));

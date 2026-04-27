@@ -257,6 +257,7 @@ describe('Credits behavioral parity scenarios', () => {
     expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Anular cuota')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Previsualizar crédito' })).not.toBeInTheDocument();
 
     fireEvent.click(viewButton);
 
@@ -273,6 +274,13 @@ describe('Credits behavioral parity scenarios', () => {
     await waitFor(() => {
       expect(mockSetCurrentView).toHaveBeenCalledWith('credit-calculator');
     });
+  });
+
+  it('hides the preview action for customer users', () => {
+    currentUser = { id: 9, name: 'Cliente', email: 'customer@test.com', role: 'customer', permissions: ['*'] };
+    renderCredits();
+
+    expect(screen.queryByRole('button', { name: 'Previsualizar crédito' })).not.toBeInTheDocument();
   });
 
   it('turns the calendar tab into an operational agenda with actions for the next payable installment', async () => {

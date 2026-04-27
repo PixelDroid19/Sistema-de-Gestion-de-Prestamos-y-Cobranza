@@ -68,7 +68,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     view: 'associates',
     label: 'Socios',
     description: 'Gestión administrativa de socios.',
-    roles: ['admin'],
+    roles: ['admin', 'socio'],
     keywords: ['inversionistas', 'aportantes'],
   },
   {

@@ -1,10 +1,11 @@
 import React from 'react';
 import { Bell, CheckCircle2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useNotifications } from '../services/notificationService';
+import { useNotifications, resolveNotificationDestinationForUser } from '../services/notificationService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
+import { useSessionStore } from '../store/sessionStore';
 
 const formatNotificationDate = (value: unknown) => {
   if (!value) {
@@ -17,6 +18,7 @@ const formatNotificationDate = (value: unknown) => {
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const { user } = useSessionStore();
   const { notifications, isLoading, isError, error, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
 
   const unreadCount = notifications.filter((n: any) => !n?.read).length;
@@ -108,7 +110,8 @@ export default function Notifications() {
           <div className="p-4 text-center text-text-secondary">No tienes notificaciones.</div>
         ) : (
           notifications.map((notification: any) => {
-            const canOpen = Boolean(notification?.destination);
+            const destination = resolveNotificationDestinationForUser(notification, user);
+            const canOpen = Boolean(destination);
             const key = notification.id ?? `${notification.title}-${notification.createdAt ?? 'sin-fecha'}`;
             const containerClassName = `w-full p-4 text-left transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40' : ''}`;
 
@@ -144,7 +147,7 @@ export default function Notifications() {
                   key={key}
                   type="button"
                   className={containerClassName}
-                  onClick={() => handleOpenNotification(notification)}
+                  onClick={() => handleOpenNotification({ ...notification, destination })}
                   title="Abrir origen de la notificación"
                 >
                   <div className="flex items-start gap-4">

@@ -865,8 +865,8 @@ test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardle
   assert.equal(destroyCalled, true);
 });
 
-test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan at runtime', async () => {
-  let destroyedLoan = null;
+test('createCreditsRouter DELETE /:id blocks customer deletion attempts at runtime', async () => {
+  let destroyCalled = false;
   const loanRepository = {
     async findById(loanId) {
       return {
@@ -875,8 +875,8 @@ test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan a
         status: 'rejected',
       };
     },
-    async destroy(loan) {
-      destroyedLoan = loan;
+    async destroy() {
+      destroyCalled = true;
     },
   };
   const loanAccessPolicy = createLoanAccessPolicy({ loanRepository });
@@ -895,16 +895,9 @@ test('createCreditsRouter DELETE /:id lets an owner delete their rejected loan a
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.body, {
-    success: true,
-    message: 'Loan deleted successfully',
-  });
-  assert.deepEqual(destroyedLoan, {
-    id: 81,
-    customerId: 7,
-    status: 'rejected',
-  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.success, false);
+  assert.equal(destroyCalled, false);
 });
 
 test('createCreditsRouter serves attachment list and upload contract responses', async () => {

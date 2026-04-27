@@ -36,12 +36,12 @@ export default function Sidebar({
   const isAssociatesView = currentView.startsWith('associate');
   const { user, logout: clearSession } = useSessionStore();
   const { logout: requestLogout } = useAuth();
-  const resolvedRole = user?.role ?? 'admin';
+  const resolvedRole = user?.role;
   const isAdmin = resolvedRole === 'admin';
   const isCustomer = resolvedRole === 'customer';
   const isSocio = resolvedRole === 'socio';
   const canAccessCredits = isAdmin || isCustomer || isSocio;
-  const homeView = getDefaultRouteForUser(user ?? { role: resolvedRole, associateId: undefined }).replace(/^\//u, '');
+  const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
   const associatesHomeView = isSocio && Number.isFinite(Number(user?.associateId))
     ? `associates/${Number(user?.associateId)}`
     : 'associates';
