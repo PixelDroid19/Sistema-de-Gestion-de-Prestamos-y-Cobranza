@@ -97,7 +97,7 @@ export default function Notifications() {
         </div>
       </div>
 
-      <div className="bg-bg-surface rounded-2xl border border-border-subtle p-2 flex-1 flex flex-col gap-1">
+      <div className="flex flex-1 flex-col divide-y divide-border-subtle border-y border-border-subtle bg-bg-surface/60">
         {isLoading ? (
           <div className="p-4 text-center text-text-secondary">Cargando notificaciones...</div>
         ) : isError ? (
@@ -110,7 +110,7 @@ export default function Notifications() {
           notifications.map((notification: any) => {
             const canOpen = Boolean(notification?.destination);
             const key = notification.id ?? `${notification.title}-${notification.createdAt ?? 'sin-fecha'}`;
-            const containerClassName = `w-full rounded-xl p-4 text-left transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40' : ''}`;
+            const containerClassName = `w-full p-4 text-left transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40' : ''}`;
 
             const content = (
               <>

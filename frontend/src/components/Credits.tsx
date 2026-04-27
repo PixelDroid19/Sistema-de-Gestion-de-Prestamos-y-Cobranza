@@ -667,43 +667,45 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {activeTab === 'list' && (
-        <div className="bg-bg-surface rounded-2xl border border-border-subtle p-4 sm:p-5 flex-1 flex flex-col gap-6 min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* Statistics Widget */}
           {statisticsData?.data?.statistics && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
-                  <span className="rounded-lg bg-blue-100 p-1 text-blue-900 dark:bg-blue-500/20 dark:text-blue-100"><DollarSign size={14} /></span> Total préstamos
+            <section className="border-y border-border-subtle bg-bg-surface/70">
+              <div className="grid sm:grid-cols-2 xl:grid-cols-4">
+                <div className="border-b border-border-subtle px-4 py-4 sm:border-r xl:border-b-0">
+                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+                    <DollarSign size={14} className="text-blue-600" /> Total préstamos
+                  </div>
+                  <div className="text-2xl font-bold text-text-primary">
+                    {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-text-primary">
-                  {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
+                <div className="border-b border-border-subtle px-4 py-4 xl:border-b-0 xl:border-r">
+                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+                    <TrendingUp size={14} className="text-emerald-600" /> Cobrado
+                  </div>
+                  <div className="text-2xl font-bold text-text-primary">
+                    {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
+                  </div>
+                </div>
+                <div className="border-b border-border-subtle px-4 py-4 sm:border-r sm:border-b-0">
+                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+                    <AlertTriangle size={14} className="text-amber-600" /> Mora
+                  </div>
+                  <div className="text-2xl font-bold text-text-primary">
+                    {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
+                  </div>
+                </div>
+                <div className="px-4 py-4">
+                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+                    <Users size={14} className="text-brand-primary" /> Créditos activos
+                  </div>
+                  <div className="text-2xl font-bold text-text-primary">
+                    {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
+                  </div>
                 </div>
               </div>
-              <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
-                  <span className="rounded-lg bg-emerald-100 p-1 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100"><TrendingUp size={14} /></span> Cobrado
-                </div>
-                <div className="text-2xl font-bold text-text-primary">
-                  {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
-                  <span className="rounded-lg bg-amber-100 p-1 text-amber-950 dark:bg-amber-500/20 dark:text-amber-100"><AlertTriangle size={14} /></span> Mora
-                </div>
-                <div className="text-2xl font-bold text-text-primary">
-                  {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-base">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
-                  <span className="rounded-lg bg-hover-bg p-1 text-text-primary"><Users size={14} /></span> Créditos activos
-                </div>
-                <div className="text-2xl font-bold text-text-primary">
-                  {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
-                </div>
-              </div>
-            </div>
+            </section>
           )}
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -739,7 +741,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           </div>
 
           {selectedCreditIds.length > 0 && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-bg-base px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-y border-border-subtle bg-bg-surface/60 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -760,7 +762,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           {/* Filter Panel */}
           {showFilters && (
-            <div className="bg-bg-base rounded-xl border border-border-subtle p-4">
+            <div className="border-y border-border-subtle bg-bg-surface/60 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Estado</label>
@@ -841,7 +843,71 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-border-subtle">
+          <div className="space-y-3 md:hidden">
+            {isLoading ? (
+              <div className="border-y border-border-subtle py-8 text-center text-sm text-text-secondary">Cargando créditos...</div>
+            ) : isError ? (
+              <div className="border-y border-border-subtle py-8 text-center text-sm text-red-600">Error al cargar créditos.</div>
+            ) : creditsList.length === 0 ? (
+              <div className="border-y border-border-subtle py-8 text-center text-sm text-text-secondary">No hay créditos registrados.</div>
+            ) : (
+              creditsList.map((credit: any) => {
+                const principalOutstanding = Number(credit.principalOutstanding) || 0;
+                const interestOutstanding = Number(credit.interestOutstanding) || 0;
+                const outstandingAmount = principalOutstanding + interestOutstanding;
+                const viewGuard = resolveOperationalGuard('credit.view', { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status });
+
+                return (
+                  <article key={`mobile-credit-${credit.id}`} className="border-y border-border-subtle bg-bg-surface/70 px-3 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-text-primary">{getCreditLabel(credit)}</p>
+                        <p className="mt-1 text-xs text-text-secondary">Crédito #{credit.id}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}>
+                        {getLoanStatusLabel(credit.status)}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Capital</p>
+                        <p className="mt-1 font-semibold text-text-primary">{formatCurrency(credit.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cuota</p>
+                        <p className="mt-1 font-semibold text-text-primary">{credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Saldo</p>
+                        <p className="mt-1 font-semibold text-text-primary">{outstandingAmount > 0 ? formatCurrency(outstandingAmount) : '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Situación</p>
+                        <span className={`mt-1 inline-flex rounded-md px-2 py-1 text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
+                          {getRecoveryStatusLabel(credit)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {viewGuard.visible && (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView?.(`credits/${credit.id}`)}
+                        disabled={!viewGuard.executable}
+                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+                        title={viewGuard.executable ? 'Abrir crédito' : (viewGuard.reason || 'Acción no disponible')}
+                      >
+                        <Eye size={16} /> Ver detalle
+                      </button>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto border-y border-border-subtle md:block">
             <table data-tour="credits-list-table" className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
               <thead className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary">
                 <tr>

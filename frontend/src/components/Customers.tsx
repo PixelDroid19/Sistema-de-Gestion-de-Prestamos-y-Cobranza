@@ -125,8 +125,8 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
         </button>
       </div>
 
-      <div className="bg-bg-surface rounded-2xl p-5 flex-1 flex flex-col">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div className="flex min-w-0 flex-1 flex-col gap-5">
+        <div className="flex flex-col items-start justify-between gap-4 border-y border-border-subtle bg-bg-surface/60 py-4 sm:flex-row sm:items-center">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
@@ -137,7 +137,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Filtra la lista por estado del cliente">
               <Filter size={14} className="text-text-secondary" />
               <select 

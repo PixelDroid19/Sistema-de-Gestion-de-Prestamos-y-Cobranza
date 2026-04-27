@@ -213,7 +213,7 @@ export default function Reports() {
       </div>
 
       {reportExportGuard.visible && (
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4">
+      <div className="border-y border-border-subtle bg-bg-surface/60 py-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label htmlFor="report-type" className="block text-xs text-text-secondary mb-1">Tipo de reporte</label>
@@ -304,44 +304,34 @@ export default function Reports() {
       {activeTab === 'dashboard' && (
         <>
           {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
-              <DollarSign size={20} />
+      <section className="border-y border-border-subtle bg-bg-surface/70">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4">
+          <div className="border-b border-border-subtle px-4 py-4 md:border-r lg:border-b-0">
+            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              <DollarSign size={14} className="text-blue-600 dark:text-blue-400" /> Total Desembolsado
             </div>
+            <p className="text-2xl font-bold text-text-primary">${metrics.totalDisbursed.toLocaleString()}</p>
           </div>
-          <h3 className="text-text-secondary text-sm font-medium">Total Desembolsado</h3>
-          <p className="text-2xl font-semibold mt-1">${metrics.totalDisbursed.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
-              <TrendingUp size={20} />
+          <div className="border-b border-border-subtle px-4 py-4 lg:border-r lg:border-b-0">
+            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" /> Total Recuperado
             </div>
+            <p className="text-2xl font-bold text-text-primary">${metrics.totalRecovered.toLocaleString()}</p>
           </div>
-          <h3 className="text-text-secondary text-sm font-medium">Total Recuperado</h3>
-          <p className="text-2xl font-semibold mt-1">${metrics.totalRecovered.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg text-yellow-600 dark:text-yellow-400">
-              <Users size={20} />
+          <div className="border-b border-border-subtle px-4 py-4 md:border-r md:border-b-0 lg:border-r">
+            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              <Users size={14} className="text-amber-600 dark:text-amber-400" /> Créditos Activos
             </div>
+            <p className="text-2xl font-bold text-text-primary">{metrics.totalActiveLoans}</p>
           </div>
-          <h3 className="text-text-secondary text-sm font-medium">Créditos Activos</h3>
-          <p className="text-2xl font-semibold mt-1">{metrics.totalActiveLoans}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-red-50 dark:bg-red-500/10 rounded-lg text-red-600 dark:text-red-400">
-              <AlertCircle size={20} />
+          <div className="px-4 py-4">
+            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              <AlertCircle size={14} className="text-red-600 dark:text-red-400" /> Tasa de Morosidad
             </div>
+            <p className="text-2xl font-bold text-text-primary">{metrics.arrearsRate}%</p>
           </div>
-          <h3 className="text-text-secondary text-sm font-medium">Tasa de Morosidad</h3>
-          <p className="text-2xl font-semibold mt-1">{metrics.arrearsRate}%</p>
         </div>
-      </div>
+      </section>
       <p className="text-xs text-text-secondary mt-1">
         <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
       </p>
