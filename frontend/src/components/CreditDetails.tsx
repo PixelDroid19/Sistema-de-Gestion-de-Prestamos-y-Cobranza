@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
+  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, CircleHelp,
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
   Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
 } from 'lucide-react';
@@ -21,6 +21,7 @@ import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constant
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import { startCreditDetailsTour } from '../lib/creditGuidedTours';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
@@ -1067,10 +1068,10 @@ export default function CreditDetails() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[88rem] space-y-6 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6">
+    <div className="mx-auto w-full max-w-[88rem] space-y-6 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <section className="rounded-3xl border border-border-subtle bg-bg-surface p-5 shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)] lg:p-6">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1 xl:max-w-4xl">
+          <div className="min-w-0 flex-1 xl:max-w-4xl" data-tour="credit-detail-header">
             <div className="flex items-start gap-4">
               <button
                 onClick={() => navigate('/credits')}
@@ -1098,8 +1099,15 @@ export default function CreditDetails() {
             </div>
           </div>
 
-          <div className="w-full xl:max-w-[34rem]">
+          <div className="w-full xl:max-w-[34rem]" data-tour="credit-detail-primary-actions">
             <div className="flex flex-wrap gap-2 xl:justify-end">
+              <button
+                type="button"
+                onClick={() => startCreditDetailsTour({ loanId })}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto sm:min-w-[13rem]"
+              >
+                <CircleHelp size={16} /> Guía rápida
+              </button>
               {isAdmin && installmentPaymentGuard.visible && (
                 <button
                   onClick={openNextInstallmentPayment}
@@ -1156,6 +1164,7 @@ export default function CreditDetails() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+        <div className="contents" data-tour="credit-detail-metrics">
           <SummaryMetricCard icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
           <SummaryMetricCard icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
           <SummaryMetricCard
@@ -1187,10 +1196,11 @@ export default function CreditDetails() {
             tone="brand"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</span>}
           />
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-border-subtle bg-bg-surface shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)]">
-        <div className="overflow-x-auto border-b border-border-subtle px-3 py-3 hide-scrollbar sm:px-4">
+        <div className="overflow-x-auto border-b border-border-subtle px-3 py-3 hide-scrollbar sm:px-4" data-tour="credit-detail-tabs">
           <div className="flex min-w-max items-center gap-2">
             <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
             {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
@@ -1204,7 +1214,7 @@ export default function CreditDetails() {
         <div className="p-4 sm:p-5 lg:p-6">
           {/* TAB: CALENDAR */}
           {activeTab === 'calendar' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" data-tour="credit-detail-calendar">
               {calendarEntries.length > 0 ? (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-border-subtle bg-bg-base/70 px-4 py-4">
@@ -1305,7 +1315,11 @@ export default function CreditDetails() {
                         const installmentStatusInfo = getInstallmentStatusInfo(row.status);
 
                         return (
-                        <tr key={idx} className="hover:bg-hover-bg/50 transition-colors group">
+                        <tr
+                          key={idx}
+                          data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined}
+                          className="hover:bg-hover-bg/50 transition-colors group"
+                        >
                           <td className="py-3 px-5 text-center font-medium text-text-secondary">{row.installmentNumber}</td>
                           <td className="py-3 px-5 text-right font-medium text-text-primary">
                             {formatCurrency(row.scheduledPayment)}
@@ -1658,7 +1672,7 @@ export default function CreditDetails() {
 
           {/* TAB: HISTORY */}
           {activeTab === 'history' && (
-            <div className="animate-in fade-in duration-300 max-w-3xl">
+            <div className="animate-in fade-in duration-300 max-w-3xl" data-tour="credit-detail-history">
               {isLoadingHistory ? (
                 <p className="text-text-secondary">Cargando historial...</p>
               ) : operationalHistoryEntries.length > 0 ? (

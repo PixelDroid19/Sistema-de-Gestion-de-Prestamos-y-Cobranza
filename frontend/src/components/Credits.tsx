@@ -1,5 +1,23 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Calculator, Filter, Eye, Calendar as CalendarIcon, X, AlertCircle, CheckCircle2, Clock, Download, TrendingUp, DollarSign, Users, AlertTriangle, CreditCard } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Calculator,
+  Filter,
+  Eye,
+  Calendar as CalendarIcon,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Download,
+  TrendingUp,
+  DollarSign,
+  Users,
+  AlertTriangle,
+  CreditCard,
+  CircleHelp,
+} from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -17,6 +35,7 @@ import { tTerm } from '../i18n/terminology';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import { startCreditsTour } from '../lib/creditGuidedTours';
 
 const locales = {
   'es': es,
@@ -561,28 +580,43 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   ];
 
   return (
-    <div className="flex flex-col gap-6 h-full">
+    <div className="flex flex-col gap-6 h-full" data-tour="credits-page">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold">{tTerm('credits.module.title')}</h2>
+          <h2 className="text-2xl font-semibold" data-tour="credits-page-title">
+            {tTerm('credits.module.title')}
+          </h2>
           <p className="text-sm text-text-secondary mt-1">{tTerm('credits.module.subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => startCreditsTour()}
+            className="flex items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-hover-bg"
+          >
+            <CircleHelp size={16} /> Guía rápida
+          </button>
           {isAdmin && (
             <button
               onClick={handleExportCreditsExcel}
               disabled={isExporting}
+              data-tour="credits-export"
               className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
             >
               <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
             </button>
           )}
-          <button onClick={() => setCurrentView?.('credit-calculator')} className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg">
+          <button
+            onClick={() => setCurrentView?.('credit-calculator')}
+            data-tour="credits-preview"
+            className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg"
+          >
             <Calculator size={16} /> Previsualizar crédito
           </button>
           {isAdmin && (
             <button
               onClick={() => setCurrentView?.('credits-new')}
+              data-tour="credits-new"
               className="flex items-center justify-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base hover:opacity-90"
             >
               <Plus size={16} /> {tTerm('credits.cta.new')}
@@ -592,7 +626,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border-subtle">
+      <div className="border-b border-border-subtle" data-tour="credits-tabs">
         <div className="flex gap-6 overflow-x-auto">
           {[
             {
@@ -678,6 +712,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <input
                   type="text"
+                  data-tour="credits-search"
                   placeholder="Buscar por cliente..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -692,6 +727,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
+                data-tour="credits-filters"
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${showFilters ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30' : 'bg-bg-base border border-border-subtle text-text-secondary hover:text-text-primary'}`}
               >
                 <Filter size={16} /> Filtrar
@@ -806,7 +842,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           )}
 
           <div className="overflow-x-auto rounded-xl border border-border-subtle">
-            <table className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
+            <table data-tour="credits-list-table" className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
               <thead className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary">
                 <tr>
                   <th className="w-10 px-3 py-3 font-semibold">
@@ -838,7 +874,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 ) : creditsList.length === 0 ? (
                   <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">No hay créditos registrados.</td></tr>
                 ) : (
-                  creditsList.map((credit: any) => {
+                  creditsList.map((credit: any, index: number) => {
                     // Calculate outstanding amount (principalOutstanding + interestOutstanding)
                     const principalOutstanding = Number(credit.principalOutstanding) || 0;
                     const interestOutstanding = Number(credit.interestOutstanding) || 0;
@@ -858,7 +894,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
                     return (
                       <tr key={credit.id} className="hover:bg-hover-bg transition-colors">
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
                           <input
                             type="checkbox"
                             aria-label={`Seleccionar crédito ${credit.id}`}

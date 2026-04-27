@@ -48,6 +48,7 @@ type CreditSimulationWorkspaceProps = {
     message: string;
   } | null;
   actionLabel?: string;
+  simulateButtonDataTour?: string;
   emptyTitle?: string;
   emptyDescription?: string;
 };
@@ -154,6 +155,7 @@ export default function CreditSimulationWorkspace({
   resultBadge,
   validationStatus,
   actionLabel = tTerm('dag.actions.simulate'),
+  simulateButtonDataTour,
   emptyTitle = 'Sin resultados todavía',
   emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
 }: CreditSimulationWorkspaceProps) {
@@ -280,6 +282,7 @@ export default function CreditSimulationWorkspace({
             <div className="flex flex-col items-stretch gap-3 lg:min-w-[260px]">
               <button
                 type="button"
+                data-tour={simulateButtonDataTour}
                 onClick={onSimulate}
                 disabled={disabled || isSimulating}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-3 text-sm font-semibold text-bg-base shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"

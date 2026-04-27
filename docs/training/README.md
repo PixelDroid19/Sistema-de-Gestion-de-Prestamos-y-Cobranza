@@ -1,6 +1,7 @@
-# Training Walkthroughs
+# Guías Operativas De Módulos
 
-Este directorio concentra el material operativo para grabar y revisar los módulos cerrados del sistema.
+Este directorio concentra material de apoyo para pruebas operativas y
+entrenamiento del sistema.
 
 ## Estructura
 
@@ -10,29 +11,21 @@ Este directorio concentra el material operativo para grabar y revisar los módul
 - `credits-operations.md`
 - `notifications-profile-associates.md`
 
-Cada archivo incluye:
+Cada documento incluye:
 
 1. objetivo operativo del módulo,
-2. flujo recomendado para demo,
-3. checklist de QA antes de grabar,
-4. storyboard corto para video.
+2. flujo recomendado para entrenamiento,
+3. checklist de QA para validación funcional.
 
-## Convención de artefactos
+## Criterio de activación
 
-Los videos no se versionan en Git. Se generan localmente en:
-
-- `artifacts/training-videos/`
-
-Formato recomendado:
-
-- `module-<slug>-admin.webm`
-- `module-<slug>-customer.webm`
-- `module-<slug>-socio.webm`
-
-## Regla de grabación
-
-No grabar un flujo si:
+No ejecutar un flujo de entrenamiento si:
 
 - algún CTA visible no hace nada,
-- el módulo no pasó `lint`, pruebas o build,
-- el flujo depende de datos inconsistentes o de una sesión contaminada.
+- el módulo no pasó `lint`, pruebas o `build`,
+- el flujo depende de datos inconsistentes o sesión contaminada.
+
+## Soporte de onboarding
+
+La asistencia dentro de la aplicación se hace por `Driver.js` desde la acción
+**Guía rápida** en los módulos finales del flujo.
