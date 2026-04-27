@@ -955,7 +955,7 @@ export default function CreditDetails() {
     );
   };
 
-  const InlineMetaItem = ({
+  const InlineMetaLine = ({
     icon: Icon,
     label,
     value,
@@ -964,18 +964,18 @@ export default function CreditDetails() {
     label: string;
     value: React.ReactNode;
   }) => (
-    <div className="flex min-w-0 self-start items-start gap-3 rounded-2xl border border-border-subtle bg-bg-base/70 px-4 py-3">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary">
+    <div className="flex min-w-0 items-start gap-3">
+      <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center text-brand-primary">
         <Icon size={17} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
-        <div className="mt-1 text-sm font-semibold leading-6 text-text-primary break-words">{value}</div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
+        <div className="mt-0.5 text-sm font-semibold leading-6 text-text-primary break-words">{value}</div>
       </div>
     </div>
   );
 
-  const SummaryMetricCard = ({
+  const SummaryMetricItem = ({
     icon: Icon,
     label,
     value,
@@ -987,22 +987,6 @@ export default function CreditDetails() {
     tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
   }) => {
     const toneClassName = {
-      default: 'border-border-subtle bg-bg-surface',
-      success: 'border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10',
-      warning: 'border-amber-200/80 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10',
-      danger: 'border-rose-200/80 bg-rose-50/80 dark:border-rose-500/20 dark:bg-rose-500/10',
-      brand: 'border-brand-primary/20 bg-brand-primary/10',
-    }[tone];
-
-    const iconClassName = {
-      default: 'bg-hover-bg text-text-secondary',
-      success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
-      warning: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
-      danger: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
-      brand: 'bg-brand-primary/15 text-brand-primary',
-    }[tone];
-
-    const valueClassName = {
       default: 'text-text-primary',
       success: 'text-emerald-700 dark:text-emerald-300',
       warning: 'text-amber-700 dark:text-amber-300',
@@ -1010,17 +994,22 @@ export default function CreditDetails() {
       brand: 'text-brand-primary',
     }[tone];
 
+    const railClassName = {
+      default: 'bg-slate-300 dark:bg-slate-600',
+      success: 'bg-emerald-500',
+      warning: 'bg-amber-500',
+      danger: 'bg-rose-500',
+      brand: 'bg-brand-primary',
+    }[tone];
+
     return (
-      <div className={`rounded-2xl border px-4 py-4 shadow-sm ${toneClassName}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
-            <div className={`mt-3 text-2xl font-bold leading-tight ${valueClassName}`}>{value}</div>
-          </div>
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}>
-            <Icon size={18} />
-          </div>
+      <div className="relative min-w-0 border-b border-border-subtle/80 px-4 py-4 last:border-b-0 sm:px-5 sm:[&:nth-child(2n)]:border-l sm:[&:nth-child(2n)]:border-border-subtle/80 xl:[&:nth-child(2n)]:border-l-0 xl:[&:nth-child(n)]:border-l xl:[&:nth-child(4n+1)]:border-l-0 2xl:border-b-0 2xl:[&:nth-child(n)]:border-l 2xl:[&:nth-child(1)]:border-l-0">
+        <span className={`absolute inset-y-4 left-0 w-0.5 rounded-full ${railClassName}`} aria-hidden="true" />
+        <div className="flex items-center gap-2 text-text-secondary">
+          <Icon size={16} />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">{label}</p>
         </div>
+        <div className={`mt-1.5 break-words text-xl font-bold leading-tight tracking-tight sm:text-2xl ${toneClassName}`}>{value}</div>
       </div>
     );
   };
@@ -1068,32 +1057,32 @@ export default function CreditDetails() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[88rem] space-y-6 px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
-      <section className="rounded-3xl border border-border-subtle bg-bg-surface p-5 shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)] lg:p-6">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1 xl:max-w-4xl" data-tour="credit-detail-header">
-            <div className="flex items-start gap-4">
+    <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
+      <section className="border-b border-border-subtle pb-5" data-tour="credit-detail-header">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1 xl:max-w-5xl">
+            <div className="flex items-start gap-3 sm:gap-4">
               <button
                 onClick={() => navigate('/credits')}
-                className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                 aria-label="Volver a créditos"
               >
-                <ArrowLeft size={24} />
+                <ArrowLeft size={22} />
               </button>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-4xl">Crédito #{loan.id}</h1>
                   <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
                     {statusInfo.label}
                   </span>
                 </div>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
+                <p className="mt-2 max-w-4xl text-sm leading-6 text-text-secondary">
                   Cobra la próxima cuota operable, actualiza mora y registra seguimientos sin alterar la fórmula que se congeló al originar este crédito.
                 </p>
 
-                <div className="mt-5 grid items-start gap-3 md:grid-cols-[minmax(14rem,0.9fr)_minmax(18rem,1.1fr)]">
-                  <InlineMetaItem icon={FileText} label="Cliente" value={customerLabel} />
-                  <InlineMetaItem icon={GitBranch} label="Fórmula aplicada" value={formulaSummary} />
+                <div className="mt-5 grid gap-4 border-l-2 border-brand-primary/20 pl-4 md:grid-cols-[minmax(12rem,0.7fr)_minmax(18rem,1.3fr)]">
+                  <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
+                  <InlineMetaLine icon={GitBranch} label="Fórmula aplicada" value={formulaSummary} />
                 </div>
               </div>
             </div>
@@ -1104,7 +1093,7 @@ export default function CreditDetails() {
               <button
                 type="button"
                 onClick={() => startCreditDetailsTour({ loanId })}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto sm:min-w-[13rem]"
+                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg sm:w-auto sm:min-w-[12rem]"
               >
                 <CircleHelp size={16} /> Guía rápida
               </button>
@@ -1113,7 +1102,7 @@ export default function CreditDetails() {
                   onClick={openNextInstallmentPayment}
                   disabled={!installmentPaymentGuard.executable}
                   title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:w-auto sm:min-w-[13rem]"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:w-auto sm:min-w-[12rem]"
                 >
                   <DollarSign size={16} /> {tTerm('creditDetails.cta.recordPayment')}
                 </button>
@@ -1123,7 +1112,7 @@ export default function CreditDetails() {
                   onClick={() => setShowCapitalModal(true)}
                   disabled={!capitalPaymentGuard.executable}
                   title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto sm:min-w-[13rem]"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto sm:min-w-[12rem]"
                 >
                   <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
                 </button>
@@ -1136,7 +1125,7 @@ export default function CreditDetails() {
                   }}
                   disabled={!lateFeeUpdateGuard.executable}
                   title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
                 >
                   <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
                 </button>
@@ -1145,7 +1134,7 @@ export default function CreditDetails() {
                 <button
                   onClick={() => setShowStatusModal(true)}
                   disabled={!creditStatusUpdateGuard.executable}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
                   title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
                 >
                   <Edit2 size={16} /> Estado
@@ -1153,7 +1142,7 @@ export default function CreditDetails() {
               )}
               <button
                 onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition-colors hover:bg-hover-bg sm:w-auto"
+                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg sm:w-auto"
                 title="Ver plan de pagos completo"
               >
                 <Table size={16} /> Plan de Pagos
@@ -1163,34 +1152,34 @@ export default function CreditDetails() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-        <div className="contents" data-tour="credit-detail-metrics">
-          <SummaryMetricCard icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
-          <SummaryMetricCard icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
-          <SummaryMetricCard
+      <section className="-mx-4 border-y border-border-subtle bg-bg-surface/70 px-4 lg:-mx-6 lg:px-6" data-tour="credit-detail-metrics">
+        <div className="grid min-w-0 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+          <SummaryMetricItem icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
+          <SummaryMetricItem icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
+          <SummaryMetricItem
             icon={Percent}
             label="Interés Total"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</span>}
           />
-          <SummaryMetricCard
+          <SummaryMetricItem
             icon={CheckCircle}
             label="Capital Pagado"
             tone="success"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</span>}
           />
-          <SummaryMetricCard
+          <SummaryMetricItem
             icon={DollarSign}
             label="Interés Pagado"
             tone="warning"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</span>}
           />
-          <SummaryMetricCard
+          <SummaryMetricItem
             icon={ShieldAlert}
             label="Tasa Mora EA"
             tone="danger"
             value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
           />
-          <SummaryMetricCard
+          <SummaryMetricItem
             icon={Activity}
             label="Capital Vivo"
             tone="brand"
@@ -1199,8 +1188,8 @@ export default function CreditDetails() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-border-subtle bg-bg-surface shadow-[0_12px_28px_-18px_rgba(15,23,42,0.18)]">
-        <div className="overflow-x-auto border-b border-border-subtle px-3 py-3 hide-scrollbar sm:px-4" data-tour="credit-detail-tabs">
+      <section className="min-w-0">
+        <div className="overflow-x-auto border-b border-border-subtle py-2 hide-scrollbar" data-tour="credit-detail-tabs">
           <div className="flex min-w-max items-center gap-2">
             <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
             {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
@@ -1211,13 +1200,13 @@ export default function CreditDetails() {
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 lg:p-6">
+        <div className="py-4 sm:py-5 lg:py-6">
           {/* TAB: CALENDAR */}
           {activeTab === 'calendar' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" data-tour="credit-detail-calendar">
               {calendarEntries.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-border-subtle bg-bg-base/70 px-4 py-4">
+                  <div className="border-b border-border-subtle pb-4">
                     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                       <div>
                         <p className="text-base font-semibold text-text-primary">Calendario operativo del crédito</p>
@@ -1226,11 +1215,11 @@ export default function CreditDetails() {
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 text-xs font-medium">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-2 text-text-secondary ring-1 ring-border-subtle">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
                           Próxima cuota operable: {nextPayableInstallmentNumber ?? 'Sin pendientes'}
                         </span>
                         {calendarSnapshot && (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-2 text-text-secondary ring-1 ring-border-subtle">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
                             Balance pendiente: {formatCurrency(calendarSnapshot.outstandingBalance)}
                           </span>
                         )}

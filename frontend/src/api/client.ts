@@ -8,7 +8,38 @@ const normalizeApiBaseUrl = (value?: string): string => {
   return value.endsWith('/') ? value.slice(0, -1) : value;
 };
 
-export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+type RuntimeAppConfig = {
+  apiBaseUrl?: string | null;
+};
+
+declare global {
+  interface Window {
+    __APP_CONFIG__?: RuntimeAppConfig;
+  }
+}
+
+const resolveRuntimeApiBaseUrl = (): string | undefined => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const runtimeValue = window.__APP_CONFIG__?.apiBaseUrl;
+  if (typeof runtimeValue === 'string' && runtimeValue.trim().length > 0) {
+    return runtimeValue;
+  }
+
+  return undefined;
+};
+
+const resolveEnvApiBaseUrl = (): string | undefined => {
+  const explicitBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  if (typeof explicitBaseUrl === 'string' && explicitBaseUrl.trim().length > 0) {
+    return explicitBaseUrl;
+  }
+  return undefined;
+};
+
+export const API_BASE_URL = normalizeApiBaseUrl(resolveRuntimeApiBaseUrl() || resolveEnvApiBaseUrl());
 
 type Primitive = string | number | boolean;
 type QueryParamValue = Primitive | Primitive[] | null | undefined;
@@ -92,6 +123,7 @@ const buildUrl = (path: string, params?: Record<string, QueryParamValue>): strin
   const absolute = isAbsoluteUrl(path);
   const basePath = absolute ? path : `${API_BASE_URL}${normalizedPath}`;
   const url = new URL(basePath, window.location.origin);
+  const shouldReturnAbsolute = absolute || isAbsoluteUrl(basePath);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -110,7 +142,7 @@ const buildUrl = (path: string, params?: Record<string, QueryParamValue>): strin
     });
   }
 
-  return absolute ? url.toString() : `${url.pathname}${url.search}`;
+  return shouldReturnAbsolute ? url.toString() : `${url.pathname}${url.search}`;
 };
 
 const normalizeError = async (response: Response): Promise<{ message: string; statusCode: number; details?: unknown }> => {
