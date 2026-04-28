@@ -54,12 +54,12 @@ type CreditSimulationWorkspaceProps = {
   emptyDescription?: string;
 };
 
-const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMode']>; label: string }> = [
-  { value: 'NONE', label: 'Sin mora' },
-  { value: 'SIMPLE', label: 'Interés simple' },
-  { value: 'COMPOUND', label: 'Interés compuesto' },
-  { value: 'FLAT', label: 'Cargo fijo' },
-  { value: 'TIERED', label: 'Escalonado' },
+const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMode']>; label: string; helper: string }> = [
+  { value: 'NONE', label: 'Sin mora', helper: 'No aplica recargo.' },
+  { value: 'SIMPLE', label: 'Interés simple', helper: 'Recomendado para cobranza clara.' },
+  { value: 'COMPOUND', label: 'Interés compuesto', helper: 'Capitaliza recargos.' },
+  { value: 'FLAT', label: 'Cargo fijo', helper: 'Valor fijo por atraso.' },
+  { value: 'TIERED', label: 'Escalonado', helper: 'Tramos por días vencidos.' },
 ];
 
 const formatLateFeeModeLabel = (value?: SimulationInput['lateFeeMode']) => {
@@ -68,11 +68,11 @@ const formatLateFeeModeLabel = (value?: SimulationInput['lateFeeMode']) => {
 };
 
 const lateFeeModeDescriptions: Record<NonNullable<SimulationInput['lateFeeMode']>, string> = {
-  NONE: 'No calcula recargo por atraso. Úsalo solo si la política del producto no cobra mora.',
-  SIMPLE: 'Cobra mora sobre el valor vencido, sin acumular mora sobre mora. Es el modo más fácil de explicar al cliente.',
-  COMPOUND: 'Acumula mora sobre saldos vencidos con capitalización. Úsalo solo si la política aprobada lo permite.',
-  FLAT: 'Aplica un cargo fijo por atraso. Es útil para productos con recargo administrativo definido.',
-  TIERED: 'Aplica tramos según días vencidos o severidad. Sirve para políticas escalonadas de cobranza.',
+  NONE: 'No cobra recargo por atraso.',
+  SIMPLE: 'Cobra sobre cuota vencida, sin mora sobre mora.',
+  COMPOUND: 'Capitaliza recargos vencidos; úsalo solo con política aprobada.',
+  FLAT: 'Aplica un valor fijo por atraso.',
+  TIERED: 'Usa tramos por días vencidos o severidad.',
 };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
@@ -466,39 +466,31 @@ export default function CreditSimulationWorkspace({
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span id={lateFeeInputId} className="text-sm font-medium text-text-primary">
+                      <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
                         Modo de mora
-                      </span>
+                      </label>
                       <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
                     </div>
-                    <div className="mt-2 grid gap-2" role="radiogroup" aria-labelledby={lateFeeInputId} data-tour="new-credit-late-fee-mode">
-                      {lateFeeModeOptions.map((option) => {
-                        const isSelected = (input.lateFeeMode || 'SIMPLE') === option.value;
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            role="radio"
-                            aria-checked={isSelected}
-                            disabled={disabled}
-                            onClick={() => onInputChange({ lateFeeMode: option.value })}
-                            className={`rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 ${
-                              isSelected
-                                ? 'border-brand-primary bg-brand-primary/8 text-text-primary shadow-sm'
-                                : 'border-border-subtle bg-bg-base text-text-primary hover:border-border-strong hover:bg-hover-bg'
-                            }`}
-                          >
-                            <span className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-semibold">{option.label}</span>
-                              {isSelected && <Check size={15} className="shrink-0 text-brand-primary" aria-hidden="true" />}
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-text-secondary">
-                              {lateFeeModeDescriptions[option.value]}
-                            </span>
-                          </button>
-                        );
-                      })}
+                    <div className="mt-2" data-tour="new-credit-late-fee-mode">
+                      <select
+                        id={lateFeeInputId}
+                        value={input.lateFeeMode || 'SIMPLE'}
+                        onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<SimulationInput['lateFeeMode']> })}
+                        disabled={disabled}
+                        className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {lateFeeModeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-xs leading-5 text-text-secondary">
+                        <span className="font-semibold text-text-primary">
+                          {formatLateFeeModeLabel(input.lateFeeMode)}:
+                        </span>{' '}
+                        {lateFeeModeDescriptions[input.lateFeeMode || 'SIMPLE']}
+                      </p>
                     </div>
                   </div>
                 </div>
