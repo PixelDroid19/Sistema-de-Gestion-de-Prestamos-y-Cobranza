@@ -7,6 +7,7 @@ import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
+import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
@@ -60,7 +61,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const getStatusLabel = (status: string) => (status === 'active' ? 'Activo' : 'Inactivo');
 
   const getStatusClasses = (status: string) => (status === 'active'
-    ? 'bg-emerald-100 text-emerald-700'
+    ? 'bg-blue-50 text-blue-700'
     : 'bg-slate-100 text-slate-600');
 
   const handleDelete = async (associate: any) => {
@@ -117,13 +118,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">{tTerm('associates.module.title')}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tTerm('associates.module.subtitle')}</p>
-        </div>
-        <div className="flex gap-3">
+    <PageShell className="h-full">
+      <PageHeader
+        title={tTerm('associates.module.title')}
+        subtitle={tTerm('associates.module.subtitle')}
+        actions={(
+        <>
           <button 
             onClick={handleExportAssociatesExcel}
             disabled={isExporting}
@@ -134,11 +134,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           <button onClick={() => setCurrentView('associates-new')} className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
             <Plus size={16} /> {tTerm('associates.cta.new')}
           </button>
-        </div>
-      </div>
+        </>
+        )}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
+        <ToolbarSurface>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
@@ -166,7 +167,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
               <option value="inactive">Inactivos</option>
             </select>
           </div>
-        </div>
+        </ToolbarSurface>
 
         <TableShell
           isLoading={isLoading}
@@ -188,6 +189,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
               setPage(1);
             },
           } : undefined}
+          className="data-table-surface"
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
@@ -221,24 +223,24 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   <td className="py-4">{associate.loanCount ?? associate.relatedLoans?.length ?? 0}</td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setCurrentView(`associates/${associate.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
+                      <button onClick={() => setCurrentView(`associates/${associate.id}`)} className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" title="Ver detalles"><Eye size={16} /></button>
                       <button
                         onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
-                        className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                         title="Editar"
                       >
                         <Edit size={16} />
                       </button>
                       <button
                         onClick={() => handleToggleStatus(associate)}
-                        className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors"
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                         title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
                       >
                         <MoreVertical size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(associate)}
-                        className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-red-600 dark:hover:text-red-400"
                         title="Eliminar"
                       >
                         <Trash2 size={16} />
@@ -251,6 +253,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           </table>
         </TableShell>
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -21,6 +21,8 @@ type TableShellProps = {
   children: React.ReactNode;
   pagination?: PaginationState;
   recordsLabel: string;
+  className?: string;
+  contentClassName?: string;
 };
 
 export default function TableShell(props: TableShellProps) {
@@ -34,25 +36,29 @@ export default function TableShell(props: TableShellProps) {
     children,
     pagination,
     recordsLabel,
+    className = '',
+    contentClassName = '',
   } = props;
 
   return (
-    <>
-      <div className="overflow-x-auto">
+    <div className={`app-table ${className}`}>
+      <div className={`overflow-x-auto ${contentClassName}`}>
         {isLoading ? loadingContent : isError ? errorContent : hasData ? children : emptyContent}
       </div>
 
       {pagination && hasData && !isLoading && !isError && (
-        <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
-          <div className="flex items-center gap-4">
-            Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} {recordsLabel}
+        <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <span>
+              Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} {recordsLabel}
+            </span>
             {pagination.onPageSizeChange && (
               <label className="flex items-center gap-2">
                 <span>Filas por página</span>
                 <select
                   value={pagination.pageSize}
                   onChange={(event) => pagination.onPageSizeChange?.(Number(event.target.value))}
-                  className="bg-bg-base border border-border-subtle rounded px-2 py-1 text-text-primary"
+                  className="rounded-lg border border-border-subtle bg-bg-base px-2 py-1 text-text-primary"
                 >
                   {(pagination.pageSizeOptions ?? [10, 25, 50, 100]).map((size) => (
                     <option key={size} value={size}>{size}</option>
@@ -65,20 +71,20 @@ export default function TableShell(props: TableShellProps) {
             <button
               disabled={pagination.page === 1}
               onClick={pagination.onPrev}
-              className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Anterior
             </button>
             <button
               disabled={pagination.page === pagination.totalPages}
               onClick={pagination.onNext}
-              className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Siguiente
             </button>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -60,7 +60,7 @@ vi.mock('react-grid-layout', () => {
   return {
     Responsive,
     default: Responsive,
-    WidthProvider: (component: unknown) => component,
+    verticalCompactor: {},
   };
 });
 

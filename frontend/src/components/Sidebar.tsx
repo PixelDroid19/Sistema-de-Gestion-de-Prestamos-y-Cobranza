@@ -71,16 +71,17 @@ export default function Sidebar({
     }
 
     setIsLoggingOut(true);
+    const remoteLogout = requestLogout().catch(() => undefined);
+    clearSession();
+    setIsMobileOpen(false);
+    navigate('/login', { replace: true });
+
     try {
-      const remoteLogout = requestLogout().catch(() => undefined);
-      clearSession();
       await Promise.race([
         remoteLogout,
         new Promise((resolve) => setTimeout(resolve, 1500)),
       ]);
     } finally {
-      setIsMobileOpen(false);
-      navigate('/login', { replace: true });
       setIsLoggingOut(false);
     }
   };
@@ -143,15 +144,15 @@ export default function Sidebar({
                 isCollapsed ? 'justify-center' : 'justify-between gap-3'
               } ${
                 isCustomersView && isCollapsed
-                  ? 'bg-hover-bg text-brand-primary font-medium' 
+                  ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
                   : isCustomersView 
-                    ? 'text-brand-primary font-medium' 
+                    ? 'text-text-primary font-semibold' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
               }`}
               title={isCollapsed ? tTerm('sidebar.customers') : undefined}
             >
               <div className="flex items-center gap-3">
-                <div className={`${isCustomersView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`${isCustomersView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <Users size={20} />
                 </div>
                 {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.customers')}</span>}
@@ -162,12 +163,12 @@ export default function Sidebar({
                 </div>
               )}
               {isCustomersView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
               )}
             </button>
             
             {openMenus['clientes'] && !isCollapsed && (
-              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                  <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                 <SubNavItem
                   active={currentView === 'customers'}
                   onClick={() => setCurrentView('customers')}
@@ -195,15 +196,15 @@ export default function Sidebar({
                   isCollapsed ? 'justify-center' : 'justify-between gap-3'
                 } ${
                   isCreditsView && isCollapsed
-                    ? 'bg-hover-bg text-brand-primary font-medium'
+                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50'
                     : isCreditsView
-                      ? 'text-brand-primary font-medium'
+                      ? 'text-text-primary font-semibold'
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                 }`}
               title={isCollapsed ? tTerm('sidebar.credits') : undefined}
             >
               <div className="flex items-center gap-3">
-                <div className={`${isCreditsView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`${isCreditsView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <CreditCard size={20} />
                 </div>
                 {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.credits')}</span>}
@@ -214,12 +215,12 @@ export default function Sidebar({
                 </div>
               )}
               {isCreditsView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
               )}
             </button>
             
             {openMenus['creditos'] && !isCollapsed && (
-              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+              <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                 <SubNavItem
                   active={currentView === 'credits'}
                   onClick={() => setCurrentView('credits')}
@@ -266,15 +267,15 @@ export default function Sidebar({
                   isCollapsed ? 'justify-center' : 'justify-between gap-3'
                 } ${
                   isAssociatesView && isCollapsed
-                    ? 'bg-hover-bg text-brand-primary font-medium' 
+                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
                     : isAssociatesView
-                      ? 'text-brand-primary font-medium' 
+                      ? 'text-text-primary font-semibold' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                 }`}
               title={isCollapsed ? tTerm('sidebar.associates') : undefined}
             >
               <div className="flex items-center gap-3">
-                <div className={`${isAssociatesView ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                <div className={`${isAssociatesView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                   <UserPlus size={20} />
                 </div>
                 {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.associates')}</span>}
@@ -285,12 +286,12 @@ export default function Sidebar({
                 </div>
               )}
               {isAssociatesView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
               )}
             </button>
             
             {openMenus['socios'] && !isCollapsed && (
-              <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+              <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                 <SubNavItem
                   active={currentView === 'associates' || currentView.startsWith('associates/')}
                   onClick={() => setCurrentView(associatesHomeView)}
@@ -311,15 +312,15 @@ export default function Sidebar({
                   isCollapsed ? 'justify-center' : 'justify-between gap-3'
                 } ${
                   (currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed
-                    ? 'bg-hover-bg text-brand-primary font-medium'
+                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50'
                     : (currentView === 'formulas' || currentView.startsWith('formulas/'))
-                      ? 'text-brand-primary font-medium'
+                      ? 'text-text-primary font-semibold'
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                 }`}
                 title={isCollapsed ? 'Fórmulas' : undefined}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`${(currentView === 'formulas' || currentView.startsWith('formulas/')) ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+                  <div className={`${(currentView === 'formulas' || currentView.startsWith('formulas/')) ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
                     <FlaskConical size={20} />
                   </div>
                   {!isCollapsed && <span className="text-sm whitespace-nowrap">Fórmulas</span>}
@@ -330,12 +331,12 @@ export default function Sidebar({
                   </div>
                 )}
                 {(currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
                 )}
               </button>
 
               {openMenus['formulas'] && !isCollapsed && (
-                <div className="flex flex-col gap-1 mt-1 ml-[22px] pl-3 border-l border-border-strong animate-in fade-in duration-200">
+                <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                   <SubNavItem
                     active={currentView === 'formulas' || currentView.startsWith('formulas/') && currentView !== 'formulas/variables'}
                     onClick={() => setCurrentView('formulas')}
@@ -406,6 +407,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
   return (
     <button 
       ref={ref}
+      type="button"
       onClick={onClick}
       title={isCollapsed ? title : tooltip}
       data-active={active ? "true" : "false"}
@@ -413,18 +415,18 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
         isCollapsed ? 'justify-center' : 'justify-start gap-3'
       } ${
         active 
-          ? 'bg-hover-bg text-brand-primary font-medium' 
+          ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
           : className || 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
       }`}
     >
-      <div className={`${active ? 'text-brand-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+      <div className={`${active ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
         {icon}
       </div>
       {!isCollapsed && <span className="text-sm whitespace-nowrap">{title}</span>}
       
       {/* Indicador lateral sutil */}
       {active && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
       )}
     </button>
   );
@@ -440,7 +442,7 @@ function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onC
       data-active={active ? "true" : "false"}
       className={`w-full flex items-center text-left py-2 px-3 rounded-lg transition-colors text-sm relative group ${
         active 
-          ? 'text-brand-primary font-medium bg-brand-primary/5' 
+          ? 'bg-slate-100 font-semibold text-text-primary dark:bg-slate-800/70 dark:text-slate-50' 
           : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
       }`}
     >

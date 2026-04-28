@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   FileText, Activity, GitBranch, Plus, Loader2, Power, PowerOff, Trash2,
-  History, TrendingUp, TrendingDown, AlertCircle,
+  History, AlertCircle,
 } from 'lucide-react';
 import dagService from '../services/dagService';
 import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
+import { DataTableSurface, MetricCard, PageHeader, PageShell } from './shared/Surfaces';
 
 type DashboardPageProps = {
   compact?: boolean;
@@ -102,22 +103,17 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
   };
 
   return (
-    <div className={compact
+    <PageShell className={compact
       ? 'flex flex-col gap-3 bg-transparent sm:gap-5'
       : 'flex h-full flex-col gap-3 overflow-y-auto bg-bg-base p-3 sm:gap-5 sm:p-6 lg:p-8'
     }>
       {/* Header */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-3xl">
-            {compact ? 'Fórmulas de crédito' : 'Dashboard de formulas'}
-          </h2>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary sm:text-sm sm:leading-6">
-            {compact
-              ? 'Administra la fórmula activa que usarán los créditos nuevos.'
-              : 'Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
-          </p>
-        </div>
+      <PageHeader
+        title={compact ? 'Fórmulas de crédito' : 'Dashboard de formulas'}
+        subtitle={compact
+          ? 'Administra la fórmula activa que usarán los créditos nuevos.'
+          : 'Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
+        actions={(
         <button
           onClick={() => navigate('/formulas/new')}
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary/90 sm:w-auto sm:rounded-xl sm:py-2.5"
@@ -125,42 +121,20 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
           <Plus size={16} />
           Nueva formula
         </button>
-      </div>
+        )}
+      />
 
       {/* Stats */}
       <section className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
-          <div
+          <MetricCard
             key={stat.label}
-            className="min-w-0 rounded-xl border border-border-subtle bg-white p-2.5 shadow-sm dark:bg-bg-surface sm:p-5"
-          >
-            <div className="mb-1.5 flex items-start justify-between gap-1.5 sm:mb-3 sm:gap-2">
-              <span className="hidden min-w-0 break-words text-[11px] font-bold uppercase leading-4 tracking-wider text-text-secondary sm:inline">
-                {stat.label}
-              </span>
-              <span className="min-w-0 break-words text-[9px] font-bold uppercase leading-3 tracking-wider text-text-secondary sm:hidden">
-                {stat.shortLabel}
-              </span>
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${stat.iconClassName}`}
-              >
-                {stat.icon}
-              </div>
-            </div>
-            <div
-              className="font-mono text-xl font-bold tracking-tight text-text-primary sm:mb-1 sm:text-3xl"
-            >
-              {stat.value}
-            </div>
-            <div className="hidden items-center gap-1 text-xs text-text-secondary sm:flex">
-              {stat.trendUp ? (
-                <TrendingUp size={14} className="text-emerald-600" />
-              ) : (
-                <TrendingDown size={14} className="text-amber-600" />
-              )}
-              {stat.trend}
-            </div>
-          </div>
+            label={<><span className="hidden sm:inline">{stat.label}</span><span className="sm:hidden">{stat.shortLabel}</span></>}
+            value={stat.value}
+            helper={stat.trend}
+            icon={stat.icon}
+            accent={stat.trendUp ? 'emerald' : 'amber'}
+          />
         ))}
       </section>
 
@@ -178,7 +152,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       )}
 
       {/* Table */}
-      <div className="min-w-0 overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
+      <DataTableSurface>
         <div
           className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5 sm:py-4"
         >
@@ -200,6 +174,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
           loadingContent={<div className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-brand-primary" size={24} /></div>}
           errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las formulas.</div>}
           emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay formulas. Crea la primera para empezar.</div>}
+          className="border-0 shadow-none"
         >
           <div className="divide-y divide-border-subtle md:hidden">
             {graphs.map((formula: any) => {
@@ -246,17 +221,17 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
             })}
           </div>
           <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-[760px] w-full text-left text-sm xl:min-w-[920px]">
+          <table className="w-full table-fixed text-left text-sm">
             <thead
               className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary"
             >
               <tr>
-                <th className="min-w-[180px] px-3 py-3 font-semibold">Nombre</th>
-                <th className="px-3 py-3 font-semibold">Estado</th>
-                <th className="px-3 py-3 text-right font-semibold">Creditos</th>
-                <th className="px-3 py-3 text-right font-semibold">Version</th>
-                <th className="hidden px-3 py-3 text-right font-semibold xl:table-cell">Ultimo cambio</th>
-                <th className="px-3 py-3 text-right font-semibold">Acciones</th>
+                <th className="w-[30%] px-3 py-3 font-semibold">Nombre</th>
+                <th className="w-[16%] px-3 py-3 font-semibold">Estado</th>
+                <th className="w-[16%] px-3 py-3 text-right font-semibold">Creditos</th>
+                <th className="w-[10%] px-3 py-3 text-right font-semibold">Version</th>
+                <th className="w-[15%] px-3 py-3 text-right font-semibold">Ultimo cambio</th>
+                <th className="w-[13%] px-3 py-3 text-right font-semibold">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -281,8 +256,8 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                       key={formula.id}
                       className="group transition-colors hover:bg-hover-bg/60"
                     >
-                    <td className="px-3 py-4 font-semibold text-text-primary">
-                      <span className="block max-w-[220px] truncate" title={formula.name}>{formula.name}</span>
+                    <td className="min-w-0 px-3 py-4 font-semibold text-text-primary">
+                      <span className="block truncate" title={formula.name}>{formula.name}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4">
                       <span
@@ -313,57 +288,57 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                     <td className="whitespace-nowrap px-3 py-4 text-right font-mono text-xs text-text-secondary">
                       v{formula.version}
                     </td>
-                    <td className="hidden whitespace-nowrap px-3 py-4 text-right text-text-secondary xl:table-cell">
+                    <td className="whitespace-nowrap px-3 py-4 text-right text-text-secondary">
                       {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => navigate(`/formulas/${formula.id}`)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
+                          aria-label={isFormulaLocked ? 'Abrir copia de formula' : 'Abrir formula'}
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Editar"
                         >
                           <FileText size={14} />
-                          <span>{isFormulaLocked ? 'Abrir copia' : 'Abrir'}</span>
                         </button>
                         {formula.status !== 'active' && (
                           <button
                             onClick={() => handleActivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 disabled:text-slate-500 disabled:opacity-60 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
+                            aria-label="Activar formula"
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-emerald-800 transition-colors hover:bg-emerald-50 disabled:text-slate-500 disabled:opacity-60 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
                             title="Activar"
                           >
                             <Power size={14} />
-                            <span>Activar</span>
                           </button>
                         )}
                         {formula.status === 'active' && (
                           <button
                             onClick={() => handleDeactivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-orange-800 transition-colors hover:bg-orange-50 disabled:text-slate-500 disabled:opacity-60 dark:text-orange-200 dark:hover:bg-orange-500/10"
+                            aria-label="Desactivar formula"
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-orange-800 transition-colors hover:bg-orange-50 disabled:text-slate-500 disabled:opacity-60 dark:text-orange-200 dark:hover:bg-orange-500/10"
                             title="Desactivar"
                           >
                             <PowerOff size={14} />
-                            <span>Desactivar</span>
                           </button>
                         )}
                         <button
                           onClick={() => navigate(`/audit/${formula.id}`)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
+                          aria-label="Ver historial de formula"
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Historial"
                         >
                           <History size={14} />
-                          <span>Historial</span>
                         </button>
                         <button
                           onClick={() => handleDelete(formula.id, formula.name)}
                           disabled={deleteMutation.isPending || isFormulaLocked}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-slate-500 disabled:opacity-60 dark:text-red-200 dark:hover:bg-red-500/10"
+                          aria-label="Eliminar formula"
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-red-700 transition-colors hover:bg-red-50 disabled:text-slate-500 disabled:opacity-60 dark:text-red-200 dark:hover:bg-red-500/10"
                           title={isFormulaLocked ? 'No se puede eliminar: tiene creditos asociados' : 'Eliminar'}
                         >
                           <Trash2 size={14} />
-                          <span>Eliminar</span>
                         </button>
                       </div>
                     </td>
@@ -375,7 +350,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
           </table>
           </div>
         </TableShell>
-      </div>
-    </div>
+      </DataTableSurface>
+    </PageShell>
   );
 }

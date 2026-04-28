@@ -1,4 +1,6 @@
 const winston = require('winston');
+const fs = require('fs');
+const path = require('path');
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -31,6 +33,22 @@ const sanitizeSensitive = (value) => {
   }, {});
 };
 
+const shouldUseFileTransports = process.env.LOG_TO_FILES !== 'false';
+const fileTransports = [];
+
+if (shouldUseFileTransports) {
+  try {
+    const logsDir = path.resolve(process.cwd(), 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+    fileTransports.push(
+      new winston.transports.File({ filename: path.join(logsDir, 'error.log'), level: 'error' }),
+      new winston.transports.File({ filename: path.join(logsDir, 'combined.log') }),
+    );
+  } catch (error) {
+    // If the runtime cannot write log files (common in containers), fallback to console only.
+  }
+}
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -41,10 +59,7 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'loan-recovery-api' },
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
-  ],
+  transports: fileTransports,
 });
 
 if (process.env.NODE_ENV !== 'production') {

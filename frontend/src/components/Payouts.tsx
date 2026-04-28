@@ -13,6 +13,7 @@ import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
 import { PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
+import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 
 export default function Payouts() {
   const navigate = useNavigate();
@@ -308,25 +309,25 @@ export default function Payouts() {
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">{tTerm('payouts.module.title')}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tTerm('payouts.module.subtitle')}</p>
-        </div>
+    <PageShell className="h-full">
+      <PageHeader
+        title={tTerm('payouts.module.title')}
+        subtitle={tTerm('payouts.module.subtitle')}
+        actions={(
         <button 
           onClick={() => setShowPaymentModal(true)}
           disabled={!canRegisterPayout.executable}
           title={canRegisterPayout.executable ? 'Registrar pago' : canRegisterPayout.reason}
-          className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={16} /> {tTerm('payouts.cta.recordPayment')}
         </button>
-      </div>
+        )}
+      />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
+      <div className="flex min-w-0 flex-1 flex-col gap-5">
         {selectedPayments.length > 0 && (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 shadow-sm">
             <p className="text-sm text-text-secondary">
               {selectedPayments.length} pago(s) seleccionado(s)
             </p>
@@ -334,14 +335,14 @@ export default function Payouts() {
               <button
                 type="button"
                 onClick={handleBulkDownloadVouchers}
-                className="px-3 py-1.5 text-sm rounded-lg bg-text-primary text-bg-base hover:opacity-90"
+                className="rounded-lg bg-text-primary px-3 py-1.5 text-sm text-bg-base transition hover:opacity-90"
               >
                 Descargar comprobantes
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedPaymentIds([])}
-                className="px-3 py-1.5 text-sm rounded-lg border border-border-subtle hover:bg-hover-bg"
+                className="rounded-lg border border-border-subtle px-3 py-1.5 text-sm transition hover:bg-hover-bg"
               >
                 Limpiar selección
               </button>
@@ -349,7 +350,7 @@ export default function Payouts() {
           </div>
         )}
 
-        <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
+        <ToolbarSurface>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
@@ -360,7 +361,7 @@ export default function Payouts() {
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
           </div>
-        </div>
+        </ToolbarSurface>
 
         <TableShell
           isLoading={isLoading}
@@ -382,6 +383,7 @@ export default function Payouts() {
               setPage(1);
             },
           } : undefined}
+          className="data-table-surface"
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
@@ -417,7 +419,7 @@ export default function Payouts() {
                     />
                   </td>
                   <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
-                  <td className="py-4 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-mono">{payment.loanId}</td>
+                  <td className="cursor-pointer py-4 font-mono text-brand-primary hover:underline">{payment.loanId}</td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
                   <td className="py-4 font-medium">${Number(payment.amount ?? 0).toLocaleString()}</td>
                   <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
@@ -434,7 +436,7 @@ export default function Payouts() {
                   <td className="py-4">
                     <div className="flex items-center gap-2">
                       <button
-                        className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                         title="Descargar Comprobante"
                         onClick={() => handleDownloadVoucher(payment.id)}
                       >
@@ -458,7 +460,7 @@ export default function Payouts() {
                           <>
                             {viewGuard.visible && (
                               <button
-                                className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
                                 title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
                                 onClick={() => handleViewCredit(Number(payment.loanId))}
                                 disabled={!viewGuard.executable}
@@ -468,7 +470,7 @@ export default function Payouts() {
                             )}
                             {editGuard.visible && (
                               <button
-                                className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
                                 title={editGuard.executable ? 'Editar método de pago real' : (editGuard.reason || 'Acción no disponible')}
                                 onClick={() => handleEditPayment(payment)}
                                 disabled={!editGuard.executable}
@@ -645,6 +647,6 @@ export default function Payouts() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
