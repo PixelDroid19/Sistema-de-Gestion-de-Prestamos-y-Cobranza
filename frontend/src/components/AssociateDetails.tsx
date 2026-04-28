@@ -7,6 +7,7 @@ import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
 import { MetricCard } from './shared/Surfaces';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
@@ -344,8 +345,8 @@ export default function AssociateDetails() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl mx-auto space-y-6" data-tour="associate-details-page">
+      <div className="flex items-center justify-between mb-6" data-tour="associate-details-header">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/associates')}
@@ -359,6 +360,7 @@ export default function AssociateDetails() {
           </div>
         </div>
         <div className="flex gap-2">
+          <QuickGuideButton guideKey="associate-details" />
           <button onClick={() => setShowContributionsModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
             <History size={16} /> Historial de aportes
           </button>
@@ -388,7 +390,7 @@ export default function AssociateDetails() {
       )}
 
       {/* Tabs */}
-      <div className="border-b border-border-subtle">
+      <div className="border-b border-border-subtle" data-tour="associate-details-tabs">
         <nav className="flex gap-4">
           <button
             onClick={() => setActiveTab('overview')}
@@ -424,9 +426,11 @@ export default function AssociateDetails() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'overview' && renderOverviewTab()}
-      {activeTab === 'installments' && renderInstallmentsTab()}
-      {activeTab === 'calendar' && renderCalendarTab()}
+      <div data-tour="associate-details-content">
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'installments' && renderInstallmentsTab()}
+        {activeTab === 'calendar' && renderCalendarTab()}
+      </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

@@ -11,7 +11,7 @@ type PaginationState = {
   pageSizeOptions?: number[];
 };
 
-type TableShellProps = {
+type TableShellProps = React.HTMLAttributes<HTMLDivElement> & {
   isLoading: boolean;
   isError: boolean;
   hasData: boolean;
@@ -38,10 +38,11 @@ export default function TableShell(props: TableShellProps) {
     recordsLabel,
     className = '',
     contentClassName = '',
+    ...rest
   } = props;
 
   return (
-    <div className={`app-table ${className}`}>
+    <div className={`app-table ${className}`} {...rest}>
       <div className={`overflow-x-auto ${contentClassName}`}>
         {isLoading ? loadingContent : isError ? errorContent : hasData ? children : emptyContent}
       </div>

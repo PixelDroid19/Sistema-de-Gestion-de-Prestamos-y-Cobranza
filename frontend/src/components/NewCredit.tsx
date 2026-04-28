@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CheckCircle2, CircleHelp, Loader2, Save, User } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, Loader2, Save, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
@@ -13,7 +13,7 @@ import {
   useActiveCreditSimulation,
 } from './hooks/useActiveCreditSimulation';
 import type { SimulationInput } from '../types/dag';
-import { startNewCreditTour } from '../lib/creditGuidedTours';
+import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 
 const todayAsIsoDate = () => new Date().toISOString().slice(0, 10);
 
@@ -247,13 +247,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
-          <button
-            type="button"
-            onClick={() => startNewCreditTour()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98]"
-          >
-            <CircleHelp size={16} /> Guía rápida
-          </button>
+          <QuickGuideButton guideKey="new-credit" />
           <button
             type="button"
             onClick={onBack}
@@ -326,23 +320,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
                   Socio asignado
                 </label>
-                <span className="field-hint relative inline-flex">
-                  <button
-                    type="button"
-                    aria-label="Qué significa socio asignado"
-                    aria-describedby="associate-help-tooltip"
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
-                  >
-                    <CircleHelp size={12} aria-hidden="true" />
-                  </button>
-                  <span
-                    id="associate-help-tooltip"
-                    role="tooltip"
-                    className="field-hint-tooltip pointer-events-none absolute right-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-xs font-normal leading-5 text-text-secondary shadow-lg"
-                  >
-                    Es opcional. Permite asociar el crédito a un socio para trazabilidad operativa o participación interna. Si el crédito no pertenece a un socio, déjalo en “Sin socio asignado”.
-                  </span>
-                </span>
+                <HelpTooltip
+                  align="right"
+                  text="Es opcional. Úsalo para dejar trazabilidad del socio o inversionista relacionado. No cambia la tasa, la mora ni la cuota."
+                />
               </div>
               <select
                 id="associateId"

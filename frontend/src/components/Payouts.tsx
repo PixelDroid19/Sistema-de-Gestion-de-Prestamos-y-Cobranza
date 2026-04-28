@@ -14,6 +14,7 @@ import { getChipClassName } from '../constants/uiChips';
 import { PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
 import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { HelpLabel } from './shared/HelpSupport';
 
 export default function Payouts() {
   const navigate = useNavigate();
@@ -309,10 +310,12 @@ export default function Payouts() {
   };
 
   return (
-    <PageShell className="h-full">
+    <PageShell className="h-full" data-tour="payouts-page">
       <PageHeader
         title={tTerm('payouts.module.title')}
         subtitle={tTerm('payouts.module.subtitle')}
+        guideKey="payouts"
+        tourId="payouts-header"
         actions={(
         <button 
           onClick={() => setShowPaymentModal(true)}
@@ -350,7 +353,7 @@ export default function Payouts() {
           </div>
         )}
 
-        <ToolbarSurface>
+        <ToolbarSurface data-tour="payouts-search">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
@@ -364,6 +367,7 @@ export default function Payouts() {
         </ToolbarSurface>
 
         <TableShell
+          data-tour="payouts-table"
           isLoading={isLoading}
           isError={isError}
           hasData={payments.length > 0}
@@ -401,8 +405,12 @@ export default function Payouts() {
                 <th className="pb-3 font-medium">Préstamo ID</th>
                 <th className="pb-3 font-medium">Fecha</th>
                 <th className="pb-3 font-medium">Monto</th>
-                <th className="pb-3 font-medium">Método</th>
-                <th className="pb-3 font-medium">Estado</th>
+                <th className="pb-3 font-medium">
+                  <HelpLabel label="Método" text="Forma con la que se registró el pago: efectivo, transferencia u otro método disponible." />
+                </th>
+                <th className="pb-3 font-medium">
+                  <HelpLabel label="Estado" text="Estado operativo del pago. Confirma si ya fue aplicado, sigue pendiente o fue anulado." />
+                </th>
                 <th className="pb-3 font-medium">Acciones</th>
               </tr>
             </thead>

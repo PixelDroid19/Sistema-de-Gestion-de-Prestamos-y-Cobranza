@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ClipboardPlus } from 'lucide-react';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
  * Standalone credit calculation route for admins.
@@ -42,8 +43,8 @@ export default function CreditSimulator() {
   }, [canContinueToRegistration, input, navigate]);
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+    <div className="flex flex-col gap-6 h-full" data-tour="credit-calculator-page">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between" data-tour="credit-calculator-header">
         <div>
           <h2 className="text-2xl font-semibold">Previsualizar crédito</h2>
           <p className="mt-1 text-sm text-text-secondary">
@@ -52,6 +53,7 @@ export default function CreditSimulator() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <QuickGuideButton guideKey="credit-calculator" />
           <Link
             to="/credits"
             className="inline-flex items-center justify-center rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg"
@@ -70,7 +72,8 @@ export default function CreditSimulator() {
         </div>
       </div>
 
-      <CreditSimulationWorkspace
+      <div data-tour="credit-calculator-simulation">
+        <CreditSimulationWorkspace
         title="Escenario previo del crédito"
         description="Revisa cuota, total a pagar, método aplicado y cronograma antes de registrar un crédito real."
         modeLabel="Fórmula activa"
@@ -87,7 +90,8 @@ export default function CreditSimulator() {
         resultBadge={result?.graphVersionId != null ? `Fórmula v${result.graphVersionId}` : null}
         emptyTitle="Configura tu escenario"
         emptyDescription="Ajusta el crédito que quieres proyectar y ejecuta el cálculo para revisar cuota, interés total y cronograma mensual."
-      />
+        />
+      </div>
 
       {result && (
         <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">

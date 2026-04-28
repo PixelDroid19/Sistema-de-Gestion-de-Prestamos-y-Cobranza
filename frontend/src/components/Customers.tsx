@@ -7,6 +7,7 @@ import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
 import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const { page, pageSize, setPage, setPageSize } = usePaginationStore();
@@ -112,10 +113,12 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   return (
-    <PageShell className="h-full">
+    <PageShell className="h-full" data-tour="customers-page">
       <PageHeader
         title={tTerm('customers.module.title')}
         subtitle={tTerm('customers.module.subtitle')}
+        guideKey="customers"
+        tourId="customers-header"
         actions={(
         <button 
           onClick={() => setCurrentView && setCurrentView('customers-new')}
@@ -127,8 +130,8 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <ToolbarSurface>
-          <div className="relative">
+        <ToolbarSurface data-tour="customers-filters">
+          <div className="relative" data-tour="customers-search">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
               type="text" 
@@ -170,6 +173,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
         </ToolbarSurface>
 
         <TableShell
+          data-tour="customers-table"
           isLoading={isLoading}
           isError={isError}
           hasData={customers.length > 0}
@@ -205,7 +209,12 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                   <th className="pb-3 font-medium">ID</th>
                   <th className="pb-3 font-medium">Nombre</th>
                   <th className="pb-3 font-medium">Contacto</th>
-                  <th className="pb-3 font-medium">Estado</th>
+                  <th className="pb-3 font-medium">
+                    <HelpLabel
+                      label="Estado"
+                      text="Estado del perfil del cliente. Activo permite operar normalmente; inactivo o bloqueado restringe nuevas gestiones según la política."
+                    />
+                  </th>
                   <th className="pb-3 font-medium">Registrado</th>
                   <th className="pb-3 font-medium">Acciones</th>
                 </tr>

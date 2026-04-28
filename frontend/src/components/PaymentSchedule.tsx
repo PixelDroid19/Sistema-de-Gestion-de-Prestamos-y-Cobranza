@@ -5,6 +5,7 @@ import { usePaymentSchedule, exportCreditsExcel } from '../services/reportServic
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { MetricCard } from './shared/Surfaces';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
  * PaymentSchedule component displays a detailed amortization table for a specific loan.
@@ -109,9 +110,9 @@ export default function PaymentSchedule() {
   }
 
   return (
-    <div className="flex flex-col gap-6 h-full">
+    <div className="flex flex-col gap-6 h-full" data-tour="payment-schedule-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" data-tour="payment-schedule-header">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -129,19 +130,22 @@ export default function PaymentSchedule() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={isExporting}
-          className="flex items-center gap-2 px-4 py-2 bg-bg-surface border border-border-subtle rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors disabled:opacity-50"
-        >
-          {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          Exportar
-        </button>
+        <div className="flex items-center gap-3">
+          <QuickGuideButton guideKey="payment-schedule" />
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 bg-bg-surface border border-border-subtle rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors disabled:opacity-50"
+          >
+            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            Exportar
+          </button>
+        </div>
       </div>
 
       {/* Loan Summary */}
       {loan && (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4" data-tour="payment-schedule-summary">
           <MetricCard label="Monto del préstamo" value={formatCurrency(loan.amount)} icon={<DollarSign size={18} />} accent="blue" />
           <MetricCard label="Tasa de interés" value={`${loan.interestRate}%`} icon={<TrendingUp size={18} />} accent="amber" />
           <MetricCard label="Plazo" value={`${loan.termMonths} meses`} icon={<Calendar size={18} />} accent="emerald" />
@@ -161,7 +165,7 @@ export default function PaymentSchedule() {
       )}
 
       {/* Amortization Table */}
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface" data-tour="payment-schedule-table">
         <div className="px-6 py-4 border-b border-border-subtle">
           <h3 className="text-lg font-medium flex items-center gap-2">
             <BarChart3 size={20} className="text-blue-500" />

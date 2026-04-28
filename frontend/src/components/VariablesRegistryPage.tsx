@@ -8,6 +8,7 @@ import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import type { DagVariable, VariableType, VariableSource, VariableStatus } from '../types/dag';
 import { FORMULA_INPUT_OPTIONS, FORMULA_TARGET_OPTIONS, getInputKindLabel } from '../lib/formulaDisplay';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const TYPE_OPTIONS: VariableType[] = ['integer', 'currency', 'boolean', 'percent'];
 const SOURCE_OPTIONS: VariableSource[] = ['bureau_api', 'app_data', 'system_core'];
@@ -229,8 +230,8 @@ export default function VariablesRegistryPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8 h-full overflow-y-auto">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8 h-full overflow-y-auto" data-tour="variables-page">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between" data-tour="variables-header">
         <div className="min-w-0">
           <h2 className="text-2xl sm:text-3xl font-bold text-text-primary">Variables de fórmulas</h2>
           <p className="text-text-secondary mt-1 max-w-3xl text-sm leading-6">
@@ -238,6 +239,7 @@ export default function VariablesRegistryPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+          <QuickGuideButton guideKey="variables" />
           <button
             onClick={() => navigate('/formulas/new')}
             className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg"
@@ -306,7 +308,7 @@ export default function VariablesRegistryPage() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,220px))]">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,220px))]" data-tour="variables-filters">
         <div className="flex items-center gap-2 bg-bg-surface border border-border-subtle rounded-lg px-3 py-2">
           <Search size={16} className="text-text-secondary" />
           <input
@@ -355,7 +357,7 @@ export default function VariablesRegistryPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-bg-surface border border-border-subtle rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-bg-surface border border-border-subtle rounded-xl shadow-sm overflow-hidden" data-tour="variables-table">
         <div className="border-b border-border-subtle px-4 py-4">
           <h3 className="text-lg font-bold text-text-primary">Variables personalizadas</h3>
           <p className="mt-1 text-sm text-text-secondary">Úsalas para parametrizar reglas sin tocar codigo. Ejemplo: recargo administrativo, tasa preferencial o tope interno.</p>

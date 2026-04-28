@@ -5,6 +5,7 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import PermissionsTab from './PermissionsTab';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 export default function Settings() {
   const {
@@ -143,13 +144,16 @@ export default function Settings() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 h-full pb-8">
-      <div>
-        <h2 className="text-2xl font-semibold">Configuración</h2>
-        <p className="text-sm text-text-secondary mt-1">Ajustes generales del sistema y métodos de pago.</p>
+    <div className="max-w-5xl mx-auto space-y-6 h-full pb-8" data-tour="settings-page">
+      <div className="flex items-start justify-between gap-4" data-tour="settings-header">
+        <div>
+          <h2 className="text-2xl font-semibold">Configuración</h2>
+          <p className="text-sm text-text-secondary mt-1">Ajustes generales del sistema y métodos de pago.</p>
+        </div>
+        <QuickGuideButton guideKey="settings" />
       </div>
 
-      <div className="flex overflow-x-auto border-b border-border-subtle">
+      <div className="flex overflow-x-auto border-b border-border-subtle" data-tour="settings-tabs">
         <TabButton id="general" icon={Settings2} label="Ajustes Generales" />
         <TabButton id="payment-methods" icon={CreditCard} label="Métodos de Pago" />
         <TabButton id="rate-policies" icon={Percent} label="Tasas" />
@@ -157,7 +161,7 @@ export default function Settings() {
         <TabButton id="permissions" icon={Shield} label="Roles y Permisos" />
       </div>
 
-      <section className="min-w-0">
+      <section className="min-w-0" data-tour="settings-content">
         {activeTab === 'general' && (
           <div className="space-y-6">
             <h3 className="font-medium text-lg">Parámetros del Sistema</h3>

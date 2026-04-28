@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle, CircleHelp,
+  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
   Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
 } from 'lucide-react';
@@ -21,7 +21,7 @@ import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constant
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { startCreditDetailsTour } from '../lib/creditGuidedTours';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
@@ -1092,13 +1092,11 @@ export default function CreditDetails() {
 
           <div className="w-full xl:max-w-[34rem] xl:pt-1" data-tour="credit-detail-primary-actions">
             <div className="flex flex-wrap gap-2 xl:justify-end">
-              <button
-                type="button"
-                onClick={() => startCreditDetailsTour({ loanId })}
-                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg sm:w-auto sm:min-w-[12rem]"
-              >
-                <CircleHelp size={16} /> Guía rápida
-              </button>
+              <QuickGuideButton
+                guideKey="credit-details"
+                guideContext={{ loanId }}
+                className="min-h-10 w-full sm:w-auto sm:min-w-[12rem]"
+              />
               {installmentPaymentGuard.visible && (
                 <button
                   onClick={openNextInstallmentPayment}

@@ -57,11 +57,13 @@ export default function AuditLogPage() {
   };
 
   return (
-    <PageShell>
+    <PageShell data-tour="audit-log-page">
       <PageHeader
         eyebrow="Observabilidad"
         title="Auditoría operativa"
         subtitle="Revisa quién hizo cada acción, desde qué IP y qué servicio del sistema recibió la operación."
+        guideKey="audit-log"
+        tourId="audit-log-header"
         actions={(
           <div className="rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-xs text-text-secondary">
             Vista para diagnóstico técnico y revisión de incidentes
@@ -70,7 +72,7 @@ export default function AuditLogPage() {
       />
 
       {!statsLoading && (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4" data-tour="audit-log-stats">
           <MetricCard
             label="Eventos registrados"
             value={totalEvents.toLocaleString()}
@@ -112,16 +114,20 @@ export default function AuditLogPage() {
         </div>
       )}
 
-      <AuditFilters values={filters} onFilter={handleFilter} onReset={handleReset} />
+      <div data-tour="audit-log-filters">
+        <AuditFilters values={filters} onFilter={handleFilter} onReset={handleReset} />
+      </div>
 
-      <AuditTable
-        logs={logs}
-        pagination={pagination}
-        isLoading={isLoading}
-        onViewDetails={setSelectedLog}
-        onPageChange={setPage}
-        onFilterIp={handleIpFilter}
-      />
+      <div data-tour="audit-log-table">
+        <AuditTable
+          logs={logs}
+          pagination={pagination}
+          isLoading={isLoading}
+          onViewDetails={setSelectedLog}
+          onPageChange={setPage}
+          onFilterIp={handleIpFilter}
+        />
+      </div>
 
       <AuditDetailModal
         auditLog={selectedLog}

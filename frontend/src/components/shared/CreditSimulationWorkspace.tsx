@@ -6,7 +6,6 @@ import {
   Clock3,
   DollarSign,
   GitCompareArrows,
-  Info,
   Loader2,
   Percent,
   Save,
@@ -17,6 +16,7 @@ import {
 import { tTerm } from '../../i18n/terminology';
 import { getFormulaValueLabel } from '../../lib/formulaDisplay';
 import type { SimulationInput, SimulationResult } from '../../types/dag';
+import { HelpTooltip } from './HelpSupport';
 
 type SavedScenario = {
   id: string;
@@ -124,23 +124,8 @@ const fieldHelp = {
 
 function FieldHint({ id, text }: { id: string; text: string }) {
   return (
-    <span className="field-hint relative inline-flex">
-      <button
-        type="button"
-        aria-describedby={id}
-        aria-label={text}
-        title={text}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
-      >
-        <Info size={12} aria-hidden="true" />
-      </button>
-      <span
-        id={id}
-        role="tooltip"
-        className="field-hint-tooltip pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-64 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-xs font-normal leading-5 text-text-secondary shadow-lg"
-      >
-        {text}
-      </span>
+    <span id={id}>
+      <HelpTooltip text={text} />
     </span>
   );
 }

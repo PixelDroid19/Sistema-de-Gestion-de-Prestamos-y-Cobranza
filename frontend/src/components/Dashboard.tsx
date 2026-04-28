@@ -481,10 +481,12 @@ export default function Dashboard() {
   }
 
   return (
-    <PageShell>
+    <PageShell data-tour="dashboard-page">
       <PageHeader
         title={tTerm('dashboard.module.title')}
         subtitle={tTerm('dashboard.module.subtitle')}
+        guideKey="dashboard"
+        tourId="dashboard-header"
         actions={(
         <div className="flex gap-2">
           <button
@@ -508,7 +510,7 @@ export default function Dashboard() {
       </p>
 
       {showWidgetManager && (
-        <ToolbarSurface className="animate-in fade-in slide-in-from-top-4">
+        <ToolbarSurface className="animate-in fade-in slide-in-from-top-4" data-tour="dashboard-toolbar">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-text-primary">{tTerm('dashboard.widgetManager.title')}</h3>
             <button onClick={() => setShowWidgetManager(false)} className="text-text-secondary hover:text-text-primary">
@@ -555,6 +557,7 @@ export default function Dashboard() {
       ) : (
       <div
         ref={gridContainerRef}
+        data-tour="dashboard-grid"
       >
         <Responsive
           key={`dashboard-grid-${Math.round(effectiveGridWidth)}`}

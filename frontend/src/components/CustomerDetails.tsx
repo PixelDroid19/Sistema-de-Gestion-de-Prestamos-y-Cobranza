@@ -8,6 +8,7 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { extractRawErrorMessage } from '../services/safeErrorMessages';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const CUSTOMER_DOCUMENT_OPTIONS = [
   { value: 'identification', label: 'Identificación (INE/Pasaporte)' },
@@ -201,8 +202,8 @@ export default function CustomerDetails() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="max-w-6xl mx-auto space-y-6" data-tour="customer-details-page">
+      <div className="flex items-center gap-4 mb-6" data-tour="customer-details-header">
         <button 
           onClick={() => navigate('/customers')}
           className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
@@ -213,7 +214,8 @@ export default function CustomerDetails() {
           <h1 className="text-2xl font-bold text-text-primary">{customerName}</h1>
           <p className="text-sm text-text-secondary">ID: {customer.id} | Documento: {customer.documentNumber || 'N/A'}</p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <QuickGuideButton guideKey="customer-details" />
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             normalizedCustomerStatus === 'active'
               ? 'bg-status-success-bg text-status-success'
@@ -226,7 +228,7 @@ export default function CustomerDetails() {
         </div>
       </div>
 
-      <div className="flex border-b border-border-subtle overflow-x-auto">
+      <div className="flex border-b border-border-subtle overflow-x-auto" data-tour="customer-details-tabs">
         <button
           onClick={() => setActiveTab('profile')}
           className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'profile' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}

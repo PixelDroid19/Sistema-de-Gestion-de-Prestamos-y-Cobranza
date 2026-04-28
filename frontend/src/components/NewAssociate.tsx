@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 interface AssociateFormData {
   name: string;
@@ -114,8 +115,8 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-6 flex items-center gap-4">
+    <div className="mx-auto max-w-2xl" data-tour="new-associate-page">
+      <div className="mb-6 flex items-center gap-4" data-tour="new-associate-header">
         <button
           onClick={onBack}
           className="rounded-xl p-2 text-text-secondary transition-colors hover:bg-hover-bg"
@@ -126,9 +127,12 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
           <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>
         </div>
+        <div className="ml-auto">
+          <QuickGuideButton guideKey="new-associate" />
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6">
+      <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6" data-tour="new-associate-form">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-text-secondary">Nombre Completo *</label>
