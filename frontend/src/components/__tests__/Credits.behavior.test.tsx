@@ -237,6 +237,10 @@ describe('Credits behavioral parity scenarios', () => {
 
     expect(screen.getByRole('heading', { name: 'Operación de créditos' })).toBeInTheDocument();
     expect(screen.queryByText('Gestión de Créditos')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText(/Estado: etapa administrativa del crédito/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/Situación: lectura de cobranza/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/Activo\. Activo: crédito vigente/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(/En Curso\. En curso: crédito todavía tiene seguimiento/i).length).toBeGreaterThan(0);
 
     const viewButton = screen.getByTitle('Ver detalles del crédito');
     fireEvent.click(viewButton);

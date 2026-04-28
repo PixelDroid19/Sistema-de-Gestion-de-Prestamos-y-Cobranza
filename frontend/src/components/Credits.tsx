@@ -70,6 +70,109 @@ const getLoanStatusTone = (status?: string): ChipTone => {
   }
 };
 
+const STATUS_COLUMN_HELP = 'Estado: etapa administrativa del crédito. Define si está vigente, cerrado, rechazado, vencido o bloqueado para operación.';
+const RECOVERY_COLUMN_HELP = 'Situación: lectura de cobranza. Indica si el crédito está al día, en mora, recuperado o en seguimiento operativo.';
+
+const getLoanStatusDescription = (status?: string) => {
+  switch (String(status || '').toLowerCase()) {
+    case 'pending':
+      return 'Pendiente: crédito creado o solicitado, aún sin quedar plenamente operativo.';
+    case 'approved':
+      return 'Aprobado: crédito autorizado, pendiente de quedar activo o desembolsado.';
+    case 'active':
+      return 'Activo: crédito vigente, con plan de pagos y acciones operativas disponibles según permisos.';
+    case 'overdue':
+      return 'Vencido: crédito con atraso detectado por calendario de cuotas.';
+    case 'defaulted':
+      return 'En mora: crédito con incumplimiento relevante o estado de cobranza crítica.';
+    case 'paid':
+      return 'Pagado: crédito saldado por pago, pendiente o listo para cierre administrativo.';
+    case 'closed':
+      return 'Cerrado: crédito finalizado administrativamente; no debería recibir operación ordinaria.';
+    case 'cancelled':
+      return 'Cancelado: crédito anulado o detenido antes de completar su ciclo normal.';
+    case 'rejected':
+      return 'Rechazado: crédito no aprobado para originación u operación.';
+    default:
+      return status ? `${status}: estado administrativo registrado por el sistema.` : 'Sin estado administrativo registrado.';
+  }
+};
+
+const getRecoveryStatusDescription = (credit: any) => {
+  const normalizedRecoveryStatus = String(credit?.recoveryStatus || '').toLowerCase();
+  const normalizedLoanStatus = String(credit?.status || '').toLowerCase();
+
+  if (normalizedRecoveryStatus === 'overdue' || normalizedLoanStatus === 'defaulted') {
+    return 'En mora: hay atraso, cuota vencida o condición que requiere gestión de cobranza.';
+  }
+  if (normalizedRecoveryStatus === 'pending') {
+    return 'En curso: crédito todavía tiene seguimiento operativo o cuotas pendientes de gestión.';
+  }
+  if (normalizedRecoveryStatus === 'recovered') {
+    return 'Recuperado: la cartera asociada fue cobrada o cerrada sin saldo pendiente relevante.';
+  }
+  if (normalizedRecoveryStatus === 'active') {
+    return 'Activo: cartera vigente en seguimiento normal.';
+  }
+  if (normalizedLoanStatus === 'closed' || normalizedLoanStatus === 'paid') {
+    return 'Recuperado: crédito cerrado o saldado desde la operación de cartera.';
+  }
+  return 'Al día: no hay mora ni alerta de cobranza activa en este crédito.';
+};
+
+function InlineHelp({ label, text, align = 'left' }: { label: React.ReactNode; text: string; align?: 'left' | 'right' }) {
+  return (
+    <span className="group relative inline-flex items-center gap-1.5">
+      <span>{label}</span>
+      <span
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle bg-bg-base text-text-secondary"
+        tabIndex={0}
+        aria-label={text}
+        title={text}
+      >
+        <CircleHelp size={11} aria-hidden="true" />
+      </span>
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute top-full z-40 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-normal normal-case leading-5 tracking-normal text-text-secondary shadow-lg group-hover:block group-focus-within:block ${
+          align === 'right' ? 'right-0' : 'left-0'
+        }`}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function ExplainedChip({
+  label,
+  description,
+  tone,
+}: {
+  label: React.ReactNode;
+  description: string;
+  tone: ChipTone;
+}) {
+  return (
+    <span className="group relative inline-flex">
+      <span
+        tabIndex={0}
+        title={description}
+        aria-label={`${label}. ${description}`}
+        className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(tone)}`}
+      >
+        {label}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-40 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-normal leading-5 text-text-secondary shadow-lg group-hover:block group-focus-within:block"
+      >
+        {description}
+      </span>
+    </span>
+  );
+}
+
 interface InstallmentEvent {
   id: string;
   loanId: number;
@@ -835,9 +938,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <p className="font-semibold text-text-primary">{getCreditLabel(credit)}</p>
                         <p className="mt-1 text-xs text-text-secondary">Crédito #{credit.id}</p>
                       </div>
-                      <span className={`shrink-0 rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}>
-                        {getLoanStatusLabel(credit.status)}
-                      </span>
+                      <ExplainedChip
+                        label={getLoanStatusLabel(credit.status)}
+                        description={getLoanStatusDescription(credit.status)}
+                        tone={getLoanStatusTone(credit.status)}
+                      />
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -854,10 +959,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <p className="mt-1 font-semibold text-text-primary">{outstandingAmount > 0 ? formatCurrency(outstandingAmount) : '-'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Situación</p>
-                        <span className={`mt-1 inline-flex rounded-md px-2 py-1 text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
-                          {getRecoveryStatusLabel(credit)}
-                        </span>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                          <InlineHelp label="Situación" text={RECOVERY_COLUMN_HELP} />
+                        </p>
+                        <div className="mt-1">
+                          <ExplainedChip
+                            label={getRecoveryStatusLabel(credit)}
+                            description={getRecoveryStatusDescription(credit)}
+                            tone={credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success'}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -897,8 +1008,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="px-3 py-3 text-right font-semibold">Cuota</th>
                   <th className="px-3 py-3 text-right font-semibold">Saldo</th>
                   <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Mora</th>
-                  <th className="px-3 py-3 font-semibold">Estado</th>
-                  <th className="px-3 py-3 font-semibold">Situación</th>
+                  <th className="px-3 py-3 font-semibold">
+                    <InlineHelp label="Estado" text={STATUS_COLUMN_HELP} />
+                  </th>
+                  <th className="px-3 py-3 font-semibold">
+                    <InlineHelp label="Situación" text={RECOVERY_COLUMN_HELP} />
+                  </th>
                   <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">Inicio</th>
                   <th className="px-3 py-3 text-right font-semibold">Acciones</th>
                 </tr>
@@ -977,15 +1092,19 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4">
-                          <span className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}>
-                            {getLoanStatusLabel(credit.status)}
-                          </span>
+                          <ExplainedChip
+                            label={getLoanStatusLabel(credit.status)}
+                            description={getLoanStatusDescription(credit.status)}
+                            tone={getLoanStatusTone(credit.status)}
+                          />
                         </td>
                         <td className="whitespace-nowrap px-3 py-4">
-                            <span className={`inline-flex rounded-md px-2 py-1 text-xs ${credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? getChipClassName('danger') : getChipClassName('success')}`}>
-                             {getRecoveryStatusLabel(credit)}
-                            </span>
-                          </td>
+                          <ExplainedChip
+                            label={getRecoveryStatusLabel(credit)}
+                            description={getRecoveryStatusDescription(credit)}
+                            tone={credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success'}
+                          />
+                        </td>
                         <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{creationDate}</td>
                         <td className="px-3 py-4">
                           <div className="flex items-center justify-end gap-1.5">
