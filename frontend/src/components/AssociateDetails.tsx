@@ -6,6 +6,7 @@ import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
+import { MetricCard } from './shared/Surfaces';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
@@ -132,18 +133,24 @@ export default function AssociateDetails() {
     <>
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Capital Total Aportado</h3>
-          <p className="text-2xl font-semibold mt-1">${totalContributions.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Ganancias Distribuidas</h3>
-          <p className="text-2xl font-semibold mt-1 text-emerald-600">${totalDistributions.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Préstamos Activos</h3>
-          <p className="text-2xl font-semibold mt-1">{activeLoansCount}</p>
-        </div>
+        <MetricCard
+          label="Capital aportado"
+          value={formatCurrency(totalContributions)}
+          icon={<Wallet size={18} />}
+          accent="blue"
+        />
+        <MetricCard
+          label="Ganancias distribuidas"
+          value={formatCurrency(totalDistributions)}
+          icon={<Download size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label="Préstamos activos"
+          value={activeLoansCount}
+          icon={<CheckCircle size={18} />}
+          accent="slate"
+        />
       </div>
 
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
@@ -187,24 +194,24 @@ export default function AssociateDetails() {
     <div className="space-y-4">
       {/* Totals */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium flex items-center gap-2">
-            <Clock size={16} className="text-amber-500" /> Pendiente
-          </h3>
-          <p className="text-2xl font-semibold mt-1 text-amber-600">${installmentsData.totals.totalPending.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-500" /> Pagado
-          </h3>
-          <p className="text-2xl font-semibold mt-1 text-emerald-600">${installmentsData.totals.totalPaid.toLocaleString()}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-500" /> Vencido
-          </h3>
-          <p className="text-2xl font-semibold mt-1 text-red-600">${installmentsData.totals.totalOverdue.toLocaleString()}</p>
-        </div>
+        <MetricCard
+          label="Pendiente"
+          value={formatCurrency(installmentsData.totals.totalPending)}
+          icon={<Clock size={18} />}
+          accent="amber"
+        />
+        <MetricCard
+          label="Pagado"
+          value={formatCurrency(installmentsData.totals.totalPaid)}
+          icon={<CheckCircle size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label="Vencido"
+          value={formatCurrency(installmentsData.totals.totalOverdue)}
+          icon={<AlertCircle size={18} />}
+          accent="rose"
+        />
       </div>
 
       {/* Installments Table */}
@@ -266,22 +273,30 @@ export default function AssociateDetails() {
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Aportes</h3>
-          <p className="text-2xl font-semibold mt-1">{calendarData.summary.contributionCount}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Distribuciones</h3>
-          <p className="text-2xl font-semibold mt-1">{calendarData.summary.distributionCount}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Cuotas</h3>
-          <p className="text-2xl font-semibold mt-1">{calendarData.summary.installmentCount}</p>
-        </div>
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-          <h3 className="text-text-secondary text-sm font-medium">Cuotas Pendientes</h3>
-          <p className="text-2xl font-semibold mt-1 text-amber-600">{calendarData.summary.pendingInstallments}</p>
-        </div>
+        <MetricCard
+          label="Aportes"
+          value={calendarData.summary.contributionCount}
+          icon={<Wallet size={18} />}
+          accent="blue"
+        />
+        <MetricCard
+          label="Distribuciones"
+          value={calendarData.summary.distributionCount}
+          icon={<Download size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label="Cuotas"
+          value={calendarData.summary.installmentCount}
+          icon={<Calendar size={18} />}
+          accent="slate"
+        />
+        <MetricCard
+          label="Cuotas pendientes"
+          value={calendarData.summary.pendingInstallments}
+          icon={<Clock size={18} />}
+          accent="amber"
+        />
       </div>
 
       {/* Calendar Events */}

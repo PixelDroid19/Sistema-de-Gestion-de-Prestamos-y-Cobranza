@@ -1,132 +1,177 @@
 import React from 'react';
+import { Database, Network, Server, UserRound, X } from 'lucide-react';
 import { AuditLog } from '../services/auditService';
+import {
+  formatAuditDate,
+  getAuditActionLabel,
+  getAuditActionTone,
+  getAuditMethod,
+  getAuditModuleLabel,
+  getAuditPath,
+  getAuditServiceLabel,
+} from '../lib/auditPresentation';
 
 interface AuditDetailModalProps {
   auditLog: AuditLog | null;
   onClose: () => void;
 }
 
+type DetailItemProps = {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+};
+
+function DetailItem({ label, value, mono = false }: DetailItemProps) {
+  return (
+    <div className="min-w-0 border-t border-border-subtle pt-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">{label}</p>
+      <div className={`mt-1 break-words text-sm font-semibold text-text-primary ${mono ? 'font-mono' : ''}`}>
+        {value || 'No registrado'}
+      </div>
+    </div>
+  );
+}
+
+function JsonBlock({ title, data, tone = 'neutral' }: { title: string; data: unknown; tone?: 'neutral' | 'before' | 'after' }) {
+  const formatted = data ? JSON.stringify(data, null, 2) : 'Sin datos registrados';
+  const toneClass = {
+    neutral: 'border-border-subtle bg-bg-base text-text-primary',
+    before: 'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100',
+    after: 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100',
+  }[tone];
+
+  return (
+    <section className="min-w-0">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">{title}</h3>
+      <pre className={`max-h-72 overflow-auto rounded-2xl border p-4 text-xs leading-5 ${toneClass}`}>
+        {formatted}
+      </pre>
+    </section>
+  );
+}
+
 export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModalProps) {
   if (!auditLog) return null;
 
-  const formatJson = (data: object | null) => {
-    if (!data) return 'N/A';
-    return JSON.stringify(data, null, 2);
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
-  };
+  const method = getAuditMethod(auditLog);
+  const path = getAuditPath(auditLog);
+  const service = getAuditServiceLabel(auditLog);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <div className="px-6 py-4 border-b border-border-subtle flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold text-text-primary">Detalle de auditoría</h2>
-            <p className="text-sm text-text-secondary mt-1">
-              {auditLog.module} - {auditLog.action}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border-subtle bg-bg-surface shadow-[0_24px_70px_-35px_rgba(15,23,42,0.55)]">
+        <header className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-primary">Evento auditable</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-text-primary">Detalle técnico de la operación</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
+              Identifica el servicio consumido, el origen de red y los datos modificados por esta acción.
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-bg-base text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
+            aria-label="Cerrar detalle de auditoría"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={18} />
           </button>
+        </header>
+
+        <div className="overflow-y-auto px-6 py-5">
+          <section className="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+            <div className="rounded-2xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="rounded-2xl bg-brand-primary/10 p-2 text-brand-primary">
+                  <Server size={20} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">Servicio consumido</p>
+                  <p className="mt-1 truncate font-mono text-base font-bold text-text-primary" title={service}>
+                    {service}
+                  </p>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {method ? `Método ${method}` : 'Método no registrado'}
+                    {path ? ` sobre ${path}` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border-subtle bg-bg-base p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-slate-100 p-2 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200">
+                  <Network size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">IP origen</p>
+                  <p className="mt-1 font-mono text-base font-bold text-text-primary">{auditLog.ip || 'No registrada'}</p>
+                  <p className="mt-1 text-sm text-text-secondary">Úsala en filtros para ver toda la actividad asociada.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-border-subtle bg-bg-surface p-4">
+                <div className="mb-4 flex items-center gap-3">
+                  <UserRound className="h-5 w-5 text-brand-primary" />
+                  <div>
+                    <h3 className="font-bold text-text-primary">Actor y contexto</h3>
+                    <p className="text-sm text-text-secondary">Quién ejecutó la acción y contra qué recurso.</p>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <DetailItem label="Evento" value={`#${auditLog.id}`} mono />
+                  <DetailItem label="Fecha" value={formatAuditDate(auditLog.timestamp)} />
+                  <DetailItem label="Usuario" value={auditLog.userName || 'Sistema'} />
+                  <DetailItem label="ID usuario" value={auditLog.userId || 'Sin sesión'} mono />
+                  <DetailItem
+                    label="Acción"
+                    value={(
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getAuditActionTone(auditLog.action)}`}>
+                        {getAuditActionLabel(auditLog.action)}
+                      </span>
+                    )}
+                  />
+                  <DetailItem label="Área" value={getAuditModuleLabel(auditLog.module)} />
+                  <DetailItem label="Entidad" value={auditLog.entityType || 'Sin tipo'} />
+                  <DetailItem label="ID entidad" value={auditLog.entityId || 'Sin ID'} mono />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border-subtle bg-bg-surface p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <Database className="h-5 w-5 text-text-secondary" />
+                  <h3 className="font-bold text-text-primary">Cliente HTTP</h3>
+                </div>
+                <p className="rounded-2xl border border-border-subtle bg-bg-base p-3 font-mono text-xs leading-5 text-text-secondary">
+                  {auditLog.userAgent || 'User agent no registrado'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-2">
+                <JsonBlock title="Datos previos" data={auditLog.previousData} tone="before" />
+                <JsonBlock title="Datos nuevos" data={auditLog.newData} tone="after" />
+              </div>
+              <JsonBlock title="Metadatos técnicos" data={auditLog.metadata} />
+            </div>
+          </section>
         </div>
 
-        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">ID de evento</p>
-              <p className="text-sm text-text-primary font-mono">{auditLog.id}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Usuario</p>
-              <p className="text-sm text-text-primary">{auditLog.userName || 'Sistema'}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">ID de usuario</p>
-              <p className="text-sm text-text-primary">{auditLog.userId || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Acción</p>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                auditLog.action === 'DELETE' ? 'bg-red-100 text-red-800' :
-                auditLog.action === 'CREATE' ? 'bg-green-100 text-green-800' :
-                auditLog.action === 'UPDATE' ? 'bg-blue-100 text-blue-800' :
-                auditLog.action === 'LOGIN' ? 'bg-purple-100 text-purple-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {auditLog.action}
-              </span>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Módulo</p>
-              <p className="text-sm text-text-primary">{auditLog.module}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Fecha</p>
-              <p className="text-sm text-text-primary">{formatDate(auditLog.timestamp)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">ID de entidad</p>
-              <p className="text-sm text-text-primary font-mono">{auditLog.entityId || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Tipo de entidad</p>
-              <p className="text-sm text-text-primary">{auditLog.entityType || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase">Dirección IP</p>
-              <p className="text-sm text-text-primary font-mono">{auditLog.ip || 'N/A'}</p>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <p className="text-xs font-medium text-text-secondary uppercase mb-1">User agent</p>
-            <p className="text-sm text-text-primary bg-bg-base p-2 rounded font-mono text-xs break-all">
-              {auditLog.userAgent || 'N/A'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Datos previos</p>
-              <pre className="bg-red-50 text-red-800 p-3 rounded text-xs overflow-x-auto">
-                {formatJson(auditLog.previousData)}
-              </pre>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Datos nuevos</p>
-              <pre className="bg-green-50 text-green-800 p-3 rounded text-xs overflow-x-auto">
-                {formatJson(auditLog.newData)}
-              </pre>
-            </div>
-          </div>
-
-          {auditLog.metadata && (
-            <div className="mt-4">
-              <p className="text-xs font-medium text-text-secondary uppercase mb-2">Metadatos</p>
-              <pre className="bg-bg-base text-text-primary p-3 rounded text-xs overflow-x-auto">
-                {formatJson(auditLog.metadata)}
-              </pre>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 py-3 border-t border-border-subtle bg-bg-base flex justify-end">
+        <footer className="flex justify-end border-t border-border-subtle bg-bg-base px-6 py-4">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg hover:bg-hover-bg"
+            className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
           >
             Cerrar
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

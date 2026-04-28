@@ -167,6 +167,7 @@ test('GET /audits passes query filters to use case', async () => {
       assert.equal(filters.userId, '1');
       assert.equal(filters.action, 'CREATE');
       assert.equal(filters.module, 'customers');
+      assert.equal(filters.ip, '203.0.113.10');
       return Promise.resolve({ items: [], totalItems: 0, pagination: {} });
     }),
     getAuditStats: mock.fn(() => Promise.resolve({ stats: [], dateRange: {} })),
@@ -191,7 +192,7 @@ test('GET /audits passes query filters to use case', async () => {
 
   const response = await requestJson(activeServer, {
     method: 'GET',
-    path: '/?userId=1&action=CREATE&module=customers',
+    path: '/?userId=1&action=CREATE&module=customers&ip=203.0.113.10',
     headers: { authorization: 'Bearer valid-token' },
   });
 

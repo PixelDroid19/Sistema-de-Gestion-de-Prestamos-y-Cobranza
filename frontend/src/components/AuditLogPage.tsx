@@ -1,18 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Activity, AlertTriangle, Clock, Network, ShieldCheck } from 'lucide-react';
 import { useAuditLogs, useAuditStats, AuditLog } from '../services/auditService';
-import AuditFilters from './AuditFilters';
+import AuditFilters, { FilterValues } from './AuditFilters';
 import AuditTable from './AuditTable';
 import AuditDetailModal from './AuditDetailModal';
-
-interface FilterValues {
-  userId?: string;
-  action?: string;
-  module?: string;
-  entityId?: string;
-  entityType?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}
+import { MetricCard, PageHeader, PageShell } from './shared/Surfaces';
+import { getAuditActionLabel, getAuditModuleLabel } from '../lib/auditPresentation';
 
 export default function AuditLogPage() {
   const [filters, setFilters] = useState<FilterValues>({});
@@ -22,9 +15,35 @@ export default function AuditLogPage() {
   const { logs, pagination, isLoading } = useAuditLogs({ ...filters, page, pageSize: 25 });
   const { stats: auditStats, isLoading: statsLoading } = useAuditStats();
 
+  const totalEvents = useMemo(
+    () => auditStats.reduce((acc, stat) => acc + Number(stat.totalCount || 0), 0),
+    [auditStats]
+  );
+
+  const currentPageIps = useMemo(() => {
+    const uniqueIps = new Set(logs.map((log) => log.ip).filter(Boolean));
+    return uniqueIps.size;
+  }, [logs]);
+
+  const topModule = useMemo(() => {
+    const first = [...auditStats].sort((a, b) => Number(b.totalCount || 0) - Number(a.totalCount || 0))[0];
+    return first ? `${getAuditModuleLabel(first.module)} (${first.totalCount})` : 'Sin actividad';
+  }, [auditStats]);
+
+  const topAction = useMemo(() => {
+    const actionCounts = auditStats.reduce<Record<string, number>>((acc, stat) => {
+      Object.entries(stat.actions || {}).forEach(([action, count]) => {
+        acc[action] = (acc[action] || 0) + Number(count || 0);
+      });
+      return acc;
+    }, {});
+    const [action, count] = Object.entries(actionCounts).sort((a, b) => b[1] - a[1])[0] || [];
+    return action ? `${getAuditActionLabel(action)} (${count})` : 'Sin actividad';
+  }, [auditStats]);
+
   const handleFilter = (newFilters: FilterValues) => {
     setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
+    setPage(1);
   };
 
   const handleReset = () => {
@@ -32,61 +51,82 @@ export default function AuditLogPage() {
     setPage(1);
   };
 
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
+  const handleIpFilter = (ip: string) => {
+    setFilters((current) => ({ ...current, ip }));
+    setPage(1);
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">Auditoría</h2>
-          <p className="text-sm text-text-secondary mt-1">Trazabilidad de acciones críticas del sistema.</p>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Observabilidad"
+        title="Auditoría operativa"
+        subtitle="Revisa quién hizo cada acción, desde qué IP y qué servicio del sistema recibió la operación."
+        actions={(
+          <div className="rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-xs text-text-secondary">
+            Vista para diagnóstico técnico y revisión de incidentes
+          </div>
+        )}
+      />
 
-      {!statsLoading && auditStats.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {auditStats.slice(0, 4).map((stat) => (
-            <div key={stat.module} className="bg-bg-surface border border-border-subtle rounded-2xl p-4">
-              <div className="text-sm font-medium text-text-secondary uppercase">
-                {stat.module}
-              </div>
-              <div className="mt-2 flex items-baseline">
-                <span className="text-2xl font-semibold text-text-primary">
-                  {stat.totalCount}
-                </span>
-                <span className="ml-2 text-sm text-text-secondary">eventos</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {Object.entries(stat.actions).slice(0, 3).map(([action, count]) => (
-                  <span
-                    key={action}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bg-base text-text-secondary"
-                  >
-                    {action}: {count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+      {!statsLoading && (
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Eventos registrados"
+            value={totalEvents.toLocaleString()}
+            helper="Histórico auditable"
+            icon={<ShieldCheck size={18} />}
+            accent="blue"
+          />
+          <MetricCard
+            label="IPs en esta página"
+            value={currentPageIps}
+            helper="Origen de eventos visibles"
+            icon={<Network size={18} />}
+            accent="slate"
+          />
+          <MetricCard
+            label="Servicio más activo"
+            value={topModule}
+            helper="Área con más eventos"
+            icon={<Activity size={18} />}
+            accent="emerald"
+          />
+          <MetricCard
+            label="Acción frecuente"
+            value={topAction}
+            helper="Patrón de actividad"
+            icon={<Clock size={18} />}
+            accent="amber"
+          />
+        </section>
+      )}
+
+      {filters.ip && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">Investigando actividad por IP: <span className="font-mono">{filters.ip}</span></p>
+            <p className="mt-1 text-xs opacity-80">La tabla muestra acciones que coinciden parcial o totalmente con esa dirección.</p>
+          </div>
         </div>
       )}
 
-      <AuditFilters onFilter={handleFilter} onReset={handleReset} />
+      <AuditFilters values={filters} onFilter={handleFilter} onReset={handleReset} />
 
       <AuditTable
         logs={logs}
         pagination={pagination}
         isLoading={isLoading}
         onViewDetails={setSelectedLog}
-        onPageChange={handlePageChange}
+        onPageChange={setPage}
+        onFilterIp={handleIpFilter}
       />
 
       <AuditDetailModal
         auditLog={selectedLog}
         onClose={() => setSelectedLog(null)}
       />
-    </div>
+    </PageShell>
   );
 }

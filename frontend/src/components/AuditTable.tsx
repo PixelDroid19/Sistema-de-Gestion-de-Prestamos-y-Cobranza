@@ -1,5 +1,14 @@
 import React from 'react';
+import { Eye, Network, Server } from 'lucide-react';
 import { AuditLog, PaginationMeta } from '../services/auditService';
+import {
+  formatAuditDate,
+  getAuditActionLabel,
+  getAuditActionTone,
+  getAuditModuleLabel,
+  getAuditServiceLabel,
+} from '../lib/auditPresentation';
+import { DataTableSurface } from './shared/Surfaces';
 
 interface AuditTableProps {
   logs: AuditLog[];
@@ -7,47 +16,12 @@ interface AuditTableProps {
   isLoading: boolean;
   onViewDetails: (log: AuditLog) => void;
   onPageChange: (page: number) => void;
+  onFilterIp: (ip: string) => void;
 }
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString();
-};
-
-const getActionColor = (action: string) => {
-  switch (action) {
-    case 'DELETE':
-      return 'bg-red-100 text-red-800';
-    case 'CREATE':
-      return 'bg-green-100 text-green-800';
-    case 'UPDATE':
-      return 'bg-blue-100 text-blue-800';
-    case 'LOGIN':
-      return 'bg-purple-100 text-purple-800';
-    case 'LOGOUT':
-      return 'bg-gray-100 text-gray-800';
-    case 'APPROVE':
-      return 'bg-emerald-100 text-emerald-800';
-    case 'REJECT':
-      return 'bg-orange-100 text-orange-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-};
-
-const getActionLabel = (action: string) => {
-  const labels: Record<string, string> = {
-    CREATE: 'Creación',
-    UPDATE: 'Actualización',
-    DELETE: 'Eliminación',
-    LOGIN: 'Inicio de sesión',
-    LOGOUT: 'Cierre de sesión',
-    APPROVE: 'Aprobación',
-    REJECT: 'Rechazo',
-    EXPORT: 'Exportación',
-    IMPORT: 'Importación',
-  };
-
-  return labels[action] || action;
+const formatEntity = (log: AuditLog) => {
+  if (!log.entityType && !log.entityId) return 'Sin entidad';
+  return `${log.entityType || 'Entidad'}${log.entityId ? ` #${log.entityId}` : ''}`;
 };
 
 export default function AuditTable({
@@ -56,125 +30,137 @@ export default function AuditTable({
   isLoading,
   onViewDetails,
   onPageChange,
+  onFilterIp,
 }: AuditTableProps) {
   if (isLoading) {
     return (
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-8 text-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-        <p className="mt-2 text-text-secondary">Cargando auditoría...</p>
-      </div>
+      <DataTableSurface>
+        <div className="space-y-3 p-4">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="h-14 animate-pulse rounded-xl bg-bg-base" />
+          ))}
+        </div>
+      </DataTableSurface>
     );
   }
 
   if (logs.length === 0) {
     return (
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-8 text-center">
-        <p className="text-text-secondary">No se encontraron eventos con los filtros aplicados.</p>
-      </div>
+      <DataTableSurface>
+        <div className="table-empty-state">
+          <div>
+            <Server className="mx-auto mb-3 h-8 w-8 text-text-secondary" />
+            <p className="font-semibold text-text-primary">Sin eventos para revisar</p>
+            <p className="mt-1 text-sm text-text-secondary">Ajusta filtros por IP, servicio o fecha para ampliar la búsqueda.</p>
+          </div>
+        </div>
+      </DataTableSurface>
     );
   }
 
   return (
-    <div className="bg-bg-surface border border-border-subtle rounded-2xl overflow-hidden">
+    <DataTableSurface>
       <div className="overflow-x-auto">
-        <table className="min-w-full">
-          <thead className="bg-bg-base border-b border-border-subtle">
+        <table className="min-w-[1120px]">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Fecha
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Usuario
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Acción
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Módulo
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Entidad
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                IP
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Acciones
-              </th>
+              <th>Fecha</th>
+              <th>Servicio consumido</th>
+              <th>Usuario</th>
+              <th>Acción</th>
+              <th>Área</th>
+              <th>Entidad</th>
+              <th>IP origen</th>
+              <th className="text-right">Detalle</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {logs.map((log) => (
-              <tr key={log.id} className="hover:bg-hover-bg transition-colors">
-                <td className="px-4 py-3 text-sm text-text-primary whitespace-nowrap">
-                  {formatDate(log.timestamp)}
-                </td>
-                <td className="px-4 py-3 text-sm text-text-primary">
-                  {log.userName || (
-                    <span className="text-text-secondary italic">Sistema</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-sm whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
-                    {getActionLabel(log.action)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm text-text-primary">
-                  {log.module}
-                </td>
-                <td className="px-4 py-3 text-sm text-text-primary">
-                  <div>
-                    {log.entityType && <span className="font-medium">{log.entityType}</span>}
-                    {log.entityId && (
-                      <span className="text-text-secondary ml-1 font-mono text-xs">
-                        #{log.entityId}
-                      </span>
+          <tbody>
+            {logs.map((log) => {
+              const serviceLabel = getAuditServiceLabel(log);
+              return (
+                <tr key={log.id}>
+                  <td className="whitespace-nowrap font-mono text-xs text-text-secondary">
+                    {formatAuditDate(log.timestamp)}
+                  </td>
+                  <td>
+                    <div className="flex min-w-0 items-start gap-2">
+                      <Network className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" />
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-xs font-semibold text-text-primary" title={serviceLabel}>
+                          {serviceLabel}
+                        </p>
+                        <p className="text-xs text-text-secondary">Endpoint o módulo que recibió la acción</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <p className="font-medium text-text-primary">{log.userName || 'Sistema'}</p>
+                    <p className="text-xs text-text-secondary">{log.userId ? `Usuario #${log.userId}` : 'Sin usuario autenticado'}</p>
+                  </td>
+                  <td className="whitespace-nowrap">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getAuditActionTone(log.action)}`}>
+                      {getAuditActionLabel(log.action)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap text-sm text-text-primary">
+                    {getAuditModuleLabel(log.module)}
+                  </td>
+                  <td className="max-w-[12rem] truncate text-sm text-text-primary" title={formatEntity(log)}>
+                    {formatEntity(log)}
+                  </td>
+                  <td className="whitespace-nowrap">
+                    {log.ip ? (
+                      <button
+                        type="button"
+                        onClick={() => onFilterIp(log.ip || '')}
+                        className="rounded-lg border border-border-subtle bg-bg-base px-2 py-1 font-mono text-xs text-text-primary transition hover:border-brand-primary hover:text-brand-primary"
+                        title="Filtrar todo lo registrado por esta IP"
+                      >
+                        {log.ip}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-text-secondary">Sin IP</span>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-text-secondary font-mono">
-                  {log.ip || 'N/A'}
-                </td>
-                <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                  <button
-                    onClick={() => onViewDetails(log)}
-                    className="text-brand-primary hover:text-brand-primary/80 font-medium text-xs"
-                  >
-                    Ver detalle
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="text-right">
+                    <button
+                      onClick={() => onViewDetails(log)}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
+                    >
+                      <Eye size={14} />
+                      Ver
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="px-4 py-3 bg-bg-base border-t border-border-subtle flex items-center justify-between">
-          <div className="text-sm text-text-secondary">
-            Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a{' '}
-            {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de{' '}
-            {pagination.totalItems} eventos
-          </div>
+        <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} eventos
+          </span>
           <div className="flex gap-2">
             <button
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="px-3 py-1 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-hover-bg"
+              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Anterior
             </button>
             <button
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages}
-              className="px-3 py-1 text-sm font-medium text-text-secondary bg-bg-surface border border-border-subtle rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-hover-bg"
+              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Siguiente
             </button>
           </div>
         </div>
       )}
-    </div>
+    </DataTableSurface>
   );
 }

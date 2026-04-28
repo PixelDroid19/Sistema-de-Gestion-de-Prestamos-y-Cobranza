@@ -13,7 +13,7 @@ export interface AuditLog {
   entityType: string | null;
   previousData: object | null;
   newData: object | null;
-  metadata: object | null;
+  metadata: Record<string, unknown> | null;
   ip: string | null;
   userAgent: string | null;
   timestamp: string;
@@ -25,6 +25,7 @@ export interface AuditFilters {
   module?: string;
   entityId?: string;
   entityType?: string;
+  ip?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -68,6 +69,7 @@ export const useAuditLogs = (filters: AuditFilters = {}) => {
       if (filters.module) params.append('module', filters.module);
       if (filters.entityId) params.append('entityId', filters.entityId);
       if (filters.entityType) params.append('entityType', filters.entityType);
+      if (filters.ip) params.append('ip', filters.ip);
       if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
       if (filters.page) params.append('page', String(filters.page));

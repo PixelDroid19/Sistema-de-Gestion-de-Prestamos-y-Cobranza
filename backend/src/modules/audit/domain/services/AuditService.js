@@ -106,6 +106,24 @@ const extractUserAgent = (req) => {
 };
 
 /**
+ * Build the HTTP service context shown in the audit console.
+ * @param {object} req - Express request object
+ * @returns {{ method: string|null, path: string|null, service: string|null }}
+ */
+const extractServiceContext = (req) => {
+  if (!req) {
+    return { method: null, path: null, service: null };
+  }
+
+  const method = req.method || null;
+  const path = req.originalUrl || req.baseUrl || req.url || null;
+  const cleanPath = path ? String(path).split('?')[0] : null;
+  const service = method && cleanPath ? `${method} ${cleanPath}` : cleanPath;
+
+  return { method, path: cleanPath, service };
+};
+
+/**
  * Create an audit service singleton for logging and querying audit events.
  * @param {{ auditLogRepository?: object }} [options]
  * @returns {object}
@@ -124,6 +142,11 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
     const userName = actor?.name || actor?.email || null;
     const ip = extractClientIp(resolvedRequest);
     const userAgent = extractUserAgent(resolvedRequest);
+    const serviceContext = extractServiceContext(resolvedRequest);
+    const enrichedMetadata = {
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+      ...(serviceContext.service ? { http: serviceContext } : {}),
+    };
 
     return repository.create({
       userId,
@@ -134,7 +157,7 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
       entityType,
       previousData: previousData || null,
       newData: newData || null,
-      metadata: metadata || null,
+      metadata: Object.keys(enrichedMetadata).length > 0 ? enrichedMetadata : null,
       ip,
       userAgent,
     });
@@ -142,16 +165,17 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
 
   /**
    * Query audit logs with filters.
-   * @param {{ userId?: number, action?: string, module?: string, entityId?: string, entityType?: string, dateFrom?: string, dateTo?: string, limit?: number, offset?: number }} filters
+   * @param {{ userId?: number, action?: string, module?: string, entityId?: string, entityType?: string, ip?: string, dateFrom?: string, dateTo?: string, limit?: number, offset?: number }} filters
    * @returns {Promise<{ items: Array<object>, totalItems: number }>}
    */
-  const query = async ({ userId, action, module, entityId, entityType, dateFrom, dateTo, limit = 100, offset = 0 } = {}) => {
+  const query = async ({ userId, action, module, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 } = {}) => {
     const result = await repository.findWithFilters({
       userId,
       action: action ? normalizeAuditAction(action) : action,
       module: module ? normalizeAuditModule(module) : module,
       entityId,
       entityType,
+      ip,
       dateFrom,
       dateTo,
       limit,
@@ -193,4 +217,5 @@ module.exports = {
   normalizeAuditAction,
   normalizeAuditModule,
   presentAuditModule,
+  extractServiceContext,
 };
