@@ -36,54 +36,54 @@ type LayoutItemType = LayoutType;
 type ResponsiveLayouts = Record<string, LayoutType[]>;
 
 const AVAILABLE_WIDGETS = [
-  { id: 'balance_total', titleKey: 'dashboard.widget.balanceTotal.title' as const, defaultLayout: { w: 2, h: 3, minW: 1, minH: 3 } },
-  { id: 'prestamos_activos', titleKey: 'dashboard.widget.activeLoans.title' as const, defaultLayout: { w: 2, h: 3, minW: 1, minH: 3 } },
-  { id: 'tasa_mora', titleKey: 'dashboard.widget.delinquencyRate.title' as const, defaultLayout: { w: 2, h: 3, minW: 1, minH: 3 } },
-  { id: 'total_recuperado', titleKey: 'dashboard.widget.totalRecovered.title' as const, defaultLayout: { w: 2, h: 3, minW: 1, minH: 3 } },
+  { id: 'balance_total', titleKey: 'dashboard.widget.balanceTotal.title' as const, defaultLayout: { w: 2, h: 2, minW: 1, minH: 2, maxH: 2 } },
+  { id: 'prestamos_activos', titleKey: 'dashboard.widget.activeLoans.title' as const, defaultLayout: { w: 2, h: 2, minW: 1, minH: 2, maxH: 2 } },
+  { id: 'tasa_mora', titleKey: 'dashboard.widget.delinquencyRate.title' as const, defaultLayout: { w: 2, h: 2, minW: 1, minH: 2, maxH: 2 } },
+  { id: 'total_recuperado', titleKey: 'dashboard.widget.totalRecovered.title' as const, defaultLayout: { w: 2, h: 2, minW: 1, minH: 2, maxH: 2 } },
   { id: 'evolucion_desembolsos', titleKey: 'dashboard.widget.disbursementEvolution.title' as const, defaultLayout: { w: 4, h: 8, minW: 2, minH: 7 } },
   { id: 'rendimiento_mora', titleKey: 'dashboard.widget.recoveryPerformance.title' as const, defaultLayout: { w: 4, h: 8, minW: 2, minH: 7 } },
 ];
 
 const defaultLayouts: ResponsiveLayouts = {
   lg: [
-    { i: 'balance_total', x: 0, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'prestamos_activos', x: 2, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'tasa_mora', x: 4, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'total_recuperado', x: 6, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'evolucion_desembolsos', x: 0, y: 3, w: 4, h: 8, minW: 2, minH: 7 },
-    { i: 'rendimiento_mora', x: 4, y: 3, w: 4, h: 8, minW: 2, minH: 7 },
+    { i: 'balance_total', x: 0, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'prestamos_activos', x: 2, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'tasa_mora', x: 4, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'total_recuperado', x: 6, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'evolucion_desembolsos', x: 0, y: 2, w: 4, h: 8, minW: 2, minH: 7 },
+    { i: 'rendimiento_mora', x: 4, y: 2, w: 4, h: 8, minW: 2, minH: 7 },
   ],
   md: [
-    { i: 'balance_total', x: 0, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'prestamos_activos', x: 2, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'tasa_mora', x: 0, y: 3, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'total_recuperado', x: 2, y: 3, w: 2, h: 3, minW: 1, minH: 3 },
-    { i: 'evolucion_desembolsos', x: 0, y: 6, w: 4, h: 8, minW: 2, minH: 7 },
-    { i: 'rendimiento_mora', x: 0, y: 14, w: 4, h: 8, minW: 2, minH: 7 },
+    { i: 'balance_total', x: 0, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'prestamos_activos', x: 2, y: 0, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'tasa_mora', x: 0, y: 2, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'total_recuperado', x: 2, y: 2, w: 2, h: 2, minW: 1, minH: 2, maxH: 2 },
+    { i: 'evolucion_desembolsos', x: 0, y: 4, w: 4, h: 8, minW: 2, minH: 7 },
+    { i: 'rendimiento_mora', x: 0, y: 12, w: 4, h: 8, minW: 2, minH: 7 },
   ],
   sm: [
-    { i: 'balance_total', x: 0, y: 0, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'prestamos_activos', x: 1, y: 0, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'tasa_mora', x: 0, y: 3, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'total_recuperado', x: 1, y: 3, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'evolucion_desembolsos', x: 0, y: 6, w: 2, h: 8, minW: 2, minH: 7, static: true },
-    { i: 'rendimiento_mora', x: 0, y: 14, w: 2, h: 8, minW: 2, minH: 7, static: true },
+    { i: 'balance_total', x: 0, y: 0, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'prestamos_activos', x: 1, y: 0, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'tasa_mora', x: 0, y: 2, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'total_recuperado', x: 1, y: 2, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'evolucion_desembolsos', x: 0, y: 4, w: 2, h: 8, minW: 2, minH: 7, static: true },
+    { i: 'rendimiento_mora', x: 0, y: 12, w: 2, h: 8, minW: 2, minH: 7, static: true },
   ],
   xs: [
-    { i: 'balance_total', x: 0, y: 0, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'prestamos_activos', x: 0, y: 3, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'tasa_mora', x: 0, y: 6, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'total_recuperado', x: 0, y: 9, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'evolucion_desembolsos', x: 0, y: 12, w: 1, h: 8, minW: 1, minH: 7, static: true },
-    { i: 'rendimiento_mora', x: 0, y: 20, w: 1, h: 8, minW: 1, minH: 7, static: true },
+    { i: 'balance_total', x: 0, y: 0, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'prestamos_activos', x: 0, y: 2, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'tasa_mora', x: 0, y: 4, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'total_recuperado', x: 0, y: 6, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'evolucion_desembolsos', x: 0, y: 8, w: 1, h: 8, minW: 1, minH: 7, static: true },
+    { i: 'rendimiento_mora', x: 0, y: 16, w: 1, h: 8, minW: 1, minH: 7, static: true },
   ],
   xxs: [
-    { i: 'balance_total', x: 0, y: 0, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'prestamos_activos', x: 0, y: 3, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'tasa_mora', x: 0, y: 6, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'total_recuperado', x: 0, y: 9, w: 1, h: 3, minW: 1, minH: 3, static: true },
-    { i: 'evolucion_desembolsos', x: 0, y: 12, w: 1, h: 8, minW: 1, minH: 7, static: true },
-    { i: 'rendimiento_mora', x: 0, y: 20, w: 1, h: 8, minW: 1, minH: 7, static: true },
+    { i: 'balance_total', x: 0, y: 0, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'prestamos_activos', x: 0, y: 2, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'tasa_mora', x: 0, y: 4, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'total_recuperado', x: 0, y: 6, w: 1, h: 2, minW: 1, minH: 2, maxH: 2, static: true },
+    { i: 'evolucion_desembolsos', x: 0, y: 8, w: 1, h: 8, minW: 1, minH: 7, static: true },
+    { i: 'rendimiento_mora', x: 0, y: 16, w: 1, h: 8, minW: 1, minH: 7, static: true },
   ],
 };
 
@@ -94,10 +94,11 @@ const normalizeLayoutEntry = (entry: LayoutType, breakpoint: string): LayoutType
   const widgetDef = AVAILABLE_WIDGETS.find((widget) => widget.id === entry.i);
   const fallback = widgetDef?.defaultLayout || { w: 1, h: 3, minW: 1, minH: 3 };
   const columnCount = BREAKPOINT_COLUMNS[breakpoint as keyof typeof BREAKPOINT_COLUMNS] || 1;
-  const minHeight = Math.max(Number(entry.minH || 0), fallback.minH || 3);
+  const isKpiWidget = KPI_WIDGET_IDS.has(entry.i);
+  const minHeight = isKpiWidget ? (fallback.minH || fallback.h) : Math.max(Number(entry.minH || 0), fallback.minH || 3);
   const minWidth = Math.min(columnCount, Math.max(Number(entry.minW || 0), fallback.minW || 1));
   const width = Math.min(columnCount, Math.max(Number(entry.w || 0), fallback.w, minWidth));
-  const height = Math.max(Number(entry.h || 0), fallback.h, minHeight);
+  const height = isKpiWidget ? fallback.h : Math.max(Number(entry.h || 0), fallback.h, minHeight);
 
   return {
     ...entry,
@@ -107,6 +108,7 @@ const normalizeLayoutEntry = (entry: LayoutType, breakpoint: string): LayoutType
     h: height,
     minW: minWidth,
     minH: minHeight,
+    maxH: isKpiWidget ? fallback.h : entry.maxH,
     static: columnCount <= 2 ? true : entry.static,
   };
 };
@@ -145,12 +147,11 @@ export const buildDashboardChartData = (recentLoans: DashboardLoanLike[]) => {
   return recentLoans.slice(0, 6).reverse().map((loan) => {
     const rawName = loan.Customer?.name || loan.customerName || '';
     const customerName = sanitizeCustomerName(rawName);
-    const shortName = customerName && customerName.length > 2
-      ? customerName.split(' ')[0]
-      : `${tTerm('dashboard.chart.customerFallbackPrefix')} #${loan.id}`;
+    const displayCustomerName = customerName || `${tTerm('dashboard.chart.customerFallbackPrefix')} #${loan.id}`;
 
     return {
-      name: shortName,
+      name: `Crédito #${loan.id}`,
+      customerName: displayCustomerName,
       disbursed: Number(loan.amount || 0),
       recovered: Number(loan.totalPaid || 0),
     };
@@ -373,7 +374,13 @@ export default function Dashboard() {
                     </defs>
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} dy={5} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
-                    <Tooltip formatter={(value) => value != null ? formatCurrency(Number(value)) : ''} />
+                    <Tooltip
+                      formatter={(value) => value != null ? formatCurrency(Number(value)) : ''}
+                      labelFormatter={(label, payload) => {
+                        const customerName = payload?.[0]?.payload?.customerName;
+                        return customerName ? `${label} · ${customerName}` : label;
+                      }}
+                    />
                     <Area
                       type="monotone"
                       name={tTerm('dashboard.chart.disbursementRecovery.legend.disbursed')}
@@ -429,7 +436,13 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
-                  <Tooltip formatter={(value) => value != null ? formatCurrency(Number(value)) : ''} />
+                  <Tooltip
+                    formatter={(value) => value != null ? formatCurrency(Number(value)) : ''}
+                    labelFormatter={(label, payload) => {
+                      const customerName = payload?.[0]?.payload?.customerName;
+                      return customerName ? `${label} · ${customerName}` : label;
+                    }}
+                  />
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.recovered')} dataKey="recovered" fill="#10b981" radius={[6, 6, 0, 0]} />
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.disbursed')} dataKey="disbursed" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>
@@ -530,7 +543,7 @@ export default function Dashboard() {
             return (
               <div
                 key={id}
-                className={isMetricWidget ? 'min-h-[164px]' : 'dashboard-widget min-h-[360px]'}
+                className={isMetricWidget ? 'min-h-[112px]' : 'dashboard-widget min-h-[360px]'}
               >
                 <div className={isMetricWidget ? 'h-full' : 'dashboard-widget-content'}>
                   {renderWidgetContent(id)}

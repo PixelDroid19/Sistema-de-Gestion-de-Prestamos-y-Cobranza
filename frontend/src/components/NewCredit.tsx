@@ -226,7 +226,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10"
+      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10"
       data-tour="new-credit-page"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -278,7 +278,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:p-6"
         data-tour="new-credit-customer"
       >
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.95fr)] xl:items-start">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <User size={18} className="text-brand-primary" />
@@ -295,7 +295,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             )}
           </div>
 
-            <div className="grid flex-1 gap-4 md:grid-cols-2 xl:max-w-4xl" data-tour="new-credit-associate">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2" data-tour="new-credit-associate">
               <div>
               <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
                 Cliente

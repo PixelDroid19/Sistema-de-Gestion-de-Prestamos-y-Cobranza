@@ -335,7 +335,7 @@ export default function CreditSimulationWorkspace({
           </dl>
         </div>
 
-        <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]">
           <div className="space-y-5">
             <section className="space-y-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
