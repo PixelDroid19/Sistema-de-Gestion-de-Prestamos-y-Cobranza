@@ -112,13 +112,13 @@ export default function CreditDetails() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'active':
-        return { label: 'Activo', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' };
+        return { label: 'Activo', className: 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-100 dark:border-blue-500/30' };
       case 'approved':
         return { label: 'Aprobado', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
       case 'overdue':
         return { label: 'Vencido', className: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' };
       case 'paid':
-        return { label: 'Pagado', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' };
+        return { label: 'Pagado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'completed':
       case 'closed':
         return { label: 'Completado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
@@ -520,10 +520,10 @@ export default function CreditDetails() {
         });
       },
       onSuccess: async () => {
-        await invalidateAfterPayment(queryClient, { loanId });
         operationalModal.closeModal();
         setPaymentAmount('');
         setSelectedInstallmentNumber(null);
+        await invalidateAfterPayment(queryClient, { loanId });
       },
       successMessage: 'Pago registrado exitosamente',
     });
@@ -613,10 +613,10 @@ export default function CreditDetails() {
         });
       },
       onSuccess: async () => {
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
         operationalModal.closeModal();
         setPromiseAmount('');
         setPromiseNotes('');
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
       },
       successMessage: 'Promesa registrada correctamente',
     });
@@ -651,9 +651,9 @@ export default function CreditDetails() {
         });
       },
       onSuccess: async () => {
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
         operationalModal.closeModal();
         setFollowUpNotes('');
+        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
       },
       successMessage: 'Seguimiento registrado correctamente',
     });
@@ -864,7 +864,7 @@ export default function CreditDetails() {
       case 'paid':
         return {
           label: 'Pagada',
-          className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
+          className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
         };
       case 'overdue':
         return {
@@ -923,7 +923,7 @@ export default function CreditDetails() {
           <button
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
             aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
@@ -994,7 +994,7 @@ export default function CreditDetails() {
   }) => {
     const toneClassName = {
       default: 'text-text-primary',
-      success: 'text-emerald-700 dark:text-emerald-300',
+      success: 'text-text-primary',
       warning: 'text-amber-700 dark:text-amber-300',
       danger: 'text-rose-700 dark:text-rose-300',
       brand: 'text-brand-primary',
@@ -1002,7 +1002,7 @@ export default function CreditDetails() {
 
     const railClassName = {
       default: 'bg-slate-300 dark:bg-slate-600',
-      success: 'bg-emerald-500',
+      success: 'bg-slate-400 dark:bg-slate-500',
       warning: 'bg-amber-500',
       danger: 'bg-rose-500',
       brand: 'bg-brand-primary',
@@ -1165,7 +1165,7 @@ export default function CreditDetails() {
           <SummaryMetricItem
             icon={CheckCircle}
             label="Capital Pagado"
-            tone="success"
+            tone="brand"
             value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</span>}
           />
           <SummaryMetricItem

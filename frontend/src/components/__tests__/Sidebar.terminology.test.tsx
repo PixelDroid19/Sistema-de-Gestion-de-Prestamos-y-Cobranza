@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import Sidebar from '../Sidebar';
 
-const mockLogout = vi.fn();
+const mockClearSession = vi.fn();
+const mockRequestLogout = vi.fn(() => Promise.resolve());
+const mockNavigate = vi.fn();
 type SidebarTestUser = {
   id: number;
   name: string;
@@ -20,23 +22,24 @@ let currentUser: SidebarTestUser = {
 
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => ({
-    logout: mockLogout,
+    logout: mockClearSession,
     user: currentUser,
   }),
 }));
 
 vi.mock('../../services/authService', () => ({
   useAuth: () => ({
-    logout: mockLogout,
+    logout: mockRequestLogout,
   }),
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
 describe('Sidebar canonical terminology parity', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     currentUser = {
       id: 1,
       name: 'Administrador QA',
@@ -118,5 +121,29 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.queryByRole('button', { name: 'Cálculo de Crédito' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nuevo crédito' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reportes' })).not.toBeInTheDocument();
+  });
+
+  it('clears the local session and redirects immediately on logout', async () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    render(
+      <Sidebar
+        currentView="dashboard"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+
+    expect(mockRequestLogout).toHaveBeenCalledTimes(1);
+    expect(mockClearSession).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
+    expect(setIsMobileOpen).toHaveBeenCalledWith(false);
   });
 });

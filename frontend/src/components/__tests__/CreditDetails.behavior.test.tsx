@@ -236,6 +236,10 @@ describe('CreditDetails behavioral parity scenarios', () => {
     await waitFor(() => {
       expect(mockInvalidateAfterPayment).toHaveBeenCalledWith(expect.anything(), { loanId: 101 });
     });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Cotización cuota #1')).not.toBeInTheDocument();
+    });
   });
 
   it('keeps row installment actions working when the calendar installment number is serialized as text', async () => {

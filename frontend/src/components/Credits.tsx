@@ -36,6 +36,7 @@ import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { startCreditsTour } from '../lib/creditGuidedTours';
+import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 
 const locales = {
   'es': es,
@@ -551,7 +552,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       label: 'Cobros accionables',
       value: String(calendarOverview.summary.actionableCount),
       helper: calendarOverview.summary.actionableCount === 1 ? '1 crédito listo para gestión' : `${calendarOverview.summary.actionableCount} créditos listos para gestión`,
-      tone: 'border-emerald-200 bg-emerald-50/70',
+      tone: 'border-sky-200 bg-sky-50/70',
       icon: DollarSign,
     },
     {
@@ -580,16 +581,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   ];
 
   return (
-    <div className="flex h-full flex-col gap-6" data-tour="credits-page">
-      <section className="shrink-0 border-b border-border-subtle pb-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-text-primary" data-tour="credits-page-title">
-              {tTerm('credits.module.title')}
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">{tTerm('credits.module.subtitle')}</p>
-          </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
+    <PageShell data-tour="credits-page" className="h-full">
+      <PageHeader
+        title={<span data-tour="credits-page-title">{tTerm('credits.module.title')}</span>}
+        subtitle={tTerm('credits.module.subtitle')}
+        actions={(
+          <>
           <button
             type="button"
             onClick={() => startCreditsTour()}
@@ -602,7 +599,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               onClick={handleExportCreditsExcel}
               disabled={isExporting}
               data-tour="credits-export"
-              className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
             >
               <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
             </button>
@@ -625,9 +622,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <Plus size={16} /> {tTerm('credits.cta.new')}
             </button>
           )}
-          </div>
-        </div>
-      </section>
+          </>
+        )}
+      />
 
       {/* Tabs */}
       <div className="border-b border-border-subtle" data-tour="credits-tabs">
@@ -675,42 +672,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {/* Statistics Widget */}
           {statisticsData?.data?.statistics && (
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                    <DollarSign size={14} className="text-blue-600" /> Total préstamos
-                  </div>
-                  <div className="text-2xl font-bold text-text-primary">
-                    {formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                    <TrendingUp size={14} className="text-emerald-600" /> Cobrado
-                  </div>
-                  <div className="text-2xl font-bold text-text-primary">
-                    {formatCurrency(statisticsData.data.statistics.amounts.totalCollected)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                    <AlertTriangle size={14} className="text-amber-600" /> Mora
-                  </div>
-                  <div className="text-2xl font-bold text-text-primary">
-                    {formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border-subtle border-l-4 border-l-teal-600 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-                  <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                    <Users size={14} className="text-brand-primary" /> Créditos activos
-                  </div>
-                  <div className="text-2xl font-bold text-text-primary">
-                    {statisticsData.data.statistics.counts.activeCredits} / {statisticsData.data.statistics.counts.totalCredits}
-                  </div>
-                </div>
+                <MetricCard label="Total préstamos" value={formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)} icon={<DollarSign size={18} />} accent="blue" />
+                <MetricCard label="Cobrado" value={formatCurrency(statisticsData.data.statistics.amounts.totalCollected)} icon={<TrendingUp size={18} />} accent="slate" />
+                <MetricCard label="Mora" value={formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)} icon={<AlertTriangle size={18} />} accent="amber" />
+                <MetricCard label="Créditos activos" value={`${statisticsData.data.statistics.counts.activeCredits} / ${statisticsData.data.statistics.counts.totalCredits}`} icon={<Users size={18} />} accent="blue" />
             </section>
           )}
 
-          <div className="flex flex-col gap-3 rounded-xl border border-border-subtle bg-white p-3 shadow-sm dark:bg-bg-surface lg:flex-row lg:items-center lg:justify-between">
+          <ToolbarSurface>
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative w-full sm:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
@@ -740,7 +709,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <div className="text-sm font-medium text-text-secondary">
               Total: {pagination?.totalItems ?? creditsList.length} créditos
             </div>
-          </div>
+          </ToolbarSurface>
 
           {selectedCreditIds.length > 0 && (
             <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
@@ -909,9 +878,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface md:block">
+          <DataTableSurface className="hidden md:block">
             <table data-tour="credits-list-table" className="min-w-[760px] w-full text-left text-sm 2xl:min-w-[1100px]">
-              <thead className="border-b border-border-subtle bg-slate-50 text-xs uppercase tracking-wide text-text-secondary dark:bg-bg-base">
+              <thead className="border-b border-border-subtle text-xs uppercase tracking-wide text-text-secondary">
                 <tr>
                   <th className="w-10 px-3 py-3 font-semibold">
                     <input
@@ -1055,7 +1024,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                                     <button
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!paymentGuard.executable}
-                                      className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                       title={getActionTitle(paymentGuard, 'installment.pay')}
                                     >
                                       <DollarSign size={16} />
@@ -1102,7 +1071,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 )}
               </tbody>
             </table>
-          </div>
+          </DataTableSurface>
 
           {/* Pagination Controls */}
           {loansData && (
@@ -1158,7 +1127,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                  <div className="h-3 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
                   Pagadas
                 </div>
                 <div className="flex items-center gap-2">
@@ -1347,7 +1316,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 <div className="p-5 flex-1 overflow-y-auto">
                   <div className="flex items-center gap-3 mb-6">
                     <div className={`p-3 rounded-full ${
-                      selectedEvent.type === 'paid' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                      selectedEvent.type === 'paid' ? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300' :
                       selectedEvent.type === 'overdue' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' :
                       'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'
                     }`}>
@@ -1437,6 +1406,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         </div>
       )}
 
-    </div>
+    </PageShell>
   );
 }

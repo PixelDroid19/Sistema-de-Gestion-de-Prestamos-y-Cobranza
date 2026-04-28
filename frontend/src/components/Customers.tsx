@@ -6,6 +6,7 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
+import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const { page, pageSize, setPage, setPageSize } = usePaginationStore();
@@ -111,22 +112,22 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">{tTerm('customers.module.title')}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tTerm('customers.module.subtitle')}</p>
-        </div>
+    <PageShell className="h-full">
+      <PageHeader
+        title={tTerm('customers.module.title')}
+        subtitle={tTerm('customers.module.subtitle')}
+        actions={(
         <button 
           onClick={() => setCurrentView && setCurrentView('customers-new')}
           className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
         >
           <Plus size={16} /> {tTerm('customers.cta.new')}
         </button>
-      </div>
+        )}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface sm:flex-row sm:items-center">
+        <ToolbarSurface>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
@@ -166,7 +167,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
               </select>
             </div>
           </div>
-        </div>
+        </ToolbarSurface>
 
         <TableShell
           isLoading={isLoading}
@@ -196,6 +197,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
               setPage(1);
             },
           }}
+          className="data-table-surface"
         >
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
@@ -218,9 +220,9 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     </td>
                     <td className="py-4 text-text-secondary">{customer.email}</td>
                     <td className="py-4">
-                      <span className={`px-2 py-1 rounded text-xs ${
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                         customer.status === 'active'
-                          ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
                           : customer.status === 'blacklisted'
                             ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
                             : 'bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-300'
@@ -231,24 +233,24 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     <td className="py-4 text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
                     <td className="py-4">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Ver detalles"><Eye size={16} /></button>
+                        <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" title="Ver detalles"><Eye size={16} /></button>
                         <button
                           onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
-                          className="p-1.5 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                           title="Editar"
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleToggleStatus(customer)}
-                          className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" 
+                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" 
                           title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
                         >
                           <RotateCcw size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(customer)}
-                          className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-red-600 dark:hover:text-red-400"
                           title="Eliminar"
                         >
                           <Trash2 size={16} />
@@ -261,6 +263,6 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             </table>
         </TableShell>
       </div>
-    </div>
+    </PageShell>
   );
 }
