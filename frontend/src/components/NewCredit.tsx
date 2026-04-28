@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Loader2, Save, User, CircleHelp } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, CircleHelp, Loader2, Save, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
@@ -130,7 +130,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && hasValidatedResult && !isSubmitting && !isSimulating;
-
   const handleBorrowerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = event.target;
     setBorrower((current) => ({ ...current, [name]: value }));
@@ -226,7 +225,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10"
+      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-32"
       data-tour="new-credit-page"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -251,25 +250,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <button
             type="button"
             onClick={() => startNewCreditTour()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition hover:bg-hover-bg"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98]"
           >
             <CircleHelp size={16} /> Guía rápida
           </button>
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center justify-center rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition hover:bg-hover-bg"
+            className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98]"
           >
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={!canRegister}
-            data-tour="new-credit-submit"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
-          >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Registrar crédito
           </button>
         </div>
       </div>
@@ -287,6 +277,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
               Esta selección define a quién se le crea el crédito. La simulación no registra nada hasta usar “Registrar crédito”.
             </p>
+            <div className="mt-4 grid gap-3 text-sm text-text-secondary sm:grid-cols-2">
+              <div className="border-l border-border-subtle pl-3">
+                <span className="block font-semibold text-text-primary">Cliente</span>
+                Recibe el crédito y será dueño del plan de pagos.
+              </div>
+              <div className="border-l border-border-subtle pl-3">
+                <span className="block font-semibold text-text-primary">Socio asignado</span>
+                Es opcional; solo deja trazabilidad interna y no cambia la cuota.
+              </div>
+            </div>
             {routeState?.source === 'credit-calculator' && (
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800">
                 <CheckCircle2 size={14} />
@@ -303,6 +303,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               <select
                 id="customerId"
                 name="customerId"
+                data-tour="new-credit-customer-select"
                 value={borrower.customerId}
                 onChange={handleBorrowerChange}
                 className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 ${borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-brand-primary'}`}
@@ -321,14 +322,34 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             </div>
 
             <div>
-              <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
-                Socio asignado
-              </label>
+              <div className="flex items-center gap-2">
+                <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
+                  Socio asignado
+                </label>
+                <span className="field-hint relative inline-flex">
+                  <button
+                    type="button"
+                    aria-label="Qué significa socio asignado"
+                    aria-describedby="associate-help-tooltip"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                  >
+                    <CircleHelp size={12} aria-hidden="true" />
+                  </button>
+                  <span
+                    id="associate-help-tooltip"
+                    role="tooltip"
+                    className="field-hint-tooltip pointer-events-none absolute right-0 top-full z-30 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-xs font-normal leading-5 text-text-secondary shadow-lg"
+                  >
+                    Es opcional. Permite asociar el crédito a un socio para trazabilidad operativa o participación interna. Si el crédito no pertenece a un socio, déjalo en “Sin socio asignado”.
+                  </span>
+                </span>
+              </div>
               <select
                 id="associateId"
                 name="associateId"
                 value={borrower.associateId}
                 onChange={handleBorrowerChange}
+                aria-describedby="associate-help"
                 className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 focus:ring-brand-primary"
               >
                 <option value="">Sin socio asignado</option>
@@ -338,6 +359,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   </option>
                 ))}
               </select>
+              <p id="associate-help" className="mt-2 text-xs leading-5 text-text-secondary">
+                No modifica tasa, mora ni cronograma; solo deja trazabilidad del socio relacionado.
+              </p>
             </div>
           </div>
         </div>
@@ -377,7 +401,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         description="Ajusta capital, tasa, plazo y fecha. La validación usa la fórmula activa; al registrar, el crédito queda guardado con esa versión exacta."
         modeLabel="Creación real"
         actionLabel="Validar crédito"
-        simulateButtonDataTour="new-credit-validate"
         input={input}
         result={result}
         isSimulating={isSimulating}
@@ -388,6 +411,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         onInputChange={handleSimulationInputChange}
         onReset={resetSimulation}
         showScenarioTools={false}
+        hideHeaderActions
         helperText="La validación no crea el crédito. Revisa la cuota, el total a pagar y el cronograma antes de registrar."
         resultBadge={result?.graphVersionId != null ? `Fórmula v${result.graphVersionId}` : null}
         validationStatus={result ? {
@@ -400,6 +424,44 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
       />
       </section>
+
+      <div
+        className="fixed bottom-4 right-4 z-30 w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88 xl:right-8"
+        data-tour="new-credit-action-dock"
+      >
+        <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={resetSimulation}
+              disabled={isSimulating}
+              aria-label="Restablecer parámetros"
+              className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Restablecer
+            </button>
+            <button
+              type="button"
+              data-tour="new-credit-validate"
+              onClick={simulate}
+              disabled={isSimulating}
+              aria-label="Validar crédito"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+              <span>Validar</span>
+            </button>
+            <button
+              type="submit"
+              disabled={!canRegister}
+              data-tour="new-credit-submit"
+              aria-label="Registrar crédito"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primary/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
+            >
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              <span>Registrar</span>
+            </button>
+        </div>
+      </div>
     </form>
   );
 }

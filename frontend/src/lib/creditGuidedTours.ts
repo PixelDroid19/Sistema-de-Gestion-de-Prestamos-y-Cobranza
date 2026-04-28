@@ -4,6 +4,13 @@ type TourContext = {
   loanId?: number | string;
 };
 
+type RawTourStep = {
+  selector: string;
+  title: string;
+  description: string;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+};
+
 const isBrowserAvailable = () => typeof document !== 'undefined';
 
 const hasElement = (selector: string): boolean => {
@@ -18,20 +25,20 @@ const hasElement = (selector: string): boolean => {
   }
 };
 
-const resolveTourStep = (raw: { selector: string; title: string; description: string }): DriveStep | null => {
+const resolveTourStep = (raw: RawTourStep): DriveStep | null => {
   return hasElement(raw.selector)
     ? {
       element: raw.selector,
       popover: {
         title: raw.title,
         description: raw.description,
-        side: 'bottom',
+        side: raw.side || 'bottom',
       },
     }
     : null;
 };
 
-const runTour = (rawSteps: Array<{ selector: string; title: string; description: string }>) => {
+const runTour = (rawSteps: RawTourStep[]) => {
   if (!isBrowserAvailable() || rawSteps.length === 0) {
     return;
   }
@@ -53,6 +60,9 @@ const runTour = (rawSteps: Array<{ selector: string; title: string; description:
     smoothScroll: true,
     stagePadding: 5,
     popoverOffset: 12,
+    nextBtnText: 'Siguiente',
+    prevBtnText: 'Anterior',
+    doneBtnText: 'Terminar',
     steps,
   });
 
@@ -121,42 +131,56 @@ export const startNewCreditTour = () => {
     {
       selector: '[data-tour="new-credit-page"]',
       title: 'Nuevo crédito',
-      description: 'Este flujo crea un crédito real con la fórmula activa del sistema.',
+      description: 'Este flujo registra un crédito real. Primero eliges cliente, luego validas el cálculo y al final guardas el crédito con la versión de fórmula vigente.',
     },
     {
       selector: '[data-tour="new-credit-header"]',
-      title: 'Información inicial',
-      description: 'Confirma cliente y responsable antes de validar la simulación.',
+      title: 'Qué estás creando',
+      description: 'Esta pantalla no es un simulador aislado: lo que registres aquí entra a la cartera real y conserva la fórmula usada al momento de crear el crédito.',
     },
     {
-      selector: '[data-tour="new-credit-customer"]',
-      title: 'Seleccionar cliente',
-      description: 'Asigna el crédito al cliente y opcionalmente a un socio.',
+      selector: '[data-tour="new-credit-customer-select"]',
+      title: 'Cliente del crédito',
+      description: 'Selecciona la persona que recibirá el préstamo. Sin cliente no se puede registrar porque el plan de pagos debe quedar asociado a un titular.',
+      side: 'bottom',
     },
     {
       selector: '[data-tour="new-credit-associate"]',
-      title: 'Socio responsable',
-      description: 'Define quién participa en el crédito si aplica.',
+      title: 'Socio asignado',
+      description: 'Es opcional. Úsalo si un socio participa o debe quedar relacionado para seguimiento interno. No cambia la cuota, la tasa, la mora ni el cronograma.',
     },
     {
       selector: '[data-tour="new-credit-policy-summary"]',
-      title: 'Resumen de política',
-      description: 'Estas tasas y mora salen de configuración y sirven para validar resultados.',
+      title: 'Políticas aplicadas',
+      description: 'Aquí ves la tasa sugerida y la política de mora tomada de Configuración. Puedes ajustar parámetros, pero la validación mostrará el impacto antes de registrar.',
+    },
+    {
+      selector: '[data-tour="new-credit-late-fee-mode"]',
+      title: 'Modo de mora',
+      description: 'Define qué pasa si una cuota se vence: sin mora, interés simple, compuesto, cargo fijo o tramos. Lee cada opción y usa solo la política aprobada para el producto.',
     },
     {
       selector: '[data-tour="new-credit-simulation"]',
-      title: 'Simulación y cronograma',
-      description: 'Ajusta capital, tasa y plazo para revisar cuota, mora y total.',
+      title: 'Parámetros y cronograma',
+      description: 'Ajusta monto, tasa, plazo y fecha. Después de validar, revisa cuota, total a pagar, intereses y tabla de amortización antes de registrar.',
+    },
+    {
+      selector: '[data-tour="new-credit-action-dock"]',
+      title: 'Acciones siempre visibles',
+      description: 'Esta barra evita subir y bajar en la pantalla. Desde aquí puedes restablecer datos, validar de nuevo o registrar cuando el sistema indique que está listo.',
+      side: 'top',
     },
     {
       selector: '[data-tour="new-credit-validate"]',
-      title: 'Validar crédito',
-      description: 'La validación confirma el cálculo con la fórmula activa.',
+      title: 'Validar antes de guardar',
+      description: 'Validar no crea el crédito. Solo ejecuta el cálculo real para que confirmes cuota, intereses y cronograma con la fórmula activa.',
+      side: 'top',
     },
     {
       selector: '[data-tour="new-credit-submit"]',
-      title: 'Registrar',
-      description: 'Al registrar, se guarda el crédito con la fórmula y versión activa.',
+      title: 'Registrar crédito',
+      description: 'Este botón se habilita cuando hay cliente y cálculo validado. Al registrar, el crédito queda en cartera y conserva la versión exacta de fórmula usada.',
+      side: 'top',
     },
   ]);
 };

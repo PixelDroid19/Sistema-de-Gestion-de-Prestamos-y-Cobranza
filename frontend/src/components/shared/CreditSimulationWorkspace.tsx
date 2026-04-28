@@ -49,6 +49,7 @@ type CreditSimulationWorkspaceProps = {
   } | null;
   actionLabel?: string;
   simulateButtonDataTour?: string;
+  hideHeaderActions?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
 };
@@ -64,6 +65,14 @@ const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMod
 const formatLateFeeModeLabel = (value?: SimulationInput['lateFeeMode']) => {
   const selectedOption = lateFeeModeOptions.find((option) => option.value === (value || 'SIMPLE'));
   return selectedOption?.label || 'Interés simple';
+};
+
+const lateFeeModeDescriptions: Record<NonNullable<SimulationInput['lateFeeMode']>, string> = {
+  NONE: 'No calcula recargo por atraso. Úsalo solo si la política del producto no cobra mora.',
+  SIMPLE: 'Cobra mora sobre el valor vencido, sin acumular mora sobre mora. Es el modo más fácil de explicar al cliente.',
+  COMPOUND: 'Acumula mora sobre saldos vencidos con capitalización. Úsalo solo si la política aprobada lo permite.',
+  FLAT: 'Aplica un cargo fijo por atraso. Es útil para productos con recargo administrativo definido.',
+  TIERED: 'Aplica tramos según días vencidos o severidad. Sirve para políticas escalonadas de cobranza.',
 };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
@@ -109,7 +118,7 @@ const fieldHelp = {
   rate: 'Porcentaje anual usado para construir la cuota mensual equivalente.',
   term: 'Número total de cuotas mensuales del cronograma.',
   startDate: 'Opcional. Si no se define, el servidor usa la fecha actual.',
-  lateFee: 'Política usada para estimar mora futura.',
+  lateFee: 'Define cómo se calcula el recargo cuando una cuota se vence. Este valor queda guardado con el crédito.',
   scenarios: 'Guarda resultados para comparar cuota e interés sin registrar un crédito.',
 };
 
@@ -156,6 +165,7 @@ export default function CreditSimulationWorkspace({
   validationStatus,
   actionLabel = tTerm('dag.actions.simulate'),
   simulateButtonDataTour,
+  hideHeaderActions = false,
   emptyTitle = 'Sin resultados todavía',
   emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
 }: CreditSimulationWorkspaceProps) {
@@ -279,18 +289,19 @@ export default function CreditSimulationWorkspace({
               </div>
             </div>
 
-            <div className="flex flex-col items-stretch gap-3 lg:min-w-[260px]">
-              <button
-                type="button"
-                data-tour={simulateButtonDataTour}
-                onClick={onSimulate}
-                disabled={disabled || isSimulating}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-3 text-sm font-semibold text-bg-base shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-                {actionLabel}
-              </button>
-              {onReset && (
+            {!hideHeaderActions && (
+              <div className="flex flex-col items-stretch gap-3 lg:min-w-[260px]">
+                <button
+                  type="button"
+                  data-tour={simulateButtonDataTour}
+                  onClick={onSimulate}
+                  disabled={disabled || isSimulating}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-3 text-sm font-semibold text-bg-base shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+                  {actionLabel}
+                </button>
+                {onReset && (
                 <button
                   type="button"
                   onClick={onReset}
@@ -299,8 +310,9 @@ export default function CreditSimulationWorkspace({
                 >
                   Restablecer parámetros
                 </button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
@@ -454,24 +466,40 @@ export default function CreditSimulationWorkspace({
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
+                      <span id={lateFeeInputId} className="text-sm font-medium text-text-primary">
                         Modo de mora
-                      </label>
+                      </span>
                       <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
                     </div>
-                    <select
-                      id={lateFeeInputId}
-                      value={input.lateFeeMode || 'SIMPLE'}
-                      onChange={handleFieldChange('lateFeeMode')}
-                      disabled={disabled}
-                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                       {lateFeeModeOptions.map((option) => (
-                         <option key={option.value} value={option.value}>
-                           {option.label}
-                         </option>
-                       ))}
-                    </select>
+                    <div className="mt-2 grid gap-2" role="radiogroup" aria-labelledby={lateFeeInputId} data-tour="new-credit-late-fee-mode">
+                      {lateFeeModeOptions.map((option) => {
+                        const isSelected = (input.lateFeeMode || 'SIMPLE') === option.value;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            disabled={disabled}
+                            onClick={() => onInputChange({ lateFeeMode: option.value })}
+                            className={`rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isSelected
+                                ? 'border-brand-primary bg-brand-primary/8 text-text-primary shadow-sm'
+                                : 'border-border-subtle bg-bg-base text-text-primary hover:border-border-strong hover:bg-hover-bg'
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-semibold">{option.label}</span>
+                              {isSelected && <Check size={15} className="shrink-0 text-brand-primary" aria-hidden="true" />}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                              {lateFeeModeDescriptions[option.value]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
