@@ -52,7 +52,7 @@ export function PageShell({ children, className = '', ...rest }: PageShellProps)
 export function PageHeader({ title, subtitle, eyebrow, actions, className = '' }: PageHeaderProps) {
   return (
     <section className={`app-page-header ${className}`}>
-      <div className="min-w-0">
+      <div className="app-page-header-copy">
         {eyebrow && (
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-primary">
             {eyebrow}
@@ -68,7 +68,7 @@ export function PageHeader({ title, subtitle, eyebrow, actions, className = '' }
         )}
       </div>
       {actions && (
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="app-page-actions">
           {actions}
         </div>
       )}

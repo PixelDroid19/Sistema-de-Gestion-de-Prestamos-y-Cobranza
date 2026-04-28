@@ -91,11 +91,41 @@ body {
     padding-bottom: 1.25rem;
   }
 
-  @media (min-width: 1024px) {
+  .app-page-header-copy {
+    min-width: 0;
+    max-width: 44rem;
+  }
+
+  .app-page-actions {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .app-page-actions > * {
+    min-height: 2.375rem;
+    white-space: nowrap;
+  }
+
+  @media (min-width: 1536px) {
     .app-page-header {
       flex-direction: row;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: space-between;
+      gap: 2rem;
+    }
+
+    .app-page-header-copy {
+      flex: 1 1 22rem;
+    }
+
+    .app-page-actions {
+      width: min(100%, 43rem);
+      flex: 0 1 43rem;
+      justify-content: flex-end;
     }
   }
 
