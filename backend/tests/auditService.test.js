@@ -55,6 +55,33 @@ test('AuditService.log extracts IP from request headers', async () => {
   assert.ok(callData.userAgent === null || typeof callData.userAgent === 'string');
 });
 
+test('AuditService.log stores HTTP service metadata when request context is available', async () => {
+  const mockRepository = {
+    create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),
+  };
+
+  const auditService = createAuditService({ auditLogRepository: mockRepository });
+
+  await auditService.log({
+    actor: { id: 1, name: 'Test User' },
+    action: 'EXPORT',
+    module: 'reports',
+    metadata: { report: 'credits' },
+    req: {
+      method: 'GET',
+      originalUrl: '/api/reports/credits/excel?startDate=2026-04-01',
+      headers: { 'user-agent': 'test-agent' },
+      socket: { remoteAddress: '127.0.0.1' },
+    },
+  });
+
+  const callData = mockRepository.create.mock.calls[0].arguments[0];
+  assert.equal(callData.metadata.report, 'credits');
+  assert.equal(callData.metadata.http.method, 'GET');
+  assert.equal(callData.metadata.http.path, '/api/reports/credits/excel');
+  assert.equal(callData.metadata.http.service, 'GET /api/reports/credits/excel');
+});
+
 test('AuditService.log falls back to request context when req is omitted', async () => {
   const mockRepository = {
     create: mock.fn((data) => Promise.resolve({ id: 1, ...data })),
@@ -117,6 +144,7 @@ test('AuditService.query passes filters to repository', async () => {
     userId: 1,
     action: 'CREATE',
     module: 'customers',
+    ip: '203.0.113',
     dateFrom: '2024-01-01',
     dateTo: '2024-12-31',
     limit: 50,
@@ -131,6 +159,7 @@ test('AuditService.query passes filters to repository', async () => {
   assert.equal(callArgs.userId, 1);
   assert.equal(callArgs.action, 'CREATE');
   assert.equal(callArgs.module, 'CLIENTES');
+  assert.equal(callArgs.ip, '203.0.113');
 });
 
 test('AuditService.query uses default pagination values', async () => {

@@ -42,7 +42,7 @@ const auditLogRepository = {
     return AuditLog.count({ where });
   },
 
-  async findWithFilters({ userId, action, module, entityId, entityType, dateFrom, dateTo, limit = 100, offset = 0 }) {
+  async findWithFilters({ userId, action, module, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 }) {
     const { Op } = require('@/models').sequelize.Sequelize;
     const where = {};
 
@@ -64,6 +64,10 @@ const auditLogRepository = {
 
     if (entityType) {
       where.entityType = entityType;
+    }
+
+    if (ip) {
+      where.ip = { [Op.like]: `%${String(ip).trim()}%` };
     }
 
     if (dateFrom || dateTo) {

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileSpreadsheet, Loader2, Wallet } from 'lucide-react';
 import { usePaymentSchedule, exportCreditsExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
+import { MetricCard } from './shared/Surfaces';
 
 /**
  * PaymentSchedule component displays a detailed amortization table for a specific loan.
@@ -141,48 +142,21 @@ export default function PaymentSchedule() {
       {/* Loan Summary */}
       {loan && (
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Monto del Préstamo</p>
-            <p className="text-lg font-bold text-text-primary">{formatCurrency(loan.amount)}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa de Interés</p>
-            <p className="text-lg font-bold text-text-primary">{loan.interestRate}%</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Plazo</p>
-            <p className="text-lg font-bold text-text-primary">{loan.termMonths} meses</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Estado</p>
-            <p className="text-lg font-bold text-text-primary capitalize">{loan.status}</p>
-          </div>
+          <MetricCard label="Monto del préstamo" value={formatCurrency(loan.amount)} icon={<DollarSign size={18} />} accent="blue" />
+          <MetricCard label="Tasa de interés" value={`${loan.interestRate}%`} icon={<TrendingUp size={18} />} accent="amber" />
+          <MetricCard label="Plazo" value={`${loan.termMonths} meses`} icon={<Calendar size={18} />} accent="emerald" />
+          <MetricCard label="Estado" value={<span className="capitalize">{loan.status}</span>} icon={<BarChart3 size={18} />} accent="slate" />
         </section>
       )}
 
       {/* Summary Stats */}
       {summary && (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Total Capital</p>
-            <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(parseFloat(summary.totalPrincipal))}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Total Intereses</p>
-            <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{formatCurrency(parseFloat(summary.totalInterest))}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Total a Pagar</p>
-            <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(parseFloat(summary.totalPayment))}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-purple-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-purple-600 dark:text-purple-400">Cuotas Pagadas</p>
-            <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{summary.paidInstallments}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-slate-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600 dark:text-gray-400">Cuotas Pendientes</p>
-            <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{summary.pendingInstallments}</p>
-          </div>
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-5">
+          <MetricCard label="Total capital" value={formatCurrency(parseFloat(summary.totalPrincipal))} icon={<DollarSign size={18} />} accent="blue" />
+          <MetricCard label="Total intereses" value={formatCurrency(parseFloat(summary.totalInterest))} icon={<TrendingUp size={18} />} accent="amber" />
+          <MetricCard label="Total a pagar" value={formatCurrency(parseFloat(summary.totalPayment))} icon={<Wallet size={18} />} accent="emerald" />
+          <MetricCard label="Cuotas pagadas" value={summary.paidInstallments} icon={<Calendar size={18} />} accent="slate" />
+          <MetricCard label="Cuotas pendientes" value={summary.pendingInstallments} icon={<Calendar size={18} />} accent="rose" />
         </section>
       )}
 

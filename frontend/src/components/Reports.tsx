@@ -11,8 +11,11 @@ import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import MeasuredChart from './shared/MeasuredChart';
+import { MetricCard } from './shared/Surfaces';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
+
+const formatMoney = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -305,30 +308,30 @@ export default function Reports() {
         <>
           {/* KPI Cards */}
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-blue-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-              <DollarSign size={14} className="text-blue-600 dark:text-blue-400" /> Total Desembolsado
-            </div>
-            <p className="text-2xl font-bold text-text-primary">${metrics.totalDisbursed.toLocaleString()}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-emerald-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-              <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" /> Total Recuperado
-            </div>
-            <p className="text-2xl font-bold text-text-primary">${metrics.totalRecovered.toLocaleString()}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-amber-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-              <Users size={14} className="text-amber-600 dark:text-amber-400" /> Créditos Activos
-            </div>
-            <p className="text-2xl font-bold text-text-primary">{metrics.totalActiveLoans}</p>
-          </div>
-          <div className="rounded-xl border border-border-subtle border-l-4 border-l-red-500 bg-white px-4 py-4 shadow-sm dark:bg-bg-surface">
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-              <AlertCircle size={14} className="text-red-600 dark:text-red-400" /> Tasa de Morosidad
-            </div>
-            <p className="text-2xl font-bold text-text-primary">{metrics.arrearsRate}%</p>
-          </div>
+        <MetricCard
+          label="Total desembolsado"
+          value={formatMoney(metrics.totalDisbursed)}
+          icon={<DollarSign size={18} />}
+          accent="blue"
+        />
+        <MetricCard
+          label="Total recuperado"
+          value={formatMoney(metrics.totalRecovered)}
+          icon={<TrendingUp size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label="Créditos activos"
+          value={metrics.totalActiveLoans}
+          icon={<Users size={18} />}
+          accent="amber"
+        />
+        <MetricCard
+          label="Tasa de morosidad"
+          value={`${metrics.arrearsRate}%`}
+          icon={<AlertCircle size={18} />}
+          accent="rose"
+        />
       </section>
       <p className="text-xs text-text-secondary mt-1">
         <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
@@ -527,19 +530,26 @@ export default function Reports() {
           </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-              <p className="text-sm text-text-secondary">Eficiencia de cobranza</p>
-              <p className="text-2xl font-semibold mt-1">{advancedMetrics.collectionEfficiency.toFixed(2)}%</p>
-            </div>
-            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-              <p className="text-sm text-text-secondary">Tendencia de mora</p>
-              <p className="text-2xl font-semibold mt-1">{advancedMetrics.delinquencyTrend.toFixed(2)}%</p>
-            </div>
-            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-              <p className="text-sm text-text-secondary">Cobro proyectado próximo mes</p>
-              <p className="text-2xl font-semibold mt-1">${advancedMetrics.projectedCollections.toLocaleString()}</p>
-            </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <MetricCard
+              label="Eficiencia de cobranza"
+              value={`${advancedMetrics.collectionEfficiency.toFixed(2)}%`}
+              icon={<TrendingUp size={18} />}
+              accent="emerald"
+            />
+            <MetricCard
+              label="Tendencia de mora"
+              value={`${advancedMetrics.delinquencyTrend.toFixed(2)}%`}
+              icon={<AlertCircle size={18} />}
+              accent="rose"
+            />
+            <MetricCard
+              label="Cobro proyectado"
+              value={formatMoney(advancedMetrics.projectedCollections)}
+              helper="Próximo mes"
+              icon={<CalendarClock size={18} />}
+              accent="blue"
+            />
           </div>
 
           <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
@@ -576,37 +586,37 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           {/* Summary Cards */}
           {payoutSummary && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
-                    <Wallet size={20} />
-                  </div>
-                </div>
-                <h3 className="text-text-secondary text-sm font-medium">Total Pagos</h3>
-                <p className="text-2xl font-semibold mt-1">{Number(payoutSummary.totalPayouts || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
-                    <DollarSign size={20} />
-                  </div>
-                </div>
-                <h3 className="text-text-secondary text-sm font-medium">Monto Total</h3>
-                <p className="text-2xl font-semibold mt-1">${Number(payoutSummary.totalAmount || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                <h3 className="text-text-secondary text-sm font-medium">Capital</h3>
-                <p className="text-2xl font-semibold mt-1">${Number(payoutSummary.totalPrincipal || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                <h3 className="text-text-secondary text-sm font-medium">Interés</h3>
-                <p className="text-2xl font-semibold mt-1 text-emerald-600">${Number(payoutSummary.totalInterest || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                <h3 className="text-text-secondary text-sm font-medium">Moras</h3>
-                <p className="text-2xl font-semibold mt-1 text-amber-600">${Number(payoutSummary.totalPenalties || 0).toLocaleString()}</p>
-              </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
+              <MetricCard
+                label="Total pagos"
+                value={Number(payoutSummary.totalPayouts || 0).toLocaleString()}
+                icon={<Wallet size={18} />}
+                accent="blue"
+              />
+              <MetricCard
+                label="Monto total"
+                value={formatMoney(payoutSummary.totalAmount)}
+                icon={<DollarSign size={18} />}
+                accent="emerald"
+              />
+              <MetricCard
+                label="Capital"
+                value={formatMoney(payoutSummary.totalPrincipal)}
+                icon={<DollarSign size={18} />}
+                accent="slate"
+              />
+              <MetricCard
+                label="Interés"
+                value={formatMoney(payoutSummary.totalInterest)}
+                icon={<TrendingUp size={18} />}
+                accent="emerald"
+              />
+              <MetricCard
+                label="Moras"
+                value={formatMoney(payoutSummary.totalPenalties)}
+                icon={<AlertCircle size={18} />}
+                accent="amber"
+              />
             </div>
           )}
 
@@ -751,49 +761,53 @@ export default function Reports() {
           {scheduleLoan && scheduleSummary && (
             <>
               {/* Loan Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
-                      <DollarSign size={20} />
-                    </div>
-                  </div>
-                  <h3 className="text-text-secondary text-sm font-medium">Monto del Préstamo</h3>
-                  <p className="text-2xl font-semibold mt-1">${Number(scheduleLoan.amount || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
-                      <CalendarClock size={20} />
-                    </div>
-                  </div>
-                  <h3 className="text-text-secondary text-sm font-medium">Plazo</h3>
-                  <p className="text-2xl font-semibold mt-1">{scheduleLoan.termMonths} meses</p>
-                </div>
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <h3 className="text-text-secondary text-sm font-medium">Tasa de Interés</h3>
-                  <p className="text-2xl font-semibold mt-1">{scheduleLoan.interestRate}%</p>
-                </div>
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <h3 className="text-text-secondary text-sm font-medium">Estado</h3>
-                  <p className="text-2xl font-semibold mt-1 capitalize">{scheduleLoan.status}</p>
-                </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  label="Monto del préstamo"
+                  value={formatMoney(scheduleLoan.amount)}
+                  icon={<DollarSign size={18} />}
+                  accent="blue"
+                />
+                <MetricCard
+                  label="Plazo"
+                  value={`${scheduleLoan.termMonths} meses`}
+                  icon={<CalendarClock size={18} />}
+                  accent="emerald"
+                />
+                <MetricCard
+                  label="Tasa de interés"
+                  value={`${scheduleLoan.interestRate}%`}
+                  icon={<TrendingUp size={18} />}
+                  accent="amber"
+                />
+                <MetricCard
+                  label="Estado"
+                  value={<span className="capitalize">{scheduleLoan.status}</span>}
+                  icon={<AlertCircle size={18} />}
+                  accent="slate"
+                />
               </div>
 
               {/* Schedule Totals */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <h3 className="text-text-secondary text-sm font-medium">Total Capital</h3>
-                  <p className="text-2xl font-semibold mt-1">${Number(scheduleSummary.totalPrincipal || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <h3 className="text-text-secondary text-sm font-medium">Total Interés</h3>
-                  <p className="text-2xl font-semibold mt-1 text-emerald-600">${Number(scheduleSummary.totalInterest || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-bg-surface border border-border-subtle rounded-2xl p-5">
-                  <h3 className="text-text-secondary text-sm font-medium">Total a Pagar</h3>
-                  <p className="text-2xl font-semibold mt-1 text-brand-primary">${Number(scheduleSummary.totalPayment || 0).toLocaleString()}</p>
-                </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <MetricCard
+                  label="Total capital"
+                  value={formatMoney(scheduleSummary.totalPrincipal)}
+                  icon={<DollarSign size={18} />}
+                  accent="slate"
+                />
+                <MetricCard
+                  label="Total interés"
+                  value={formatMoney(scheduleSummary.totalInterest)}
+                  icon={<TrendingUp size={18} />}
+                  accent="emerald"
+                />
+                <MetricCard
+                  label="Total a pagar"
+                  value={formatMoney(scheduleSummary.totalPayment)}
+                  icon={<Wallet size={18} />}
+                  accent="blue"
+                />
               </div>
 
               {/* Installment Progress */}

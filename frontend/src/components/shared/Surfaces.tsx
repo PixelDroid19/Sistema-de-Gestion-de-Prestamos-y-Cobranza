@@ -96,10 +96,10 @@ export function MetricCard({
     <article className={`metric-card ${accentClassNames[accent]} ${className}`}>
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-text-secondary">
+          <p className="text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-text-secondary">
             {label}
           </p>
-          <div className="mt-1 truncate text-2xl font-bold leading-8 tracking-tight text-text-primary">
+          <div className="mt-2 overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1.25rem,1.7vw,1.5rem)] font-bold leading-8 tracking-tight text-text-primary">
             {value}
           </div>
         </div>
@@ -110,7 +110,7 @@ export function MetricCard({
         )}
       </div>
       {helper && (
-        <p className="mt-1 truncate text-xs leading-4 text-text-secondary" title={typeof helper === 'string' ? helper : undefined}>
+        <p className="mt-1 text-xs leading-4 text-text-secondary" title={typeof helper === 'string' ? helper : undefined}>
           {helper}
         </p>
       )}

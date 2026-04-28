@@ -264,7 +264,23 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: { tags: ['Notifications'], summary: 'Listar notificaciones', responses: { 200: { description: 'Notificaciones visibles' } } },
     },
     '/audits': {
-      get: { tags: ['Audits'], summary: 'Listar auditoría operacional', responses: { 200: { description: 'Eventos auditables' } } },
+      get: {
+        tags: ['Audits'],
+        summary: 'Listar auditoría operacional',
+        parameters: [
+          { name: 'userId', in: 'query', schema: { type: 'integer' } },
+          { name: 'action', in: 'query', schema: { type: 'string' } },
+          { name: 'module', in: 'query', schema: { type: 'string' } },
+          { name: 'entityId', in: 'query', schema: { type: 'string' } },
+          { name: 'entityType', in: 'query', schema: { type: 'string' } },
+          { name: 'ip', in: 'query', schema: { type: 'string' }, description: 'Filtra eventos originados desde una IP completa o parcial.' },
+          { name: 'dateFrom', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'dateTo', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+        ],
+        responses: { 200: { description: 'Eventos auditables con servicio HTTP consumido en metadata.http cuando aplica' } },
+      },
     },
   },
 });
