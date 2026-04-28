@@ -116,7 +116,8 @@ describe('Dashboard behavior', () => {
 
     expect(rows).toEqual([
       {
-        name: 'Carlos',
+        name: 'Crédito #1',
+        customerName: 'Carlos',
         disbursed: 250000,
         recovered: 100000,
       },

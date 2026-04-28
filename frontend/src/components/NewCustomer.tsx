@@ -179,8 +179,8 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-8">
-        <form onSubmit={handleSubmit} className="mx-auto flex max-w-4xl flex-col gap-6">
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6">
+        <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
+          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6">
             <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
               <User size={20} className="text-blue-500" /> Información Personal
             </h3>
@@ -217,7 +217,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6">
+          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6">
             <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
               <MapPin size={20} className="text-emerald-500" /> Contacto y Dirección
             </h3>
