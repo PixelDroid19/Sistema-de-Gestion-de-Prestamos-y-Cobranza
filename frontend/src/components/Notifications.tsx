@@ -6,6 +6,7 @@ import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const formatNotificationDate = (value: unknown) => {
   if (!value) {
@@ -69,8 +70,8 @@ export default function Notifications() {
   };
 
   return (
-    <div className="flex h-full w-full max-w-4xl flex-col gap-6 mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex h-full w-full max-w-4xl flex-col gap-6 mx-auto" data-tour="notifications-page">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" data-tour="notifications-header">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-2xl font-semibold">
             <Bell size={24} /> Notificaciones
@@ -80,7 +81,8 @@ export default function Notifications() {
           </h2>
           <p className="mt-1 text-sm text-text-secondary">Alertas operativas, cobros y novedades del sistema.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3" data-tour="notifications-actions">
+          <QuickGuideButton guideKey="notifications" />
           <button 
             onClick={handleMarkAllAsRead}
             disabled={unreadCount === 0 || markAllAsRead.isPending}
@@ -99,7 +101,7 @@ export default function Notifications() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface">
+      <div className="flex flex-1 flex-col divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface" data-tour="notifications-list">
         {isLoading ? (
           <div className="p-4 text-center text-text-secondary">Cargando notificaciones...</div>
         ) : isError ? (

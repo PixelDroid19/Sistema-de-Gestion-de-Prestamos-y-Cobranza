@@ -3,6 +3,7 @@ import { User, Lock, Save, Shield } from 'lucide-react';
 import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
@@ -75,8 +76,8 @@ export default function Profile() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 h-full pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+    <div className="max-w-4xl mx-auto space-y-6 h-full pb-8" data-tour="profile-page">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center" data-tour="profile-header">
         <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex shrink-0 items-center justify-center text-brand-primary">
           <User size={32} />
         </div>
@@ -84,13 +85,16 @@ export default function Profile() {
           <h2 className="text-2xl font-semibold">Mi Perfil</h2>
           <p className="text-sm text-text-secondary mt-1">Administra tu información personal y seguridad.</p>
         </div>
-        <div className="sm:ml-auto flex w-fit items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm">
-          <Shield size={16} className="text-emerald-500" />
-          <span className="font-medium capitalize">{user?.role || 'Usuario'}</span>
+        <div className="sm:ml-auto flex items-center gap-3">
+          <QuickGuideButton guideKey="profile" />
+          <div className="flex w-fit items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm">
+            <Shield size={16} className="text-emerald-500" />
+            <span className="font-medium capitalize">{user?.role || 'Usuario'}</span>
+          </div>
         </div>
       </div>
 
-      <div className="flex overflow-x-auto border-b border-border-subtle">
+      <div className="flex overflow-x-auto border-b border-border-subtle" data-tour="profile-tabs">
         <button
           onClick={() => setActiveTab('info')}
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
@@ -109,7 +113,7 @@ export default function Profile() {
         </button>
       </div>
 
-      <section className="min-w-0 rounded-xl border border-border-subtle bg-white p-5 shadow-sm dark:bg-bg-surface">
+      <section className="min-w-0 rounded-xl border border-border-subtle bg-white p-5 shadow-sm dark:bg-bg-surface" data-tour="profile-content">
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
             <div>

@@ -1,4 +1,6 @@
 import React from 'react';
+import type { GuideContext, GuideViewKey } from '../../lib/guidedTours';
+import { QuickGuideButton } from './HelpSupport';
 
 type PageShellProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
@@ -10,10 +12,14 @@ type PageHeaderProps = {
   subtitle?: React.ReactNode;
   eyebrow?: React.ReactNode;
   actions?: React.ReactNode;
+  guideKey?: GuideViewKey;
+  guideContext?: Omit<GuideContext, 'role'>;
+  guideButtonClassName?: string;
+  tourId?: string;
   className?: string;
 };
 
-type ToolbarSurfaceProps = {
+type ToolbarSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   children: React.ReactNode;
   className?: string;
 };
@@ -27,7 +33,7 @@ type MetricCardProps = {
   className?: string;
 };
 
-type DataTableSurfaceProps = {
+type DataTableSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   children: React.ReactNode;
   className?: string;
 };
@@ -49,9 +55,19 @@ export function PageShell({ children, className = '', ...rest }: PageShellProps)
   );
 }
 
-export function PageHeader({ title, subtitle, eyebrow, actions, className = '' }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  eyebrow,
+  actions,
+  guideKey,
+  guideContext,
+  guideButtonClassName = '',
+  tourId,
+  className = '',
+}: PageHeaderProps) {
   return (
-    <section className={`app-page-header ${className}`}>
+    <section className={`app-page-header ${className}`} {...(tourId ? { 'data-tour': tourId } : {})}>
       <div className="app-page-header-copy">
         {eyebrow && (
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-primary">
@@ -67,8 +83,15 @@ export function PageHeader({ title, subtitle, eyebrow, actions, className = '' }
           </p>
         )}
       </div>
-      {actions && (
+      {(actions || guideKey) && (
         <div className="app-page-actions">
+          {guideKey ? (
+            <QuickGuideButton
+              guideKey={guideKey}
+              guideContext={guideContext}
+              className={guideButtonClassName}
+            />
+          ) : null}
           {actions}
         </div>
       )}
@@ -76,9 +99,9 @@ export function PageHeader({ title, subtitle, eyebrow, actions, className = '' }
   );
 }
 
-export function ToolbarSurface({ children, className = '' }: ToolbarSurfaceProps) {
+export function ToolbarSurface({ children, className = '', ...rest }: ToolbarSurfaceProps) {
   return (
-    <section className={`toolbar-surface ${className}`}>
+    <section className={`toolbar-surface ${className}`} {...rest}>
       {children}
     </section>
   );
@@ -118,9 +141,9 @@ export function MetricCard({
   );
 }
 
-export function DataTableSurface({ children, className = '' }: DataTableSurfaceProps) {
+export function DataTableSurface({ children, className = '', ...rest }: DataTableSurfaceProps) {
   return (
-    <section className={`data-table-surface ${className}`}>
+    <section className={`data-table-surface ${className}`} {...rest}>
       {children}
     </section>
   );

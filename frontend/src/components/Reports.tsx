@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import MeasuredChart from './shared/MeasuredChart';
 import { MetricCard } from './shared/Surfaces';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
@@ -196,23 +197,26 @@ export default function Reports() {
   }
 
   return (
-    <div className="flex flex-col gap-6 h-full pb-8">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-6 h-full pb-8" data-tour="reports-page">
+      <div className="flex justify-between items-center" data-tour="reports-header">
         <div>
           <h2 className="text-2xl font-semibold">{tTerm('reports.module.title')}</h2>
           <p className="text-sm text-text-secondary mt-1">{tTerm('reports.module.subtitle')}</p>
         </div>
-        {reportExportGuard.visible && (
-          <button
-            type="button"
-            onClick={handleExportReport}
-            disabled={isExporting || !reportExportGuard.executable}
-            title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
-            className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <QuickGuideButton guideKey="reports" />
+          {reportExportGuard.visible && (
+            <button
+              type="button"
+              onClick={handleExportReport}
+              disabled={isExporting || !reportExportGuard.executable}
+              title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
+              className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
+            </button>
+          )}
+        </div>
       </div>
 
       {reportExportGuard.visible && (
@@ -268,7 +272,7 @@ export default function Reports() {
       </div>
       )}
 
-      <div className="flex gap-6 border-b border-border-subtle">
+      <div className="flex gap-6 border-b border-border-subtle" data-tour="reports-tabs">
         <button 
           onClick={() => setActiveTab('dashboard')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}

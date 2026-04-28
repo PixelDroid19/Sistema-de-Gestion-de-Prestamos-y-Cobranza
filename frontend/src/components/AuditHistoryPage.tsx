@@ -7,6 +7,7 @@ import { confirm as confirmModal } from '../lib/confirmModal';
 import { toast } from '../lib/toast';
 import { queryKeys } from '../services/queryKeys';
 import { GraphHistoryEntry, NodeDelta } from '../types/dag';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const MD3 = {
   surface: '#f8f9ff',
@@ -149,9 +150,9 @@ export default function AuditHistoryPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6 lg:p-8 h-full overflow-y-auto" style={{ backgroundColor: MD3.surface }}>
+    <div className="flex flex-col gap-6 p-6 lg:p-8 h-full overflow-y-auto" data-tour="audit-history-page" style={{ backgroundColor: MD3.surface }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-tour="audit-history-header">
         <div className="flex items-center gap-3">
           <button
             onClick={() => window.history.back()}
@@ -174,6 +175,7 @@ export default function AuditHistoryPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <QuickGuideButton guideKey="audit-history" />
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors"
@@ -196,7 +198,7 @@ export default function AuditHistoryPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Version History Timeline */}
-          <div className="lg:col-span-4 flex flex-col gap-4">
+          <div className="lg:col-span-4 flex flex-col gap-4" data-tour="audit-history-timeline">
             <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: MD3.onSurfaceVariant }}>
               Version History
             </h2>
@@ -257,7 +259,7 @@ export default function AuditHistoryPage() {
           </div>
 
           {/* Right: Details + Diff */}
-          <div className="lg:col-span-8 flex flex-col gap-4">
+          <div className="lg:col-span-8 flex flex-col gap-4" data-tour="audit-history-diff">
             {selectedEntry ? (
               <>
                 {/* Version header */}

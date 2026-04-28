@@ -37,6 +37,7 @@ import {
   getFormulaFromBlock,
   type CreditFormulaTemplate,
 } from '../lib/creditFormulaTemplates';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 const MD3 = {
   surface: '#f8f9ff', onSurface: '#0b1c30', onSurfaceVariant: '#5a6271',
@@ -815,9 +816,9 @@ export default function FormulaEditorPage() {
 
   // -- Render --
   return (
-    <div className="formula-editor-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: MD3.surface, fontFamily: "'Inter', sans-serif" }}>
+    <div className="formula-editor-page" data-tour="formula-editor-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: MD3.surface, fontFamily: "'Inter', sans-serif" }}>
       {/* Toolbar */}
-      <div className="formula-editor-toolbar" style={sty.toolbar}>
+      <div className="formula-editor-toolbar" data-tour="formula-editor-toolbar" style={sty.toolbar}>
         <button onClick={() => navigate('/formulas')} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), border: 'none', padding: '4px 8px' }}>
           <ChevronLeft size={16} /> Volver
         </button>
@@ -825,6 +826,7 @@ export default function FormulaEditorPage() {
           style={{ flex: 1, maxWidth: 320, padding: '6px 12px', borderRadius: 8, border: `1px solid ${MD3.outlineVariant}`, fontSize: 14, fontWeight: 600, color: MD3.onSurface, backgroundColor: MD3.surface, outline: 'none' }}
           placeholder="Nombre de la formula" />
         <div className="formula-editor-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+          <QuickGuideButton guideKey="formula-editor" className="!rounded-lg !px-3 !py-2" />
           <button onClick={store.undo} disabled={!store.canUndo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canUndo() ? 1 : 0.3 }}><Undo2 size={16} /></button>
           <button onClick={store.redo} disabled={!store.canRedo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canRedo() ? 1 : 0.3 }}><Redo2 size={16} /></button>
           <div style={{ width: 1, height: 20, backgroundColor: MD3.outlineVariant, margin: '0 4px' }} />
@@ -856,7 +858,7 @@ export default function FormulaEditorPage() {
       <div className="formula-editor-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Toolbox */}
         {showToolbox && (
-        <aside className="formula-editor-toolbox" style={sty.aside}>
+        <aside className="formula-editor-toolbox" data-tour="formula-editor-toolbox" style={sty.aside}>
           <div className="formula-panel-intro">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface, fontWeight: 800, fontSize: 14 }}>
               <SlidersHorizontal size={16} color={MD3.secondary} />
@@ -1241,7 +1243,7 @@ export default function FormulaEditorPage() {
 
         {/* Right Panel: rule editor */}
         {shouldShowRightPanel && (
-        <aside className="formula-editor-right-panel" style={sty.right}>
+        <aside className="formula-editor-right-panel" data-tour="formula-editor-impact" style={sty.right}>
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
               <div style={{ ...sty.heading, marginBottom: 12 }}>Editar excepcion</div>

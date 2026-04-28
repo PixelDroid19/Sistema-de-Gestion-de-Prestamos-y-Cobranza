@@ -16,7 +16,6 @@ import {
   Users,
   AlertTriangle,
   CreditCard,
-  CircleHelp,
 } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -35,8 +34,8 @@ import { tTerm } from '../i18n/terminology';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { startCreditsTour } from '../lib/creditGuidedTours';
 import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
 const locales = {
   'es': es,
@@ -119,59 +118,6 @@ const getRecoveryStatusDescription = (credit: any) => {
   }
   return 'Al día: no hay mora ni alerta de cobranza activa en este crédito.';
 };
-
-function InlineHelp({ label, text, align = 'left' }: { label: React.ReactNode; text: string; align?: 'left' | 'right' }) {
-  return (
-    <span className="group relative inline-flex items-center gap-1.5">
-      <span>{label}</span>
-      <span
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle bg-bg-base text-text-secondary"
-        tabIndex={0}
-        aria-label={text}
-        title={text}
-      >
-        <CircleHelp size={11} aria-hidden="true" />
-      </span>
-      <span
-        role="tooltip"
-        className={`pointer-events-none absolute top-full z-40 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-normal normal-case leading-5 tracking-normal text-text-secondary shadow-lg group-hover:block group-focus-within:block ${
-          align === 'right' ? 'right-0' : 'left-0'
-        }`}
-      >
-        {text}
-      </span>
-    </span>
-  );
-}
-
-function ExplainedChip({
-  label,
-  description,
-  tone,
-}: {
-  label: React.ReactNode;
-  description: string;
-  tone: ChipTone;
-}) {
-  return (
-    <span className="group relative inline-flex">
-      <span
-        tabIndex={0}
-        title={description}
-        aria-label={`${label}. ${description}`}
-        className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(tone)}`}
-      >
-        {label}
-      </span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute left-0 top-full z-40 mt-2 hidden w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-normal leading-5 text-text-secondary shadow-lg group-hover:block group-focus-within:block"
-      >
-        {description}
-      </span>
-    </span>
-  );
-}
 
 interface InstallmentEvent {
   id: string;
@@ -688,15 +634,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       <PageHeader
         title={<span data-tour="credits-page-title">{tTerm('credits.module.title')}</span>}
         subtitle={tTerm('credits.module.subtitle')}
+        guideKey="credits"
+        tourId="credits-header"
         actions={(
           <>
-          <button
-            type="button"
-            onClick={() => startCreditsTour()}
-            className="flex items-center justify-center gap-2 rounded-lg border border-border-subtle bg-white px-3.5 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary dark:bg-bg-base"
-          >
-            <CircleHelp size={16} /> Guía rápida
-          </button>
           {isAdmin && (
             <button
               onClick={handleExportCreditsExcel}
@@ -941,7 +882,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       <ExplainedChip
                         label={getLoanStatusLabel(credit.status)}
                         description={getLoanStatusDescription(credit.status)}
-                        tone={getLoanStatusTone(credit.status)}
+                        className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}
                       />
                     </div>
 
@@ -960,13 +901,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                          <InlineHelp label="Situación" text={RECOVERY_COLUMN_HELP} />
+                          <HelpLabel label="Situación" text={RECOVERY_COLUMN_HELP} />
                         </p>
                         <div className="mt-1">
                           <ExplainedChip
                             label={getRecoveryStatusLabel(credit)}
                             description={getRecoveryStatusDescription(credit)}
-                            tone={credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success'}
+                            className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(
+                              credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success',
+                            )}`}
                           />
                         </div>
                       </div>
@@ -1009,10 +952,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="px-3 py-3 text-right font-semibold">Saldo</th>
                   <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Mora</th>
                   <th className="px-3 py-3 font-semibold">
-                    <InlineHelp label="Estado" text={STATUS_COLUMN_HELP} />
+                    <HelpLabel label="Estado" text={STATUS_COLUMN_HELP} />
                   </th>
                   <th className="px-3 py-3 font-semibold">
-                    <InlineHelp label="Situación" text={RECOVERY_COLUMN_HELP} />
+                    <HelpLabel label="Situación" text={RECOVERY_COLUMN_HELP} />
                   </th>
                   <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">Inicio</th>
                   <th className="px-3 py-3 text-right font-semibold">Acciones</th>
@@ -1095,14 +1038,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           <ExplainedChip
                             label={getLoanStatusLabel(credit.status)}
                             description={getLoanStatusDescription(credit.status)}
-                            tone={getLoanStatusTone(credit.status)}
+                            className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(getLoanStatusTone(credit.status))}`}
                           />
                         </td>
                         <td className="whitespace-nowrap px-3 py-4">
                           <ExplainedChip
                             label={getRecoveryStatusLabel(credit)}
                             description={getRecoveryStatusDescription(credit)}
-                            tone={credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success'}
+                            className={`inline-flex rounded-md px-2 py-1 text-xs ${getChipClassName(
+                              credit.recoveryStatus === 'overdue' || credit.status === 'defaulted' ? 'danger' : 'success',
+                            )}`}
                           />
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-4 text-xs text-text-secondary 2xl:table-cell">{creationDate}</td>

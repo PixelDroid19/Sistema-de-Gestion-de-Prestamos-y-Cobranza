@@ -3,6 +3,7 @@ import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Loader2 } from 
 import { useParams } from 'react-router-dom';
 import { useCustomers, useCustomerById } from '../services/customerService';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
+import { QuickGuideButton } from './shared/HelpSupport';
 
 type CustomerFormData = {
   firstName: string;
@@ -147,8 +148,8 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="flex h-full flex-col gap-6" data-tour="new-customer-page">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center" data-tour="new-customer-header">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="rounded-lg border border-border-subtle bg-bg-surface p-2 transition-colors hover:bg-hover-bg">
             <ArrowLeft size={20} />
@@ -159,6 +160,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
           </div>
         </div>
         <div className="flex gap-3">
+          <QuickGuideButton guideKey="new-customer" />
           <button
             type="button"
             onClick={onBack}
@@ -180,7 +182,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
 
       <div className="flex-1 overflow-y-auto pb-8">
         <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6">
+          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6" data-tour="new-customer-personal">
             <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
               <User size={20} className="text-blue-500" /> Información Personal
             </h3>
@@ -217,7 +219,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6">
+          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6" data-tour="new-customer-contact">
             <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
               <MapPin size={20} className="text-emerald-500" /> Contacto y Dirección
             </h3>

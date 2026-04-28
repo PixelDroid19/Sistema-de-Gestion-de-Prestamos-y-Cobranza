@@ -103,16 +103,21 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
   };
 
   return (
-    <PageShell className={compact
+    <PageShell
+      data-tour="formulas-page"
+      className={compact
       ? 'flex flex-col gap-3 bg-transparent sm:gap-5'
       : 'flex h-full flex-col gap-3 overflow-y-auto bg-bg-base p-3 sm:gap-5 sm:p-6 lg:p-8'
-    }>
+    }
+    >
       {/* Header */}
       <PageHeader
         title={compact ? 'Fórmulas de crédito' : 'Dashboard de formulas'}
         subtitle={compact
           ? 'Administra la fórmula activa que usarán los créditos nuevos.'
           : 'Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
+        guideKey="formulas-dashboard"
+        tourId="formulas-header"
         actions={(
         <button
           onClick={() => navigate('/formulas/new')}
@@ -125,7 +130,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       />
 
       {/* Stats */}
-      <section className="grid grid-cols-3 gap-3">
+      <section className="grid grid-cols-3 gap-3" data-tour="formulas-stats">
         {stats.map((stat) => (
           <MetricCard
             key={stat.label}
@@ -152,7 +157,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       )}
 
       {/* Table */}
-      <DataTableSurface>
+      <DataTableSurface data-tour="formulas-table">
         <div
           className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5 sm:py-4"
         >
