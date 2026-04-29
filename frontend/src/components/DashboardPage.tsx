@@ -10,7 +10,7 @@ import { queryKeys } from '../services/queryKeys';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
-import { DataTableSurface, MetricCard, PageHeader, PageShell } from './shared/Surfaces';
+import { MetricCard, PageHeader, PageShell } from './shared/Surfaces';
 
 type DashboardPageProps = {
   compact?: boolean;
@@ -157,7 +157,17 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       )}
 
       {/* Table */}
-      <DataTableSurface data-tour="formulas-table">
+      <TableShell
+        data-tour="formulas-table"
+        isLoading={graphsLoading}
+        isError={false}
+        hasData={graphs.length > 0}
+        recordsLabel="formulas"
+        loadingContent={<div className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-brand-primary" size={24} /></div>}
+        errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las formulas.</div>}
+        emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay formulas. Crea la primera para empezar.</div>}
+        className="data-table-surface"
+      >
         <div
           className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5 sm:py-4"
         >
@@ -171,96 +181,71 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
             </button>
           </div>
         </div>
-        <TableShell
-          isLoading={graphsLoading}
-          isError={false}
-          hasData={graphs.length > 0}
-          recordsLabel="formulas"
-          loadingContent={<div className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-brand-primary" size={24} /></div>}
-          errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las formulas.</div>}
-          emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay formulas. Crea la primera para empezar.</div>}
-          className="border-0 shadow-none"
-        >
-          <div className="divide-y divide-border-subtle md:hidden">
-            {graphs.map((formula: any) => {
-              const formulaUsageCount = Number(formula.usageCount || 0);
-              const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
-              return (
-                <article key={formula.id} className="space-y-3 px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-text-primary">{formula.name}</h4>
-                      <p className="mt-1 text-xs text-text-secondary">v{formula.version} · {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${formula.status === 'active' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-950'}`}>
-                      {formula.status === 'active' ? 'Activa' : 'Borrador'}
-                    </span>
+        <div className="divide-y divide-border-subtle md:hidden">
+          {graphs.map((formula: any) => {
+            const formulaUsageCount = Number(formula.usageCount || 0);
+            const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
+            return (
+              <article key={formula.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-text-primary">{formula.name}</h4>
+                    <p className="mt-1 text-xs text-text-secondary">v{formula.version} · {formula.updatedAt ? new Date(formula.updatedAt).toLocaleDateString() : '-'}</p>
                   </div>
-                  <div className="rounded-lg border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-secondary">
-                    {formulaUsageCount} crédito(s){isFormulaLocked ? ' · bloqueada' : ' · sin uso'}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => navigate(`/formulas/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-primary">
-                      {isFormulaLocked ? 'Abrir copia' : 'Abrir'}
-                    </button>
-                    <button
-                      onClick={() => formula.status === 'active' ? handleDeactivate(formula.id) : handleActivate(formula.id)}
-                      disabled={updateStatusMutation.isPending}
-                      className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50"
-                    >
-                      {formula.status === 'active' ? 'Desactivar' : 'Activar'}
-                    </button>
-                    <button onClick={() => navigate(`/audit/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-secondary">
-                      Historial
-                    </button>
-                    <button
-                      onClick={() => handleDelete(formula.id, formula.name)}
-                      disabled={deleteMutation.isPending || isFormulaLocked}
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-          <table className="w-full table-fixed text-left text-sm">
-            <thead
-              className="border-b border-border-subtle bg-bg-base text-xs uppercase tracking-wide text-text-secondary"
-            >
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${formula.status === 'active' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-950'}`}>
+                    {formula.status === 'active' ? 'Activa' : 'Borrador'}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-secondary">
+                  {formulaUsageCount} crédito(s){isFormulaLocked ? ' · bloqueada' : ' · sin uso'}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => navigate(`/formulas/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-primary">
+                    {isFormulaLocked ? 'Abrir copia' : 'Abrir'}
+                  </button>
+                  <button
+                    onClick={() => formula.status === 'active' ? handleDeactivate(formula.id) : handleActivate(formula.id)}
+                    disabled={updateStatusMutation.isPending}
+                    className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50"
+                  >
+                    {formula.status === 'active' ? 'Desactivar' : 'Activar'}
+                  </button>
+                  <button onClick={() => navigate(`/audit/${formula.id}`)} className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-text-secondary">
+                    Historial
+                  </button>
+                  <button
+                    onClick={() => handleDelete(formula.id, formula.name)}
+                    disabled={deleteMutation.isPending || isFormulaLocked}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="w-[30%] px-3 py-3 font-semibold">Nombre</th>
-                <th className="w-[16%] px-3 py-3 font-semibold">Estado</th>
-                <th className="w-[16%] px-3 py-3 text-right font-semibold">Creditos</th>
-                <th className="w-[10%] px-3 py-3 text-right font-semibold">Version</th>
-                <th className="w-[15%] px-3 py-3 text-right font-semibold">Ultimo cambio</th>
-                <th className="w-[13%] px-3 py-3 text-right font-semibold">Acciones</th>
+                <th className="font-medium">Nombre</th>
+                <th className="font-medium">Estado</th>
+                <th className="font-medium">Créditos</th>
+                <th className="font-medium">Versión</th>
+                <th className="font-medium">Último cambio</th>
+                <th className="text-right font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {graphsLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center">
-                    <Loader2 className="mx-auto animate-spin text-brand-primary" size={24} />
-                  </td>
-                </tr>
-              ) : graphs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-text-secondary">
-                    No hay formulas. Crea la primera para empezar.
-                  </td>
-                </tr>
-              ) : (
-                graphs.map((formula: any) => {
-                  const formulaUsageCount = Number(formula.usageCount || 0);
-                  const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
-                  return (
-                    <tr
-                      key={formula.id}
-                      className="group transition-colors hover:bg-hover-bg/60"
-                    >
+              {graphs.map((formula: any) => {
+                const formulaUsageCount = Number(formula.usageCount || 0);
+                const isFormulaLocked = Boolean(formula.isLocked || formulaUsageCount > 0);
+                return (
+                  <tr
+                    key={formula.id}
+                    className="transition-colors hover:bg-hover-bg"
+                  >
                     <td className="min-w-0 px-3 py-4 font-semibold text-text-primary">
                       <span className="block truncate" title={formula.name}>{formula.name}</span>
                     </td>
@@ -280,7 +265,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-right">
                       <span
-                        className={`inline-flex items-center justify-end gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
                           isFormulaLocked
                             ? 'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-100'
                             : 'border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-500/30 dark:bg-slate-500/20 dark:text-slate-100'
@@ -348,14 +333,12 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                       </div>
                     </td>
                   </tr>
-                  );
-                })
-              )}
+                );
+              })}
             </tbody>
           </table>
-          </div>
-        </TableShell>
-      </DataTableSurface>
+        </div>
+      </TableShell>
     </PageShell>
   );
 }

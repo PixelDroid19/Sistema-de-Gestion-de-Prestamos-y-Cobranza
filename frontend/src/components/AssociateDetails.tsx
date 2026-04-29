@@ -8,6 +8,7 @@ import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
 import { MetricCard } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
+import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
@@ -41,6 +42,8 @@ const getLoanStatusPresentation = (status: unknown) => {
       };
   }
 };
+
+const actionButtonClassName = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors';
 
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
@@ -156,37 +159,40 @@ export default function AssociateDetails() {
 
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
         <h3 className="text-lg font-bold text-text-primary mb-4">Préstamos Participados</h3>
-        <div className="overflow-x-auto">
+        <TableShell
+          isLoading={false}
+          isError={false}
+          hasData={participatedLoans.length > 0}
+          loadingContent={null}
+          errorContent={null}
+          emptyContent={<div className="py-4 text-center text-text-secondary">No participa en ningún préstamo activo.</div>}
+          recordsLabel="préstamos"
+        >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="pb-3 font-medium">ID Préstamo</th>
-                <th className="pb-3 font-medium">Monto Original</th>
-                <th className="pb-3 font-medium">Interés Total</th>
-                <th className="pb-3 font-medium">Estado</th>
+                <th className="font-medium">ID Préstamo</th>
+                <th className="font-medium">Monto Original</th>
+                <th className="font-medium">Interés Total</th>
+                <th className="font-medium">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {participatedLoans.map((loan: any) => (
                 <tr key={loan.id} className="hover:bg-hover-bg transition-colors">
-                  <td className="py-4 font-mono">{String(loan.id).substring(0, 8)}</td>
-                  <td className="py-4 font-medium">{formatCurrency(loan?.amount)}</td>
-                  <td className="py-4 text-emerald-600">{formatCurrency(loan?.totalInterest)}</td>
-                  <td className="py-4">
+                  <td className="font-mono">{loan.id}</td>
+                  <td className="font-medium">{formatCurrency(loan?.amount)}</td>
+                  <td className="text-emerald-600">{formatCurrency(loan?.totalInterest)}</td>
+                  <td>
                     <span className={`rounded-full px-2 py-1 text-xs font-medium ${getLoanStatusPresentation(loan?.status).className}`}>
                       {getLoanStatusPresentation(loan?.status).label}
                     </span>
                   </td>
                 </tr>
               ))}
-              {participatedLoans.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-4 text-center text-text-secondary">No participa en ningún préstamo activo.</td>
-                </tr>
-              )}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       </div>
     </>
   );
@@ -218,24 +224,32 @@ export default function AssociateDetails() {
       {/* Installments Table */}
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
         <h3 className="text-lg font-bold text-text-primary mb-4">Cuotas del Socio</h3>
-        <div className="overflow-x-auto">
+        <TableShell
+          isLoading={false}
+          isError={false}
+          hasData={installmentsData.installments.length > 0}
+          loadingContent={null}
+          errorContent={null}
+          emptyContent={<div className="py-4 text-center text-text-secondary">No hay cuotas registradas.</div>}
+          recordsLabel="cuotas"
+        >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="pb-3 font-medium">#</th>
-                <th className="pb-3 font-medium">Monto</th>
-                <th className="pb-3 font-medium">Fecha Vencimiento</th>
-                <th className="pb-3 font-medium">Estado</th>
-                <th className="pb-3 font-medium">Acciones</th>
+                <th className="font-medium">#</th>
+                <th className="font-medium">Monto</th>
+                <th className="font-medium">Fecha Vencimiento</th>
+                <th className="font-medium">Estado</th>
+                <th className="font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {installmentsData.installments.map((inst: any) => (
                 <tr key={inst.id} className="hover:bg-hover-bg transition-colors">
-                  <td className="py-4 font-medium">{inst.installmentNumber}</td>
-                  <td className="py-4 font-medium">${Number(inst.amount).toLocaleString()}</td>
-                  <td className="py-4">{new Date(inst.dueDate).toLocaleDateString()}</td>
-                  <td className="py-4">
+                  <td className="font-medium">{inst.installmentNumber}</td>
+                  <td className="font-medium">${Number(inst.amount).toLocaleString()}</td>
+                  <td>{new Date(inst.dueDate).toLocaleDateString()}</td>
+                  <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       inst.status === 'paid' 
                         ? 'bg-emerald-100 text-emerald-700' 
@@ -246,7 +260,7 @@ export default function AssociateDetails() {
                       {inst.status === 'paid' ? 'Pagado' : new Date(inst.dueDate) < new Date() ? 'Vencido' : 'Pendiente'}
                     </span>
                   </td>
-                  <td className="py-4">
+                  <td>
                     {isAdmin && inst.status === 'pending' && (
                       <button
                         onClick={() => handlePayInstallment(inst.installmentNumber)}
@@ -258,14 +272,9 @@ export default function AssociateDetails() {
                   </td>
                 </tr>
               ))}
-              {installmentsData.installments.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-text-secondary">No hay cuotas registradas.</td>
-                </tr>
-              )}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       </div>
     </div>
   );
@@ -303,21 +312,29 @@ export default function AssociateDetails() {
       {/* Calendar Events */}
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
         <h3 className="text-lg font-bold text-text-primary mb-4">Eventos del Calendario</h3>
-        <div className="overflow-x-auto">
+        <TableShell
+          isLoading={false}
+          isError={false}
+          hasData={calendarData.events.length > 0}
+          loadingContent={null}
+          errorContent={null}
+          emptyContent={<div className="py-4 text-center text-text-secondary">No hay eventos en el calendario.</div>}
+          recordsLabel="eventos"
+        >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="pb-3 font-medium">Fecha</th>
-                <th className="pb-3 font-medium">Tipo</th>
-                <th className="pb-3 font-medium">Monto</th>
-                <th className="pb-3 font-medium">Notas</th>
+                <th className="font-medium">Fecha</th>
+                <th className="font-medium">Tipo</th>
+                <th className="font-medium">Monto</th>
+                <th className="font-medium">Notas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {calendarData.events.map((event: any, idx: number) => (
                 <tr key={idx} className="hover:bg-hover-bg transition-colors">
-                  <td className="py-4">{new Date(event.date).toLocaleDateString()}</td>
-                  <td className="py-4">
+                  <td>{new Date(event.date).toLocaleDateString()}</td>
+                  <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       event.type === 'contribution' 
                         ? 'bg-emerald-100 text-emerald-700' 
@@ -328,25 +345,20 @@ export default function AssociateDetails() {
                       {event.displayType}
                     </span>
                   </td>
-                  <td className="py-4 font-medium">{event.displayAmount}</td>
-                  <td className="py-4 text-text-secondary">{event.notes || '-'}</td>
+                  <td className="font-medium">{event.displayAmount}</td>
+                  <td className="text-text-secondary">{event.notes || '-'}</td>
                 </tr>
               ))}
-              {calendarData.events.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-4 text-center text-text-secondary">No hay eventos en el calendario.</td>
-                </tr>
-              )}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       </div>
     </div>
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6" data-tour="associate-details-page">
-      <div className="flex items-center justify-between mb-6" data-tour="associate-details-header">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-0" data-tour="associate-details-page">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between" data-tour="associate-details-header">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/associates')}
@@ -359,23 +371,23 @@ export default function AssociateDetails() {
             <p className="text-sm text-text-secondary">{associateName}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <QuickGuideButton guideKey="associate-details" />
-          <button onClick={() => setShowContributionsModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+        <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+          <QuickGuideButton guideKey="associate-details" className="min-h-11 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold" />
+          <button onClick={() => setShowContributionsModal(true)} className={`${actionButtonClassName} bg-emerald-600 text-white hover:bg-emerald-700`}>
             <History size={16} /> Historial de aportes
           </button>
-          <button onClick={() => setShowInstallmentsModal(true)} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
+          <button onClick={() => setShowInstallmentsModal(true)} className={`${actionButtonClassName} bg-amber-600 text-white hover:bg-amber-700`}>
             <Clock size={16} /> Cobros rápidos
           </button>
           {isAdmin && (
             <>
-              <button onClick={() => setShowModal('contribution')} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+              <button onClick={() => setShowModal('contribution')} className={`${actionButtonClassName} bg-emerald-600 text-white hover:bg-emerald-700`}>
                 <Wallet size={16} /> Registrar aporte
               </button>
-              <button onClick={() => setShowModal('distribution')} className="flex items-center gap-2 bg-brand-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors">
+              <button onClick={() => setShowModal('distribution')} className={`${actionButtonClassName} bg-brand-primary text-white hover:bg-brand-primary/90`}>
                 <Download size={16} /> Registrar retiro
               </button>
-              <button onClick={() => setShowModal('reinvestment')} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+              <button onClick={() => setShowModal('reinvestment')} className={`${actionButtonClassName} bg-blue-600 text-white hover:bg-blue-700`}>
                 <RefreshCw size={16} /> Registrar reinversión
               </button>
             </>
