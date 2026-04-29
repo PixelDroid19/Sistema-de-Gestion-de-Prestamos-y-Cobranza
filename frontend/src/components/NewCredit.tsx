@@ -15,7 +15,17 @@ import {
 import type { SimulationInput } from '../types/dag';
 import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 
-const todayAsIsoDate = () => new Date().toISOString().slice(0, 10);
+const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
+
+const addMonthsAsIsoDate = (date: Date, months: number) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + months;
+  const day = date.getDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return toIsoDate(new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth))));
+};
+
+const nextMonthAsIsoDate = () => addMonthsAsIsoDate(new Date(), 1);
 
 type NewCreditLocationState = {
   simulationInput?: Partial<SimulationInput>;
@@ -64,7 +74,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const initialSimulationInput = useMemo<SimulationInput>(() => ({
     ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
     ...routeState?.simulationInput,
-    startDate: routeState?.simulationInput?.startDate || todayAsIsoDate(),
+    startDate: routeState?.simulationInput?.startDate || nextMonthAsIsoDate(),
   }), [routeState?.simulationInput]);
 
   const {
@@ -157,7 +167,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     setLateFeeWasEdited(false);
     setInput({
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-      startDate: todayAsIsoDate(),
+      startDate: nextMonthAsIsoDate(),
     });
   };
 

@@ -14,6 +14,19 @@
 
 const { SUPPORTED_CALCULATION_METHODS } = require('./calculationMethods');
 
+const addOneMonthClamped = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth)));
+};
+
+const defaultFirstPaymentDate = () => {
+  const now = new Date();
+  return addOneMonthClamped(now).toISOString();
+};
+
 // ─── Scope definitions ───────────────────────────────────────────────────────
 
 const WORKBENCH_SCOPE_DEFINITIONS = [
@@ -35,7 +48,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
       interestRate: 60,
       termMonths: 12,
       lateFeeMode: 'SIMPLE',
-      startDate: new Date().toISOString(),
+      startDate: defaultFirstPaymentDate(),
     },
 
     calculationMethods: SUPPORTED_CALCULATION_METHODS,
@@ -82,8 +95,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
         {
           id: 'input_startDate',
           kind: 'constant',
-          label: 'Fecha inicio',
-          description: 'Fecha de inicio del credito.',
+          label: 'Fecha primer pago',
+          description: 'Fecha de vencimiento de la primera cuota.',
           outputVar: 'startDate',
         },
         {

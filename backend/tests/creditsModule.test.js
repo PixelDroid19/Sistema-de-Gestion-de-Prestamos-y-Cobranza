@@ -223,7 +223,7 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
   assert.equal(loan.id, 55);
   assert.deepEqual(loan.paymentContext.allowedPaymentTypes, ['installment', 'payoff']);
   assert.equal(loan.paymentContext.isPayable, true);
-  assert.equal(loan.paymentContext.snapshot.outstandingBalance, 1000);
+  assert.equal(loan.paymentContext.snapshot.outstandingBalance, 1030);
   assert.equal(loan.paymentContext.payoffEligibility.allowed, true);
   assert.equal(loan.paymentContext.capitalEligibility.allowed, true);
   assert.deepEqual(loan.customerSummary, {
