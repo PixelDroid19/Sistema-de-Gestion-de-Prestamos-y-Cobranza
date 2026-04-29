@@ -12,7 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import MeasuredChart from './shared/MeasuredChart';
 import { MetricCard } from './shared/Surfaces';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
@@ -317,24 +317,28 @@ export default function Reports() {
         <MetricCard
           label="Total desembolsado"
           value={formatMoney(metrics.totalDisbursed)}
+          tooltip="Suma de capital entregado en todos los creditos considerados por el reporte."
           icon={<DollarSign size={18} />}
           accent="blue"
         />
         <MetricCard
           label="Interés generado"
           value={formatMoney(metrics.totalInterestGenerated)}
+          tooltip="Intereses programados por los creditos segun sus cronogramas. No significa que ya se hayan cobrado."
           icon={<TrendingUp size={18} />}
           accent="emerald"
         />
         <MetricCard
           label="Interés pagado"
           value={formatMoney(metrics.totalInterestPaid)}
+          tooltip="Intereses efectivamente cobrados y aplicados en pagos registrados."
           icon={<Wallet size={18} />}
           accent="rose"
         />
         <MetricCard
           label="Créditos activos"
           value={metrics.totalActiveLoans}
+          tooltip="Cantidad de creditos abiertos que siguen en cartera."
           icon={<Users size={18} />}
           accent="amber"
         />
@@ -347,9 +351,12 @@ export default function Reports() {
         {/* Main Chart */}
         <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6 lg:col-span-2">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="font-medium" title={tTerm('reports.chart.disbursementRecovery.help')}>
-              {tTerm('reports.chart.disbursementRecovery.title')}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">
+                {tTerm('reports.chart.disbursementRecovery.title')}
+              </h3>
+              <HelpTooltip text={tTerm('reports.chart.disbursementRecovery.help')} align="right" />
+            </div>
             <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-1.5">
               <Calendar size={14} className="text-text-secondary" />
               <select
@@ -540,12 +547,14 @@ export default function Reports() {
             <MetricCard
               label="Eficiencia de cobranza"
               value={`${advancedMetrics.collectionEfficiency.toFixed(2)}%`}
+              tooltip="Relaciona lo recuperado contra lo esperado para medir que tan efectiva ha sido la cobranza."
               icon={<TrendingUp size={18} />}
               accent="emerald"
             />
             <MetricCard
               label="Tendencia de mora"
               value={`${advancedMetrics.delinquencyTrend.toFixed(2)}%`}
+              tooltip="Variacion de la mora en el periodo analizado. Un valor alto indica mas deterioro de cartera."
               icon={<AlertCircle size={18} />}
               accent="rose"
             />
@@ -553,6 +562,7 @@ export default function Reports() {
               label="Cobro proyectado"
               value={formatMoney(advancedMetrics.projectedCollections)}
               helper="Próximo mes"
+              tooltip="Estimacion de recaudo esperado para el siguiente mes segun datos actuales."
               icon={<CalendarClock size={18} />}
               accent="blue"
             />
@@ -596,30 +606,35 @@ export default function Reports() {
               <MetricCard
                 label="Total pagos"
                 value={Number(payoutSummary.totalPayouts || 0).toLocaleString()}
+                tooltip="Cantidad de pagos registrados en el rango o filtro actual."
                 icon={<Wallet size={18} />}
                 accent="blue"
               />
               <MetricCard
                 label="Monto total"
                 value={formatMoney(payoutSummary.totalAmount)}
+                tooltip="Valor total recibido en pagos, sumando capital, interes, mora y otros componentes registrados."
                 icon={<DollarSign size={18} />}
                 accent="emerald"
               />
               <MetricCard
                 label="Capital"
                 value={formatMoney(payoutSummary.totalPrincipal)}
+                tooltip="Parte de los pagos que redujo el capital vivo de los creditos."
                 icon={<DollarSign size={18} />}
                 accent="slate"
               />
               <MetricCard
                 label="Interés"
                 value={formatMoney(payoutSummary.totalInterest)}
+                tooltip="Parte de los pagos aplicada a intereses cobrados."
                 icon={<TrendingUp size={18} />}
                 accent="emerald"
               />
               <MetricCard
                 label="Moras"
                 value={formatMoney(payoutSummary.totalPenalties)}
+                tooltip="Valor cobrado por mora o penalidades por atraso."
                 icon={<AlertCircle size={18} />}
                 accent="amber"
               />
@@ -771,24 +786,28 @@ export default function Reports() {
                 <MetricCard
                   label="Monto del préstamo"
                   value={formatMoney(scheduleLoan.amount)}
+                  tooltip="Capital original registrado para el credito consultado."
                   icon={<DollarSign size={18} />}
                   accent="blue"
                 />
                 <MetricCard
                   label="Plazo"
                   value={`${scheduleLoan.termMonths} meses`}
+                  tooltip="Numero de meses pactados para pagar el credito."
                   icon={<CalendarClock size={18} />}
                   accent="emerald"
                 />
                 <MetricCard
                   label="Tasa de interés"
                   value={`${scheduleLoan.interestRate}%`}
+                  tooltip="Tasa anual usada para calcular intereses del credito."
                   icon={<TrendingUp size={18} />}
                   accent="amber"
                 />
                 <MetricCard
                   label="Estado"
                   value={<span className="capitalize">{scheduleLoan.status}</span>}
+                  tooltip="Situacion operativa actual del credito consultado."
                   icon={<AlertCircle size={18} />}
                   accent="slate"
                 />
@@ -799,18 +818,21 @@ export default function Reports() {
                 <MetricCard
                   label="Total capital"
                   value={formatMoney(scheduleSummary.totalPrincipal)}
+                  tooltip="Capital total que debe amortizar el plan de pagos."
                   icon={<DollarSign size={18} />}
                   accent="slate"
                 />
                 <MetricCard
                   label="Total interés"
                   value={formatMoney(scheduleSummary.totalInterest)}
+                  tooltip="Intereses totales calculados en el cronograma del credito."
                   icon={<TrendingUp size={18} />}
                   accent="emerald"
                 />
                 <MetricCard
                   label="Total a pagar"
                   value={formatMoney(scheduleSummary.totalPayment)}
+                  tooltip="Suma de capital e intereses programados en el plan."
                   icon={<Wallet size={18} />}
                   accent="blue"
                 />
