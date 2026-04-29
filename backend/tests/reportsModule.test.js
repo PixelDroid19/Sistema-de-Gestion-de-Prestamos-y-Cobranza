@@ -317,7 +317,15 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
     },
     loanViewService: {
       getSnapshot() {
-        return { totalPaid: 100, totalPayable: 1200, outstandingBalance: 1100, installmentAmount: 100, nextInstallment: null };
+        return {
+          totalPaid: 100,
+          totalPayable: 1200,
+          totalInterest: 180,
+          totalPaidInterest: 35,
+          outstandingBalance: 1100,
+          installmentAmount: 100,
+          nextInstallment: null,
+        };
       },
     },
   });
@@ -325,6 +333,8 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   const summary = await getDashboardSummary({ actor: { id: 1, role: 'admin' } });
 
   assert.equal(summary.data.summary.totalLoans, 1);
+  assert.equal(summary.data.summary.totalInterestGenerated, '180.00');
+  assert.equal(summary.data.summary.totalInterestPaid, '35.00');
   assert.equal(summary.data.collections.overdueAlerts, 1);
   assert.equal(summary.data.collections.unreadNotifications, 1);
   assert.ok(summary.data.monthlyPerformance.length >= 12);
@@ -338,7 +348,19 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
       },
     },
     paymentRepository: { async listByLoan() { return []; } },
-    loanViewService: { getSnapshot() { return { totalPaid: 0, totalPayable: 0, outstandingBalance: 0, installmentAmount: 0, nextInstallment: null }; } },
+    loanViewService: {
+      getSnapshot() {
+        return {
+          totalPaid: 0,
+          totalPayable: 0,
+          totalInterest: 0,
+          totalPaidInterest: 0,
+          outstandingBalance: 0,
+          installmentAmount: 0,
+          nextInstallment: null,
+        };
+      },
+    },
   });
 
   const degraded = await degradedGetDashboardSummary({ actor: { id: 1, role: 'admin' } });

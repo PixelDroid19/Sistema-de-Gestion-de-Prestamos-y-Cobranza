@@ -51,6 +51,8 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
       { indicador: 'Créditos en mora', valor: summary.defaultedLoans ?? 0 },
       { indicador: 'Créditos recuperados', valor: summary.recoveredLoans ?? 0 },
       { indicador: 'Capital colocado', valor: summary.totalPortfolioAmount ?? '0.00' },
+      { indicador: 'Interés generado', valor: summary.totalInterestGenerated ?? '0.00' },
+      { indicador: 'Interés pagado', valor: summary.totalInterestPaid ?? '0.00' },
       { indicador: 'Capital recuperado', valor: summary.totalRecoveredAmount ?? '0.00' },
       { indicador: 'Saldo pendiente', valor: summary.totalOutstandingAmount ?? '0.00' },
       { indicador: 'Alertas vencidas', valor: collections.overdueAlerts ?? 0 },

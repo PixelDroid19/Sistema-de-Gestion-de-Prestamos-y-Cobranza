@@ -196,7 +196,16 @@ export const useReports = () => {
 
 const normalizeDashboardData = (data: any) => {
   if (!data) return data;
-  if (data.metrics) return data;
+  if (data.metrics) {
+    return {
+      ...data,
+      metrics: {
+        ...data.metrics,
+        totalInterestGenerated: toNumber(data.metrics.totalInterestGenerated ?? data.summary?.totalInterestGenerated),
+        totalInterestPaid: toNumber(data.metrics.totalInterestPaid ?? data.summary?.totalInterestPaid),
+      },
+    };
+  }
 
   return {
     ...data,
@@ -204,6 +213,8 @@ const normalizeDashboardData = (data: any) => {
       totalActiveLoans: toNumber(data.summary?.activeLoans),
       totalDisbursed: toNumber(data.summary?.totalPortfolioAmount),
       totalRecovered: toNumber(data.summary?.totalRecoveredAmount),
+      totalInterestGenerated: toNumber(data.summary?.totalInterestGenerated),
+      totalInterestPaid: toNumber(data.summary?.totalInterestPaid),
       arrearsRate: 0,
     },
   };
