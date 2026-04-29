@@ -306,6 +306,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.balanceTotal.title')}
             value={formatCurrency(summary.totalOutstandingAmount)}
             helper={`${summary.totalLoans || 0} ${tTerm('dashboard.widget.balanceTotal.subtitle')}`}
+            tooltip="Saldo total pendiente de la cartera. Resume el capital e importes por recuperar en los creditos registrados."
             icon={<Wallet size={18} />}
             accent="teal"
             className="h-full"
@@ -317,6 +318,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.activeLoans.title')}
             value={summary.activeLoans || 0}
             helper={`${summary.defaultedLoans || 0} ${tTerm('dashboard.widget.activeLoans.subtitle')}`}
+            tooltip="Creditos que siguen abiertos y pueden requerir seguimiento, cobro o consulta operativa."
             icon={<Activity size={18} />}
             accent="emerald"
             className="h-full"
@@ -328,6 +330,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.delinquencyRate.title')}
             value={summary.totalLoans ? `${Math.round(((summary.defaultedLoans || 0) / summary.totalLoans) * 100)}%` : '0%'}
             helper={`${collections.overdueAlerts || 0} ${tTerm('dashboard.widget.delinquencyRate.subtitle')}`}
+            tooltip="Porcentaje de creditos con atraso frente al total de creditos. Ayuda a medir riesgo operativo de cobranza."
             icon={<AlertTriangle size={18} />}
             accent="amber"
             className="h-full"
@@ -339,6 +342,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.totalRecovered.title')}
             value={formatCurrency(summary.totalRecoveredAmount)}
             helper={`${collections.pendingPromises || 0} ${tTerm('dashboard.widget.totalRecovered.subtitle')}`}
+            tooltip="Dinero recuperado mediante pagos registrados. Sirve para comparar recaudo contra cartera pendiente."
             icon={<Banknote size={18} />}
             accent="blue"
             className="h-full"

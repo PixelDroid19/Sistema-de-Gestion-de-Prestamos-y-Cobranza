@@ -426,7 +426,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               onClick={resetSimulation}
               disabled={isSimulating}
               aria-label="Restablecer parámetros"
-              className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              title="Limpia los parametros editados y vuelve a los valores base de la simulacion."
+              className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-surface px-3 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-slate-300 hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:border-slate-600"
             >
               Restablecer
             </button>
@@ -436,7 +437,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               onClick={simulate}
               disabled={isSimulating}
               aria-label="Validar crédito"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              title="Calcula la cuota, intereses y cronograma antes de crear el credito real."
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:bg-blue-500/20"
             >
               {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
               <span>Validar</span>
@@ -446,7 +448,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               disabled={!canRegister}
               data-tour="new-credit-submit"
               aria-label="Registrar crédito"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primary/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
+              title={canRegister ? 'Crea el credito real con la formula activa validada.' : 'Primero valida el credito y corrige cualquier campo pendiente.'}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               <span>Registrar</span>
