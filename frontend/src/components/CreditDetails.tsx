@@ -978,12 +978,12 @@ export default function CreditDetails() {
     const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
 
     return (
-      <div className={`flex flex-wrap items-center gap-2 ${alignClassName}`}>
+      <div className={`flex flex-nowrap items-center gap-1 ${alignClassName}`}>
         {paymentGuard.visible && (
           <button
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
             title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
             aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
@@ -995,7 +995,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openPromiseFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
               aria-label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
             >
@@ -1004,7 +1004,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openFollowUpFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
               aria-label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
             >
@@ -1013,7 +1013,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openAnnulModal(row.installmentNumber)}
               disabled={!isNextPendingInstallment || !annulGuard.executable}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
               aria-label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
             >
@@ -1339,32 +1339,32 @@ export default function CreditDetails() {
                     })}
                   </div>
 
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className="w-full text-sm text-left whitespace-nowrap">
-                      <thead className="text-xs text-text-secondary uppercase bg-hover-bg/50 border-b border-border-subtle">
+                  <div className="data-table-surface hidden overflow-x-auto lg:block">
+                    <table className="min-w-[1120px] w-full text-sm text-left whitespace-nowrap">
+                      <thead>
                         <tr>
-                          <th className="py-4 px-6 font-semibold text-center w-16">N°</th>
-                          <th className="py-4 px-6 font-semibold text-right">Cuota a Pagar</th>
-                          <th className="py-4 px-6 font-semibold text-right">Interés</th>
-                          <th className="py-4 px-6 font-semibold text-right">Mora</th>
-                          <th className="py-4 px-6 font-semibold text-right">Amortización</th>
-                          <th className="py-4 px-6 font-semibold text-right">Capital Vivo</th>
-                          <th className="py-4 px-6 font-semibold text-center w-32">Estado</th>
-                          {showInstallmentActionColumn && <th className="py-4 px-6 font-semibold text-center w-16"></th>}
+                          <th className="w-16 text-center">N°</th>
+                          <th className="text-right">Cuota a pagar</th>
+                          <th className="text-right">Interés</th>
+                          <th className="text-right">Mora</th>
+                          <th className="text-right">Amortización</th>
+                          <th className="text-right">Capital vivo</th>
+                          <th className="w-32 text-center">Estado</th>
+                          {showInstallmentActionColumn && <th className="w-40 min-w-[10rem] text-center">Acciones</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border-subtle">
+                      <tbody>
                         {/* Initial balance row */}
-                        <tr className="bg-bg-base/30">
-                          <td className="py-3 px-6 text-center text-text-secondary font-medium">0</td>
-                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
-                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
-                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
-                          <td className="py-3 px-6 text-right text-text-secondary">—</td>
-                          <td className="py-3 px-6 text-right font-bold text-text-primary">
+                        <tr>
+                          <td className="text-center text-text-secondary font-medium">0</td>
+                          <td className="text-right text-text-secondary">—</td>
+                          <td className="text-right text-text-secondary">—</td>
+                          <td className="text-right text-text-secondary">—</td>
+                          <td className="text-right text-text-secondary">—</td>
+                          <td className="text-right font-bold text-text-primary">
                             {formatCurrency(loan.amount)}
                           </td>
-                          <td className="py-3 px-6"></td>
+                          <td></td>
                           {showInstallmentActionColumn && <td></td>}
                         </tr>
                       {installmentRows.map((row: any, idx: number) => {
@@ -1374,31 +1374,31 @@ export default function CreditDetails() {
                         <tr
                           key={idx}
                           data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined}
-                          className="hover:bg-hover-bg/50 transition-colors group"
+                          className="group"
                         >
-                          <td className="py-3 px-5 text-center font-medium text-text-secondary">{row.installmentNumber}</td>
-                          <td className="py-3 px-5 text-right font-medium text-text-primary">
+                          <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                          <td className="text-right font-medium text-text-primary">
                             {formatCurrency(row.scheduledPayment)}
                           </td>
-                          <td className="py-3 px-5 text-right text-text-secondary">
+                          <td className="text-right text-text-secondary">
                             {formatCurrency(row.interestComponent)}
                           </td>
-                          <td className="py-3 px-5 text-right text-red-600 dark:text-red-400">
+                          <td className="text-right text-red-600 dark:text-red-400">
                             {row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}
                           </td>
-                          <td className="py-3 px-5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                          <td className="text-right text-emerald-600 dark:text-emerald-400 font-medium">
                             {formatCurrency(row.principalComponent)}
                           </td>
-                          <td className="py-3 px-5 text-right font-medium text-text-primary">
+                          <td className="text-right font-medium text-text-primary">
                             {formatCurrency(row.closingBalance)}
                           </td>
-                          <td className="py-3 px-5 text-center">
+                          <td className="text-center">
                             <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
                               {installmentStatusInfo.label}
                             </span>
                           </td>
                            {showInstallmentActionColumn && (
-                           <td className="py-3 px-5 text-center">
+                           <td className="w-40 min-w-[10rem] text-center">
                             {renderInstallmentActions(row)}
                             </td>
                           )}
@@ -1406,10 +1406,10 @@ export default function CreditDetails() {
                       )})}
                     </tbody>
                     {calendarSnapshot && (
-                      <tfoot className="bg-bg-base border-t border-border-strong">
+                    <tfoot>
                         <tr>
-                          <td colSpan={5} className="py-4 px-5 text-right text-text-secondary">Balance pendiente total:</td>
-                          <td className="py-4 px-5 text-right font-bold text-brand-primary text-base">
+                          <td colSpan={5} className="text-right text-text-secondary">Balance pendiente total:</td>
+                          <td className="text-right font-bold text-brand-primary text-base">
                             {formatCurrency(calendarSnapshot.outstandingBalance)}
                           </td>
                           <td colSpan={showInstallmentActionColumn ? 2 : 1}></td>
