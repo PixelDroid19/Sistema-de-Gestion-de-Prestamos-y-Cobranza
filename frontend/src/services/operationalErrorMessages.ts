@@ -124,6 +124,13 @@ export const getSafeOperationalMessage = (action: OperationalAction, error?: unk
     };
   }
 
+  if (action === 'capital.payment' && rawMessage && !isSensitiveErrorMessage(rawMessage)) {
+    return {
+      title: base.title,
+      description: rawMessage,
+    };
+  }
+
   return base;
 };
 

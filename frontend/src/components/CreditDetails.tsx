@@ -336,6 +336,7 @@ export default function CreditDetails() {
   const [capitalAmount, setCapitalAmount] = useState('');
   const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
+  const [capitalPaymentDate, setCapitalPaymentDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
@@ -375,6 +376,48 @@ export default function CreditDetails() {
 
     return Number.isFinite(candidate) ? candidate : null;
   }, [calendarEntries]);
+
+  const capitalPreview = useMemo(() => {
+    const amount = Number(capitalAmount || 0);
+    const currentPrincipal = Number(paymentSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
+    const remainingInstallments = Number(paymentSnapshot?.outstandingInstallments ?? 0);
+    const currentInstallment = Number(paymentSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
+    const annualRate = Number(loan?.interestRate ?? 0);
+    const newPrincipal = Math.max(0, currentPrincipal - (Number.isFinite(amount) ? amount : 0));
+    const monthlyRate = annualRate / 100 / 12;
+
+    const estimatePayment = (principal: number, term: number) => {
+      if (principal <= 0 || term <= 0) return 0;
+      if (monthlyRate <= 0) return principal / term;
+      return (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+    };
+
+    const estimateTerm = () => {
+      if (newPrincipal <= 0) return 0;
+      if (currentInstallment <= 0 || remainingInstallments <= 0) return remainingInstallments;
+      if (monthlyRate <= 0) return Math.min(remainingInstallments, Math.ceil(newPrincipal / currentInstallment));
+      if (currentInstallment <= newPrincipal * monthlyRate) return remainingInstallments;
+      const rawTerm = Math.ceil(-Math.log(1 - ((newPrincipal * monthlyRate) / currentInstallment)) / Math.log(1 + monthlyRate));
+      return Number.isFinite(rawTerm) ? Math.max(1, Math.min(remainingInstallments, rawTerm)) : remainingInstallments;
+    };
+
+    const estimatedInstallments = capitalStrategy === 'reduce_payment'
+      ? remainingInstallments
+      : estimateTerm();
+    const estimatedPayment = capitalStrategy === 'reduce_payment'
+      ? estimatePayment(newPrincipal, remainingInstallments)
+      : Math.min(currentInstallment, estimatePayment(newPrincipal, estimatedInstallments) || currentInstallment);
+
+    return {
+      amount,
+      currentPrincipal,
+      newPrincipal,
+      currentInstallment,
+      estimatedPayment,
+      remainingInstallments,
+      estimatedInstallments,
+    };
+  }, [capitalAmount, capitalStrategy, loan?.installmentAmount, loan?.interestRate, loan?.principalOutstanding, paymentSnapshot]);
 
   const extractPaymentId = (eventId: unknown): number | null => {
     if (typeof eventId === 'number' && Number.isFinite(eventId)) {
@@ -740,14 +783,20 @@ export default function CreditDetails() {
       action: 'capital.payment',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
       run: async () => {
-        await recordCapitalPayment.mutateAsync({ amount, paymentMethod: capitalMethod, strategy: capitalStrategy });
+        await recordCapitalPayment.mutateAsync({
+          amount,
+          paymentDate: capitalPaymentDate,
+          paymentMethod: capitalMethod,
+          strategy: capitalStrategy,
+        });
       },
       onSuccess: async () => {
         await invalidateAfterPayment(queryClient, { loanId });
         setShowCapitalModal(false);
         setCapitalAmount('');
+        setCapitalPaymentDate(new Date().toISOString().slice(0, 10));
       },
-      successMessage: 'Aporte de capital registrado',
+      successMessage: 'Abono a capital registrado',
     });
   };
 
@@ -1993,27 +2042,41 @@ export default function CreditDetails() {
       {/* Modal: Capital Contribution */}
       {showCapitalModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
+          <div className="bg-bg-surface rounded-xl w-full max-w-2xl border border-border-subtle shadow-xl overflow-hidden">
             <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Aporte de Capital</h3>
+              <h3 className="text-lg font-semibold text-text-primary">Abono a capital</h3>
+              <p className="mt-1 text-sm leading-6 text-text-secondary">
+                Reduce capital vivo. No paga cuotas futuras; recalcula el cronograma pendiente.
+              </p>
             </div>
             <div className="p-6 space-y-4">
-               <div>
-                <label className="block text-sm text-text-secondary mb-1">Monto de aporte</label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">Monto del abono</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
+                    <input
+                      type="number"
+                      value={capitalAmount}
+                      onChange={(e) => setCapitalAmount(e.target.value)}
+                      className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
+                      placeholder="0.00" min="0" step="0.01"
+                    />
+                  </div>
+                </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
+                  <label className="block text-sm font-medium text-text-primary mb-1">Fecha del abono</label>
                   <input
-                    type="number"
-                    value={capitalAmount}
-                    onChange={(e) => setCapitalAmount(e.target.value)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
-                    placeholder="0.00" min="0" step="0.01"
+                    type="date"
+                    value={capitalPaymentDate}
+                    onChange={(e) => setCapitalPaymentDate(e.target.value)}
+                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 outline-none focus:border-text-primary"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1">Método</label>
+                  <label className="block text-sm font-medium text-text-primary mb-1">Método</label>
                   <select
                     value={capitalMethod}
                     onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
@@ -2025,7 +2088,7 @@ export default function CreditDetails() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1">Estrategia</label>
+                  <label className="block text-sm font-medium text-text-primary mb-1">Estrategia</label>
                   <select
                     value={capitalStrategy}
                     onChange={(e) => setCapitalStrategy(e.target.value as CapitalStrategy)}
@@ -2037,10 +2100,42 @@ export default function CreditDetails() {
                   </select>
                 </div>
               </div>
+              <div className="rounded-xl border border-border-subtle bg-bg-base/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">Previsualización</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-text-secondary">Capital vivo actual</p>
+                    <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.currentPrincipal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary">Capital vivo nuevo</p>
+                    <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.newPrincipal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary">
+                      {capitalStrategy === 'reduce_payment' ? 'Cuota estimada' : 'Cuotas restantes'}
+                    </p>
+                    <p className="mt-1 font-semibold text-text-primary">
+                      {capitalStrategy === 'reduce_payment'
+                        ? formatCurrency(capitalPreview.estimatedPayment)
+                        : `${capitalPreview.estimatedInstallments} de ${capitalPreview.remainingInstallments}`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary">Efecto esperado</p>
+                    <p className="mt-1 font-semibold text-text-primary">
+                      {capitalStrategy === 'reduce_payment' ? 'Baja la cuota' : 'Reduce el plazo'}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-text-secondary">
+                  Si hay cuotas vencidas, intereses exigibles o una cuota parcial, primero se debe regularizar esa cuota.
+                </p>
+              </div>
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={() => setShowCapitalModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleRecordCapital} disabled={!capitalAmount || parseFloat(capitalAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar Aporte</button>
+              <button onClick={handleRecordCapital} disabled={!capitalAmount || parseFloat(capitalAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar abono</button>
             </div>
           </div>
         </div>

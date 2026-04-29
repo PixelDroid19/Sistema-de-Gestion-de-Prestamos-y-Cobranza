@@ -2,7 +2,7 @@ const { test, beforeEach, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 
 const models = require('@/models');
-const { summarizeSchedule, buildAmortizationSchedule } = require('@/modules/credits/application/creditFormulaHelpers');
+const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const moduleOwnedPaymentApplicationService = require('@/modules/credits/application/paymentApplicationService');
 const { createPaymentApplicationService } = require('@/services/paymentApplicationService');
@@ -174,37 +174,40 @@ test('applyPayment prioritizes overdue debt before current installments and send
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 220);
 });
 
-test('applyCapitalPayment updates schedule balances and payment remaining balance from snapshot', async () => {
+test('applyCapitalPayment reduce_term rebuilds the open schedule without marking future installments as paid', async () => {
   let savedLoan;
   let savedPayment;
+
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
 
   const loan = {
     id: 33,
     status: 'active',
     recoveryStatus: 'pending',
-    principalOutstanding: 300,
-    emiSchedule: [
-      {
-        installmentNumber: 1,
-        dueDate: '2026-04-01T00:00:00.000Z',
-        remainingPrincipal: 100,
-        remainingInterest: 10,
-        paidPrincipal: 0,
-        paidInterest: 0,
-        paidTotal: 0,
-        status: 'pending',
-      },
-      {
-        installmentNumber: 2,
-        dueDate: '2026-05-01T00:00:00.000Z',
-        remainingPrincipal: 200,
-        remainingInterest: 20,
-        paidPrincipal: 0,
-        paidInterest: 0,
-        paidTotal: 0,
-        status: 'pending',
-      },
-    ],
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
     async save() {
       savedLoan = this;
       return this;
@@ -220,17 +223,82 @@ test('applyCapitalPayment updates schedule balances and payment remaining balanc
 
   const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
     loanId: 33,
-    amount: 150,
-    paymentDate: '2026-03-10T00:00:00.000Z',
+    amount: 300,
+    paymentDate: '2026-05-15T00:00:00.000Z',
     paymentMethod: 'cash',
+    strategy: 'reduce_term',
   });
 
-  assert.equal(result.allocation.principalApplied, 150);
-  assert.equal(result.allocation.remainingPrincipalOutstanding, 150);
-  assert.equal(savedLoan.emiSchedule[0].remainingPrincipal, 0);
-  assert.equal(savedLoan.emiSchedule[1].remainingPrincipal, 150);
-  assert.equal(savedPayment.remainingBalanceAfterPayment, 180);
+  const futureRows = savedLoan.emiSchedule.slice(1);
+  assert.equal(result.allocation.principalApplied, 300);
+  assert.equal(result.allocation.remainingPrincipalOutstanding, roundCurrency(startingSnapshot.outstandingPrincipal - 300));
+  assert.equal(result.allocation.strategyApplied, 'reduce_term');
+  assert.ok(result.allocation.newRemainingInstallments < result.allocation.previousRemainingInstallments);
+  assert.ok(futureRows.every((row) => row.status === 'pending'));
+  assert.ok(futureRows.every((row) => row.paidPrincipal === 0 && row.paidInterest === 0 && row.paidTotal === 0));
+  assert.equal(savedLoan.financialSnapshot.totalPaidPrincipal, roundCurrency(schedule[0].principalComponent + 300));
+  assert.equal(savedPayment.remainingBalanceAfterPayment, savedLoan.financialSnapshot.outstandingBalance);
   assert.equal(savedPayment.paymentMethod, 'cash');
+  assert.equal(savedPayment.paymentMetadata.strategyApplied, 'reduce_term');
+  assert.equal(savedPayment.paymentMetadata.before.outstandingPrincipal, startingSnapshot.outstandingPrincipal);
+  assert.equal(savedPayment.paymentMetadata.after.outstandingPrincipal, savedLoan.financialSnapshot.outstandingPrincipal);
+});
+
+test('applyCapitalPayment reduce_payment preserves pending installment count and lowers the next payment', async () => {
+  let savedLoan;
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 331,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-payment' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 889, ...payload }));
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 331,
+    amount: 300,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_payment',
+  });
+
+  const futureRows = savedLoan.emiSchedule.slice(1);
+  assert.equal(result.allocation.strategyApplied, 'reduce_payment');
+  assert.equal(result.allocation.newRemainingInstallments, result.allocation.previousRemainingInstallments);
+  assert.equal(futureRows.length, 3);
+  assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
+  assert.ok(futureRows.every((row) => row.status === 'pending'));
+  assert.ok(futureRows.every((row) => row.paidTotal === 0));
 });
 
 test('applyCapitalPayment rejects loans with overdue unpaid installments and exposes denial reasons', async () => {
@@ -288,6 +356,62 @@ test('applyCapitalPayment rejects loans with overdue unpaid installments and exp
       code: 'OVERDUE_UNPAID_INSTALLMENTS',
       message: 'Loan has overdue unpaid installments',
     }]);
+    return true;
+  });
+});
+
+test('applyCapitalPayment rejects loans with a partial operative installment before recalculation', async () => {
+  const loan = {
+    id: 334,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 300,
+    financialSnapshot: {
+      outstandingPrincipal: 300,
+      outstandingInterest: 30,
+      outstandingBalance: 330,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-05-01T00:00:00.000Z',
+        remainingPrincipal: 90,
+        remainingInterest: 10,
+        paidPrincipal: 10,
+        paidInterest: 0,
+        paidTotal: 10,
+        status: 'partial',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-06-01T00:00:00.000Z',
+        remainingPrincipal: 200,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-partial' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 334,
+    amount: 50,
+    paymentDate: '2026-04-15T00:00:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.equal(error.denialReasons[0].code, 'PARTIAL_INSTALLMENT_PENDING');
     return true;
   });
 });

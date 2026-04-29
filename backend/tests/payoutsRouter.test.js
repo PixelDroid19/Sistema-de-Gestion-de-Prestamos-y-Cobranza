@@ -284,7 +284,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
         calls.push(['createCapitalPayment', payload]);
         return {
           payment: { id: 92, amount: payload.amount, paymentType: 'capital' },
-          allocation: { principalApplied: payload.amount },
+          allocation: { principalApplied: payload.amount, strategyRequested: payload.strategy, strategyApplied: 'reduce_payment' },
           loan: { id: payload.loanId, status: 'active' },
         };
       },
@@ -334,7 +334,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined, idempotencyKey: 'annul-15-2' }],
   ]);
   assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');
-  assert.equal(capitalResponse.body.data.strategyApplied, 'REDUCE_TIME');
+  assert.equal(capitalResponse.body.data.strategyApplied, 'reduce_payment');
 });
 
 test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compatibility routes', async () => {
