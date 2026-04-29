@@ -62,6 +62,8 @@ export default function Reports() {
     totalActiveLoans: 0,
     totalDisbursed: 0,
     totalRecovered: 0,
+    totalInterestGenerated: 0,
+    totalInterestPaid: 0,
     arrearsRate: 0,
   };
 
@@ -319,22 +321,22 @@ export default function Reports() {
           accent="blue"
         />
         <MetricCard
-          label="Total recuperado"
-          value={formatMoney(metrics.totalRecovered)}
+          label="Interés generado"
+          value={formatMoney(metrics.totalInterestGenerated)}
           icon={<TrendingUp size={18} />}
           accent="emerald"
+        />
+        <MetricCard
+          label="Interés pagado"
+          value={formatMoney(metrics.totalInterestPaid)}
+          icon={<Wallet size={18} />}
+          accent="rose"
         />
         <MetricCard
           label="Créditos activos"
           value={metrics.totalActiveLoans}
           icon={<Users size={18} />}
           accent="amber"
-        />
-        <MetricCard
-          label="Tasa de morosidad"
-          value={`${metrics.arrearsRate}%`}
-          icon={<AlertCircle size={18} />}
-          accent="rose"
         />
       </section>
       <p className="text-xs text-text-secondary mt-1">

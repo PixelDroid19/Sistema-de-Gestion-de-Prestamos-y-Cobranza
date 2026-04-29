@@ -135,6 +135,8 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
               defaultedLoans: 1,
               recoveredLoans: 2,
               totalPortfolioAmount: '400000.00',
+              totalInterestGenerated: '98000.00',
+              totalInterestPaid: '62000.00',
               totalRecoveredAmount: '210000.00',
               totalOutstandingAmount: '190000.00',
             },

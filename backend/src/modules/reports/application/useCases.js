@@ -429,11 +429,15 @@ const buildLoanReportRecord = async ({ loan, paymentRepository, loanViewService 
   const payments = await paymentRepository.listByLoan(loan.id);
   const snapshot = loanViewService.getSnapshot(loan);
   const serializedLoan = typeof loan.toJSON === 'function' ? loan.toJSON() : loan;
+  const completedPayments = payments.filter((payment) => !payment?.status || payment.status === 'completed');
+  const totalInterestPaid = completedPayments.reduce((sum, payment) => sum + Number(payment?.interestApplied || 0), 0);
 
   return {
     ...serializedLoan,
     totalPaid: snapshot.totalPaid.toFixed(2),
     totalDue: snapshot.totalPayable.toFixed(2),
+    totalInterestGenerated: Number(snapshot.totalInterest || 0).toFixed(2),
+    totalInterestPaid: Number(snapshot.totalPaidInterest ?? totalInterestPaid).toFixed(2),
     outstandingAmount: snapshot.outstandingBalance.toFixed(2),
     emi: snapshot.installmentAmount.toFixed(2),
     paymentCount: payments.length,
@@ -561,6 +565,8 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
         totalPortfolioAmount: '0.00',
         totalRecoveredAmount: '0.00',
         totalOutstandingAmount: '0.00',
+        totalInterestGenerated: '0.00',
+        totalInterestPaid: '0.00',
       },
       collections: {
         overdueAlerts: 0,
@@ -592,6 +598,8 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const totalPortfolioAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
     const totalRecoveredAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalPaid || 0), 0);
     const totalOutstandingAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
+    const totalInterestGenerated = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestGenerated || 0), 0);
+    const totalInterestPaid = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestPaid || 0), 0);
 
     return {
       success: true,
@@ -604,6 +612,8 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
           totalPortfolioAmount: totalPortfolioAmount.toFixed(2),
           totalRecoveredAmount: totalRecoveredAmount.toFixed(2),
           totalOutstandingAmount: totalOutstandingAmount.toFixed(2),
+          totalInterestGenerated: totalInterestGenerated.toFixed(2),
+          totalInterestPaid: totalInterestPaid.toFixed(2),
         },
         monthlyPerformance,
         collections: {

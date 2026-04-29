@@ -21,6 +21,8 @@ let reportsState = {
       totalActiveLoans: 1,
       totalDisbursed: 1000,
       totalRecovered: 500,
+      totalInterestGenerated: 240,
+      totalInterestPaid: 80,
       arrearsRate: 5,
     },
   },
@@ -99,6 +101,8 @@ describe('Reports behavioral parity scenarios', () => {
           totalActiveLoans: 1,
           totalDisbursed: 1000,
           totalRecovered: 500,
+          totalInterestGenerated: 240,
+          totalInterestPaid: 80,
           arrearsRate: 5,
         },
       },
@@ -124,6 +128,8 @@ describe('Reports behavioral parity scenarios', () => {
 
     expect(screen.getByRole('heading', { name: 'Reportes y analítica' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Reportes y Analíticas' })).not.toBeInTheDocument();
+    expect(screen.getByText('Interés generado')).toBeInTheDocument();
+    expect(screen.getByText('Interés pagado')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
 
@@ -206,6 +212,8 @@ describe('Reports behavioral parity scenarios', () => {
           totalActiveLoans: 2,
           totalDisbursed: 15000,
           totalRecovered: 9000,
+          totalInterestGenerated: 3200,
+          totalInterestPaid: 1800,
           arrearsRate: 4,
         },
       },
