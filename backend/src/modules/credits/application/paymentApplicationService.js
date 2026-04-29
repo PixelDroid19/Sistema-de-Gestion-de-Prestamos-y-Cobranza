@@ -1,7 +1,14 @@
 const crypto = require('crypto');
 const { sequelize, Loan, Payment, IdempotencyKey } = require('@/models');
-const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError } = require('@/utils/errorHandler');
-const { cloneSchedule, roundCurrency, summarizeSchedule, calculateLateFee } = require('./creditFormulaHelpers');
+const { NotFoundError, ValidationError, AuthorizationError, IdempotentReplayError, BusinessRuleViolationError } = require('@/utils/errorHandler');
+const {
+  buildAmortizationSchedule,
+  calculateInstallmentAmount,
+  cloneSchedule,
+  roundCurrency,
+  summarizeSchedule,
+  calculateLateFee,
+} = require('./creditFormulaHelpers');
 const {
   PAYABLE_LOAN_STATUSES,
   assertCapitalPaymentAllowed,
@@ -13,6 +20,16 @@ const PAYOFF_PAYMENT_TYPE = 'payoff';
 const PARTIAL_PAYMENT_TYPE = 'partial';
 const CAPITAL_PAYMENT_TYPE = 'capital';
 const PAYMENT_METHOD_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const CAPITAL_STRATEGY_ALIASES = new Map([
+  ['reduce_term', 'reduce_term'],
+  ['reduce_time', 'reduce_term'],
+  ['REDUCE_TIME', 'reduce_term'],
+  ['REDUCE_TERM', 'reduce_term'],
+  ['reduce_payment', 'reduce_payment'],
+  ['reduce_quota', 'reduce_payment'],
+  ['REDUCE_QUOTA', 'reduce_payment'],
+  ['REDUCE_PAYMENT', 'reduce_payment'],
+]);
 
 const _INSTALLMENT_STATUSES = new Set(['pending', 'overdue', 'paid', 'partial', 'annulled']);
 const CANCELLABLE_STATUSES = new Set(['pending', 'overdue']);
@@ -323,7 +340,10 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   paymentMethod: paymentMethod || null,
   paymentMetadata: {
     capital_reduction: true,
-    strategy: strategy || 'REDUCE_TIME',
+    strategy: strategy?.requested || strategy || 'reduce_term',
+    strategyApplied: strategy?.applied || strategy || 'reduce_term',
+    before: strategy?.before || null,
+    after: strategy?.after || null,
   },
 });
 
@@ -332,6 +352,153 @@ const buildProcessPaymentMetadata = ({ idempotencyKey, installmentNumber = null 
   ...(installmentNumber ? { installmentNumber } : {}),
   processedVia: 'canonical_waterfall',
 });
+
+const normalizeCapitalStrategy = (strategy) => {
+  const rawStrategy = strategy === undefined || strategy === null || strategy === ''
+    ? 'reduce_term'
+    : String(strategy);
+  return {
+    requested: rawStrategy,
+    applied: CAPITAL_STRATEGY_ALIASES.get(rawStrategy) || CAPITAL_STRATEGY_ALIASES.get(rawStrategy.toLowerCase()) || 'reduce_term',
+  };
+};
+
+const getInstallmentOutstanding = (row) => roundCurrency(
+  Number(row?.remainingPrincipal || 0) + Number(row?.remainingInterest || 0),
+);
+
+const isAnnulledOrPaid = (row) => row?.status === 'annulled' || row?.status === 'paid' || getInstallmentOutstanding(row) <= 0.01;
+
+const buildCapitalPaymentBlockedError = (denialReasons) => new BusinessRuleViolationError('Primero regulariza cuotas o intereses pendientes antes de registrar un abono a capital', {
+  code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+  denialReasons,
+});
+
+const assertCapitalScheduleCanBeRebuilt = ({ schedule, asOfDate }) => {
+  const normalizedAsOfDate = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
+  const denialReasons = [];
+
+  schedule.forEach((row) => {
+    if (row.status === 'annulled' || getInstallmentOutstanding(row) <= 0.01) {
+      return;
+    }
+
+    const dueDate = new Date(row.dueDate);
+    const hasPartialPayment = String(row.status || '').toLowerCase() === 'partial' || Number(row.paidTotal || 0) > 0.01;
+    if (hasPartialPayment) {
+      denialReasons.push({
+        code: 'PARTIAL_INSTALLMENT_PENDING',
+        installmentNumber: row.installmentNumber,
+        message: `La cuota #${row.installmentNumber} tiene un pago parcial pendiente de completar`,
+      });
+      return;
+    }
+
+    if (dueDate.getTime() <= normalizedAsOfDate.getTime() && Number(row.remainingInterest || 0) > 0.01) {
+      denialReasons.push({
+        code: 'DUE_INTEREST_PENDING',
+        installmentNumber: row.installmentNumber,
+        message: `La cuota #${row.installmentNumber} tiene interés exigible pendiente`,
+      });
+    }
+  });
+
+  if (denialReasons.length > 0) {
+    throw buildCapitalPaymentBlockedError(denialReasons);
+  }
+};
+
+const calculateReducedTerm = ({ principal, annualRate, paymentAmount, maxTerm }) => {
+  if (principal <= 0.01) return 0;
+  if (paymentAmount <= 0 || maxTerm <= 0) return maxTerm;
+
+  const monthlyRate = Number(annualRate || 0) / 100 / 12;
+  if (monthlyRate <= 0) {
+    return Math.max(1, Math.min(maxTerm, Math.ceil(principal / paymentAmount)));
+  }
+
+  if (paymentAmount <= principal * monthlyRate) {
+    return maxTerm;
+  }
+
+  const rawTerm = Math.ceil(-Math.log(1 - ((principal * monthlyRate) / paymentAmount)) / Math.log(1 + monthlyRate));
+  if (!Number.isFinite(rawTerm) || rawTerm <= 0) {
+    return maxTerm;
+  }
+
+  return Math.max(1, Math.min(maxTerm, rawTerm));
+};
+
+const rebuildPendingScheduleAfterCapitalPayment = ({
+  schedule,
+  loan,
+  principalAfterReduction,
+  capitalStrategy,
+}) => {
+  const firstPendingIndex = schedule.findIndex((row) => !isAnnulledOrPaid(row));
+  if (firstPendingIndex < 0 || principalAfterReduction <= 0.01) {
+    return schedule.filter((row) => isAnnulledOrPaid(row));
+  }
+
+  const preservedRows = schedule.slice(0, firstPendingIndex);
+  const pendingRows = schedule.slice(firstPendingIndex).filter((row) => row.status !== 'annulled');
+  const remainingTerm = pendingRows.length;
+  const firstPending = pendingRows[0];
+  const firstInstallmentNumber = Number(firstPending.installmentNumber || firstPendingIndex + 1);
+  const currentInstallmentAmount = roundCurrency(
+    firstPending.scheduledPayment
+    || loan.installmentAmount
+    || calculateInstallmentAmount({
+      amount: principalAfterReduction,
+      interestRate: loan.interestRate,
+      termMonths: remainingTerm,
+    }),
+  );
+  const rebuiltTerm = capitalStrategy.applied === 'reduce_term'
+    ? calculateReducedTerm({
+      principal: principalAfterReduction,
+      annualRate: loan.interestRate,
+      paymentAmount: currentInstallmentAmount,
+      maxTerm: remainingTerm,
+    })
+    : remainingTerm;
+
+  const rebuiltRows = buildAmortizationSchedule({
+    amount: principalAfterReduction,
+    interestRate: loan.interestRate,
+    termMonths: rebuiltTerm,
+    startDate: firstPending.dueDate,
+    calculationMethod: loan.calculationMethod || 'FRENCH',
+    ...(capitalStrategy.applied === 'reduce_term' ? { installmentAmount: currentInstallmentAmount } : {}),
+  }).map((row, index) => ({
+    ...row,
+    installmentNumber: firstInstallmentNumber + index,
+    status: 'pending',
+    paidPrincipal: 0,
+    paidInterest: 0,
+    paidTotal: 0,
+  }));
+
+  return [...preservedRows, ...rebuiltRows];
+};
+
+const applyCapitalAdjustmentToSnapshot = ({ snapshot, previousSnapshot = {}, principalReduction }) => {
+  const previousCapitalAdjustments = roundCurrency(previousSnapshot.capitalAdjustmentsApplied || 0);
+  const capitalAdjustmentsApplied = roundCurrency(previousCapitalAdjustments + principalReduction);
+  const totalPaidPrincipal = roundCurrency((snapshot.totalPaidPrincipal || 0) + capitalAdjustmentsApplied);
+  const totalPaidInterest = roundCurrency(snapshot.totalPaidInterest || 0);
+  const totalPaid = roundCurrency(totalPaidPrincipal + totalPaidInterest);
+
+  return {
+    ...snapshot,
+    capitalAdjustmentsApplied,
+    totalPrincipal: roundCurrency((snapshot.totalPrincipal || 0) + capitalAdjustmentsApplied),
+    totalPaidPrincipal,
+    totalPaidInterest,
+    totalPaid,
+    totalPayable: roundCurrency(totalPaid + (snapshot.outstandingBalance || 0)),
+  };
+};
 
 const sendOptionalNotification = async (sendFn) => {
   try {
@@ -780,7 +947,11 @@ const createPaymentApplicationService = ({
   };
 
   /**
-   * Apply a capital payment (reduces debt principal directly)
+   * Apply a capital payment by reducing live principal and rebuilding the future schedule.
+   *
+   * This operation is intentionally different from a regular installment payment:
+   * it does not mark future installments as partially paid. Closed rows remain as
+   * accounting history, and only the open schedule segment is recalculated.
    */
   const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), paymentMethod = null, strategy = 'REDUCE_TIME', actorId = 0, idempotencyKey = null }) => {
     return runPaymentOperationWithIdempotency({
@@ -807,6 +978,7 @@ const createPaymentApplicationService = ({
       const normalizedPaymentDate = normalizePaymentDate(paymentDate);
       const { schedule: canonicalSchedule, snapshot: canonicalSnapshot } = loanViewService.getCanonicalLoanView(loan);
       const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
+      const capitalStrategy = normalizeCapitalStrategy(strategy);
 
       assertCapitalPaymentAllowed({
         loan,
@@ -814,32 +986,49 @@ const createPaymentApplicationService = ({
         snapshot: canonicalSnapshot,
         asOfDate: normalizedPaymentDate,
       });
+      assertCapitalScheduleCanBeRebuilt({ schedule, asOfDate: normalizedPaymentDate });
 
       const principalReduction = Math.min(numericAmount, roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0));
+      const capitalBefore = roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0);
+      const principalAfterReduction = roundCurrency(Math.max(0, capitalBefore - principalReduction));
 
-      // Find installments with remaining principal and reduce debt directly.
-      let principalRemaining = principalReduction;
-      for (const row of schedule) {
-        if (principalRemaining <= 0) break;
-        
-        const rowPrincipal = roundCurrency(row.remainingPrincipal || 0);
-        if (rowPrincipal <= 0) continue;
-
-        const reduction = Math.min(rowPrincipal, principalRemaining);
-        row.remainingPrincipal = roundCurrency(rowPrincipal - reduction);
-        row.paidPrincipal = roundCurrency((row.paidPrincipal || 0) + reduction);
-        row.paidTotal = roundCurrency((row.paidTotal || 0) + reduction);
-        principalRemaining = roundCurrency(principalRemaining - reduction);
-        updateRowStatus(row, normalizedPaymentDate);
-      }
-
-      const snapshot = buildSnapshot(schedule);
+      const rebuiltSchedule = rebuildPendingScheduleAfterCapitalPayment({
+        schedule,
+        loan,
+        principalAfterReduction,
+        capitalStrategy,
+      });
+      const snapshot = applyCapitalAdjustmentToSnapshot({
+        snapshot: buildSnapshot(rebuiltSchedule),
+        previousSnapshot: canonicalSnapshot,
+        principalReduction,
+      });
+      const previousRemainingInstallments = schedule.filter((row) => !isAnnulledOrPaid(row)).length;
+      const newRemainingInstallments = rebuiltSchedule.filter((row) => !isAnnulledOrPaid(row)).length;
+      const strategyPayload = {
+        requested: capitalStrategy.requested,
+        applied: capitalStrategy.applied,
+        before: {
+          outstandingPrincipal: capitalBefore,
+          outstandingBalance: roundCurrency(canonicalSnapshot.outstandingBalance || 0),
+          remainingInstallments: previousRemainingInstallments,
+          installmentAmount: roundCurrency(canonicalSnapshot.nextInstallment?.scheduledPayment || loan.installmentAmount || 0),
+        },
+        after: {
+          outstandingPrincipal: snapshot.outstandingPrincipal,
+          outstandingBalance: snapshot.outstandingBalance,
+          remainingInstallments: newRemainingInstallments,
+          installmentAmount: roundCurrency(snapshot.nextInstallment?.scheduledPayment || 0),
+        },
+      };
 
       persistLoanSnapshot({
         loan,
         snapshot,
-        schedule,
+        schedule: rebuiltSchedule,
         paymentDate: normalizedPaymentDate,
+        closeLoan: snapshot.outstandingBalance <= 0.01,
+        closureReason: snapshot.outstandingBalance <= 0.01 ? 'capital_reduction' : null,
       });
 
       await loan.save({ transaction });
@@ -851,7 +1040,7 @@ const createPaymentApplicationService = ({
         principalApplied: principalReduction,
         snapshot,
         paymentMethod: normalizedPaymentMethod,
-        strategy,
+        strategy: strategyPayload,
       }), { transaction });
 
       return {
@@ -861,8 +1050,12 @@ const createPaymentApplicationService = ({
           amount: principalReduction,
           principalApplied: principalReduction,
           remainingPrincipalOutstanding: snapshot.outstandingPrincipal,
-          strategyRequested: strategy,
-          strategyApplied: 'REDUCE_TIME',
+          previousRemainingInstallments,
+          newRemainingInstallments,
+          previousInstallmentAmount: strategyPayload.before.installmentAmount,
+          newInstallmentAmount: strategyPayload.after.installmentAmount,
+          strategyRequested: capitalStrategy.requested,
+          strategyApplied: capitalStrategy.applied,
         },
       };
       },

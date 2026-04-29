@@ -68,8 +68,8 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
         payment: result.payment,
         allocation: result.allocation,
         loan: result.loan,
-        strategy: req.body?.strategy || 'REDUCE_TIME',
-        strategyApplied: 'REDUCE_TIME',
+        strategy: result.allocation?.strategyRequested || req.body?.strategy || 'reduce_term',
+        strategyApplied: result.allocation?.strategyApplied || 'reduce_term',
       },
     });
   }));
