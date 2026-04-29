@@ -1,6 +1,6 @@
 import React from 'react';
 import type { GuideContext, GuideViewKey } from '../../lib/guidedTours';
-import { QuickGuideButton } from './HelpSupport';
+import { HelpTooltip, QuickGuideButton } from './HelpSupport';
 
 type PageShellProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
@@ -28,6 +28,7 @@ type MetricCardProps = {
   label: React.ReactNode;
   value: React.ReactNode;
   helper?: React.ReactNode;
+  tooltip?: string;
   icon?: React.ReactNode;
   accent?: 'teal' | 'emerald' | 'blue' | 'amber' | 'rose' | 'slate';
   className?: string;
@@ -111,6 +112,7 @@ export function MetricCard({
   label,
   value,
   helper,
+  tooltip,
   icon,
   accent = 'teal',
   className = '',
@@ -119,9 +121,12 @@ export function MetricCard({
     <article className={`metric-card ${accentClassNames[accent]} ${className}`}>
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-text-secondary">
-            {label}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="min-w-0 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-text-secondary">
+              {label}
+            </p>
+            {tooltip ? <HelpTooltip text={tooltip} align="right" iconSize={11} /> : null}
+          </div>
           <div className="mt-2 overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1.25rem,1.7vw,1.5rem)] font-bold leading-8 tracking-tight text-text-primary">
             {value}
           </div>

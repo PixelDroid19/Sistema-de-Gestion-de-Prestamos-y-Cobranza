@@ -21,7 +21,8 @@ import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constant
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
+import { QuickGuideButton } from './shared/HelpSupport';
+import { MetricCard } from './shared/Surfaces';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
@@ -1004,51 +1005,23 @@ export default function CreditDetails() {
     value: React.ReactNode;
     tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
   }) => {
-    const toneClassName = {
-      default: 'text-text-primary',
-      success: 'text-emerald-700 dark:text-emerald-300',
-      warning: 'text-amber-700 dark:text-amber-300',
-      danger: 'text-rose-700 dark:text-rose-300',
-      brand: 'text-brand-primary',
-    }[tone];
-
-    const surfaceClassName = {
-      default: 'bg-slate-50/80 dark:bg-white/[0.03]',
-      success: 'bg-emerald-50/70 dark:bg-emerald-500/10',
-      warning: 'bg-amber-50/75 dark:bg-amber-500/10',
-      danger: 'bg-rose-50/70 dark:bg-rose-500/10',
-      brand: 'bg-sky-50/75 dark:bg-sky-500/10',
-    }[tone];
-
-    const iconClassName = {
-      default: 'bg-white text-slate-500 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-300 dark:ring-slate-700',
-      success: 'bg-white text-emerald-600 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-700/60',
-      warning: 'bg-white text-amber-600 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-700/60',
-      danger: 'bg-white text-rose-600 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-700/60',
-      brand: 'bg-white text-brand-primary ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-700/60',
+    const accent = {
+      default: 'slate',
+      success: 'emerald',
+      warning: 'amber',
+      danger: 'rose',
+      brand: 'blue',
     }[tone];
 
     return (
-      <div className={`relative min-w-0 rounded-lg border border-border-subtle px-4 py-3.5 shadow-sm ${surfaceClassName}`}>
-        {tooltip ? (
-          <HelpTooltip
-            text={tooltip}
-            align="right"
-            iconSize={11}
-            className="absolute right-3 top-3"
-            buttonClassName="border-transparent bg-transparent"
-          />
-        ) : null}
-        <div className="flex items-start gap-3 pr-5">
-          <span className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ${iconClassName}`}>
-            <Icon size={16} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.08em] text-text-secondary">{label}</p>
-            <div className={`mt-1 break-words text-[1.35rem] font-bold leading-[1.15] tracking-tight sm:text-[1.55rem] ${toneClassName}`}>{value}</div>
-          </div>
-        </div>
-      </div>
+      <MetricCard
+        label={label}
+        value={value}
+        tooltip={tooltip}
+        icon={<Icon />}
+        accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
+        className="min-h-[6.75rem]"
+      />
     );
   };
 
