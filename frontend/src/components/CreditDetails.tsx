@@ -21,7 +21,7 @@ import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constant
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
@@ -106,6 +106,15 @@ export default function CreditDetails() {
       style: 'currency',
       currency: 'COP',
       maximumFractionDigits: 2,
+    }).format(Number.isFinite(numericValue) ? numericValue : 0);
+  };
+
+  const formatMetricCurrency = (value: unknown) => {
+    const numericValue = Number(value ?? 0);
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
     }).format(Number.isFinite(numericValue) ? numericValue : 0);
   };
 
@@ -218,6 +227,7 @@ export default function CreditDetails() {
   const reportHistorySource = history?.data?.history ?? history;
   const reportAlertEntries = Array.isArray(reportHistorySource?.alerts) ? reportHistorySource.alerts : [];
   const reportPromiseEntries = Array.isArray(reportHistorySource?.promises) ? reportHistorySource.promises : [];
+  const paymentSnapshot = loan?.paymentContext?.snapshot;
   const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
   const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
   const activePayoffQuote = payoffEligibility?.allowed ? payoffQuote : null;
@@ -984,38 +994,60 @@ export default function CreditDetails() {
   const SummaryMetricItem = ({
     icon: Icon,
     label,
+    tooltip,
     value,
     tone = 'default',
   }: {
     icon: React.ElementType;
-    label: string;
+    label: React.ReactNode;
+    tooltip?: string;
     value: React.ReactNode;
     tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
   }) => {
     const toneClassName = {
       default: 'text-text-primary',
-      success: 'text-text-primary',
+      success: 'text-emerald-700 dark:text-emerald-300',
       warning: 'text-amber-700 dark:text-amber-300',
       danger: 'text-rose-700 dark:text-rose-300',
       brand: 'text-brand-primary',
     }[tone];
 
-    const railClassName = {
-      default: 'bg-slate-300 dark:bg-slate-600',
-      success: 'bg-slate-400 dark:bg-slate-500',
-      warning: 'bg-amber-500',
-      danger: 'bg-rose-500',
-      brand: 'bg-brand-primary',
+    const surfaceClassName = {
+      default: 'bg-slate-50/80 dark:bg-white/[0.03]',
+      success: 'bg-emerald-50/70 dark:bg-emerald-500/10',
+      warning: 'bg-amber-50/75 dark:bg-amber-500/10',
+      danger: 'bg-rose-50/70 dark:bg-rose-500/10',
+      brand: 'bg-sky-50/75 dark:bg-sky-500/10',
+    }[tone];
+
+    const iconClassName = {
+      default: 'bg-white text-slate-500 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-300 dark:ring-slate-700',
+      success: 'bg-white text-emerald-600 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-700/60',
+      warning: 'bg-white text-amber-600 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-700/60',
+      danger: 'bg-white text-rose-600 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-700/60',
+      brand: 'bg-white text-brand-primary ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-700/60',
     }[tone];
 
     return (
-      <div className="relative min-w-0 rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-sm dark:bg-bg-surface sm:px-5">
-        <span className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${railClassName}`} aria-hidden="true" />
-        <div className="flex items-center gap-2 text-text-secondary">
-          <Icon size={16} />
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">{label}</p>
+      <div className={`relative min-w-0 rounded-lg border border-border-subtle px-4 py-3.5 shadow-sm ${surfaceClassName}`}>
+        {tooltip ? (
+          <HelpTooltip
+            text={tooltip}
+            align="right"
+            iconSize={11}
+            className="absolute right-3 top-3"
+            buttonClassName="border-transparent bg-transparent"
+          />
+        ) : null}
+        <div className="flex items-start gap-3 pr-5">
+          <span className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ${iconClassName}`}>
+            <Icon size={16} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.08em] text-text-secondary">{label}</p>
+            <div className={`mt-1 break-words text-[1.35rem] font-bold leading-[1.15] tracking-tight sm:text-[1.55rem] ${toneClassName}`}>{value}</div>
+          </div>
         </div>
-        <div className={`mt-1.5 break-words text-xl font-bold leading-tight tracking-tight sm:text-2xl ${toneClassName}`}>{value}</div>
       </div>
     );
   };
@@ -1152,37 +1184,52 @@ export default function CreditDetails() {
         </div>
       </section>
 
-      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7" data-tour="credit-detail-metrics">
-          <SummaryMetricItem icon={Calendar} label="Cuotas Totales" value={loan.termMonths ?? '—'} />
-          <SummaryMetricItem icon={Clock} label="Cuotas a Pagar" value={loan.paymentContext?.snapshot?.outstandingInstallments ?? '—'} />
+      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-tour="credit-detail-metrics">
+          <SummaryMetricItem
+            icon={Calendar}
+            label="Cuotas Totales"
+            tooltip="Cantidad de cuotas pactadas al crear el crédito. No cambia aunque después se registren pagos o ajustes operativos."
+            value={loan.termMonths ?? '—'}
+          />
+          <SummaryMetricItem
+            icon={Clock}
+            label="Cuotas a Pagar"
+            tooltip="Cuotas que todavía tienen saldo pendiente. Si llega a cero, el crédito ya no tiene cuotas operables."
+            value={paymentSnapshot?.outstandingInstallments ?? '—'}
+          />
           <SummaryMetricItem
             icon={Percent}
             label="Interés Total"
-            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalInterest)}</span>}
+            tooltip="Suma de todos los intereses programados por la fórmula aplicada al crédito. Es el costo financiero del cronograma, no lo que falta por pagar."
+            value={<span title={formatCurrency(paymentSnapshot?.totalInterest)}>{formatMetricCurrency(paymentSnapshot?.totalInterest)}</span>}
           />
           <SummaryMetricItem
             icon={CheckCircle}
             label="Capital Pagado"
+            tooltip="Parte del préstamo original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
             tone="brand"
-            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidPrincipal)}</span>}
+            value={<span title={formatCurrency(paymentSnapshot?.totalPaidPrincipal)}>{formatMetricCurrency(paymentSnapshot?.totalPaidPrincipal)}</span>}
           />
           <SummaryMetricItem
             icon={DollarSign}
             label="Interés Pagado"
+            tooltip="Intereses que ya fueron cobrados y aplicados al crédito. Debe crecer a medida que se registran cuotas o pagos parciales."
             tone="warning"
-            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}>{formatCurrency(loan.paymentContext?.snapshot?.totalPaidInterest)}</span>}
+            value={<span title={formatCurrency(paymentSnapshot?.totalPaidInterest)}>{formatMetricCurrency(paymentSnapshot?.totalPaidInterest)}</span>}
           />
           <SummaryMetricItem
             icon={ShieldAlert}
             label="Tasa Mora EA"
+            tooltip="Tasa efectiva anual usada para calcular mora sobre saldos vencidos cuando una cuota entra en atraso."
             tone="danger"
             value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
           />
           <SummaryMetricItem
             icon={Activity}
             label="Capital Vivo"
+            tooltip="Capital del préstamo que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
             tone="brand"
-            value={<span title={formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}>{formatCurrency(loan.paymentContext?.snapshot?.outstandingPrincipal)}</span>}
+            value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
           />
       </section>
 

@@ -178,8 +178,8 @@ const getCanonicalLoanView = (loan) => {
 
   const snapshot = loan.financialSnapshot && Object.keys(loan.financialSnapshot).length > 0
     ? {
-      ...buildFinancialSnapshot(existingSchedule),
       ...loan.financialSnapshot,
+      ...buildFinancialSnapshot(existingSchedule),
     }
     : buildFinancialSnapshot(existingSchedule);
 
