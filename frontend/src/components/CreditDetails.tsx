@@ -983,7 +983,7 @@ export default function CreditDetails() {
           <button
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
             title={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
             aria-label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
@@ -995,7 +995,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openPromiseFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
               aria-label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
             >
@@ -1004,7 +1004,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openFollowUpFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
               aria-label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
             >
@@ -1013,7 +1013,7 @@ export default function CreditDetails() {
             <button
               onClick={() => openAnnulModal(row.installmentNumber)}
               disabled={!isNextPendingInstallment || !annulGuard.executable}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
               title={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
               aria-label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
             >
@@ -1340,7 +1340,7 @@ export default function CreditDetails() {
                   </div>
 
                   <div className="data-table-surface hidden overflow-x-auto lg:block">
-                    <table className="min-w-[960px] w-full text-sm text-left whitespace-nowrap">
+                    <table className="min-w-[900px] w-full text-sm text-left whitespace-nowrap">
                       <thead>
                         <tr>
                           <th className="w-16 text-center">N°</th>
@@ -1350,7 +1350,7 @@ export default function CreditDetails() {
                           <th className="text-right">Amortización</th>
                           <th className="text-right">Capital vivo</th>
                           <th className="w-32 text-center">Estado</th>
-                          {showInstallmentActionColumn && <th className="w-32 min-w-[8rem] text-center">Acciones</th>}
+                          {showInstallmentActionColumn && <th className="w-28 min-w-[7rem] text-center">Acciones</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1398,7 +1398,7 @@ export default function CreditDetails() {
                             </span>
                           </td>
                            {showInstallmentActionColumn && (
-                           <td className="w-32 min-w-[8rem] text-center">
+                           <td className="w-28 min-w-[7rem] text-center">
                             {renderInstallmentActions(row)}
                             </td>
                           )}
