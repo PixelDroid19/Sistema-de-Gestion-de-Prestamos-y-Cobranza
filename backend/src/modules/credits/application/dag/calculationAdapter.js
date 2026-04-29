@@ -6,6 +6,19 @@
 
 const { DEFAULT_SCOPE_KEY } = require('./scopeRegistry');
 
+const addOneMonthClamped = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth)));
+};
+
+const resolveDefaultFirstPaymentDate = () => {
+  const now = new Date();
+  return addOneMonthClamped(now).toISOString();
+};
+
 const normalizeCalculationInput = (input = {}) => {
   const rawStartDate = input.startDate;
 
@@ -18,7 +31,7 @@ const normalizeCalculationInput = (input = {}) => {
 
   return {
     ...input,
-    startDate: new Date().toISOString(),
+    startDate: resolveDefaultFirstPaymentDate(),
   };
 };
 

@@ -4,20 +4,29 @@ const {
   normalizeCalculationMethod,
 } = require('./dag/calculationMethods');
 
-const addMonths = (date, months) => {
-  const copy = new Date(date);
-  copy.setMonth(copy.getMonth() + months);
-  return copy;
+const parseUtcDateOnly = (value) => {
+  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})/.exec(String(value || '').trim());
+  if (!match) return null;
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
 };
 
-const resolveScheduleStartDate = (startDate) => {
+const addMonths = (date, months) => {
+  const source = parseUtcDateOnly(date) || new Date(date);
+  const year = source.getUTCFullYear();
+  const month = source.getUTCMonth() + Number(months);
+  const day = source.getUTCDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth)));
+};
+
+const resolveFirstPaymentDate = (startDate) => {
   if (startDate === undefined || startDate === null || startDate === '') {
-    return new Date();
+    return addMonths(new Date(), 1);
   }
 
-  const parsedDate = new Date(startDate);
+  const parsedDate = parseUtcDateOnly(startDate) || new Date(startDate);
   if (Number.isNaN(parsedDate.getTime())) {
-    return new Date();
+    return addMonths(new Date(), 1);
   }
 
   return parsedDate;
@@ -52,7 +61,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
   const interestTotal = roundCurrency(Math.max(0, Number(totalInterest) || 0));
   const term = Number(termMonths);
   const schedule = [];
-  const scheduleStartDate = resolveScheduleStartDate(startDate);
+  const firstPaymentDate = resolveFirstPaymentDate(startDate);
   const basePrincipal = term > 0 ? roundCurrency(principal / term) : 0;
   const baseInterest = term > 0 ? roundCurrency(interestTotal / term) : 0;
   let balance = principal;
@@ -72,7 +81,7 @@ const buildLevelTotalSchedule = ({ amount, totalInterest, termMonths, startDate 
 
     schedule.push({
       installmentNumber: month,
-      dueDate: addMonths(scheduleStartDate, month).toISOString(),
+      dueDate: addMonths(firstPaymentDate, month - 1).toISOString(),
       openingBalance,
       scheduledPayment,
       principalComponent,
@@ -110,7 +119,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
   const buildFixedInstallmentSchedule = (resolvedInstallmentAmount) => {
     const schedule = [];
-    const scheduleStartDate = resolveScheduleStartDate(startDate);
+    const firstPaymentDate = resolveFirstPaymentDate(startDate);
     let balance = roundCurrency(amount);
 
     for (let month = 1; month <= term; month += 1) {
@@ -126,7 +135,7 @@ const buildAmortizationSchedule = ({ amount, interestRate, termMonths, startDate
 
       schedule.push({
         installmentNumber: month,
-        dueDate: addMonths(scheduleStartDate, month).toISOString(),
+        dueDate: addMonths(firstPaymentDate, month - 1).toISOString(),
         openingBalance,
         scheduledPayment,
         principalComponent,

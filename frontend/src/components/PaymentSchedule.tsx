@@ -32,6 +32,7 @@ export default function PaymentSchedule() {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: 'UTC',
     });
   };
 

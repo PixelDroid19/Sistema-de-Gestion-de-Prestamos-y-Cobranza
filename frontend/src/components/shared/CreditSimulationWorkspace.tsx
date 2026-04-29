@@ -95,6 +95,7 @@ const formatDate = (value: string) => {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'UTC',
   }).format(parsed);
 };
 
@@ -117,7 +118,7 @@ const fieldHelp = {
   amount: 'Capital a desembolsar antes de intereses y recargos.',
   rate: 'Porcentaje anual usado para construir la cuota mensual equivalente.',
   term: 'Número total de cuotas mensuales del cronograma.',
-  startDate: 'Opcional. Si no se define, el servidor usa la fecha actual.',
+  startDate: 'Fecha exacta de vencimiento de la primera cuota. Las siguientes cuotas se calculan mes a mes desde esta fecha.',
   lateFee: 'Define cómo se calcula el recargo cuando una cuota se vence. Este valor queda guardado con el crédito.',
   scenarios: 'Guarda resultados para comparar cuota e interés sin registrar un crédito.',
 };
@@ -435,7 +436,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
-                        Fecha de inicio
+                        Fecha del primer pago
                       </label>
                       <FieldHint id={startDateHelpId} text={fieldHelp.startDate} />
                     </div>

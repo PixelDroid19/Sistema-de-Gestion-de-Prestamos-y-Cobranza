@@ -164,7 +164,7 @@ body {
     --metric-accent: var(--brand-primary);
     position: relative;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid var(--border-subtle);
     border-radius: 1rem;
     background: var(--bg-surface);
