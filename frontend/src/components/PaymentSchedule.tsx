@@ -4,7 +4,7 @@ import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileS
 import { usePaymentSchedule, exportCreditsExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
-import { MetricCard } from './shared/Surfaces';
+import { DataTableSurface, MetricCard } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
@@ -164,61 +164,53 @@ export default function PaymentSchedule() {
         </section>
       )}
 
-      {/* Amortization Table */}
-      <div className="overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface" data-tour="payment-schedule-table">
-        <div className="px-6 py-4 border-b border-border-subtle">
-          <h3 className="text-lg font-medium flex items-center gap-2">
-            <BarChart3 size={20} className="text-blue-500" />
-            Tabla de Amortización
-          </h3>
-        </div>
-
+      <DataTableSurface data-tour="payment-schedule-table">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-bg-base border-b border-border-subtle">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead>
               <tr>
-                <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary"># Cuota</th>
-                <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Fecha Vencimiento</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Saldo Inicial</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Cuota Programada</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Capital</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Interés</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Pagado</th>
-                <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Saldo Restante</th>
-                <th className="text-center py-3 px-4 text-xs font-medium text-text-secondary">Estado</th>
+                <th className="text-left"># Cuota</th>
+                <th className="text-left">Fecha vencimiento</th>
+                <th className="text-right">Saldo inicial</th>
+                <th className="text-right">Cuota programada</th>
+                <th className="text-right">Capital</th>
+                <th className="text-right">Interés</th>
+                <th className="text-right">Pagado</th>
+                <th className="text-right">Saldo restante</th>
+                <th className="text-center">Estado</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border-subtle">
               {schedule.map((entry) => (
                 <tr
                   key={entry.installmentNumber}
-                  className="border-b border-border-subtle hover:bg-hover-bg transition-colors"
+                  className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60"
                 >
-                  <td className="py-3 px-4 font-medium text-text-primary">
+                  <td className="font-medium text-text-primary">
                     {entry.installmentNumber}
                   </td>
-                  <td className="py-3 px-4 text-text-secondary">
+                  <td className="whitespace-nowrap text-text-secondary">
                     {formatDate(entry.dueDate)}
                   </td>
-                  <td className="py-3 px-4 text-right text-text-primary">
+                  <td className="whitespace-nowrap text-right text-text-primary">
                     {formatCurrency(entry.openingBalance)}
                   </td>
-                  <td className="py-3 px-4 text-right font-medium text-text-primary">
+                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
                     {formatCurrency(entry.scheduledPayment)}
                   </td>
-                  <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400">
+                  <td className="whitespace-nowrap text-right text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(entry.principalComponent)}
                   </td>
-                  <td className="py-3 px-4 text-right text-amber-600 dark:text-amber-400">
+                  <td className="whitespace-nowrap text-right text-amber-600 dark:text-amber-400">
                     {formatCurrency(entry.interestComponent)}
                   </td>
-                  <td className="py-3 px-4 text-right font-medium text-text-primary">
+                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
                     {entry.paidTotal > 0 ? formatCurrency(entry.paidTotal) : '-'}
                   </td>
-                  <td className="py-3 px-4 text-right font-medium text-text-primary">
+                  <td className="whitespace-nowrap text-right font-medium text-text-primary">
                     {formatCurrency(entry.remainingBalance)}
                   </td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="text-center">
                     {getStatusBadge(entry.status)}
                   </td>
                 </tr>
@@ -226,7 +218,7 @@ export default function PaymentSchedule() {
             </tbody>
           </table>
         </div>
-      </div>
+      </DataTableSurface>
     </div>
   );
 }
