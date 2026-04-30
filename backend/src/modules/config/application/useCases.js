@@ -399,21 +399,25 @@ const createResolveLateFeePolicy = ({ configRepository }) => async () => {
   return pickHighestPriorityPolicy(policies);
 };
 
-const createUpsertSetting = ({ configRepository }) => async (settingKey, { label, value, description }) => {
+const createUpsertSetting = ({ configRepository }) => async (settingKey, { label, value, description } = {}) => {
   const normalizedKey = normalizeKey(settingKey);
   if (!normalizedKey) {
     throw new ValidationError('setting key is required');
   }
 
-  const normalizedLabel = requireText(label || normalizedKey, 'label');
   const existing = await configRepository.findByCategoryAndKey(BUSINESS_SETTING_CATEGORY, normalizedKey);
 
   if (existing) {
+    const normalizedLabel = label !== undefined
+      ? requireText(label, 'label')
+      : requireText(existing.label || normalizedKey, 'label');
     const updated = await configRepository.update(existing.id, {
       label: normalizedLabel,
       value: {
-        value: value ?? '',
-        description: String(description || '').trim(),
+        value: value !== undefined ? value : existing.value?.value ?? '',
+        description: description !== undefined
+          ? String(description || '').trim()
+          : existing.value?.description || '',
       },
       isActive: true,
     });
@@ -421,6 +425,7 @@ const createUpsertSetting = ({ configRepository }) => async (settingKey, { label
     return buildSetting(updated);
   }
 
+  const normalizedLabel = requireText(label || normalizedKey, 'label');
   const created = await configRepository.create({
     category: BUSINESS_SETTING_CATEGORY,
     key: normalizedKey,

@@ -29,7 +29,7 @@ export default function InstallmentsModal({
         <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
           <div className="flex items-center gap-2">
             <Clock size={20} className="text-amber-600" />
-            <h3 className="text-lg font-bold text-text-primary">Cuotas del Socio</h3>
+            <h3 className="text-lg font-bold text-text-primary">Cuotas del socio</h3>
           </div>
           <button
             onClick={onClose}
@@ -79,7 +79,7 @@ export default function InstallmentsModal({
                   <tr>
                     <th className="pb-2 font-medium">#</th>
                     <th className="pb-2 font-medium">Monto</th>
-                    <th className="pb-2 font-medium">Fecha Vencimiento</th>
+                    <th className="pb-2 font-medium">Fecha vencimiento</th>
                     <th className="pb-2 font-medium">Estado</th>
                   </tr>
                 </thead>

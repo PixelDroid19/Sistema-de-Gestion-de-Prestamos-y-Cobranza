@@ -3,6 +3,7 @@ import { Eye, Network, Server } from 'lucide-react';
 import { AuditLog, PaginationMeta } from '../services/auditService';
 import {
   formatAuditDate,
+  formatAuditEntity,
   getAuditActionLabel,
   getAuditActionTone,
   getAuditModuleLabel,
@@ -18,11 +19,6 @@ interface AuditTableProps {
   onPageChange: (page: number) => void;
   onFilterIp: (ip: string) => void;
 }
-
-const formatEntity = (log: AuditLog) => {
-  if (!log.entityType && !log.entityId) return 'Sin entidad';
-  return `${log.entityType || 'Entidad'}${log.entityId ? ` #${log.entityId}` : ''}`;
-};
 
 export default function AuditTable({
   logs,
@@ -105,8 +101,8 @@ export default function AuditTable({
                   <td className="whitespace-nowrap text-sm text-text-primary">
                     {getAuditModuleLabel(log.module)}
                   </td>
-                  <td className="max-w-[12rem] truncate text-sm text-text-primary" title={formatEntity(log)}>
-                    {formatEntity(log)}
+                  <td className="max-w-[12rem] truncate text-sm text-text-primary" title={formatAuditEntity(log)}>
+                    {formatAuditEntity(log)}
                   </td>
                   <td className="whitespace-nowrap">
                     {log.ip ? (

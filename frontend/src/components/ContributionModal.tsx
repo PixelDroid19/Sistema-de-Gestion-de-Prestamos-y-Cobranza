@@ -41,9 +41,9 @@ export default function ContributionModal({
       });
       setAmount('');
       setShowAddForm(false);
-      toast.success({ title: 'Aportación registrada exitosamente' });
+      toast.success({ title: 'Aporte registrado correctamente' });
     } catch (error) {
-      toast.error({ title: 'Error al registrar la aportación' });
+      toast.error({ title: 'No se pudo registrar el aporte' });
     } finally {
       setIsSubmitting(false);
     }
@@ -56,7 +56,7 @@ export default function ContributionModal({
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <div className="flex items-center gap-2">
             <History size={20} className="text-emerald-600" />
-            <h3 className="text-lg font-bold text-text-primary">Historial de Aportaciones</h3>
+            <h3 className="text-lg font-bold text-text-primary">Historial de aportes</h3>
           </div>
           <button
             onClick={onClose}
@@ -74,14 +74,14 @@ export default function ContributionModal({
               onClick={() => setShowAddForm(true)}
               className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors mb-4"
             >
-              <Plus size={16} /> Nueva Aportación
+              <Plus size={16} /> Nuevo aporte
             </button>
           )}
 
           {/* Add Contribution Form */}
           {canAddContribution && showAddForm && (
             <form onSubmit={handleSubmit} className="bg-bg-base border border-border-subtle rounded-xl p-4 mb-4">
-              <h4 className="text-sm font-medium text-text-primary mb-3">Registrar Nueva Aportación</h4>
+              <h4 className="text-sm font-medium text-text-primary mb-3">Registrar nuevo aporte</h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
@@ -148,7 +148,7 @@ export default function ContributionModal({
             </div>
           ) : (
             <div className="text-center py-8 text-text-secondary">
-              No hay aportaciones registradas.
+              No hay aportes registrados.
             </div>
           )}
         </div>

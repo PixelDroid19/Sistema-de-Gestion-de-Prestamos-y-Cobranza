@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Filter, RotateCcw, Search } from 'lucide-react';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '../types/audit';
-import { getAuditActionLabel, getAuditModuleLabel } from '../lib/auditPresentation';
+import { getAuditActionLabel, getAuditModuleLabel, normalizeAuditEntityTypeInput } from '../lib/auditPresentation';
 
 export interface FilterValues {
   userId?: string;
@@ -50,7 +50,9 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
     const cleanedFilters: FilterValues = {};
     Object.entries(filters).forEach(([key, value]) => {
       if (value && value.trim() !== '') {
-        cleanedFilters[key as keyof FilterValues] = value;
+        cleanedFilters[key as keyof FilterValues] = key === 'entityType'
+          ? normalizeAuditEntityTypeInput(value)
+          : value;
       }
     });
     onFilter(cleanedFilters);
@@ -154,7 +156,7 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
             type="text"
             value={filters.entityType}
             onChange={(e) => handleChange('entityType', e.target.value)}
-            placeholder="Loan, User, Payment"
+            placeholder="Crédito, usuario o pago"
             className="w-full rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-brand-primary"
           />
         </div>

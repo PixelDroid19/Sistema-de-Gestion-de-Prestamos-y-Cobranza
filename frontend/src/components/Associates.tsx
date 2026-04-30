@@ -199,14 +199,14 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
                 <th className="pb-3 font-medium">ID</th>
-                <th className="pb-3 font-medium">Nombre del Socio</th>
+                <th className="pb-3 font-medium">Nombre del socio</th>
                 <th className="pb-3 font-medium">
                   <HelpLabel label="Estado" text="Estado del socio dentro de la plataforma. Define si sigue habilitado para vínculos, reportes y participación operativa." />
                 </th>
                 <th className="pb-3 font-medium">
                   <HelpLabel label="Participación" text="Porcentaje o reparto con el que el socio participa en los créditos relacionados." />
                 </th>
-                <th className="pb-3 font-medium">Préstamos Relacionados</th>
+                <th className="pb-3 font-medium">Créditos relacionados</th>
                 <th className="pb-3 font-medium">Acciones</th>
               </tr>
             </thead>

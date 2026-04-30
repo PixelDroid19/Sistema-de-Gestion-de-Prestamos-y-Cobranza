@@ -422,7 +422,7 @@ export default function Payouts() {
               type="text" 
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Buscar por ID de préstamo o cliente..." 
+              placeholder="Buscar por ID de crédito o cliente..."
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
           </div>

@@ -11,7 +11,7 @@ describe('resolveOperationalGuard', () => {
     expect(guard).toMatchObject({
       visible: true,
       executable: false,
-      reason: 'Crédito Cerrado: acción no disponible.',
+      reason: 'Crédito cerrado: acción no disponible.',
     });
     expect(guard.reason).not.toContain('closed');
   });
@@ -26,7 +26,7 @@ describe('resolveOperationalGuard', () => {
     expect(guard).toMatchObject({
       visible: true,
       executable: false,
-      reason: 'Cuota Anulada: acción no disponible.',
+      reason: 'Cuota anulada: acción no disponible.',
     });
     expect(guard.reason).not.toContain('annulled');
   });

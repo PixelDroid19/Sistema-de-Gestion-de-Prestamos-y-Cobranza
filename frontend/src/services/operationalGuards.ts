@@ -58,12 +58,16 @@ const formatInstallmentStatus = (installmentStatus?: string): string => {
   return INSTALLMENT_STATUS_LABELS[normalizedStatus] || 'no operativa';
 };
 
+const sentenceCaseStatus = (label: string): string => label
+  ? label.charAt(0).toLowerCase() + label.slice(1)
+  : label;
+
 const unavailableLoanStatusReason = (loanStatus?: string): string => (
-  `Crédito ${formatLoanStatus(loanStatus)}: acción no disponible.`
+  `Crédito ${sentenceCaseStatus(formatLoanStatus(loanStatus))}: acción no disponible.`
 );
 
 const unavailableInstallmentStatusReason = (installmentStatus?: string): string => (
-  `Cuota ${formatInstallmentStatus(installmentStatus)}: acción no disponible.`
+  `Cuota ${sentenceCaseStatus(formatInstallmentStatus(installmentStatus))}: acción no disponible.`
 );
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
