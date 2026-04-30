@@ -3,6 +3,7 @@ import { Activity, Code2, Globe2, Server, UserRound, X } from 'lucide-react';
 import { AuditLog } from '../services/auditService';
 import {
   formatAuditDate,
+  getAuditEntityTypeLabel,
   getAuditActionLabel,
   getAuditActionTone,
   getAuditMethod,
@@ -146,7 +147,7 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
               <Fact label="Usuario" value={auditLog.userName || 'Sistema'} />
               <Fact label="ID usuario" value={auditLog.userId || 'Sin sesión'} mono />
               <Fact label="Área" value={getAuditModuleLabel(auditLog.module)} />
-              <Fact label="Entidad" value={auditLog.entityType || 'Sin tipo'} />
+              <Fact label="Entidad" value={getAuditEntityTypeLabel(auditLog.entityType)} />
               <Fact label="ID entidad" value={auditLog.entityId || 'Sin ID'} mono />
               <Fact label="Método HTTP" value={method || 'No registrado'} mono />
               <Fact label="Ruta" value={path || 'No registrada'} mono />

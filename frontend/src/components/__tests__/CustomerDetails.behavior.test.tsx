@@ -7,6 +7,7 @@ const uploadDocumentMutateAsync = vi.fn();
 const deleteDocumentMutateAsync = vi.fn();
 
 let documentsFixture: any[] = [];
+let loansFixture: any[] = [];
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateSpy,
@@ -55,7 +56,7 @@ vi.mock('../../services/loanService', () => ({
   useLoans: () => ({
     data: {
       data: {
-        loans: [],
+        loans: loansFixture,
       },
     },
   }),
@@ -77,6 +78,7 @@ describe('CustomerDetails behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     documentsFixture = [];
+    loansFixture = [];
   });
 
   it('uploads customer documents using category and customer visibility metadata', async () => {
@@ -129,5 +131,28 @@ describe('CustomerDetails behavior', () => {
 
     expect(screen.getByText('Comprobante de Ingresos')).toBeInTheDocument();
     expect(screen.getByText(/Uso interno/i)).toBeInTheDocument();
+  });
+
+  it('does not show negative outstanding balance for overpaid customer credits', () => {
+    loansFixture = [
+      {
+        id: 3,
+        customerId: 5,
+        status: 'closed',
+        amount: 900000,
+        totalPaid: 933147,
+        interestRate: 24,
+        termMonths: 6,
+        startDate: '2026-04-27T00:00:00.000Z',
+      },
+    ];
+
+    render(<CustomerDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
+
+    expect(screen.getByText('Saldo Pendiente')).toBeInTheDocument();
+    expect(screen.getByText(/\$\s*0/)).toBeInTheDocument();
+    expect(screen.queryByText(/-\$/)).not.toBeInTheDocument();
   });
 });

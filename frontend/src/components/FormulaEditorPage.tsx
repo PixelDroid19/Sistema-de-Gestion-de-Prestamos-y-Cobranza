@@ -97,7 +97,7 @@ function createDefaultContainerForTarget(outputVar = 'lateFeeMode'): FormulaCont
   const option = FORMULA_TARGET_OPTIONS.find((item) => item.key === outputVar);
   const container: FormulaContainer = {
     id: generateBlockId(`container_${outputVar}`),
-    label: option?.label || 'Regla de credito',
+    label: option?.label || 'Regla de crédito',
     outputVar,
     blocks: [makeBlock('if', outputVar)],
   };
@@ -231,13 +231,13 @@ function describeRule(container: FormulaContainer, block: BlockDefinition): stri
 
 function getTargetHelp(outputVar?: string): string {
   if (outputVar === 'calculationMethod') {
-    return 'Cambia el metodo financiero usado para calcular la cuota. Si no aplica, se conserva la formula base.';
+    return 'Cambia el método financiero usado para calcular la cuota. Si no aplica, se conserva la fórmula base.';
   }
   if (outputVar === 'installmentAmount') {
-    return 'Fija una cuota manual. Cuando esta excepcion aplica, reemplaza la cuota calculada por la formula base.';
+    return 'Fija una cuota manual. Cuando esta excepción aplica, reemplaza la cuota calculada por la fórmula base.';
   }
   const target = FORMULA_TARGET_OPTIONS.find((option) => option.key === outputVar);
-  return `${target?.description || 'Ajusta un valor del credito.'} Si no aplica, el sistema conserva el dato original.`;
+  return `${target?.description || 'Ajusta un valor del crédito.'} Si no aplica, el sistema conserva el dato original.`;
 }
 
 function conditionMatches(
@@ -388,7 +388,7 @@ export default function FormulaEditorPage() {
     if (isNew) {
       store.setContainers([]);
       setSelectedContainerId(null);
-      store.setFormulaName(scope.defaultName || 'Nueva formula');
+      store.setFormulaName(scope.defaultName || 'Nueva fórmula');
       setTestInputs(scope.calculationInput || scope.simulationInput || {});
     } else if (existingGraphData?.data?.graph) {
       const existing = existingGraphData.data.graph;
@@ -397,7 +397,7 @@ export default function FormulaEditorPage() {
         const nextContainers = c.length > 0 ? c : [];
         store.setContainers(nextContainers);
         setSelectedContainerId(null);
-        store.setFormulaName(existing.name || 'Formula');
+        store.setFormulaName(existing.name || 'Fórmula');
         store.setFormulaDescription(existing.description || '');
         store.setStatus(existing.status || 'inactive');
       }
@@ -445,7 +445,7 @@ export default function FormulaEditorPage() {
     store.selectBlock(blockId);
     toast.warning({
       title: 'Regla duplicada',
-      description: 'Ya existe una excepcion igual. Edita la existente, cambia la condicion o cambia el valor aplicado.',
+      description: 'Ya existe una excepción igual. Edita la existente, cambia la condición o cambia el valor aplicado.',
     });
   };
 
@@ -474,8 +474,8 @@ export default function FormulaEditorPage() {
 
       toast.success({
         description: activate
-          ? 'Nueva version guardada y activada para creditos nuevos'
-          : 'Nueva version guardada como borrador',
+          ? 'Nueva versión guardada y activada para créditos nuevos'
+          : 'Nueva versión guardada como borrador',
       });
 
       setShowToolbox(false);
@@ -488,7 +488,7 @@ export default function FormulaEditorPage() {
         navigate(`/formulas/${savedGraph.id}`, { replace: true });
       }
     } catch (err: any) {
-      toast.error({ description: err.message || 'Error al guardar formula' });
+      toast.error({ description: err.message || 'Error al guardar fórmula' });
     }
   };
 
@@ -525,7 +525,7 @@ export default function FormulaEditorPage() {
       const withoutFallback = existing.blocks.filter((block) => block.kind !== 'else');
       const nextContainer: FormulaContainer = {
         ...existing,
-        label: 'Metodo financiero',
+        label: 'Método financiero',
         blocks: [...normalizeConditionalKinds(withoutFallback), fallbackBlock],
       };
       store.setContainers(containers.map((container) => (container.id === existing.id ? nextContainer : container)));
@@ -581,7 +581,7 @@ export default function FormulaEditorPage() {
         const nextBlocks = normalizeConditionalKinds([...conditionalBlocks, nextBlock, fallback]);
         store.setContainers(containers.map((container) => (
           container.id === existing.id
-            ? { ...container, label: 'Metodo financiero', blocks: nextBlocks }
+            ? { ...container, label: 'Método financiero', blocks: nextBlocks }
             : container
         )));
         setSelectedContainerId(existing.id);
@@ -591,7 +591,7 @@ export default function FormulaEditorPage() {
 
       const container: FormulaContainer = {
         id: generateBlockId('container_calculationMethod'),
-        label: 'Metodo financiero',
+        label: 'Método financiero',
         outputVar,
         blocks: [nextBlock, { id: generateBlockId('else'), kind: 'else', elseValue: currentBaseMethod }],
       };
@@ -624,7 +624,7 @@ export default function FormulaEditorPage() {
     const option = FORMULA_TARGET_OPTIONS.find((item) => item.key === outputVar);
     const container: FormulaContainer = {
       id: generateBlockId(`container_${outputVar}`),
-      label: option?.label || 'Regla de credito',
+      label: option?.label || 'Regla de crédito',
       outputVar,
       blocks: [nextBlock],
     };
@@ -761,7 +761,7 @@ export default function FormulaEditorPage() {
     ...customVariables.map((variable) => ({
       key: variable.name,
       label: variable.name,
-      description: variable.description || 'Parametro personalizado definido en Variables de formulas.',
+      description: variable.description || 'Parámetro personalizado definido en Variables de fórmulas.',
       valueKind: variable.type === 'boolean' ? 'number' as const : variable.type === 'currency' ? 'currency' as const : variable.type === 'percent' ? 'percent' as const : 'integer' as const,
     })),
   ];
@@ -786,8 +786,8 @@ export default function FormulaEditorPage() {
   const hasConditionalInstallmentRule = exceptionRules.some(({ container }) => container.outputVar === 'installmentAmount');
   const appliedImpactRules = testResult ? getAppliedExceptionRules(containers, testInputs) : [];
   const lockedText = isLockedByCredits
-    ? `${usageCount} credito${usageCount === 1 ? '' : 's'} ya usan esta version. Sus condiciones quedan congeladas.`
-    : 'Esta version aun no esta asociada a creditos.';
+    ? `${usageCount} crédito${usageCount === 1 ? '' : 's'} ya usan esta versión. Sus condiciones quedan congeladas.`
+    : 'Esta versión aún no está asociada a créditos.';
   const floatingStatus = isNew
     ? { label: 'Borrador', bg: '#fff8e1', fg: '#8a5a00', dot: '#8a5a00' }
     : isLockedByCredits
@@ -795,7 +795,7 @@ export default function FormulaEditorPage() {
       : isActiveVersion
         ? { label: 'Activa', bg: '#e8f5e9', fg: '#1b5e20', dot: '#2e7d32' }
         : { label: 'Inactiva', bg: MD3.secondaryContainer, fg: MD3.onSecondaryContainer, dot: MD3.secondary };
-  const ruleCountLabel = `${exceptionRules.length} excepcion${exceptionRules.length === 1 ? '' : 'es'}`;
+  const ruleCountLabel = `${exceptionRules.length} excepción${exceptionRules.length === 1 ? '' : 'es'}`;
   const selectedContainerForEdit = selectedContainerId && !selectedBlock
     ? containers.find((container) => container.id === selectedContainerId) || null
     : null;
@@ -824,7 +824,7 @@ export default function FormulaEditorPage() {
         </button>
         <input className="formula-editor-name-input" type="text" value={formulaName} onChange={e => store.setFormulaName(e.target.value)}
           style={{ flex: 1, maxWidth: 320, padding: '6px 12px', borderRadius: 8, border: `1px solid ${MD3.outlineVariant}`, fontSize: 14, fontWeight: 600, color: MD3.onSurface, backgroundColor: MD3.surface, outline: 'none' }}
-          placeholder="Nombre de la formula" />
+          placeholder="Nombre de la fórmula" />
         <div className="formula-editor-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
           <QuickGuideButton guideKey="formula-editor" className="!rounded-lg !px-3 !py-2" />
           <button onClick={store.undo} disabled={!store.canUndo()} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), opacity: store.canUndo() ? 1 : 0.3 }}><Undo2 size={16} /></button>
@@ -847,10 +847,10 @@ export default function FormulaEditorPage() {
         <div className="formula-version-banner" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: `1px solid ${MD3.outlineVariant}`, backgroundColor: isLockedByCredits ? '#fff8e1' : '#eef7fb', color: MD3.onSurface }}>
           {isLockedByCredits ? <LockKeyhole size={16} color="#8a5a00" /> : <ShieldCheck size={16} color={MD3.secondary} />}
           <span style={{ fontSize: 13, fontWeight: 700 }}>
-            Version {existingGraph.version} {isActiveVersion ? 'activa' : 'inactiva'}
+            Versión {existingGraph.version} {isActiveVersion ? 'activa' : 'inactiva'}
           </span>
           <span style={{ fontSize: 13, color: MD3.onSurfaceVariant }}>
-            {isLockedByCredits ? lockedText : 'Sin creditos asociados.'} Los cambios se guardan como nueva version.
+            {isLockedByCredits ? lockedText : 'Sin créditos asociados.'} Los cambios se guardan como nueva versión.
           </span>
         </div>
       )}
@@ -865,11 +865,11 @@ export default function FormulaEditorPage() {
               Ajustes disponibles
             </div>
             <div style={{ color: MD3.onSurfaceVariant, fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
-              Toca una etapa del flujo o agrega una condicion para cambiar como se crean los creditos nuevos.
+              Toca una etapa del flujo o agrega una condición para cambiar cómo se crean los créditos nuevos.
             </div>
           </div>
           <div>
-            <div style={sty.heading}>Datos del credito</div>
+            <div style={sty.heading}>Datos del crédito</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {FORMULA_INPUT_OPTIONS.filter((option) => option.key !== 'startDate' && option.key !== 'lateFeeMode').map((option) => (
                 <div
@@ -893,7 +893,7 @@ export default function FormulaEditorPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {customVariables.length === 0 ? (
                 <div style={{ fontSize: 12, lineHeight: 1.4, color: MD3.onSurfaceVariant, backgroundColor: MD3.surface, border: `1px dashed ${MD3.outlineVariant}`, borderRadius: 8, padding: 10 }}>
-                  No hay variables activas. Crealas en Variables para usarlas como parametros de formulas reales.
+                  No hay variables activas. Créelas en Variables para usarlas como parámetros de fórmulas reales.
                 </div>
               ) : (
                 customVariables.map((variable) => (
@@ -956,9 +956,9 @@ export default function FormulaEditorPage() {
             <div className="formula-version-note" style={{ display: 'flex', gap: 10, alignItems: 'center', border: `1px solid ${MD3.outlineVariant}`, backgroundColor: '#ffffff', borderRadius: 12, padding: '10px 12px', color: MD3.onSurface }}>
               <Info size={18} color={MD3.secondary} style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 900 }}>Esta formula se guarda como version exacta.</div>
+                <div style={{ fontSize: 13, fontWeight: 900 }}>Esta fórmula se guarda como versión exacta.</div>
                 <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 1 }}>
-                  Los creditos nuevos usan la version activa al momento de crearse. Los creditos anteriores conservan su propia version y no se recalculan.
+                  Los créditos nuevos usan la versión activa al momento de crearse. Los créditos anteriores conservan su propia versión y no se recalculan.
                 </div>
               </div>
             </div>
@@ -970,10 +970,10 @@ export default function FormulaEditorPage() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
                     <Calculator size={18} color={MD3.secondary} />
-                    <span style={{ fontSize: 18, fontWeight: 900 }}>1. Formula base de cuota</span>
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>1. Fórmula base de cuota</span>
                   </div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
-                    Esta eleccion define como se calcula la cuota del credito. Las excepciones de abajo solo cambian casos puntuales.
+                    Esta elección define cómo se calcula la cuota del crédito. Las excepciones de abajo solo cambian casos puntuales.
                   </div>
                 </div>
                 <div style={{ borderRadius: 999, padding: '6px 10px', background: hasConditionalInstallmentRule ? '#fff8e1' : '#e8f5e9', color: hasConditionalInstallmentRule ? '#8a5a00' : '#1b5e20', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
@@ -1034,7 +1034,7 @@ export default function FormulaEditorPage() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: MD3.onSurface }}>
                     <ListChecks size={18} color={MD3.secondary} />
-                    <span style={{ fontSize: 18, fontWeight: 900 }}>2. Reglas de excepcion</span>
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>2. Reglas de excepción</span>
                   </div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
                     Usa varias reglas del mismo campo solo para tramos distintos. Se leen de arriba hacia abajo y gana la primera que aplique. Las reglas duplicadas se bloquean.
@@ -1074,7 +1074,7 @@ export default function FormulaEditorPage() {
                     >
                       <div style={{ fontSize: 12, fontWeight: 900 }}>{option.label}</div>
                       <div style={{ color: MD3.onSurfaceVariant, fontSize: 11, lineHeight: 1.35, marginTop: 3 }}>
-                        {isConfigured ? 'Agregar otra prioridad' : 'Crear excepcion'}
+                        {isConfigured ? 'Agregar otra prioridad' : 'Crear excepción'}
                       </div>
                     </button>
                   );
@@ -1089,7 +1089,7 @@ export default function FormulaEditorPage() {
                   <div>
                     <div style={{ color: MD3.onSurface, fontWeight: 900, fontSize: 14 }}>Sin excepciones.</div>
                     <div style={{ color: MD3.onSurfaceVariant, fontSize: 13, lineHeight: 1.45, marginTop: 3 }}>
-                      El credito usara la formula base y los datos reales de la solicitud. Agrega excepciones solo si un producto necesita cambiar tasa, plazo, mora, metodo o cuota fija bajo una condicion.
+                      El crédito usará la fórmula base y los datos reales de la solicitud. Agrega excepciones solo si un producto necesita cambiar tasa, plazo, mora, método o cuota fija bajo una condición.
                     </div>
                   </div>
                 </div>
@@ -1118,14 +1118,14 @@ export default function FormulaEditorPage() {
                               <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedContainerId(container.id); store.selectBlock(block.id); }} style={{ border: 'none', background: 'transparent', padding: 0, textAlign: 'left', color: MD3.onSurface, cursor: 'pointer' }}>
                                 <div style={{ fontWeight: 800, fontSize: 14 }}>{describeRule(container, block)}</div>
                                 {container.outputVar === 'installmentAmount' && (
-                                  <div style={{ color: '#8a5a00', fontSize: 12, marginTop: 3 }}>Cuando aplica, esta cuota reemplaza el calculo de la formula base.</div>
+                                  <div style={{ color: '#8a5a00', fontSize: 12, marginTop: 3 }}>Cuando aplica, esta cuota reemplaza el cálculo de la fórmula base.</div>
                                 )}
                               </button>
                               <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                                 <button type="button" aria-label="Subir prioridad" onClick={(event) => { event.stopPropagation(); handleMoveRule(container.id, block.id, -1); }} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), padding: 6 }}><ArrowUp size={14} /></button>
                                 <button type="button" aria-label="Bajar prioridad" onClick={(event) => { event.stopPropagation(); handleMoveRule(container.id, block.id, 1); }} style={{ ...sty.btn('transparent', MD3.onSurfaceVariant), padding: 6 }}><ArrowDown size={14} /></button>
-                                <button type="button" aria-label="Editar excepcion" onClick={(event) => { event.stopPropagation(); setSelectedContainerId(container.id); store.selectBlock(block.id); }} style={{ ...sty.btn('transparent', MD3.secondary), padding: 6 }}><Edit3 size={14} /></button>
-                                <button type="button" aria-label="Eliminar excepcion" onClick={(event) => { event.stopPropagation(); handleDeleteBlock(container.id, block.id); }} style={{ ...sty.btn('transparent', MD3.error), padding: 6 }}><Trash2 size={14} /></button>
+                                <button type="button" aria-label="Editar excepción" onClick={(event) => { event.stopPropagation(); setSelectedContainerId(container.id); store.selectBlock(block.id); }} style={{ ...sty.btn('transparent', MD3.secondary), padding: 6 }}><Edit3 size={14} /></button>
+                                <button type="button" aria-label="Eliminar excepción" onClick={(event) => { event.stopPropagation(); handleDeleteBlock(container.id, block.id); }} style={{ ...sty.btn('transparent', MD3.error), padding: 6 }}><Trash2 size={14} /></button>
                               </div>
                             </div>
                           ))}
@@ -1147,7 +1147,7 @@ export default function FormulaEditorPage() {
                     <span style={{ fontSize: 18, fontWeight: 900 }}>3. Impacto real</span>
                   </div>
                   <div style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.35, marginTop: 4 }}>
-                    Valida con datos de credito antes de guardar. Esto usa el mismo calculo que se aplicara a los creditos nuevos.
+                    Valida con datos de crédito antes de guardar. Esto usa el mismo cálculo que se aplicará a los créditos nuevos.
                   </div>
                 </div>
                 <button type="button" className="formula-impact-validate-button" onClick={(event) => { event.stopPropagation(); handleTest(); }} style={{ ...sty.btn(MD3.secondary, '#fff'), padding: '9px 14px', justifyContent: 'center' }}>
@@ -1187,7 +1187,7 @@ export default function FormulaEditorPage() {
 
                   {!testError && !testResult && (
                     <div style={{ border: `1px dashed ${MD3.outline}`, borderRadius: 12, padding: 16, color: MD3.onSurfaceVariant, backgroundColor: MD3.surface, fontSize: 13, lineHeight: 1.45 }}>
-                      Aun no hay validacion para esta version. Revisa cuota, total, intereses y metodo aplicado antes de activar.
+                      Aún no hay validación para esta versión. Revisa cuota, total, intereses y método aplicado antes de activar.
                     </div>
                   )}
 
@@ -1198,7 +1198,7 @@ export default function FormulaEditorPage() {
                           ['Cuota', formatMoney(testResult?.summary?.installmentAmount)],
                           ['Total a pagar', formatMoney(testResult?.summary?.totalPayable)],
                           ['Intereses', formatMoney(testResult?.summary?.totalInterest)],
-                          ['Metodo', getFormulaValueLabel(testResult?.calculationMethod, 'calculationMethod')],
+                          ['Método', getFormulaValueLabel(testResult?.calculationMethod, 'calculationMethod')],
                         ].map(([label, value]) => (
                           <div key={label} style={{ border: `1px solid ${MD3.outlineVariant}`, borderRadius: 10, padding: '10px 12px', backgroundColor: MD3.surface }}>
                             <div style={{ fontSize: 10, color: MD3.onSurfaceVariant, textTransform: 'uppercase', fontWeight: 900 }}>{label}</div>
@@ -1213,7 +1213,7 @@ export default function FormulaEditorPage() {
                           {appliedImpactRules.map(({ container, block }) => (
                             <div key={block.id}>
                               {describeRule(container, block)}
-                              {container.outputVar === 'installmentAmount' ? ' Esta cuota reemplaza el calculo de la formula base.' : ''}
+                              {container.outputVar === 'installmentAmount' ? ' Esta cuota reemplaza el cálculo de la fórmula base.' : ''}
                             </div>
                           ))}
                         </div>
@@ -1246,7 +1246,7 @@ export default function FormulaEditorPage() {
         <aside className="formula-editor-right-panel" data-tour="formula-editor-impact" style={sty.right}>
           {selectedBlock && (
             <div style={{ padding: 16, borderBottom: `1px solid ${MD3.outlineVariant}` }}>
-              <div style={{ ...sty.heading, marginBottom: 12 }}>Editar excepcion</div>
+              <div style={{ ...sty.heading, marginBottom: 12 }}>Editar excepción</div>
               {selectedBlockContainer && isConditionalRule(selectedBlock.block) && (
                 <div style={{ border: `1px solid ${MD3.outlineVariant}`, backgroundColor: MD3.surface, borderRadius: 12, padding: 12, color: MD3.onSurface, fontSize: 13, lineHeight: 1.45, marginBottom: 14 }}>
                   <strong>Lectura operativa:</strong> {describeRule(selectedBlockContainer, selectedBlock.block)}
@@ -1256,7 +1256,7 @@ export default function FormulaEditorPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {selectedBlockContainer && (
                     <>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Que cambia esta excepcion</label>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: MD3.onSurfaceVariant, textTransform: 'uppercase' }}>Qué cambia esta excepción</label>
                       <select style={sty.input} value={selectedBlockContainer.outputVar} onChange={e => handleUpdateContainerOutput(selectedBlockContainer, e.target.value)}>
                         {FORMULA_TARGET_OPTIONS.map((option) => (
                           <option key={option.key} value={option.key}>{option.label}</option>
@@ -1300,7 +1300,7 @@ export default function FormulaEditorPage() {
                       onChange={e => store.updateBlock(selectedBlock.containerId, selectedBlock.block.id, { thenValue: e.target.value })} />
                   )}
                   <button onClick={() => handleDeleteBlock(selectedBlock.containerId, selectedBlock.block.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
-                    <Trash2 size={14} /> Eliminar excepcion
+                    <Trash2 size={14} /> Eliminar excepción
                   </button>
                 </div>
               )}
@@ -1323,8 +1323,8 @@ export default function FormulaEditorPage() {
                     ))}
                   </select>
                   <span style={{ fontSize: 12, color: MD3.onSurfaceVariant, lineHeight: 1.4 }}>
-                    {targetOption?.description || 'Define un valor usado al crear creditos.'}
-                    {' '}Si una condicion no aplica, el sistema conserva el valor original de esa etapa.
+                    {targetOption?.description || 'Define un valor usado al crear créditos.'}
+                    {' '}Si una condición no aplica, el sistema conserva el valor original de esa etapa.
                   </span>
                   <button onClick={() => store.removeContainer(selectedContainerForEdit.id)} style={{ ...sty.btn(MD3.error, '#fff'), justifyContent: 'center', marginTop: 8 }}>
                     <Trash2 size={14} /> Eliminar regla

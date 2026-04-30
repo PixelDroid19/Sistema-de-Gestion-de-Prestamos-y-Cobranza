@@ -32,7 +32,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
 
   const stats = [
     {
-      label: 'Total formulas',
+      label: 'Total fórmulas',
       shortLabel: 'Total',
       value: graphs.length,
       icon: <FileText size={18} />,
@@ -41,12 +41,12 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
       trendUp: true,
     },
     {
-      label: 'Version activa',
+      label: 'Versión activa',
       shortLabel: 'Activa',
       value: activeGraph ? `v${activeGraph.version}` : '—',
       icon: <Activity size={18} />,
       iconClassName: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100',
-      trend: activeGraph ? 'En uso para nuevos creditos' : 'Sin version activa',
+      trend: activeGraph ? 'En uso para nuevos créditos' : 'Sin versión activa',
       trendUp: true,
     },
     {
@@ -64,7 +64,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
     mutationFn: ({ graphId, status }: { graphId: number; status: 'active' | 'inactive' }) =>
       dagService.updateGraphStatus(graphId, status),
     onSuccess: (_, vars) => {
-      toast.success({ description: vars.status === 'active' ? 'Formula activada' : 'Formula desactivada' });
+      toast.success({ description: vars.status === 'active' ? 'Fórmula activada' : 'Fórmula desactivada' });
       queryClient.invalidateQueries({ queryKey: queryKeys.dag.graphs('credit-simulation') });
     },
     onError: (err: any) => {
@@ -75,11 +75,11 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
   const deleteMutation = useMutation({
     mutationFn: (graphId: number) => dagService.deleteGraph(graphId),
     onSuccess: () => {
-      toast.success({ description: 'Formula eliminada' });
+      toast.success({ description: 'Fórmula eliminada' });
       queryClient.invalidateQueries({ queryKey: queryKeys.dag.graphs('credit-simulation') });
     },
     onError: (err: any) => {
-      toast.error({ description: err.message || 'Error al eliminar formula' });
+      toast.error({ description: err.message || 'Error al eliminar fórmula' });
     },
   });
 
@@ -93,8 +93,8 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
 
   const handleDelete = async (graphId: number, name: string) => {
     const confirmed = await confirmModal({
-      title: 'Eliminar Formula',
-      message: `Seguro que queres eliminar "${name}"? Esta accion no se puede deshacer.`,
+      title: 'Eliminar fórmula',
+      message: `¿Seguro que quieres eliminar "${name}"? Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar',
       confirmVariant: 'danger',
     });
@@ -112,10 +112,10 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
     >
       {/* Header */}
       <PageHeader
-        title={compact ? 'Fórmulas de crédito' : 'Dashboard de formulas'}
+        title={compact ? 'Fórmulas de crédito' : 'Dashboard de fórmulas'}
         subtitle={compact
           ? 'Administra la fórmula activa que usarán los créditos nuevos.'
-          : 'Gestiona la formula activa que calcula creditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
+          : 'Gestiona la fórmula activa que calcula créditos nuevos. Las versiones usadas quedan congeladas para trazabilidad.'}
         guideKey="formulas-dashboard"
         tourId="formulas-header"
         actions={(
@@ -124,7 +124,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary/90 sm:w-auto sm:rounded-xl sm:py-2.5"
         >
           <Plus size={16} />
-          Nueva formula
+          Nueva fórmula
         </button>
         )}
       />
@@ -148,10 +148,10 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
           className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs leading-5 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
         >
           <span className="sm:hidden">
-            {lockedCount} version{lockedCount === 1 ? '' : 'es'} bloqueada{lockedCount === 1 ? '' : 's'} por creditos existentes. Los cambios se guardan como nueva version.
+            {lockedCount} versión{lockedCount === 1 ? '' : 'es'} bloqueada{lockedCount === 1 ? '' : 's'} por créditos existentes. Los cambios se guardan como nueva versión.
           </span>
           <span className="hidden sm:inline">
-            {lockedCount} version{lockedCount === 1 ? '' : 'es'} ya tienen creditos asociados. No se pueden eliminar ni modificar en sitio; cualquier cambio debe guardarse como nueva version.
+            {lockedCount} versión{lockedCount === 1 ? '' : 'es'} ya tienen créditos asociados. No se pueden eliminar ni modificar en sitio; cualquier cambio debe guardarse como nueva versión.
           </span>
         </div>
       )}
@@ -162,16 +162,16 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
         isLoading={graphsLoading}
         isError={false}
         hasData={graphs.length > 0}
-        recordsLabel="formulas"
+        recordsLabel="fórmulas"
         loadingContent={<div className="px-4 py-8 text-center"><Loader2 className="mx-auto animate-spin text-brand-primary" size={24} /></div>}
-        errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las formulas.</div>}
-        emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay formulas. Crea la primera para empezar.</div>}
+        errorContent={<div className="px-4 py-8 text-center text-red-600">No se pudieron cargar las fórmulas.</div>}
+        emptyContent={<div className="px-4 py-8 text-center text-text-secondary">No hay fórmulas. Crea la primera para empezar.</div>}
         className="data-table-surface"
       >
         <div
           className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5 sm:py-4"
         >
-          <h3 className="text-base font-bold text-text-primary sm:text-lg">Formulas de credito</h3>
+          <h3 className="text-base font-bold text-text-primary sm:text-lg">Fórmulas de crédito</h3>
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => navigate('/formulas/variables')}
@@ -285,7 +285,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                       <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => navigate(`/formulas/${formula.id}`)}
-                          aria-label={isFormulaLocked ? 'Abrir copia de formula' : 'Abrir formula'}
+                          aria-label={isFormulaLocked ? 'Abrir copia de fórmula' : 'Abrir fórmula'}
                           className="inline-flex items-center justify-center rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Editar"
                         >
@@ -295,7 +295,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                           <button
                             onClick={() => handleActivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            aria-label="Activar formula"
+                            aria-label="Activar fórmula"
                             className="inline-flex items-center justify-center rounded-lg p-1.5 text-emerald-800 transition-colors hover:bg-emerald-50 disabled:text-slate-500 disabled:opacity-60 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
                             title="Activar"
                           >
@@ -306,7 +306,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                           <button
                             onClick={() => handleDeactivate(formula.id)}
                             disabled={updateStatusMutation.isPending}
-                            aria-label="Desactivar formula"
+                            aria-label="Desactivar fórmula"
                             className="inline-flex items-center justify-center rounded-lg p-1.5 text-orange-800 transition-colors hover:bg-orange-50 disabled:text-slate-500 disabled:opacity-60 dark:text-orange-200 dark:hover:bg-orange-500/10"
                             title="Desactivar"
                           >
@@ -315,7 +315,7 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                         )}
                         <button
                           onClick={() => navigate(`/audit/${formula.id}`)}
-                          aria-label="Ver historial de formula"
+                          aria-label="Ver historial de fórmula"
                           className="inline-flex items-center justify-center rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
                           title="Historial"
                         >
@@ -324,9 +324,9 @@ export default function DashboardPage({ compact = false }: DashboardPageProps) {
                         <button
                           onClick={() => handleDelete(formula.id, formula.name)}
                           disabled={deleteMutation.isPending || isFormulaLocked}
-                          aria-label="Eliminar formula"
+                          aria-label="Eliminar fórmula"
                           className="inline-flex items-center justify-center rounded-lg p-1.5 text-red-700 transition-colors hover:bg-red-50 disabled:text-slate-500 disabled:opacity-60 dark:text-red-200 dark:hover:bg-red-500/10"
-                          title={isFormulaLocked ? 'No se puede eliminar: tiene creditos asociados' : 'Eliminar'}
+                          title={isFormulaLocked ? 'No se puede eliminar: tiene créditos asociados' : 'Eliminar'}
                         >
                           <Trash2 size={14} />
                         </button>

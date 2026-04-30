@@ -598,7 +598,7 @@ export function FormulaContainerBlock({
             Esta etapa usa el valor del sistema.
           </div>
           <div style={{ lineHeight: 1.45, marginBottom: 12 }}>
-            Agrega condiciones solo cuando necesites cambiar este valor para ciertos creditos.
+            Agrega condiciones solo cuando necesites cambiar este valor para ciertos créditos.
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button

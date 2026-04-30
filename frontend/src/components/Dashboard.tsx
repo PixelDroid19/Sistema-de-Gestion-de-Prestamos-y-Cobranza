@@ -18,6 +18,7 @@ import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
 import MeasuredChart from './shared/MeasuredChart';
 import { MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { HelpTooltip } from './shared/HelpSupport';
 
 type LayoutType = {
   i: string;
@@ -306,7 +307,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.balanceTotal.title')}
             value={formatCurrency(summary.totalOutstandingAmount)}
             helper={`${summary.totalLoans || 0} ${tTerm('dashboard.widget.balanceTotal.subtitle')}`}
-            tooltip="Saldo total pendiente de la cartera. Resume el capital e importes por recuperar en los creditos registrados."
+            tooltip="Saldo total pendiente de la cartera. Resume el capital e importes por recuperar en los créditos registrados."
             icon={<Wallet size={18} />}
             accent="teal"
             className="h-full"
@@ -318,7 +319,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.activeLoans.title')}
             value={summary.activeLoans || 0}
             helper={`${summary.defaultedLoans || 0} ${tTerm('dashboard.widget.activeLoans.subtitle')}`}
-            tooltip="Creditos que siguen abiertos y pueden requerir seguimiento, cobro o consulta operativa."
+            tooltip="Créditos que siguen abiertos y pueden requerir seguimiento, cobro o consulta operativa."
             icon={<Activity size={18} />}
             accent="emerald"
             className="h-full"
@@ -330,7 +331,7 @@ export default function Dashboard() {
             label={tTerm('dashboard.widget.delinquencyRate.title')}
             value={summary.totalLoans ? `${Math.round(((summary.defaultedLoans || 0) / summary.totalLoans) * 100)}%` : '0%'}
             helper={`${collections.overdueAlerts || 0} ${tTerm('dashboard.widget.delinquencyRate.subtitle')}`}
-            tooltip="Porcentaje de creditos con atraso frente al total de creditos. Ayuda a medir riesgo operativo de cobranza."
+            tooltip="Porcentaje de créditos con atraso frente al total de créditos. Ayuda a medir riesgo operativo de cobranza."
             icon={<AlertTriangle size={18} />}
             accent="amber"
             className="h-full"
@@ -354,7 +355,13 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">{tTerm('dashboard.widget.disbursementEvolution.kicker')}</div>
-                <div className="text-lg font-semibold text-text-primary">{tTerm('dashboard.widget.disbursementEvolution.title')}</div>
+                <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
+                  {tTerm('dashboard.widget.disbursementEvolution.title')}
+                  <HelpTooltip
+                    text="Compara el capital entregado en créditos contra el dinero recuperado por pagos registrados."
+                    align="right"
+                  />
+                </div>
               </div>
               <div className="text-xs text-text-secondary">{recentLoans.length} {tTerm('dashboard.widget.disbursementEvolution.recordsRecent')}</div>
             </div>
@@ -429,7 +436,13 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">{tTerm('dashboard.widget.recoveryPerformance.kicker')}</div>
-                <div className="text-lg font-semibold text-text-primary">{tTerm('dashboard.widget.recoveryPerformance.title')}</div>
+                <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
+                  {tTerm('dashboard.widget.recoveryPerformance.title')}
+                  <HelpTooltip
+                    text="Muestra la recuperación registrada frente al dinero desembolsado para detectar diferencias de cartera."
+                    align="right"
+                  />
+                </div>
               </div>
               <div className="text-xs text-text-secondary">{tTerm('dashboard.widget.recoveryPerformance.subtitle')}</div>
             </div>

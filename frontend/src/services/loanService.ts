@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { downloadBlob } from './blobDownload';
+import { withIdempotencyKey } from './idempotency';
 import {
   invalidateAfterDelete,
   invalidateAfterPayment,
@@ -162,7 +163,7 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
 
   const executePayoff = useMutation({
     mutationFn: async (payoffData: any) => {
-      const { data } = await apiClient.post(`/loans/${loanId}/payoff-executions`, payoffData);
+      const { data } = await apiClient.post(`/loans/${loanId}/payoff-executions`, payoffData, withIdempotencyKey('loan-payoff'));
       return data;
     },
     onSuccess: () => {
@@ -175,7 +176,7 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
       const { data } = await apiClient.post(`/loans/payments/process`, {
         loanId,
         ...paymentData,
-      });
+      }, withIdempotencyKey('installment-payment'));
       return data;
     },
     onSuccess: () => {
@@ -187,7 +188,7 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
     mutationFn: async ({ installmentNumber, reason }: { installmentNumber: number; reason?: string }) => {
       const { data } = await apiClient.post(`/loans/${loanId}/installments/${installmentNumber}/annul`, {
         reason,
-      });
+      }, withIdempotencyKey('installment-annulment'));
       return data;
     },
     onSuccess: () => {
@@ -246,7 +247,7 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
       const { data } = await apiClient.post(`/payments/capital`, {
         loanId,
         ...paymentData,
-      });
+      }, withIdempotencyKey('capital-payment'));
       return data;
     },
     onSuccess: () => {

@@ -1,4 +1,5 @@
 import { CLOSED_OR_BLOCKED_LOAN_STATUSES, NON_EXECUTABLE_INSTALLMENT_STATUSES } from '../constants/operationalStates';
+import { LOAN_STATUS_LABELS, type BackendSupportedLoanStatus } from '../constants/loanStates';
 
 export type OperationalRole = 'admin' | 'socio' | 'customer' | string;
 
@@ -42,6 +43,32 @@ type GuardResult = {
 const CLOSED_LOAN_STATUSES = new Set<string>(CLOSED_OR_BLOCKED_LOAN_STATUSES);
 const NON_EXECUTABLE_STATUSES = new Set<string>(NON_EXECUTABLE_INSTALLMENT_STATUSES);
 const PAYABLE_LOAN_STATUSES = new Set<string>(['pending', 'approved', 'active', 'defaulted', 'overdue']);
+const INSTALLMENT_STATUS_LABELS: Record<string, string> = {
+  paid: 'Pagada',
+  annulled: 'Anulada',
+};
+
+const formatLoanStatus = (loanStatus?: string): string => {
+  const normalizedStatus = String(loanStatus || '').toLowerCase();
+  return LOAN_STATUS_LABELS[normalizedStatus as BackendSupportedLoanStatus] || 'no operativo';
+};
+
+const formatInstallmentStatus = (installmentStatus?: string): string => {
+  const normalizedStatus = String(installmentStatus || '').toLowerCase();
+  return INSTALLMENT_STATUS_LABELS[normalizedStatus] || 'no operativa';
+};
+
+const sentenceCaseStatus = (label: string): string => label
+  ? label.charAt(0).toLowerCase() + label.slice(1)
+  : label;
+
+const unavailableLoanStatusReason = (loanStatus?: string): string => (
+  `Crédito ${sentenceCaseStatus(formatLoanStatus(loanStatus))}: acción no disponible.`
+);
+
+const unavailableInstallmentStatusReason = (installmentStatus?: string): string => (
+  `Cuota ${sentenceCaseStatus(formatInstallmentStatus(installmentStatus))}: acción no disponible.`
+);
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
   'credit.delete': ['credits.delete', 'credit.delete'],
@@ -105,11 +132,11 @@ const canOperateInstallment = (
   }
 
   if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-    return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+    return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
   }
 
   if (installmentStatus && NON_EXECUTABLE_STATUSES.has(installmentStatus)) {
-    return { visible: true, executable: false, reason: `Cuota ${installmentStatus}: acción no disponible.` };
+    return { visible: true, executable: false, reason: unavailableInstallmentStatusReason(installmentStatus) };
   }
 
   return { visible: true, executable: true };
@@ -135,7 +162,7 @@ const canProcessLoanPayments = (
     return {
       visible: true,
       executable: false,
-      reason: `Crédito ${loanStatus}: acción no disponible.`,
+      reason: unavailableLoanStatusReason(loanStatus),
     };
   }
 
@@ -218,13 +245,13 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
     case 'installment.pay':
       if (role === 'customer') {
         if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-          return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+          return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
         }
         if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
-          return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+          return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
         }
         if (installmentStatus && NON_EXECUTABLE_STATUSES.has(installmentStatus)) {
-          return { visible: true, executable: false, reason: `Cuota ${installmentStatus}: acción no disponible.` };
+          return { visible: true, executable: false, reason: unavailableInstallmentStatusReason(installmentStatus) };
         }
         return { visible: true, executable: true };
       }
@@ -261,10 +288,10 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
         return { visible: false, executable: false, reason: 'El abono a capital solo está disponible para administradores.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
       }
       if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
-        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
       }
       return { visible: true, executable: true };
     case 'lateFee.update':
@@ -272,7 +299,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
         return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar la tasa de mora.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
       }
       return { visible: true, executable: true };
     case 'payout.register':
@@ -288,7 +315,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
         return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar el estado del crédito.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-        return { visible: true, executable: false, reason: `Crédito ${loanStatus}: acción no disponible.` };
+        return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
       }
       return { visible: true, executable: true };
     case 'payout.metadata.edit':

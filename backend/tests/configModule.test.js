@@ -173,6 +173,62 @@ test('createUpsertSetting updates existing records and listAdminCatalogs keeps r
   assert.deepEqual(catalogs.paymentVisibilities, ['customer', 'internal']);
 });
 
+test('createUpsertSetting preserves existing setting label and description when only value changes', async () => {
+  let updatedPayload;
+
+  const upsertSetting = createUpsertSetting({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return {
+          id: 10,
+          category: 'business_setting',
+          key: 'support-email',
+          label: 'Correo de soporte',
+          value: { value: 'soporte@anterior.test', description: 'Visible para comunicaciones operativas' },
+          updatedAt: '2026-03-21T00:00:00.000Z',
+        };
+      },
+      async update(id, payload) {
+        updatedPayload = { id, payload };
+        return {
+          id,
+          category: 'business_setting',
+          key: 'support-email',
+          ...payload,
+          updatedAt: '2026-03-22T00:00:00.000Z',
+        };
+      },
+      async create() {
+        throw new Error('create should not be called for an existing setting');
+      },
+    },
+  });
+
+  const setting = await upsertSetting('support-email', {
+    value: 'soporte@nuevo.test',
+  });
+
+  assert.deepEqual(updatedPayload, {
+    id: 10,
+    payload: {
+      label: 'Correo de soporte',
+      value: {
+        value: 'soporte@nuevo.test',
+        description: 'Visible para comunicaciones operativas',
+      },
+      isActive: true,
+    },
+  });
+  assert.deepEqual(setting, {
+    id: 10,
+    key: 'support-email',
+    label: 'Correo de soporte',
+    value: 'soporte@nuevo.test',
+    description: 'Visible para comunicaciones operativas',
+    updatedAt: '2026-03-22T00:00:00.000Z',
+  });
+});
+
 test('createConfigModule consumes shared auth context and registers the config surface', () => {
   let authMiddlewareRoles;
 

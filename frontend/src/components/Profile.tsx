@@ -82,7 +82,7 @@ export default function Profile() {
           <User size={32} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold">Mi Perfil</h2>
+          <h2 className="text-2xl font-semibold">Mi perfil</h2>
           <p className="text-sm text-text-secondary mt-1">Administra tu información personal y seguridad.</p>
         </div>
         <div className="sm:ml-auto flex items-center gap-3">
@@ -101,7 +101,7 @@ export default function Profile() {
             activeTab === 'info' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
           }`}
         >
-          <User size={16} /> Información Personal
+          <User size={16} /> Información personal
         </button>
         <button
           onClick={() => setActiveTab('security')}
@@ -128,7 +128,7 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label htmlFor="profile-email" className="block text-sm font-medium text-text-secondary mb-1">Correo Electrónico</label>
+              <label htmlFor="profile-email" className="block text-sm font-medium text-text-secondary mb-1">Correo electrónico</label>
               <input
                 id="profile-email"
                 type="email"
@@ -156,7 +156,7 @@ export default function Profile() {
             )}
             <div className="pt-4">
               <button type="submit" disabled={updateProfile.isPending} className="bg-text-primary text-bg-base px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
-                <Save size={16} /> Guardar Cambios
+                <Save size={16} /> Guardar cambios
               </button>
             </div>
           </form>
@@ -165,7 +165,7 @@ export default function Profile() {
         {activeTab === 'security' && (
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <div>
-              <label htmlFor="profile-current-password" className="block text-sm font-medium text-text-secondary mb-1">Contraseña Actual</label>
+              <label htmlFor="profile-current-password" className="block text-sm font-medium text-text-secondary mb-1">Contraseña actual</label>
               <input
                 id="profile-current-password"
                 type="password"
@@ -176,7 +176,7 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label htmlFor="profile-new-password" className="block text-sm font-medium text-text-secondary mb-1">Nueva Contraseña</label>
+              <label htmlFor="profile-new-password" className="block text-sm font-medium text-text-secondary mb-1">Nueva contraseña</label>
               <input
                 id="profile-new-password"
                 type="password"
@@ -187,7 +187,7 @@ export default function Profile() {
               />
             </div>
             <div>
-              <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-text-secondary mb-1">Confirmar Nueva Contraseña</label>
+              <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-text-secondary mb-1">Confirmar nueva contraseña</label>
               <input
                 id="profile-confirm-password"
                 type="password"
@@ -199,7 +199,7 @@ export default function Profile() {
             </div>
             <div className="pt-4">
               <button type="submit" disabled={changePassword.isPending} className="bg-text-primary text-bg-base px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
-                <Lock size={16} /> Actualizar Contraseña
+                <Lock size={16} /> Actualizar contraseña
               </button>
             </div>
           </form>

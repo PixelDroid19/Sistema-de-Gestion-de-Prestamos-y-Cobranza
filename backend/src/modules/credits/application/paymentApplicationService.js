@@ -800,6 +800,7 @@ const createPaymentApplicationService = ({
             amount,
             paymentDate,
             paymentMethod,
+            actorId,
           }),
         }),
       }),
@@ -1490,8 +1491,10 @@ const createPaymentApplicationService = ({
     asOfDate = null,
     quotedTotal = null,
     strategy = null,
+    actorId = 0,
   }) => hashPayload({
     operationType,
+    actorId: Number(actorId || 0),
     loanId: Number(loanId),
     amount: roundCurrency(amount || 0),
     paymentDate: normalizePaymentDate(paymentDate).toISOString().slice(0, 10),
@@ -1531,9 +1534,11 @@ const createPaymentApplicationService = ({
       asOfDate,
       quotedTotal,
       strategy,
+      actorId,
     });
     const requestHash = hashPayload({
       operationType,
+      actorId: Number(actorId || 0),
       loanId,
       amount,
       paymentDate,
@@ -1643,6 +1648,7 @@ const createPaymentApplicationService = ({
       paymentDate,
       paymentMethod,
       installmentNumber: normalizedInstallmentNumber,
+      actorId,
     });
 
     const result = await runPaymentOperationWithIdempotency({
