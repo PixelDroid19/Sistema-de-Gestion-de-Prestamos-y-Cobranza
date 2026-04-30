@@ -1288,7 +1288,7 @@ export default function CreditDetails() {
                 className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg sm:w-auto"
                 title="Ver plan de pagos completo"
               >
-                <Table size={16} /> Plan de Pagos
+                <Table size={16} /> Plan de pagos
               </button>
             </div>
           </div>
@@ -1298,7 +1298,7 @@ export default function CreditDetails() {
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-tour="credit-detail-metrics">
           <SummaryMetricItem
             icon={Calendar}
-            label="Cuotas Totales"
+            label="Cuotas totales"
             tooltip="Cantidad de cuotas pactadas al crear el crédito. No cambia aunque después se registren pagos o ajustes operativos."
             value={loan.termMonths ?? '—'}
           />
@@ -1310,7 +1310,7 @@ export default function CreditDetails() {
           />
           <SummaryMetricItem
             icon={Percent}
-            label="Interés Total"
+            label="Interés total"
             tooltip="Suma de todos los intereses programados por la fórmula aplicada al crédito. Es el costo financiero del cronograma, no lo que falta por pagar."
             value={<span title={formatCurrency(paymentSnapshot?.totalInterest)}>{formatMetricCurrency(paymentSnapshot?.totalInterest)}</span>}
           />
@@ -1330,7 +1330,7 @@ export default function CreditDetails() {
           />
           <SummaryMetricItem
             icon={ShieldAlert}
-            label="Tasa Mora EA"
+            label="Tasa mora EA"
             tooltip="Tasa efectiva anual usada para calcular mora sobre saldos vencidos cuando una cuota entra en atraso."
             tone="danger"
             value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
@@ -1350,7 +1350,7 @@ export default function CreditDetails() {
             <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
             {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
             {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
-            <TabButton id="payouts" icon={DollarSign} label="Historial de Pagos" badge={paymentHistoryEntries.length} />
+            <TabButton id="payouts" icon={DollarSign} label="Historial de pagos" badge={paymentHistoryEntries.length} />
             {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
             <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
           </div>
@@ -1904,10 +1904,10 @@ export default function CreditDetails() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
             <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Cambiar Estado</h3>
+              <h3 className="text-lg font-medium text-text-primary">Cambiar estado</h3>
             </div>
             <div className="p-6">
-              <label className="block text-sm text-text-secondary mb-2">Nuevo Estado</label>
+              <label className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
               <select 
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
@@ -1934,7 +1934,7 @@ export default function CreditDetails() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
             <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Registrar Pago</h3>
+              <h3 className="text-lg font-medium text-text-primary">Registrar pago</h3>
             </div>
             <div className="p-6 space-y-4">
               {selectedInstallmentNumber && (
@@ -2024,7 +2024,7 @@ export default function CreditDetails() {
                 disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || Boolean(installmentQuote && !installmentQuote.canPay)}
                 className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50"
               >
-                Registrar Pago
+                Registrar pago
               </button>
             </div>
           </div>
@@ -2036,7 +2036,7 @@ export default function CreditDetails() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
             <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Crear Promesa de Pago</h3>
+              <h3 className="text-lg font-medium text-text-primary">Crear compromiso de pago</h3>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -2069,7 +2069,7 @@ export default function CreditDetails() {
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleCreatePromise} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar Promesa</button>
+              <button onClick={handleCreatePromise} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar compromiso</button>
             </div>
           </div>
         </div>
@@ -2095,7 +2095,7 @@ export default function CreditDetails() {
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleCreateFollowUp} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar Seguimiento</button>
+              <button onClick={handleCreateFollowUp} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar seguimiento</button>
             </div>
           </div>
         </div>
@@ -2122,7 +2122,7 @@ export default function CreditDetails() {
             </div>
             <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
               <button onClick={() => { setShowAnnulModal(false); setAnnulInstallmentNumber(null); }} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleAnnulInstallment} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Confirmar Anulación</button>
+              <button onClick={handleAnnulInstallment} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Confirmar anulación</button>
             </div>
           </div>
         </div>
@@ -2285,7 +2285,7 @@ export default function CreditDetails() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
              <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Tasa de Mora Anual</h3>
+              <h3 className="text-lg font-medium text-text-primary">Tasa de mora anual</h3>
             </div>
             <div className="p-6">
               <label className="block text-sm text-text-secondary mb-1">Tasa (%)</label>

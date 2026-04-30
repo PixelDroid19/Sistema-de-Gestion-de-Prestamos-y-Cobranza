@@ -88,6 +88,27 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           requiresReference: { type: 'boolean' },
         },
       },
+      PaymentApplicationInput: {
+        type: 'object',
+        required: ['loanId', 'amount'],
+        properties: {
+          loanId: { type: 'integer', minimum: 1 },
+          amount: { type: 'number', minimum: 0.01 },
+          paymentDate: { type: 'string', format: 'date-time', description: 'Fecha operativa elegida para aplicar el pago. Si se omite, el backend usa la fecha actual.' },
+          paymentMethod: { type: 'string', description: 'Clave canónica configurada en /config/payment-methods.' },
+        },
+      },
+      CapitalPaymentInput: {
+        allOf: [
+          { $ref: '#/components/schemas/PaymentApplicationInput' },
+          {
+            type: 'object',
+            properties: {
+              strategy: { type: 'string', enum: ['reduce_term', 'reduce_payment', 'REDUCE_TIME', 'REDUCE_QUOTA'] },
+            },
+          },
+        ],
+      },
       RatePolicy: {
         type: 'object',
         properties: {
@@ -180,6 +201,12 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Payments'],
         summary: 'Registrar abono a capital',
         parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/CapitalPaymentInput' } },
+          },
+        },
         responses: { 201: { description: 'Abono aplicado' } },
       },
     },
@@ -188,7 +215,27 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Payments'],
         summary: 'Registrar pago parcial',
         parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/PaymentApplicationInput' } },
+          },
+        },
         responses: { 201: { description: 'Pago parcial aplicado' } },
+      },
+    },
+    '/payments': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Registrar pago de cuota por autoservicio de cliente',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/PaymentApplicationInput' } },
+          },
+        },
+        responses: { 201: { description: 'Pago aplicado' } },
       },
     },
     '/payments/pay-total-debt': {

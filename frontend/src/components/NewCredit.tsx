@@ -448,7 +448,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               disabled={!canRegister}
               data-tour="new-credit-submit"
               aria-label="Registrar crédito"
-              title={canRegister ? 'Crea el credito real con la formula activa validada.' : 'Primero valida el credito y corrige cualquier campo pendiente.'}
+              title={canRegister ? 'Crea el crédito real con la fórmula activa validada.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}

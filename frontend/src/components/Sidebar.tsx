@@ -225,7 +225,7 @@ export default function Sidebar({
                   active={currentView === 'credits'}
                   onClick={() => setCurrentView('credits')}
                   title={tTerm('sidebar.credits.portfolio')}
-                  tooltip="Creditos en curso con saldo o cuotas pendientes"
+                  tooltip="Créditos en curso con saldo o cuotas pendientes"
                 />
                 {isAdmin && (
                   <>

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError } = require('@/utils/errorHandler');
+const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 
 const {
   createListPayments,
@@ -39,7 +39,12 @@ test('createCreatePayment delegates actor-aware canonical payment application', 
     clock: () => new Date('2026-03-19T00:00:00.000Z'),
   });
 
-  const result = await createPayment({ actor: { id: 12, role: 'customer' }, loanId: 4, amount: 250 });
+  const result = await createPayment({
+    actor: { id: 12, role: 'customer' },
+    loanId: 4,
+    amount: 250,
+    paymentDate: '2026-03-18',
+  });
 
   assert.equal(result.payment.id, 51);
   assert.equal(result.payment.actorId, 12);
@@ -47,7 +52,7 @@ test('createCreatePayment delegates actor-aware canonical payment application', 
   assert.deepEqual(serviceInput, {
     loanId: 4,
     amount: 250,
-    paymentDate: new Date('2026-03-19T00:00:00.000Z'),
+    paymentDate: new Date('2026-03-18'),
     paymentMethod: undefined,
     actorId: 12,
     idempotencyKey: undefined,
@@ -462,13 +467,18 @@ test('createCreatePartialPayment allows admins and delegates partial application
     clock: () => new Date('2026-03-20T00:00:00.000Z'),
   });
 
-  const result = await createPartialPayment({ actor: { id: 1, role: 'admin' }, loanId: 5, amount: 80 });
+  const result = await createPartialPayment({
+    actor: { id: 1, role: 'admin' },
+    loanId: 5,
+    amount: 80,
+    paymentDate: '2026-03-22T12:00:00.000Z',
+  });
 
   assert.equal(result.payment.id, 101);
   assert.deepEqual(serviceInput, {
     loanId: 5,
     amount: 80,
-    paymentDate: new Date('2026-03-20T00:00:00.000Z'),
+    paymentDate: new Date('2026-03-22T12:00:00.000Z'),
     paymentMethod: undefined,
     actorId: 1,
     idempotencyKey: undefined,
@@ -492,6 +502,31 @@ test('createCreatePartialPayment rejects customer self-service partial payments'
   await assert.rejects(
     () => createPartialPayment({ actor: { id: 7, role: 'customer' }, loanId: 5, amount: 80 }),
     /Only admins can create partial payments/,
+  );
+});
+
+test('createCreatePartialPayment rejects invalid operator payment dates', async () => {
+  const createPartialPayment = createCreatePartialPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 5 };
+      },
+    },
+    paymentApplicationService: {
+      async applyPartialPayment() {
+        throw new Error('applyPartialPayment should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createPartialPayment({
+      actor: { id: 1, role: 'admin' },
+      loanId: 5,
+      amount: 80,
+      paymentDate: 'not-a-date',
+    }),
+    ValidationError,
   );
 });
 
@@ -533,6 +568,7 @@ test('createCreateCapitalPayment delegates payment method to capital application
     actor: { id: 1, role: 'admin' },
     loanId: 5,
     amount: 80,
+    paymentDate: '2026-03-23',
     paymentMethod: 'transfer',
     strategy: 'REDUCE_QUOTA',
   });
@@ -541,7 +577,7 @@ test('createCreateCapitalPayment delegates payment method to capital application
   assert.deepEqual(serviceInput, {
     loanId: 5,
     amount: 80,
-    paymentDate: new Date('2026-03-20T00:00:00.000Z'),
+    paymentDate: new Date('2026-03-23'),
     paymentMethod: 'transfer',
     strategy: 'REDUCE_QUOTA',
     actorId: 1,

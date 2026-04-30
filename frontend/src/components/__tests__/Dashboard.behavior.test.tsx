@@ -132,7 +132,7 @@ describe('Dashboard behavior', () => {
     expect(screen.getByRole('button', { name: 'Bloques' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reordenar panel' })).toBeInTheDocument();
     expect(screen.getByText('Balance total')).toBeInTheDocument();
-    expect(screen.getByText('Préstamos activos')).toBeInTheDocument();
+    expect(screen.getByText('Créditos activos')).toBeInTheDocument();
     expect(screen.getByText('Recuperado vs desembolsado')).toBeInTheDocument();
 
     const areaSeries = screen.getAllByTestId('area-series').map((node) => node.textContent);

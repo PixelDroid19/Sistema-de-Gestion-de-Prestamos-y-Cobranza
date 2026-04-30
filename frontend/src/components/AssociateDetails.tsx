@@ -150,7 +150,7 @@ export default function AssociateDetails() {
           accent="emerald"
         />
         <MetricCard
-          label="Préstamos activos"
+          label="Créditos activos"
           value={activeLoansCount}
           icon={<CheckCircle size={18} />}
           accent="slate"
@@ -158,7 +158,7 @@ export default function AssociateDetails() {
       </div>
 
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Préstamos Participados</h3>
+        <h3 className="text-lg font-bold text-text-primary mb-4">Créditos participados</h3>
         <TableShell
           isLoading={false}
           isError={false}
@@ -171,9 +171,9 @@ export default function AssociateDetails() {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="font-medium">ID Préstamo</th>
-                <th className="font-medium">Monto Original</th>
-                <th className="font-medium">Interés Total</th>
+                <th className="font-medium">ID crédito</th>
+                <th className="font-medium">Monto original</th>
+                <th className="font-medium">Interés total</th>
                 <th className="font-medium">Estado</th>
               </tr>
             </thead>
