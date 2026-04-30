@@ -124,7 +124,7 @@ export default function PaymentSchedule() {
           <div>
             <h2 className="text-2xl font-semibold flex items-center gap-3">
               <Calendar size={28} className="text-brand-primary" />
-              Plan de Pagos
+              Plan de pagos
             </h2>
             <p className="text-sm text-text-secondary mt-1">
               {loan?.customerName ? `Cliente: ${loan.customerName}` : 'Tabla de amortización'}

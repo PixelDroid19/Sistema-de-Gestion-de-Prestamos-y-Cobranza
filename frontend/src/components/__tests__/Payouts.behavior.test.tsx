@@ -37,6 +37,7 @@ vi.mock('../../services/configService', () => ({
     paymentMethods: [
       { key: 'transfer', type: 'transfer', label: 'Transferencia', name: 'Transferencia', isActive: true },
       { key: 'cash', type: 'cash', label: 'Efectivo', name: 'Efectivo', isActive: true },
+      { key: 'wallet_mobile', type: 'other', label: 'Billetera móvil', name: 'Billetera móvil', isActive: true },
     ],
   }),
 }));
@@ -107,15 +108,33 @@ describe('Payouts behavioral parity scenarios', () => {
     };
   });
 
-  it('blocks regular payout registration for non-customer users', async () => {
+  it('opens admin payout registration on an executable payment type', async () => {
     renderPayouts();
 
     const button = screen.getByRole('button', { name: 'Registrar pago' });
-    expect(button).toBeDisabled();
+    expect(button).not.toBeDisabled();
+
+    fireEvent.click(button);
+
+    expect(screen.queryByRole('option', { name: 'Pago regular (cuota)' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Pago parcial' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'wallet_mobile' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
 
     await waitFor(() => {
-      expect(mockCreatePayment).not.toHaveBeenCalled();
+      expect(mockCreatePartialPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          loanId: 100,
+          amount: 250000,
+          paymentMethod: 'wallet_mobile',
+          paymentDate: expect.any(String),
+        }),
+      );
     });
+    expect(mockCreatePayment).not.toHaveBeenCalled();
   });
 
   it('allows regular payout registration for customer users', async () => {
@@ -140,10 +159,24 @@ describe('Payouts behavioral parity scenarios', () => {
       expect(mockCreatePayment).toHaveBeenCalledWith(
         expect.objectContaining({
           loanId: 100,
-          paymentAmount: 250000,
+          amount: 250000,
         }),
       );
     });
+  });
+
+  it('keeps payout registration unavailable for socios', () => {
+    currentUser = {
+      id: 3,
+      name: 'Socio',
+      email: 'socio@test.com',
+      role: 'socio',
+      permissions: ['*'],
+    };
+
+    renderPayouts();
+
+    expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeDisabled();
   });
 
   it('keeps out-of-scope payout deletion explicitly blocked without regression', async () => {

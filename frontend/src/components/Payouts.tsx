@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
-import { PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod } from '../services/loanService';
+import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
 import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
@@ -34,6 +34,7 @@ export default function Payouts() {
   });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
+  const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
   const [formData, setFormData] = useState({
     loanId: '',
     amount: '',
@@ -64,10 +65,27 @@ export default function Payouts() {
   const role = user?.role;
   const permissions = user?.permissions;
 
-  const canRegisterPayout = useMemo(
+  const payoutTypeOptions = useMemo(() => {
+    const options = [
+      { value: 'regular' as const, label: 'Pago regular (cuota)', description: 'Pago de cuota para clientes autenticados.' },
+      { value: 'partial' as const, label: 'Pago parcial', description: 'Abono administrativo que regulariza saldos pendientes.' },
+      { value: 'capital' as const, label: 'Abono a capital', description: 'Reduce capital vivo y recalcula el cronograma.' },
+    ];
+
+    return options
+      .map((option) => ({
+        ...option,
+        guard: resolveOperationalGuard('payout.register', { role, permissions, payoutType: option.value }),
+      }))
+      .filter((option) => option.guard.visible);
+  }, [permissions, role]);
+
+  const selectedPayoutTypeGuard = useMemo(
     () => resolveOperationalGuard('payout.register', { role, permissions, payoutType: paymentType }),
     [permissions, paymentType, role],
   );
+  const firstExecutablePayoutType = payoutTypeOptions.find((option) => option.guard.executable);
+  const canOpenPaymentModal = Boolean(firstExecutablePayoutType);
 
   const payments = Array.isArray(paymentsData?.data?.payments)
     ? paymentsData.data.payments
@@ -84,6 +102,22 @@ export default function Payouts() {
     previousNormalizedSearchQuery.current = normalizedSearchQuery;
     setPage(1);
   }, [normalizedSearchQuery, setPage]);
+
+  useEffect(() => {
+    const currentOption = payoutTypeOptions.find((option) => option.value === paymentType && option.guard.executable);
+
+    if (!currentOption && firstExecutablePayoutType) {
+      setPaymentType(firstExecutablePayoutType.value);
+    }
+  }, [firstExecutablePayoutType, paymentType, payoutTypeOptions]);
+
+  useEffect(() => {
+    const configuredMethod = paymentMethodOptions.some((method) => method.value === formData.method);
+
+    if (!configuredMethod) {
+      setFormData((current) => ({ ...current, method: defaultPaymentMethod }));
+    }
+  }, [defaultPaymentMethod, formData.method, paymentMethodOptions]);
 
   useEffect(() => {
     const visiblePaymentIds = new Set(
@@ -273,13 +307,27 @@ export default function Payouts() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const loanId = parseInt(formData.loanId, 10);
+    const amount = parseFloat(formData.amount);
+
+    if (!Number.isInteger(loanId) || loanId <= 0) {
+      toast.error({ title: 'Ingrese un ID de crédito válido.' });
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error({ title: 'Ingrese un monto válido.' });
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = {
-      loanId: parseInt(formData.loanId),
-      paymentAmount: parseFloat(formData.amount),
+      loanId,
+      amount,
       paymentDate: new Date(formData.paymentDate).toISOString(),
-      paymentMethod: formData.method
+      paymentMethod: formData.method,
+      ...(paymentType === 'capital' ? { strategy: capitalStrategy } : {}),
     };
 
     const wasExecuted = await executeGuardedAction({
@@ -296,7 +344,7 @@ export default function Payouts() {
       },
       onSuccess: () => {
         setShowPaymentModal(false);
-        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: 'cash' });
+        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: defaultPaymentMethod });
       },
       successMessage: tTerm('payouts.toast.register.success'),
     });
@@ -309,6 +357,20 @@ export default function Payouts() {
     setIsSubmitting(false);
   };
 
+  const openPaymentModal = () => {
+    if (!firstExecutablePayoutType) {
+      toast.error({ title: selectedPayoutTypeGuard.reason || 'Acción no disponible para este usuario.' });
+      return;
+    }
+
+    if (paymentType !== firstExecutablePayoutType.value && !selectedPayoutTypeGuard.executable) {
+      setPaymentType(firstExecutablePayoutType.value);
+    }
+
+    setFormData((current) => ({ ...current, method: defaultPaymentMethod }));
+    setShowPaymentModal(true);
+  };
+
   return (
     <PageShell className="h-full" data-tour="payouts-page">
       <PageHeader
@@ -318,9 +380,9 @@ export default function Payouts() {
         tourId="payouts-header"
         actions={(
         <button 
-          onClick={() => setShowPaymentModal(true)}
-          disabled={!canRegisterPayout.executable}
-          title={canRegisterPayout.executable ? 'Registrar pago' : canRegisterPayout.reason}
+          onClick={openPaymentModal}
+          disabled={!canOpenPaymentModal}
+          title={canOpenPaymentModal ? 'Registrar pago' : (selectedPayoutTypeGuard.reason || 'Acción no disponible')}
           className="flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={16} /> {tTerm('payouts.cta.recordPayment')}
@@ -402,7 +464,7 @@ export default function Payouts() {
                   />
                 </th>
                 <th className="pb-3 font-medium">Recibo ID</th>
-                <th className="pb-3 font-medium">Préstamo ID</th>
+                <th className="pb-3 font-medium">Crédito ID</th>
                 <th className="pb-3 font-medium">Fecha</th>
                 <th className="pb-3 font-medium">Monto</th>
                 <th className="pb-3 font-medium">
@@ -515,21 +577,28 @@ export default function Payouts() {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1" title="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal">Tipo de Pago</label>
+                <label htmlFor="payout-type" className="block text-sm font-medium text-text-secondary mb-1" title="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal">Tipo de pago</label>
                 <select 
+                  id="payout-type"
                   value={paymentType}
                   onChange={(e) => setPaymentType(e.target.value as any)}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
-                  <option value="regular">Pago Regular (Cuota)</option>
-                  <option value="partial">Pago Parcial</option>
-                  <option value="capital">Abono a Capital</option>
+                  {payoutTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value} disabled={!option.guard.executable}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
+                <p className="mt-1 text-xs leading-5 text-text-secondary">
+                  {payoutTypeOptions.find((option) => option.value === paymentType)?.description || selectedPayoutTypeGuard.reason}
+                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">ID del Préstamo</label>
+                <label htmlFor="payout-loan-id" className="block text-sm font-medium text-text-secondary mb-1">ID del crédito</label>
                 <input 
+                  id="payout-loan-id"
                   type="number"
                   required
                   value={formData.loanId}
@@ -540,8 +609,9 @@ export default function Payouts() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Monto a Pagar</label>
+                <label htmlFor="payout-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto a pagar</label>
                 <input 
+                  id="payout-amount"
                   type="number"
                   required
                   min="1"
@@ -554,8 +624,9 @@ export default function Payouts() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Fecha de Pago</label>
+                <label htmlFor="payout-date" className="block text-sm font-medium text-text-secondary mb-1">Fecha de pago</label>
                 <input 
+                  id="payout-date"
                   type="date"
                   required
                   value={formData.paymentDate}
@@ -565,16 +636,34 @@ export default function Payouts() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Método de Pago</label>
+                <label htmlFor="payout-method" className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
                 <select 
+                  id="payout-method"
                   value={formData.method}
                   onChange={(e) => setFormData({...formData, method: e.target.value})}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
-                  <option value="cash">Efectivo</option>
-                  <option value="transfer">Transferencia</option>
+                  {paymentMethodOptions.map((method) => (
+                    <option key={method.value} value={method.value}>{method.label}</option>
+                  ))}
                 </select>
               </div>
+
+              {paymentType === 'capital' && (
+                <div>
+                  <label htmlFor="payout-capital-strategy" className="block text-sm font-medium text-text-secondary mb-1">Estrategia de abono</label>
+                  <select
+                    id="payout-capital-strategy"
+                    value={capitalStrategy}
+                    onChange={(event) => setCapitalStrategy(event.target.value as CapitalStrategy)}
+                    className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
+                  >
+                    {CAPITAL_STRATEGIES.map((strategy) => (
+                      <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button 

@@ -1460,7 +1460,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       }}
                       className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      Registrar Pago
+                      Registrar pago
                     </button>
                   )}
                 </div>
