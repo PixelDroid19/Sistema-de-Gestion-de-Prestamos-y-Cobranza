@@ -308,7 +308,7 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/41/installments/3/annul',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'annul-41-3' },
     body: { reason: 'Cliente reestructurado' },
   });
 
@@ -344,7 +344,7 @@ test('createCreditsRouter delegates payment method edits and installment annulme
       installmentNumber: '3',
       actor: { id: 2, role: 'admin' },
       reason: 'Cliente reestructurado',
-      idempotencyKey: null,
+      idempotencyKey: 'annul-41-3',
     }],
   ]);
 });
@@ -385,7 +385,7 @@ test('createCreditsRouter lets customers process payments only after loan owners
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/payments/process',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'process-55-2' },
     body: {
       loanId: 55,
       paymentAmount: 250,
@@ -416,8 +416,53 @@ test('createCreditsRouter lets customers process payments only after loan owners
       paymentMethod: undefined,
       installmentNumber: 2,
       actorId: 7,
-      idempotencyKey: undefined,
+      idempotencyKey: 'process-55-2',
     }],
+  ]);
+});
+
+test('createCreditsRouter requires idempotency key before processing financial mutations', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({}),
+    loanAccessPolicy: {
+      async findAuthorizedLoan(input) {
+        calls.push(['findAuthorizedLoan', input]);
+        return { id: Number(input.loanId), customerId: 7 };
+      },
+    },
+    paymentApplicationService: createPaymentApplicationServiceStub({
+      async processPayment() {
+        calls.push(['processPayment']);
+        throw new Error('processPayment should not be called');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payments/process',
+    headers: { authorization: 'Bearer valid-token' },
+    body: {
+      loanId: 55,
+      paymentAmount: 250,
+      paymentDate: '2026-03-15T00:00:00.000Z',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /Idempotency-Key header is required/);
+  assert.deepEqual(calls, [
+    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
   ]);
 });
 
@@ -451,7 +496,7 @@ test('createCreditsRouter blocks customer payment processing for loans outside t
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/payments/process',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'process-55-blocked' },
     body: {
       loanId: 55,
       paymentAmount: 250,
@@ -1250,7 +1295,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
   const executeResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/55/payoff-executions',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'payoff-55-2026-03-15' },
     body: { asOfDate: '2026-03-15', quotedTotal: 955.12 },
   });
 
@@ -1283,7 +1328,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
   });
   assert.deepEqual(calls, [
     ['getPayoffQuote', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15' }],
-    ['executePayoff', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15', quotedTotal: 955.12, idempotencyKey: null }],
+    ['executePayoff', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15', quotedTotal: 955.12, idempotencyKey: 'payoff-55-2026-03-15' }],
   ]);
 });
 
@@ -1370,7 +1415,7 @@ test('createCreditsRouter returns structured denial reasons for payoff execution
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/55/payoff-executions',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'payoff-denied-55' },
     body: { asOfDate: '2026-03-15', quotedTotal: 955.12 },
   });
 

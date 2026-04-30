@@ -43,9 +43,9 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       IdempotencyKeyHeader: {
         name: 'Idempotency-Key',
         in: 'header',
-        required: false,
+        required: true,
         schema: { type: 'string', maxLength: 160 },
-        description: 'Clave opcional para evitar doble aplicación ante reintentos o concurrencia.',
+        description: 'Clave obligatoria por intento de mutación financiera para evitar doble aplicación ante reintentos o concurrencia.',
       },
     },
     schemas: {

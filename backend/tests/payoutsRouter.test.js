@@ -124,6 +124,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
     headers: {
       authorization: 'Bearer valid-token',
       'x-test-role': 'customer',
+      'idempotency-key': 'payment-8-200',
     },
     body: createPayload,
   });
@@ -160,8 +161,38 @@ test('createPayoutsRouter serves list and create contract responses', async () =
       pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 },
       filters: { search: 'ana', status: 'completed' },
     }],
-    ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload, idempotencyKey: null }],
+    ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload, idempotencyKey: 'payment-8-200' }],
   ]);
+});
+
+test('createPayoutsRouter requires idempotency key for financial mutations', async () => {
+  const calls = [];
+  const app = createRuntimeApp({
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      async createPayment() {
+        calls.push(['createPayment']);
+        throw new Error('createPayment should not be called');
+      },
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'customer',
+    },
+    body: { loanId: 8, amount: 200, paymentDate: '2026-03-21' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /Idempotency-Key header is required/);
+  assert.deepEqual(calls, []);
 });
 
 test('createPayoutsRouter serves loan payment lookup contract responses', async () => {
@@ -387,7 +418,7 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
   const payResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/pay-total-debt',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer', 'idempotency-key': 'pay-total-44' },
     body: { loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12 },
   });
 
@@ -395,7 +426,7 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
   assert.equal(payResponse.statusCode, 201);
   assert.deepEqual(calls, [
     ['calculateTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01' }],
-    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: null }],
+    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: 'pay-total-44' }],
   ]);
 });
 
@@ -457,7 +488,7 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/capital',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'capital-denied-15' },
     body: { loanId: 15, amount: 60 },
   });
 
@@ -495,7 +526,7 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/capital',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'capital-no-balance-15' },
     body: { loanId: 15, amount: 60 },
   });
 

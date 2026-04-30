@@ -1,5 +1,6 @@
 const { test, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 
 const models = require('@/models');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
@@ -11,6 +12,23 @@ const loanViewService = createLoanViewService();
 afterEach(() => {
   mock.restoreAll();
 });
+
+const stringifyStable = (value) => {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stringifyStable(entry)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stringifyStable(value[key])}`).join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+};
+
+const legacyPaymentRequestHashWithoutActor = (payload) => crypto
+  .createHash('sha256')
+  .update(stringifyStable(payload))
+  .digest('hex');
 
 test('processPayment throws ValidationError for missing loanId', async () => {
   await assert.rejects(
@@ -160,6 +178,55 @@ test('processPayment returns completed idempotent payload after concurrent key c
   assert.equal(result.status, 'APPLIED');
   assert.equal(result.transactionId, 'tx-concurrent');
   assert.equal(result.idempotent, true);
+});
+
+test('processPayment rejects replay when an existing idempotency record is not bound to the actor', async () => {
+  const legacyHashWithoutActor = legacyPaymentRequestHashWithoutActor({
+    operationType: 'installment_payment',
+    loanId: 100,
+    amount: 1500,
+    paymentDate: '2026-03-15T00:00:00.000Z',
+    paymentMethod: null,
+    installmentNumber: 2,
+    asOfDate: null,
+    quotedTotal: null,
+    strategy: null,
+  });
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => {
+    const txHandler = typeof _options === 'function' ? _options : handler;
+    return txHandler({ id: 'tx-cross-actor-replay' });
+  });
+  mock.method(models.IdempotencyKey, 'findOne', async () => ({
+    id: 1,
+    scope: 'payment',
+    idempotencyKey: 'shared-key',
+    requestHash: legacyHashWithoutActor,
+    status: 'completed',
+    responsePayload: {
+      transactionId: 'tx-cached',
+      status: 'APPLIED',
+      newBalance: 6500,
+      breakdown: { capital: 1200, interest: 200, penalty: 0 },
+      paymentId: 150,
+    },
+  }));
+
+  await assert.rejects(
+    createPaymentApplicationService({ loanViewService }).processPayment({
+      loanId: 100,
+      paymentAmount: '1500',
+      paymentDate: '2026-03-15T00:00:00.000Z',
+      installmentNumber: 2,
+      actorId: 9,
+      idempotencyKey: 'shared-key',
+    }),
+    (error) => {
+      assert.ok(error instanceof ValidationError);
+      assert.match(error.message, /different payment request/i);
+      return true;
+    }
+  );
 });
 
 test('processPayment uses canonical payment waterfall and publishes the resulting breakdown', async () => {
