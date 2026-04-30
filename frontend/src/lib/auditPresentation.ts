@@ -33,11 +33,65 @@ const ACTION_LABELS: Record<string, string> = {
   RESTORE: 'Restauración',
 };
 
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  Loan: 'Crédito',
+  User: 'Usuario',
+  Payment: 'Pago',
+  Customer: 'Cliente',
+  Associate: 'Socio',
+  PromiseToPay: 'Compromiso de pago',
+  Notification: 'Notificación',
+  DagGraphVersion: 'Versión de fórmula',
+};
+
+const ENTITY_TYPE_ALIASES: Record<string, string> = {
+  credito: 'Loan',
+  creditos: 'Loan',
+  prestamo: 'Loan',
+  prestamos: 'Loan',
+  usuario: 'User',
+  usuarios: 'User',
+  pago: 'Payment',
+  pagos: 'Payment',
+  cliente: 'Customer',
+  clientes: 'Customer',
+  socio: 'Associate',
+  socios: 'Associate',
+  promesa: 'PromiseToPay',
+  promesas: 'PromiseToPay',
+  notificacion: 'Notification',
+  notificaciones: 'Notification',
+  formula: 'DagGraphVersion',
+  formulas: 'DagGraphVersion',
+};
+
+const normalizeText = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
 export const formatAuditDate = (dateStr: string) => new Date(dateStr).toLocaleString();
 
 export const getAuditModuleLabel = (module: string) => MODULE_LABELS[module] || module;
 
 export const getAuditActionLabel = (action: string) => ACTION_LABELS[action] || action;
+
+export const getAuditEntityTypeLabel = (entityType?: string | null) => {
+  if (!entityType) return 'Sin tipo';
+  return ENTITY_TYPE_LABELS[entityType] || entityType;
+};
+
+export const formatAuditEntity = (log: Pick<AuditLog, 'entityType' | 'entityId'>) => {
+  if (!log.entityType && !log.entityId) return 'Sin entidad';
+  const label = getAuditEntityTypeLabel(log.entityType) || 'Entidad';
+  return `${label}${log.entityId ? ` #${log.entityId}` : ''}`;
+};
+
+export const normalizeAuditEntityTypeInput = (value: string) => {
+  const normalized = normalizeText(value);
+  return ENTITY_TYPE_ALIASES[normalized] || value.trim();
+};
 
 export const getAuditActionTone = (action: string) => {
   switch (action) {

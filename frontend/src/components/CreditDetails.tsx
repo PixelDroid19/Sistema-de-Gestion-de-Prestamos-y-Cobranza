@@ -1317,7 +1317,7 @@ export default function CreditDetails() {
           <SummaryMetricItem
             icon={CheckCircle}
             label="Capital Pagado"
-            tooltip="Parte del préstamo original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
+            tooltip="Parte del crédito original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
             tone="brand"
             value={<span title={formatCurrency(paymentSnapshot?.totalPaidPrincipal)}>{formatMetricCurrency(paymentSnapshot?.totalPaidPrincipal)}</span>}
           />
@@ -1338,7 +1338,7 @@ export default function CreditDetails() {
           <SummaryMetricItem
             icon={Activity}
             label="Capital Vivo"
-            tooltip="Capital del préstamo que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
+            tooltip="Capital del crédito que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
             tone="brand"
             value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
           />

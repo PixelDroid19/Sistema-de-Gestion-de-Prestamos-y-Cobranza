@@ -20,9 +20,9 @@ const CUSTOMER_DOCUMENT_OPTIONS = [
 const CUSTOMER_DOCUMENT_ACCEPT = '.pdf,image/jpeg,image/png,image/webp';
 
 /**
- * CustomerDetails displays a customer's profile, documents, loan history,
+ * CustomerDetails displays a customer's profile, documents, credit history,
  * and credit history timeline. Provides document management and navigation
- * to individual loan details.
+ * to individual credit details.
  */
 export default function CustomerDetails() {
   const { id } = useParams<{ id: string }>();
@@ -57,14 +57,21 @@ export default function CustomerDetails() {
       ? history.timeline
       : [];
   const normalizedCustomerStatus = String(customer?.status || '').toLowerCase();
+  const getOutstandingPrincipal = (loan: any) => {
+    const explicitOutstanding = Number(loan?.principalOutstanding);
+    const calculatedOutstanding = Number(loan?.amount || 0) - Number(loan?.totalPaid || 0);
+    const outstanding = Number.isFinite(explicitOutstanding)
+      ? explicitOutstanding
+      : calculatedOutstanding;
+
+    return Math.max(0, Number.isFinite(outstanding) ? outstanding : 0);
+  };
 
   // Calculate loan statistics
   const activeLoans = customerLoans.filter((l: any) => l.status === 'active' || l.status === 'ACTIVE');
   const completedLoans = customerLoans.filter((l: any) => l.status === 'closed' || l.status === 'CLOSED' || l.status === 'completed');
   const overdueLoans = customerLoans.filter((l: any) => l.status === 'overdue' || l.status === 'OVERDUE' || l.daysLate > 0);
   const totalDisbursed = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
-  const totalPaid = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.totalPaid) || 0), 0);
-  const totalOutstanding = customerLoans.reduce((sum: number, l: any) => sum + (Number(l.principalOutstanding) || Number(l.amount) - Number(l.totalPaid) || 0), 0);
 
   const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'loans' | 'history'>('profile');
   const [file, setFile] = useState<File | null>(null);
@@ -245,7 +252,7 @@ export default function CustomerDetails() {
           onClick={() => setActiveTab('loans')}
           className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'loans' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}
         >
-          Préstamos
+          Créditos
         </button>
         <button
           onClick={() => setActiveTab('history')}
@@ -259,7 +266,7 @@ export default function CustomerDetails() {
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <h3 className="font-bold mb-4">Información Personal</h3>
+              <h3 className="font-bold mb-4">Información personal</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between border-b border-border-subtle pb-2">
                   <span className="text-text-secondary">Email</span>
@@ -377,7 +384,7 @@ export default function CustomerDetails() {
               <h4 className="text-sm font-medium text-text-secondary mb-4">Resumen de Cartera</h4>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-blue-50 dark:bg-blue-500/10 rounded-lg p-3">
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Total Préstamos</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Total créditos</p>
                   <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{customerLoans.length}</p>
                 </div>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg p-3">
@@ -399,7 +406,7 @@ export default function CustomerDetails() {
               </div>
             </div>
 
-            <h3 className="font-bold mb-4">Detalle de Préstamos</h3>
+            <h3 className="font-bold mb-4">Detalle de créditos</h3>
             <div className="space-y-3">
               {customerLoans.map((loan: any) => (
                 <div
@@ -428,7 +435,7 @@ export default function CustomerDetails() {
                           <p className="font-medium text-text-primary">{loan.termMonths} meses</p>
                         </div>
                         <div>
-                          <p className="text-text-secondary">Fecha Inicio</p>
+                          <p className="text-text-secondary">Fecha inicio</p>
                           <p className="font-medium text-text-primary">{formatDate(loan.startDate)}</p>
                         </div>
                       </div>
@@ -441,7 +448,7 @@ export default function CustomerDetails() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-text-secondary mb-1">Saldo Pendiente</p>
-                      <p className="text-lg font-bold text-text-primary">{formatCurrency(loan.principalOutstanding || loan.amount - loan.totalPaid || 0)}</p>
+                      <p className="text-lg font-bold text-text-primary">{formatCurrency(getOutstandingPrincipal(loan))}</p>
                       <p className="text-xs text-text-secondary mt-2">Pagado: {formatCurrency(loan.totalPaid || 0)}</p>
                     </div>
                   </div>
@@ -450,7 +457,7 @@ export default function CustomerDetails() {
               {customerLoans.length === 0 && (
                 <div className="text-center py-12 text-text-secondary">
                   <CreditCard size={48} className="mx-auto mb-3 opacity-30" />
-                  <p>No tiene préstamos registrados.</p>
+                  <p>No tiene créditos registrados.</p>
                 </div>
               )}
             </div>

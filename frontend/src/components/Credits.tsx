@@ -221,6 +221,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   });
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
+  const searchPlaceholder = isAdmin ? 'Buscar por cliente o crédito...' : 'Buscar crédito...';
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
 
@@ -516,7 +517,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   };
 
   const getRecoveryStatusLabel = (credit: any) => {
-    if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return 'En Mora';
+    if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return 'En mora';
     if (credit?.recoveryStatus === 'pending') return 'En Curso';
     if (credit?.recoveryStatus === 'recovered') return 'Recuperado';
     if (credit?.recoveryStatus === 'active') return 'Activo';
@@ -716,7 +717,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {/* Statistics Widget */}
           {statisticsData?.data?.statistics && (
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Total préstamos" value={formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)} icon={<DollarSign size={18} />} accent="blue" />
+                <MetricCard label="Total créditos" value={formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)} icon={<DollarSign size={18} />} accent="blue" />
                 <MetricCard label="Cobrado" value={formatCurrency(statisticsData.data.statistics.amounts.totalCollected)} icon={<TrendingUp size={18} />} accent="slate" />
                 <MetricCard label="Mora" value={formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)} icon={<AlertTriangle size={18} />} accent="amber" />
                 <MetricCard label="Créditos activos" value={`${statisticsData.data.statistics.counts.activeCredits} / ${statisticsData.data.statistics.counts.totalCredits}`} icon={<Users size={18} />} accent="blue" />
@@ -730,7 +731,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 <input
                   type="text"
                   data-tour="credits-search"
-                  placeholder="Buscar por cliente..."
+                  placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(event) => {
@@ -791,14 +792,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     <option value="pending">Pendiente</option>
                     <option value="approved">Aprobado</option>
                     <option value="overdue">Vencido</option>
-                    <option value="defaulted">En Mora</option>
+                    <option value="defaulted">En mora</option>
                     <option value="paid">Pagado</option>
                     <option value="closed">Cerrado</option>
                     <option value="cancelled">Cancelado</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Monto Mínimo</label>
+                  <label className="block text-xs text-text-secondary mb-1">Monto mínimo</label>
                   <input
                     type="number"
                     value={filters.minAmount}
@@ -808,7 +809,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Monto Máximo</label>
+                  <label className="block text-xs text-text-secondary mb-1">Monto máximo</label>
                   <input
                     type="number"
                     value={filters.maxAmount}
@@ -818,7 +819,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Fecha Inicio</label>
+                  <label className="block text-xs text-text-secondary mb-1">Fecha inicio</label>
                   <input
                     type="date"
                     value={filters.startDate}
@@ -827,7 +828,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Fecha Fin</label>
+                  <label className="block text-xs text-text-secondary mb-1">Fecha fin</label>
                   <input
                     type="date"
                     value={filters.endDate}
@@ -1392,7 +1393,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       <div className="text-sm text-text-secondary">Estado</div>
                       <div className="font-semibold text-lg">
                         {selectedEvent.type === 'paid' ? 'Pagada' :
-                         selectedEvent.type === 'overdue' ? 'En Mora' : 'Pendiente'}
+                         selectedEvent.type === 'overdue' ? 'En mora' : 'Pendiente'}
                       </div>
                     </div>
                   </div>

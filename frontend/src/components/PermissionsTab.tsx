@@ -17,6 +17,24 @@ type PermissionRecord = {
   description?: string;
 };
 
+const MODULE_DISPLAY_LABELS: Record<string, string> = {
+  auditoria: 'Auditoría',
+  auditoría: 'Auditoría',
+  clientes: 'Clientes',
+  creditos: 'Créditos',
+  dashboard: 'Dashboard',
+  pagos: 'Pagos',
+  permisos: 'Permisos',
+  reportes: 'Reportes',
+  socios: 'Socios',
+  usuarios: 'Usuarios',
+};
+
+const getModuleLabel = (module: string) => {
+  const normalizedModule = module.trim().toLowerCase();
+  return MODULE_DISPLAY_LABELS[normalizedModule] || module;
+};
+
 export default function PermissionsTab() {
   const { permissions, isLoading: isLoadingPermissions } = usePermissions();
   const { data: usersData, isLoading: isLoadingUsers } = useUsers({ page: 1, pageSize: 100 });
@@ -212,7 +230,7 @@ export default function PermissionsTab() {
                 >
                   <div className="flex items-center gap-2 font-medium">
                     <Shield size={16} />
-                    <span className="capitalize">{group.module}</span>
+                    <span>{getModuleLabel(group.module)}</span>
                     <span className="text-xs text-text-secondary bg-bg-surface px-2 py-0.5 rounded-full">
                       {group.permissions.length} permisos
                     </span>
@@ -228,7 +246,7 @@ export default function PermissionsTab() {
                           <p className="font-medium text-sm">{permission.permission}</p>
                           <p className="text-xs text-text-secondary">{permission.description || 'Sin descripción'}</p>
                         </div>
-                        <span className="text-xs px-2 py-0.5 rounded bg-bg-base text-text-secondary">{permission.module}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-bg-base text-text-secondary">{getModuleLabel(permission.module)}</span>
                       </div>
                     ))}
                   </div>
@@ -266,7 +284,7 @@ export default function PermissionsTab() {
               >
                 <option value="all">Todos los módulos</option>
                 {groupedPermissions.map((group) => (
-                  <option key={group.module} value={group.module}>{group.module}</option>
+                  <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
                 ))}
               </select>
             </div>
@@ -302,7 +320,7 @@ export default function PermissionsTab() {
                     <div className="w-full px-4 py-3 flex items-center justify-between bg-bg-base">
                       <div className="flex items-center gap-2 font-medium">
                         <Shield size={16} />
-                        <span className="capitalize">{group.module}</span>
+                        <span>{getModuleLabel(group.module)}</span>
                         <span className="text-xs text-text-secondary bg-bg-surface px-2 py-0.5 rounded-full">
                           {directCount}/{totalPermissions} directos · {roleCount} heredados
                         </span>

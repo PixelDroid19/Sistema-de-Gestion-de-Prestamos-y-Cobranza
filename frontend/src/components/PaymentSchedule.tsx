@@ -147,7 +147,7 @@ export default function PaymentSchedule() {
       {/* Loan Summary */}
       {loan && (
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4" data-tour="payment-schedule-summary">
-          <MetricCard label="Monto del préstamo" value={formatCurrency(loan.amount)} icon={<DollarSign size={18} />} accent="blue" />
+          <MetricCard label="Monto del crédito" value={formatCurrency(loan.amount)} icon={<DollarSign size={18} />} accent="blue" />
           <MetricCard label="Tasa de interés" value={`${loan.interestRate}%`} icon={<TrendingUp size={18} />} accent="amber" />
           <MetricCard label="Plazo" value={`${loan.termMonths} meses`} icon={<Calendar size={18} />} accent="emerald" />
           <MetricCard label="Estado" value={<span className="capitalize">{loan.status}</span>} icon={<BarChart3 size={18} />} accent="slate" />

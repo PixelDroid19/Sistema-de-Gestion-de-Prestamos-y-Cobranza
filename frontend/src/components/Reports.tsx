@@ -284,29 +284,29 @@ export default function Reports() {
         <button 
           onClick={() => setActiveTab('outstanding')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'outstanding' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Clientes y creditos con cuotas vencidas"
+          title="Clientes y créditos con cuotas vencidas"
         >
-          Créditos en Mora
+          Créditos en mora
         </button>
         <button 
           onClick={() => setActiveTab('profitability')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profitability' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
         >
-          Rentabilidad de Clientes
+          Rentabilidad de clientes
         </button>
         <button 
           onClick={() => setActiveTab('payouts')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'payouts' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
           title="Resumen y detalle de pagos aplicados"
         >
-          Pagos y Desembolsos
+          Pagos y desembolsos
         </button>
         <button 
           onClick={() => setActiveTab('schedule')}
           className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'schedule' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
-          title="Cronograma de cuotas por prestamo"
+          title="Cronograma de cuotas por crédito"
         >
-          Calendario de Pagos
+          Calendario de pagos
         </button>
       </div>
 
@@ -317,14 +317,14 @@ export default function Reports() {
         <MetricCard
           label="Total desembolsado"
           value={formatMoney(metrics.totalDisbursed)}
-          tooltip="Suma de capital entregado en todos los creditos considerados por el reporte."
+          tooltip="Suma de capital entregado en todos los créditos considerados por el reporte."
           icon={<DollarSign size={18} />}
           accent="blue"
         />
         <MetricCard
           label="Interés generado"
           value={formatMoney(metrics.totalInterestGenerated)}
-          tooltip="Intereses programados por los creditos segun sus cronogramas. No significa que ya se hayan cobrado."
+          tooltip="Intereses programados por los créditos según sus cronogramas. No significa que ya se hayan cobrado."
           icon={<TrendingUp size={18} />}
           accent="emerald"
         />
@@ -338,7 +338,7 @@ export default function Reports() {
         <MetricCard
           label="Créditos activos"
           value={metrics.totalActiveLoans}
-          tooltip="Cantidad de creditos abiertos que siguen en cartera."
+          tooltip="Cantidad de créditos abiertos que siguen en cartera."
           icon={<Users size={18} />}
           accent="amber"
         />
@@ -466,14 +466,14 @@ export default function Reports() {
 
       {activeTab === 'outstanding' && (
         <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-          <h3 className="font-medium mb-6">Detalle de Créditos en Mora</h3>
+          <h3 className="font-medium mb-6">Detalle de créditos en mora</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
                   <th className="pb-3 font-medium">Cliente</th>
                   <th className="pb-3 font-medium">Días de Atraso</th>
-                  <th className="pb-3 font-medium">Monto en Mora</th>
+                  <th className="pb-3 font-medium">Monto en mora</th>
                   <th className="pb-3 font-medium">Capital Restante</th>
                 </tr>
               </thead>
@@ -517,9 +517,9 @@ export default function Reports() {
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
                   <th className="pb-3 font-medium">Cliente</th>
-                  <th className="pb-3 font-medium">Préstamos Totales</th>
+                  <th className="pb-3 font-medium">Créditos totales</th>
                   <th className="pb-3 font-medium">Interés Cobrado</th>
-                  <th className="pb-3 font-medium">Mora Cobrada</th>
+                  <th className="pb-3 font-medium">Mora cobrada</th>
                   <th className="pb-3 font-medium">Rentabilidad Total</th>
                 </tr>
               </thead>
@@ -613,14 +613,14 @@ export default function Reports() {
               <MetricCard
                 label="Monto total"
                 value={formatMoney(payoutSummary.totalAmount)}
-                tooltip="Valor total recibido en pagos, sumando capital, interes, mora y otros componentes registrados."
+                tooltip="Valor total recibido en pagos, sumando capital, interés, mora y otros componentes registrados."
                 icon={<DollarSign size={18} />}
                 accent="emerald"
               />
               <MetricCard
                 label="Capital"
                 value={formatMoney(payoutSummary.totalPrincipal)}
-                tooltip="Parte de los pagos que redujo el capital vivo de los creditos."
+                tooltip="Parte de los pagos que redujo el capital vivo de los créditos."
                 icon={<DollarSign size={18} />}
                 accent="slate"
               />
@@ -644,7 +644,7 @@ export default function Reports() {
           {/* Payouts Table */}
           <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-medium">Detalle de Pagos</h3>
+              <h3 className="font-medium">Detalle de pagos</h3>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <input
@@ -683,7 +683,7 @@ export default function Reports() {
                 <thead className="text-xs text-text-secondary border-b border-border-subtle">
                   <tr>
                     <th className="pb-3 font-medium">ID Pago</th>
-                    <th className="pb-3 font-medium">ID Préstamo</th>
+                    <th className="pb-3 font-medium">ID crédito</th>
                     <th className="pb-3 font-medium">Fecha</th>
                     <th className="pb-3 font-medium">Monto</th>
                     <th className="pb-3 font-medium">Capital</th>
@@ -757,11 +757,11 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           {/* Loan Selector */}
           <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-            <h3 className="font-medium mb-4">Seleccionar Préstamo</h3>
+            <h3 className="font-medium mb-4">Seleccionar crédito</h3>
             <div className="flex gap-4 items-center">
               <input
                 type="number"
-                placeholder="Ingrese ID del préstamo"
+                placeholder="Ingrese ID del crédito"
                 value={selectedLoanId || ''}
                 onChange={(e) => setSelectedLoanId(e.target.value ? parseInt(e.target.value, 10) : null)}
                 className="bg-bg-base text-sm text-text-primary rounded-lg px-4 py-2 border border-border-subtle focus:outline-none w-64"
@@ -784,30 +784,30 @@ export default function Reports() {
               {/* Loan Summary */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
-                  label="Monto del préstamo"
+                  label="Monto del crédito"
                   value={formatMoney(scheduleLoan.amount)}
-                  tooltip="Capital original registrado para el credito consultado."
+                  tooltip="Capital original registrado para el crédito consultado."
                   icon={<DollarSign size={18} />}
                   accent="blue"
                 />
                 <MetricCard
                   label="Plazo"
                   value={`${scheduleLoan.termMonths} meses`}
-                  tooltip="Numero de meses pactados para pagar el credito."
+                  tooltip="Número de meses pactados para pagar el crédito."
                   icon={<CalendarClock size={18} />}
                   accent="emerald"
                 />
                 <MetricCard
                   label="Tasa de interés"
                   value={`${scheduleLoan.interestRate}%`}
-                  tooltip="Tasa anual usada para calcular intereses del credito."
+                  tooltip="Tasa anual usada para calcular intereses del crédito."
                   icon={<TrendingUp size={18} />}
                   accent="amber"
                 />
                 <MetricCard
                   label="Estado"
                   value={<span className="capitalize">{scheduleLoan.status}</span>}
-                  tooltip="Situacion operativa actual del credito consultado."
+                  tooltip="Situación operativa actual del crédito consultado."
                   icon={<AlertCircle size={18} />}
                   accent="slate"
                 />
@@ -825,7 +825,7 @@ export default function Reports() {
                 <MetricCard
                   label="Total interés"
                   value={formatMoney(scheduleSummary.totalInterest)}
-                  tooltip="Intereses totales calculados en el cronograma del credito."
+                  tooltip="Intereses totales calculados en el cronograma del crédito."
                   icon={<TrendingUp size={18} />}
                   accent="emerald"
                 />
@@ -840,7 +840,7 @@ export default function Reports() {
 
               {/* Installment Progress */}
               <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-                <h3 className="font-medium mb-4">Progreso de Cuotas</h3>
+                <h3 className="font-medium mb-4">Progreso de cuotas</h3>
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="h-4 bg-bg-base rounded-full overflow-hidden">
@@ -858,18 +858,18 @@ export default function Reports() {
 
               {/* Amortization Schedule Table */}
               <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-                <h3 className="font-medium mb-6">Calendario de Amortización</h3>
+                <h3 className="font-medium mb-6">Calendario de amortización</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-text-secondary border-b border-border-subtle">
                       <tr>
                         <th className="pb-3 font-medium">#</th>
-                        <th className="pb-3 font-medium">Fecha Vencimiento</th>
-                        <th className="pb-3 font-medium">Saldo Inicial</th>
+                        <th className="pb-3 font-medium">Fecha vencimiento</th>
+                        <th className="pb-3 font-medium">Saldo inicial</th>
                         <th className="pb-3 font-medium">Cuota</th>
                         <th className="pb-3 font-medium">Capital</th>
                         <th className="pb-3 font-medium">Interés</th>
-                        <th className="pb-3 font-medium">Saldo Final</th>
+                        <th className="pb-3 font-medium">Saldo final</th>
                         <th className="pb-3 font-medium">Estado</th>
                       </tr>
                     </thead>
@@ -902,7 +902,7 @@ export default function Reports() {
             <div className="bg-bg-surface border border-border-subtle rounded-2xl p-12 text-center">
               <CalendarClock size={48} className="mx-auto text-text-secondary mb-4" />
               <h3 className="text-lg font-medium mb-2">Sin datos del calendario</h3>
-              <p className="text-text-secondary">Ingrese un ID de préstamo y haga clic en "Ver Calendario" para ver el calendario de pagos.</p>
+              <p className="text-text-secondary">Ingrese un ID de crédito y haga clic en "Ver Calendario" para ver el calendario de pagos.</p>
             </div>
           )}
         </div>

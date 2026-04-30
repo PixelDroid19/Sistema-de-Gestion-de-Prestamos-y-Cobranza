@@ -63,7 +63,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
     successMessage: isEditing ? 'Socio actualizado exitosamente' : 'Socio creado exitosamente',
   });
 
-  const title = useMemo(() => (isEditing ? 'Editar socio' : 'Nuevo Socio'), [isEditing]);
+  const title = useMemo(() => (isEditing ? 'Editar socio' : 'Nuevo socio'), [isEditing]);
   const subtitle = useMemo(() => (
     isEditing
       ? 'Actualiza la información operativa del socio sin afectar su historial financiero.'
@@ -147,7 +147,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Correo Electrónico</label>
+            <label className="mb-1 block text-sm font-medium text-text-secondary">Correo electrónico</label>
             <input
               type="email"
               required
@@ -212,7 +212,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               disabled={isSubmitting}
               className="flex-1 rounded-lg bg-brand-primary py-2 text-white hover:bg-brand-primary/90 disabled:opacity-50"
             >
-              {isSubmitting ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar cambios' : 'Crear Socio')}
+              {isSubmitting ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar cambios' : 'Crear socio')}
             </button>
           </div>
         </form>
