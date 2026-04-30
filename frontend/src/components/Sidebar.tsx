@@ -99,13 +99,13 @@ export default function Sidebar({
       {/* Sidebar Container */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        bg-bg-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-y-auto
+        bg-bg-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-hidden
         transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isCollapsed ? 'w-20' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* Header / Logo */}
-        <div className={`flex items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`flex shrink-0 items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView(homeView)}>
             <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm transition-transform group-hover:scale-105">
               {APP_BRAND.monogram}
@@ -123,7 +123,7 @@ export default function Sidebar({
         </div>
         
         {/* Navegación Principal */}
-        <nav className="flex-1 flex flex-col gap-1.5 w-full px-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1.5 w-full overflow-y-auto px-3">
           {isAdmin && (
             <NavItem 
               icon={<LayoutDashboard size={20} />} 
@@ -376,7 +376,7 @@ export default function Sidebar({
         </nav>
 
         {/* Footer Sidebar (Ajustes y Colapso) */}
-        <div className="flex flex-col gap-1 w-full px-3 mt-auto pt-6 border-t border-border-subtle">
+        <div className="flex shrink-0 flex-col gap-1 w-full px-3 mt-4 pt-4 border-t border-border-subtle">
           {isAdmin && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
           {isAdmin && <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />}
           <NavItem icon={<UserRound size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />

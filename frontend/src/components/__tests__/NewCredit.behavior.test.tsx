@@ -134,13 +134,15 @@ describe('NewCredit behavior', () => {
   });
 
   it('loads the scenario coming from preview mode and creates the credit on the resulting route', async () => {
-    render(<NewCredit onBack={vi.fn()} />);
+    const { container } = render(<NewCredit onBack={vi.fn()} />);
 
     expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
       initialInput: routeState.simulationInput,
       autoRun: true,
     });
     expect(screen.getByText('Escenario precargado desde Previsualizar crédito')).toBeInTheDocument();
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('fixed');
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText('Socio asignado'), { target: { value: '3' } });

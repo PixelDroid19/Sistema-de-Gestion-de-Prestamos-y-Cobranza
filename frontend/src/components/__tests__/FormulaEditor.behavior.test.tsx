@@ -43,8 +43,8 @@ vi.mock('../../lib/toast', () => ({
 const mockScope = {
   key: 'credit-simulation',
   label: 'Credito',
-  description: 'Scope para calculo de credito',
-  defaultName: 'Nueva formula',
+  description: 'Scope para cálculo de crédito',
+  defaultName: 'Nueva fórmula',
   requiredInputs: ['amount', 'interestRate', 'termMonths'],
   requiredOutputs: ['lateFeeMode', 'schedule', 'summary'],
   calculationInput: {
@@ -79,7 +79,7 @@ function renderWithProviders(ui: React.ReactElement) {
 }
 
 async function waitForEditorReady() {
-  await screen.findByDisplayValue('Nueva formula');
+  await screen.findByDisplayValue('Nueva fórmula');
 }
 
 describe('FormulaEditorPage', () => {
@@ -128,7 +128,7 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitForEditorReady();
-    expect(screen.getByText(/Formula base de cuota/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fórmula base de cuota/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sistema frances/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Interes simple/i }));
@@ -154,7 +154,7 @@ describe('FormulaEditorPage', () => {
       button.textContent?.includes('Cuota fija') && button.textContent?.includes(label)
     ));
 
-    fireEvent.click(findInstallmentTarget('Crear excepcion')!);
+    fireEvent.click(findInstallmentTarget('Crear excepción')!);
     fireEvent.click(findInstallmentTarget('Agregar otra prioridad')!);
 
     const installmentContainer = useBlockEditorStore.getState().containers.find((item) => item.outputVar === 'installmentAmount');
@@ -273,7 +273,7 @@ describe('FormulaEditorPage', () => {
     renderWithProviders(<FormulaEditorPage />);
 
     await waitFor(() => {
-      const input = screen.getByPlaceholderText(/nombre de la formula/i);
+      const input = screen.getByPlaceholderText(/nombre de la fórmula/i);
       expect(input).toBeInTheDocument();
     });
   });

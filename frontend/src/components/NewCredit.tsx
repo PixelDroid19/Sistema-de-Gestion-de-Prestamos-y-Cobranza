@@ -235,7 +235,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-32"
+      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-8"
       data-tour="new-credit-page"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -417,7 +417,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </section>
 
       <div
-        className="fixed bottom-4 right-4 z-30 w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88 xl:right-8"
+        className="z-30 ml-auto w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
         data-tour="new-credit-action-dock"
       >
         <div className="grid grid-cols-3 gap-2">

@@ -146,7 +146,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="new-credit-policy-summary"]', title: 'Políticas sugeridas', description: 'Muestra tasa y mora resueltas desde configuración antes de ajustar parámetros.' },
       { selector: '[data-tour="new-credit-late-fee-mode"]', title: 'Modo de mora', description: 'Define cómo reaccionará el crédito si una cuota se vence.' },
       { selector: '[data-tour="new-credit-simulation"]', title: 'Simulación y cronograma', description: 'Revisa cuota, intereses, total a pagar y tabla de amortización antes de registrar.' },
-      { selector: '[data-tour="new-credit-action-dock"]', title: 'Acciones fijas', description: 'Restablece, valida o registra sin tener que subir y bajar por la pantalla.' },
+      { selector: '[data-tour="new-credit-action-dock"]', title: 'Acciones de registro', description: 'Restablece, valida o registra desde el cierre del formulario sin tapar la información revisada.' },
     ],
   },
   'credit-details': {
