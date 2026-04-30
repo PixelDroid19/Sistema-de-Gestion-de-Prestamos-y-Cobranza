@@ -134,6 +134,7 @@ describe('Dashboard behavior', () => {
     expect(screen.getByText('Balance total')).toBeInTheDocument();
     expect(screen.getByText('Créditos activos')).toBeInTheDocument();
     expect(screen.getByText('Recuperado vs desembolsado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Compara el capital entregado en créditos contra el dinero recuperado por pagos registrados.')).toBeInTheDocument();
 
     const areaSeries = screen.getAllByTestId('area-series').map((node) => node.textContent);
     const barSeries = screen.getAllByTestId('bar-series').map((node) => node.textContent);

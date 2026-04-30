@@ -18,6 +18,7 @@ import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
 import MeasuredChart from './shared/MeasuredChart';
 import { MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { HelpTooltip } from './shared/HelpSupport';
 
 type LayoutType = {
   i: string;
@@ -354,7 +355,13 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">{tTerm('dashboard.widget.disbursementEvolution.kicker')}</div>
-                <div className="text-lg font-semibold text-text-primary">{tTerm('dashboard.widget.disbursementEvolution.title')}</div>
+                <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
+                  {tTerm('dashboard.widget.disbursementEvolution.title')}
+                  <HelpTooltip
+                    text="Compara el capital entregado en créditos contra el dinero recuperado por pagos registrados."
+                    align="right"
+                  />
+                </div>
               </div>
               <div className="text-xs text-text-secondary">{recentLoans.length} {tTerm('dashboard.widget.disbursementEvolution.recordsRecent')}</div>
             </div>
@@ -429,7 +436,13 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">{tTerm('dashboard.widget.recoveryPerformance.kicker')}</div>
-                <div className="text-lg font-semibold text-text-primary">{tTerm('dashboard.widget.recoveryPerformance.title')}</div>
+                <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
+                  {tTerm('dashboard.widget.recoveryPerformance.title')}
+                  <HelpTooltip
+                    text="Muestra la recuperación registrada frente al dinero desembolsado para detectar diferencias de cartera."
+                    align="right"
+                  />
+                </div>
               </div>
               <div className="text-xs text-text-secondary">{tTerm('dashboard.widget.recoveryPerformance.subtitle')}</div>
             </div>
