@@ -8,6 +8,16 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
 
   const loanViewService = createLoanViewService();
   const paymentService = paymentApplicationService || createPaymentApplicationService({ loanViewService });
+  const resolveRequiredIdempotencyKey = (req) => {
+    const rawKey = req.headers['idempotency-key'];
+    const key = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+
+    if (typeof key !== 'string' || key.trim() === '') {
+      throw new ValidationError('Idempotency-Key header is required for financial mutations');
+    }
+
+    return key.trim();
+  };
 
   const validateProcessPaymentBody = (req, res, next) => {
     const { loanId, paymentAmount, paymentDate, installmentNumber } = req.body;
@@ -58,7 +68,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {
-      const { loanId, paymentAmount, paymentDate, paymentMethod, installmentNumber, idempotencyKey: bodyKey } = req.body;
+      const { loanId, paymentAmount, paymentDate, paymentMethod, installmentNumber } = req.body;
       if (req.user?.role === 'customer') {
         if (!loanAccessPolicy?.findAuthorizedLoan) {
           throw new AuthorizationError('No se pudo validar el crédito del cliente');
@@ -67,7 +77,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
       }
 
       const actorId = req.user?.id || 0;
-      const idempotencyKey = req.headers['idempotency-key'] || bodyKey;
+      const idempotencyKey = resolveRequiredIdempotencyKey(req);
 
       const result = await paymentService.processPayment({
         loanId,

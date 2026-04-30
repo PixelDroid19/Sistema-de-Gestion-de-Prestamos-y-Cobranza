@@ -235,7 +235,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-32"
+      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-8"
       data-tour="new-credit-page"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -417,7 +417,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </section>
 
       <div
-        className="fixed bottom-4 right-4 z-30 w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88 xl:right-8"
+        className="z-30 ml-auto w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
         data-tour="new-credit-action-dock"
       >
         <div className="grid grid-cols-3 gap-2">
@@ -448,7 +448,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               disabled={!canRegister}
               data-tour="new-credit-submit"
               aria-label="Registrar crédito"
-              title={canRegister ? 'Crea el credito real con la formula activa validada.' : 'Primero valida el credito y corrige cualquier campo pendiente.'}
+              title={canRegister ? 'Crea el crédito real con la fórmula activa validada.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}

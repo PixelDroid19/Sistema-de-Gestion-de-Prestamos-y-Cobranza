@@ -1,6 +1,9 @@
 const { Loan, Customer, Associate, FinancialProduct } = require('@/models');
 const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
-const { buildFinancialSnapshot } = require('@/modules/credits/application/loanFinancials');
+const {
+  buildFinancialSnapshot,
+  normalizeUtcDateOnly,
+} = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
 const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
@@ -49,17 +52,30 @@ const resolveFinancialProductId = async ({ input, financialProductModel }) => {
   return defaultProduct.id;
 };
 
+/**
+ * Normalize the operator-selected first payment date to UTC midnight.
+ *
+ * Browser date inputs submit `YYYY-MM-DD`, but integrations can send ISO
+ * timestamps with offsets. Credit formulas already use the visible date prefix,
+ * so persistence must preserve that same calendar day instead of shifting by
+ * server timezone.
+ *
+ * @param {string|Date|null|undefined} value Selected first payment date.
+ * @returns {Date} UTC date-only value.
+ */
 const resolveLoanStartDate = (value) => {
   if (value === undefined || value === null || value === '') {
-    return new Date();
+    return normalizeUtcDateOnly(new Date(), 'Loan start date');
   }
 
-  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+  const datePrefix = /^([0-9]{4}-[0-9]{2}-[0-9]{2})/.exec(String(value).trim());
+  const normalizedValue = datePrefix ? datePrefix[1] : value;
+
+  try {
+    return normalizeUtcDateOnly(normalizedValue, 'Loan start date');
+  } catch (_error) {
     throw new ValidationError('Loan start date must be a valid date');
   }
-
-  return parsed;
 };
 
 /**

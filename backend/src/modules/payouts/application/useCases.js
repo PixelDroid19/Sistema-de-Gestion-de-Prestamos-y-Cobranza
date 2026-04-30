@@ -102,6 +102,19 @@ const resolveMetadataInput = (payload = {}) => {
   };
 };
 
+const resolvePaymentDateInput = (paymentDate, clock) => {
+  if (paymentDate === undefined || paymentDate === null || paymentDate === '') {
+    return clock();
+  }
+
+  const resolvedDate = new Date(paymentDate);
+  if (Number.isNaN(resolvedDate.getTime())) {
+    throw new ValidationError('Payment date must be a valid date');
+  }
+
+  return resolvedDate;
+};
+
 const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
   if (!loanViewService || typeof loanViewService.getCanonicalLoanView !== 'function') {
     return undefined;
@@ -172,7 +185,7 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
 /**
  * Create the use case that applies a customer payment against an authorized loan.
  */
-const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, idempotencyKey }) => {
+const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (actor?.role !== 'customer') {
     throw new AuthorizationError('Only customers can create payments');
   }
@@ -182,7 +195,7 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
   return paymentApplicationService.applyPayment({
     loanId: loan.id,
     amount,
-    paymentDate: clock(),
+    paymentDate: resolvePaymentDateInput(paymentDate, clock),
     paymentMethod,
     actorId: actor?.id || 0,
     idempotencyKey,
@@ -193,7 +206,7 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
  * Create the use case that applies an admin-only partial payment (free amount within limits).
  * Customer self-service payments must use the installment or payoff flows.
  */
-const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, idempotencyKey }) => {
+const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can create partial payments');
   }
@@ -203,7 +216,7 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
   return paymentApplicationService.applyPartialPayment({
     loanId: loan.id,
     amount,
-    paymentDate: clock(),
+    paymentDate: resolvePaymentDateInput(paymentDate, clock),
     paymentMethod,
     actorId: actor?.id || 0,
     idempotencyKey,
@@ -213,7 +226,7 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
 /**
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
-const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentMethod, strategy, idempotencyKey }) => {
+const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, idempotencyKey }) => {
   if (actor?.role !== 'admin') {
     throw new AuthorizationError('Only admins can create capital reduction payments');
   }
@@ -223,7 +236,7 @@ const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolic
   return paymentApplicationService.applyCapitalPayment({
     loanId: loan.id,
     amount,
-    paymentDate: clock(),
+    paymentDate: resolvePaymentDateInput(paymentDate, clock),
     paymentMethod,
     strategy,
     actorId: actor?.id || 0,

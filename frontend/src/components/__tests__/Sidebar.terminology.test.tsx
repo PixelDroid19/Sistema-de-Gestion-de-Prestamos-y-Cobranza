@@ -123,6 +123,27 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.queryByRole('button', { name: 'Reportes' })).not.toBeInTheDocument();
   });
 
+  it('keeps account actions visible while only the navigation list scrolls', () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    const { container } = render(
+      <Sidebar
+        currentView="dashboard"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    expect(container.querySelector('aside')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('nav')).toHaveClass('overflow-y-auto');
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+  });
+
   it('clears the local session and redirects immediately on logout', async () => {
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();

@@ -220,7 +220,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
 
-    const submitButtons = screen.getAllByRole('button', { name: 'Registrar Pago' });
+    const submitButtons = screen.getAllByRole('button', { name: 'Registrar pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
 
     await waitFor(() => {
@@ -254,15 +254,31 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
   });
 
+  it('renders installment row actions as a compact horizontal toolbar', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    renderCreditDetails();
+
+    const toolbar = screen
+      .getAllByLabelText('Acciones de la cuota 1')
+      .find((node) => node.classList.contains('justify-end'));
+
+    expect(toolbar).toBeTruthy();
+
+    expect(toolbar as HTMLElement).toHaveClass('credit-installment-actions');
+    expect(toolbar as HTMLElement).toHaveClass('flex-nowrap');
+    expect(toolbar as HTMLElement).toHaveClass('justify-end');
+    expect((toolbar as HTMLElement).querySelectorAll('button')).toHaveLength(4);
+  });
+
   it('routes top-level payment CTA to the next payable installment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar Pago' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
 
-    const submitButtons = screen.getAllByRole('button', { name: 'Registrar Pago' });
+    const submitButtons = screen.getAllByRole('button', { name: 'Registrar pago' });
     fireEvent.click(submitButtons[submitButtons.length - 1]);
 
     await waitFor(() => {
@@ -280,7 +296,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     renderCreditDetails();
 
     fireEvent.click(screen.getByTitle('Crear compromiso de pago'));
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar Promesa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar compromiso' }));
 
     await waitFor(() => {
       expect(mockCreatePromise).toHaveBeenCalledWith(
@@ -290,7 +306,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     fireEvent.click(screen.getByTitle('Crear seguimiento'));
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Llamar y confirmar nuevo compromiso' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar Seguimiento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar seguimiento' }));
 
     await waitFor(() => {
       expect(mockCreateFollowUp).toHaveBeenCalledWith(
@@ -313,7 +329,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     renderCreditDetails();
 
     fireEvent.click(screen.getByTitle('Anular cuota'));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Anulación' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar anulación' }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
@@ -422,7 +438,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     expect(screen.getByText('El pago total no está disponible')).toBeInTheDocument();
     expect(screen.getByText('Este crédito ya no tiene saldo pendiente para liquidar.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar Pago' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Tasa de mora' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Estado' })).toBeDisabled();
@@ -437,7 +453,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pago total' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Pagar cuota' }).length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByRole('button', { name: 'Registrar Pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
     expect(screen.getByTitle('Pagar cuota')).toBeInTheDocument();
     expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
@@ -453,7 +469,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pago total' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar Pago' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
     expect(screen.queryByTitle('Registrar pago de cuota')).not.toBeInTheDocument();
   });

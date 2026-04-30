@@ -150,7 +150,7 @@ export default function AssociateDetails() {
           accent="emerald"
         />
         <MetricCard
-          label="Préstamos activos"
+          label="Créditos activos"
           value={activeLoansCount}
           icon={<CheckCircle size={18} />}
           accent="slate"
@@ -158,22 +158,22 @@ export default function AssociateDetails() {
       </div>
 
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Préstamos Participados</h3>
+        <h3 className="text-lg font-bold text-text-primary mb-4">Créditos participados</h3>
         <TableShell
           isLoading={false}
           isError={false}
           hasData={participatedLoans.length > 0}
           loadingContent={null}
           errorContent={null}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No participa en ningún préstamo activo.</div>}
-          recordsLabel="préstamos"
+          emptyContent={<div className="py-4 text-center text-text-secondary">No participa en ningún crédito activo.</div>}
+          recordsLabel="créditos"
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="font-medium">ID Préstamo</th>
-                <th className="font-medium">Monto Original</th>
-                <th className="font-medium">Interés Total</th>
+                <th className="font-medium">ID crédito</th>
+                <th className="font-medium">Monto original</th>
+                <th className="font-medium">Interés total</th>
                 <th className="font-medium">Estado</th>
               </tr>
             </thead>
@@ -223,7 +223,7 @@ export default function AssociateDetails() {
 
       {/* Installments Table */}
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Cuotas del Socio</h3>
+        <h3 className="text-lg font-bold text-text-primary mb-4">Cuotas del socio</h3>
         <TableShell
           isLoading={false}
           isError={false}
@@ -238,7 +238,7 @@ export default function AssociateDetails() {
               <tr>
                 <th className="font-medium">#</th>
                 <th className="font-medium">Monto</th>
-                <th className="font-medium">Fecha Vencimiento</th>
+                <th className="font-medium">Fecha vencimiento</th>
                 <th className="font-medium">Estado</th>
                 <th className="font-medium">Acciones</th>
               </tr>
@@ -311,7 +311,7 @@ export default function AssociateDetails() {
 
       {/* Calendar Events */}
       <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Eventos del Calendario</h3>
+        <h3 className="text-lg font-bold text-text-primary mb-4">Eventos del calendario</h3>
         <TableShell
           isLoading={false}
           isError={false}
@@ -362,12 +362,14 @@ export default function AssociateDetails() {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/associates')}
+            aria-label="Volver a socios"
+            title="Volver a socios"
             className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Portal del Socio</h1>
+            <h1 className="text-2xl font-bold text-text-primary">Portal del socio</h1>
             <p className="text-sm text-text-secondary">{associateName}</p>
           </div>
         </div>
@@ -448,9 +450,9 @@ export default function AssociateDetails() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
             <h3 className="text-xl font-bold mb-4">
-              {showModal === 'contribution' ? 'Registrar Aporte de Capital' :
-               showModal === 'distribution' ? 'Distribuir Ganancias' :
-               'Reinvertir Ganancias'}
+              {showModal === 'contribution' ? 'Registrar aporte de capital' :
+               showModal === 'distribution' ? 'Distribuir ganancias' :
+               'Reinvertir ganancias'}
             </h3>
             <form onSubmit={handleAction} className="space-y-4">
               <div>

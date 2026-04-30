@@ -101,6 +101,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
+    expect(screen.getByRole('button', { name: 'Volver a socios' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar aporte' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar retiro' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar reinversión' })).toBeInTheDocument();

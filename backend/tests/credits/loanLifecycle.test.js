@@ -87,6 +87,68 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
 });
 
+test('createLoanFromCanonicalData stores the selected payment date without timezone drift', async () => {
+  let persistedPayload;
+
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+  mock.method(models.Associate, 'findByPk', async () => null);
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    persistedPayload = payload;
+    return { id: 79, ...payload };
+  });
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    calculationService: {
+      async calculate(input) {
+        return {
+          graphVersionId: 501,
+          result: {
+            lateFeeMode: 'NONE',
+            schedule: [{
+              installmentNumber: 1,
+              dueDate: '2026-04-29T00:00:00.000Z',
+              scheduledPayment: 100,
+              principalComponent: 90,
+              interestComponent: 10,
+              paidPrincipal: 0,
+              paidInterest: 0,
+              paidTotal: 0,
+              remainingPrincipal: 90,
+              remainingInterest: 10,
+              remainingBalance: 0,
+              status: 'pending',
+            }],
+            summary: {
+              installmentAmount: 100,
+              totalPayable: 100,
+              totalPaid: 0,
+              outstandingPrincipal: 90,
+              outstandingInterest: 10,
+              outstandingBalance: 100,
+              outstandingInstallments: 1,
+              nextInstallment: null,
+              startDate: input.startDate,
+            },
+          },
+        };
+      },
+    },
+  });
+
+  await createLoan({
+    customerId: 1,
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 1,
+    lateFeeMode: 'none',
+    startDate: '2026-04-29T23:30:00-05:00',
+  });
+
+  assert.equal(persistedPayload.startDate.toISOString(), '2026-04-29T00:00:00.000Z');
+  assert.equal(persistedPayload.financialSnapshot.startDate, '2026-04-29T00:00:00.000Z');
+});
+
 test('createLoanFromCanonicalDataFactory persists DAG-selected results with graphVersionId', async () => {
   let persistedPayload;
 

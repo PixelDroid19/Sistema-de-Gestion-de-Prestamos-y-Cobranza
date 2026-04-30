@@ -43,9 +43,9 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       IdempotencyKeyHeader: {
         name: 'Idempotency-Key',
         in: 'header',
-        required: false,
+        required: true,
         schema: { type: 'string', maxLength: 160 },
-        description: 'Clave opcional para evitar doble aplicación ante reintentos o concurrencia.',
+        description: 'Clave obligatoria por intento de mutación financiera para evitar doble aplicación ante reintentos o concurrencia.',
       },
     },
     schemas: {
@@ -69,7 +69,11 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           amount: { type: 'number', minimum: 0.01 },
           interestRate: { type: 'number', minimum: 0, maximum: 100 },
           termMonths: { type: 'integer', minimum: 1, maximum: 360 },
-          startDate: { type: 'string', format: 'date' },
+          startDate: {
+            type: 'string',
+            format: 'date',
+            description: 'Fecha operativa de vencimiento de la primera cuota. El backend conserva el día seleccionado como fecha UTC pura para evitar corrimientos por zona horaria.',
+          },
           calculationMethod: { type: 'string', enum: ['FRENCH', 'SIMPLE', 'COMPOUND'], description: 'Método de cálculo operativo. Si se omite, el backend usa FRENCH.' },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
@@ -87,6 +91,31 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           description: { type: 'string' },
           requiresReference: { type: 'boolean' },
         },
+      },
+      PaymentApplicationInput: {
+        type: 'object',
+        required: ['loanId', 'amount'],
+        properties: {
+          loanId: { type: 'integer', minimum: 1 },
+          amount: { type: 'number', minimum: 0.01 },
+          paymentDate: { type: 'string', format: 'date-time', description: 'Fecha operativa elegida para aplicar el pago. Puede enviarse como fecha o fecha-hora; si se omite, el backend usa la fecha actual.' },
+          paymentMethod: { type: 'string', description: 'Clave canónica configurada en /config/payment-methods.' },
+        },
+      },
+      CapitalPaymentInput: {
+        allOf: [
+          { $ref: '#/components/schemas/PaymentApplicationInput' },
+          {
+            type: 'object',
+            properties: {
+              strategy: {
+                type: 'string',
+                enum: ['reduce_term', 'reduce_payment', 'REDUCE_TIME', 'REDUCE_QUOTA'],
+                description: 'Estrategia de abono: reduce_term mantiene cuota aproximada y reduce plazo; reduce_payment conserva plazo pendiente y baja la cuota.',
+              },
+            },
+          },
+        ],
       },
       RatePolicy: {
         type: 'object',
@@ -180,6 +209,12 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Payments'],
         summary: 'Registrar abono a capital',
         parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/CapitalPaymentInput' } },
+          },
+        },
         responses: { 201: { description: 'Abono aplicado' } },
       },
     },
@@ -188,7 +223,27 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Payments'],
         summary: 'Registrar pago parcial',
         parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/PaymentApplicationInput' } },
+          },
+        },
         responses: { 201: { description: 'Pago parcial aplicado' } },
+      },
+    },
+    '/payments': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Registrar pago de cuota por autoservicio de cliente',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/PaymentApplicationInput' } },
+          },
+        },
+        responses: { 201: { description: 'Pago aplicado' } },
       },
     },
     '/payments/pay-total-debt': {

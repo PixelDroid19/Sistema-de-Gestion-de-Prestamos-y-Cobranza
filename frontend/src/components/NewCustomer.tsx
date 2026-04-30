@@ -184,7 +184,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
         <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
           <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6" data-tour="new-customer-personal">
             <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
-              <User size={20} className="text-blue-500" /> Información Personal
+              <User size={20} className="text-blue-500" /> Información personal
             </h3>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
@@ -232,7 +232,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Correo Electrónico</label>
+                <label className="text-sm font-medium text-text-secondary">Correo electrónico</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                   <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="correo@ejemplo.com" />
