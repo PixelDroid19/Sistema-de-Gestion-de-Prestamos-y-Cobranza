@@ -3,6 +3,7 @@ import { apiClient } from '../api/client';
 import { queryKeys } from './queryKeys';
 import { invalidateAfterPayment } from './operationalInvalidation';
 import { downloadBlob } from './blobDownload';
+import { withIdempotencyKey } from './idempotency';
 
 /**
  * Download a payment voucher PDF.
@@ -29,7 +30,7 @@ export const usePayments = (params?: { page?: number; pageSize?: number; search?
 
   const createPayment = useMutation({
     mutationFn: async (paymentData: any) => {
-      const { data } = await apiClient.post('/payments', paymentData);
+      const { data } = await apiClient.post('/payments', paymentData, withIdempotencyKey('payment'));
       return data;
     },
     onSuccess: () => {
@@ -39,7 +40,7 @@ export const usePayments = (params?: { page?: number; pageSize?: number; search?
 
   const createPartialPayment = useMutation({
     mutationFn: async (paymentData: any) => {
-      const { data } = await apiClient.post('/payments/partial', paymentData);
+      const { data } = await apiClient.post('/payments/partial', paymentData, withIdempotencyKey('partial-payment'));
       return data;
     },
     onSuccess: () => {
@@ -49,7 +50,7 @@ export const usePayments = (params?: { page?: number; pageSize?: number; search?
 
   const createCapitalPayment = useMutation({
     mutationFn: async (paymentData: any) => {
-      const { data } = await apiClient.post('/payments/capital', paymentData);
+      const { data } = await apiClient.post('/payments/capital', paymentData, withIdempotencyKey('capital-payment'));
       return data;
     },
     onSuccess: () => {
@@ -59,7 +60,7 @@ export const usePayments = (params?: { page?: number; pageSize?: number; search?
 
   const annulInstallment = useMutation({
     mutationFn: async ({ loanId, installmentNumber, reason }: { loanId: number; installmentNumber?: number; reason?: string }) => {
-      const { data } = await apiClient.post(`/payments/annul/${loanId}`, { installmentNumber, reason });
+      const { data } = await apiClient.post(`/payments/annul/${loanId}`, { installmentNumber, reason }, withIdempotencyKey('installment-annulment'));
       return data;
     },
     onSuccess: () => {
