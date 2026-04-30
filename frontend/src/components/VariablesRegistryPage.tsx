@@ -35,13 +35,13 @@ const STATUS_LABELS: Record<VariableStatus, string> = {
 
 const SYSTEM_VARIABLES = FORMULA_INPUT_OPTIONS.map((variable) => ({
   ...variable,
-  sourceLabel: 'Datos reales del credito',
+  sourceLabel: 'Datos reales del crédito',
   roleLabel: 'Entrada',
 }));
 
 const SYSTEM_OUTPUTS = FORMULA_TARGET_OPTIONS.map((variable) => ({
   ...variable,
-  sourceLabel: 'Calculado por formula activa',
+  sourceLabel: 'Calculado por fórmula activa',
   roleLabel: 'Resultado editable',
 }));
 
@@ -235,7 +235,7 @@ export default function VariablesRegistryPage() {
         <div className="min-w-0">
           <h2 className="text-2xl sm:text-3xl font-bold text-text-primary">Variables de fórmulas</h2>
           <p className="text-text-secondary mt-1 max-w-3xl text-sm leading-6">
-            Datos que puede usar la formula real de creditos. Las variables del sistema vienen del credito; las personalizadas activas se inyectan con su valor por defecto al calcular creditos nuevos.
+            Datos que puede usar la fórmula real de créditos. Las variables del sistema vienen del crédito; las personalizadas activas se inyectan con su valor por defecto al calcular créditos nuevos.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -262,14 +262,14 @@ export default function VariablesRegistryPage() {
             <ShieldCheck size={15} className="text-emerald-700" /> Activas
           </div>
           <div className="text-2xl font-bold text-text-primary">{activeCount}</div>
-          <p className="mt-1 text-xs text-text-secondary">Se inyectan al calculo real si la formula las usa.</p>
+          <p className="mt-1 text-xs text-text-secondary">Se inyectan al cálculo real si la fórmula las usa.</p>
         </div>
         <div className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
             <Database size={15} className="text-brand-primary" /> Del sistema
           </div>
           <div className="text-2xl font-bold text-text-primary">{SYSTEM_VARIABLES.length}</div>
-          <p className="mt-1 text-xs text-text-secondary">Monto, tasa, plazo, mora y fecha del credito.</p>
+          <p className="mt-1 text-xs text-text-secondary">Monto, tasa, plazo, mora y fecha del crédito.</p>
         </div>
         <div className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
@@ -282,8 +282,8 @@ export default function VariablesRegistryPage() {
 
       <div className="rounded-xl border border-border-subtle bg-bg-surface shadow-sm">
         <div className="border-b border-border-subtle px-4 py-4">
-          <h3 className="text-lg font-bold text-text-primary">Variables operativas del credito</h3>
-          <p className="mt-1 text-sm text-text-secondary">Estas ya alimentan el editor visual y la formula activa usada al crear creditos.</p>
+          <h3 className="text-lg font-bold text-text-primary">Variables operativas del crédito</h3>
+          <p className="mt-1 text-sm text-text-secondary">Estas ya alimentan el editor visual y la fórmula activa usada al crear créditos.</p>
         </div>
         <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
           {[...SYSTEM_VARIABLES, ...SYSTEM_OUTPUTS].map((variable) => (
@@ -360,7 +360,7 @@ export default function VariablesRegistryPage() {
       <div className="bg-bg-surface border border-border-subtle rounded-xl shadow-sm overflow-hidden" data-tour="variables-table">
         <div className="border-b border-border-subtle px-4 py-4">
           <h3 className="text-lg font-bold text-text-primary">Variables personalizadas</h3>
-          <p className="mt-1 text-sm text-text-secondary">Úsalas para parametrizar reglas sin tocar codigo. Ejemplo: recargo administrativo, tasa preferencial o tope interno.</p>
+          <p className="mt-1 text-sm text-text-secondary">Úsalas para parametrizar reglas sin tocar código. Ejemplo: recargo administrativo, tasa preferencial o tope interno.</p>
         </div>
         <div className="divide-y divide-border-subtle md:hidden">
           {isLoading ? (
@@ -370,7 +370,7 @@ export default function VariablesRegistryPage() {
           ) : filteredVariables.length === 0 ? (
             <div className="space-y-3 px-5 py-8 text-center">
               <p className="text-sm font-medium text-text-primary">No hay variables personalizadas con estos filtros.</p>
-              <p className="text-xs leading-5 text-text-secondary">Crea una variable activa para que el calculo real pueda usarla como parametro.</p>
+              <p className="text-xs leading-5 text-text-secondary">Crea una variable activa para que el cálculo real pueda usarla como parámetro.</p>
             </div>
           ) : (
             filteredVariables.map((v: DagVariable) => (
@@ -378,7 +378,7 @@ export default function VariablesRegistryPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className={`truncate font-bold text-text-primary ${v.status === 'deprecated' ? 'line-through' : ''}`}>{v.name}</h4>
-                    <p className="mt-1 text-xs text-text-secondary">{v.description || 'Sin descripcion'}</p>
+                    <p className="mt-1 text-xs text-text-secondary">{v.description || 'Sin descripción'}</p>
                   </div>
                   <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${
                     v.status === 'active' ? 'border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-200' :
