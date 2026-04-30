@@ -69,7 +69,11 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           amount: { type: 'number', minimum: 0.01 },
           interestRate: { type: 'number', minimum: 0, maximum: 100 },
           termMonths: { type: 'integer', minimum: 1, maximum: 360 },
-          startDate: { type: 'string', format: 'date' },
+          startDate: {
+            type: 'string',
+            format: 'date',
+            description: 'Fecha operativa de vencimiento de la primera cuota. El backend conserva el día seleccionado como fecha UTC pura para evitar corrimientos por zona horaria.',
+          },
           calculationMethod: { type: 'string', enum: ['FRENCH', 'SIMPLE', 'COMPOUND'], description: 'Método de cálculo operativo. Si se omite, el backend usa FRENCH.' },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
@@ -94,7 +98,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         properties: {
           loanId: { type: 'integer', minimum: 1 },
           amount: { type: 'number', minimum: 0.01 },
-          paymentDate: { type: 'string', format: 'date-time', description: 'Fecha operativa elegida para aplicar el pago. Si se omite, el backend usa la fecha actual.' },
+          paymentDate: { type: 'string', format: 'date-time', description: 'Fecha operativa elegida para aplicar el pago. Puede enviarse como fecha o fecha-hora; si se omite, el backend usa la fecha actual.' },
           paymentMethod: { type: 'string', description: 'Clave canónica configurada en /config/payment-methods.' },
         },
       },
@@ -104,7 +108,11 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           {
             type: 'object',
             properties: {
-              strategy: { type: 'string', enum: ['reduce_term', 'reduce_payment', 'REDUCE_TIME', 'REDUCE_QUOTA'] },
+              strategy: {
+                type: 'string',
+                enum: ['reduce_term', 'reduce_payment', 'REDUCE_TIME', 'REDUCE_QUOTA'],
+                description: 'Estrategia de abono: reduce_term mantiene cuota aproximada y reduce plazo; reduce_payment conserva plazo pendiente y baja la cuota.',
+              },
             },
           },
         ],

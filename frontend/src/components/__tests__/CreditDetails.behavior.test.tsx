@@ -254,6 +254,22 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByText('Cotización cuota #1')).toBeInTheDocument();
   });
 
+  it('renders installment row actions as a compact horizontal toolbar', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    renderCreditDetails();
+
+    const toolbar = screen
+      .getAllByLabelText('Acciones de la cuota 1')
+      .find((node) => node.classList.contains('justify-end'));
+
+    expect(toolbar).toBeTruthy();
+
+    expect(toolbar as HTMLElement).toHaveClass('credit-installment-actions');
+    expect(toolbar as HTMLElement).toHaveClass('flex-nowrap');
+    expect(toolbar as HTMLElement).toHaveClass('justify-end');
+    expect((toolbar as HTMLElement).querySelectorAll('button')).toHaveLength(4);
+  });
+
   it('routes top-level payment CTA to the next payable installment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();

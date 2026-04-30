@@ -1047,7 +1047,7 @@ export default function CreditDetails() {
       return null;
     }
 
-    const alignClassName = options?.alignClassName ?? 'justify-center';
+    const alignClassName = options?.alignClassName ?? 'justify-end';
     const titlePrefix = options?.titlePrefix ?? '';
     const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
     const paymentGuard = resolveOperationalGuard('installment.pay', {
@@ -1071,12 +1071,16 @@ export default function CreditDetails() {
     const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
 
     return (
-      <div className={`flex flex-nowrap items-center gap-1 ${alignClassName}`}>
+      <div
+        className={`credit-installment-actions inline-flex flex-nowrap items-center gap-1.5 ${alignClassName}`}
+        role="toolbar"
+        aria-label={`Acciones de la cuota ${row.installmentNumber}`}
+      >
         {paymentGuard.visible && (
           <InstallmentActionButton
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
             label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
             <DollarSign size={16} />
@@ -1087,7 +1091,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openPromiseFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
               label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
             >
               <Clock size={16} />
@@ -1095,7 +1099,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openFollowUpFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
               label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
             >
               <Bell size={16} />
@@ -1103,7 +1107,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openAnnulModal(row.installmentNumber)}
               disabled={!isNextPendingInstallment || !annulGuard.executable}
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
               label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
             >
               <ShieldAlert size={16} />
@@ -1429,7 +1433,7 @@ export default function CreditDetails() {
                   </div>
 
                   <div className="data-table-surface hidden overflow-x-auto lg:block">
-                    <table className="min-w-[900px] w-full text-sm text-left whitespace-nowrap">
+                    <table className="min-w-[1080px] w-full text-sm text-left whitespace-nowrap">
                       <thead>
                         <tr>
                           <th className="w-16 text-center">N°</th>
@@ -1439,7 +1443,7 @@ export default function CreditDetails() {
                           <th className="text-right">Amortización</th>
                           <th className="text-right">Capital vivo</th>
                           <th className="w-32 text-center">Estado</th>
-                          {showInstallmentActionColumn && <th className="w-28 min-w-[7rem] text-center">Acciones</th>}
+                          {showInstallmentActionColumn && <th className="w-44 min-w-[11rem] text-right">Acciones</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1487,7 +1491,7 @@ export default function CreditDetails() {
                             </span>
                           </td>
                            {showInstallmentActionColumn && (
-                           <td className="w-28 min-w-[7rem] text-center">
+                           <td className="w-44 min-w-[11rem] text-right">
                             {renderInstallmentActions(row)}
                             </td>
                           )}
