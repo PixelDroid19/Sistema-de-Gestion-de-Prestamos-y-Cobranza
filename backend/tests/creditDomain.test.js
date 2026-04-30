@@ -6,6 +6,7 @@ const { ValidationError, BusinessRuleViolationError } = require('@/utils/errorHa
 const { buildPayoffQuote } = require('@/modules/credits/application/loanFinancials');
 const {
   evaluateCapitalPaymentEligibility,
+  evaluatePayoffEligibility,
   normalizeFinancialBlock,
 } = require('@/modules/credits/application/paymentEligibility');
 const { runMiddleware, captureMiddlewareError } = require('./helpers/middleware');
@@ -267,6 +268,38 @@ test('buildPayoffQuote rejects invalid payoff dates outside payable life', async
     },
     asOfDate: '2026-04-01',
   }), ValidationError);
+});
+
+test('evaluatePayoffEligibility denies payoff before the loan start date', () => {
+  const eligibility = evaluatePayoffEligibility({
+    loan: {
+      status: 'active',
+      startDate: '2026-05-31T00:00:00.000Z',
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-05-31T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 100,
+      outstandingInterest: 10,
+      outstandingBalance: 110,
+    },
+    asOfDate: '2026-04-30',
+  });
+
+  assert.equal(eligibility.allowed, false);
+  assert.deepEqual(eligibility.denialReasons, [
+    {
+      code: 'PAYOFF_BEFORE_LOAN_START',
+      message: 'Payoff effective date must be on or after the loan start date',
+    },
+  ]);
 });
 
 test('buildPayoffQuote rejects overdue unpaid installments with structured denial reasons', () => {

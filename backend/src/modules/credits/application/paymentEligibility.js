@@ -9,6 +9,7 @@ const PAYMENT_DENIAL_CODES = Object.freeze({
   FINANCIAL_BLOCK: 'FINANCIAL_BLOCK',
   NO_OUTSTANDING_BALANCE: 'NO_OUTSTANDING_BALANCE',
   LOAN_NOT_PAYABLE_STATUS: 'LOAN_NOT_PAYABLE_STATUS',
+  PAYOFF_BEFORE_LOAN_START: 'PAYOFF_BEFORE_LOAN_START',
 });
 
 const buildOutstandingBalance = (snapshot = {}) => roundCurrency(
@@ -50,6 +51,16 @@ const hasOverdueUnpaidInstallments = ({ schedule = [], asOfDate = new Date() }) 
   });
 };
 
+const resolveLoanStartDate = (loan = {}) => {
+  const rawStartDate = loan.startDate
+    || loan.financialSnapshot?.startDate
+    || loan.createdAt
+    || loan.updatedAt;
+  const startDate = rawStartDate ? new Date(rawStartDate) : null;
+
+  return startDate && !Number.isNaN(startDate.getTime()) ? startDate : null;
+};
+
 const buildFinancialBlockReason = (financialBlock) => ({
   code: PAYMENT_DENIAL_CODES.FINANCIAL_BLOCK,
   message: financialBlock.message || 'Loan has an active financial block',
@@ -61,6 +72,8 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
   const denialReasons = [];
   const outstandingBalance = buildOutstandingBalance(snapshot);
   const financialBlock = normalizeFinancialBlock(loan);
+  const normalizedAsOfDate = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
+  const loanStartDate = resolveLoanStartDate(loan);
 
   if (loan.status === 'closed' || loan.status === 'paid' || outstandingBalance <= 0.01) {
     denialReasons.push({
@@ -75,7 +88,18 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
     });
   }
 
-  if (hasOverdueUnpaidInstallments({ schedule, asOfDate })) {
+  if (
+    loanStartDate
+    && !Number.isNaN(normalizedAsOfDate.getTime())
+    && normalizedAsOfDate.getTime() < loanStartDate.getTime()
+  ) {
+    denialReasons.push({
+      code: PAYMENT_DENIAL_CODES.PAYOFF_BEFORE_LOAN_START,
+      message: 'Payoff effective date must be on or after the loan start date',
+    });
+  }
+
+  if (hasOverdueUnpaidInstallments({ schedule, asOfDate: normalizedAsOfDate })) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.OVERDUE_UNPAID_INSTALLMENTS,
       message: 'Loan has overdue unpaid installments',
@@ -158,4 +182,5 @@ module.exports = {
   evaluatePayoffEligibility,
   hasOverdueUnpaidInstallments,
   normalizeFinancialBlock,
+  resolveLoanStartDate,
 };
