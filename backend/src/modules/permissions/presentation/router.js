@@ -12,9 +12,8 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     permission: body.permission,
   });
 
-  // API contract notes (backend/frontend compatibility):
-  // - Grant/Revoke accept either { targetUserId, permissionId } (legacy)
-  //   or { userId, permission } (frontend migration).
+  // API contract notes:
+  // - Grant/Revoke accept either numeric permission ids or permission names.
   // - Listing endpoints always include: permissions (flat), permissionsByModule, total.
   // - User permission endpoints include flat permissions plus role/direct breakdown.
 

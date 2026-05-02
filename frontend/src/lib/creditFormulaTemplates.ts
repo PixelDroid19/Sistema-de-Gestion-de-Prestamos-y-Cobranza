@@ -10,7 +10,6 @@ export interface CreditFormulaTemplate {
   badge?: string;
   outputVar: 'calculationMethod';
   formula: string;
-  legacyInstallmentFormula?: string;
   equation: string;
   description: string;
   useCase: string;
@@ -25,7 +24,6 @@ export const CREDIT_FORMULA_TEMPLATES: CreditFormulaTemplate[] = [
     badge: 'Recomendado',
     outputVar: 'calculationMethod',
     formula: "'FRENCH'",
-    legacyInstallmentFormula: FRENCH_INSTALLMENT_FORMULA,
     equation: 'C = P * r(1+r)^n / ((1+r)^n - 1)',
     description: 'Calcula una cuota fija con amortizacion e interes sobre saldo. Es la base para creditos personales y operacion recurrente.',
     useCase: 'Creditos con cuota fija y cronograma de amortizacion.',
@@ -42,7 +40,6 @@ export const CREDIT_FORMULA_TEMPLATES: CreditFormulaTemplate[] = [
     shortName: 'Microcredito corto',
     outputVar: 'calculationMethod',
     formula: "'SIMPLE'",
-    legacyInstallmentFormula: 'round((amount + (amount * (interestRate / 100) * (termMonths / 12))) / termMonths, 2)',
     equation: 'C = (P + P*r*t) / n',
     description: 'Calcula interes solo sobre el capital inicial y divide el total entre las cuotas.',
     useCase: 'Creditos muy cortos o microcreditos basicos.',
@@ -60,7 +57,6 @@ export const CREDIT_FORMULA_TEMPLATES: CreditFormulaTemplate[] = [
     shortName: 'Digital moderno',
     outputVar: 'calculationMethod',
     formula: "'COMPOUND'",
-    legacyInstallmentFormula: 'round((amount * pow(1 + (interestRate / 100 / 12), termMonths)) / termMonths, 2)',
     equation: 'C = P(1+r)^n / n',
     description: 'Acumula intereses sobre intereses y distribuye el total en cuotas iguales.',
     useCase: 'Productos digitales donde el costo crece por periodo compuesto.',
@@ -109,7 +105,6 @@ export function findCreditFormulaTemplate(formula?: string, templateKey?: string
 
   return CREDIT_FORMULA_TEMPLATES.find((template) => (
     normalizeFormula(template.formula) === normalized
-    || normalizeFormula(template.legacyInstallmentFormula || '') === normalized
   )) || null;
 }
 

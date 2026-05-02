@@ -102,7 +102,7 @@ describe('blockEditorStore', () => {
     store.addContainer(sampleContainer);
     const graph = store.compileGraph();
     expect(graph.nodes.length).toBeGreaterThan(0);
-    // Compiler injects pipeline nodes + edges for backend compatibility
+    // Compiler injects the required backend pipeline nodes and edges.
     expect(graph.edges.length).toBeGreaterThan(0);
   });
 

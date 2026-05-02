@@ -110,11 +110,7 @@ const createJwtTokenService = ({
     };
   },
 
-  /**
-   * Sign a JWT token (legacy method).
-   * @param {object} payload
-   * @returns {string}
-   */
+  /** Sign an access-token compatible JWT for auth adapters and tests. */
   sign(payload) {
     return jwt.sign(normalizeTokenPayload(payload), secret, { 
       expiresIn,
@@ -122,11 +118,7 @@ const createJwtTokenService = ({
     });
   },
 
-  /**
-   * Verify a JWT token (legacy method).
-   * @param {string} token
-   * @returns {object}
-   */
+  /** Verify an access-token compatible JWT for auth middleware. */
   verify(token) {
     return normalizeTokenPayload(jwt.verify(token, secret, {
       algorithms: ['HS256'],

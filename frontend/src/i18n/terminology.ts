@@ -370,29 +370,6 @@ const TERMINOLOGY = {
 
 export type TermKey = keyof typeof TERMINOLOGY;
 
-const LEGACY_ALIASES: Partial<Record<TermKey, readonly string[]>> = {
-  'sidebar.customers.directory': ['Directorio', 'Directorio de clientes'],
-  'sidebar.customers.new': ['Nuevo Cliente', 'Alta clientes', 'Alta de cliente'],
-  'sidebar.credits.portfolio': ['Cartera Activa', 'Cartera activa', 'Préstamos Activos', 'Carteras activas'],
-  'sidebar.credits.origination': ['Originación'],
-  'sidebar.payouts': ['Historial de Pagos'],
-  'credits.module.title': ['Gestión de Créditos'],
-  'credits.cta.new': ['Nuevo Crédito'],
-  'payouts.module.title': ['Pagos y Cobranza'],
-  'customers.cta.restore': ['Restaurar'],
-  'reports.module.title': ['Reportes y Analíticas'],
-};
+export const tTerm = (key: TermKey): string => TERMINOLOGY[key];
 
-type TermOptions = {
-  legacy?: boolean;
-};
-
-export const tTerm = (key: TermKey, options?: TermOptions): string => {
-  if (options?.legacy) {
-    return LEGACY_ALIASES[key]?.[0] ?? TERMINOLOGY[key];
-  }
-
-  return TERMINOLOGY[key];
-};
-
-export const getTermAliases = (key: TermKey): readonly string[] => LEGACY_ALIASES[key] ?? [];
+export const getTermAliases = (_key: TermKey): readonly string[] => [];
