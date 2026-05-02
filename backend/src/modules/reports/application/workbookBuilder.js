@@ -142,6 +142,30 @@ const applyColumnFormats = ({ worksheet, columns = [], rowNumber }) => {
   });
 };
 
+const applyRowCellFormats = ({ worksheetRow, columns = [], row = {} }) => {
+  const cellFormats = row.__formats && typeof row.__formats === 'object'
+    ? row.__formats
+    : {};
+
+  columns.forEach((column, index) => {
+    const format = cellFormats[column.key];
+    if (!format || typeof format !== 'object') {
+      return;
+    }
+
+    const cell = worksheetRow.getCell(index + 1);
+    if (format.numFmt) {
+      cell.numFmt = format.numFmt;
+    }
+    if (format.alignment) {
+      cell.alignment = { ...(cell.alignment || {}), ...format.alignment };
+    }
+    if (format.font) {
+      cell.font = { ...(cell.font || {}), ...format.font };
+    }
+  });
+};
+
 const addWorksheetTitle = ({
   worksheet,
   title,
@@ -204,6 +228,7 @@ const addRowsTable = ({
       worksheetRow.getCell(index + 1).value = normalized[key];
     });
     applyColumnFormats({ worksheet, columns: resolvedColumns, rowNumber: currentRow });
+    applyRowCellFormats({ worksheetRow, columns: resolvedColumns, row });
     currentRow += 1;
   });
 

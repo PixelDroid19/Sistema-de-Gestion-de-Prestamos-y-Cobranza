@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileSpreadsheet, Loader2, Wallet } from 'lucide-react';
-import { usePaymentSchedule, exportCreditsExcel } from '../services/reportService';
+import { usePaymentSchedule, exportCreditExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { DataTableSurface, MetricCard } from './shared/Surfaces';
@@ -57,10 +57,11 @@ export default function PaymentSchedule() {
   };
 
   const handleExport = async () => {
+    if (!loanId) return;
     setIsExporting(true);
     try {
-      await exportCreditsExcel();
-      toast.success({ title: 'Exportación exitosa', description: 'El reporte se exportó correctamente' });
+      await exportCreditExcel(loanId);
+      toast.success({ title: 'Exportación exitosa', description: `Se exportó el Excel del crédito #${loanId}.` });
     } catch (_err: unknown) {
       toast.error({ title: 'Error de exportación', description: 'No se pudo exportar el reporte' });
     } finally {

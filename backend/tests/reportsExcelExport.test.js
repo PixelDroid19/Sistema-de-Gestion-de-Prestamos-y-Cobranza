@@ -6,6 +6,7 @@ const ExcelJS = require('exceljs');
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
 const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 const { createExportAssociatesExcel } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
+const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 const { closeServer, listen } = require('./helpers/http');
 
 let activeServer;
@@ -178,6 +179,46 @@ test('export credits use case builds previous-system workbook fields with curren
   assert.equal(detailHeaders.includes('calculationMethod'), false);
   assert.equal(detailHeaders.includes('dagGraphVersionId'), false);
   assert.equal(detailHeaders.includes('ratePolicyId'), false);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer(result.data.sheets));
+  const summarySheet = workbook.getWorksheet('Resumen General');
+  const detailSheet = workbook.getWorksheet('Detalle de Créditos');
+  const creditSheet = workbook.getWorksheet('Crédito 9');
+
+  const findRowByIndicator = (worksheet, indicator) => {
+    let matchedRow = null;
+    worksheet.eachRow((row) => {
+      if (row.getCell(2).value === indicator) {
+        matchedRow = row;
+      }
+    });
+    return matchedRow;
+  };
+
+  const totalPrestadoRow = findRowByIndicator(summarySheet, 'Total Prestado (Capital)');
+  assert.ok(totalPrestadoRow, 'Summary should include formatted capital total');
+  assert.equal(totalPrestadoRow.getCell(3).value, 5000000);
+  assert.match(totalPrestadoRow.getCell(3).numFmt, /\$/);
+
+  const tnaRow = findRowByIndicator(summarySheet, 'TNA Promedio');
+  assert.ok(tnaRow, 'Summary should include formatted TNA');
+  assert.equal(tnaRow.getCell(3).value, 0.6);
+  assert.equal(tnaRow.getCell(3).numFmt, '0.00%');
+
+  const detailLoanDate = detailSheet.getRow(3).getCell(25);
+  assert.ok(detailLoanDate.value instanceof Date, 'Detail loan date should be a real Excel date');
+  assert.equal(detailLoanDate.numFmt, 'dd/mm/yyyy');
+
+  let creditAmountRow = null;
+  creditSheet.eachRow((row) => {
+    if (row.getCell(1).value === 'Monto Préstamo') {
+      creditAmountRow = row;
+    }
+  });
+  assert.ok(creditAmountRow, 'Credit-specific sheet should include formatted credit amount');
+  assert.equal(creditAmountRow.getCell(2).value, 5000000);
+  assert.match(creditAmountRow.getCell(2).numFmt, /\$/);
 });
 
 const roleAwareAuth = (roles = []) => (req, res, next) => {

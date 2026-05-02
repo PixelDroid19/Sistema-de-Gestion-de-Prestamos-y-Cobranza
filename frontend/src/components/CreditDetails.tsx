@@ -4,11 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
   Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
-  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch
+  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch, FileSpreadsheet
 } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useConfig } from '../services/configService';
-import { useCreditReports } from '../services/reportService';
+import { exportCreditExcel, useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
 import { downloadVoucher } from '../services/paymentService';
 import { toast } from '../lib/toast';
@@ -444,6 +444,12 @@ export default function CreditDetails() {
     action: async (paymentId) => downloadVoucher(paymentId),
     errorContext: { domain: 'payments', action: 'generic' },
     successMessage: 'Comprobante descargado',
+  });
+
+  const { run: runExportCreditExcel, isSubmitting: isExportingCreditExcel } = useSafeMutationAction<number>({
+    action: async (targetLoanId) => exportCreditExcel(targetLoanId),
+    errorContext: { domain: 'reports', action: 'reports.export' },
+    successMessage: 'Excel del crédito descargado',
   });
 
   const payableStatuses = new Set(['pending', 'overdue', 'partial']);
@@ -1285,6 +1291,16 @@ export default function CreditDetails() {
                   title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
                 >
                   <Edit2 size={16} /> Estado
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => runExportCreditExcel(loanId)}
+                  disabled={isExportingCreditExcel}
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                  title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
+                >
+                  <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando...' : 'Excel'}
                 </button>
               )}
               <button
