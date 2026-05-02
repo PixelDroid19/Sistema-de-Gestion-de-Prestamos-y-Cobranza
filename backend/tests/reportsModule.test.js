@@ -633,7 +633,8 @@ test('createExportRecoveryReport returns a CSV attachment contract', async () =>
   const exportFile = await exportRecoveryReport({ actor: { id: 1, role: 'admin' }, format: 'csv' });
 
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /recovered,7,Ana/);
+  assert.match(exportFile.buffer.toString('utf8'), /Sección,ID Crédito,Cliente/);
+  assert.match(exportFile.buffer.toString('utf8'), /Recuperados,7,Ana/);
 });
 
 test('createExportRecoveryReport returns a valid PDF attachment contract', async () => {

@@ -1,5 +1,9 @@
 const { AuthorizationError } = require('@/utils/errorHandler');
 const { ensureAdminOrSocio, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -28,6 +32,140 @@ const formatIsoDate = (value) => {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+};
+
+const SUMMARY_COLUMNS = [
+  { header: 'Indicador', key: 'indicator', width: 34 },
+  { header: 'Valor', key: 'value', width: 22 },
+  { header: 'Unidad', key: 'unit', width: 15 },
+  { header: 'Descripción', key: 'description', width: 42 },
+];
+
+const DETAIL_COLUMNS = [
+  { header: 'ID Socio', key: 'associateId', width: 12 },
+  { header: 'Socio', key: 'associateName', width: 28 },
+  { header: 'Sección', key: 'section', width: 16 },
+  { header: 'ID Movimiento', key: 'entryId', width: 16 },
+  { header: 'Referencia', key: 'reference', width: 24 },
+  moneyColumn('Monto', 'amount'),
+  dateColumn('Fecha', 'date', 18),
+  { header: 'Estado', key: 'status', width: 14 },
+  { header: 'Participación %', key: 'participationPercentage', width: 18 },
+  { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
+  moneyColumn('Total Declarado', 'declaredProportionalTotal', 20),
+  moneyColumn('Monto Asignado', 'allocatedAmount', 20),
+  { header: 'Notas', key: 'notes', width: 34 },
+];
+
+const STATUS_COLUMNS = [
+  { header: 'Estado', key: 'status', width: 18 },
+  { header: 'Cantidad', key: 'count', width: 14 },
+  moneyColumn('Monto Total', 'amount'),
+  { header: 'Porcentaje', key: 'percentage', width: 14 },
+];
+
+const SECTION_COLUMNS = [
+  { header: 'Sección', key: 'section', width: 18 },
+  { header: 'Cantidad', key: 'count', width: 14 },
+  moneyColumn('Monto Total', 'amount'),
+];
+
+const parseMoney = (value) => Number(String(value ?? 0).replace(/[^0-9.-]/g, '')) || 0;
+
+const buildAssociateSheets = (rows) => {
+  const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
+  const contributionRows = rows.filter((row) => row.section === 'contribution');
+  const distributionRows = rows.filter((row) => row.section === 'distribution');
+  const loanRows = rows.filter((row) => row.section === 'loan');
+  const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalDistributed = distributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const loanAmount = loanRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const byStatus = Array.from(rows.reduce((map, row) => {
+    const status = row.status || 'N/A';
+    const current = map.get(status) || { status, count: 0, amount: 0 };
+    current.count += 1;
+    current.amount += parseMoney(row.amount);
+    map.set(status, current);
+    return map;
+  }, new Map()).values()).map((row) => ({
+    ...row,
+    percentage: rows.length > 0 ? `${((row.count / rows.length) * 100).toFixed(2)}%` : '0.00%',
+  }));
+  const bySection = Array.from(rows.reduce((map, row) => {
+    const section = row.section || 'N/A';
+    const current = map.get(section) || { section, count: 0, amount: 0 };
+    current.count += 1;
+    current.amount += parseMoney(row.amount);
+    map.set(section, current);
+    return map;
+  }, new Map()).values());
+
+  return [
+    {
+      name: 'Resumen General',
+      title: 'REPORTE GENERAL DE SOCIOS',
+      tabColor: STYLE_COLORS.blue,
+      headerFill: STYLE_COLORS.green,
+      columns: SUMMARY_COLUMNS,
+      rows: [
+        { indicator: 'Total de Socios', value: associateIds.size, unit: 'socios', description: 'Número total de socios incluidos en el reporte' },
+        { indicator: 'Aportes Totales', value: totalContributed, unit: '$', description: 'Suma de aportes registrados' },
+        { indicator: 'Distribuciones Totales', value: totalDistributed, unit: '$', description: 'Ganancias distribuidas a socios' },
+        { indicator: 'Créditos Asociados', value: loanRows.length, unit: 'créditos', description: 'Créditos vinculados a socios' },
+        { indicator: 'Monto en Créditos', value: loanAmount, unit: '$', description: 'Capital de créditos asociados' },
+      ],
+      autoFilter: false,
+    },
+    {
+      name: 'Distribución por Estado',
+      title: 'DISTRIBUCIÓN DE SOCIOS POR ESTADO',
+      tabColor: STYLE_COLORS.yellow,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: STATUS_COLUMNS,
+      rows: byStatus,
+    },
+    {
+      name: 'Creación por Mes',
+      title: 'MOVIMIENTOS POR SECCIÓN',
+      tabColor: STYLE_COLORS.green,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: SECTION_COLUMNS,
+      rows: bySection,
+    },
+    {
+      name: 'Detalle de Socios',
+      title: 'DETALLE COMPLETO DE SOCIOS',
+      tabColor: STYLE_COLORS.red,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: DETAIL_COLUMNS,
+      rows,
+    },
+    {
+      name: 'Análisis de Rentabilidad',
+      title: 'ANÁLISIS DE RENTABILIDAD',
+      tabColor: STYLE_COLORS.purple,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: SUMMARY_COLUMNS,
+      rows: [
+        { indicator: 'Aportes Totales', value: totalContributed, unit: '$', description: 'Capital aportado por socios' },
+        { indicator: 'Distribuciones Totales', value: totalDistributed, unit: '$', description: 'Utilidad repartida' },
+        { indicator: 'Rentabilidad sobre Aportes', value: totalContributed > 0 ? `${((totalDistributed / totalContributed) * 100).toFixed(2)}%` : '0.00%', unit: '%', description: 'Distribuciones sobre aportes' },
+      ],
+      autoFilter: false,
+    },
+    {
+      name: 'Rangos de Inversión',
+      title: 'DISTRIBUCIÓN POR RANGOS DE INVERSIÓN',
+      tabColor: STYLE_COLORS.teal,
+      headerFill: STYLE_COLORS.headerBlue,
+      columns: SECTION_COLUMNS,
+      rows: [
+        { section: 'Aportes', count: contributionRows.length, amount: totalContributed },
+        { section: 'Distribuciones', count: distributionRows.length, amount: totalDistributed },
+        { section: 'Créditos', count: loanRows.length, amount: loanAmount },
+      ],
+    },
+  ];
 };
 
 /**
@@ -145,7 +283,10 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
 
   return {
     success: true,
-    data: { rows: flatRows },
+    data: {
+      rows: flatRows,
+      sheets: buildAssociateSheets(flatRows),
+    },
   };
 };
 

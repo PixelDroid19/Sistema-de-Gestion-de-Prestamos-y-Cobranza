@@ -1,8 +1,11 @@
 const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
+const ExcelJS = require('exceljs');
 
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
+const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+const { createExportAssociatesExcel } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
 const { closeServer, listen } = require('./helpers/http');
 
 let activeServer;
@@ -10,6 +13,171 @@ let activeServer;
 afterEach(async () => {
   await closeServer(activeServer);
   activeServer = null;
+});
+
+test('export associates use case builds previous-system sheet structure', async () => {
+  const associate = {
+    id: 4,
+    name: 'Socio Excel QA',
+    status: 'active',
+    participationPercentage: 25,
+  };
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return [associate];
+      },
+      async findById(id) {
+        assert.equal(Number(id), 4);
+        return associate;
+      },
+      async listContributionsByAssociate(id) {
+        assert.equal(Number(id), 4);
+        return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'completed', notes: 'Aporte inicial' }];
+      },
+      async listProfitDistributionsByAssociate(id) {
+        assert.equal(Number(id), 4);
+        return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'completed', distributionType: 'proportional' }];
+      },
+      async listLoansByAssociate(id) {
+        assert.equal(Number(id), 4);
+        return [{ id: 9, amount: 5000000, status: 'active', recoveryStatus: 'pending', customerId: 20, Customer: { name: 'Cliente QA' }, createdAt: '2026-01-11' }];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  assert.equal(result.success, true);
+  assert.deepEqual(result.data.sheets.map((sheet) => sheet.name), [
+    'Resumen General',
+    'Distribución por Estado',
+    'Creación por Mes',
+    'Detalle de Socios',
+    'Análisis de Rentabilidad',
+    'Rangos de Inversión',
+  ]);
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'ID Socio'));
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
+});
+
+test('export credits use case builds previous-system workbook fields with current snapshots', async () => {
+  const loan = {
+    id: 9,
+    customerId: 20,
+    amount: 5000000,
+    interestRate: 60,
+    termMonths: 2,
+    status: 'active',
+    recoveryStatus: 'pending',
+    startDate: '2026-04-29T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+    dagGraphVersionId: 3,
+    policySnapshot: {
+      ratePolicyLabel: 'QA tasa',
+      lateFeePolicyLabel: 'QA mora',
+    },
+    Customer: {
+      name: 'Cliente Excel QA',
+      documentNumber: '100200300',
+      phone: '3001234567',
+      email: 'cliente@test.local',
+      status: 'active',
+    },
+    Associate: { name: 'Socio QA' },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-05-29T00:00:00.000Z',
+        openingBalance: 5000000,
+        scheduledPayment: 2600000,
+        principalComponent: 2350000,
+        interestComponent: 250000,
+        paidPrincipal: 2350000,
+        paidInterest: 250000,
+        paidTotal: 2600000,
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        remainingBalance: 2650000,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-06-29T00:00:00.000Z',
+        openingBalance: 2650000,
+        scheduledPayment: 2782500,
+        principalComponent: 2650000,
+        interestComponent: 132500,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        remainingPrincipal: 2650000,
+        remainingInterest: 132500,
+        remainingBalance: 0,
+        status: 'pending',
+      },
+    ],
+  };
+
+  const useCase = createExportCreditsExcel({
+    reportRepository: {
+      async listOutstandingLoans() {
+        return [loan];
+      },
+    },
+    paymentRepository: {
+      async listByLoan(loanId) {
+        assert.equal(loanId, 9);
+        return [{
+          id: 1,
+          status: 'completed',
+          amount: 2600000,
+          principalApplied: 2350000,
+          interestApplied: 250000,
+          penaltyApplied: 0,
+          paymentType: 'installment',
+          installmentNumber: 1,
+          paymentDate: '2026-05-29T00:00:00.000Z',
+          paymentMetadata: { method: 'cash', reference: 'REC-1' },
+        }];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(currentLoan) {
+        return {
+          schedule: currentLoan.emiSchedule,
+          snapshot: {
+            installmentAmount: 2600000,
+            totalPayable: 5382500,
+            totalInterest: 382500,
+            outstandingPrincipal: 2650000,
+            outstandingInterest: 132500,
+            outstandingBalance: 2782500,
+            nextInstallment: currentLoan.emiSchedule[1],
+          },
+        };
+      },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { loanId: 9 } });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.rows[0].creditId, 9);
+  assert.equal(result.data.rows[0].customerDocument, '100200300');
+  assert.equal(result.data.rows[0].totalInterestPaid, 250000);
+  assert.equal(result.data.rows[0].totalInterestGenerated, 382500);
+  assert.equal(result.data.sheets[0].name, 'Resumen General');
+  assert.equal(result.data.sheets[1].name, 'Detalle de Créditos');
+  assert.equal(result.data.sheets[2].name, 'Crédito 9');
+  assert.ok(result.data.sheets[2].sections.some((section) => section.title === 'TABLA DE AMORTIZACIÓN'));
+  assert.ok(result.data.sheets[2].sections.some((section) => section.title === 'HISTORIAL DE PAGOS'));
+  const detailHeaders = result.data.sheets[1].columns.map((column) => column.header);
+  assert.ok(detailHeaders.includes('Interés Pagado'));
+  assert.ok(detailHeaders.includes('Interés Generado'));
+  assert.equal(detailHeaders.includes('calculationMethod'), false);
+  assert.equal(detailHeaders.includes('dagGraphVersionId'), false);
+  assert.equal(detailHeaders.includes('ratePolicyId'), false);
 });
 
 const roleAwareAuth = (roles = []) => (req, res, next) => {
@@ -54,6 +222,41 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
               amount: l.amount,
               status: l.status,
             })),
+            sheets: [
+              {
+                name: 'Resumen General',
+                columns: [
+                  { header: 'Seccion', key: 'section' },
+                  { header: 'Indicador', key: 'indicator' },
+                  { header: 'Valor', key: 'value' },
+                ],
+                rows: [{ section: 'INFORMACION GENERAL', indicator: 'Total de Creditos', value: 2 }],
+              },
+              {
+                name: 'Detalle de Créditos',
+                title: 'DETALLE DE CRÉDITOS',
+                columns: [
+                  { header: 'ID Crédito', key: 'creditId' },
+                  { header: 'Cliente', key: 'customerName' },
+                  { header: 'Interés Pagado', key: 'totalInterestPaid' },
+                  { header: 'Interés Generado', key: 'totalInterestGenerated' },
+                ],
+                rows: [{ creditId: 1, customerName: 'Juan', totalInterestPaid: 1000, totalInterestGenerated: 3000 }],
+              },
+              {
+                name: 'Crédito 1',
+                sections: [
+                  {
+                    title: 'TABLA DE AMORTIZACIÓN',
+                    columns: [
+                      { header: 'Número de Cuota', key: 'installmentNumber' },
+                      { header: 'CUOTA A PAGAR', key: 'scheduledPayment' },
+                    ],
+                    rows: [{ installmentNumber: 1, scheduledPayment: 10000 }],
+                  },
+                ],
+              },
+            ],
           },
         };
       },
@@ -78,6 +281,19 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
 
   const arrayBuffer = await response.arrayBuffer();
   assert.ok(arrayBuffer.byteLength > 0, 'Should return non-empty buffer');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(arrayBuffer));
+  assert.ok(workbook.getWorksheet('Resumen General'));
+  assert.ok(workbook.getWorksheet('Detalle de Créditos'));
+  assert.ok(workbook.getWorksheet('Crédito 1'));
+
+  const detailHeaders = workbook.getWorksheet('Detalle de Créditos').getRow(2).values;
+  assert.ok(detailHeaders.includes('Interés Pagado'));
+  assert.ok(detailHeaders.includes('Interés Generado'));
+  assert.equal(detailHeaders.includes('loanId'), false);
+  assert.equal(detailHeaders.includes('dagGraphVersionId'), false);
+  assert.equal(detailHeaders.includes('calculationMethod'), false);
 });
 
 test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
@@ -117,7 +333,14 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.match(response.headers.get('content-disposition') || '', /reporte-pagos-cliente-10-/);
-  assert.ok((await response.arrayBuffer()).byteLength > 0, 'Should return non-empty buffer');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+  const headers = workbook.getWorksheet('Pagos').getRow(2).values;
+  assert.ok(headers.includes('ID Pago'));
+  assert.ok(headers.includes('Interés Aplicado'));
+  assert.equal(headers.includes('paymentId'), false);
+  assert.equal(headers.includes('paymentMetadata'), false);
 });
 
 test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
@@ -149,8 +372,19 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
               { month: '2026-03', disbursed: 100000, recovered: 80000 },
             ],
             recentActivity: {
-              loans: [{ loanId: 4, customerName: 'QA Cliente', status: 'active' }],
-              payments: [{ paymentId: 10, amount: '50000.00' }],
+              loans: [{
+                loanId: 4,
+                customerName: 'QA Cliente',
+                status: 'active',
+                Customer: { name: 'QA Cliente' },
+                rowVersion: BigInt(2),
+              }],
+              payments: [{
+                paymentId: 10,
+                amount: '50000.00',
+                metadata: { method: 'cash' },
+                circular: null,
+              }],
               alerts: [],
               promises: [],
               notifications: [],
@@ -173,7 +407,13 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.match(response.headers.get('content-disposition') || '', /dashboard-report-/);
-  assert.ok((await response.arrayBuffer()).byteLength > 0, 'Should return non-empty buffer');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+  const headers = workbook.getWorksheet('Resumen General').getRow(2).values;
+  assert.ok(headers.includes('Indicador'));
+  assert.ok(headers.includes('Valor'));
+  assert.equal(headers.includes('totalLoans'), false);
 });
 
 test('GET /reports/credits/excel rejects non-admin users', async () => {
@@ -309,8 +549,12 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(response.headers.get('content-disposition'), 'attachment; filename="associates-export.xlsx"');
 
-  const arrayBuffer = await response.arrayBuffer();
-  assert.ok(arrayBuffer.byteLength > 0, 'Should return non-empty buffer');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+  const headers = workbook.getWorksheet('Detalle de Socios').getRow(2).values;
+  assert.ok(headers.includes('ID Socio'));
+  assert.ok(headers.includes('Participación %'));
+  assert.equal(headers.includes('associateId'), false);
 });
 
 test('GET /reports/associates/excel allows socio role', async () => {
