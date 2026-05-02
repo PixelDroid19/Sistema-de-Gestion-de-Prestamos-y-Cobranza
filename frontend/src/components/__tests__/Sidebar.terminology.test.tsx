@@ -49,7 +49,7 @@ describe('Sidebar canonical terminology parity', () => {
     };
   });
 
-  it('renders canonical labels and avoids legacy synonyms', () => {
+  it('renders canonical labels and avoids outdated synonyms', () => {
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();
     const setIsMobileOpen = vi.fn();

@@ -68,26 +68,12 @@ export const dagService = {
   },
 
   /**
-   * Backward-compatible method name used by existing components.
-   */
-  async simulateGraph(payload: CalculateGraphRequest): Promise<CalculateGraphResponse> {
-    return dagService.calculateGraph(payload);
-  },
-
-  /**
    * POST /api/v1/loans/calculations
    * Run a canonical credit calculation against the active formula.
    */
   async calculate(input: CreditCalculationInput): Promise<CreditCalculationResponse> {
     const { data } = await apiClient.post('/loans/calculations', input);
     return data;
-  },
-
-  /**
-   * Backward-compatible method name used by existing components.
-   */
-  async simulate(input: CreditCalculationInput): Promise<CreditCalculationResponse> {
-    return dagService.calculate(input);
   },
 
   // ── Formula Management Endpoints ─────────────────────────────────────────

@@ -362,7 +362,7 @@ test('createRegisterUser accepts admin registrationSource for privileged provisi
   assert.equal(agentProfileCreateCalls, 0);
 });
 
-test('createRegisterUser accepts legacy roleIds payloads for socio provisioning', async () => {
+test('createRegisterUser rejects roleIds payloads without canonical role', async () => {
   let linkedAssociateId = null;
 
   const registerUser = createRegisterUser({
@@ -397,21 +397,20 @@ test('createRegisterUser accepts legacy roleIds payloads for socio provisioning'
     },
   });
 
-  const result = await registerUser({
+  await assert.rejects(() => registerUser({
     actor: { id: 1, role: 'admin' },
     registrationSource: 'admin',
     payload: {
-      name: 'Legacy Partner',
-      email: 'legacy.partner@example.com',
+      name: 'Partner Without Canonical Role',
+      email: 'partner-no-role@example.com',
       password: 'Secret123',
       roleIds: ['PARTNER'],
       phone: '+573001112233',
       associateId: 61,
     },
-  });
+  }), /Please correct the following errors/);
 
-  assert.equal(result.user.role, 'socio');
-  assert.equal(linkedAssociateId, 61);
+  assert.equal(linkedAssociateId, null);
 });
 
 test('createRegisterUser blocks non-admin actors from creating privileged accounts in trusted flows', async () => {
@@ -536,11 +535,11 @@ test('createLoginUser rejects an invalid password', async () => {
   await assert.rejects(() => loginUser({ email: 'ana@example.com', password: 'wrong-pass' }), AuthenticationError);
 });
 
-test('createLoginUser rejects legacy agent role during login', async () => {
+test('createLoginUser rejects unsupported agent role during login', async () => {
   const loginUser = createLoginUser({
     userRepository: {
       async findByEmail() {
-        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Legacy Agent', failedLoginAttempts: 0, lockedUntil: null };
+        return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Agent', failedLoginAttempts: 0, lockedUntil: null };
       },
       async update() {
         return {};
@@ -560,7 +559,7 @@ test('createLoginUser rejects legacy agent role during login', async () => {
 
   try {
     await loginUser({ email: 'ana@example.com', password: 'Secret1' });
-    assert.fail('Should have rejected legacy agent role');
+    assert.fail('Should have rejected unsupported agent role');
   } catch (error) {
     assert.equal(error.statusCode, 400);
     assert.ok(error.errors[0].message.includes('Role must be one of'), `Expected error message to contain 'Role must be one of', got: ${error.errors[0].message}`);

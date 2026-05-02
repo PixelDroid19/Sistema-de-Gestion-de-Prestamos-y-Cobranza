@@ -22,6 +22,7 @@ type PageHeaderProps = {
 type ToolbarSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   children: React.ReactNode;
   className?: string;
+  as?: 'section' | 'form';
 };
 
 type MetricCardProps = {
@@ -100,11 +101,11 @@ export function PageHeader({
   );
 }
 
-export function ToolbarSurface({ children, className = '', ...rest }: ToolbarSurfaceProps) {
+export function ToolbarSurface({ children, className = '', as: Component = 'section', ...rest }: ToolbarSurfaceProps) {
   return (
-    <section className={`toolbar-surface ${className}`} {...rest}>
+    <Component className={`toolbar-surface ${className}`} {...rest}>
       {children}
-    </section>
+    </Component>
   );
 }
 

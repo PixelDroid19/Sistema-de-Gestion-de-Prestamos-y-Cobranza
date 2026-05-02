@@ -55,9 +55,8 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
     // Helpers injected into the formula scope (scopeBuilder.js provides the real fns)
     // label = human-friendly name shown in the UI (never expose raw function names to users)
-    // NOTE: Domain helpers (buildAmortizationSchedule, summarizeSchedule) are kept for
-    // backward compatibility but are NOT exposed in the workbench toolbox. They are
-    // rendered as opaque domain blocks in the UI, not as editable formulas.
+    // NOTE: Domain helpers are runtime-only and are NOT exposed in the workbench toolbox.
+    // They are rendered as opaque domain blocks in the UI, not as editable formulas.
     helpers: [
       { name: 'buildAmortizationSchedule', label: 'Generar tabla de amortización', description: 'Genera el cronograma canonico del credito.' },
       { name: 'summarizeSchedule', label: 'Resumen de cronograma', description: 'Resume el cronograma en totales y saldo pendiente.' },
@@ -218,7 +217,7 @@ const WORKBENCH_SCOPE_DEFINITIONS = [
 
 const DEFAULT_SCOPE_KEY = WORKBENCH_SCOPE_DEFINITIONS[0].key;
 
-const LEGACY_GRAPH_NODE_ID_MAP = {
+const PERSISTED_GRAPH_NODE_ID_ALIASES = {
   simulation_result: 'credit_result',
 };
 
@@ -234,7 +233,7 @@ const normalizeCreditGraphFormula = (formula) => {
 
 const normalizeCreditGraphNode = (node = {}) => {
   const originalId = String(node.id || '').trim();
-  const id = LEGACY_GRAPH_NODE_ID_MAP[originalId] || originalId;
+  const id = PERSISTED_GRAPH_NODE_ID_ALIASES[originalId] || originalId;
   const normalized = {
     ...node,
     id,
@@ -250,9 +249,9 @@ const normalizeCreditGraphNode = (node = {}) => {
 };
 
 /**
- * Normalize persisted graph versions saved before the credit-result contract
- * rename. This keeps old records executable while the runtime whitelist only
- * accepts the canonical credit helper.
+ * Normalize persisted graph versions saved before the credit-result contract rename.
+ * Existing credit snapshots must stay executable while new versions use only the
+ * canonical credit helper.
  */
 const normalizeCreditGraph = (graph = {}) => {
   const rawNodes = Array.isArray(graph.nodes) ? graph.nodes : [];
@@ -273,8 +272,8 @@ const normalizeCreditGraph = (graph = {}) => {
   const edgesByKey = new Map();
 
   for (const rawEdge of rawEdges) {
-    const source = LEGACY_GRAPH_NODE_ID_MAP[rawEdge?.source] || rawEdge?.source;
-    const target = LEGACY_GRAPH_NODE_ID_MAP[rawEdge?.target] || rawEdge?.target;
+    const source = PERSISTED_GRAPH_NODE_ID_ALIASES[rawEdge?.source] || rawEdge?.source;
+    const target = PERSISTED_GRAPH_NODE_ID_ALIASES[rawEdge?.target] || rawEdge?.target;
     if (!source || !target || source === target) {
       continue;
     }

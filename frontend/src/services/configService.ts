@@ -120,43 +120,12 @@ export const useConfig = () => {
     return data;
   }, queryKeys.config.lateFeePolicies);
 
-  const getSettings = useQuery({
-    queryKey: queryKeys.config.settings,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/settings');
-      return data;
-    },
-  });
-
-  const updateSetting = useInvalidatingMutation(async ({ key, ...settingData }: any) => {
-    const { data } = await apiClient.put(`/config/settings/${key}`, settingData);
-    return data;
-  }, queryKeys.config.settings);
-
-  const getCatalogs = useQuery({
-    queryKey: queryKeys.config.catalogs,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/catalogs');
-      return data;
-    },
-  });
-
-  const getRoles = useQuery({
-    queryKey: queryKeys.config.roles,
-    queryFn: async () => {
-      const { data } = await apiClient.get('/config/roles');
-      return data;
-    },
-  });
-
   return {
     paymentMethods: toArray(getPaymentMethods.data?.data?.paymentMethods).map(mapPaymentMethod),
     ratePolicies: toArray(getRatePolicies.data?.data?.policies),
     lateFeePolicies: toArray(getLateFeePolicies.data?.data?.policies),
-    settings: toArray(getSettings.data?.data?.settings),
-    catalogs: getCatalogs.data?.data?.catalogs,
-    roles: toArray(getRoles.data?.data?.roles),
-    isLoading: getPaymentMethods.isLoading || getRatePolicies.isLoading || getLateFeePolicies.isLoading || getSettings.isLoading || getCatalogs.isLoading || getRoles.isLoading,
+    isLoading: getPaymentMethods.isLoading || getRatePolicies.isLoading || getLateFeePolicies.isLoading,
+    isError: getPaymentMethods.isError || getRatePolicies.isError || getLateFeePolicies.isError,
     createPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
@@ -166,6 +135,5 @@ export const useConfig = () => {
     createLateFeePolicy,
     updateLateFeePolicy,
     deleteLateFeePolicy,
-    updateSetting,
   };
 };

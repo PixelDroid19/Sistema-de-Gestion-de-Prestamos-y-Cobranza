@@ -106,6 +106,46 @@ const assertAmountRange = ({ minAmount, maxAmount }) => {
   }
 };
 
+const listCategoryEntries = async (configRepository, category) => {
+  if (typeof configRepository.listByCategory !== 'function') {
+    return [];
+  }
+
+  return configRepository.listByCategory(category);
+};
+
+const normalizeComparableLabel = (value) => normalizeKey(value);
+
+const assertUniqueLabel = async ({ configRepository, category, label, currentId = null, entityName }) => {
+  const normalizedLabel = normalizeComparableLabel(label);
+  const entries = await listCategoryEntries(configRepository, category);
+  const duplicate = entries.find((entry) => (
+    Number(entry.id) !== Number(currentId)
+    && normalizeComparableLabel(entry.label) === normalizedLabel
+  ));
+
+  if (duplicate) {
+    throw new ConflictError(`${entityName} label already exists`);
+  }
+};
+
+const normalizeRangeBoundary = (value, fallback) => {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  return Number(value);
+};
+
+const rangesOverlap = (left, right) => {
+  const leftMin = normalizeRangeBoundary(left.minAmount, 0);
+  const leftMax = normalizeRangeBoundary(left.maxAmount, Number.POSITIVE_INFINITY);
+  const rightMin = normalizeRangeBoundary(right.minAmount, 0);
+  const rightMax = normalizeRangeBoundary(right.maxAmount, Number.POSITIVE_INFINITY);
+
+  return leftMin <= rightMax && rightMin <= leftMax;
+};
+
 const buildRatePolicy = (entry) => ({
   id: entry.id,
   key: entry.key,
@@ -193,6 +233,46 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
   };
 };
 
+const assertNoAmbiguousRatePolicy = async ({ configRepository, normalized, currentId = null }) => {
+  if (normalized.isActive === false) return;
+
+  const entries = await listCategoryEntries(configRepository, RATE_POLICY_CATEGORY);
+  const nextPolicy = {
+    minAmount: normalized.value.minAmount,
+    maxAmount: normalized.value.maxAmount,
+    priority: normalized.value.priority,
+  };
+  const duplicate = entries
+    .map(buildRatePolicy)
+    .find((policy) => (
+      Number(policy.id) !== Number(currentId)
+      && policy.isActive !== false
+      && Number(policy.priority || 100) === Number(nextPolicy.priority || 100)
+      && rangesOverlap(nextPolicy, policy)
+    ));
+
+  if (duplicate) {
+    throw new ConflictError('Active rate policies cannot overlap with the same priority');
+  }
+};
+
+const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, currentId = null }) => {
+  if (normalized.isActive === false) return;
+
+  const entries = await listCategoryEntries(configRepository, LATE_FEE_POLICY_CATEGORY);
+  const duplicate = entries
+    .map(buildLateFeePolicy)
+    .find((policy) => (
+      Number(policy.id) !== Number(currentId)
+      && policy.isActive !== false
+      && Number(policy.priority || 100) === Number(normalized.value.priority || 100)
+    ));
+
+  if (duplicate) {
+    throw new ConflictError('Active late fee policies cannot share the same priority');
+  }
+};
+
 const pickHighestPriorityPolicy = (policies) => policies
   .filter((policy) => policy.isActive)
   .sort((left, right) => {
@@ -219,6 +299,12 @@ const createCreatePaymentMethod = ({ configRepository }) => async ({ label, key,
   if (existing) {
     throw new ConflictError('Payment method key already exists');
   }
+  await assertUniqueLabel({
+    configRepository,
+    category: PAYMENT_METHOD_CATEGORY,
+    label: normalizedLabel,
+    entityName: 'Payment method',
+  });
 
   const entry = await configRepository.create({
     category: PAYMENT_METHOD_CATEGORY,
@@ -259,6 +345,13 @@ const createUpdatePaymentMethod = ({ configRepository }) => async (paymentMethod
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
     throw new ConflictError('Payment method key already exists');
   }
+  await assertUniqueLabel({
+    configRepository,
+    category: PAYMENT_METHOD_CATEGORY,
+    label: nextLabel,
+    currentId: existing.id,
+    entityName: 'Payment method',
+  });
 
   const updated = await configRepository.update(existing.id, {
     key: nextKey,
@@ -310,6 +403,13 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
 
   const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
   if (existing) throw new ConflictError('Rate policy key already exists');
+  await assertUniqueLabel({
+    configRepository,
+    category: RATE_POLICY_CATEGORY,
+    label: normalized.label,
+    entityName: 'Rate policy',
+  });
+  await assertNoAmbiguousRatePolicy({ configRepository, normalized });
 
   const entry = await configRepository.create({
     category: RATE_POLICY_CATEGORY,
@@ -328,6 +428,14 @@ const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payloa
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
     throw new ConflictError('Rate policy key already exists');
   }
+  await assertUniqueLabel({
+    configRepository,
+    category: RATE_POLICY_CATEGORY,
+    label: normalized.label,
+    currentId: existing.id,
+    entityName: 'Rate policy',
+  });
+  await assertNoAmbiguousRatePolicy({ configRepository, normalized, currentId: existing.id });
 
   const updated = await configRepository.update(existing.id, normalized);
   return buildRatePolicy(updated);
@@ -364,6 +472,13 @@ const createCreateLateFeePolicy = ({ configRepository }) => async (payload = {})
 
   const existing = await configRepository.findByCategoryAndKey(LATE_FEE_POLICY_CATEGORY, normalized.key);
   if (existing) throw new ConflictError('Late fee policy key already exists');
+  await assertUniqueLabel({
+    configRepository,
+    category: LATE_FEE_POLICY_CATEGORY,
+    label: normalized.label,
+    entityName: 'Late fee policy',
+  });
+  await assertNoAmbiguousLateFeePolicy({ configRepository, normalized });
 
   const entry = await configRepository.create({
     category: LATE_FEE_POLICY_CATEGORY,
@@ -382,6 +497,14 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
   if (duplicate && Number(duplicate.id) !== Number(existing.id)) {
     throw new ConflictError('Late fee policy key already exists');
   }
+  await assertUniqueLabel({
+    configRepository,
+    category: LATE_FEE_POLICY_CATEGORY,
+    label: normalized.label,
+    currentId: existing.id,
+    entityName: 'Late fee policy',
+  });
+  await assertNoAmbiguousLateFeePolicy({ configRepository, normalized, currentId: existing.id });
 
   const updated = await configRepository.update(existing.id, normalized);
   return buildLateFeePolicy(updated);

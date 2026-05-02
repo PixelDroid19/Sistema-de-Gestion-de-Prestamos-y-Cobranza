@@ -491,7 +491,7 @@ const createDagWorkbenchService = ({
 
       const graphVersion = await dagGraphRepository.getLatest(normalizedScopeKey);
 
-      // Execute the draft graph via graphExecutor.executeDraft — no legacy fallback.
+      // Execute the draft graph via graphExecutor.executeDraft.
       // The workbench user needs to see actual formula errors so they can fix them.
       const dagExecution = await graphExecutor.executeDraft({
         graph: normalizedGraph,
@@ -715,7 +715,7 @@ const createDagWorkbenchService = ({
           );
         }
 
-        // Backward compatibility: legacy callers used compareToVersionId but routed by id.
+        // Existing callers may pass a graph id through compareToVersionId.
         if (!previousGraphVersion) {
           previousGraphVersion = await dagGraphRepository.findById(normalizedCompareToVersionId);
         }

@@ -162,7 +162,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
 const buildFinancialSnapshot = (schedule) => summarizeSchedule(schedule);
 
 /**
- * Return the canonical schedule and financial snapshot for persisted or legacy loan records.
+ * Return the canonical schedule and financial snapshot for persisted loan records.
  * @param {object} loan
  * @returns {{ schedule: Array<object>, snapshot: object }}
  */

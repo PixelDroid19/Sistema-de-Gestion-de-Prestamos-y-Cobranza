@@ -122,37 +122,6 @@ const alignCustomerIdentitySequence = async ({ normalizedRole, userRepository })
   }
 };
 
-const LEGACY_ROLE_ALIAS_MAP = {
-  SUPER_ADMIN: 'admin',
-  ADMINISTRATOR: 'admin',
-  PARTNER: 'socio',
-  CUSTOMER: 'customer',
-};
-
-const normalizeLegacyRoleId = (roleId) => {
-  if (typeof roleId !== 'string') {
-    return null;
-  }
-
-  const normalizedRoleId = roleId.trim().toUpperCase();
-  return LEGACY_ROLE_ALIAS_MAP[normalizedRoleId] || null;
-};
-
-const deriveRoleFromRoleIds = (roleIds) => {
-  if (!Array.isArray(roleIds) || roleIds.length === 0) {
-    return null;
-  }
-
-  for (const roleId of roleIds) {
-    const mappedRole = normalizeLegacyRoleId(roleId);
-    if (mappedRole) {
-      return mappedRole;
-    }
-  }
-
-  return null;
-};
-
 const normalizeLoginCredentials = (credentials = {}) => {
   const email = typeof credentials.email === 'string' ? credentials.email.trim() : '';
   const username = typeof credentials.username === 'string' ? credentials.username.trim() : '';
@@ -230,10 +199,9 @@ const createRegisterUser = ({
     email,
     password,
     role,
-    roleIds,
     phone,
   } = payload;
-  const resolvedRole = role || deriveRoleFromRoleIds(roleIds);
+  const resolvedRole = role;
   const isPublicRegistration = registrationSource === 'public';
 
   if (isPublicRegistration && normalizeApplicationRole(resolvedRole) !== 'customer') {
@@ -322,7 +290,7 @@ const createRegisterUser = ({
 
   const sanitizedUser = sanitizeUser(user);
 
-  // Use generateAccessToken if available (short-lived 15m token), otherwise fall back to legacy sign
+  // Prefer the short-lived access-token generator; test adapters may expose sign only.
   const accessToken = typeof tokenService.generateAccessToken === 'function'
     ? tokenService.generateAccessToken(user.id, user.role, buildTokenPayload(user))
     : tokenService.sign(buildTokenPayload(user));
@@ -417,7 +385,7 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
   requireSupportedRole(user.role);
   const sanitizedUser = sanitizeUser(user);
 
-  // Generate token pair if tokenService supports it, otherwise fall back to legacy sign
+  // Prefer token pairs with refresh-token persistence; test adapters may expose sign only.
   let accessToken, refreshToken;
   if (tokenService.generateTokenPair) {
     const tokens = tokenService.generateTokenPair(user.id, user.role, {
@@ -427,7 +395,6 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
     accessToken = tokens.accessToken;
     refreshToken = tokens.refreshToken;
   } else {
-    // Legacy fallback for backwards compatibility
     accessToken = tokenService.sign(buildTokenPayload(user));
     refreshToken = null;
   }

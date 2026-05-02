@@ -1,7 +1,7 @@
 /**
  * Calculation Adapter — the single entry point for credit calculation numbers.
  *
- * DAG is the single source of truth. There is no legacy fallback.
+ * DAG is the single source of truth for credit calculations.
  */
 
 const { DEFAULT_SCOPE_KEY } = require('./scopeRegistry');

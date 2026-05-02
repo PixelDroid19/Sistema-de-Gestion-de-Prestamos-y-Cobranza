@@ -5,6 +5,8 @@ const {
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
+  createCreateRatePolicy,
+  createCreateLateFeePolicy,
   createUpsertSetting,
   createListAdminCatalogs,
   createListRoles,
@@ -109,6 +111,110 @@ test('config payment-method mutations reject duplicates and missing records', as
 
   await assert.rejects(() => updatePaymentMethod(999, { label: 'Updated' }), NotFoundError);
   await assert.rejects(() => deletePaymentMethod(999), NotFoundError);
+});
+
+test('config payment methods reject duplicate labels even with different keys', async () => {
+  const createPaymentMethod = createCreatePaymentMethod({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [
+          {
+            id: 8,
+            key: 'transferencia-bancaria',
+            label: 'Transferencia bancaria',
+            value: { metadata: { type: 'bank_transfer' } },
+          },
+        ];
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createPaymentMethod({ label: 'Transferencia bancaria', key: 'transferencia-bancaria-alterna' }),
+    ConflictError,
+  );
+});
+
+test('config policies reject active duplicates that would make resolution ambiguous', async () => {
+  const createRatePolicy = createCreateRatePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [
+          {
+            id: 11,
+            key: 'credito-estandar',
+            label: 'Crédito estándar',
+            isActive: true,
+            value: {
+              minAmount: 0,
+              maxAmount: 5000000,
+              annualEffectiveRate: 60,
+              priority: 10,
+            },
+          },
+        ];
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Crédito solapado',
+      minAmount: 1000000,
+      maxAmount: 2000000,
+      annualEffectiveRate: 55,
+      priority: 10,
+    }),
+    ConflictError,
+  );
+
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [
+          {
+            id: 21,
+            key: 'mora-simple',
+            label: 'Mora simple',
+            isActive: true,
+            value: {
+              annualEffectiveRate: 24,
+              lateFeeMode: 'SIMPLE',
+              priority: 10,
+            },
+          },
+        ];
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLateFeePolicy({
+      label: 'Mora alterna',
+      annualEffectiveRate: 18,
+      lateFeeMode: 'SIMPLE',
+      priority: 10,
+    }),
+    ConflictError,
+  );
 });
 
 test('createUpsertSetting updates existing records and listAdminCatalogs keeps role scope unchanged', async () => {

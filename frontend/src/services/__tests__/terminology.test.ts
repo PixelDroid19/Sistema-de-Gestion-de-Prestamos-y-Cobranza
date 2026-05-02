@@ -6,12 +6,8 @@ describe('terminology canonical dictionary', () => {
     expect(tTerm('credits.module.title')).toBe('Operación de créditos');
   });
 
-  it('returns legacy aliases when requested', () => {
-    expect(tTerm('sidebar.customers.directory', { legacy: true })).toBe('Directorio');
-    expect(tTerm('credits.module.title', { legacy: true })).toBe('Gestión de Créditos');
-  });
-
-  it('returns an empty alias list for keys without aliases', () => {
+  it('does not expose outdated aliases', () => {
+    expect(getTermAliases('sidebar.customers.directory')).toEqual([]);
     expect(getTermAliases('sidebar.dashboard')).toEqual([]);
   });
 });

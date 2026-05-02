@@ -17,10 +17,7 @@ type ApiErrorShape = {
   };
 };
 
-/**
- * Extract validation errors from either the normalized fetch client error
- * shape or legacy Axios-like payloads used by older components/tests.
- */
+/** Extract validation errors from normalized fetch errors or Axios-shaped test doubles. */
 export const extractValidationErrors = (error: unknown): ApiValidationError[] => {
   const typedError = error as ApiErrorShape | null | undefined;
 

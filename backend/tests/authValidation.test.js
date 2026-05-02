@@ -37,7 +37,7 @@ test('authValidation.register rejects privileged public roles with a clear role 
   ]);
 });
 
-test('authValidation.adminRegister rejects legacy agent as an unsupported application role', async () => {
+test('authValidation.adminRegister rejects agent as an unsupported application role', async () => {
   const error = await captureMiddlewareError(authValidation.adminRegister, {
     body: {
       name: 'Ana Agent',
@@ -68,7 +68,7 @@ test('authValidation.adminRegister accepts admin registration without a phone nu
   }));
 });
 
-test('authValidation.login accepts username-only legacy payloads', async () => {
+test('authValidation.login accepts username-only payloads', async () => {
   await assert.doesNotReject(() => runMiddleware(authValidation.login, {
     body: {
       username: 'ana.user',
@@ -77,8 +77,8 @@ test('authValidation.login accepts username-only legacy payloads', async () => {
   }));
 });
 
-test('authValidation.adminRegister accepts legacy roleIds payloads', async () => {
-  await assert.doesNotReject(() => runMiddleware(authValidation.adminRegister, {
+test('authValidation.adminRegister rejects roleIds payloads without canonical role', async () => {
+  await assert.rejects(() => runMiddleware(authValidation.adminRegister, {
     body: {
       name: 'Ana Partner',
       email: 'partner@example.com',

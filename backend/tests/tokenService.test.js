@@ -168,7 +168,7 @@ describe('tokenService', () => {
     assert.equal(result.tokenId, 'token-id', 'Should return tokenId');
   });
 
-  test('legacy sign and verify methods still work', () => {
+  test('sign and verify support auth middleware adapters', () => {
     const tokenService = createJwtTokenService({ secret: 'test-secret' });
     const token = tokenService.sign({ id: 1, role: 'admin', name: 'Admin Test' });
     const decoded = tokenService.verify(token);

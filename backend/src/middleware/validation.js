@@ -43,32 +43,6 @@ const validateEmail = (email) => {
   return emailRegex.test(email);
 };
 
-const LEGACY_ROLE_ID_TO_ROLE = {
-  SUPER_ADMIN: 'admin',
-  ADMINISTRATOR: 'admin',
-  PARTNER: 'socio',
-  CUSTOMER: 'customer',
-};
-
-const mapRoleIdsToRole = (roleIds) => {
-  if (!Array.isArray(roleIds)) {
-    return null;
-  }
-
-  for (const roleId of roleIds) {
-    if (typeof roleId !== 'string') {
-      continue;
-    }
-
-    const mappedRole = LEGACY_ROLE_ID_TO_ROLE[roleId.trim().toUpperCase()];
-    if (mappedRole) {
-      return mappedRole;
-    }
-  }
-
-  return null;
-};
-
 /**
  * Validate an E.164-like phone number payload.
  * @param {string} phone
@@ -254,10 +228,9 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
 const authValidation = {
   /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
-    const { name, email, password, role, roleIds, phone } = req.body;
+    const { name, email, password, role, phone } = req.body;
     const errors = [];
-    const roleFromRoleIds = mapRoleIdsToRole(roleIds);
-    const normalizedRole = normalizeApplicationRole(role || roleFromRoleIds);
+    const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
@@ -295,10 +268,9 @@ const authValidation = {
 
   /** @type {import('express').RequestHandler} */
   adminRegister: (req, res, next) => {
-    const { name, email, password, role, roleIds, phone, associateId } = req.body;
+    const { name, email, password, role, phone, associateId } = req.body;
     const errors = [];
-    const roleFromRoleIds = mapRoleIdsToRole(roleIds);
-    const normalizedRole = normalizeApplicationRole(role || roleFromRoleIds);
+    const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
