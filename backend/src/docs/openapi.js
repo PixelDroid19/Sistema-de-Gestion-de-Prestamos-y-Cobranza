@@ -282,7 +282,13 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     '/reports/credits/excel': {
       get: {
         tags: ['Reports'],
-        summary: 'Exportar créditos a Excel con trazabilidad de fórmula y políticas',
+        summary: 'Exportar créditos a Excel consolidado',
+        description: [
+          'Genera el reporte operativo de créditos con la estructura del sistema anterior:',
+          'hoja Resumen General, hoja Detalle de Créditos y una hoja por crédito con amortización e historial de pagos.',
+          'Incluye campos financieros clave como capital pagado, interés pagado, interés generado, mora, saldo pendiente y próxima fecha de pago.',
+          'No expone campos técnicos internos como DAG, ids de políticas o nombres de propiedades.',
+        ].join(' '),
         parameters: [
           { name: 'customerId', in: 'query', schema: { type: 'integer' } },
           { name: 'loanId', in: 'query', schema: { type: 'integer' } },
@@ -297,6 +303,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Reports'],
         summary: 'Exportar dashboard ejecutivo a Excel',
+        description: 'Genera hojas operativas en español para resumen, evolución y actividad reciente del dashboard.',
         responses: { 200: { description: 'Archivo Excel del dashboard' } },
       },
     },
@@ -304,6 +311,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Reports'],
         summary: 'Exportar pagos a Excel desde backend',
+        description: 'Genera un reporte operativo de pagos con columnas en español, formatos monetarios y filtros canónicos.',
         parameters: [
           { name: 'customerId', in: 'query', schema: { type: 'integer' } },
           { name: 'loanId', in: 'query', schema: { type: 'integer' } },
@@ -313,6 +321,14 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
         ],
         responses: { 200: { description: 'Archivo Excel de pagos' } },
+      },
+    },
+    '/reports/associates/excel': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar socios a Excel operativo',
+        description: 'Genera hojas inspiradas en el reporte anterior de socios: Resumen General, Distribución por Estado, Detalle de Socios, Análisis de Rentabilidad y Rangos de Inversión.',
+        responses: { 200: { description: 'Archivo Excel de socios' } },
       },
     },
     '/notifications': {

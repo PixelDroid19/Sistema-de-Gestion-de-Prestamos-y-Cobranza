@@ -1,7 +1,7 @@
-const XLSX = require('xlsx');
 const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { normalizeDistributionRecord } = require('@/modules/associates/application/useCases');
 const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
+const { buildWorkbookBuffer, STYLE_COLORS } = require('./workbookBuilder');
 const {
   ensureAdmin,
   formatMoney,
@@ -92,17 +92,6 @@ const buildPdfBuffer = ({ title, lines }) => {
   return Buffer.from(pdf, 'utf8');
 };
 
-const buildWorkbookBuffer = (sheets) => {
-  const workbook = XLSX.utils.book_new();
-
-  sheets.forEach(({ name, rows }) => {
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
-  });
-
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-};
-
 const formatIsoDate = (value) => {
   if (!value) {
     return 'N/A';
@@ -111,6 +100,9 @@ const formatIsoDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 };
+
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 const RECOVERY_BALANCE_TOLERANCE = 0.01;
 
@@ -897,8 +889,8 @@ const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService,
 
 const buildRecoveryExportRows = (report) => ([
   ...report.data.recoveredLoans.map((loan) => ({
-    section: 'recovered',
-    loanId: loan.id,
+    section: 'Recuperados',
+    creditId: loan.id,
     customer: loan.Customer?.name || '',
     amount: loan.amount,
     paid: loan.totalPaid,
@@ -906,8 +898,8 @@ const buildRecoveryExportRows = (report) => ([
     recoveryStatus: loan.recoveryStatus,
   })),
   ...report.data.outstandingLoans.map((loan) => ({
-    section: 'outstanding',
-    loanId: loan.id,
+    section: 'Pendientes',
+    creditId: loan.id,
     customer: loan.Customer?.name || '',
     amount: loan.amount,
     paid: loan.totalPaid,
@@ -915,6 +907,49 @@ const buildRecoveryExportRows = (report) => ([
     recoveryStatus: loan.recoveryStatus,
   })),
 ]);
+
+const RECOVERY_EXPORT_COLUMNS = [
+  { header: 'Sección', key: 'section', width: 16 },
+  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Cliente', key: 'customer', width: 28 },
+  { header: 'Monto Préstamo', key: 'amount', width: 18, numFmt: '"$"#,##0.00' },
+  { header: 'Total Pagado', key: 'paid', width: 18, numFmt: '"$"#,##0.00' },
+  { header: 'Saldo Pendiente', key: 'outstanding', width: 18, numFmt: '"$"#,##0.00' },
+  { header: 'Estado de Recuperación', key: 'recoveryStatus', width: 24 },
+];
+
+const ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS = [
+  { header: 'Indicador', key: 'indicator', width: 34 },
+  { header: 'Valor', key: 'value', width: 22 },
+  { header: 'Unidad', key: 'unit', width: 15 },
+];
+
+const ASSOCIATE_CONTRIBUTION_COLUMNS = [
+  { header: 'ID Aporte', key: 'contributionId', width: 14 },
+  moneyColumn('Monto', 'amount'),
+  dateColumn('Fecha Aporte', 'contributionDate', 18),
+  { header: 'Notas', key: 'notes', width: 34 },
+];
+
+const ASSOCIATE_DISTRIBUTION_COLUMNS = [
+  { header: 'ID Distribución', key: 'distributionId', width: 16 },
+  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  moneyColumn('Monto', 'amount'),
+  dateColumn('Fecha Distribución', 'distributionDate', 20),
+  { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
+  { header: 'Participación %', key: 'participationPercentage', width: 18 },
+  moneyColumn('Total Proporcional', 'declaredProportionalTotal', 20),
+  moneyColumn('Monto Asignado', 'allocatedAmount', 20),
+  { header: 'Notas', key: 'notes', width: 34 },
+];
+
+const ASSOCIATE_LOAN_COLUMNS = [
+  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Cliente', key: 'customer', width: 28 },
+  moneyColumn('Monto Préstamo', 'amount'),
+  { header: 'Estado Crédito', key: 'status', width: 16 },
+  { header: 'Estado Recuperación', key: 'recoveryStatus', width: 22 },
+];
 
 const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, format = 'csv' }) => {
   ensureAdmin(actor);
@@ -943,13 +978,20 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
     return {
       fileName: 'recovery-report.xlsx',
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      buffer: buildWorkbookBuffer([{ name: 'Recovery Report', rows }]),
+      buffer: await buildWorkbookBuffer([{
+        name: 'Recuperación',
+        title: 'REPORTE DE RECUPERACIÓN',
+        tabColor: STYLE_COLORS.blue,
+        headerFill: STYLE_COLORS.green,
+        columns: RECOVERY_EXPORT_COLUMNS,
+        rows,
+      }]),
     };
   }
 
   const csv = buildCsv({
-    headers: ['section', 'loanId', 'customer', 'recoveryOwner', 'amount', 'paid', 'outstanding', 'recoveryStatus'],
-    rows: rows.map((row) => [row.section, row.loanId, row.customer, row.recoveryOwner, row.amount, row.paid, row.outstanding, row.recoveryStatus]),
+    headers: ['Sección', 'ID Crédito', 'Cliente', 'Monto Préstamo', 'Total Pagado', 'Saldo Pendiente', 'Estado de Recuperación'],
+    rows: rows.map((row) => [row.section, row.creditId, row.customer, row.amount, row.paid, row.outstanding, row.recoveryStatus]),
   });
 
   return {
@@ -1016,7 +1058,7 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
   const dataset = await reportRepository.getAssociateExportDataset(report.associate.id);
 
   const contributionRows = (dataset.contributions || []).map((entry) => ({
-    id: entry.id,
+    contributionId: entry.id,
     amount: entry.amount,
     contributionDate: entry.contributionDate,
     notes: entry.notes || '',
@@ -1025,8 +1067,8 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
     const normalizedEntry = normalizeDistributionRecord(entry);
 
     return {
-      id: entry.id,
-      loanId: entry.loanId,
+      distributionId: entry.id,
+      creditId: entry.loanId,
       amount: entry.amount,
       distributionDate: entry.distributionDate,
       distributionType: normalizedEntry.distributionType,
@@ -1037,7 +1079,7 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
     };
   });
   const loanRows = (dataset.loans || []).map((entry) => ({
-    id: entry.id,
+    creditId: entry.id,
     customer: entry.Customer?.name || '',
     amount: entry.amount,
     status: entry.status,
@@ -1048,11 +1090,11 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
     const csv = buildCsv({
       headers: ['section', 'id', 'reference', 'amount', 'date', 'status', 'participationPercentage', 'distributionType', 'declaredProportionalTotal', 'allocatedAmount', 'notes'],
       rows: [
-        ...contributionRows.map((row) => ['contribution', row.id, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
+        ...contributionRows.map((row) => ['contribution', row.contributionId, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
         ...distributionRows.map((row) => [
           'distribution',
-          row.id,
-          row.loanId || '',
+          row.distributionId,
+          row.creditId || '',
           row.amount,
           row.distributionDate,
           '',
@@ -1062,7 +1104,7 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
           row.allocatedAmount || '',
           row.notes,
         ]),
-        ...loanRows.map((row) => ['loan', row.id, row.customer, row.amount, '', row.status, normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.recoveryStatus]),
+        ...loanRows.map((row) => ['loan', row.creditId, row.customer, row.amount, '', row.status, normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.recoveryStatus]),
       ],
     });
 
@@ -1076,11 +1118,50 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
   return {
     fileName: `associate-${report.associate.id}-profitability.xlsx`,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    buffer: buildWorkbookBuffer([
-      { name: 'Summary', rows: [{ ...report.summary, associate: report.associate.name, associateId: report.associate.id }] },
-      { name: 'Contributions', rows: contributionRows },
-      { name: 'Distributions', rows: distributionRows },
-      { name: 'Loans', rows: loanRows },
+    buffer: await buildWorkbookBuffer([
+      {
+        name: 'Resumen General',
+        title: `RENTABILIDAD DEL SOCIO - ${report.associate.name}`,
+        tabColor: STYLE_COLORS.blue,
+        headerFill: STYLE_COLORS.green,
+        columns: ASSOCIATE_PROFITABILITY_SUMMARY_COLUMNS,
+        rows: [
+          { indicator: 'Socio', value: report.associate.name, unit: '' },
+          { indicator: 'ID Socio', value: report.associate.id, unit: '' },
+          { indicator: 'Aportes Totales', value: Number(report.summary.totalContributed || 0), unit: '$' },
+          { indicator: 'Distribuciones Totales', value: Number(report.summary.totalDistributed || 0), unit: '$' },
+          { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), unit: '$' },
+          { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0, unit: 'movimientos' },
+          { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0, unit: 'movimientos' },
+          { indicator: 'Créditos Asociados', value: report.summary.loanCount || 0, unit: 'créditos' },
+          { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', unit: '%' },
+        ],
+        autoFilter: false,
+      },
+      {
+        name: 'Aportes',
+        title: 'APORTES DEL SOCIO',
+        tabColor: STYLE_COLORS.green,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATE_CONTRIBUTION_COLUMNS,
+        rows: contributionRows,
+      },
+      {
+        name: 'Distribuciones',
+        title: 'DISTRIBUCIONES DEL SOCIO',
+        tabColor: STYLE_COLORS.yellow,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
+        rows: distributionRows,
+      },
+      {
+        name: 'Créditos',
+        title: 'CRÉDITOS ASOCIADOS',
+        tabColor: STYLE_COLORS.red,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATE_LOAN_COLUMNS,
+        rows: loanRows,
+      },
     ]),
   };
 };

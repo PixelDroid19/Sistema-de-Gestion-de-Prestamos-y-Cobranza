@@ -1,4 +1,5 @@
 const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
 const formatIsoDate = (value) => {
   if (!value) {
@@ -73,17 +74,231 @@ const matchesFilters = (loan, filters) => {
   return true;
 };
 
-const resolvePolicySnapshot = (loan) => (
-  loan?.policySnapshot
-  || loan?.financialSnapshot?.policySnapshot
-  || loan?.calculationSnapshot?.policySnapshot
-  || {}
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
+const percentColumn = (header, key, width = 15) => ({ header, key, width, numFmt: '0.00%' });
+const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
+
+const DETAIL_COLUMNS = [
+  { header: 'ID Cliente', key: 'customerId', width: 12 },
+  { header: 'Cliente', key: 'customerName', width: 30 },
+  { header: 'Documento', key: 'customerDocument', width: 15 },
+  { header: 'Teléfono', key: 'customerPhone', width: 15 },
+  { header: 'Estado Cliente', key: 'customerState', width: 15 },
+  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Estado Crédito', key: 'creditStatus', width: 15 },
+  moneyColumn('Monto Préstamo', 'loanAmount'),
+  moneyColumn('Total con Interés', 'totalAmount'),
+  moneyColumn('Saldo Pendiente', 'remainingAmount'),
+  moneyColumn('Total a Cobrar', 'totalBalance'),
+  { header: 'TNA (%)', key: 'tna', width: 10 },
+  { header: 'Años', key: 'years', width: 8 },
+  moneyColumn('Cuota', 'quota', 15),
+  { header: 'Total Cuotas', key: 'totalQuotas', width: 12 },
+  moneyColumn('Total Pagado', 'totalPaid'),
+  moneyColumn('Capital Pagado', 'totalCapitalPaid'),
+  moneyColumn('Interés Pagado', 'totalInterestPaid'),
+  moneyColumn('Interés Generado', 'totalInterestGenerated'),
+  moneyColumn('Mora Acumulada', 'totalLatePaymentInterest'),
+  { header: 'Núm. Pagos', key: 'paymentCount', width: 12 },
+  percentColumn('% Pagado', 'percentagePaid'),
+  percentColumn('% Capital Pagado', 'percentageCapitalPaid', 16),
+  percentColumn('% Interés Pagado', 'percentageInterestPaid', 16),
+  dateColumn('Fecha Préstamo', 'loanDate'),
+  dateColumn('Próximo Pago', 'nextPaymentDate'),
+  dateColumn('Último Pago', 'lastPaymentDate'),
+  moneyColumn('Ganancia/Millón', 'profitPerMillion'),
+];
+
+const SUMMARY_COLUMNS = [
+  { header: 'Sección', key: 'section', width: 35 },
+  { header: 'Indicador', key: 'indicator', width: 35 },
+  { header: 'Valor', key: 'value', width: 22 },
+];
+
+const AMORTIZATION_COLUMNS = [
+  { header: 'Número de Cuota', key: 'installmentNumber', width: 18 },
+  moneyColumn('CUOTA A PAGAR', 'scheduledPayment'),
+  moneyColumn('INTERÉS', 'interestComponent'),
+  moneyColumn('CAPITAL AMORTIZADO', 'principalComponent', 22),
+  moneyColumn('CAPITAL VIVO', 'remainingBalance'),
+];
+
+const PAYMENT_COLUMNS = [
+  dateColumn('Fecha de Pago', 'paymentDate', 18),
+  moneyColumn('Monto', 'amount'),
+  { header: 'Tipo Pago', key: 'paymentType', width: 16 },
+  { header: 'Cuota #', key: 'installmentNumber', width: 10 },
+  { header: 'Método', key: 'paymentMethod', width: 18 },
+];
+
+const roundPercent = (value) => Math.round(Number(value || 0) * 10000) / 10000;
+const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const toDateOnly = (value) => {
+  if (!value || value === 'N/A') {
+    return '';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+};
+
+const getLoanCustomer = (loan) => loan?.Customer || loan?.customer || {};
+
+const pickCustomerDocument = (customer = {}) => (
+  customer.document
+  || customer.documentNumber
+  || customer.identification
+  || customer.idNumber
+  || 'N/A'
 );
 
+const pickCustomerState = (customer = {}) => (
+  customer.state
+  || customer.status
+  || 'N/A'
+);
+
+const getPaymentMethod = (payment = {}) => (
+  payment.paymentMetadata?.method
+  || payment.paymentMetadata?.paymentMethod
+  || payment.method
+  || payment.paymentMethod
+  || 'N/A'
+);
+
+const buildSummaryRows = (rows) => {
+  const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;
+  const totalCredits = rows.length;
+  const activeCredits = rows.filter((row) => !['closed', 'completed', 'paid', 'end'].includes(String(row.creditStatus || '').toLowerCase())).length;
+  const completedCredits = totalCredits - activeCredits;
+  const lateCredits = rows.filter((row) => ['late', 'defaulted', 'overdue'].includes(String(row.recoveryStatus || row.creditStatus || '').toLowerCase())).length;
+  const sum = (key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
+  const totalLoanAmount = sum('loanAmount');
+  const totalAmountWithInterest = sum('totalAmount');
+  const totalPaid = sum('totalPaid');
+  const totalCapitalPaid = sum('totalCapitalPaid');
+  const totalInterestPaid = sum('totalInterestPaid');
+  const totalInterestGenerated = sum('totalInterestGenerated');
+  const totalLatePaymentInterest = sum('totalLatePaymentInterest');
+  const totalRemainingAmount = sum('remainingAmount');
+  const totalRemainingWithInterest = sum('totalBalance');
+  const totalInterestPending = roundMoney(Math.max(totalInterestGenerated - totalInterestPaid, 0));
+  const averageTNA = rows.length > 0
+    ? roundMoney(rows.reduce((total, row) => total + Number(row.tna || 0), 0) / rows.length)
+    : 0;
+  const averageProfitPerMillion = rows.length > 0
+    ? roundMoney(rows.reduce((total, row) => total + Number(row.profitPerMillion || 0), 0) / rows.length)
+    : 0;
+
+  return [
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Fecha de Generación', value: new Date().toLocaleString('es-CO') },
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Total de Clientes', value: totalCustomers },
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Total de Créditos', value: totalCredits },
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos Activos', value: activeCredits },
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos Finalizados', value: completedCredits },
+    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos en Mora', value: lateCredits },
+    { section: 'MONTOS TOTALES (SIN INTERESES)', indicator: 'Total Prestado (Capital)', value: totalLoanAmount },
+    { section: 'MONTOS TOTALES (SIN INTERESES)', indicator: 'Capital Pendiente', value: totalRemainingAmount },
+    { section: 'MONTOS TOTALES (CON INTERESES)', indicator: 'Total a Cobrar', value: totalAmountWithInterest },
+    { section: 'MONTOS TOTALES (CON INTERESES)', indicator: 'Saldo con Intereses', value: totalRemainingWithInterest },
+    { section: 'PAGOS TOTALES', indicator: 'Total Pagado', value: totalPaid },
+    { section: 'PAGOS TOTALES', indicator: 'Capital Pagado', value: totalCapitalPaid },
+    { section: 'PAGOS TOTALES', indicator: 'Intereses Pagados', value: totalInterestPaid },
+    { section: 'PAGOS TOTALES', indicator: 'Intereses por Mora', value: totalLatePaymentInterest },
+    { section: 'INTERESES PROYECTADOS', indicator: 'Interés Total Generado', value: totalInterestGenerated },
+    { section: 'INTERESES PROYECTADOS', indicator: 'Interés Pendiente', value: totalInterestPending },
+    { section: 'MÉTRICAS FINANCIERAS', indicator: 'TNA Promedio', value: `${averageTNA.toFixed(2)}%` },
+    { section: 'MÉTRICAS FINANCIERAS', indicator: 'Ganancia Promedio por Millón', value: averageProfitPerMillion },
+    { section: 'MÉTRICAS FINANCIERAS', indicator: 'Tasa de Recaudo', value: totalAmountWithInterest > 0 ? `${((totalPaid / totalAmountWithInterest) * 100).toFixed(2)}%` : '0.00%' },
+    { section: 'PORCENTAJES GLOBALES', indicator: '% Total Pagado', value: totalAmountWithInterest > 0 ? `${((totalPaid / totalAmountWithInterest) * 100).toFixed(2)}%` : '0.00%' },
+    { section: 'PORCENTAJES GLOBALES', indicator: '% Capital Recuperado', value: totalLoanAmount > 0 ? `${((totalCapitalPaid / totalLoanAmount) * 100).toFixed(2)}%` : '0.00%' },
+    { section: 'PORCENTAJES GLOBALES', indicator: '% Intereses Cobrados', value: totalInterestGenerated > 0 ? `${((totalInterestPaid / totalInterestGenerated) * 100).toFixed(2)}%` : '0.00%' },
+  ];
+};
+
+const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
+  const creditInfo = [
+    { campo: 'Cliente', valor: detailRow.customerName },
+    { campo: 'Documento', valor: detailRow.customerDocument },
+    { campo: 'Teléfono', valor: detailRow.customerPhone },
+    { campo: 'Estado Cliente', valor: detailRow.customerState },
+    { campo: 'Estado Crédito', valor: detailRow.creditStatus },
+    { campo: 'Monto Préstamo', valor: detailRow.loanAmount },
+    { campo: 'Total con Intereses', valor: detailRow.totalAmount },
+    { campo: 'Saldo Pendiente', valor: detailRow.remainingAmount },
+    { campo: 'Total Pagado', valor: detailRow.totalPaid },
+    { campo: 'Capital Pagado', valor: detailRow.totalCapitalPaid },
+    { campo: 'Interés Pagado', valor: detailRow.totalInterestPaid },
+    { campo: 'Interés Generado', valor: detailRow.totalInterestGenerated },
+    { campo: 'Mora Acumulada', valor: detailRow.totalLatePaymentInterest },
+    { campo: '% Total Pagado', valor: `${((detailRow.percentagePaid || 0) * 100).toFixed(2)}%` },
+    { campo: '% Capital Recuperado', valor: `${((detailRow.percentageCapitalPaid || 0) * 100).toFixed(2)}%` },
+    { campo: '% Interés Cobrado', valor: `${((detailRow.percentageInterestPaid || 0) * 100).toFixed(2)}%` },
+  ];
+
+  const amortizationRows = [
+    {
+      installmentNumber: 0,
+      scheduledPayment: '',
+      interestComponent: '',
+      principalComponent: '',
+      remainingBalance: roundMoney(loan.amount),
+    },
+    ...schedule.map((row) => ({
+      installmentNumber: row.installmentNumber,
+      scheduledPayment: roundMoney(row.scheduledPayment),
+      interestComponent: roundMoney(row.interestComponent),
+      principalComponent: roundMoney(row.principalComponent),
+      remainingBalance: roundMoney(row.remainingBalance),
+    })),
+  ];
+
+  const paymentRows = payments.map((payment) => ({
+    paymentDate: formatIsoDate(payment.paymentDate || payment.paidAt || payment.createdAt),
+    amount: roundMoney(payment.amount),
+    paymentType: payment.paymentType || 'installment',
+    installmentNumber: payment.installmentNumber || payment.paymentMetadata?.installmentNumber || '',
+    paymentMethod: getPaymentMethod(payment),
+  }));
+
+  return [
+    {
+      title: `CRÉDITO #${detailRow.creditId} - ${detailRow.customerName}`,
+      titleFill: STYLE_COLORS.yellow,
+      headerFill: STYLE_COLORS.lightGray,
+      columns: [{ header: 'Campo', key: 'campo', width: 24 }, { header: 'Valor', key: 'valor', width: 34 }],
+      rows: creditInfo,
+    },
+    {
+      title: 'TABLA DE AMORTIZACIÓN',
+      titleFill: STYLE_COLORS.blue,
+      headerFill: STYLE_COLORS.blue,
+      columns: AMORTIZATION_COLUMNS,
+      rows: amortizationRows,
+    },
+    {
+      title: 'HISTORIAL DE PAGOS',
+      titleFill: STYLE_COLORS.green,
+      headerFill: STYLE_COLORS.lightGray,
+      columns: PAYMENT_COLUMNS,
+      rows: paymentRows,
+    },
+  ];
+};
+
 /**
- * Create use case: Export Credits to Excel
- * Exports all credits with full details including customer, amounts, status, and payments.
- * GET /api/reports/credits/excel
+ * Export credits using the same operator-facing workbook structure as the previous system.
+ *
+ * The report intentionally excludes technical DAG/policy fields from visible sheets.
+ * Those values remain available in snapshots and audit records, but this Excel is for
+ * portfolio review, payments, amortization and recovery analysis.
+ *
+ * @param {object} dependencies
+ * @param {object} dependencies.reportRepository Repository with loan report reads.
+ * @param {object} dependencies.paymentRepository Repository with payment reads by loan.
+ * @param {object} dependencies.loanViewService Canonical loan schedule/snapshot service.
+ * @returns {Function} Express use-case handler.
  */
 const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
   ensureAdmin(actor, 'Only admins can export credits data');
@@ -93,57 +308,100 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
     .map(toPlainLoan)
     .filter((loan) => matchesFilters(loan, normalizedFilters));
 
-  // Build detailed rows with payment info
+  const creditSheets = [];
   const rows = await Promise.all(
     loans.map(async (loan) => {
       const payments = await paymentRepository.listByLoan(loan.id);
-      const snapshot = loanViewService.getSnapshot(loan);
-      const policySnapshot = resolvePolicySnapshot(loan);
+      const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
+      const customer = getLoanCustomer(loan);
 
-      const completedPayments = payments.filter((p) => p.status === 'completed');
-      const totalPaid = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-      const totalPrincipal = completedPayments.reduce((sum, p) => sum + Number(p.principalApplied || 0), 0);
-      const totalInterest = completedPayments.reduce((sum, p) => sum + Number(p.interestApplied || 0), 0);
-      const totalPenalty = completedPayments.reduce((sum, p) => sum + Number(p.penaltyApplied || 0), 0);
+      const completedPayments = payments.filter((payment) => payment.status === 'completed');
+      const totalPaid = completedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const totalPrincipal = completedPayments.reduce((sum, payment) => sum + Number(payment.principalApplied || 0), 0);
+      const totalInterest = completedPayments.reduce((sum, payment) => sum + Number(payment.interestApplied || 0), 0);
+      const totalPenalty = completedPayments.reduce((sum, payment) => sum + Number(payment.penaltyApplied || 0), 0);
+      const totalInterestGenerated = Number(snapshot.totalInterest || 0);
+      const totalPayable = Number(snapshot.totalPayable || 0);
+      const termMonths = Number(loan.termMonths || schedule.length || 0);
+      const percentagePaid = totalPayable > 0 ? totalPaid / totalPayable : 0;
+      const percentageCapitalPaid = Number(loan.amount || 0) > 0 ? totalPrincipal / Number(loan.amount || 0) : 0;
+      const percentageInterestPaid = totalInterestGenerated > 0 ? totalInterest / totalInterestGenerated : 0;
+      const profitPerMillion = Number(loan.amount || 0) > 0
+        ? (totalInterestGenerated / Number(loan.amount || 1)) * 1000000
+        : 0;
+      const lastPayment = [...completedPayments].sort((left, right) => (
+        new Date(right.paymentDate || right.createdAt) - new Date(left.paymentDate || left.createdAt)
+      ))[0];
 
-      return {
+      const detailRow = {
+        creditId: loan.id,
         loanId: loan.id,
         customerId: loan.customerId,
-        customerName: loan.Customer?.name || 'N/A',
-        customerEmail: loan.Customer?.email || 'N/A',
-        customerPhone: loan.Customer?.phone || 'N/A',
-        associateName: loan.Associate?.name || 'N/A',
+        customerName: customer?.name || 'N/A',
+        customerDocument: pickCustomerDocument(customer),
+        customerPhone: customer?.phone || 'N/A',
+        customerState: pickCustomerState(customer),
+        loanAmount: roundMoney(loan.amount),
         amount: formatMoney(loan.amount),
-        interestRate: loan.interestRate || 'N/A',
-        calculationMethod: loan.calculationMethod || loan.financialSnapshot?.calculationMethod || 'FRENCH',
-        dagGraphVersionId: loan.dagGraphVersionId || loan.graphVersionId || 'N/A',
-        ratePolicyId: loan.ratePolicyId || policySnapshot?.ratePolicyId || 'N/A',
-        ratePolicyLabel: policySnapshot?.ratePolicyLabel || policySnapshot?.ratePolicy?.label || 'N/A',
-        lateFeePolicyId: loan.lateFeePolicyId || policySnapshot?.lateFeePolicyId || 'N/A',
-        lateFeePolicyLabel: policySnapshot?.lateFeePolicyLabel || policySnapshot?.lateFeePolicy?.label || 'N/A',
-        installmentAmount: formatMoney(snapshot.installmentAmount),
-        termMonths: loan.termMonths || 'N/A',
+        totalAmount: roundMoney(totalPayable),
+        remainingAmount: roundMoney(snapshot.outstandingPrincipal),
+        totalBalance: roundMoney(snapshot.outstandingBalance),
+        tna: Number(loan.interestRate || 0),
+        years: termMonths > 0 ? roundMoney(termMonths / 12) : 0,
+        quota: roundMoney(snapshot.installmentAmount),
+        totalQuotas: schedule.length,
         status: loan.status || 'N/A',
+        creditStatus: loan.status || 'N/A',
         recoveryStatus: loan.recoveryStatus || 'N/A',
-        totalPaid: formatMoney(totalPaid),
-        totalPrincipal: formatMoney(totalPrincipal),
-        totalInterest: formatMoney(totalInterest),
-        totalPenalty: formatMoney(totalPenalty),
-        outstandingPrincipal: formatMoney(snapshot.outstandingPrincipal),
-        outstandingInterest: formatMoney(snapshot.outstandingInterest),
-        outstandingAmount: formatMoney(snapshot.outstandingBalance),
+        totalPaid: roundMoney(totalPaid),
+        totalCapitalPaid: roundMoney(totalPrincipal),
+        totalInterestPaid: roundMoney(totalInterest),
+        totalInterestGenerated: roundMoney(totalInterestGenerated),
+        totalLatePaymentInterest: roundMoney(totalPenalty),
         paymentCount: completedPayments.length,
-        startDate: formatIsoDate(loan.startDate),
-        createdAt: formatIsoDate(loan.createdAt),
-        approvedAt: formatIsoDate(loan.approvedAt),
-        closedAt: formatIsoDate(loan.closedAt),
+        percentagePaid: roundPercent(percentagePaid),
+        percentageCapitalPaid: roundPercent(percentageCapitalPaid),
+        percentageInterestPaid: roundPercent(percentageInterestPaid),
+        loanDate: toDateOnly(pickLoanDate(loan)),
+        nextPaymentDate: toDateOnly(snapshot.nextInstallment?.dueDate),
+        lastPaymentDate: toDateOnly(lastPayment?.paymentDate || lastPayment?.createdAt),
+        profitPerMillion: roundMoney(profitPerMillion),
       };
+
+      creditSheets.push({
+        name: `Crédito ${loan.id}`,
+        tabColor: STYLE_COLORS.yellow,
+        sections: buildCreditSections({ loan, detailRow, payments, schedule }),
+      });
+
+      return detailRow;
     }),
   );
 
+  const sheets = [
+    {
+      name: 'Resumen General',
+      title: 'REPORTE DE CRÉDITOS - RESUMEN GENERAL',
+      tabColor: STYLE_COLORS.blue,
+      headerFill: STYLE_COLORS.green,
+      columns: SUMMARY_COLUMNS,
+      rows: buildSummaryRows(rows),
+      autoFilter: false,
+    },
+    {
+      name: 'Detalle de Créditos',
+      tabColor: STYLE_COLORS.green,
+      headerFill: STYLE_COLORS.green,
+      columns: DETAIL_COLUMNS,
+      rows,
+      autoFilter: true,
+    },
+    ...creditSheets,
+  ];
+
   return {
     success: true,
-    data: { rows },
+    data: { rows, sheets },
   };
 };
 
