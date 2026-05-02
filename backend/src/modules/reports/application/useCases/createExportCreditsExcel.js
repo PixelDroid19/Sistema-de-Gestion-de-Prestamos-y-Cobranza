@@ -390,6 +390,7 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
     },
     {
       name: 'Detalle de Créditos',
+      title: 'DETALLE DE CRÉDITOS',
       tabColor: STYLE_COLORS.green,
       headerFill: STYLE_COLORS.green,
       columns: DETAIL_COLUMNS,
