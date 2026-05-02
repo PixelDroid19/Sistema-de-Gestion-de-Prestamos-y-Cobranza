@@ -1,15 +1,6 @@
 const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
-const formatIsoDate = (value) => {
-  if (!value) {
-    return 'N/A';
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
-};
-
 const toPlainLoan = (loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan);
 
 const toNumberOrNull = (value) => {
@@ -74,9 +65,16 @@ const matchesFilters = (loan, filters) => {
   return true;
 };
 
-const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
-const percentColumn = (header, key, width = 15) => ({ header, key, width, numFmt: '0.00%' });
-const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
+const MONEY_FORMAT = '"$" #,##0.00;[Red]-"$" #,##0.00;"-"';
+const PERCENT_FORMAT = '0.00%';
+const DATE_FORMAT = 'dd/mm/yyyy';
+const DATE_TIME_FORMAT = 'dd/mm/yyyy h:mm AM/PM';
+const INTEGER_FORMAT = '#,##0';
+const TNA_FORMAT = '0.00"%"';
+
+const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: MONEY_FORMAT });
+const percentColumn = (header, key, width = 15) => ({ header, key, width, numFmt: PERCENT_FORMAT });
+const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: DATE_FORMAT });
 
 const DETAIL_COLUMNS = [
   { header: 'ID Cliente', key: 'customerId', width: 12 },
@@ -90,16 +88,16 @@ const DETAIL_COLUMNS = [
   moneyColumn('Total con Interés', 'totalAmount'),
   moneyColumn('Saldo Pendiente', 'remainingAmount'),
   moneyColumn('Total a Cobrar', 'totalBalance'),
-  { header: 'TNA (%)', key: 'tna', width: 10 },
-  { header: 'Años', key: 'years', width: 8 },
+  { header: 'TNA (%)', key: 'tna', width: 10, numFmt: TNA_FORMAT },
+  { header: 'Años', key: 'years', width: 8, numFmt: '0.00' },
   moneyColumn('Cuota', 'quota', 15),
-  { header: 'Total Cuotas', key: 'totalQuotas', width: 12 },
+  { header: 'Total Cuotas', key: 'totalQuotas', width: 12, numFmt: INTEGER_FORMAT },
   moneyColumn('Total Pagado', 'totalPaid'),
   moneyColumn('Capital Pagado', 'totalCapitalPaid'),
   moneyColumn('Interés Pagado', 'totalInterestPaid'),
   moneyColumn('Interés Generado', 'totalInterestGenerated'),
   moneyColumn('Mora Acumulada', 'totalLatePaymentInterest'),
-  { header: 'Núm. Pagos', key: 'paymentCount', width: 12 },
+  { header: 'Núm. Pagos', key: 'paymentCount', width: 12, numFmt: INTEGER_FORMAT },
   percentColumn('% Pagado', 'percentagePaid'),
   percentColumn('% Capital Pagado', 'percentageCapitalPaid', 16),
   percentColumn('% Interés Pagado', 'percentageInterestPaid', 16),
@@ -116,7 +114,7 @@ const SUMMARY_COLUMNS = [
 ];
 
 const AMORTIZATION_COLUMNS = [
-  { header: 'Número de Cuota', key: 'installmentNumber', width: 18 },
+  { header: 'Número de Cuota', key: 'installmentNumber', width: 18, numFmt: INTEGER_FORMAT },
   moneyColumn('CUOTA A PAGAR', 'scheduledPayment'),
   moneyColumn('INTERÉS', 'interestComponent'),
   moneyColumn('CAPITAL AMORTIZADO', 'principalComponent', 22),
@@ -127,20 +125,20 @@ const PAYMENT_COLUMNS = [
   dateColumn('Fecha de Pago', 'paymentDate', 18),
   moneyColumn('Monto', 'amount'),
   { header: 'Tipo Pago', key: 'paymentType', width: 16 },
-  { header: 'Cuota #', key: 'installmentNumber', width: 10 },
+  { header: 'Cuota #', key: 'installmentNumber', width: 10, numFmt: INTEGER_FORMAT },
   { header: 'Método', key: 'paymentMethod', width: 18 },
 ];
 
 const roundPercent = (value) => Math.round(Number(value || 0) * 10000) / 10000;
 const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-const toDateOnly = (value) => {
+const toDateValue = (value) => {
   if (!value || value === 'N/A') {
     return '';
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? String(value) : date;
 };
 
 const getLoanCustomer = (loan) => loan?.Customer || loan?.customer || {};
@@ -165,6 +163,26 @@ const getPaymentMethod = (payment = {}) => (
   || payment.method
   || payment.paymentMethod
   || 'N/A'
+);
+
+const formattedRow = (row, formats = {}) => ({
+  ...row,
+  __formats: Object.entries(formats).reduce((acc, [key, numFmt]) => {
+    if (numFmt) {
+      acc[key] = { numFmt };
+    }
+    return acc;
+  }, {}),
+});
+
+const summaryRow = (section, indicator, value, valueFormat) => formattedRow(
+  { section, indicator, value },
+  { value: valueFormat },
+);
+
+const creditInfoRow = (campo, valor, valueFormat) => formattedRow(
+  { campo, valor },
+  { valor: valueFormat },
 );
 
 const buildSummaryRows = (rows) => {
@@ -192,49 +210,49 @@ const buildSummaryRows = (rows) => {
     : 0;
 
   return [
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Fecha de Generación', value: new Date().toLocaleString('es-CO') },
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Total de Clientes', value: totalCustomers },
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Total de Créditos', value: totalCredits },
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos Activos', value: activeCredits },
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos Finalizados', value: completedCredits },
-    { section: 'INFORMACIÓN GENERAL', indicator: 'Créditos en Mora', value: lateCredits },
-    { section: 'MONTOS TOTALES (SIN INTERESES)', indicator: 'Total Prestado (Capital)', value: totalLoanAmount },
-    { section: 'MONTOS TOTALES (SIN INTERESES)', indicator: 'Capital Pendiente', value: totalRemainingAmount },
-    { section: 'MONTOS TOTALES (CON INTERESES)', indicator: 'Total a Cobrar', value: totalAmountWithInterest },
-    { section: 'MONTOS TOTALES (CON INTERESES)', indicator: 'Saldo con Intereses', value: totalRemainingWithInterest },
-    { section: 'PAGOS TOTALES', indicator: 'Total Pagado', value: totalPaid },
-    { section: 'PAGOS TOTALES', indicator: 'Capital Pagado', value: totalCapitalPaid },
-    { section: 'PAGOS TOTALES', indicator: 'Intereses Pagados', value: totalInterestPaid },
-    { section: 'PAGOS TOTALES', indicator: 'Intereses por Mora', value: totalLatePaymentInterest },
-    { section: 'INTERESES PROYECTADOS', indicator: 'Interés Total Generado', value: totalInterestGenerated },
-    { section: 'INTERESES PROYECTADOS', indicator: 'Interés Pendiente', value: totalInterestPending },
-    { section: 'MÉTRICAS FINANCIERAS', indicator: 'TNA Promedio', value: `${averageTNA.toFixed(2)}%` },
-    { section: 'MÉTRICAS FINANCIERAS', indicator: 'Ganancia Promedio por Millón', value: averageProfitPerMillion },
-    { section: 'MÉTRICAS FINANCIERAS', indicator: 'Tasa de Recaudo', value: totalAmountWithInterest > 0 ? `${((totalPaid / totalAmountWithInterest) * 100).toFixed(2)}%` : '0.00%' },
-    { section: 'PORCENTAJES GLOBALES', indicator: '% Total Pagado', value: totalAmountWithInterest > 0 ? `${((totalPaid / totalAmountWithInterest) * 100).toFixed(2)}%` : '0.00%' },
-    { section: 'PORCENTAJES GLOBALES', indicator: '% Capital Recuperado', value: totalLoanAmount > 0 ? `${((totalCapitalPaid / totalLoanAmount) * 100).toFixed(2)}%` : '0.00%' },
-    { section: 'PORCENTAJES GLOBALES', indicator: '% Intereses Cobrados', value: totalInterestGenerated > 0 ? `${((totalInterestPaid / totalInterestGenerated) * 100).toFixed(2)}%` : '0.00%' },
+    summaryRow('INFORMACIÓN GENERAL', 'Fecha de Generación', new Date(), DATE_TIME_FORMAT),
+    summaryRow('INFORMACIÓN GENERAL', 'Total de Clientes', totalCustomers, INTEGER_FORMAT),
+    summaryRow('INFORMACIÓN GENERAL', 'Total de Créditos', totalCredits, INTEGER_FORMAT),
+    summaryRow('INFORMACIÓN GENERAL', 'Créditos Activos', activeCredits, INTEGER_FORMAT),
+    summaryRow('INFORMACIÓN GENERAL', 'Créditos Finalizados', completedCredits, INTEGER_FORMAT),
+    summaryRow('INFORMACIÓN GENERAL', 'Créditos en Mora', lateCredits, INTEGER_FORMAT),
+    summaryRow('MONTOS TOTALES (SIN INTERESES)', 'Total Prestado (Capital)', totalLoanAmount, MONEY_FORMAT),
+    summaryRow('MONTOS TOTALES (SIN INTERESES)', 'Capital Pendiente', totalRemainingAmount, MONEY_FORMAT),
+    summaryRow('MONTOS TOTALES (CON INTERESES)', 'Total a Cobrar', totalAmountWithInterest, MONEY_FORMAT),
+    summaryRow('MONTOS TOTALES (CON INTERESES)', 'Saldo con Intereses', totalRemainingWithInterest, MONEY_FORMAT),
+    summaryRow('PAGOS TOTALES', 'Total Pagado', totalPaid, MONEY_FORMAT),
+    summaryRow('PAGOS TOTALES', 'Capital Pagado', totalCapitalPaid, MONEY_FORMAT),
+    summaryRow('PAGOS TOTALES', 'Interés Pagado', totalInterestPaid, MONEY_FORMAT),
+    summaryRow('PAGOS TOTALES', 'Intereses por Mora', totalLatePaymentInterest, MONEY_FORMAT),
+    summaryRow('INTERESES PROYECTADOS', 'Interés Total Generado', totalInterestGenerated, MONEY_FORMAT),
+    summaryRow('INTERESES PROYECTADOS', 'Interés Pendiente', totalInterestPending, MONEY_FORMAT),
+    summaryRow('MÉTRICAS FINANCIERAS', 'TNA Promedio', averageTNA / 100, PERCENT_FORMAT),
+    summaryRow('MÉTRICAS FINANCIERAS', 'Ganancia Promedio por Millón', averageProfitPerMillion, MONEY_FORMAT),
+    summaryRow('MÉTRICAS FINANCIERAS', 'Tasa de Recaudo', totalAmountWithInterest > 0 ? totalPaid / totalAmountWithInterest : 0, PERCENT_FORMAT),
+    summaryRow('PORCENTAJES GLOBALES', '% Total Pagado', totalAmountWithInterest > 0 ? totalPaid / totalAmountWithInterest : 0, PERCENT_FORMAT),
+    summaryRow('PORCENTAJES GLOBALES', '% Capital Recuperado', totalLoanAmount > 0 ? totalCapitalPaid / totalLoanAmount : 0, PERCENT_FORMAT),
+    summaryRow('PORCENTAJES GLOBALES', '% Intereses Cobrados', totalInterestGenerated > 0 ? totalInterestPaid / totalInterestGenerated : 0, PERCENT_FORMAT),
   ];
 };
 
 const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
   const creditInfo = [
-    { campo: 'Cliente', valor: detailRow.customerName },
-    { campo: 'Documento', valor: detailRow.customerDocument },
-    { campo: 'Teléfono', valor: detailRow.customerPhone },
-    { campo: 'Estado Cliente', valor: detailRow.customerState },
-    { campo: 'Estado Crédito', valor: detailRow.creditStatus },
-    { campo: 'Monto Préstamo', valor: detailRow.loanAmount },
-    { campo: 'Total con Intereses', valor: detailRow.totalAmount },
-    { campo: 'Saldo Pendiente', valor: detailRow.remainingAmount },
-    { campo: 'Total Pagado', valor: detailRow.totalPaid },
-    { campo: 'Capital Pagado', valor: detailRow.totalCapitalPaid },
-    { campo: 'Interés Pagado', valor: detailRow.totalInterestPaid },
-    { campo: 'Interés Generado', valor: detailRow.totalInterestGenerated },
-    { campo: 'Mora Acumulada', valor: detailRow.totalLatePaymentInterest },
-    { campo: '% Total Pagado', valor: `${((detailRow.percentagePaid || 0) * 100).toFixed(2)}%` },
-    { campo: '% Capital Recuperado', valor: `${((detailRow.percentageCapitalPaid || 0) * 100).toFixed(2)}%` },
-    { campo: '% Interés Cobrado', valor: `${((detailRow.percentageInterestPaid || 0) * 100).toFixed(2)}%` },
+    creditInfoRow('Cliente', detailRow.customerName),
+    creditInfoRow('Documento', detailRow.customerDocument),
+    creditInfoRow('Teléfono', detailRow.customerPhone),
+    creditInfoRow('Estado Cliente', detailRow.customerState),
+    creditInfoRow('Estado Crédito', detailRow.creditStatus),
+    creditInfoRow('Monto Préstamo', detailRow.loanAmount, MONEY_FORMAT),
+    creditInfoRow('Total con Intereses', detailRow.totalAmount, MONEY_FORMAT),
+    creditInfoRow('Saldo Pendiente', detailRow.remainingAmount, MONEY_FORMAT),
+    creditInfoRow('Total Pagado', detailRow.totalPaid, MONEY_FORMAT),
+    creditInfoRow('Capital Pagado', detailRow.totalCapitalPaid, MONEY_FORMAT),
+    creditInfoRow('Interés Pagado', detailRow.totalInterestPaid, MONEY_FORMAT),
+    creditInfoRow('Interés Generado', detailRow.totalInterestGenerated, MONEY_FORMAT),
+    creditInfoRow('Mora Acumulada', detailRow.totalLatePaymentInterest, MONEY_FORMAT),
+    creditInfoRow('% Total Pagado', detailRow.percentagePaid || 0, PERCENT_FORMAT),
+    creditInfoRow('% Capital Recuperado', detailRow.percentageCapitalPaid || 0, PERCENT_FORMAT),
+    creditInfoRow('% Interés Cobrado', detailRow.percentageInterestPaid || 0, PERCENT_FORMAT),
   ];
 
   const amortizationRows = [
@@ -255,7 +273,7 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
   ];
 
   const paymentRows = payments.map((payment) => ({
-    paymentDate: formatIsoDate(payment.paymentDate || payment.paidAt || payment.createdAt),
+    paymentDate: toDateValue(payment.paymentDate || payment.paidAt || payment.createdAt),
     amount: roundMoney(payment.amount),
     paymentType: payment.paymentType || 'installment',
     installmentNumber: payment.installmentNumber || payment.paymentMetadata?.installmentNumber || '',
@@ -362,9 +380,9 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         percentagePaid: roundPercent(percentagePaid),
         percentageCapitalPaid: roundPercent(percentageCapitalPaid),
         percentageInterestPaid: roundPercent(percentageInterestPaid),
-        loanDate: toDateOnly(pickLoanDate(loan)),
-        nextPaymentDate: toDateOnly(snapshot.nextInstallment?.dueDate),
-        lastPaymentDate: toDateOnly(lastPayment?.paymentDate || lastPayment?.createdAt),
+        loanDate: toDateValue(pickLoanDate(loan)),
+        nextPaymentDate: toDateValue(snapshot.nextInstallment?.dueDate),
+        lastPaymentDate: toDateValue(lastPayment?.paymentDate || lastPayment?.createdAt),
         profitPerMillion: roundMoney(profitPerMillion),
       };
 

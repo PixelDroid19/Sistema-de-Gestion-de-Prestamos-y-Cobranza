@@ -67,6 +67,7 @@ vi.mock('../../services/paymentService', () => ({
 }));
 
 vi.mock('../../services/reportService', () => ({
+  exportCreditExcel: vi.fn(),
   useCreditReports: () => ({
     history: {
       data: {

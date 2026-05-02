@@ -561,6 +561,15 @@ export const exportCreditsExcel = async (filters: ReportContextualFilters = {}):
   });
 };
 
+export const exportCreditExcel = async (loanId: number): Promise<void> => {
+  await downloadBlobWithParams({
+    url: '/reports/credits/excel',
+    fileName: `reporte-credito-${loanId}.xlsx`,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    params: { loanId },
+  });
+};
+
 export const downloadCreditReport = async (loanId: number): Promise<void> => {
   await downloadBlob({
     url: `/reports/credit-history/loan/${loanId}/export?format=pdf`,
