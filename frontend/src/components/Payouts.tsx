@@ -39,7 +39,7 @@ export default function Payouts() {
     loanId: '',
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
-    method: 'cash'
+    paymentMethod: 'cash'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingPayment, setEditingPayment] = useState<any | null>(null);
@@ -112,12 +112,12 @@ export default function Payouts() {
   }, [firstExecutablePayoutType, paymentType, payoutTypeOptions]);
 
   useEffect(() => {
-    const configuredMethod = paymentMethodOptions.some((method) => method.value === formData.method);
+    const configuredMethod = paymentMethodOptions.some((method) => method.value === formData.paymentMethod);
 
     if (!configuredMethod) {
-      setFormData((current) => ({ ...current, method: defaultPaymentMethod }));
+      setFormData((current) => ({ ...current, paymentMethod: defaultPaymentMethod }));
     }
-  }, [defaultPaymentMethod, formData.method, paymentMethodOptions]);
+  }, [defaultPaymentMethod, formData.paymentMethod, paymentMethodOptions]);
 
   useEffect(() => {
     const visiblePaymentIds = new Set(
@@ -156,8 +156,6 @@ export default function Payouts() {
   const formatPaymentMethod = (payment: any) => {
     const rawMethod = String(
       payment?.paymentMethod
-      || payment?.paymentMetadata?.method
-      || payment?.method
       || '',
     ).trim().toLowerCase();
 
@@ -226,7 +224,7 @@ export default function Payouts() {
       return;
     }
 
-    const normalizedMethod = String(payment?.paymentMethod || payment?.method || defaultPaymentMethod).toLowerCase();
+    const normalizedMethod = String(payment?.paymentMethod || defaultPaymentMethod).toLowerCase();
     const hasMethod = paymentMethodOptions.some((method) => method.value === normalizedMethod);
     setEditedMethod((hasMethod ? normalizedMethod : defaultPaymentMethod) as PaymentMethod);
     setEditedReference(payment?.paymentMetadata?.reference || '');
@@ -326,7 +324,7 @@ export default function Payouts() {
       loanId,
       amount,
       paymentDate: new Date(formData.paymentDate).toISOString(),
-      paymentMethod: formData.method,
+      paymentMethod: formData.paymentMethod,
       ...(paymentType === 'capital' ? { strategy: capitalStrategy } : {}),
     };
 
@@ -344,7 +342,7 @@ export default function Payouts() {
       },
       onSuccess: () => {
         setShowPaymentModal(false);
-        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], method: defaultPaymentMethod });
+        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultPaymentMethod });
       },
       successMessage: tTerm('payouts.toast.register.success'),
     });
@@ -367,7 +365,7 @@ export default function Payouts() {
       setPaymentType(firstExecutablePayoutType.value);
     }
 
-    setFormData((current) => ({ ...current, method: defaultPaymentMethod }));
+    setFormData((current) => ({ ...current, paymentMethod: defaultPaymentMethod }));
     setShowPaymentModal(true);
   };
 
@@ -639,8 +637,8 @@ export default function Payouts() {
                 <label htmlFor="payout-method" className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
                 <select 
                   id="payout-method"
-                  value={formData.method}
-                  onChange={(e) => setFormData({...formData, method: e.target.value})}
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
                   {paymentMethodOptions.map((method) => (

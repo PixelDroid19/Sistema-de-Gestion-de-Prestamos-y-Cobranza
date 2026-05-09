@@ -14,15 +14,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
-import { getFormulaValueLabel } from '../../lib/formulaDisplay';
-import type { SimulationInput, SimulationResult } from '../../types/dag';
+import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
+import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { HelpTooltip } from './HelpSupport';
 
 type SavedScenario = {
   id: string;
   name: string;
-  input: SimulationInput;
-  result: SimulationResult;
+  input: CreditCalculationInput;
+  result: CreditCalculationResult;
   createdAt: Date;
 };
 
@@ -30,13 +30,13 @@ type CreditSimulationWorkspaceProps = {
   title: string;
   description: string;
   modeLabel: string;
-  input: SimulationInput;
-  result: SimulationResult | null;
+  input: CreditCalculationInput;
+  result: CreditCalculationResult | null;
   isSimulating: boolean;
   error: string | null;
   fieldErrors?: Record<string, string>;
   isResultStale?: boolean;
-  onInputChange: (input: Partial<SimulationInput>) => void;
+  onInputChange: (input: Partial<CreditCalculationInput>) => void;
   onSimulate: () => void;
   onReset?: () => void;
   disabled?: boolean;
@@ -54,7 +54,7 @@ type CreditSimulationWorkspaceProps = {
   emptyDescription?: string;
 };
 
-const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMode']>; label: string; helper: string }> = [
+const lateFeeModeOptions: Array<{ value: NonNullable<CreditCalculationInput['lateFeeMode']>; label: string; helper: string }> = [
   { value: 'NONE', label: 'Sin mora', helper: 'No aplica recargo.' },
   { value: 'SIMPLE', label: 'Interés simple', helper: 'Recomendado para cobranza clara.' },
   { value: 'COMPOUND', label: 'Interés compuesto', helper: 'Capitaliza recargos.' },
@@ -62,12 +62,12 @@ const lateFeeModeOptions: Array<{ value: NonNullable<SimulationInput['lateFeeMod
   { value: 'TIERED', label: 'Escalonado', helper: 'Tramos por días vencidos.' },
 ];
 
-const formatLateFeeModeLabel = (value?: SimulationInput['lateFeeMode']) => {
+const formatLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) => {
   const selectedOption = lateFeeModeOptions.find((option) => option.value === (value || 'SIMPLE'));
   return selectedOption?.label || 'Interés simple';
 };
 
-const lateFeeModeDescriptions: Record<NonNullable<SimulationInput['lateFeeMode']>, string> = {
+const lateFeeModeDescriptions: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, string> = {
   NONE: 'No cobra recargo por atraso.',
   SIMPLE: 'Cobra sobre cuota vencida, sin mora sobre mora.',
   COMPOUND: 'Capitaliza recargos vencidos; úsalo solo con política aprobada.',
@@ -108,8 +108,8 @@ const formatScheduleStatus = (status?: string) => {
   return status || '-';
 };
 
-const formatCalculationMethod = (value?: SimulationResult['calculationMethod']) => (
-  getFormulaValueLabel(value || 'FRENCH', 'calculationMethod')
+const formatCalculationMethod = (value?: CreditCalculationResult['method']) => (
+  getCalculationValueLabel(value || 'FRENCH', 'method')
 );
 
 const getDefaultScenarioName = (savedScenariosCount: number) => `Escenario ${savedScenariosCount + 1}`;
@@ -149,7 +149,7 @@ export default function CreditSimulationWorkspace({
   helperText,
   resultBadge,
   validationStatus,
-  actionLabel = tTerm('dag.actions.simulate'),
+  actionLabel = tTerm('simulator.form.simulate'),
   simulateButtonDataTour,
   hideHeaderActions = false,
   emptyTitle = 'Sin resultados todavía',
@@ -236,7 +236,7 @@ export default function CreditSimulationWorkspace({
     });
   };
 
-  const handleFieldChange = (field: keyof SimulationInput) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleFieldChange = (field: keyof CreditCalculationInput) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const nextValue = event.target.value;
 
     if (field === 'lateFeeMode' || field === 'startDate') {
@@ -461,7 +461,7 @@ export default function CreditSimulationWorkspace({
                       <select
                         id={lateFeeInputId}
                         value={input.lateFeeMode || 'SIMPLE'}
-                        onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<SimulationInput['lateFeeMode']> })}
+                        onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<CreditCalculationInput['lateFeeMode']> })}
                         disabled={disabled}
                         className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -646,7 +646,7 @@ export default function CreditSimulationWorkspace({
                 {result && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(result.calculationMethod)}
+                      Método: {formatCalculationMethod(result.method)}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
                       Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
@@ -698,10 +698,10 @@ export default function CreditSimulationWorkspace({
                 {result && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Fórmula: {result.graphVersionId != null ? `v${result.graphVersionId}` : 'Activa sin versión visible'}
+                      Perfil: {result.calculationProfileVersionId != null ? `v${result.calculationProfileVersionId}` : 'Activo sin version visible'}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(result.calculationMethod)}
+                      Método: {formatCalculationMethod(result.method)}
                     </div>
                   </div>
                 )}

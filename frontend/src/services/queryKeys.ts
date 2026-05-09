@@ -65,7 +65,6 @@ export const queryKeys = {
     all: ['loans'] as const,
     listRoot: ['loans.list'] as const,
     list: (params?: LoanListParams) => ['loans.list', params ?? {}] as const,
-    workbenchScopes: ['loans.workbench.scopes'] as const,
     detail: (loanId: number) => ['loans.detail', loanId] as const,
     calendar: (loanId: number) => ['loans.calendar', loanId] as const,
     installmentQuote: (loanId: number, installmentNumber: number | null, asOfDate: string) =>
@@ -76,8 +75,6 @@ export const queryKeys = {
     statistics: ['loans.statistics'] as const,
     duePayments: (date: string) => ['loans.duePayments', date] as const,
     calculation: (params: { amount: number; interestRate: number; termMonths: number }) =>
-      ['loans.calculation', params] as const,
-    simulation: (params: { amount: number; interestRate: number; termMonths: number }) =>
       ['loans.calculation', params] as const,
   },
   payments: {
@@ -118,15 +115,5 @@ export const queryKeys = {
   },
   timeline: {
     loan: (loanId: number) => ['loans.timeline', loanId] as const,
-  },
-  dag: {
-    graphs: (scopeKey: string) => ['dag.graphs', scopeKey] as const,
-    history: (graphId: number) => ['dag.history', graphId] as const,
-    diff: (graphId: number, compareToGraphId: number) => ['dag.diff', graphId, compareToGraphId] as const,
-  },
-  variables: {
-    all: ['variables'] as const,
-    list: (params?: object) => ['variables.list', params ?? {}] as const,
-    detail: (id: number) => ['variables.detail', id] as const,
   },
 };

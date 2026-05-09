@@ -12,7 +12,7 @@ import {
   DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
   useActiveCreditSimulation,
 } from './hooks/useActiveCreditSimulation';
-import type { SimulationInput } from '../types/dag';
+import type { CreditCalculationInput } from '../types/creditCalculation';
 import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -28,7 +28,7 @@ const addMonthsAsIsoDate = (date: Date, months: number) => {
 const nextMonthAsIsoDate = () => addMonthsAsIsoDate(new Date(), 1);
 
 type NewCreditLocationState = {
-  simulationInput?: Partial<SimulationInput>;
+  calculationInput?: Partial<CreditCalculationInput>;
   source?: 'credit-calculator';
 };
 
@@ -69,26 +69,26 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     customerId: '',
     associateId: '',
   });
-  const [rateWasEdited, setRateWasEdited] = useState(Boolean(routeState?.simulationInput?.interestRate));
-  const [lateFeeWasEdited, setLateFeeWasEdited] = useState(Boolean(routeState?.simulationInput?.lateFeeMode));
-  const initialSimulationInput = useMemo<SimulationInput>(() => ({
+  const [rateWasEdited, setRateWasEdited] = useState(Boolean(routeState?.calculationInput?.interestRate));
+  const [lateFeeWasEdited, setLateFeeWasEdited] = useState(Boolean(routeState?.calculationInput?.lateFeeMode));
+  const initialCalculationInput = useMemo<CreditCalculationInput>(() => ({
     ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-    ...routeState?.simulationInput,
-    startDate: routeState?.simulationInput?.startDate || nextMonthAsIsoDate(),
-  }), [routeState?.simulationInput]);
+    ...routeState?.calculationInput,
+    startDate: routeState?.calculationInput?.startDate || nextMonthAsIsoDate(),
+  }), [routeState?.calculationInput]);
 
   const {
     input,
     result,
-    error: simulationError,
-    fieldErrors: simulationFieldErrors,
+    error: calculationError,
+    fieldErrors: calculationFieldErrors,
     isSimulating,
     isResultStale,
     setInput,
     simulate,
   } = useActiveCreditSimulation({
-    initialInput: initialSimulationInput,
-    autoRun: Boolean(routeState?.simulationInput),
+    initialInput: initialCalculationInput,
+    autoRun: Boolean(routeState?.calculationInput),
   });
 
   const resolvedRatePolicy = useMemo<any>(() => {
@@ -111,7 +111,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   ), [lateFeePolicies]);
 
   useEffect(() => {
-    const nextInput: Partial<SimulationInput> = {};
+    const nextInput: Partial<CreditCalculationInput> = {};
 
     if (!rateWasEdited && resolvedRatePolicy?.annualEffectiveRate != null) {
       nextInput.interestRate = Number(resolvedRatePolicy.annualEffectiveRate);
@@ -119,7 +119,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     }
 
     if (!lateFeeWasEdited && resolvedLateFeePolicy?.lateFeeMode) {
-      nextInput.lateFeeMode = String(resolvedLateFeePolicy.lateFeeMode) as SimulationInput['lateFeeMode'];
+      nextInput.lateFeeMode = String(resolvedLateFeePolicy.lateFeeMode) as CreditCalculationInput['lateFeeMode'];
       nextInput.annualLateFeeRate = Number(resolvedLateFeePolicy.annualEffectiveRate || 0);
       nextInput.lateFeeSource = 'policy';
     }
@@ -150,7 +150,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     });
   };
 
-  const handleSimulationInputChange = (partialInput: Partial<SimulationInput>) => {
+  const handleCalculationInputChange = (partialInput: Partial<CreditCalculationInput>) => {
     if (Object.prototype.hasOwnProperty.call(partialInput, 'interestRate')) {
       setRateWasEdited(true);
       partialInput.rateSource = 'manual';
@@ -162,7 +162,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     setInput(partialInput);
   };
 
-  const resetSimulation = () => {
+  const resetCalculation = () => {
     setRateWasEdited(false);
     setLateFeeWasEdited(false);
     setInput({
@@ -186,7 +186,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     if (!hasValidatedResult) {
       toast.warning({
         title: 'Valida el crédito',
-        description: 'Ejecuta la validación con la fórmula activa antes de registrar el crédito real.',
+        description: 'Ejecuta la validación con el perfil de cálculo activo antes de registrar el crédito real.',
       });
       return;
     }
@@ -206,7 +206,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
-      const versionLabel = result?.graphVersionId != null ? ` fórmula v${result.graphVersionId}` : ' fórmula activa';
+      const versionLabel = result?.calculationProfileVersionId != null ? ` perfil v${result.calculationProfileVersionId}` : ' perfil activo';
       toast.success({ description: `Crédito registrado con${versionLabel}.` });
 
       if (Number.isFinite(createdLoanId) && createdLoanId > 0) {
@@ -251,7 +251,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <div className="min-w-0" data-tour="new-credit-header">
             <h2 className="text-3xl font-bold tracking-tight text-text-primary">Nuevo crédito</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
-              Selecciona el cliente, valida la fórmula activa y registra el crédito real con el mismo cálculo que se usará en producción.
+              Selecciona el cliente, valida el perfil de cálculo activo y registra el crédito real con el mismo cálculo que se usará en producción.
             </p>
           </div>
         </div>
@@ -389,27 +389,27 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       <section data-tour="new-credit-simulation">
         <CreditSimulationWorkspace
         title="Simulación y cronograma"
-        description="Ajusta capital, tasa, plazo y fecha. La validación usa la fórmula activa; al registrar, el crédito queda guardado con esa versión exacta."
+        description="Ajusta capital, tasa, plazo y fecha. La validación usa el perfil de cálculo activo; al registrar, el crédito queda guardado con esa versión exacta."
         modeLabel="Creación real"
         actionLabel="Validar crédito"
         input={input}
         result={result}
         isSimulating={isSimulating}
-        error={simulationError}
-        fieldErrors={simulationFieldErrors}
+        error={calculationError}
+        fieldErrors={calculationFieldErrors}
         isResultStale={isResultStale}
         onSimulate={simulate}
-        onInputChange={handleSimulationInputChange}
-        onReset={resetSimulation}
+        onInputChange={handleCalculationInputChange}
+        onReset={resetCalculation}
         showScenarioTools={false}
         hideHeaderActions
         helperText="La validación no crea el crédito. Revisa la cuota, el total a pagar y el cronograma antes de registrar."
-        resultBadge={result?.graphVersionId != null ? `Fórmula v${result.graphVersionId}` : null}
+        resultBadge={result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : null}
         validationStatus={result ? {
           valid: !isResultStale,
           message: isResultStale
             ? 'Cambiaste parámetros después de validar. Ejecuta la validación otra vez antes de registrar.'
-            : 'Listo para registrar: el crédito se creará con la fórmula activa y conservará esta versión.',
+            : 'Listo para registrar: el crédito se creará con el perfil activo y conservará esta versión.',
         } : null}
         emptyTitle="Valida antes de registrar"
         emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
@@ -423,7 +423,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={resetSimulation}
+              onClick={resetCalculation}
               disabled={isSimulating}
               aria-label="Restablecer parámetros"
               title="Limpia los parametros editados y vuelve a los valores base de la simulacion."
@@ -448,7 +448,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               disabled={!canRegister}
               data-tour="new-credit-submit"
               aria-label="Registrar crédito"
-              title={canRegister ? 'Crea el crédito real con la fórmula activa validada.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
+              title={canRegister ? 'Crea el crédito real con el perfil activo validado.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}

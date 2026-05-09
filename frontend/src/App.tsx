@@ -31,10 +31,6 @@ const AuditLogPage = React.lazy(() => import('./components/AuditLogPage'));
 const NewAssociate = React.lazy(() => import('./components/NewAssociate'));
 const CreditSimulator = React.lazy(() => import('./components/CreditSimulator'));
 const PaymentSchedule = React.lazy(() => import('./components/PaymentSchedule'));
-const DashboardPage = React.lazy(() => import('./components/DashboardPage'));
-const FormulaEditorPage = React.lazy(() => import('./components/FormulaEditorPage'));
-const AuditHistoryPage = React.lazy(() => import('./components/AuditHistoryPage'));
-const VariablesRegistryPage = React.lazy(() => import('./components/VariablesRegistryPage'));
 
 
 function RouteLoadingFallback() {
@@ -42,7 +38,7 @@ function RouteLoadingFallback() {
     <div className="flex min-h-[240px] items-center justify-center">
       <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
-        Cargando módulo...
+        Cargando modulo...
       </div>
     </div>
   );
@@ -122,11 +118,6 @@ function MainLayout() {
               <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><AuditLogPage /></ProtectedRoute>} />
-              <Route path="/formulas" element={<ProtectedRoute allowedRoles={['admin']}><DashboardPage /></ProtectedRoute>} />
-              <Route path="/formulas/new" element={<ProtectedRoute allowedRoles={['admin']}><FormulaEditorPage /></ProtectedRoute>} />
-              <Route path="/formulas/:id" element={<ProtectedRoute allowedRoles={['admin']}><FormulaEditorPage /></ProtectedRoute>} />
-              <Route path="/formulas/variables" element={<ProtectedRoute allowedRoles={['admin']}><VariablesRegistryPage /></ProtectedRoute>} />
-              <Route path="/audit/:id" element={<ProtectedRoute allowedRoles={['admin']}><AuditHistoryPage /></ProtectedRoute>} />
               <Route path="*" element={<RoleHomeRedirect />} />
             </Routes>
           </React.Suspense>

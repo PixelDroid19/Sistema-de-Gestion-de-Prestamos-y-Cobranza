@@ -12,9 +12,7 @@ const ProfitDistribution = require('./ProfitDistribution');
 const IdempotencyKey = require('./IdempotencyKey');
 const Notification = require('./Notification');
 const PushSubscription = require('./PushSubscription');
-const DagGraphVersion = require('./DagGraphVersion');
-const DagSimulationSummary = require('./DagSimulationSummary');
-const DagVariable = require('./DagVariable');
+const CalculationProfileVersion = require('./CalculationProfileVersion');
 const FinancialProduct = require('./FinancialProduct');
 const OutboxEvent = require('./OutboxEvent');
 const ConfigEntry = require('./ConfigEntry');
@@ -67,17 +65,12 @@ User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications', onDelete
 PushSubscription.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 User.hasMany(PushSubscription, { foreignKey: 'userId', as: 'pushSubscriptions', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 
-DagGraphVersion.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
-User.hasMany(DagGraphVersion, { foreignKey: 'createdByUserId', as: 'dagGraphsCreated', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
-DagSimulationSummary.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
-User.hasMany(DagSimulationSummary, { foreignKey: 'createdByUserId', as: 'dagSummariesCreated', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+CalculationProfileVersion.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+User.hasMany(CalculationProfileVersion, { foreignKey: 'createdByUserId', as: 'calculationProfilesCreated', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
-DagSimulationSummary.belongsTo(DagGraphVersion, { foreignKey: 'graphVersionId', as: 'graphVersion', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-DagGraphVersion.hasMany(DagSimulationSummary, { foreignKey: 'graphVersionId', as: 'simulationSummaries', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-
-Loan.belongsTo(DagGraphVersion, { foreignKey: 'dagGraphVersionId', as: 'dagGraph', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
-DagGraphVersion.hasMany(Loan, { foreignKey: 'dagGraphVersionId', as: 'loans', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+Loan.belongsTo(CalculationProfileVersion, { foreignKey: 'calculationProfileVersionId', as: 'calculationProfile', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+CalculationProfileVersion.hasMany(Loan, { foreignKey: 'calculationProfileVersionId', as: 'loans', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
 AssociateContribution.belongsTo(Associate, { foreignKey: 'associateId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Associate.hasMany(AssociateContribution, { foreignKey: 'associateId', as: 'contributions', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
@@ -139,9 +132,7 @@ module.exports = {
   IdempotencyKey,
   Notification,
   PushSubscription,
-  DagGraphVersion,
-  DagSimulationSummary,
-  DagVariable,
+  CalculationProfileVersion,
   FinancialProduct,
   OutboxEvent,
   ConfigEntry,

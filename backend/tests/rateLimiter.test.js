@@ -80,6 +80,74 @@ test('createSqlRateLimiter uses canonical keyPrefix column names and reads selec
   }
 });
 
+test('createSqlRateLimiter falls back to in-memory limiting when SQL becomes unavailable', async () => {
+  const originalTransaction = sequelize.transaction;
+  const originalConsoleError = console.error;
+  let failSql = true;
+  const capturedLogs = [];
+
+  sequelize.transaction = async () => {
+    if (failSql) {
+      throw new Error('db down');
+    }
+    return { allowed: true, remaining: 0 };
+  };
+  console.error = (...args) => {
+    capturedLogs.push(args.join(' '));
+  };
+
+  try {
+    const limiter = createSqlRateLimiter({
+      windowMs: 60_000,
+      max: 1,
+      keyPrefix: 'auth',
+      message: 'Rate limit reached',
+    });
+
+    const createRes = () => ({
+      statusCode: null,
+      payload: null,
+      headers: {},
+      set(name, value) {
+        this.headers[name] = value;
+      },
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(body) {
+        this.payload = body;
+        return this;
+      },
+    });
+
+    let firstNextCalled = false;
+    await limiter(
+      { ip: '127.0.0.1', headers: {}, body: { email: 'same@example.com' } },
+      createRes(),
+      () => { firstNextCalled = true; }
+    );
+    assert.equal(firstNextCalled, true);
+
+    const blockedRes = createRes();
+    let secondNextCalled = false;
+    await limiter(
+      { ip: '127.0.0.1', headers: {}, body: { email: 'same@example.com' } },
+      blockedRes,
+      () => { secondNextCalled = true; }
+    );
+
+    assert.equal(secondNextCalled, false);
+    assert.equal(blockedRes.statusCode, 429);
+    assert.equal(blockedRes.payload?.code, 'TOO_MANY_REQUESTS');
+    assert.equal(capturedLogs.some((log) => log.includes('falling back to in-memory limiter')), true);
+  } finally {
+    failSql = false;
+    sequelize.transaction = originalTransaction;
+    console.error = originalConsoleError;
+  }
+});
+
 test('buildRateLimitIdentifier uses first forwarded IP when present', () => {
   assert.equal(
     resolveClientIp({

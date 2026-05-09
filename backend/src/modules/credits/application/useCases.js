@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const { IdempotencyKey } = require('@/models');
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const { roundCurrency, calculateLateFee } = require('./creditFormulaHelpers');
 const { paginateArray } = require('@/modules/shared/pagination');
@@ -24,6 +26,34 @@ const JPEG_SIGNATURE_PREFIX = Buffer.from([0xff, 0xd8, 0xff]);
 const WEBP_SIGNATURE_RIFF = Buffer.from([0x52, 0x49, 0x46, 0x46]);
 const WEBP_SIGNATURE_WEBP = Buffer.from([0x57, 0x45, 0x42, 0x50]);
 const PDF_SIGNATURE = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
+const LOAN_CREATION_IDEMPOTENCY_SCOPE = 'loan_creation';
+const IDEMPOTENCY_WAIT_BASE_MS = 50;
+
+class PendingIdempotencyError extends Error {}
+
+const stringifyStable = (value) => {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stringifyStable(entry)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stringifyStable(value[key])}`).join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+};
+
+const hashPayload = (payload) => crypto
+  .createHash('sha256')
+  .update(stringifyStable(payload))
+  .digest('hex');
+
+const toPlainJson = (value) => {
+  const plainValue = typeof value?.toJSON === 'function' ? value.toJSON() : value;
+  return JSON.parse(JSON.stringify(plainValue, (_key, nestedValue) => (
+    typeof nestedValue === 'function' ? undefined : nestedValue
+  )));
+};
 
 const startsWithSignature = (buffer, signature) => (
   Buffer.isBuffer(buffer) && buffer.length >= signature.length && buffer.subarray(0, signature.length).equals(signature)
@@ -628,120 +658,10 @@ const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor
  * @returns {Function}
  */
 const createCreateCreditCalculation = ({ creditDomainService }) => async (payload) => {
-  if (typeof creditDomainService.calculate === 'function') {
-    return creditDomainService.calculate(payload);
+  if (!creditDomainService || typeof creditDomainService.calculate !== 'function') {
+    throw new Error('creditDomainService.calculate is required');
   }
-  return creditDomainService.simulate(payload);
-};
-
-const createCreateSimulation = createCreateCreditCalculation;
-
-const createListDagWorkbenchScopes = ({ dagWorkbenchService }) => async ({ actor }) => dagWorkbenchService.listScopes({ actor });
-
-const createLoadDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.loadGraph({ actor, scopeKey });
-
-const createSaveDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, name, graph }) => dagWorkbenchService.saveGraph({ actor, scopeKey, name, graph });
-
-const createValidateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph }) => dagWorkbenchService.validateGraph({ actor, scopeKey, graph });
-
-const createCalculateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, scopeKey, graph, calculationInput, simulationInput }) => dagWorkbenchService.calculateGraph({
-  actor,
-  scopeKey,
-  graph,
-  calculationInput,
-  simulationInput,
-});
-
-const createSimulateDagWorkbenchGraph = createCalculateDagWorkbenchGraph;
-
-const createGetDagWorkbenchSummary = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.getSummary({ actor, scopeKey });
-
-const createListDagWorkbenchGraphs = ({ dagWorkbenchService }) => async ({ actor, scopeKey }) => dagWorkbenchService.listGraphs({ actor, scopeKey });
-
-const createGetDagWorkbenchGraphDetails = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.getGraphDetails({ actor, graphId });
-
-const createActivateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.activateGraph({ actor, graphId });
-
-const createDeactivateDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.deactivateGraph({ actor, graphId });
-
-const createDeleteDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.deleteGraph({ actor, graphId });
-
-const createGetDagWorkbenchGraphHistory = ({ dagWorkbenchService }) => async ({ actor, graphId }) => dagWorkbenchService.getGraphHistory({ actor, graphId });
-
-const createGetDagWorkbenchGraphDiff = ({ dagWorkbenchService }) => async ({
-  actor,
-  graphId,
-  compareToGraphId,
-  compareToVersionId,
-}) => dagWorkbenchService.getGraphDiff({
-  actor,
-  graphId,
-  compareToGraphId,
-  compareToVersionId,
-});
-
-const createRestoreDagWorkbenchGraph = ({ dagWorkbenchService }) => async ({ actor, graphId, commitMessage }) => dagWorkbenchService.restoreGraph({ actor, graphId, commitMessage });
-
-const createListDagVariables = ({ dagVariableRepository, dagGraphRepository }) => async ({ filters = {}, pagination }) => {
-  const result = await dagVariableRepository.list({ ...filters, ...pagination });
-  const variables = result.items || result || [];
-
-  if (!dagGraphRepository || typeof dagGraphRepository.getVariableUsage !== 'function') {
-    return result;
-  }
-
-  const enrichedItems = await Promise.all(variables.map(async (variable) => ({
-    ...(typeof variable?.toJSON === 'function' ? variable.toJSON() : variable),
-    usage: await dagGraphRepository.getVariableUsage(variable.name),
-  })));
-
-  if (result.items) {
-    return { ...result, items: enrichedItems };
-  }
-
-  return enrichedItems;
-};
-
-const createCreateDagVariable = ({ dagVariableRepository }) => async ({ actor, payload }) => {
-  const existing = await dagVariableRepository.findByName(payload.name);
-  if (existing) {
-    const error = new ValidationError('Variable name already exists');
-    error.statusCode = 409;
-    throw error;
-  }
-  return dagVariableRepository.create({
-    ...payload,
-    createdByUserId: actor.id,
-  });
-};
-
-const createUpdateDagVariable = ({ dagVariableRepository }) => async ({ id, payload }) => {
-  if (payload.name) {
-    const existing = await dagVariableRepository.findByName(payload.name);
-    if (existing && existing.id !== Number(id)) {
-      const error = new ValidationError('Variable name already exists');
-      error.statusCode = 409;
-      throw error;
-    }
-  }
-  return dagVariableRepository.update(id, payload);
-};
-
-const createDeleteDagVariable = ({ dagVariableRepository, dagGraphRepository }) => async ({ id }) => {
-  const variable = await dagVariableRepository.findById(id);
-  if (!variable) {
-    throw new NotFoundError('Variable');
-  }
-  if (dagGraphRepository && typeof dagGraphRepository.getVariableUsage === 'function') {
-    const usage = await dagGraphRepository.getVariableUsage(variable.name);
-    if (usage?.isReferencedByProtectedGraph) {
-      throw new ValidationError('Variable is used by an active or locked formula and cannot be deleted');
-    }
-  }
-  if (!['idle', 'deprecated'].includes(variable.status)) {
-    throw new ValidationError('Only idle or retired variables can be deleted');
-  }
-  return dagVariableRepository.delete(id);
+  return creditDomainService.calculate(payload);
 };
 
 /**
@@ -793,18 +713,167 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }
   };
 };
 
+const validateLoanCreationIdempotencyKey = (idempotencyKey) => {
+  if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+    throw new ValidationError('Idempotency-Key header is required for loan creation');
+  }
+
+  const normalizedKey = idempotencyKey.trim();
+  if (normalizedKey.length < 8 || normalizedKey.length > 160) {
+    throw new ValidationError('Idempotency-Key header must be between 8 and 160 characters');
+  }
+
+  return normalizedKey;
+};
+
+const assertSameLoanCreationRequest = (record, requestHash) => {
+  if (record?.requestHash && record.requestHash !== requestHash) {
+    throw new ValidationError('Idempotency key was already used with a different loan creation request');
+  }
+};
+
+const buildLoanCreationRequestHash = ({ actor, payload }) => hashPayload({
+  actorId: Number(actor?.id || 0),
+  actorRole: actor?.role || null,
+  payload,
+});
+
+const buildLoanCreationCachePayload = (loan) => ({
+  loan: toPlainJson(loan),
+});
+
+const waitForCompletedLoanCreationKey = async ({
+  idempotencyKeyModel,
+  idempotencyKey,
+  requestHash,
+}) => {
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    const record = await idempotencyKeyModel.findOne({
+      where: { scope: LOAN_CREATION_IDEMPOTENCY_SCOPE, idempotencyKey },
+    });
+
+    assertSameLoanCreationRequest(record, requestHash);
+
+    if (record?.status === 'completed') {
+      return {
+        ...record.responsePayload.loan,
+        idempotent: true,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_WAIT_BASE_MS * attempt));
+  }
+
+  throw new ValidationError('Loan creation with this idempotency key is currently being processed');
+};
+
+const runLoanCreationWithIdempotency = async ({
+  actor,
+  payload,
+  idempotencyKey,
+  idempotencyKeyModel,
+  operation,
+}) => {
+  const normalizedKey = validateLoanCreationIdempotencyKey(idempotencyKey);
+  const requestHash = buildLoanCreationRequestHash({ actor, payload });
+  const actorId = Number(actor?.id || 0);
+
+  try {
+    const existingKey = await idempotencyKeyModel.findOne({
+      where: { scope: LOAN_CREATION_IDEMPOTENCY_SCOPE, idempotencyKey: normalizedKey },
+    });
+
+    assertSameLoanCreationRequest(existingKey, requestHash);
+
+    if (existingKey?.status === 'completed') {
+      return {
+        ...existingKey.responsePayload.loan,
+        idempotent: true,
+      };
+    }
+
+    if (existingKey?.status === 'pending') {
+      throw new PendingIdempotencyError('Loan creation with this idempotency key is currently being processed');
+    }
+
+    if (existingKey) {
+      await existingKey.update({
+        createdByUserId: actorId,
+        requestHash,
+        responsePayload: {},
+        status: 'pending',
+      });
+    } else {
+      try {
+        await idempotencyKeyModel.create({
+          scope: LOAN_CREATION_IDEMPOTENCY_SCOPE,
+          idempotencyKey: normalizedKey,
+          createdByUserId: actorId,
+          requestHash,
+          responsePayload: {},
+          status: 'pending',
+        });
+      } catch (error) {
+        if (error.name !== 'SequelizeUniqueConstraintError') {
+          throw error;
+        }
+        throw new PendingIdempotencyError('Loan creation with this idempotency key is currently being processed');
+      }
+    }
+
+    try {
+      const loan = await operation();
+      await idempotencyKeyModel.update({
+        responsePayload: buildLoanCreationCachePayload(loan),
+        status: 'completed',
+      }, {
+        where: { scope: LOAN_CREATION_IDEMPOTENCY_SCOPE, idempotencyKey: normalizedKey },
+      });
+      return loan;
+    } catch (error) {
+      await idempotencyKeyModel.update({
+        responsePayload: {
+          error: {
+            name: error.name,
+            message: error.message,
+          },
+        },
+        status: 'failed',
+      }, {
+        where: { scope: LOAN_CREATION_IDEMPOTENCY_SCOPE, idempotencyKey: normalizedKey },
+      }).catch(() => {});
+      throw error;
+    }
+  } catch (error) {
+    if (error instanceof PendingIdempotencyError) {
+      return waitForCompletedLoanCreationKey({
+        idempotencyKeyModel,
+        idempotencyKey: normalizedKey,
+        requestHash,
+      });
+    }
+    throw error;
+  }
+};
+
 /**
  * Create the use case that persists a new loan while enforcing customer self-service boundaries.
- * @param {{ loanCreationService: object, auditService?: object }} dependencies
+ * @param {{ loanCreationService: object, auditService?: object, idempotencyKeyModel?: object }} dependencies
  * @returns {Function}
  */
-const createCreateLoan = ({ loanCreationService, auditService }) => {
-  const useCase = async ({ actor, payload }) => {
+const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyModel = IdempotencyKey }) => {
+  const useCase = async ({ actor, payload, idempotencyKey }) => {
     if (actor.role === 'customer' && Number(payload.customerId) !== actor.id) {
       throw new AuthorizationError('You can only create loans for your own customer record');
     }
 
-    return loanCreationService.create(payload);
+    return runLoanCreationWithIdempotency({
+      actor,
+      payload,
+      idempotencyKey,
+      idempotencyKeyModel,
+      operation: () => loanCreationService.create(payload),
+    });
   };
 
   if (auditService) {
@@ -1670,26 +1739,6 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
 module.exports = {
   createListLoans,
   createCreateCreditCalculation,
-  createCreateSimulation,
-  createListDagWorkbenchScopes,
-  createLoadDagWorkbenchGraph,
-  createSaveDagWorkbenchGraph,
-  createValidateDagWorkbenchGraph,
-  createCalculateDagWorkbenchGraph,
-  createSimulateDagWorkbenchGraph,
-  createGetDagWorkbenchSummary,
-  createListDagWorkbenchGraphs,
-  createGetDagWorkbenchGraphDetails,
-  createActivateDagWorkbenchGraph,
-  createDeactivateDagWorkbenchGraph,
-  createDeleteDagWorkbenchGraph,
-  createGetDagWorkbenchGraphHistory,
-  createGetDagWorkbenchGraphDiff,
-  createRestoreDagWorkbenchGraph,
-  createListDagVariables,
-  createCreateDagVariable,
-  createUpdateDagVariable,
-  createDeleteDagVariable,
   createGetLoanById,
   createCreateLoan,
   createListLoansByCustomer,

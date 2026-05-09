@@ -4,6 +4,15 @@ const assert = require('node:assert/strict');
 const { createCreditsComposition } = require('@/modules/credits/composition');
 const { createCreditsPublicPorts } = require('@/modules/credits/public');
 
+const PUBLIC_CREDIT_PORT_KEYS = [
+  'alertRepository',
+  'attachmentStorage',
+  'loanAccessPolicy',
+  'loanViewService',
+  'paymentApplicationService',
+  'promiseRepository',
+].sort();
+
 test('createCreditsPublicPorts reuses an existing credits composition seam', () => {
   const loanAccessPolicy = { filterVisibleLoans() {} };
   const loanViewService = {
@@ -21,7 +30,6 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
     applyPayoff() {},
     annulInstallment() {},
   };
-  const dagWorkbenchService = { loadGraph() {}, saveGraph() {} };
   const composition = createCreditsComposition({
     infrastructure: {
       loanRepository: {},
@@ -34,15 +42,12 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
       paymentRepository: {},
       attachmentStorage: {},
       creditDomainService: {},
-      dagGraphRepository: {},
-      dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
     },
     loanAccessPolicy,
     loanViewService,
     paymentApplicationService,
-    dagWorkbenchService,
   });
 
   const ports = createCreditsPublicPorts({ composition });
@@ -50,7 +55,7 @@ test('createCreditsPublicPorts reuses an existing credits composition seam', () 
   assert.equal(ports.loanAccessPolicy, loanAccessPolicy);
   assert.equal(ports.loanViewService, loanViewService);
   assert.equal(ports.paymentApplicationService, paymentApplicationService);
-  assert.equal(ports.dagWorkbenchService, dagWorkbenchService);
+  assert.deepEqual(Object.keys(ports).sort(), PUBLIC_CREDIT_PORT_KEYS);
 });
 
 test('createCreditsComposition registers its public ports in the shared runtime', () => {
@@ -76,8 +81,6 @@ test('createCreditsComposition registers its public ports in the shared runtime'
     applyPayoff() {},
     annulInstallment() {},
   };
-  const dagWorkbenchService = { loadGraph() {} };
-
   const composition = createCreditsComposition({
     sharedRuntime,
     infrastructure: {
@@ -91,37 +94,24 @@ test('createCreditsComposition registers its public ports in the shared runtime'
       paymentRepository: {},
       attachmentStorage: {},
       creditDomainService: {},
-      dagGraphRepository: {},
-      dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
     },
     loanAccessPolicy,
     loanViewService,
     paymentApplicationService,
-    dagWorkbenchService,
   });
 
   assert.equal(registeredName, 'credits');
   assert.equal(registeredPorts.loanAccessPolicy, loanAccessPolicy);
   assert.equal(registeredPorts.loanViewService, loanViewService);
   assert.equal(registeredPorts.paymentApplicationService, paymentApplicationService);
-  assert.equal(registeredPorts.dagWorkbenchService, dagWorkbenchService);
+  assert.deepEqual(Object.keys(registeredPorts).sort(), PUBLIC_CREDIT_PORT_KEYS);
   assert.equal(composition.loanAccessPolicy, loanAccessPolicy);
 });
 
-test('createCreditsComposition keeps a credits-local DAG config on the composition seam', () => {
-  const dagConfig = {
-    mode: 'shadow',
-    parityTolerance: 0.01,
-    workbenchEnabled: false,
-    workbenchScopes: [],
-    isScopeEnabled() {
-      return true;
-    },
-  };
+test('createCreditsComposition only exposes runtime internals on the composition object', () => {
   const composition = createCreditsComposition({
-    dagConfig,
     infrastructure: {
       loanRepository: {},
       customerRepository: {},
@@ -133,29 +123,27 @@ test('createCreditsComposition keeps a credits-local DAG config on the compositi
       paymentRepository: {},
       attachmentStorage: {},
       creditDomainService: {},
-      dagGraphRepository: {},
-      dagSimulationSummaryRepository: {},
       loanCreationService: {},
       notificationPort: {},
-      graphExecutor: { execute() {}, executeDraft() {} },
     },
     loanAccessPolicy: { filterVisibleLoans() {} },
     loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },
     paymentApplicationService: { applyPayment() {} },
   });
 
-  assert.equal(composition.creditsDagConfig, dagConfig);
-  assert.equal(composition.creditsDagConfig.mode, 'shadow');
-  assert.equal(composition.creditsDagConfig.parityTolerance, 0.01);
-  assert.equal(composition.creditsDagConfig.workbenchEnabled, false);
+  const publicPorts = createCreditsPublicPorts({ composition });
+  assert.deepEqual(Object.keys(publicPorts).sort(), PUBLIC_CREDIT_PORT_KEYS);
 });
 
-test('createCreditsPublicPorts prefers ports already registered in the shared runtime', () => {
+test('createCreditsPublicPorts filters ports already registered in the shared runtime', () => {
   const runtimePorts = {
     loanAccessPolicy: { filterVisibleLoans() {} },
     loanViewService: { getCanonicalLoanView() { return { schedule: [], snapshot: {} }; } },
     paymentApplicationService: { applyPayment() {} },
-    dagWorkbenchService: { loadGraph() {} },
+    attachmentStorage: {},
+    alertRepository: {},
+    promiseRepository: {},
+    internalOnlyPort: {},
   };
 
   const ports = createCreditsPublicPorts({
@@ -167,5 +155,7 @@ test('createCreditsPublicPorts prefers ports already registered in the shared ru
     },
   });
 
-  assert.equal(ports, runtimePorts);
+  assert.equal(ports.loanAccessPolicy, runtimePorts.loanAccessPolicy);
+  assert.equal(ports.internalOnlyPort, undefined);
+  assert.deepEqual(Object.keys(ports).sort(), PUBLIC_CREDIT_PORT_KEYS);
 });

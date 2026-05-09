@@ -49,7 +49,6 @@ const unexpectedUseCase = (name) => async () => {
 
 const createUseCases = (overrides) => ({
   listLoans: unexpectedUseCase('listLoans'),
-  createSimulation: unexpectedUseCase('createSimulation'),
   listLoansByCustomer: unexpectedUseCase('listLoansByCustomer'),
   listLoansByRecoveryAssignee: unexpectedUseCase('listLoansByRecoveryAssignee'),
   listRecoveryRoster: unexpectedUseCase('listRecoveryRoster'),
@@ -140,9 +139,6 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
         calls.push(['listLoans', input]);
         return listedLoans;
       },
-      async createSimulation() {
-        throw new Error('createSimulation should not be called');
-      },
       async listLoansByCustomer() {
         throw new Error('listLoansByCustomer should not be called');
       },
@@ -211,7 +207,7 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   const createResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/',
-    headers: { authorization: 'Bearer valid-token' },
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'loan-create-test-1' },
     body: createPayload,
   });
   const readResponse = await requestJson(activeServer, {
@@ -263,7 +259,7 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   });
   assert.deepEqual(calls, [
     ['listLoans', { actor: { id: 2, role: 'admin' }, pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
-    ['createLoan', { actor: { id: 2, role: 'admin' }, payload: createPayload }],
+    ['createLoan', { actor: { id: 2, role: 'admin' }, payload: createPayload, idempotencyKey: 'loan-create-test-1' }],
     ['getLoanById', { actor: { id: 2, role: 'admin' }, loanId: '44' }],
   ]);
 });
@@ -613,7 +609,9 @@ test('createCreditsRouter protects admin-only portfolio analytics routes', async
 test('createCreditsRouter POST /calculations returns canonical credit calculation data', async () => {
   const calls = [];
   const calculation = {
-    calculationMethod: 'COMPOUND',
+    calculationVersionId: 15,
+    calculationProfileVersionId: 15,
+    method: 'COMPOUND',
     lateFeeMode: 'NONE',
     summary: {
       installmentAmount: 100,
@@ -677,20 +675,14 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
     message: 'Credit calculation generated successfully',
     data: {
       calculation: {
-        calculationMethod: 'COMPOUND',
         lateFeeMode: 'NONE',
         summary: calculation.summary,
         schedule: calculation.schedule,
-        graphVersionId: null,
+        calculationVersionId: 15,
+        calculationProfileVersionId: 15,
+        method: 'COMPOUND',
         policySnapshot: calculation.policySnapshot,
-      },
-      simulation: {
-        calculationMethod: 'COMPOUND',
-        lateFeeMode: 'NONE',
-        summary: calculation.summary,
-        schedule: calculation.schedule,
-        graphVersionId: null,
-        policySnapshot: calculation.policySnapshot,
+        explanation: null,
       },
     },
   });

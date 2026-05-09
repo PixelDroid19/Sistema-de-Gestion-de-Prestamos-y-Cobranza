@@ -6,22 +6,22 @@ const {
 } = require('@/modules/credits/application/loanFinancials');
 
 const DEFAULT_FINANCIAL_PRODUCT_NAME = 'Personal Loan 12%';
-const DEFAULT_DAG_SCOPE_KEY = 'credit-simulation';
+const DEFAULT_CALCULATION_SCOPE_KEY = 'credit-calculation';
 
 /**
- * Execute the credit calculation via calculationService (async — loads persisted graph).
+ * Execute the credit calculation through the profile-backed domain service.
  *
- * Returns { result, graphVersionId }.
+ * Returns { result, calculationProfileVersionId }.
  */
-const resolveCreditCalculationExecution = async ({ input, calculationService }) => {
+const resolveCreditCalculationExecution = async ({ input, calculationService, policySnapshot }) => {
   if (!calculationService) {
-    throw new Error('calculationService is required. DAG is the single source of truth.');
+    throw new Error('calculationService is required. Calculation profiles are the single source of truth.');
   }
 
-  const execution = await calculationService.calculate(input);
+  const execution = await calculationService.calculate(input, { policySnapshot });
   return {
     result: execution.result,
-    graphVersionId: execution.graphVersionId || null,
+    calculationProfileVersionId: execution.calculationProfileVersionId,
   };
 };
 
@@ -81,9 +81,9 @@ const resolveLoanStartDate = (value) => {
 /**
  * Create a loan record from canonical credit calculation data after validating linked records.
  *
- * The `dagGraphVersionId` persisted on the loan now comes directly from the
- * calculation execution result, guaranteeing it is the exact graph that produced
- * the numbers — no more separate DB query that could return a different version.
+ * The `calculationProfileVersionId` persisted on the loan comes directly from
+ * the calculation execution result, guaranteeing it is the exact profile that
+ * produced the numbers.
  *
  * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate: number, termMonths: number, lateFeeMode?: string }} input
  * @returns {Promise<object>}
@@ -110,26 +110,31 @@ const createLoanFromCanonicalDataFactory = ({
 
   const policyContext = await resolvePolicyContext({ input, policyResolver });
   const calculationInput = policyContext.calculationInput;
-  const calculationExecution = await resolveCreditCalculationExecution({ input: calculationInput, calculationService });
+  const calculationExecution = await resolveCreditCalculationExecution({
+    input: calculationInput,
+    calculationService,
+    policySnapshot: policyContext.policySnapshot,
+  });
   const calculation = calculationExecution.result;
   const financialProductId = await resolveFinancialProductId({ input: calculationInput, financialProductModel });
   const startDate = resolveLoanStartDate(calculationInput.startDate);
-
-  // graphVersionId comes from the execution — the exact graph that produced these numbers
-  const dagGraphVersionId = calculationExecution.graphVersionId;
-  if (!dagGraphVersionId) {
-    throw new ValidationError('Credit calculation did not return a DAG formula version. Production credit creation requires an active DAG formula.');
+  const calculationProfileVersionId = calculationExecution.calculationProfileVersionId;
+  if (!calculationProfileVersionId) {
+    throw new ValidationError('Credit calculation did not return an active calculation profile version. Production credit creation requires an approved calculation profile.');
   }
 
   const snapshot = {
     ...buildFinancialSnapshot(calculation.schedule),
     ...(calculation.summary || {}),
-    calculationMethod: calculation.calculationMethod || 'FRENCH',
-    policySnapshot: policyContext.policySnapshot || calculation.policySnapshot || null,
+    calculationMethod: calculation.method,
+    policySnapshot: calculation.policySnapshot || policyContext.policySnapshot || null,
     startDate: startDate.toISOString(),
   };
   const policySnapshot = snapshot.policySnapshot || null;
-  const calculationMethod = snapshot.calculationMethod || calculationInput.calculationMethod || 'FRENCH';
+  const calculationMethod = snapshot.calculationMethod;
+  if (!calculationMethod) {
+    throw new ValidationError('Credit calculation did not return a calculation method');
+  }
 
   return loanModel.create({
     customerId: calculationInput.customerId,
@@ -153,7 +158,7 @@ const createLoanFromCanonicalDataFactory = ({
     principalOutstanding: snapshot.outstandingPrincipal,
     interestOutstanding: snapshot.outstandingInterest,
     financialSnapshot: snapshot,
-    dagGraphVersionId,
+    calculationProfileVersionId,
   });
 };
 
@@ -163,5 +168,5 @@ module.exports = {
   createLoanFromCanonicalData,
   createLoanFromCanonicalDataFactory,
   DEFAULT_FINANCIAL_PRODUCT_NAME,
-  DEFAULT_DAG_SCOPE_KEY,
+  DEFAULT_CALCULATION_SCOPE_KEY,
 };

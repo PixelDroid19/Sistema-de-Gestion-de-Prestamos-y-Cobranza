@@ -53,9 +53,9 @@ const BASE_DESTINATIONS: ShellDestination[] = [
   {
     view: 'credit-calculator',
     label: 'Calcular crédito',
-    description: 'Prueba la fórmula activa antes de registrar.',
+    description: 'Prueba el perfil de cálculo activo antes de registrar.',
     roles: ['admin'],
-    keywords: ['simulador', 'calculadora', 'cuota'],
+    keywords: ['simulador', 'calculadora', 'cuota', 'perfil'],
   },
   {
     view: 'reports',
@@ -70,20 +70,6 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     description: 'Gestión administrativa de socios.',
     roles: ['admin', 'socio'],
     keywords: ['inversionistas', 'aportantes'],
-  },
-  {
-    view: 'formulas',
-    label: 'Fórmulas',
-    description: 'Versiones activas y editor de fórmulas.',
-    roles: ['admin'],
-    keywords: ['dag', 'reglas', 'formula'],
-  },
-  {
-    view: 'formulas/variables',
-    label: 'Variables de fórmulas',
-    description: 'Parámetros usados por las fórmulas activas.',
-    roles: ['admin'],
-    keywords: ['variables', 'parametros'],
   },
   {
     view: 'payouts',

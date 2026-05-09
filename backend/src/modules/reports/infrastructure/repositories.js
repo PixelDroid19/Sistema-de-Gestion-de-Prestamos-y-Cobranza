@@ -453,7 +453,7 @@ const paymentRepository = {
       include: [
         {
           model: Loan,
-          attributes: ['id', 'amount', 'status', 'customerId', 'dagGraphVersionId', 'financialSnapshot'],
+          attributes: ['id', 'amount', 'status', 'customerId', 'financialSnapshot'],
           include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
         },
       ],

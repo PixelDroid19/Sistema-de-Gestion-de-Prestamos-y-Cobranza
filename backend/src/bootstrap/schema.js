@@ -12,8 +12,7 @@ const {
   Notification,
   PushSubscription,
   User,
-  DagGraphVersion,
-  DagSimulationSummary,
+  CalculationProfileVersion,
   FinancialProduct,
   OutboxEvent,
   ConfigEntry,
@@ -40,7 +39,7 @@ const REQUIRED_SCHEMA_MODELS = [
   RolePermission,
   UserPermission,
   User,
-  DagGraphVersion,
+  CalculationProfileVersion,
   Loan,
   Payment,
   LoanAlert,
@@ -51,7 +50,6 @@ const REQUIRED_SCHEMA_MODELS = [
   IdempotencyKey,
   Notification,
   PushSubscription,
-  DagSimulationSummary,
   AuditLog,
   RefreshToken,
   RateLimitEntry,
@@ -417,7 +415,7 @@ const DEFAULT_ROLE_PERMISSION_NAMES = Object.freeze({
 
 /**
  * Seed the permission catalog and baseline role assignments used by
- * operational authorization and the settings permission workbench.
+ * operational authorization and settings access control.
  * Admins receive the full catalog by default so user provisioning and
  * permission management are never blocked on a fresh database.
  * @returns {Promise<void>}
@@ -461,7 +459,7 @@ const seedPermissionCatalogAndRoleDefaults = async () => {
   }
 };
 
-const seedFinancialProductsAndGraphs = async () => {
+const seedFinancialProductsAndPermissions = async () => {
   for (const seed of FINANCIAL_PRODUCT_SEEDS) {
     const [product, created] = await FinancialProduct.findOrCreate({
       where: { name: seed.name },
@@ -473,39 +471,38 @@ const seedFinancialProductsAndGraphs = async () => {
     }
   }
 
-  // Seed default DAG graph versions from scope definitions so graphExecutor always
-  // has an active version to run against, even on a fresh database.
-  const { listDagWorkbenchScopes } = require('@/modules/credits/application/dag/scopeRegistry');
-  const scopes = listDagWorkbenchScopes();
+  await seedPermissionCatalogAndRoleDefaults();
+};
 
-  for (const scope of scopes) {
-    if (!scope.defaultGraph) continue;
+const seedCalculationProfileVersions = async () => {
+  const { DEFAULT_CALCULATION_PROFILE } = require('@/modules/credits/domain/calculation');
 
-    const existing = await DagGraphVersion.findOne({
-      where: { scopeKey: scope.key },
-      order: [['version', 'DESC']],
-    });
+  const existing = await CalculationProfileVersion.findOne({
+    where: { scopeKey: DEFAULT_CALCULATION_PROFILE.scopeKey },
+    order: [['version', 'DESC']],
+  });
 
-    if (existing) continue; // Do not overwrite user-customized graphs
-
-    await DagGraphVersion.create({
-      scopeKey: scope.key,
-      name: scope.defaultName || `Default ${scope.key}`,
-      version: 1,
-      graph: scope.defaultGraph,
-      graphSummary: {
-        nodeCount: scope.defaultGraph.nodes.length,
-        edgeCount: scope.defaultGraph.edges.length,
-        outputCount: scope.defaultGraph.nodes.filter((n) => n.kind === 'output').length,
-        formulaNodeCount: scope.defaultGraph.nodes.filter((n) => typeof n.formula === 'string' && n.formula.trim()).length,
-      },
-      validation: { valid: true, errors: [], warnings: [] },
-      status: 'active',
-      createdByUserId: null,
-    });
+  if (existing) {
+    return;
   }
 
-  await seedPermissionCatalogAndRoleDefaults();
+  await CalculationProfileVersion.create({
+    scopeKey: DEFAULT_CALCULATION_PROFILE.scopeKey,
+    name: DEFAULT_CALCULATION_PROFILE.name,
+    version: DEFAULT_CALCULATION_PROFILE.version,
+    status: DEFAULT_CALCULATION_PROFILE.status,
+    calculationMethod: DEFAULT_CALCULATION_PROFILE.calculationMethod,
+    parameters: DEFAULT_CALCULATION_PROFILE.parameters,
+    rules: DEFAULT_CALCULATION_PROFILE.rules,
+    formulaSet: DEFAULT_CALCULATION_PROFILE.formulaSet,
+    changelog: DEFAULT_CALCULATION_PROFILE.changelog,
+    createdByUserId: null,
+  });
+};
+
+const seedFinancialProductsAndProfiles = async () => {
+  await seedFinancialProductsAndPermissions();
+  await seedCalculationProfileVersions();
 };
 
 module.exports = {
@@ -523,5 +520,7 @@ module.exports = {
   syncDatabaseSchema,
   ensureAuditLogEnums,
   seedPermissionCatalogAndRoleDefaults,
-  seedFinancialProductsAndGraphs,
+  seedFinancialProductsAndPermissions,
+  seedCalculationProfileVersions,
+  seedFinancialProductsAndProfiles,
 };

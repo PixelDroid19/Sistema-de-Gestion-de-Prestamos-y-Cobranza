@@ -2,7 +2,6 @@
 @import "react-grid-layout/css/styles.css";
 @import "react-resizable/css/styles.css";
 @import "react-big-calendar/lib/css/react-big-calendar.css";
-@import "@xyflow/react/dist/style.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -22,41 +21,75 @@
 
 @layer base {
   :root {
-    --bg-base: #f4f6f8;
-    --bg-surface: #ffffff;
+    --font-display: "Cambria", "Palatino Linotype", serif;
+    --font-body: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+
+    --bg-base: #f2f3ef;
+    --bg-surface: #fcfcf9;
     --bg-elevated: #ffffff;
-    --hover-bg: #eef2f6;
-    
-    --text-primary: #0f172a;
-    --text-secondary: #667085;
-    --brand-primary: #1f4b7a;
-    
-    --border-subtle: #e2e8f0;
-    --border-strong: #c7d2e0;
-    --shadow-soft: 0 18px 42px -32px rgba(15, 23, 42, 0.26);
-    --shadow-card: 0 8px 24px -22px rgba(15, 23, 42, 0.22);
+    --hover-bg: #eceee7;
+
+    --text-primary: #1d2733;
+    --text-secondary: #5d6775;
+    --brand-primary: #145f74;
+
+    --border-subtle: #d7dcd4;
+    --border-strong: #b9c3b7;
+    --shadow-soft: 0 22px 48px -34px rgba(17, 34, 51, 0.3);
+    --shadow-card: 0 16px 36px -28px rgba(17, 34, 51, 0.24);
   }
   
   .dark {
-    --bg-base: #0b1220;
-    --bg-surface: #101a2c;
-    --bg-elevated: #162133;
-    --hover-bg: #1a2940;
-    
-    --text-primary: #f8fafc;
-    --text-secondary: #9fb0c6;
-    --brand-primary: #7aa2d1;
-    
-    --border-subtle: #21314a;
-    --border-strong: #314763;
-    --shadow-soft: 0 22px 60px -38px rgba(2, 6, 23, 0.88);
-    --shadow-card: 0 14px 34px -28px rgba(2, 6, 23, 0.9);
+    --bg-base: #111920;
+    --bg-surface: #18232d;
+    --bg-elevated: #21303d;
+    --hover-bg: #223443;
+
+    --text-primary: #eff6f8;
+    --text-secondary: #a6bcc5;
+    --brand-primary: #74cad8;
+
+    --border-subtle: #2f424f;
+    --border-strong: #456071;
+    --shadow-soft: 0 24px 64px -42px rgba(2, 10, 16, 0.95);
+    --shadow-card: 0 18px 42px -32px rgba(2, 10, 16, 0.92);
   }
   
-body {
-  background-color: var(--bg-base);
-  color: var(--text-primary);
-}
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    background-image:
+      radial-gradient(circle at 7% 12%, color-mix(in srgb, var(--brand-primary) 9%, transparent) 0, transparent 42%),
+      radial-gradient(circle at 92% 3%, color-mix(in srgb, var(--brand-primary) 7%, transparent) 0, transparent 36%),
+      linear-gradient(165deg, color-mix(in srgb, var(--bg-base) 94%, #ffffff 6%) 0%, var(--bg-base) 68%);
+    background-attachment: fixed;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  *:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 55%, white 45%);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--brand-primary) 35%, #bde4ea 65%);
+    color: color-mix(in srgb, var(--text-primary) 88%, black 12%);
+  }
 
   table {
     border-collapse: separate;
@@ -136,7 +169,7 @@ body {
     border: 1px solid var(--border-subtle);
     border-radius: 1rem;
     background: var(--bg-surface);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: var(--shadow-card);
     padding: 0.875rem 1rem;
   }
 
@@ -168,7 +201,7 @@ body {
     border: 1px solid var(--border-subtle);
     border-radius: 1rem;
     background: var(--bg-surface);
-    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.45);
+    box-shadow: var(--shadow-card);
     padding: 0.95rem 1rem;
     transition:
       border-color 160ms ease,
@@ -178,7 +211,7 @@ body {
 
   .metric-card:hover {
     border-color: color-mix(in srgb, var(--metric-accent) 22%, var(--border-subtle));
-    box-shadow: 0 16px 36px -28px rgba(15, 23, 42, 0.55);
+    box-shadow: var(--shadow-soft);
   }
 
   .metric-card:active {
@@ -251,7 +284,7 @@ body {
     border: 1px solid var(--border-subtle);
     border-radius: 1rem;
     background: var(--bg-surface);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: var(--shadow-card);
   }
 
   .data-table-surface table,
@@ -292,7 +325,7 @@ body {
     border: 1px solid var(--border-subtle);
     border-radius: 1rem;
     background: var(--bg-surface);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: var(--shadow-card);
   }
 
   .data-table-surface > .overflow-x-auto,
@@ -459,358 +492,18 @@ body {
   border-bottom: 1px solid var(--border-subtle) !important;
 }
 
-/* React Flow Custom Theme */
-.react-flow {
-  --xy-edge-stroke: var(--border-strong);
-  --xy-edge-stroke-selected: #3b82f6;
-  --xy-handle-background: var(--border-strong);
-  --xy-handle-border-color: var(--bg-surface);
-  --xy-handle-border-width: 2px;
-  --xy-minimap-background-color: var(--bg-surface);
-  --xy-minimap-mask-background-color: rgba(15, 23, 42, 0.1);
-  --xy-controls-button-background-color: var(--bg-surface);
-  --xy-controls-button-background-color-hover: var(--hover-bg);
-  --xy-controls-button-color: var(--text-secondary);
-  --xy-controls-button-color-hover: var(--text-primary);
-  --xy-controls-button-border-color: var(--border-subtle);
-  --xy-background-color: transparent;
-}
 
-.dark .react-flow {
-  --xy-edge-stroke: var(--border-strong);
-  --xy-edge-stroke-selected: #60a5fa;
-  --xy-minimap-mask-background-color: rgba(248, 250, 252, 0.1);
-}
-
-.react-flow__edge-path {
-  stroke-width: 2;
-}
-
-.react-flow__edge.selected .react-flow__edge-path,
-.react-flow__edge:focus .react-flow__edge-path,
-.react-flow__edge:focus-visible .react-flow__edge-path {
-  stroke: var(--xy-edge-stroke-selected);
-  stroke-width: 3;
-}
-
-.react-flow__handle {
-  width: 10px;
-  height: 10px;
-}
-
-.react-flow__controls button {
-  border-radius: 8px;
-  margin-bottom: 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.react-flow__minimap {
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.react-flow__attribution {
-  background: transparent !important;
-  opacity: 0.5;
-}
-
-/* Formula editor production layout */
-.formula-editor-page,
-.formula-editor-body,
-.formula-editor-canvas,
-.formula-editor-toolbox,
-.formula-editor-right-panel {
-  min-width: 0;
-}
-
-.formula-editor-toolbar {
-  flex-wrap: wrap;
-}
-
-.formula-editor-toolbar-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.formula-editor-name-input {
-  min-width: 220px;
-}
-
-.formula-editor-workflow-card,
-.formula-editor-empty-guide,
-.formula-method-card {
-  width: 100% !important;
-  min-width: 0 !important;
-}
-
-.formula-editor-canvas-content {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.formula-flow-step {
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.formula-flow-step:not(:disabled):hover {
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-
-.formula-method-option {
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.formula-method-option:hover {
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-
-.formula-panel-intro {
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 12px;
-}
-
-.formula-product-stage,
-.formula-product-content,
-.formula-product-card,
-.formula-impact-layout,
-.formula-impact-metrics,
-.formula-target-actions,
-.formula-rule-row,
-.formula-schedule-row {
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-.formula-product-card {
-  transition: border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.formula-workbench-grid {
-  min-width: 0;
-}
-
-.formula-rule-row button {
-  min-width: 0;
-}
-
-.formula-rule-row,
-.formula-schedule-row {
-  overflow-wrap: anywhere;
-}
-
-.formula-rule-empty button:hover,
-.formula-empty-actions button:hover {
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
-}
-
-@media (max-width: 1280px) {
-  .formula-editor-page {
-    height: auto !important;
-    min-height: 100%;
+@layer components {
+  .app-main-canvas {
+    background:
+      radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--brand-primary) 10%, transparent) 0, transparent 35%),
+      radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--brand-primary) 8%, transparent) 0, transparent 30%),
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-base) 88%, white 12%) 0%, var(--bg-base) 65%);
   }
 
-  .formula-editor-body {
-    flex-direction: column !important;
-    overflow: auto !important;
-  }
-
-  .formula-editor-toolbox {
-    order: 3;
-    width: auto !important;
-    border-right: 0 !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    overflow: visible !important;
-  }
-
-  .formula-editor-canvas {
-    order: 1;
-    min-height: 560px !important;
-    overflow: visible !important;
-  }
-
-  .formula-product-stage {
-    order: 1;
-    overflow: visible !important;
-  }
-
-  .formula-editor-right-panel {
-    order: 2;
-    width: auto !important;
-    border-left: 0 !important;
-    border-top: 1px solid var(--border-subtle) !important;
-    overflow: visible !important;
-  }
-
-  .formula-editor-canvas-content {
-    align-items: stretch !important;
-    padding: 72px 24px 32px !important;
-  }
-
-  .formula-product-content {
-    padding: 24px !important;
-  }
-
-  .formula-workbench-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .formula-impact-card {
-    position: static !important;
-  }
-
-  .formula-flow-grid {
-    grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
-  }
-
-  .formula-target-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .formula-impact-layout {
-    grid-template-columns: 1fr !important;
-  }
-
-  .formula-impact-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .formula-flow-step-wrap {
-    min-width: 0;
-  }
-
-  .formula-container-block {
-    width: min(100%, 720px) !important;
-    margin: 0 auto;
-  }
-}
-
-@media (max-width: 760px) {
-  .formula-editor-toolbar {
-    align-items: stretch !important;
-    padding: 10px 12px !important;
-  }
-
-  .formula-editor-name-input {
-    order: 2;
-    flex-basis: 100% !important;
-    max-width: none !important;
-  }
-
-  .formula-editor-toolbar-actions {
-    order: 3;
-    width: 100%;
-    margin-left: 0 !important;
-    justify-content: stretch;
-  }
-
-  .formula-editor-toolbar-actions > button {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
-  .formula-version-banner {
-    align-items: flex-start !important;
-    padding: 10px 12px !important;
-  }
-
-  .formula-editor-toolbox {
-    grid-template-columns: 1fr !important;
-    padding: 12px !important;
-  }
-
-  .formula-editor-floating-info {
-    position: static !important;
-    display: flex !important;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    pointer-events: auto !important;
-  }
-
-  .formula-editor-canvas-content {
-    transform: none !important;
-    padding: 12px !important;
-    gap: 16px !important;
-  }
-
-  .formula-product-content {
-    padding: 12px !important;
-    gap: 12px !important;
-  }
-
-  .formula-product-card {
-    padding: 14px !important;
-    border-radius: 12px !important;
-  }
-
-  .formula-section-header {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-
-  .formula-flow-grid {
-    display: flex !important;
-    flex-direction: column;
-  }
-
-  .formula-flow-step-wrap {
-    display: block !important;
-  }
-
-  .formula-flow-step-wrap > svg {
-    display: none;
-  }
-
-  .formula-flow-step {
-    min-height: 88px !important;
-  }
-
-  .formula-editor-empty-guide {
-    padding: 14px !important;
-  }
-
-  .formula-method-card {
-    padding: 14px !important;
-  }
-
-  .formula-method-grid,
-  .formula-method-summary,
-  .formula-reference-list > div {
-    grid-template-columns: 1fr !important;
-  }
-
-  .formula-target-actions,
-  .formula-impact-metrics {
-    grid-template-columns: 1fr !important;
-  }
-
-  .formula-rule-row {
-    grid-template-columns: 32px 1fr !important;
-  }
-
-  .formula-rule-row > div:last-child {
-    grid-column: 1 / -1;
-    justify-content: flex-start !important;
-  }
-
-  .formula-schedule-row {
-    grid-template-columns: 1fr !important;
-  }
-
-  .formula-empty-actions {
-    display: grid !important;
-    grid-template-columns: 1fr;
-  }
-
-  .formula-container-block {
-    padding: 16px !important;
+  .app-glass-surface {
+    background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 92%, transparent);
   }
 }

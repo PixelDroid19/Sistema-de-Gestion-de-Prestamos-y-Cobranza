@@ -11,7 +11,7 @@ afterEach(() => {
   mock.restoreAll();
 });
 
-test('createLoanFromCanonicalData persists the canonical schedule and summary via DAG', async () => {
+test('createLoanFromCanonicalData persists the canonical schedule and summary via calculation profile', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
@@ -22,14 +22,15 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     return { id: 77, ...payload };
   });
 
-  // Build a calculationService that returns a DAG-compatible result
+  // Build a calculationService that returns a profile-backed result
   const createLoan = createLoanFromCanonicalDataFactory({
     calculationService: {
       async calculate(input) {
         return {
-          graphVersionId: 501,
+          calculationProfileVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
+            method: 'FRENCH',
             schedule: Array.from({ length: input.termMonths }, (_, i) => ({
               installmentNumber: i + 1,
               dueDate: new Date(Date.now() + (i + 1) * 30 * 86400000).toISOString(),
@@ -81,7 +82,8 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.emiSchedule.length, 12);
   assert.equal(persistedPayload.installmentAmount, 1066.19);
   assert.equal(persistedPayload.totalPayable, 12794.23);
-  assert.equal(persistedPayload.dagGraphVersionId, 501);
+  assert.equal(Object.prototype.hasOwnProperty.call(persistedPayload, ['dag', 'GraphVersionId'].join('')), false);
+  assert.equal(persistedPayload.calculationProfileVersionId, 501);
   assert.equal(persistedPayload.calculationMethod, 'FRENCH');
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 12794.23);
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
@@ -102,9 +104,10 @@ test('createLoanFromCanonicalData stores the selected payment date without timez
     calculationService: {
       async calculate(input) {
         return {
-          graphVersionId: 501,
+          calculationProfileVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
+            method: 'FRENCH',
             schedule: [{
               installmentNumber: 1,
               dueDate: '2026-04-29T00:00:00.000Z',
@@ -149,7 +152,7 @@ test('createLoanFromCanonicalData stores the selected payment date without timez
   assert.equal(persistedPayload.financialSnapshot.startDate, '2026-04-29T00:00:00.000Z');
 });
 
-test('createLoanFromCanonicalDataFactory persists DAG-selected results with graphVersionId', async () => {
+test('createLoanFromCanonicalDataFactory persists profile-selected results with calculationProfileVersionId', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
@@ -164,9 +167,10 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results with grap
     calculationService: {
       async calculate() {
         return {
-          graphVersionId: 501,
+          calculationProfileVersionId: 501,
           result: {
             lateFeeMode: 'NONE',
+            method: 'FRENCH',
             schedule: [{ installmentNumber: 1, scheduledPayment: 90 }],
             summary: {
               installmentAmount: 90,
@@ -191,7 +195,8 @@ test('createLoanFromCanonicalDataFactory persists DAG-selected results with grap
   });
 
   assert.equal(createdLoan.id, 88);
-  assert.equal(persistedPayload.dagGraphVersionId, 501);
+  assert.equal(Object.prototype.hasOwnProperty.call(persistedPayload, ['dag', 'GraphVersionId'].join('')), false);
+  assert.equal(persistedPayload.calculationProfileVersionId, 501);
   assert.equal(persistedPayload.installmentAmount, 90);
   assert.equal(persistedPayload.totalPayable, 90);
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 90);
@@ -236,9 +241,10 @@ test('createLoanFromCanonicalDataFactory persists resolved rate and late-fee pol
       async calculate(input) {
         calculationInput = input;
         return {
-          graphVersionId: 701,
+          calculationProfileVersionId: 701,
           result: {
             lateFeeMode: input.lateFeeMode,
+            method: 'FRENCH',
             schedule: [{ installmentNumber: 1, scheduledPayment: 120, principalComponent: 100, interestComponent: 20 }],
             summary: {
               installmentAmount: 120,
@@ -276,7 +282,7 @@ test('createLoanFromCanonicalDataFactory persists resolved rate and late-fee pol
   assert.equal(persistedPayload.policySnapshot.appliedInterestRate, 48);
 });
 
-test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fallback', async () => {
+test('createLoanFromCanonicalDataFactory keeps canonical persistence without fallback paths', async () => {
   let persistedPayload;
 
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
@@ -291,9 +297,10 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fall
     calculationService: {
       async calculate() {
         return {
-          graphVersionId: 700,
+          calculationProfileVersionId: 700,
           result: {
             lateFeeMode: 'NONE',
+            method: 'FRENCH',
             schedule: [{ installmentNumber: 1, scheduledPayment: 100 }],
             summary: {
               installmentAmount: 100,
@@ -321,7 +328,7 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence on DAG fall
   assert.equal(persistedPayload.installmentAmount, 100);
 });
 
-test('createLoanFromCanonicalDataFactory rejects new credits when formula history exists but no version is active', async () => {
+test('createLoanFromCanonicalDataFactory rejects new credits when no calculation profile version is active', async () => {
   mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
   mock.method(models.Associate, 'findByPk', async () => null);
   mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-default', name: 'Personal Loan 12%' }));
@@ -330,7 +337,7 @@ test('createLoanFromCanonicalDataFactory rejects new credits when formula histor
     calculationService: {
       async calculate() {
         const { ValidationError } = require('@/utils/errorHandler');
-        throw new ValidationError('No active formula version found for scope credit-simulation');
+        throw new ValidationError('No active calculation profile version found for scope credit-calculation');
       },
     },
   });
@@ -343,7 +350,7 @@ test('createLoanFromCanonicalDataFactory rejects new credits when formula histor
       termMonths: 1,
     }),
     (error) => {
-      assert.match(error.message, /no active formula version/i);
+      assert.match(error.message, /no active calculation profile version/i);
       return true;
     },
   );

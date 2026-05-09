@@ -6,17 +6,15 @@ const {
   roundCurrency,
   summarizeSchedule,
 } = require('@/modules/credits/application/creditFormulaHelpers');
-const { listDagWorkbenchScopes } = require('@/modules/credits/application/dag/scopeRegistry');
+const { SUPPORTED_CALCULATION_METHODS } = require('@/modules/credits/domain/calculation');
 
-test('workbench scope exposes backend-supported calculation methods', () => {
-  const [scope] = listDagWorkbenchScopes();
-
-  assert.deepEqual(scope.calculationMethods.map((method) => method.key), ['FRENCH', 'SIMPLE', 'COMPOUND']);
-  assert.equal(scope.calculationMethods[0].label, 'Sistema frances');
+test('calculation domain exposes backend-supported calculation methods', () => {
+  assert.deepEqual(SUPPORTED_CALCULATION_METHODS.map((method) => method.key), ['FRENCH', 'SIMPLE', 'COMPOUND']);
+  assert.equal(SUPPORTED_CALCULATION_METHODS[0].label, 'Sistema frances');
 });
 
-test('buildAmortizationSchedule defaults legacy graphs without calculationMethod to french method', () => {
-  const legacySchedule = buildAmortizationSchedule({
+test('buildAmortizationSchedule defaults missing calculationMethod to french method', () => {
+  const defaultedSchedule = buildAmortizationSchedule({
     amount: 1200000,
     interestRate: 24,
     termMonths: 12,
@@ -30,7 +28,7 @@ test('buildAmortizationSchedule defaults legacy graphs without calculationMethod
     calculationMethod: 'FRENCH',
   });
 
-  assert.equal(legacySchedule[0].scheduledPayment, explicitSchedule[0].scheduledPayment);
+  assert.equal(defaultedSchedule[0].scheduledPayment, explicitSchedule[0].scheduledPayment);
 });
 
 test('buildAmortizationSchedule rejects invalid calculation methods with a clear error', () => {

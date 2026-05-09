@@ -139,7 +139,6 @@ test('createUpdatePaymentMetadata keeps payment method and nested metadata align
           paymentDate: new Date('2026-03-01T00:00:00.000Z'),
           paymentMethod: 'cash',
           paymentMetadata: {
-            method: 'cash',
             reference: 'REF-OLD',
             observation: 'Old note',
           },
@@ -175,7 +174,6 @@ test('createUpdatePaymentMetadata keeps payment method and nested metadata align
     paymentDate: new Date('2026-03-01T00:00:00.000Z'),
     paymentMethod: 'transfer',
     paymentMetadata: {
-      method: 'transfer',
       reference: 'REF-NEW',
       observation: 'Updated note',
     },

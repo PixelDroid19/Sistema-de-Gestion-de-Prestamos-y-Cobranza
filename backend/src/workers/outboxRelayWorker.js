@@ -1,39 +1,178 @@
 const { createOutboxEventRepository } = require('@/modules/credits/infrastructure/outboxEventRepository');
+const { createHttpEventPublisher, createNoopEventPublisher } = require('@/modules/credits/application/eventPublisher');
+
+const resolveRetryTimestamp = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isDue = (event, now = new Date()) => {
+  const nextRetryAt = resolveRetryTimestamp(event?.payload?._nextRetryAt);
+  if (!nextRetryAt) {
+    return true;
+  }
+
+  return nextRetryAt.getTime() <= now.getTime();
+};
+
+const calculateRetryDelayMs = (attemptNumber, {
+  baseDelayMs = 1000,
+  maxDelayMs = 60000,
+  backoffMultiplier = 2,
+  jitterMs = 250,
+} = {}) => {
+  const attempt = Number.isFinite(attemptNumber) ? attemptNumber : 1;
+  const base = Number.isFinite(baseDelayMs) && baseDelayMs > 0 ? Math.round(baseDelayMs) : 1000;
+  const max = Number.isFinite(maxDelayMs) && maxDelayMs > 0 ? Math.round(maxDelayMs) : 60000;
+  const multiplier = Number.isFinite(backoffMultiplier) && backoffMultiplier > 1 ? backoffMultiplier : 2;
+  const jitter = Number.isFinite(jitterMs) && jitterMs > 0 ? Math.round(Math.random() * jitterMs) : 0;
+
+  const exponentialDelay = base * Math.pow(multiplier, Math.max(1, attempt) - 1);
+  return Math.max(200, Math.min(max, Math.round(exponentialDelay + jitter)));
+};
+
+const resolveEventPublisher = ({ logger, eventPublisher }) => {
+  if (eventPublisher) {
+    return eventPublisher;
+  }
+
+  const configuredDestination = String(process.env.OUTBOX_WEBHOOK_URL || '').trim();
+  if (!configuredDestination) {
+    return createNoopEventPublisher({ logger });
+  }
+
+  return createHttpEventPublisher({ logger });
+};
 
 const createOutboxRelayWorker = ({
   outboxEventRepository = createOutboxEventRepository(),
+  eventPublisher: providedEventPublisher,
   logger = console,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  pollIntervalMs = 5000,
+  batchSize = 100,
+  maxDeliveryAttempts = Number(process.env.OUTBOX_MAX_DELIVERY_ATTEMPTS || 5),
+  baseRetryDelayMs = Number(process.env.OUTBOX_RETRY_BASE_DELAY_MS || 1000),
+  retryMultiplier = Number(process.env.OUTBOX_RETRY_MULTIPLIER || 2),
+  retryJitterMs = Number(process.env.OUTBOX_RETRY_JITTER_MS || 250),
+  maxRetryDelayMs = Number(process.env.OUTBOX_RETRY_MAX_DELAY_MS || 60000),
 } = {}) => {
+  const eventPublisher = resolveEventPublisher({ logger, eventPublisher: providedEventPublisher });
   let intervalHandle = null;
   let isRunning = false;
 
   const processEventsInternal = async () => {
-    const pendingEvents = await outboxEventRepository.findPending(100);
+    const now = new Date();
+    const pendingEvents = await outboxEventRepository.findPending(batchSize);
 
     for (const event of pendingEvents) {
+      const eventPayload = event?.payload || {};
+      const attempts = Number.isFinite(Number(eventPayload._deliveryAttempts)) ? Number(eventPayload._deliveryAttempts) : 0;
+      const eventId = eventPayload.eventId;
+
+      if (!isDue(event, now)) {
+        logger.debug?.('[OutboxRelay] Event waiting for retry', {
+          eventId,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          nextRetryAt: eventPayload._nextRetryAt,
+        });
+        continue;
+      }
+
+      const claimed = await outboxEventRepository.markAsProcessing(event.id);
+      if (!claimed) {
+        continue;
+      }
+
+      const scope = event.aggregateType;
+
+      logger.info?.('[OutboxRelay] Publishing event', {
+        eventId,
+        scope,
+        aggregateId: event.aggregateId,
+        eventType: event.eventType,
+        attempts,
+      });
+
       try {
-        logger.log(`[OutboxRelay] Publishing event ${event.id} (${event.eventType}) for ${event.aggregateType}:${event.aggregateId}`);
+        const publishResult = await eventPublisher.publish({
+          ...eventPayload,
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          publishedAt: new Date().toISOString(),
+        });
 
-        await outboxEventRepository.markAsProcessed(event.id);
+        await outboxEventRepository.markAsProcessed(event.id, {
+          payload: {
+            _deliveryAttempts: attempts,
+            _publishResult: publishResult,
+            _publishedAt: new Date().toISOString(),
+          },
+        });
 
-        logger.log(`[OutboxRelay] Successfully published event ${event.id}`);
+        logger.info?.('[OutboxRelay] Event published', {
+          eventId,
+          scope,
+          aggregateId: event.aggregateId,
+          eventType: event.eventType,
+          publishResult,
+        });
       } catch (error) {
-        logger.error(`[OutboxRelay] Failed to publish event ${event.id}:`, error.message);
-        await outboxEventRepository.markAsFailed(event.id, error);
+        const nextAttempt = attempts + 1;
+        const shouldFail = nextAttempt >= maxDeliveryAttempts;
+        const retryAfterMs = shouldFail ? null : calculateRetryDelayMs(nextAttempt, {
+          baseDelayMs: baseRetryDelayMs,
+          maxDelayMs: maxRetryDelayMs,
+          backoffMultiplier: retryMultiplier,
+          jitterMs: retryJitterMs,
+        });
+
+        const nextRetryAt = shouldFail ? null : new Date(now.getTime() + retryAfterMs);
+
+        await outboxEventRepository.markAsFailed(event.id, error, {
+          attempts: nextAttempt,
+          terminal: shouldFail,
+          nextRetryAt,
+          extraPayload: {
+            _publishResult: null,
+            _scope: scope,
+            _lastAttemptedAt: new Date().toISOString(),
+          },
+        });
+
+        logger.error?.('[OutboxRelay] Event publish failed', {
+          eventId,
+          scope,
+          aggregateId: event.aggregateId,
+          eventType: event.eventType,
+          attempts: nextAttempt,
+          terminal: shouldFail,
+          nextRetryAt: nextRetryAt?.toISOString(),
+          error: error?.message || String(error),
+        });
       }
     }
   };
 
-  const start = (pollIntervalMs = 5000) => {
+  const start = (overridePollIntervalMs = pollIntervalMs) => {
     if (isRunning) {
       logger.warn('[OutboxRelay] Worker already running');
       return;
     }
 
+    const interval = Number.isFinite(Number(overridePollIntervalMs))
+      ? Number(overridePollIntervalMs)
+      : pollIntervalMs;
+
     isRunning = true;
-    logger.log(`[OutboxRelay] Starting worker with poll interval ${pollIntervalMs}ms`);
+    logger.log(`[OutboxRelay] Starting worker with poll interval ${interval}ms`);
 
     processEventsInternal();
 
@@ -41,7 +180,7 @@ const createOutboxRelayWorker = ({
       if (isRunning) {
         processEventsInternal();
       }
-    }, pollIntervalMs);
+    }, interval);
   };
 
   const stop = () => {
@@ -63,7 +202,7 @@ const createOutboxRelayWorker = ({
     await processEventsInternal();
   };
 
-  return { start, stop, processPendingEvents };
+  return { start, stop, processPendingEvents, calculateRetryDelayMs };
 };
 
 module.exports = { createOutboxRelayWorker };

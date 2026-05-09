@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Mostrar la simulación y creación de crédito con fórmula activa y snapshot congelado.
+Mostrar la simulación y creación de crédito con el perfil de cálculo activo y snapshot financiero congelado.
 
 ## Flujo de demo
 
@@ -11,13 +11,13 @@ Mostrar la simulación y creación de crédito con fórmula activa y snapshot co
 3. Enviar a `Nuevo crédito`.
 4. Verificar resumen y cronograma.
 5. Crear crédito.
-6. Confirmar que el detalle muestra fórmula aplicada.
+6. Confirmar que el detalle muestra el método aplicado y el snapshot financiero.
 
 ## Checklist QA
 
 - Simulación responde con calendario y resumen.
 - Si no existe política compatible, el flujo cae a fuente manual sin romper creación.
-- El crédito creado persiste `dagGraphVersionId`, `calculationMethod` y snapshot de políticas.
+- El crédito creado persiste `calculationProfileVersionId`, método aplicado y snapshot de políticas.
 
 ## Storyboard
 
