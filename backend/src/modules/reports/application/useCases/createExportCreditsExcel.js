@@ -158,10 +158,7 @@ const pickCustomerState = (customer = {}) => (
 );
 
 const getPaymentMethod = (payment = {}) => (
-  payment.paymentMetadata?.method
-  || payment.paymentMetadata?.paymentMethod
-  || payment.method
-  || payment.paymentMethod
+  payment.paymentMethod
   || 'N/A'
 );
 
@@ -308,7 +305,7 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
 /**
  * Export credits using the same operator-facing workbook structure as the previous system.
  *
- * The report intentionally excludes technical DAG/policy fields from visible sheets.
+ * The report intentionally excludes technical calculation fields from visible sheets.
  * Those values remain available in snapshots and audit records, but this Excel is for
  * portfolio review, payments, amortization and recovery analysis.
  *

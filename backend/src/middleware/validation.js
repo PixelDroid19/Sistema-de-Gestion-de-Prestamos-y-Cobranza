@@ -1,5 +1,5 @@
 const { ValidationError } = require('@/utils/errorHandler');
-const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/application/dag/lateFeeMode');
+const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
 const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
 
@@ -799,11 +799,4 @@ module.exports = {
   customerValidation,
   associateValidation,
   notificationValidation,
-  validateDagGraph: (graph) => {
-    if (!graph || typeof graph !== 'object') return false;
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-    const edges = Array.isArray(graph.edges) ? graph.edges : [];
-    if (nodes.length > 200 || edges.length > 400) return false;
-    return true;
-  },
 };

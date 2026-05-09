@@ -5,7 +5,7 @@
 - Rama: `codex/credit-system-audit-railway`
 - Backend Railway: `https://backend-production-4d24.up.railway.app`
 - Frontend QA local: `http://127.0.0.1:3000` apuntando al backend Railway mediante proxy Vite.
-- `DAG_ROLLOUT_MODE`: `primary`
+- Nota histórica: esta auditoría fue ejecutada antes del retiro del workbench visual. El cálculo vigente ya no usa rollout DAG.
 - Usuario QA principal: `qa.admin.20260427@test.local`
 
 ## Hallazgos corregidos
@@ -13,7 +13,7 @@
 ### Fecha de primer pago
 
 - Problema: si una integración enviaba `startDate` como fecha-hora con zona horaria, la persistencia podía guardar el día UTC resultante y no el día operativo seleccionado.
-- Corrección: la creación de crédito normaliza la fecha seleccionada como fecha UTC pura usando el prefijo `YYYY-MM-DD`, igual que el motor de fórmulas.
+- Corrección: la creación de crédito normaliza la fecha seleccionada como fecha UTC pura usando el prefijo `YYYY-MM-DD`, igual que el motor de cálculo financiero.
 - Prueba agregada: `createLoanFromCanonicalData stores the selected payment date without timezone drift`.
 
 ### Abono a capital y cronograma afectado

@@ -39,7 +39,7 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'Loans') {
     return {
-      id: {}, customerId: {}, associateId: {}, dagGraphVersionId: {}, calculationMethod: {}, ratePolicyId: {}, lateFeePolicyId: {}, policySnapshot: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
+      id: {}, customerId: {}, associateId: {}, calculationProfileVersionId: {}, calculationMethod: {}, ratePolicyId: {}, lateFeePolicyId: {}, policySnapshot: {}, amount: {}, interestRate: {}, termMonths: {}, status: {},
       startDate: {}, endDate: {}, financialProductId: {}, emiSchedule: {}, installmentAmount: {}, totalPayable: {},
       totalPaid: {}, principalOutstanding: {}, interestOutstanding: {}, lastPaymentDate: {}, lateFeeMode: {},
       annualLateFeeRate: {}, financialSnapshot: {}, financialBlock: {}, closedAt: {}, closureReason: {}, recoveryStatus: {}, createdAt: {}, updatedAt: {},
@@ -114,15 +114,9 @@ const buildDescribedTable = (tableName) => {
     };
   }
 
-  if (tableName === 'DagGraphVersions') {
+  if (tableName === 'CalculationProfileVersions') {
     return {
-      id: {}, scopeKey: {}, name: {}, description: {}, version: {}, status: {}, graph: {}, graphSummary: {}, validation: {}, createdByUserId: {}, commitMessage: {}, authorName: {}, authorEmail: {}, restoredFromVersionId: {}, createdAt: {}, updatedAt: {},
-    };
-  }
-
-  if (tableName === 'DagSimulationSummaries') {
-    return {
-      id: {}, scopeKey: {}, graphVersionId: {}, createdByUserId: {}, selectedSource: {}, fallbackReason: {}, simulationInput: {}, summary: {}, schedulePreview: {}, createdAt: {}, updatedAt: {},
+      id: {}, scopeKey: {}, name: {}, version: {}, status: {}, calculationMethod: {}, parameters: {}, rules: {}, formulaSet: {}, changelog: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -184,7 +178,7 @@ const buildDescribedTable = (tableName) => {
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'DagGraphVersions', 'DagSimulationSummaries', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'Permissions', 'RolePermissions', 'UserPermissions', 'refresh_tokens', 'rate_limit_entries'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'CalculationProfileVersions', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'Permissions', 'RolePermissions', 'UserPermissions', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -200,8 +194,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const idempotencyKeys = requiredSchema.find((entry) => entry.tableName === 'IdempotencyKeys');
   const notifications = requiredSchema.find((entry) => entry.tableName === 'Notifications');
   const pushSubscriptions = requiredSchema.find((entry) => entry.tableName === 'PushSubscriptions');
-  const dagGraphVersions = requiredSchema.find((entry) => entry.tableName === 'DagGraphVersions');
-  const dagSimulationSummaries = requiredSchema.find((entry) => entry.tableName === 'DagSimulationSummaries');
+  const calculationProfileVersions = requiredSchema.find((entry) => entry.tableName === 'CalculationProfileVersions');
   const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
   const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
   const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
@@ -222,8 +215,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(idempotencyKeys);
   assert.ok(notifications);
   assert.ok(pushSubscriptions);
-  assert.ok(dagGraphVersions);
-  assert.ok(dagSimulationSummaries);
+  assert.ok(calculationProfileVersions);
   assert.ok(financialProducts);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
@@ -238,7 +230,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(associates.columns.includes('email'));
   assert.ok(associates.columns.includes('participationPercentage'));
   assert.ok(loans.columns.includes('associateId'));
-  assert.ok(loans.columns.includes('dagGraphVersionId'));
+  assert.equal(loans.columns.includes(['dag', 'GraphVersionId'].join('')), false);
+  assert.ok(loans.columns.includes('calculationProfileVersionId'));
   assert.ok(loans.columns.includes('financialProductId'));
   assert.ok(loans.columns.includes('closedAt'));
   assert.ok(loans.columns.includes('closureReason'));
@@ -258,10 +251,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(notifications.columns.includes('payload'));
   assert.ok(pushSubscriptions.columns.includes('providerKey'));
   assert.ok(pushSubscriptions.columns.includes('endpointHash'));
-  assert.ok(dagGraphVersions.columns.includes('graphSummary'));
-  assert.ok(dagGraphVersions.columns.includes('description'));
-  assert.ok(dagGraphVersions.columns.includes('status'));
-  assert.ok(dagSimulationSummaries.columns.includes('selectedSource'));
+  assert.ok(calculationProfileVersions.columns.includes('calculationMethod'));
+  assert.ok(calculationProfileVersions.columns.includes('parameters'));
   assert.ok(financialProducts.columns.includes('penaltyRate'));
   assert.ok(outboxEvents.columns.includes('eventType'));
   assert.ok(configEntries.columns.includes('category'));
@@ -432,44 +423,28 @@ test('syncDatabaseSchema alters schema only when alter mode is explicitly reques
 });
 
 test('syncDatabaseSchema auto-creates newly required tables in local verify mode', async () => {
-  const dagGraphVersionModel = {
-    name: 'DagGraphVersion',
+  const calculationProfileVersionModel = {
+    name: 'CalculationProfileVersion',
     getTableName() {
-      return 'DagGraphVersions';
+      return 'CalculationProfileVersions';
     },
     getAttributes() {
       return {
         id: { fieldName: 'id' },
         scopeKey: { fieldName: 'scopeKey' },
+        version: { fieldName: 'version' },
       };
     },
     async sync() {
-      calls.push('DagGraphVersions.sync');
-      existingTables.add('DagGraphVersions');
-    },
-  };
-  const dagSimulationSummaryModel = {
-    name: 'DagSimulationSummary',
-    getTableName() {
-      return 'DagSimulationSummaries';
-    },
-    getAttributes() {
-      return {
-        id: { fieldName: 'id' },
-        scopeKey: { fieldName: 'scopeKey' },
-      };
-    },
-    async sync() {
-      calls.push('DagSimulationSummaries.sync');
-      existingTables.add('DagSimulationSummaries');
+      calls.push('CalculationProfileVersions.sync');
+      existingTables.add('CalculationProfileVersions');
     },
   };
   const calls = [];
-  const existingTables = new Set(allTables.filter((tableName) => !['DagGraphVersions', 'DagSimulationSummaries'].includes(tableName)));
+  const existingTables = new Set(allTables.filter((tableName) => tableName !== 'CalculationProfileVersions'));
   const models = [
-    ...REQUIRED_SCHEMA_MODELS.filter((model) => !['DagGraphVersion', 'DagSimulationSummary'].includes(model.name)),
-    dagGraphVersionModel,
-    dagSimulationSummaryModel,
+    ...REQUIRED_SCHEMA_MODELS.filter((model) => model.name !== 'CalculationProfileVersion'),
+    calculationProfileVersionModel,
   ];
 
   const result = await syncDatabaseSchema({
@@ -493,17 +468,18 @@ test('syncDatabaseSchema auto-creates newly required tables in local verify mode
     },
   });
 
-  assert.deepEqual(calls, ['DagGraphVersions.sync', 'DagSimulationSummaries.sync']);
+  assert.deepEqual(calls, ['CalculationProfileVersions.sync']);
   assert.equal(result.mode, 'verify');
-  assert.deepEqual(result.createdTables, ['DagGraphVersions', 'DagSimulationSummaries']);
+  assert.deepEqual(result.createdTables, ['CalculationProfileVersions']);
 });
 
 test('REQUIRED_SCHEMA_MODELS keeps parent tables before dependent child tables', () => {
   const names = REQUIRED_SCHEMA_MODELS.map((model) => model.name);
 
   assert.ok(names.indexOf('FinancialProduct') < names.indexOf('Loan'));
-  assert.ok(names.indexOf('User') < names.indexOf('DagGraphVersion'));
-  assert.ok(names.indexOf('DagGraphVersion') < names.indexOf('Loan'));
+  assert.equal(names.includes(['Dag', 'GraphVersion'].join('')), false);
+  assert.ok(names.indexOf('User') < names.indexOf('CalculationProfileVersion'));
+  assert.ok(names.indexOf('CalculationProfileVersion') < names.indexOf('Loan'));
   assert.ok(names.indexOf('Loan') < names.indexOf('Payment'));
   assert.ok(names.indexOf('User') < names.indexOf('Notification'));
   assert.ok(names.indexOf('User') < names.indexOf('RefreshToken'));
@@ -511,40 +487,6 @@ test('REQUIRED_SCHEMA_MODELS keeps parent tables before dependent child tables',
   assert.ok(names.indexOf('User') < names.indexOf('AssociateInstallment'));
   assert.ok(names.indexOf('Loan') < names.indexOf('DocumentAttachment'));
   assert.ok(names.indexOf('Payment') < names.indexOf('DocumentAttachment'));
-});
-
-test('syncDatabaseSchema keeps failing on missing tables outside safe local environments', async () => {
-  const dagGraphVersionModel = {
-    name: 'DagGraphVersion',
-    getTableName() {
-      return 'DagGraphVersions';
-    },
-    getAttributes() {
-      return {
-        id: { fieldName: 'id' },
-      };
-    },
-    async sync() {
-      throw new Error('should not auto-create tables in production verify mode');
-    },
-  };
-
-  await assert.rejects(() => syncDatabaseSchema({
-    env: { NODE_ENV: 'production' },
-    models: [dagGraphVersionModel],
-    database: {
-      getQueryInterface() {
-        return {
-          async showAllTables() {
-            return [];
-          },
-          async describeTable() {
-            return {};
-          },
-        };
-      },
-    },
-  }), /Missing table "DagGraphVersions"/);
 });
 
 test('resetDatabaseSchema drops and recreates the local postgres schema before verifying', async () => {

@@ -3,7 +3,6 @@ const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { createPaymentRouter } = require('./paymentRouter');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
-const { workbenchLimiter } = require('@/middleware/rateLimiter');
 
 const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation, useCases, paymentApplicationService, loanAccessPolicy }) => {
   const router = express.Router();
@@ -37,26 +36,25 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   }));
 
   const sendCreditCalculation = async (req, res) => {
-    const calculation = await (useCases.createCreditCalculation || useCases.createSimulation)(req.body);
+    const calculation = await useCases.createCreditCalculation(req.body);
+    if (!calculation.calculationVersionId || !calculation.calculationProfileVersionId) {
+      throw new ValidationError('Credit calculation response is missing the active calculation profile version');
+    }
+
     res.json({
       success: true,
       message: 'Credit calculation generated successfully',
       data: {
         calculation: {
-          calculationMethod: calculation.calculationMethod || 'FRENCH',
+          calculationVersionId: calculation.calculationVersionId,
+          calculationProfileVersionId: calculation.calculationProfileVersionId,
+          method: calculation.method,
+          inputs: calculation.inputs,
           lateFeeMode: calculation.lateFeeMode,
           summary: calculation.summary,
           schedule: calculation.schedule,
-          graphVersionId: calculation.graphVersionId ?? null,
           policySnapshot: calculation.policySnapshot ?? null,
-        },
-        simulation: {
-          calculationMethod: calculation.calculationMethod || 'FRENCH',
-          lateFeeMode: calculation.lateFeeMode,
-          summary: calculation.summary,
-          schedule: calculation.schedule,
-          graphVersionId: calculation.graphVersionId ?? null,
-          policySnapshot: calculation.policySnapshot ?? null,
+          explanation: calculation.explanation ?? null,
         },
       },
     });
@@ -64,162 +62,17 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
 
   router.post('/calculations', authMiddleware(), loanValidation.simulate, asyncHandler(sendCreditCalculation));
 
-  router.get('/workbench/scopes', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.listDagWorkbenchScopes({ actor: req.user });
-    res.json({ success: true, data: { scopes: result.scopes } });
-  }));
-
-  router.get('/workbench/graph', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.loadDagWorkbenchGraph({ actor: req.user, scopeKey: req.query.scope });
-    res.json({ success: true, data: { graph: result.graphVersion } });
-  }));
-
-  router.post('/workbench/graph', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
-    const result = await useCases.saveDagWorkbenchGraph({
-      actor: req.user,
-      scopeKey: req.body.scopeKey,
-      name: req.body.name,
-      graph: req.body.graph,
-      commitMessage: req.body.commitMessage,
-    });
-    res.status(201).json({
-      success: true,
-      message: 'DAG graph saved successfully',
-      data: {
-        graph: result.graphVersion,
-        validation: result.validation,
-      },
-    });
-  }));
-
-  router.post('/workbench/graph/validate', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
-    const validation = await useCases.validateDagWorkbenchGraph({
-      actor: req.user,
-      scopeKey: req.body.scopeKey,
-      graph: req.body.graph,
-    });
-    res.json({ success: true, data: { validation } });
-  }));
-
-  const sendWorkbenchCalculation = async (req, res) => {
-    const workbenchPayload = {
-      actor: req.user,
-      scopeKey: req.body.scopeKey,
-      graph: req.body.graph,
-    };
-    if (req.body.calculationInput !== undefined) {
-      workbenchPayload.calculationInput = req.body.calculationInput;
-    }
-    if (req.body.simulationInput !== undefined) {
-      workbenchPayload.simulationInput = req.body.simulationInput;
-    }
-
-    const result = await (useCases.calculateDagWorkbenchGraph || useCases.simulateDagWorkbenchGraph)(workbenchPayload);
-    res.json({
-      success: true,
-      message: 'DAG workbench calculation generated successfully',
-      data: {
-        graph: result.graphVersion,
-        validation: result.validation,
-        calculation: result.calculation,
-        simulation: result.simulation,
-        summary: result.summary,
-      },
-    });
-  };
-
-  router.post('/workbench/graph/calculations', authMiddleware(['admin']), workbenchLimiter, asyncHandler(sendWorkbenchCalculation));
-
-  router.get('/workbench/graph/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const summary = await useCases.getDagWorkbenchSummary({ actor: req.user, scopeKey: req.query.scope });
-    res.json({ success: true, data: { summary } });
-  }));
-
-  // ── DAG Formula Management Endpoints ──────────────────────────────────────
-  router.get('/workbench/graphs', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.listDagWorkbenchGraphs({ actor: req.user, scopeKey: req.query.scope });
-    res.json({ success: true, data: { graphs: result.graphs } });
-  }));
-
-  router.get('/workbench/graphs/:graphId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.getDagWorkbenchGraphDetails({ actor: req.user, graphId: Number(req.params.graphId) });
-    res.json({ success: true, data: { graph: result.graph } });
-  }));
-
-  router.patch('/workbench/graphs/:graphId/status', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
-    const { status } = req.body;
-    if (!['active', 'inactive'].includes(status)) {
-      return res.status(400).json({ success: false, error: { message: 'Invalid status. Must be "active" or "inactive".' } });
-    }
-
-    const useCase = status === 'active' ? useCases.activateDagWorkbenchGraph : useCases.deactivateDagWorkbenchGraph;
-    const result = await useCase({ actor: req.user, graphId: Number(req.params.graphId) });
-    res.json({ success: true, message: `Graph ${status === 'active' ? 'activated' : 'deactivated'} successfully`, data: { graph: result.graph } });
-  }));
-
-  router.delete('/workbench/graphs/:graphId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    await useCases.deleteDagWorkbenchGraph({ actor: req.user, graphId: Number(req.params.graphId) });
-    res.json({ success: true, message: 'Graph deleted successfully' });
-  }));
-
-  // ── Graph History & Diff Endpoints ───────────────────────────────────────
-  router.get('/workbench/graphs/:graphId/history', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.getDagWorkbenchGraphHistory({ actor: req.user, graphId: Number(req.params.graphId) });
-    res.json({ success: true, data: { history: result.history } });
-  }));
-
-  router.get('/workbench/graphs/:graphId/diff', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const result = await useCases.getDagWorkbenchGraphDiff({
-      actor: req.user,
-      graphId: Number(req.params.graphId),
-      compareToGraphId: req.query.compareToGraphId ? Number(req.query.compareToGraphId) : undefined,
-      compareToVersionId: Number(req.query.compareToVersionId),
-    });
-    res.json({ success: true, data: { diff: result.diff } });
-  }));
-
-  router.post('/workbench/graphs/:graphId/restore', authMiddleware(['admin']), workbenchLimiter, asyncHandler(async (req, res) => {
-    const result = await useCases.restoreDagWorkbenchGraph({
-      actor: req.user,
-      graphId: Number(req.params.graphId),
-      commitMessage: req.body.commitMessage,
-    });
-    res.status(201).json({ success: true, data: { graph: result.graph } });
-  }));
-
-  // ── Variable Registry Endpoints ──────────────────────────────────────────
-  router.get('/workbench/variables', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
-    const filters = {
-      type: req.query.type,
-      source: req.query.source,
-      status: req.query.status,
-    };
-    const result = await useCases.listDagVariables({ actor: req.user, filters, pagination: req.pagination });
-    res.json({ success: true, count: result.pagination?.totalItems ?? result.items?.length ?? 0, data: { variables: result.items ?? result, pagination: result.pagination } });
-  }));
-
-  router.post('/workbench/variables', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const variable = await useCases.createDagVariable({ actor: req.user, payload: req.body });
-    res.status(201).json({ success: true, data: { variable } });
-  }));
-
-  router.patch('/workbench/variables/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    const variable = await useCases.updateDagVariable({ id: Number(req.params.id), payload: req.body });
-    res.json({ success: true, data: { variable } });
-  }));
-
-  router.delete('/workbench/variables/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
-    await useCases.deleteDagVariable({ id: Number(req.params.id) });
-    res.json({ success: true, message: 'Variable deleted successfully' });
-  }));
-
   router.get('/customer/:customerId', authMiddleware(['customer']), attachPagination(), asyncHandler(async (req, res) => {
     const result = await useCases.listLoansByCustomer({ actor: req.user, customerId: req.params.customerId, pagination: req.pagination });
     res.json({ success: true, count: result.pagination?.totalItems ?? result.loans.length, data: result });
   }));
 
   router.post('/', authMiddleware(['customer', 'admin']), loanValidation.create, asyncHandler(async (req, res) => {
-    const loan = await useCases.createLoan({ actor: req.user, payload: req.body });
+    const loan = await useCases.createLoan({
+      actor: req.user,
+      payload: req.body,
+      idempotencyKey: requireIdempotencyKey(req),
+    });
     res.status(201).json({
       success: true,
       message: 'Loan application submitted successfully',

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { dagService } from '../../services/dagService';
+import { creditCalculationService } from '../../services/creditCalculationService';
 import { getSafeErrorText } from '../../services/safeErrorMessages';
-import type { CreditCalculationInput, CreditCalculationResult } from '../../types/dag';
+import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 
 export const DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT: CreditCalculationInput = {
   amount: 2000000,
@@ -10,10 +10,7 @@ export const DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT: CreditCalculationInput = {
   lateFeeMode: 'SIMPLE',
 };
 
-export const DEFAULT_ACTIVE_CREDIT_SIMULATION_INPUT = DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT;
-
 export type CreditCalculationFieldErrors = Record<string, string>;
-export type SimulationFieldErrors = CreditCalculationFieldErrors;
 
 const validateCalculationInput = (input: CreditCalculationInput): CreditCalculationFieldErrors => {
   const errors: CreditCalculationFieldErrors = {};
@@ -33,7 +30,7 @@ const validateCalculationInput = (input: CreditCalculationInput): CreditCalculat
   return errors;
 };
 
-const extractBackendFieldErrors = (error: unknown): SimulationFieldErrors => {
+const extractBackendFieldErrors = (error: unknown): CreditCalculationFieldErrors => {
   if (!error || typeof error !== 'object') return {};
   const candidate = error as {
     response?: { data?: { error?: { validationErrors?: Array<{ field?: string; message?: string }> } } };
@@ -41,7 +38,7 @@ const extractBackendFieldErrors = (error: unknown): SimulationFieldErrors => {
   const validationErrors = candidate.response?.data?.error?.validationErrors;
   if (!Array.isArray(validationErrors)) return {};
 
-  const fieldErrors: SimulationFieldErrors = {};
+  const fieldErrors: CreditCalculationFieldErrors = {};
   for (const ve of validationErrors) {
     if (ve.field && ve.message) {
       fieldErrors[ve.field] = ve.message;
@@ -80,7 +77,7 @@ export const useActiveCreditSimulation = ({
   const [input, setInput] = useState<CreditCalculationInput>(initialInput);
   const [result, setResult] = useState<CreditCalculationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<SimulationFieldErrors>({});
+  const [fieldErrors, setFieldErrors] = useState<CreditCalculationFieldErrors>({});
   const [isSimulating, setIsSimulating] = useState(false);
   const [lastSimulatedInput, setLastSimulatedInput] = useState<CreditCalculationInput | null>(null);
   const hasAutoRunOnceRef = useRef(false);
@@ -98,18 +95,18 @@ export const useActiveCreditSimulation = ({
     setError(null);
 
     try {
-      const response = await dagService.calculate(input);
-      setResult(response.data.calculation || response.data.simulation || null);
+      const response = await creditCalculationService.calculate(input);
+      setResult(response.data.calculation);
       setLastSimulatedInput({ ...input });
-    } catch (simulationError) {
-      const backendFields = extractBackendFieldErrors(simulationError);
+    } catch (calculationError) {
+      const backendFields = extractBackendFieldErrors(calculationError);
       if (Object.keys(backendFields).length > 0) {
         setFieldErrors(backendFields);
         setError('El servidor rechazó los parámetros. Revisa los campos marcados.');
       } else {
-        setError(getSafeErrorText(simulationError, {
+        setError(getSafeErrorText(calculationError, {
           domain: 'credits',
-          action: 'credit.simulate',
+          action: 'credit.calculate',
         }));
       }
     } finally {

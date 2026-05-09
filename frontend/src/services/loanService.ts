@@ -45,7 +45,7 @@ export const useLoans = (
 
   const createLoan = useMutation({
     mutationFn: async (loanData: any) => {
-      const { data } = await apiClient.post('/loans', loanData);
+      const { data } = await apiClient.post('/loans', loanData, withIdempotencyKey('loan-create'));
       return data;
     },
     onSuccess: () => {
@@ -53,9 +53,9 @@ export const useLoans = (
     },
   });
 
-  const simulateLoan = useMutation({
-    mutationFn: async (simulationData: any) => {
-      const { data } = await apiClient.post('/loans/calculations', simulationData);
+  const calculateLoan = useMutation({
+    mutationFn: async (calculationData: any) => {
+      const { data } = await apiClient.post('/loans/calculations', calculationData);
       return data;
     },
   });
@@ -85,7 +85,7 @@ export const useLoans = (
     isLoading: getLoans.isLoading,
     isError: getLoans.isError,
     createLoan,
-    simulateLoan,
+    calculateLoan,
     updateLoanStatus,
     deleteLoan,
   };

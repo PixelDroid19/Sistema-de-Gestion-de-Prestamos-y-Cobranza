@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## Repo Shape
 - There is no root workspace runner. Install and verify `backend/` and `frontend/` separately.
@@ -24,13 +24,13 @@
 - All `require()` calls that cross directory boundaries use `@/` (e.g., `require('@/models')`, `require('@/modules/shared/errors')`).
 - Same-directory requires stay relative (e.g., `require('./router')`).
 - The migration script `backend/scripts/migrateToAlias.js` can re-run to convert any new relative imports.
-- Frontend `@/` is unrelated — it resolves to `frontend/` package root via Vite, not `frontend/src/`.
+- Frontend `@/` is unrelated — it resolves to `frontend/` package root, not `frontend/src/`.
 
 ## Backend Gotchas
 - Required boot env: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `JWT_SECRET`.
 - Current code reads `DB_*` and `ALLOWED_ORIGINS`; it does not read `DATABASE_URL` or `CORS_ORIGIN` from `render.yaml`.
 - Without `ALLOWED_ORIGINS`, development only allows `http://localhost:3000` and `http://127.0.0.1:3000`.
-- Startup does more than start Express: it authenticates Sequelize, verifies/syncs schema, seeds financial products, starts overdue-alert scheduling, and starts the outbox relay worker every 5 seconds.
+- Startup does more than start Express: it authenticates Sequelize, verifies/syncs schema, seeds domain defaults, starts overdue-alert scheduling, and starts the outbox relay worker every 5 seconds.
 - Schema mode defaults to `verify`. Use `DB_SCHEMA_MODE=alter|reset`; `DB_RESET_ON_BOOT=true` is an alias for `reset`.
 - Reset is blocked outside `development`, `test`, and `local` unless `DB_SCHEMA_RESET_ALLOWED=true`.
 - Migrations exist under `backend/src/db/migrations`, but the normal runtime source of truth is `backend/src/bootstrap/schema.js`.
@@ -51,47 +51,47 @@
 - `setup.md` is stale for frontend port and `VITE_API_URL`; prefer `frontend/package.json` and `frontend/vite.config.ts`.
 - Branding is mid-migration: both `CrediCobranza` and legacy `LendFlow` still appear in UI, tests, storage keys, and generated documents. Inspect nearby usage before doing brand-wide replacements.
 
-## DAG Formula System Architecture
-The system uses persisted, editable DAG graphs (`DagGraphVersion` model) as the single source of truth for credit simulation and loan origination math. A visual workbench (admin-only) lets users edit formulas, and the same formula version drives both the simulator and credit creation.
+## Credit Calculation Engine (No DAG)
+The system no longer uses DAG graphs at runtime. All credit calculation behavior is centralized in a dedicated domain module and persisted via versioned calculation profiles.
 
-### Execution chain
-1. **`graphExecutor.js`** — loads the active `DagGraphVersion` from DB by scope key and executes it via `CalculationEngine`. Returns `{ ok, source, graphVersionId, result, executionMetrics }`. Also has `executeDraft()` for workbench previews.
-2. **`calculationAdapter.js`** — wraps `graphExecutor` with rollout modes (`off`/`shadow`/`primary`). Always runs legacy `simulateCredit()` alongside and compares via `parity.js`. Returns `{ mode, selectedSource, result, parity, fallbackReason, graphVersionId }`.
-3. **`creditSimulationService.js`** — exposes `simulate(input)` (returns result + graphVersionId) and `simulateDetailed(input)` (returns full execution metadata). Used by the `/loans/simulations` route and by `loanCreation.js`.
-4. **`loanCreation.js`** — persists the loan and records `dagGraphVersionId` from the execution result. No separate query to `DagGraphVersion`.
+### Current architecture
+- `backend/src/modules/credits/domain/calculation/` contains the financial source of truth for:
+  - input normalization
+  - amortization methods (`FRENCH`, `SIMPLE`, `COMPOUND`)
+  - late fee policies (`NONE`, `SIMPLE`, `COMPOUND`, `FLAT`, `TIERED`)
+  - policy resolution (`calculationProfileVersionId`)
+  - deterministic schedule + summary generation
+  - policy snapshots and explainable breakdown (`calculation.explanation`).
+- `backend/src/modules/credits/application/creditCalculationService.js` is the service API used by `/api/loans/calculations` and loan creation.
+- `backend/src/modules/credits/infrastructure/loanCreation.js` always recalculates through `creditCalculationService` and persists:
+  - `calculationProfileVersionId`
+  - `policySnapshot` with method/inputs/summary metadata.
 
-### Scope & contracts
-- Only one scope exists: `credit-simulation` (defined in `scopeRegistry.js`).
-- Required inputs: `amount`, `interestRate`, `termMonths`. Optional: `startDate`, `lateFeeMode`.
-- Required outputs: `lateFeeMode`, `schedule`, `summary` (on the `result` outputVar).
-- `graphExecutor` validates both input and output contracts on every execution.
+### API contract
+- `/api/loans/calculations` returns only:
+  - `data.calculation.calculationVersionId`
+  - `data.calculation.calculationProfileVersionId`
+  - `data.calculation.method`
+  - `data.calculation.inputs`
+  - `data.calculation.schedule`
+  - `data.calculation.summary`
+  - `data.calculation.policySnapshot`
+  - `data.calculation.explanation`
+- Legacy `simulation` or `graphVersionId` contracts are not supported for new operations.
 
-### Formula engine
-- Formulas are compiled and evaluated by `CalculationEngine` -> `FormulaCompiler` -> `BigNumberEngine` (mathjs BigNumber mode).
-- mathjs **cannot parse** JavaScript object literals (`{ key: value }` or shorthand `{ key }`). All graph formulas must use function calls with positional args.
-- Helpers injected into the evaluation scope by `scopeBuilder.js`: `buildAmortizationSchedule(amount, rate, term, startDate, lateFeeMode)`, `summarizeSchedule(schedule)`, `assertSupportedLateFeeMode(mode)`, `calculateLateFee(...)`, `roundCurrency(value)`, `buildSimulationResult(lateFeeMode, schedule, summary)`.
-- `BigNumberEngine` maintains a function whitelist; any new helper must be added to both `scopeBuilder.js` and `BigNumberEngine.ALLOWED_FUNCTIONS`.
-
-### Workbench
-- Admin-only visual editor at `DAGWorkbench.tsx`. API routes under `/api/loans/workbench/*`.
-- `workbenchService.js` handles save/load/validate/simulate via `graphExecutor.executeDraft()`.
-- Validation: `validateDagWorkbenchGraph()` checks cycles, duplicate IDs, formula safety, and scope output requirements.
-
-### Rollout config
-- `config.js` reads `DAG_ROLLOUT_MODE` env (default `off`). Modes: `off` = legacy only, `shadow` = run both / return legacy / log parity, `primary` = use DAG when parity passes.
-- **CRITICAL**: In production, `DAG_ROLLOUT_MODE` MUST be set to `primary`. Without it, the system runs in legacy-only mode, `graphVersionId` is always `null`, and `dagGraphVersionId` is not persisted on loans — breaking formula traceability completely.
-- Composition wired in `repositories.js` -> `composition.js`.
-
-### Seeding
-- On first boot, `bootstrap/schema.js` seeds a `DagGraphVersion` v1 from `scopeRegistry.defaultGraph` if no version exists for the scope.
+### Migration model
+- `backend/src/db/migrations/20260507000001_add_calculation_profile_versions.js` introduces `CalculationProfileVersion`.
+- `backend/src/db/migrations/20260507000002_remove_dag_artifacts.js` removes old DAG runtime artifacts and moves any historical trace data into `Loan.policySnapshot.retiredCalculationTrace`.
+- `backend/src/models/Loan.js` includes `calculationProfileVersionId` and no longer stores DAG runtime FK.
+- For historical compatibility, old DAG columns/routes are not required by new workflows and are validated as absent where applicable.
 
 ### Key files
-- `backend/src/modules/credits/application/dag/graphExecutor.js` — unified execution
-- `backend/src/modules/credits/application/dag/calculationAdapter.js` — rollout adapter
-- `backend/src/modules/credits/application/dag/scopeRegistry.js` — scope contracts + default graph
-- `backend/src/modules/credits/application/dag/workbenchService.js` — workbench CRUD + simulate
-- `backend/src/core/domain/calculation/CalculationEngine.js` — 6-phase engine
-- `backend/src/core/domain/calculation/scopeBuilder.js` — scope init + helper injection
-- `backend/src/core/domain/calculation/BigNumberEngine.js` — mathjs wrapper + whitelist
-- `frontend/src/components/DAGWorkbench.tsx` — visual editor
-- `frontend/src/types/dag.ts` — TypeScript types + constants
+- `backend/src/modules/credits/domain/calculation/index.js`
+- `backend/src/modules/credits/domain/calculation/creditCalculationEngine.js`
+- `backend/src/modules/credits/application/creditPolicyResolver.js`
+- `backend/src/modules/credits/domain/calculation/amortizationMethods.js`
+- `backend/src/modules/credits/domain/calculation/lateFeeCalculator.js`
+- `backend/src/modules/credits/domain/calculation/calculationExplainer.js`
+- `backend/src/modules/credits/domain/calculation/policySnapshotBuilder.js`
+- `backend/src/modules/credits/application/creditCalculationService.js`
+- `backend/src/modules/credits/domain/calculation/README.md`

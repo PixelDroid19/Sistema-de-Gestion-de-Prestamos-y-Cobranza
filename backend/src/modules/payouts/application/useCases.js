@@ -72,11 +72,7 @@ const filterPaymentsByFilters = ({ payments = [], filters = {} }) => {
 };
 
 const resolvePaymentMethodInput = (payload = {}) => {
-  const directValue = toTrimmedOrNull(
-    payload.paymentMethod
-    ?? payload.method
-    ?? payload.paymentMetadata?.method,
-  );
+  const directValue = toTrimmedOrNull(payload.paymentMethod);
 
   if (!directValue) {
     return null;
@@ -94,11 +90,15 @@ const resolveMetadataInput = (payload = {}) => {
   const incomingMetadata = payload.paymentMetadata && typeof payload.paymentMetadata === 'object'
     ? payload.paymentMetadata
     : {};
+  const normalizedMetadata = { ...incomingMetadata };
+  if (Object.prototype.hasOwnProperty.call(normalizedMetadata, 'method')) {
+    delete normalizedMetadata.method;
+  }
 
   return {
-    incomingMetadata,
-    reference: toTrimmedOrNull(payload.reference ?? incomingMetadata.reference),
-    observation: toTrimmedOrNull(payload.observation ?? incomingMetadata.observation),
+    incomingMetadata: normalizedMetadata,
+    reference: toTrimmedOrNull(payload.reference ?? normalizedMetadata.reference),
+    observation: toTrimmedOrNull(payload.observation ?? normalizedMetadata.observation),
   };
 };
 
@@ -298,8 +298,8 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
 };
 
 /**
- * Update mutable payment metadata while keeping the top-level payment method
- * column and nested metadata in sync for reporting and voucher generation.
+ * Update mutable payment metadata while treating paymentMethod as the canonical source
+ * of truth.
  * @param {{ paymentRepository: object, loanAccessPolicy: object }} dependencies
  * @returns {Function}
  */
@@ -332,17 +332,21 @@ const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) =>
     reference,
     observation,
   } = resolveMetadataInput(payload);
+  const nextPaymentMetadata = {
+    ...currentMetadata,
+    ...incomingMetadata,
+    reference: reference || currentMetadata.reference || null,
+    observation: observation || currentMetadata.observation || null,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(nextPaymentMetadata, 'method')) {
+    delete nextPaymentMetadata.method;
+  }
 
   return paymentRepository.update(payment, {
     paymentDate: paymentDate || payment.paymentDate,
     paymentMethod: paymentMethod || payment.paymentMethod || null,
-    paymentMetadata: {
-      ...currentMetadata,
-      ...incomingMetadata,
-      method: paymentMethod || currentMetadata.method || null,
-      reference: reference || currentMetadata.reference || null,
-      observation: observation || currentMetadata.observation || null,
-    },
+    paymentMetadata: nextPaymentMetadata,
   });
 };
 

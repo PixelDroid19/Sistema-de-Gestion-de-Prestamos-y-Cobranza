@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, FlaskConical, UserRound } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, CreditCard, DollarSign, Settings, LogOut, ChevronDown, ClipboardList, X, PanelLeftClose, PanelLeftOpen, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/sessionStore';
 import { tTerm } from '../i18n/terminology';
@@ -27,7 +27,6 @@ export default function Sidebar({
     clientes: false,
     creditos: false,
     socios: false,
-    formulas: false,
   });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -49,11 +48,11 @@ export default function Sidebar({
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
     if (isCollapsed) {
-       setOpenMenus({ clientes: false, creditos: false, socios: false, formulas: false });
+       setOpenMenus({ clientes: false, creditos: false, socios: false });
     }
   }, [isCollapsed]);
 
-  const handleSectionClick = (key: 'clientes' | 'creditos' | 'socios' | 'formulas', nextView: string, isSectionActive: boolean) => {
+  const handleSectionClick = (key: 'clientes' | 'creditos' | 'socios', nextView: string, isSectionActive: boolean) => {
     if (isCollapsed) {
       setIsCollapsed(false);
     }
@@ -99,7 +98,7 @@ export default function Sidebar({
       {/* Sidebar Container */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        bg-bg-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-hidden
+        app-glass-surface flex flex-col py-6 border-r border-border-subtle shrink-0 overflow-hidden
         transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isCollapsed ? 'w-20' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -107,7 +106,7 @@ export default function Sidebar({
         {/* Header / Logo */}
         <div className={`flex shrink-0 items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView(homeView)}>
-            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm transition-transform group-hover:scale-105">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-brand-primary text-white font-bold text-xl shrink-0 shadow-[0_10px_24px_-14px_rgba(20,95,116,0.7)] transition-transform group-hover:scale-105">
               {APP_BRAND.monogram}
             </div>
             {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">{APP_BRAND.name}</span>}
@@ -144,7 +143,7 @@ export default function Sidebar({
                 isCollapsed ? 'justify-center' : 'justify-between gap-3'
               } ${
                 isCustomersView && isCollapsed
-                  ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
+                  ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary' 
                   : isCustomersView 
                     ? 'text-text-primary font-semibold' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
@@ -163,7 +162,7 @@ export default function Sidebar({
                 </div>
               )}
               {isCustomersView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
               )}
             </button>
             
@@ -196,7 +195,7 @@ export default function Sidebar({
                   isCollapsed ? 'justify-center' : 'justify-between gap-3'
                 } ${
                   isCreditsView && isCollapsed
-                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50'
+                    ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary'
                     : isCreditsView
                       ? 'text-text-primary font-semibold'
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
@@ -215,7 +214,7 @@ export default function Sidebar({
                 </div>
               )}
               {isCreditsView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
               )}
             </button>
             
@@ -248,7 +247,7 @@ export default function Sidebar({
                     active={currentView === 'credit-calculator' || currentView === 'simulator'}
                     onClick={() => setCurrentView('credit-calculator')}
                     title="Cálculo de Crédito"
-                    tooltip="Calcula cuotas con la fórmula activa del crédito"
+                    tooltip="Calcula cuotas con el perfil activo del crédito"
                   />
                 )}
 
@@ -267,7 +266,7 @@ export default function Sidebar({
                   isCollapsed ? 'justify-center' : 'justify-between gap-3'
                 } ${
                   isAssociatesView && isCollapsed
-                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
+                    ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary' 
                     : isAssociatesView
                       ? 'text-text-primary font-semibold' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
@@ -286,7 +285,7 @@ export default function Sidebar({
                 </div>
               )}
               {isAssociatesView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
               )}
             </button>
             
@@ -302,65 +301,17 @@ export default function Sidebar({
           </div>
           )}
 
-          {/* Menú Formulas */}
           {isAdmin && (
-          <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
-              <button
-                onClick={() => handleSectionClick('formulas', 'formulas', currentView === 'formulas' || currentView.startsWith('formulas/'))}
-                data-active={isCollapsed && (currentView === 'formulas' || currentView.startsWith('formulas/')) ? "true" : "false"}
-                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
-                } ${
-                  (currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed
-                    ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50'
-                    : (currentView === 'formulas' || currentView.startsWith('formulas/'))
-                      ? 'text-text-primary font-semibold'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-                }`}
-                title={isCollapsed ? 'Fórmulas' : undefined}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`${(currentView === 'formulas' || currentView.startsWith('formulas/')) ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
-                    <FlaskConical size={20} />
-                  </div>
-                  {!isCollapsed && <span className="text-sm whitespace-nowrap">Fórmulas</span>}
-                </div>
-                {!isCollapsed && (
-                  <div className={`transition-transform duration-200 ${openMenus['formulas'] ? 'rotate-180' : ''}`}>
-                    <ChevronDown size={16} />
-                  </div>
-                )}
-                {(currentView === 'formulas' || currentView.startsWith('formulas/')) && isCollapsed && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
-                )}
-              </button>
-
-              {openMenus['formulas'] && !isCollapsed && (
-                <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
-                  <SubNavItem
-                    active={currentView === 'formulas' || currentView.startsWith('formulas/') && currentView !== 'formulas/variables'}
-                    onClick={() => setCurrentView('formulas')}
-                    title="Editor"
-                    tooltip="Gestiona versiones activas y reglas de cálculo"
-                  />
-                  <SubNavItem
-                    active={currentView === 'formulas/variables'}
-                    onClick={() => setCurrentView('formulas/variables')}
-                    title="Variables"
-                    tooltip="Administra parámetros usados por las fórmulas"
-                  />
-                </div>
-              )}
-
-            <NavItem
-              icon={<DollarSign size={20} />}
-              active={currentView === 'payouts'}
-              onClick={() => setCurrentView('payouts')}
-              title={tTerm('sidebar.payouts')}
-              tooltip="Registra pagos, consulta recibos y seguimiento de cobranza"
-              isCollapsed={isCollapsed}
-            />
-          </div>
+            <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
+              <NavItem
+                icon={<DollarSign size={20} />}
+                active={currentView === 'payouts'}
+                onClick={() => setCurrentView('payouts')}
+                title={tTerm('sidebar.payouts')}
+                tooltip="Registra pagos, consulta recibos y seguimiento de cobranza"
+                isCollapsed={isCollapsed}
+              />
+            </div>
           )}
 
           <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
@@ -385,7 +336,7 @@ export default function Sidebar({
             onClick={handleLogout}
             title={isLoggingOut ? 'Cerrando sesión...' : tTerm('sidebar.logout')}
             isCollapsed={isCollapsed}
-            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+            className="text-text-secondary hover:text-text-primary hover:bg-hover-bg"
           />
           
           {/* Botón Colapsar (Solo Escritorio) */}
@@ -415,7 +366,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
         isCollapsed ? 'justify-center' : 'justify-start gap-3'
       } ${
         active 
-          ? 'bg-slate-100 text-text-primary font-semibold dark:bg-slate-800/70 dark:text-slate-50' 
+          ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary' 
           : className || 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
       }`}
     >
@@ -426,7 +377,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
       
       {/* Indicador lateral sutil */}
       {active && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-slate-400 rounded-r-full dark:bg-slate-500" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
       )}
     </button>
   );

@@ -4,7 +4,7 @@ import CreditSimulator from '../CreditSimulator';
 
 const mockNavigate = vi.fn();
 
-const simulationInput = {
+const calculationInput = {
   amount: 2400000,
   interestRate: 48,
   termMonths: 18,
@@ -12,9 +12,9 @@ const simulationInput = {
   startDate: '2026-04-26',
 };
 
-const baseSimulationResult = {
-  calculationMethod: 'COMPOUND',
-  graphVersionId: 8,
+const baseCalculationResult = {
+  method: 'COMPOUND',
+  calculationProfileVersionId: 8,
   lateFeeMode: 'SIMPLE' as const,
   summary: {
     installmentAmount: 210000,
@@ -30,9 +30,9 @@ const baseSimulationResult = {
   schedule: [],
 };
 
-let simulationState = {
-  input: simulationInput,
-  result: baseSimulationResult,
+let calculationState = {
+  input: calculationInput,
+  result: baseCalculationResult,
   error: null,
   fieldErrors: {},
   isSimulating: false,
@@ -56,15 +56,15 @@ vi.mock('../hooks/useActiveCreditSimulation', () => ({
     termMonths: 12,
     lateFeeMode: 'SIMPLE',
   },
-  useActiveCreditSimulation: () => simulationState,
+  useActiveCreditSimulation: () => calculationState,
 }));
 
 describe('CreditSimulator behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    simulationState = {
-      input: simulationInput,
-      result: baseSimulationResult,
+    calculationState = {
+      input: calculationInput,
+      result: baseCalculationResult,
       error: null,
       fieldErrors: {},
       isSimulating: false,
@@ -86,7 +86,7 @@ describe('CreditSimulator behavior', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/new', {
         state: {
-          simulationInput,
+          calculationInput,
           source: 'credit-calculator',
         },
       });
@@ -105,7 +105,7 @@ describe('CreditSimulator behavior', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/new', {
         state: {
-          simulationInput,
+          calculationInput,
           source: 'credit-calculator',
         },
       });
@@ -113,8 +113,8 @@ describe('CreditSimulator behavior', () => {
   });
 
   it('blocks both registration CTAs when the simulation result is stale', () => {
-    simulationState = {
-      ...simulationState,
+    calculationState = {
+      ...calculationState,
       isResultStale: true,
     };
 

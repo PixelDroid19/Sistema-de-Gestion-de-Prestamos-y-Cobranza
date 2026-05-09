@@ -8,6 +8,7 @@
     "build": "echo 'No build step required for Node.js backend'",
     "test": "set NODE_ENV=test&& node --test",
     "db:reset-local": "node scripts/resetLocalDb.js",
+    "smoke:local": "node scripts/localSmokeTest.js",
     "lint": "eslint . --ext .js,.cjs",
     "lint:fix": "npm run lint -- --fix"
   },

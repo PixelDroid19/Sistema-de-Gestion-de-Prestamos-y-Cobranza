@@ -50,6 +50,9 @@ const shouldBypassGlobalRateLimit = (req) => {
  * - Atomic operations preventing race conditions
  */
 const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
+  const inMemoryFallback = createInMemoryRateLimiter({ windowMs, max, keyPrefix, message });
+  let sqlUnavailable = false;
+
   // Clean up entries older than 2x windowMs to prevent table bloat
   const cleanupOldEntries = async () => {
     const cutoff = new Date(Date.now() - (windowMs * 2));
@@ -76,6 +79,10 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
   };
 
   return async (req, res, next) => {
+    if (sqlUnavailable) {
+      return inMemoryFallback(req, res, next);
+    }
+
     const identifier = buildRateLimitIdentifier(req, keyPrefix);
     const key = `${keyPrefix}:${identifier}`;
     const now = Date.now();
@@ -152,10 +159,10 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
       res.set('X-RateLimit-Remaining', result.remaining);
       next();
     } catch (err) {
-      // If database error occurs, allow the request but log the error
-      // This prevents rate limiting from causing outages if DB is unavailable
-      console.error('Rate limiter database error:', err.message);
-      next();
+      // Fail closed into in-memory protection instead of bypassing throttling entirely.
+      sqlUnavailable = true;
+      console.error('Rate limiter SQL unavailable, falling back to in-memory limiter:', err.message);
+      return inMemoryFallback(req, res, next);
     }
   };
 };
@@ -244,20 +251,12 @@ const paymentLimiter = createRateLimiter({
   message: 'Operación de pago en curso o demasiados intentos. Por favor, espere.',
 });
 
-// Workbench limiter: 20 formula calculations per 5 minutes
-const workbenchLimiter = createRateLimiter({
-  windowMs: 5 * 60 * 1000,
-  max: 20,
-  keyPrefix: 'workbench',
-  message: 'Límite de cálculos de fórmula alcanzado. Por favor, espere.',
-});
 
 module.exports = {
   globalLimiter,
   readLimiter,
   authLimiter,
   paymentLimiter,
-  workbenchLimiter,
   createRateLimiter,
   createSqlRateLimiter,
   createInMemoryRateLimiter,

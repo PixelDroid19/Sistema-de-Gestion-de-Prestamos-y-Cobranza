@@ -80,7 +80,7 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
           penaltyApplied: formatMoney(payment.penaltyApplied),
           remainingBalanceAfterPayment: formatMoney(payment.remainingBalanceAfterPayment),
           paymentType: payment.paymentType || 'N/A',
-          paymentMethod: payment.paymentMethod || payment.paymentMetadata?.method || 'N/A',
+          paymentMethod: payment.paymentMethod || 'N/A',
           status: payment.status || 'N/A',
           reference: payment.paymentMetadata?.reference || '',
           observation: payment.paymentMetadata?.observation || '',

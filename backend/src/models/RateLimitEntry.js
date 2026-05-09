@@ -16,7 +16,7 @@ const RateLimitEntry = sequelize.define('RateLimitEntry', {
   keyPrefix: { 
     type: DataTypes.STRING(50), 
     allowNull: false,
-    comment: 'Rate limiter key prefix (e.g., global, auth, payment, workbench)',
+    comment: 'Rate limiter key prefix (e.g., global, auth, payment)',
   },
   identifier: { 
     type: DataTypes.STRING(255), 

@@ -73,7 +73,6 @@ test('export credits use case builds previous-system workbook fields with curren
     recoveryStatus: 'pending',
     startDate: '2026-04-29T00:00:00.000Z',
     calculationMethod: 'FRENCH',
-    dagGraphVersionId: 3,
     policySnapshot: {
       ratePolicyLabel: 'QA tasa',
       lateFeePolicyLabel: 'QA mora',
@@ -139,7 +138,8 @@ test('export credits use case builds previous-system workbook fields with curren
           paymentType: 'installment',
           installmentNumber: 1,
           paymentDate: '2026-05-29T00:00:00.000Z',
-          paymentMetadata: { method: 'cash', reference: 'REC-1' },
+          paymentMethod: 'cash',
+          paymentMetadata: { reference: 'REC-1' },
         }];
       },
     },
@@ -177,7 +177,6 @@ test('export credits use case builds previous-system workbook fields with curren
   assert.ok(detailHeaders.includes('Interés Pagado'));
   assert.ok(detailHeaders.includes('Interés Generado'));
   assert.equal(detailHeaders.includes('calculationMethod'), false);
-  assert.equal(detailHeaders.includes('dagGraphVersionId'), false);
   assert.equal(detailHeaders.includes('ratePolicyId'), false);
 
   const workbook = new ExcelJS.Workbook();
@@ -333,7 +332,6 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
   assert.ok(detailHeaders.includes('Interés Pagado'));
   assert.ok(detailHeaders.includes('Interés Generado'));
   assert.equal(detailHeaders.includes('loanId'), false);
-  assert.equal(detailHeaders.includes('dagGraphVersionId'), false);
   assert.equal(detailHeaders.includes('calculationMethod'), false);
 });
 
@@ -423,7 +421,7 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
               payments: [{
                 paymentId: 10,
                 amount: '50000.00',
-                metadata: { method: 'cash' },
+                metadata: { paymentMethod: 'cash' },
                 circular: null,
               }],
               alerts: [],

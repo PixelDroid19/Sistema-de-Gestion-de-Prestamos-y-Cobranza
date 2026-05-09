@@ -191,7 +191,7 @@ interface CalendarOverviewResponse {
  * Credits page displays the loan portfolio with filtering, search,
  * calendar view, and simulation capabilities. Provides actions for
  * payment registration, promises, follow-ups, and installment annulment
- * via operational guards that delegate to the backend DAG engine.
+ * via operational guards delegated to the backend credit domain.
  */
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
   const [activeTab, setActiveTab] = useState('list');

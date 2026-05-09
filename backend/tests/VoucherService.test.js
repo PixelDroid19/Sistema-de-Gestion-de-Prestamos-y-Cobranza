@@ -57,13 +57,13 @@ describe('VoucherService', () => {
         id: 123,
         paymentDate: new Date('2026-03-15'),
         amount: 500000,
+        paymentMethod: 'transfer',
         principalApplied: 350000,
         interestApplied: 150000,
         penaltyApplied: 0,
         remainingBalanceAfterPayment: 1500000,
         installmentNumber: 5,
         paymentMetadata: {
-          method: 'transfer',
           observation: 'Pago puntual',
         },
       };
@@ -137,12 +137,13 @@ describe('VoucherService', () => {
         id: 99,
         paymentDate: new Date('2026-03-15'),
         amount: 550000,
+        paymentMethod: 'cash',
         principalApplied: 350000,
         interestApplied: 150000,
         penaltyApplied: 50000,
         remainingBalanceAfterPayment: 1450000,
         installmentNumber: 3,
-        paymentMetadata: { method: 'cash' },
+        paymentMetadata: {},
       };
 
       const loan = { id: 10, amount: 5000000 };

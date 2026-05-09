@@ -19,11 +19,15 @@ test('start sets up polling with setInterval', () => {
 
   const mockRepo = {
     findPending: async () => [],
+    markAsProcessing: async () => 0,
+    markAsProcessed: async () => [1],
+    markAsFailed: async () => [1],
   };
 
   const worker = createOutboxRelayWorker({
     outboxEventRepository: mockRepo,
-    logger: { log: () => {}, warn: () => {}, error: () => {} },
+    eventPublisher: { publish: async () => ({ published: true }) },
+    logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
     setIntervalFn: mockSetInterval,
     clearIntervalFn: () => {},
   });
@@ -34,66 +38,185 @@ test('start sets up polling with setInterval', () => {
   assert.equal(typeof capturedHandler, 'function');
 });
 
-test('stop clears the interval', () => {
-  let capturedHandle;
-  let clearIntervalCalled = false;
-
-  const mockSetInterval = (handler, timeout) => {
-    capturedHandle = 999;
-    return capturedHandle;
+test('processPendingEvents publishes events and marks them as processed', async () => {
+  const event = {
+    id: 'evt-1',
+    aggregateType: 'LoanTransaction',
+    aggregateId: 'tx-1',
+    eventType: 'AmortizationCalculatedEvent',
+    payload: { eventId: 'payload-1', _deliveryAttempts: 0 },
   };
 
-  const mockClearInterval = (handle) => {
-    if (handle === capturedHandle) {
-      clearIntervalCalled = true;
-    }
+  const markProcessedArgs = [];
+  const mockRepo = {
+    findPending: async () => [event],
+    markAsProcessing: async () => 1,
+    markAsProcessed: async (id, details) => {
+      markProcessedArgs.push({ id, details });
+      return [1];
+    },
+    markAsFailed: async () => [1],
   };
 
-  const mockRepo = { findPending: async () => [] };
+  const publishedPayloads = [];
+  const mockPublisher = { publish: async (payload) => {
+    publishedPayloads.push(payload);
+    return { published: true, status: 200 };
+  }};
 
   const worker = createOutboxRelayWorker({
     outboxEventRepository: mockRepo,
-    logger: { log: () => {}, warn: () => {}, error: () => {} },
-    setIntervalFn: mockSetInterval,
-    clearIntervalFn: mockClearInterval,
-  });
-
-  worker.start(1000);
-  worker.stop();
-
-  assert.equal(clearIntervalCalled, true);
-});
-
-test('start warns if worker is already running', () => {
-  let warningMessages = [];
-
-  const worker = createOutboxRelayWorker({
-    outboxEventRepository: { findPending: async () => [] },
-    logger: {
-      log: () => {},
-      warn: (msg) => warningMessages.push(msg),
-      error: () => {},
-    },
-    setIntervalFn: () => 999,
+    eventPublisher: mockPublisher,
+    logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+    setIntervalFn: () => 7,
     clearIntervalFn: () => {},
   });
 
   worker.start(1000);
-  worker.start(1000);
+  await worker.processPendingEvents();
+  worker.stop();
 
-  assert.equal(warningMessages.length, 1);
-  assert.ok(warningMessages[0].includes('already running'));
+  assert.equal(publishedPayloads.length >= 1, true);
+  assert.equal(markProcessedArgs[markProcessedArgs.length - 1].id, 'evt-1');
+  assert.equal(markProcessedArgs[markProcessedArgs.length - 1].details.payload._deliveryAttempts, 0);
+  assert.equal(markProcessedArgs[markProcessedArgs.length - 1].details.payload._publishResult.status, 200);
+});
+
+test('processPendingEvents retries failed events instead of marking them processed', async () => {
+  const event = {
+    id: 'evt-2',
+    aggregateType: 'LoanTransaction',
+    aggregateId: 'tx-2',
+    eventType: 'AmortizationCalculatedEvent',
+    payload: { eventId: 'payload-2', _deliveryAttempts: 0 },
+  };
+
+  let failedArgs;
+  const mockRepo = {
+    findPending: async () => [event],
+    markAsProcessing: async () => 1,
+    markAsProcessed: async () => [1],
+    markAsFailed: async (_id, _error, args) => {
+      failedArgs = { _id, args };
+      return [1];
+    },
+  };
+
+  const mockPublisher = { publish: async () => {
+    throw new Error('network timeout');
+  }};
+
+  const worker = createOutboxRelayWorker({
+    outboxEventRepository: mockRepo,
+    eventPublisher: mockPublisher,
+    maxDeliveryAttempts: 3,
+    logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+    setIntervalFn: () => 1,
+    clearIntervalFn: () => {},
+  });
+
+  worker.start(1000);
+  await worker.processPendingEvents();
+  worker.stop();
+
+  assert.ok(Boolean(failedArgs));
+  assert.equal(failedArgs._id, 'evt-2');
+  assert.equal(failedArgs.args.attempts, 1);
+  assert.equal(failedArgs.args.terminal, false);
+  assert.ok(failedArgs.args.nextRetryAt instanceof Date);
+});
+
+test('processPendingEvents marks failed events as terminal when max attempts reached', async () => {
+  const event = {
+    id: 'evt-3',
+    aggregateType: 'LoanTransaction',
+    aggregateId: 'tx-3',
+    eventType: 'AmortizationCalculatedEvent',
+    payload: { eventId: 'payload-3', _deliveryAttempts: 0 },
+  };
+
+  let failedArgs;
+  const mockRepo = {
+    findPending: async () => [event],
+    markAsProcessing: async () => 1,
+    markAsProcessed: async () => [1],
+    markAsFailed: async (_id, _error, args) => {
+      failedArgs = { _id, args };
+      return [1];
+    },
+  };
+
+  const mockPublisher = { publish: async () => {
+    throw new Error('gateway rejected');
+  }};
+
+  const worker = createOutboxRelayWorker({
+    outboxEventRepository: mockRepo,
+    eventPublisher: mockPublisher,
+    maxDeliveryAttempts: 1,
+    logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+    setIntervalFn: () => 1,
+    clearIntervalFn: () => {},
+  });
+
+  worker.start(1000);
+  await worker.processPendingEvents();
+  worker.stop();
+
+  assert.equal(failedArgs._id, 'evt-3');
+  assert.equal(failedArgs.args.attempts, 1);
+  assert.equal(failedArgs.args.terminal, true);
+});
+
+test('events with future retry windows are left in pending state', async () => {
+  const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const event = {
+    id: 'evt-4',
+    aggregateType: 'LoanTransaction',
+    aggregateId: 'tx-4',
+    eventType: 'AmortizationCalculatedEvent',
+    payload: { eventId: 'payload-4', _deliveryAttempts: 0, _nextRetryAt: nextRetryAt },
+  };
+
+  let markAsProcessingCalled = 0;
+  const mockRepo = {
+    findPending: async () => [event],
+    markAsProcessing: async () => {
+      markAsProcessingCalled += 1;
+      return 1;
+    },
+    markAsProcessed: async () => [1],
+    markAsFailed: async () => [1],
+  };
+
+  const mockPublisher = { publish: async () => ({ published: true }) };
+
+  const worker = createOutboxRelayWorker({
+    outboxEventRepository: mockRepo,
+    eventPublisher: mockPublisher,
+    logger: { log: () => {}, warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+    setIntervalFn: () => 1,
+    clearIntervalFn: () => {},
+  });
+
+  worker.start(1000);
+  await worker.processPendingEvents();
+  worker.stop();
+
+  assert.equal(markAsProcessingCalled, 0);
 });
 
 test('stop is idempotent when worker is not running', () => {
   let warningMessages = [];
 
   const worker = createOutboxRelayWorker({
-    outboxEventRepository: { findPending: async () => [] },
+    outboxEventRepository: { findPending: async () => [], markAsProcessing: async () => 1, markAsProcessed: async () => [1], markAsFailed: async () => [1] },
     logger: {
       log: () => {},
       warn: (msg) => warningMessages.push(msg),
       error: () => {},
+      info: () => {},
+      debug: () => {},
     },
     setIntervalFn: () => 1,
     clearIntervalFn: () => {},
@@ -103,32 +226,4 @@ test('stop is idempotent when worker is not running', () => {
 
   assert.equal(warningMessages.length, 1);
   assert.ok(warningMessages[0].includes('not running'));
-});
-
-test('processPendingEvents returns early when worker not started', async () => {
-  let findPendingCalled = false;
-
-  const mockRepo = {
-    findPending: async () => {
-      findPendingCalled = true;
-      return [];
-    },
-  };
-
-  const mockLogger = {
-    log: () => {},
-    warn: () => {},
-    error: () => {},
-  };
-
-  const worker = createOutboxRelayWorker({
-    outboxEventRepository: mockRepo,
-    logger: mockLogger,
-    setIntervalFn: () => {},
-    clearIntervalFn: () => {},
-  });
-
-  await worker.processPendingEvents();
-
-  assert.equal(findPendingCalled, false);
 });

@@ -41,7 +41,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   Associate: 'Socio',
   PromiseToPay: 'Compromiso de pago',
   Notification: 'Notificación',
-  DagGraphVersion: 'Versión de fórmula',
+  CalculationProfileVersion: 'Perfil de cálculo',
 };
 
 const ENTITY_TYPE_ALIASES: Record<string, string> = {
@@ -61,8 +61,8 @@ const ENTITY_TYPE_ALIASES: Record<string, string> = {
   promesas: 'PromiseToPay',
   notificacion: 'Notification',
   notificaciones: 'Notification',
-  formula: 'DagGraphVersion',
-  formulas: 'DagGraphVersion',
+  formula: 'CalculationProfileVersion',
+  formulas: 'CalculationProfileVersion',
 };
 
 const normalizeText = (value: string) => value

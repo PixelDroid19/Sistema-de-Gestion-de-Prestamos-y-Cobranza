@@ -2,7 +2,7 @@ const {
   UNSUPPORTED_LATE_FEE_MODES,
   normalizeLateFeeMode,
   assertSupportedLateFeeMode,
-} = require('./dag/lateFeeMode');
+} = require('@/modules/credits/domain/calculation');
 
 const resolvePolicyAdjustedInput = async ({ input, policyResolver }) => {
   if (!policyResolver || typeof policyResolver.resolve !== 'function') {
@@ -22,7 +22,10 @@ const withPolicySnapshot = (result, policySnapshot) => {
 
   return {
     ...result,
-    policySnapshot,
+    policySnapshot: {
+      ...(result?.policySnapshot || {}),
+      ...policySnapshot,
+    },
   };
 };
 
@@ -33,21 +36,26 @@ const withPolicySnapshot = (result, policySnapshot) => {
  */
 const createCreditCalculationService = ({ calculationService, policyResolver } = {}) => {
   if (!calculationService) {
-    throw new Error('createCreditCalculationService requires calculationService. DAG is the single source of truth.');
+    throw new Error('createCreditCalculationService requires calculationService. Calculation profiles are the single source of truth.');
   }
 
   return {
     async calculate(input) {
       const policyContext = await resolvePolicyAdjustedInput({ input, policyResolver });
-      const execution = await calculationService.calculate(policyContext.calculationInput);
+      const execution = await calculationService.calculate(policyContext.calculationInput, {
+        policySnapshot: policyContext.policySnapshot,
+      });
       return {
         ...withPolicySnapshot(execution.result, policyContext.policySnapshot),
-        graphVersionId: execution.graphVersionId ?? null,
+        calculationProfileVersionId: execution.calculationProfileVersionId,
+        calculationVersionId: execution.calculationVersionId,
       };
     },
     async calculateDetailed(input) {
       const policyContext = await resolvePolicyAdjustedInput({ input, policyResolver });
-      const execution = await calculationService.calculate(policyContext.calculationInput);
+      const execution = await calculationService.calculate(policyContext.calculationInput, {
+        policySnapshot: policyContext.policySnapshot,
+      });
       return {
         ...execution,
         result: withPolicySnapshot(execution.result, policyContext.policySnapshot),

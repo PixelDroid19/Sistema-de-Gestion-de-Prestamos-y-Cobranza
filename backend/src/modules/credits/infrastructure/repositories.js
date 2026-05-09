@@ -8,9 +8,7 @@ const {
   LoanAlert,
   PromiseToPay,
   Payment,
-  DagGraphVersion,
-  DagSimulationSummary,
-  DagVariable,
+  CalculationProfileVersion,
 } = require('@/models');
 const { notificationService } = require('@/modules/notifications/application/notificationService');
 const { createCreditCalculationService } = require('@/modules/credits/application/creditCalculationService');
@@ -20,9 +18,10 @@ const { createLocalAttachmentStorage } = require('./attachmentStorage');
 const { createLoanFromCanonicalDataFactory } = require('./loanCreation');
 const { roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { normalizeUtcDateOnly } = require('@/modules/credits/application/loanFinancials');
-const { createCreditsDagConfig } = require('@/modules/credits/application/dag/config');
-const { createCreditsCalculationService } = require('@/modules/credits/application/dag/calculationAdapter');
-const { createGraphExecutor } = require('@/modules/credits/application/dag/graphExecutor');
+const {
+  DEFAULT_CALCULATION_SCOPE_KEY,
+  createProfileBackedCalculationService,
+} = require('@/modules/credits/domain/calculation');
 
 const { paginateModel } = require('@/modules/shared/pagination');
 
@@ -70,27 +69,6 @@ const getLatestLoan = (loans) => loans.reduce((latest, current) => {
 
   return currentTimestamp > latestTimestamp ? current : latest;
 }, null);
-
-const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const normalizeGraphRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
-
-const graphReferencesVariable = (graph = {}, variableName) => {
-  const normalizedName = String(variableName || '').trim();
-  if (!normalizedName) return false;
-
-  const tokenPattern = new RegExp(`(^|[^A-Za-z0-9_])${escapeRegExp(normalizedName)}([^A-Za-z0-9_]|$)`);
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-
-  return nodes.some((node) => {
-    if (String(node?.outputVar || '') === normalizedName) return true;
-    if (Array.isArray(node?.dependencies) && node.dependencies.includes(normalizedName)) return true;
-    if (typeof node?.formula === 'string' && tokenPattern.test(node.formula)) return true;
-    if (typeof node?.label === 'string' && tokenPattern.test(node.label)) return true;
-    if (node?.metadata && tokenPattern.test(JSON.stringify(node.metadata))) return true;
-    return false;
-  });
-};
 
 const buildCustomerSummary = (loans = []) => {
   const latestLoan = getLatestLoan(loans);
@@ -199,11 +177,8 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
 /**
  * Create the infrastructure ports consumed by the credits module composition seam.
  *
- * The dependency chain is built lazily inside the function body so the
- * dagGraphRepository → graphExecutor → calculationService → creditSimulator
- * ordering is guaranteed.
  *
- * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, dagConfig?: object, configRepositoryPort?: object, policyResolverOverride?: object }} [options]
+ * @param {{ loanModel?: object, customerModel?: object, associateModel?: object, userModel?: object, documentAttachmentModel?: object, notifications?: object, attachmentStorage?: object, configRepositoryPort?: object, policyResolverOverride?: object }} [options]
  * @returns {object}
  */
 const createCreditsInfrastructure = ({
@@ -215,18 +190,11 @@ const createCreditsInfrastructure = ({
   loanAlertModel = LoanAlert,
   promiseToPayModel = PromiseToPay,
   paymentModel = Payment,
-  dagGraphVersionModel = DagGraphVersion,
-  dagSimulationSummaryModel = DagSimulationSummary,
-  dagVariableModel = DagVariable,
-  dagConfig = createCreditsDagConfig(),
+  calculationProfileVersionModel = CalculationProfileVersion,
   configRepositoryPort = configRepository,
   notifications = notificationService,
   attachmentStorage = createLocalAttachmentStorage(),
-  // Overridable for testing — if not provided, built below from the dag graph repository
-  graphExecutorOverride,
   calculationServiceOverride,
-  creditSimulatorOverride,
-  detailedCreditSimulatorOverride,
   loanCreatorOverride,
   policyResolverOverride,
 } = {}) => {
@@ -234,234 +202,77 @@ const createCreditsInfrastructure = ({
     customerModel,
     associateModel,
     {
-      model: dagGraphVersionModel,
-      as: 'dagGraph',
-      attributes: ['id', 'scopeKey', 'name', 'version', 'status', 'createdAt', 'updatedAt'],
+      model: calculationProfileVersionModel,
+      as: 'calculationProfile',
+      attributes: ['id', 'scopeKey', 'name', 'version', 'status', 'calculationMethod', 'createdAt', 'updatedAt'],
     },
   ];
 
-  // ── Build dagGraphRepository first (needed by graphExecutor) ──────────
-  const dagGraphRepository = {
-    getLatest(scopeKey) {
-      return dagGraphVersionModel.findOne({
-        where: { scopeKey },
-        order: [['version', 'DESC'], ['createdAt', 'DESC']],
-      });
-    },
-    getLatestActive(scopeKey) {
-      return dagGraphVersionModel.findOne({
+  const calculationProfileRepository = {
+    getLatestActive(scopeKey = DEFAULT_CALCULATION_SCOPE_KEY) {
+      return calculationProfileVersionModel.findOne({
         where: { scopeKey, status: 'active' },
         order: [['version', 'DESC'], ['createdAt', 'DESC']],
       });
     },
-    async listByScopeKey(scopeKey) {
-      const graphs = await dagGraphVersionModel.findAll({
+    getLatest(scopeKey = DEFAULT_CALCULATION_SCOPE_KEY) {
+      return calculationProfileVersionModel.findOne({
         where: { scopeKey },
         order: [['version', 'DESC'], ['createdAt', 'DESC']],
-        attributes: {
-          include: [
-            [
-              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
-              'usageCount',
-            ],
-          ],
-        },
-      });
-      return graphs;
-    },
-    async findById(id) {
-      const graph = await dagGraphVersionModel.findByPk(id, {
-        attributes: {
-          include: [
-            [
-              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
-              'usageCount',
-            ],
-          ],
-        },
-      });
-      return graph;
-    },
-    async findByScopeAndVersion(scopeKey, version) {
-      return dagGraphVersionModel.findOne({
-        where: { scopeKey, version },
-        attributes: {
-          include: [
-            [
-              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
-              'usageCount',
-            ],
-          ],
-        },
       });
     },
-    async getUsageCount(id) {
-      const count = await loanModel.count({ where: { dagGraphVersionId: id } });
-      return count;
+    findById(id) {
+      return calculationProfileVersionModel.findByPk(id);
     },
-    async getVariableUsage(variableName) {
-      const graphs = await dagGraphVersionModel.findAll({
+    listByScopeKey(scopeKey = DEFAULT_CALCULATION_SCOPE_KEY) {
+      return calculationProfileVersionModel.findAll({
+        where: { scopeKey },
         order: [['version', 'DESC'], ['createdAt', 'DESC']],
-        attributes: {
-          include: [
-            [
-              Sequelize.literal(`(SELECT COUNT(*) FROM "Loans" WHERE "Loans"."dagGraphVersionId" = "DagGraphVersion"."id")`),
-              'usageCount',
-            ],
-          ],
-        },
       });
-
-      const references = graphs
-        .map(normalizeGraphRecord)
-        .filter((graph) => graphReferencesVariable(graph.graph, variableName))
-        .map((graph) => {
-          const graphUsageCount = Number(graph.usageCount || 0);
-          return {
-            graphId: graph.id,
-            graphName: graph.name,
-            version: graph.version,
-            status: graph.status,
-            usageCount: graphUsageCount,
-            isActive: graph.status === 'active',
-            isLocked: graphUsageCount > 0,
-          };
-        });
-
-      return {
-        count: references.length,
-        references,
-        isReferencedByActiveGraph: references.some((reference) => reference.isActive),
-        isReferencedByLockedGraph: references.some((reference) => reference.isLocked),
-        isReferencedByProtectedGraph: references.some((reference) => reference.isActive || reference.isLocked),
-      };
     },
-    countByScopeKey(scopeKey) {
-      return dagGraphVersionModel.count({ where: { scopeKey } });
-    },
-    countActiveByScopeKey(scopeKey) {
-      return dagGraphVersionModel.count({ where: { scopeKey, status: 'active' } });
-    },
-    async updateStatus(id, status) {
-      const graph = await dagGraphVersionModel.findByPk(id);
-      if (!graph) return null;
-      graph.status = status;
-      await graph.save();
-      return graph;
-    },
-    async activateVersion(id) {
-      const activated = await dagGraphVersionModel.sequelize.transaction(async (transaction) => {
-        // Acquire an advisory lock on the scopeKey to prevent concurrent activations
-        // This ensures only one activation per scope can happen at a time across all instances
-        const targetGraph = await dagGraphVersionModel.findByPk(id, { transaction, lock: true });
-        if (!targetGraph) {
-          return null;
-        }
-
-        // Use advisory lock derived from scopeKey hash for cross-process serialization
-        const scopeKeyHash = Buffer.from(targetGraph.scopeKey).reduce((h, c) => ((h << 5) - h + c) | 0, 0);
-        await dagGraphVersionModel.sequelize.query(
-          'SELECT pg_advisory_xact_lock(:lockId)',
-          { replacements: { lockId: Math.abs(scopeKeyHash) % 2147483647 }, transaction }
-        );
-
-        // Re-verify no other active version was created while we waited for the lock
-        const currentActive = await dagGraphVersionModel.findOne({
-          where: { scopeKey: targetGraph.scopeKey, status: 'active' },
-          transaction,
-          lock: true,
-        });
-
-        if (currentActive && currentActive.id !== targetGraph.id) {
-          await dagGraphVersionModel.update(
-            { status: 'inactive' },
-            {
-              where: { id: currentActive.id },
-              transaction,
-            },
-          );
-        }
-
-        targetGraph.status = 'active';
-        await targetGraph.save({ transaction });
-        return targetGraph.id;
-      });
-
-      if (!activated) {
-        return null;
-      }
-
-      return this.findById(activated);
-    },
-    async deactivateVersion(id) {
-      const graph = await dagGraphVersionModel.findByPk(id);
-      if (!graph) {
-        return null;
-      }
-
-      graph.status = 'inactive';
-      await graph.save();
-      return this.findById(id);
-    },
-    async deleteGraph(id) {
-      const graph = await dagGraphVersionModel.findByPk(id);
-      if (!graph) return null;
-      await graph.destroy();
-      return true;
+    countUsage(id) {
+      return loanModel.count({ where: { calculationProfileVersionId: id } });
     },
     async saveVersion(payload) {
-      const latest = await this.getLatest(payload.scopeKey);
+      const latest = await this.getLatest(payload.scopeKey || DEFAULT_CALCULATION_SCOPE_KEY);
       const version = Number(latest?.version || 0) + 1;
-      return dagGraphVersionModel.create({ ...payload, version, status: payload.status || 'inactive' });
-    },
-  };
-
-  const dagVariableRepository = {
-    async list({ type, source, status, page = 1, pageSize = 20 } = {}) {
-      const where = {};
-      if (type) where.type = type;
-      if (source) where.source = source;
-      if (status) where.status = status;
-      return paginateModel({
-        model: dagVariableModel,
-        page,
-        pageSize,
-        where,
-        order: [['createdAt', 'DESC']],
+      return calculationProfileVersionModel.create({
+        ...payload,
+        scopeKey: payload.scopeKey || DEFAULT_CALCULATION_SCOPE_KEY,
+        version,
+        status: payload.status || 'inactive',
       });
     },
-    async findById(id) {
-      return dagVariableModel.findByPk(id);
-    },
-    async findByName(name) {
-      return dagVariableModel.findOne({ where: { name } });
-    },
-    async create(payload) {
-      return dagVariableModel.create(payload);
-    },
-    async update(id, payload) {
-      const variable = await dagVariableModel.findByPk(id);
-      if (!variable) return null;
-      await variable.update(payload);
-      return variable;
-    },
-    async delete(id) {
-      const variable = await dagVariableModel.findByPk(id);
-      if (!variable) return null;
-      await variable.destroy();
-      return true;
+    async activateVersion(id) {
+      return calculationProfileVersionModel.sequelize.transaction(async (transaction) => {
+        const targetProfile = await calculationProfileVersionModel.findByPk(id, { transaction, lock: true });
+        if (!targetProfile) return null;
+
+        await calculationProfileVersionModel.update(
+          { status: 'inactive' },
+          {
+            where: {
+              scopeKey: targetProfile.scopeKey,
+              status: 'active',
+              id: { [Op.ne]: targetProfile.id },
+            },
+            transaction,
+          },
+        );
+
+        targetProfile.status = 'active';
+        await targetProfile.save({ transaction });
+        return targetProfile;
+      });
     },
   };
 
-  // ── Build the dependency chain: graphExecutor → calculationService → credit calculations ──
-  const graphExecutor = graphExecutorOverride || createGraphExecutor({ dagGraphRepository, dagVariableRepository });
-  const calculationService = calculationServiceOverride || createCreditsCalculationService({
-    graphExecutor,
+  // Profile-backed calculation service is the runtime source of truth.
+  const calculationService = calculationServiceOverride || createProfileBackedCalculationService({
+    calculationProfileRepository,
   });
   const policyResolver = policyResolverOverride || createCreditPolicyResolver({ configRepository: configRepositoryPort });
   const creditCalculationService = createCreditCalculationService({ calculationService, policyResolver });
-  const creditCalculator = creditSimulatorOverride || creditCalculationService.calculate;
-  const detailedCreditCalculator = detailedCreditSimulatorOverride || creditCalculationService.calculateDetailed;
   const loanCreator = loanCreatorOverride || createLoanFromCanonicalDataFactory({
     calculationService,
     policyResolver,
@@ -760,31 +571,13 @@ const createCreditsInfrastructure = ({
     },
     creditDomainService: {
       calculate(input) {
-        return creditCalculator(input);
+        return creditCalculationService.calculate(input);
       },
       calculateDetailed(input) {
-        return detailedCreditCalculator(input);
-      },
-      simulate(input) {
-        return creditCalculator(input);
-      },
-      simulateDetailed(input) {
-        return detailedCreditCalculator(input);
+        return creditCalculationService.calculateDetailed(input);
       },
     },
-    dagGraphRepository,
-    dagVariableRepository,
-    dagSimulationSummaryRepository: {
-      save(payload) {
-        return dagSimulationSummaryModel.create(payload);
-      },
-      getLatest(scopeKey) {
-        return dagSimulationSummaryModel.findOne({
-          where: { scopeKey },
-          order: [['createdAt', 'DESC'], ['id', 'DESC']],
-        });
-      },
-    },
+    calculationProfileRepository,
     loanCreationService: {
       create(input) {
         return loanCreator(input);
@@ -838,9 +631,7 @@ const createCreditsInfrastructure = ({
       },
     },
     attachmentStorage,
-    creditsDagConfig: dagConfig,
     creditsCalculationService: calculationService,
-    graphExecutor,
 
   };
 };
@@ -854,13 +645,10 @@ const {
   promiseRepository,
   paymentRepository,
   creditDomainService,
-  dagGraphRepository,
-  dagSimulationSummaryRepository,
-  dagVariableRepository,
+  calculationProfileRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,
-  graphExecutor,
 } = createCreditsInfrastructure();
 
 module.exports = {
@@ -873,11 +661,8 @@ module.exports = {
   promiseRepository,
   paymentRepository,
   creditDomainService,
-  dagGraphRepository,
-  dagSimulationSummaryRepository,
-  dagVariableRepository,
+  calculationProfileRepository,
   loanCreationService,
   notificationPort,
   attachmentStorage,
-  graphExecutor,
 };

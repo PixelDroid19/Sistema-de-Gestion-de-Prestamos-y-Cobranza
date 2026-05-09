@@ -301,7 +301,7 @@ const VoucherService = {
           interest: payment.interestApplied,
           lateFee: payment.penaltyApplied,
           totalPaid: payment.amount,
-          paymentMethod: payment.paymentMetadata?.method || 'Efectivo',
+          paymentMethod: payment.paymentMethod || 'Efectivo',
           observations: payment.paymentMetadata?.observation || '',
           remainingBalance: payment.remainingBalanceAfterPayment,
         };

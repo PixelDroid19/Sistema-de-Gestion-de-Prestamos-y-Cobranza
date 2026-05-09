@@ -207,7 +207,7 @@ describe('Credits behavioral parity scenarios', () => {
               outstandingInstallments: 12,
               nextInstallment: null,
             },
-            graphVersionId: 7,
+            calculationProfileVersionId: 7,
             lateFeeMode: 'SIMPLE',
             schedule: [
               {

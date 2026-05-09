@@ -95,39 +95,3 @@ export interface PaymentScheduleResponse {
     schedule: PaymentScheduleAmortizationEntry[];
   };
 }
-
-export type SimulatorPaymentMethod = 'french' | 'simple';
-
-export interface LoanCalculationInput {
-  principal: number;
-  term: number;
-  interestRate: number;
-  paymentMethod: SimulatorPaymentMethod;
-}
-
-export interface SimulatorAmortizationEntry {
-  period: number;
-  payment: number;
-  principal: number;
-  interest: number;
-  balance: number;
-}
-
-export interface LoanSimulationResult {
-  monthlyPayment: number;
-  totalInterest: number;
-  totalPayment: number;
-  principal: number;
-  term: number;
-  interestRate: number;
-  paymentMethod: string;
-  schedule: SimulatorAmortizationEntry[];
-}
-
-export interface LoanSimulationResponse {
-  success: boolean;
-  message: string;
-  data: {
-    simulation: LoanSimulationResult;
-  };
-}

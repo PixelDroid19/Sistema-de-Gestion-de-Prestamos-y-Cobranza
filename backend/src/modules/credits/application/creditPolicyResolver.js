@@ -56,7 +56,7 @@ const buildLateFeePolicySnapshot = ({ policy, source, appliedLateFeeMode, applie
 });
 
 /**
- * Create the production policy resolver used before DAG credit calculations.
+ * Create the production policy resolver used before profile-backed credit calculations.
  * It keeps configuration as the backend source of truth when the caller marks
  * a field as policy-driven, while still allowing explicit manual operator
  * overrides that are traced in the loan snapshot.

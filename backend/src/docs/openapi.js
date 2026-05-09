@@ -15,7 +15,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
   info: {
     title: 'CrediCobranza API',
     version: '1.0.0',
-    description: 'API operacional para créditos, pagos, fórmulas, configuración y auditoría.',
+    description: 'API operacional para créditos, pagos, perfiles de cálculo, configuración y auditoría.',
   },
   servers: [
     { url: '/api' },
@@ -23,7 +23,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
   tags: [
     { name: 'Auth' },
     { name: 'Credits' },
-    { name: 'Credit formulas' },
+    { name: 'Calculation profiles' },
     { name: 'Config' },
     { name: 'Payments' },
     { name: 'Reports' },
@@ -160,7 +160,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     '/loans/calculations': {
       post: {
         tags: ['Credits'],
-        summary: 'Calcular un crédito con la fórmula activa',
+        summary: 'Calcular un crédito con el perfil de cálculo activo',
         requestBody: {
           required: true,
           content: {
@@ -168,14 +168,19 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           },
         },
         responses: {
-          200: { description: 'Cálculo generado con versión de fórmula y política aplicada' },
+          200: { description: 'Cálculo generado con versión de perfil y política aplicada' },
           400: { description: 'Parámetros inválidos', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
         },
       },
     },
     '/loans': {
       get: { tags: ['Credits'], summary: 'Listar créditos', responses: { 200: { description: 'Créditos visibles para el rol' } } },
-      post: { tags: ['Credits'], summary: 'Crear crédito real congelando fórmula y políticas aplicadas', responses: { 201: { description: 'Crédito creado' } } },
+      post: {
+        tags: ['Credits'],
+        summary: 'Crear crédito real congelando perfil de cálculo y políticas aplicadas',
+        parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+        responses: { 201: { description: 'Crédito creado' } },
+      },
     },
     '/loans/{loanId}/installments/{installmentNumber}/quote': {
       get: {
@@ -188,9 +193,6 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         ],
         responses: { 200: { description: 'Cotización de cuota' } },
       },
-    },
-    '/loans/workbench/graph/calculations': {
-      post: { tags: ['Credit formulas'], summary: 'Probar una fórmula antes de guardarla', responses: { 200: { description: 'Resultado de validación y cálculo' } } },
     },
     '/config/payment-methods': {
       get: { tags: ['Config'], summary: 'Listar métodos de pago canónicos', responses: { 200: { description: 'Métodos de pago' } } },
@@ -287,7 +289,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           'Genera el reporte operativo de créditos con la estructura del sistema anterior:',
           'hoja Resumen General, hoja Detalle de Créditos y una hoja por crédito con amortización e historial de pagos.',
           'Incluye campos financieros clave como capital pagado, interés pagado, interés generado, mora, saldo pendiente y próxima fecha de pago.',
-          'No expone campos técnicos internos como DAG, ids de políticas o nombres de propiedades.',
+          'No expone campos técnicos internos como ids historicos, ids de politicas o nombres de propiedades.',
         ].join(' '),
         parameters: [
           { name: 'customerId', in: 'query', schema: { type: 'integer' } },

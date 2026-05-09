@@ -13,7 +13,7 @@ const mockConfigState = {
 };
 
 const routeState = {
-  simulationInput: {
+  calculationInput: {
     amount: 2300000,
     interestRate: 42,
     termMonths: 16,
@@ -98,10 +98,10 @@ describe('NewCredit behavior', () => {
     mockConfigState.lateFeePolicies = [];
 
     mockUseActiveCreditSimulation.mockReturnValue({
-      input: routeState.simulationInput,
+      input: routeState.calculationInput,
       result: {
-        calculationMethod: 'COMPOUND',
-        graphVersionId: 9,
+        method: 'COMPOUND',
+        calculationProfileVersionId: 9,
         lateFeeMode: 'COMPOUND',
         summary: {
           installmentAmount: 195000,
@@ -137,7 +137,7 @@ describe('NewCredit behavior', () => {
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
     expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
-      initialInput: routeState.simulationInput,
+      initialInput: routeState.calculationInput,
       autoRun: true,
     });
     expect(screen.getByText('Escenario precargado desde Previsualizar crédito')).toBeInTheDocument();

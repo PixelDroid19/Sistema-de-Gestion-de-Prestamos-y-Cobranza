@@ -8,7 +8,6 @@ export type SafeErrorDomain =
   | 'config'
   | 'reports'
   | 'notifications'
-  | 'dag'
   | 'generic';
 
 export type SafeErrorAction =
@@ -17,7 +16,7 @@ export type SafeErrorAction =
   | 'profile.update'
   | 'password.change'
   | 'credit.create'
-  | 'credit.simulate'
+  | 'credit.calculate'
   | 'payment.register'
   | 'payout.register'
   | 'customer.create'
@@ -31,10 +30,6 @@ export type SafeErrorAction =
   | 'reports.load'
   | 'reports.export'
   | 'notifications.load'
-  | 'dag.load'
-  | 'dag.save'
-  | 'dag.simulate'
-  | 'dag.validate'
   | 'generic';
 
 export type SafeToastMessage = {
@@ -90,10 +85,6 @@ const DOMAIN_MESSAGES: Record<SafeErrorDomain, SafeToastMessage> = {
     title: 'No se pudieron cargar las notificaciones',
     description: 'Recarga la vista e inténtalo nuevamente.',
   },
-  dag: {
-    title: 'No se pudo completar la operación del grafo',
-    description: 'Verifica la configuración e inténtalo nuevamente.',
-  },
   generic: GENERIC_FALLBACK,
 };
 
@@ -118,7 +109,7 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
     title: 'No se pudo crear el crédito',
     description: 'Revisa los datos ingresados e inténtalo nuevamente.',
   },
-  'credit.simulate': {
+  'credit.calculate': {
     title: 'No se pudo calcular el crédito',
     description: 'Verifica los datos ingresados e inténtalo nuevamente.',
   },
@@ -173,22 +164,6 @@ const ACTION_MESSAGES: Partial<Record<SafeErrorAction, SafeToastMessage>> = {
   'notifications.load': {
     title: 'No se pudieron cargar las notificaciones',
     description: 'Recarga la vista e inténtalo nuevamente.',
-  },
-  'dag.load': {
-    title: 'No se pudo cargar el grafo',
-    description: 'Recarga la vista e inténtalo nuevamente.',
-  },
-  'dag.save': {
-    title: 'No se pudo guardar el grafo',
-    description: 'Verifica la configuración e inténtalo nuevamente.',
-  },
-  'dag.simulate': {
-    title: 'No se pudo validar el cálculo',
-    description: 'Revisa el grafo e inténtalo nuevamente.',
-  },
-  'dag.validate': {
-    title: 'No se pudo validar el grafo',
-    description: 'Revisa la estructura del grafo e inténtalo nuevamente.',
   },
 };
 

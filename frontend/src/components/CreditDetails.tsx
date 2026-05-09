@@ -1014,9 +1014,11 @@ export default function CreditDetails() {
     });
   };
 
-  const formulaSummary = loan?.dagGraph?.name
-    ? `${loan.dagGraph.name} (v${loan.dagGraph.version})`
-    : 'Versión congelada del sistema';
+  const calculationProfileSummary = loan?.calculationProfile?.name
+    ? `${loan.calculationProfile.name} (v${loan.calculationProfile.version})`
+    : loan?.calculationProfileVersionId
+      ? `Perfil v${loan.calculationProfileVersionId}`
+      : 'Snapshot financiero congelado';
 
   const getInstallmentStatusInfo = (status: unknown) => {
     switch (String(status || '').toLowerCase()) {
@@ -1239,7 +1241,7 @@ export default function CreditDetails() {
 
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
               <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
-              <InlineMetaLine icon={GitBranch} label="Fórmula" value={formulaSummary} />
+              <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
             </div>
           </div>
 

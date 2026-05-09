@@ -19,10 +19,6 @@ export type GuideViewKey =
   | 'settings'
   | 'profile'
   | 'audit-log'
-  | 'audit-history'
-  | 'formulas-dashboard'
-  | 'formula-editor'
-  | 'variables'
   | 'credit-calculator';
 
 export type GuideStep = {
@@ -129,7 +125,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="credits-page-title"]', title: 'Encabezado', description: 'Desde aquí navegas acciones del módulo y mides su estado.' },
       { selector: '[data-tour="credits-export"]', title: 'Exportar cartera', description: 'Descarga el estado actual en Excel para reconciliación y respaldo.' },
       { selector: '[data-tour="credits-preview"]', title: 'Previsualizar crédito', description: 'Simula escenarios antes de crear un crédito real.' },
-      { selector: '[data-tour="credits-new"]', title: 'Crear crédito', description: 'Abre el flujo de origen para registrar un crédito con la fórmula activa.' },
+      { selector: '[data-tour="credits-new"]', title: 'Crear crédito', description: 'Abre el flujo de origen para registrar un crédito con el perfil de cálculo activo.' },
       { selector: '[data-tour="credits-tabs"]', title: 'Vista principal', description: 'Alterna entre créditos vigentes y calendario para operación diaria.' },
       { selector: '[data-tour="credits-search"]', title: 'Búsqueda y filtros', description: 'Filtra por cliente, estado y fechas para encontrar el préstamo correcto.' },
       { selector: '[data-tour="credits-filters"]', title: 'Filtros avanzados', description: 'Ajusta montos y fechas antes de buscar.' },
@@ -140,7 +136,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
   'new-credit': {
     default: [
       { selector: '[data-tour="new-credit-page"]', title: 'Nuevo crédito', description: 'Este flujo registra un crédito real y congela la fórmula usada en ese momento.' },
-      { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa la fórmula activa. Registrar crea un crédito real en cartera.' },
+      { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa el perfil de cálculo activo. Registrar crea un crédito real en cartera.' },
       { selector: '[data-tour="new-credit-customer-select"]', title: 'Cliente del crédito', description: 'Debes seleccionar al titular antes de validar y registrar.' },
       { selector: '[data-tour="new-credit-associate"]', title: 'Socio asignado', description: 'Es opcional y sirve para relación interna o participación. No cambia cuota, tasa ni mora.' },
       { selector: '[data-tour="new-credit-policy-summary"]', title: 'Políticas sugeridas', description: 'Muestra tasa y mora resueltas desde configuración antes de ajustar parámetros.' },
@@ -243,41 +239,9 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="audit-log-table"]', title: 'Tabla de eventos', description: 'Abre el detalle técnico y filtra toda la actividad vinculada a una IP.' },
     ],
   },
-  'audit-history': {
-    default: [
-      { selector: '[data-tour="audit-history-page"]', title: 'Historial de fórmula', description: 'Muestra versiones, diferencias y restauración de una fórmula.' },
-      { selector: '[data-tour="audit-history-header"]', title: 'Resumen del historial', description: 'Aquí exportas el log o vuelves al dashboard de fórmulas.' },
-      { selector: '[data-tour="audit-history-timeline"]', title: 'Línea de versiones', description: 'Selecciona una versión para inspeccionar su diff y metadatos.' },
-      { selector: '[data-tour="audit-history-diff"]', title: 'Detalle del cambio', description: 'Compara bloques y fórmulas entre versiones consecutivas.' },
-    ],
-  },
-  'formulas-dashboard': {
-    default: [
-      { selector: '[data-tour="formulas-page"]', title: 'Dashboard de fórmulas', description: 'Administra la fórmula activa y las versiones disponibles para créditos nuevos.' },
-      { selector: '[data-tour="formulas-header"]', title: 'Acciones principales', description: 'Crea fórmulas nuevas o entra al registro de variables.' },
-      { selector: '[data-tour="formulas-stats"]', title: 'Indicadores de versiones', description: 'Resume activas, borradores y fórmulas bloqueadas por uso real.' },
-      { selector: '[data-tour="formulas-table"]', title: 'Tabla de fórmulas', description: 'Desde aquí abres, activas, duplicas o inspeccionas historial.' },
-    ],
-  },
-  'formula-editor': {
-    default: [
-      { selector: '[data-tour="formula-editor-page"]', title: 'Editor de fórmulas', description: 'Aquí defines la fórmula base y las excepciones que afectan créditos nuevos.' },
-      { selector: '[data-tour="formula-editor-toolbar"]', title: 'Barra superior', description: 'Permite validar, guardar borrador o activar una nueva versión.' },
-      { selector: '[data-tour="formula-editor-toolbox"]', title: 'Panel de reglas', description: 'Usa variables y salidas para construir reglas legibles sin tocar backend.' },
-      { selector: '[data-tour="formula-editor-impact"]', title: 'Impacto y validación', description: 'Revisa el resultado del cálculo antes de guardar la versión.' },
-    ],
-  },
-  variables: {
-    default: [
-      { selector: '[data-tour="variables-page"]', title: 'Variables de fórmulas', description: 'Administra parámetros que las fórmulas usan para calcular créditos.' },
-      { selector: '[data-tour="variables-header"]', title: 'Acciones del registro', description: 'Abre el editor o crea una variable personalizada nueva.' },
-      { selector: '[data-tour="variables-filters"]', title: 'Búsqueda y filtros', description: 'Acota por tipo, origen o estado antes de editar.' },
-      { selector: '[data-tour="variables-table"]', title: 'Variables personalizadas', description: 'Consulta uso, valor por defecto y estado operativo de cada variable.' },
-    ],
-  },
   'credit-calculator': {
     default: [
-      { selector: '[data-tour="credit-calculator-page"]', title: 'Previsualizar crédito', description: 'Simula el crédito con la fórmula activa antes de crear uno real.' },
+      { selector: '[data-tour="credit-calculator-page"]', title: 'Previsualizar crédito', description: 'Simula el crédito con el perfil de cálculo activo antes de crear uno real.' },
       { selector: '[data-tour="credit-calculator-header"]', title: 'Controles del simulador', description: 'Vuelve a créditos o pasa el escenario validado a originación.' },
       { selector: '[data-tour="credit-calculator-simulation"]', title: 'Simulación', description: 'Aquí ajustas monto, tasa, plazo, mora y revisas el cronograma.' },
       { selector: '[data-tour="credit-calculator-next"]', title: 'Continuar a registro', description: 'Cuando el escenario sirve, lo envías a Nuevo crédito sin rearmarlo.' },

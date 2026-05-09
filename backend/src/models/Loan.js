@@ -6,7 +6,7 @@ const Loan = sequelize.define('Loan', {
   customerId: { type: DataTypes.INTEGER, allowNull: false },
   associateId: { type: DataTypes.INTEGER, allowNull: true },
   financialProductId: { type: DataTypes.UUID, allowNull: true },
-  dagGraphVersionId: { type: DataTypes.INTEGER, allowNull: true }, // FK to DagGraphVersion used for this loan's calculation
+  calculationProfileVersionId: { type: DataTypes.INTEGER, allowNull: true },
   calculationMethod: { type: DataTypes.STRING, allowNull: true }, // Method frozen from the formula result, e.g. FRENCH/SIMPLE/COMPOUND
   ratePolicyId: { type: DataTypes.INTEGER, allowNull: true }, // Configuration policy applied at origination, if any
   lateFeePolicyId: { type: DataTypes.INTEGER, allowNull: true }, // Late-fee policy applied at origination, if any
@@ -42,6 +42,7 @@ const Loan = sequelize.define('Loan', {
     { fields: ['customerId', 'status'] },
     { fields: ['startDate'] },
     { fields: ['financialProductId'] },
+    { fields: ['calculationProfileVersionId'] },
   ],
   validate: {
     /** Ensure endDate is not before startDate when both are set. */

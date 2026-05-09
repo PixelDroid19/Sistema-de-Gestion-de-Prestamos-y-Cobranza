@@ -9,7 +9,7 @@
   - `admin`: `qa.admin.20260427@test.local`
   - `customer`: `qa.customer.20260427@test.local`
   - `socio`: `qa.socio.20260427@test.local`
-- En Railway se verificó que producción corre con `DAG_ROLLOUT_MODE=primary` y `ALLOWED_ORIGINS` definido para el frontend productivo y localhost de QA. Los secretos se revisaron sin documentar valores.
+- En Railway se verificó que `ALLOWED_ORIGINS` está definido para el frontend productivo y localhost de QA. Los secretos se revisaron sin documentar valores.
 
 ## Resultado ejecutivo
 
@@ -63,9 +63,9 @@ No se confirmaron hallazgos `P0` ni `P1` durante esta pasada. Se confirmó y cor
 - `socio` accede al portal asociado y reportes permitidos, pero no puede ejecutar cobranza ni pagos de cliente.
 - `loanAccessPolicy` es el punto compartido usado por créditos, pagos, documentos y reportes contextuales.
 
-### Créditos, pagos y fórmulas
+### Créditos, pagos y cálculo financiero
 
-- Creación de crédito exige DAG primario y guarda snapshot financiero con versión de fórmula.
+- Creación de crédito usa el perfil de cálculo activo y guarda snapshot financiero con versión de perfil.
 - Mutaciones financieras requieren `Idempotency-Key` en router.
 - La aplicación de pagos usa transacción `SERIALIZABLE`, bloqueo de fila del crédito y reintentos ante serialización/deadlock.
 - Reuso de idempotency key con payload distinto falla; replay exacto devuelve resultado cacheado.

@@ -1,14 +1,14 @@
-# Credit, Payment And Report Production Parity
+# Core Production Parity Matrix
 
-This matrix records the useful operational behavior reviewed from the original
-credit system and the canonical implementation in the current React/Express
-system. Legacy architecture and physical delete flows are intentionally not
-ported.
+This matrix records useful operational behavior from the original Coop BYD
+systems and the canonical implementation in the current React/Express system.
+Legacy architecture, DAG runtime, formula-builder UI, and physical delete flows
+are intentionally not ported.
 
 | Original operation | Current canonical route or module | Production decision |
 | --- | --- | --- |
 | List credits with filters | `GET /api/loans`, `GET /api/loans/search`, `GET /api/reports/credits/excel` | Supported. Excel accepts `customerId`, `loanId`/`creditId`, `startDate`, `endDate`. |
-| Create credit | `POST /api/loans` | Supported. Creation must resolve and persist active DAG version and formula/policy snapshot. |
+| Create credit | `POST /api/loans` | Supported. Creation resolves the active calculation profile version and persists a policy snapshot. |
 | Simulate credit before creation | `POST /api/loans/calculations` | Supported. `/api/loans/simulations` remains out of the product path. |
 | View credit detail | `GET /api/loans/:id`, detail tabs under `/api/loans/:id/*` | Supported. Detail exposes calendar, alerts, promises, history, payoff and payment context. |
 | Payment schedule | `GET /api/loans/:id/calendar`, `GET /api/reports/payment-schedule/:loanId` | Supported. Used by operations and reports. |
@@ -25,10 +25,17 @@ ported.
 | Credit Excel | `GET /api/reports/credits/excel` | Supported from backend with formula and policy traceability. |
 | Payout Excel | `GET /api/reports/payouts/excel` | Supported from backend. Frontend CSV generation is no longer the source of truth. |
 | Configuration payment methods | `GET /api/config/payment-methods` | Supported. Payment UIs consume configured method keys with safe fallback values. |
+| Customers CRUD and documents | `GET/POST/PATCH/DELETE /api/customers`, `/api/customers/:id/documents` | Supported for admin; customer document reads are scoped by authorization. |
+| Associates and portal | `GET/POST/PATCH/DELETE /api/associates`, `/api/associates/:id/portal`, `/api/associates/portal/me` | Supported. Socio users are scoped to their linked associate. |
+| Associate contributions/distributions | `/api/associates/:id/contributions`, `/api/associates/:id/distributions`, `/api/associates/distributions/proportional` | Supported. Proportional distributions use idempotency and validate 100% participation pools. |
+| Rate and late-fee policy configuration | `/api/config/rate-policies`, `/api/config/late-fee-policies` | Supported. Credit calculation may resolve policy-backed rates/mora without legacy formula graphs. |
+| Users and permissions | `/api/users`, `/api/auth/users`, `/api/permissions/*` | Supported. Admin-only provisioning and permission grants are tested. |
+| Audit trail | `/api/audits`, `/api/audits/stats` | Supported. Use case decorators log auditable operations without blocking success if audit logging fails. |
+| Notifications | `/api/notifications/*` | Supported. Web push subscription validation is canonical and role-neutral. |
 
 ## Concurrency And Idempotency
 
-- Payment mutations accept `Idempotency-Key`; if omitted, the service builds a stable key from loan, operation type, amount, date and operation details.
+- HTTP financial mutations require `Idempotency-Key`; lower-level services also protect repeated operations with stable idempotency semantics.
 - Mutations run inside serializable transactions with retries for serialization/deadlock failures.
 - Loan rows are locked while balances and schedules are mutated.
 - Same-key retries return the cached result; different-key concurrent writes serialize through the loan row lock and stale payoff quotes are rejected.
@@ -38,3 +45,11 @@ ported.
 - `/api/reports/file/reports/*` style aliases are not exposed by the current reports router.
 - Physical payment deletion is intentionally not exposed.
 - Frontend CSV assembly for payouts is replaced by backend Excel export.
+- Runtime DAG models, graph execution, graph version FKs, and formula-builder UI are removed from the product path.
+
+## Local Smoke Coverage
+
+- `backend/scripts/localSmokeTest.js` validates public health/OpenAPI and refuses non-local URLs unless `SMOKE_ALLOW_REMOTE=true`.
+- With `SMOKE_ADMIN_EMAIL` and `SMOKE_ADMIN_PASSWORD`, it validates admin login, calculation contract, loans, customers, associates, config, permissions, audit stats, reports, and payments list without writing data.
+- With `SMOKE_CUSTOMER_EMAIL` and `SMOKE_CUSTOMER_PASSWORD`, it validates customer login and scoped read flows. Optional `SMOKE_CUSTOMER_LOAN_ID` checks detail/calendar/payoff quote; optional `SMOKE_FORBIDDEN_LOAN_ID` verifies access denial.
+- With `SMOKE_SOCIO_EMAIL` and `SMOKE_SOCIO_PASSWORD`, it validates socio portal access and admin-only payment list denial.
