@@ -338,91 +338,100 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] xl:items-start">
-          <div className="grid min-w-0 gap-4 md:grid-cols-2" data-tour="new-credit-associate">
-            <div>
-              <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
-                Cliente
-              </label>
-              <select
-                id="customerId"
-                name="customerId"
-                data-tour="new-credit-customer-select"
-                value={borrower.customerId}
-                onChange={handleBorrowerChange}
-                className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 ${borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-brand-primary'}`}
-                aria-invalid={!!borrowerErrors.customerId}
-              >
-                <option value="">Seleccionar cliente...</option>
-                {customers.map((customer: any) => (
-                  <option key={customer.id} value={customer.id}>
-                    {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}
-                  </option>
-                ))}
-              </select>
-              {borrowerErrors.customerId && (
-                <p className="mt-1.5 text-xs text-red-600" role="alert">{borrowerErrors.customerId}</p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
-                  Socio asignado
-                </label>
-                <HelpTooltip
-                  align="right"
-                  text="Es opcional. Úsalo para dejar trazabilidad del socio o inversionista relacionado. No cambia la tasa, la mora ni la cuota."
-                />
-              </div>
-              <select
-                id="associateId"
-                name="associateId"
-                value={borrower.associateId}
-                onChange={handleBorrowerChange}
-                aria-describedby="associate-help"
-                className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 focus:ring-brand-primary"
-              >
-                <option value="">Sin socio asignado</option>
-                {associates.map((associate: any) => (
-                  <option key={associate.id} value={associate.id}>
-                    {getDisplayName(associate)}
-                  </option>
-                ))}
-              </select>
-              <p id="associate-help" className="mt-2 text-xs leading-5 text-text-secondary">
-                Úsalo solo cuando el crédito debe quedar asociado a un socio.
-              </p>
-            </div>
+        <div
+          className="grid gap-4 px-5 py-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,0.62fr)] xl:items-start"
+          data-tour="new-credit-associate"
+        >
+          <div>
+            <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
+              Cliente
+            </label>
+            <select
+              id="customerId"
+              name="customerId"
+              data-tour="new-credit-customer-select"
+              value={borrower.customerId}
+              onChange={handleBorrowerChange}
+              className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 ${borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-brand-primary'}`}
+              aria-invalid={!!borrowerErrors.customerId}
+            >
+              <option value="">Seleccionar cliente...</option>
+              {customers.map((customer: any) => (
+                <option key={customer.id} value={customer.id}>
+                  {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}
+                </option>
+              ))}
+            </select>
+            {borrowerErrors.customerId && (
+              <p className="mt-1.5 text-xs text-red-600" role="alert">{borrowerErrors.customerId}</p>
+            )}
           </div>
 
-          <aside className="min-w-0 xl:border-l xl:border-border-subtle xl:pl-6" data-tour="new-credit-policy-summary">
-            <h3 className="text-sm font-semibold text-text-primary">Resumen operativo</h3>
-            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3 xl:grid-cols-1">
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa</dt>
-                <dd className="mt-1 truncate font-semibold text-text-primary">
+          <div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
+                Socio asignado
+              </label>
+              <HelpTooltip
+                align="right"
+                text="Es opcional. Úsalo para dejar trazabilidad del socio o inversionista relacionado. No cambia la tasa, la mora ni la cuota."
+              />
+            </div>
+            <select
+              id="associateId"
+              name="associateId"
+              value={borrower.associateId}
+              onChange={handleBorrowerChange}
+              aria-describedby="associate-help"
+              className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 focus:ring-brand-primary"
+            >
+              <option value="">Sin socio asignado</option>
+              {associates.map((associate: any) => (
+                <option key={associate.id} value={associate.id}>
+                  {getDisplayName(associate)}
+                </option>
+              ))}
+            </select>
+            <p id="associate-help" className="mt-1.5 text-xs leading-5 text-text-secondary">
+              Solo si el crédito debe quedar asociado a un socio.
+            </p>
+          </div>
+
+          <aside
+            className="min-w-0 rounded-xl border border-border-subtle bg-bg-base/60 px-4 py-3"
+            data-tour="new-credit-policy-summary"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-text-primary">Resumen</h3>
+              {routeState?.source === 'credit-calculator' && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                  <CheckCircle2 size={13} />
+                  Precargado
+                </span>
+              )}
+            </div>
+            <dl className="mt-2 grid grid-cols-[0.55fr_1.2fr_1fr] gap-3 text-sm">
+              <div className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa</dt>
+                <dd className="mt-0.5 truncate font-semibold text-text-primary">
                   {resolvedRatePolicy ? `${resolvedRatePolicy.annualEffectiveRate}%` : `${input.interestRate}%`}
                 </dd>
               </div>
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
-                <dd className="mt-1 truncate font-semibold text-text-primary">
-                  {resolvedLateFeePolicy ? resolvedLateFeePolicy.label : 'Sin política activa'}
+              <div className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
+                <dd className="mt-0.5 truncate font-semibold text-text-primary">
+                  {resolvedLateFeePolicy ? resolvedLateFeePolicy.label : 'Sin política'}
                 </dd>
               </div>
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo</dt>
-                <dd className="mt-1 truncate font-semibold text-text-primary">
-                  {hasValidatedResult ? calculationRuleLabel : 'Pendiente de validar'}
+              <div className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo</dt>
+                <dd className="mt-0.5 truncate font-semibold text-text-primary">
+                  {hasValidatedResult ? calculationRuleLabel : 'Pendiente'}
                 </dd>
               </div>
             </dl>
             {routeState?.source === 'credit-calculator' && (
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800">
-                <CheckCircle2 size={14} />
-                Escenario precargado
-              </div>
+              <p className="sr-only">Escenario precargado</p>
             )}
           </aside>
         </div>
