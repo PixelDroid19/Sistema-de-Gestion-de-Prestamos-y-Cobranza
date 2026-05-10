@@ -199,24 +199,28 @@ export default function CreditSimulationWorkspace({
       {
         id: 'installment',
         label: 'Cuota estimada',
+        compactLabel: 'Cuota',
         value: formatCurrency(freshResult.summary.installmentAmount),
         tone: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300',
       },
       {
         id: 'payable',
         label: 'Total a pagar',
+        compactLabel: 'Total',
         value: formatCurrency(freshResult.summary.totalPayable),
         tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
       },
       {
         id: 'interest',
         label: 'Interés total',
+        compactLabel: 'Interés',
         value: formatCurrency(freshResult.summary.totalInterest),
         tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
       },
       {
         id: 'averageInterest',
         label: 'Interés promedio por cuota',
+        compactLabel: 'Promedio/cuota',
         value: formatCurrency(averageInterestPerInstallment),
         tone: 'border-border-subtle bg-bg-base text-text-primary',
       },
@@ -268,9 +272,9 @@ export default function CreditSimulationWorkspace({
   };
 
   return (
-    <section className="flex flex-col gap-6" aria-labelledby={titleId}>
+    <section className={`flex flex-col ${compactChrome ? 'gap-4' : 'gap-6'}`} aria-labelledby={titleId}>
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-4 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
+        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-3 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className={`max-w-3xl ${compactChrome ? 'space-y-1' : 'space-y-3'}`}>
               {!compactChrome && (
@@ -291,11 +295,11 @@ export default function CreditSimulationWorkspace({
                 <h3 id={titleId} className={`${compactChrome ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-semibold text-text-primary`}>
                   {title}
                 </h3>
-                <p className={`mt-2 max-w-2xl text-sm leading-6 text-text-secondary ${compactChrome ? '' : 'sm:text-base'}`}>
+                <p className={`max-w-2xl text-sm leading-6 text-text-secondary ${compactChrome ? 'mt-1' : 'mt-2 sm:text-base'}`}>
                   {description}
                 </p>
                 {compactChrome && (
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                     {modeLabel}
                   </p>
                 )}
@@ -362,18 +366,18 @@ export default function CreditSimulationWorkspace({
           )}
         </div>
 
-        <div className={`grid gap-6 lg:gap-7 ${compactChrome ? 'p-5 sm:p-6 xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)] 2xl:grid-cols-[minmax(380px,0.75fr)_minmax(0,1.35fr)]' : 'p-6 sm:p-8 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
-          <div className="space-y-5">
-            <section className="space-y-5">
+        <div className={`grid ${compactChrome ? 'gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(320px,0.58fr)_minmax(0,1.42fr)] 2xl:grid-cols-[minmax(340px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
+          <div className={`${compactChrome ? 'space-y-4 xl:sticky xl:top-4 xl:self-start' : 'space-y-5'}`}>
+            <section className={`${compactChrome ? 'space-y-4 rounded-xl border border-border-subtle bg-bg-base/60 p-4' : 'space-y-5'}`}>
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
                 Parámetros
               </div>
-              <p className="text-sm text-text-secondary">
+              <p className={`${compactChrome ? 'text-xs' : 'text-sm'} text-text-secondary`}>
                 Ajusta datos y ejecuta el cálculo.
               </p>
 
-              <div className="grid gap-4">
+              <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'}`}>
                 <div>
                   <div className="flex items-center gap-2">
                     <label htmlFor={amountInputId} className="text-sm font-medium text-text-primary">
@@ -393,7 +397,7 @@ export default function CreditSimulationWorkspace({
                       aria-describedby={fieldErrors.amount ? `${amountInputId}-error` : undefined}
                       aria-invalid={!!fieldErrors.amount}
                       disabled={disabled}
-                      className={`w-full rounded-xl border bg-bg-base px-10 py-3 text-sm tabular-nums text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                      className={`w-full rounded-xl border bg-bg-base px-10 py-2.5 text-sm tabular-nums text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                     />
                   </div>
                   {fieldErrors.amount && (
@@ -403,7 +407,7 @@ export default function CreditSimulationWorkspace({
                   )}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'} sm:grid-cols-2`}>
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
@@ -423,7 +427,7 @@ export default function CreditSimulationWorkspace({
                         aria-describedby={fieldErrors.interestRate ? `${rateInputId}-error` : undefined}
                         aria-invalid={!!fieldErrors.interestRate}
                         disabled={disabled}
-                        className={`w-full rounded-xl border bg-bg-base px-4 py-3 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                        className={`w-full rounded-xl border bg-bg-base px-4 py-2.5 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-secondary">%</span>
                     </div>
@@ -451,7 +455,7 @@ export default function CreditSimulationWorkspace({
                       aria-describedby={fieldErrors.termMonths ? `${termInputId}-error` : undefined}
                       aria-invalid={!!fieldErrors.termMonths}
                       disabled={disabled}
-                       className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                       className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                     />
                     {fieldErrors.termMonths && (
                       <p id={`${termInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
@@ -461,7 +465,7 @@ export default function CreditSimulationWorkspace({
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'} sm:grid-cols-2`}>
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
@@ -475,7 +479,7 @@ export default function CreditSimulationWorkspace({
                       value={input.startDate || ''}
                       onChange={handleFieldChange('startDate')}
                       disabled={disabled}
-                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </div>
 
@@ -492,7 +496,7 @@ export default function CreditSimulationWorkspace({
                         value={input.lateFeeMode || 'SIMPLE'}
                         onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<CreditCalculationInput['lateFeeMode']> })}
                         disabled={disabled}
-                        className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {lateFeeModeOptions.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -512,14 +516,14 @@ export default function CreditSimulationWorkspace({
               </div>
 
               {helperText && !validationStatus?.valid && (
-                <div className="border-l-4 border-blue-300 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/50 dark:bg-blue-500/10 dark:text-blue-200">
+                <div className="border-l-4 border-blue-300 bg-blue-50 px-4 py-2.5 text-sm leading-6 text-blue-900 dark:border-blue-500/50 dark:bg-blue-500/10 dark:text-blue-200">
                   {helperText}
                 </div>
               )}
 
               {validationStatus && (
                 <div
-                  className={`border-l-4 px-4 py-3 text-sm leading-6 ${validationStatus.valid
+                  className={`border-l-4 px-4 py-2.5 text-sm leading-6 ${validationStatus.valid
                     ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-500/10 dark:text-emerald-200'
                     : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200'
                   }`}
@@ -651,7 +655,7 @@ export default function CreditSimulationWorkspace({
             )}
           </div>
 
-          <div className="space-y-5 min-w-0">
+          <div className={`${compactChrome ? 'space-y-4' : 'space-y-5'} min-w-0`}>
             {error && (
                <div className="rounded-xl border border-red-200 bg-red-100 px-4 py-3 text-sm leading-6 text-red-900 dark:border-red-500/30 dark:bg-red-500/20 dark:text-red-200" role="alert">
                  {error}
@@ -664,20 +668,20 @@ export default function CreditSimulationWorkspace({
                </div>
              )}
 
-            <section className="space-y-5" aria-label="Resumen del cálculo">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label="Resumen del cálculo">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">Resumen financiero</h4>
-                  <p className="mt-1 text-sm leading-6 text-text-secondary">
+                  <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
                     Resultado consolidado de la fórmula.
                   </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
                       Método: {formatCalculationMethod(freshResult.method)}
                     </div>
-                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
                       Próximo vencimiento: {formatDate(freshResult.summary.nextInstallment?.dueDate || '')}
                     </div>
                   </div>
@@ -685,7 +689,7 @@ export default function CreditSimulationWorkspace({
               </div>
 
               {isSimulating ? (
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-live="polite">
+                <div className={`${compactChrome ? 'mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4' : 'mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4'}`} aria-live="polite">
                   {[1, 2, 3, 4].map((item) => (
                      <div key={item} className="rounded-xl border border-border-subtle bg-bg-base p-4">
                       <div className="h-3 w-24 animate-pulse rounded bg-border-subtle" />
@@ -694,11 +698,13 @@ export default function CreditSimulationWorkspace({
                   ))}
                 </div>
               ) : freshResult ? (
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className={`${compactChrome ? 'mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4' : 'mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4'}`}>
                   {summaryCards.map((card) => (
-                     <article key={card.id} className={`rounded-xl border p-4 ${card.tone}`}>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-90">{card.label}</p>
-                      <p className="mt-2 text-xl font-bold tabular-nums tracking-tight">{card.value}</p>
+                     <article key={card.id} className={`rounded-xl border ${compactChrome ? 'px-3 py-2.5' : 'p-4'} ${card.tone}`}>
+                      <p className={`${compactChrome ? 'text-[9px] tracking-[0.1em]' : 'text-[10px] tracking-[0.12em]'} font-semibold uppercase opacity-90`}>
+                        {compactChrome ? card.compactLabel : card.label}
+                      </p>
+                      <p className={`${compactChrome ? 'mt-0.5 text-base' : 'mt-2 text-xl'} font-bold tabular-nums tracking-tight`}>{card.value}</p>
                     </article>
                   ))}
                 </div>
@@ -713,31 +719,33 @@ export default function CreditSimulationWorkspace({
               )}
             </section>
 
-            <section className="space-y-5" aria-label="Tabla de amortización">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label="Tabla de amortización">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                     <Table2 size={16} />
                     Cronograma de amortización
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-text-secondary">
+                  <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
                     Desglose mensual de pago, interés, capital y saldo restante.
                   </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
                       Regla: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activa sin versión visible'}
                     </div>
-                    <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(freshResult.method)}
-                    </div>
+                    {!compactChrome && (
+                      <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
+                        Método: {formatCalculationMethod(freshResult.method)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
                <div className="overflow-hidden rounded-xl border border-border-subtle bg-bg-base">
-                <div className="max-h-[540px] overflow-auto">
+                <div className={`${compactChrome ? 'max-h-[460px] pb-24' : 'max-h-[540px]'} overflow-auto`}>
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
                       <tr>
