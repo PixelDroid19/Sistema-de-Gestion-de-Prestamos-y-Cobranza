@@ -141,7 +141,7 @@ describe('NewCredit behavior', () => {
       autoRun: true,
     });
     expect(screen.getByText('Escenario precargado desde Previsualizar crédito')).toBeInTheDocument();
-    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('sticky');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('fixed');
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });

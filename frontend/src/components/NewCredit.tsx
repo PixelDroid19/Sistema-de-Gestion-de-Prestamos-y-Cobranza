@@ -155,7 +155,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       status: isBorrowerReady ? 'Listo' : 'Pendiente',
       detail: selectedCustomer ? getDisplayName(selectedCustomer) : 'Titular requerido',
       icon: User,
-      className: isBorrowerReady
+      toneClassName: isBorrowerReady
         ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200'
         : 'border-border-subtle bg-bg-surface text-text-secondary',
     },
@@ -166,7 +166,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         ? (result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : 'Perfil activo')
         : 'Cálculo requerido',
       icon: Calculator,
-      className: hasValidatedResult
+      toneClassName: hasValidatedResult
         ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200'
         : result && isResultStale
           ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200'
@@ -177,7 +177,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       status: isRegistrationReady ? 'Disponible' : 'Bloqueado',
       detail: isRegistrationReady ? 'Puede crear cartera' : 'Requiere pasos previos',
       icon: Save,
-      className: isRegistrationReady
+      toneClassName: isRegistrationReady
         ? 'border-slate-300 bg-slate-900 text-white dark:border-slate-600 dark:bg-slate-100 dark:text-slate-900'
         : 'border-border-subtle bg-bg-surface text-text-secondary',
     },
@@ -277,7 +277,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-8"
+      className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-28"
       data-tour="new-credit-page"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -311,34 +311,34 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </div>
 
       <section
-        className="grid gap-3 rounded-2xl border border-border-subtle bg-bg-surface p-3 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:grid-cols-3"
+        className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]"
         aria-label="Progreso de creación de crédito"
       >
-        {flowSteps.map((step) => {
-          const StepIcon = step.icon;
+        <div className="grid divide-y divide-border-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {flowSteps.map((step) => {
+            const StepIcon = step.icon;
 
-          return (
-            <article key={step.label} className={`rounded-xl border px-4 py-3 ${step.className}`}>
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70 text-current shadow-sm dark:bg-black/10">
+            return (
+              <article key={step.label} className="flex min-w-0 items-center gap-3 px-5 py-4">
+                <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${step.toneClassName}`}>
                   <StepIcon size={16} />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">{step.label}</p>
-                  <p className="mt-1 text-sm font-semibold">{step.status}</p>
-                  <p className="mt-0.5 truncate text-xs opacity-80">{step.detail}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{step.label}</p>
+                  <p className="mt-0.5 text-sm font-semibold text-text-primary">{step.status}</p>
+                  <p className="mt-0.5 truncate text-xs text-text-secondary">{step.detail}</p>
                 </div>
-              </div>
-            </article>
-          );
-        })}
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section
         className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:p-6"
         data-tour="new-credit-customer"
       >
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.95fr)] xl:items-start">
+        <div className="grid gap-6 xl:grid-cols-[minmax(280px,0.7fr)_minmax(0,1.3fr)] xl:items-start">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <User size={18} className="text-brand-primary" />
@@ -347,20 +347,23 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
               Define el titular del crédito. El socio es opcional y no modifica tasa, mora ni cronograma.
             </p>
-            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-                <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Cliente</span>
-                <span className="mt-1 block truncate font-semibold text-text-primary">
-                  {selectedCustomer ? getDisplayName(selectedCustomer) : 'Pendiente de selección'}
-                </span>
+            <dl
+              className="mt-4 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2"
+              data-tour="new-credit-policy-summary"
+            >
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa sugerida</dt>
+                <dd className="mt-1 font-semibold text-text-primary">
+                  {resolvedRatePolicy ? `${resolvedRatePolicy.annualEffectiveRate}% · ${resolvedRatePolicy.label}` : `${input.interestRate}%`}
+                </dd>
               </div>
-              <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
-                <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Socio</span>
-                <span className="mt-1 block truncate font-semibold text-text-primary">
-                  {selectedAssociate ? getDisplayName(selectedAssociate) : 'Sin asignar'}
-                </span>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora sugerida</dt>
+                <dd className="mt-1 font-semibold text-text-primary">
+                  {resolvedLateFeePolicy ? `${resolvedLateFeePolicy.label}${annualLateFeeRate ? ` · ${annualLateFeeRate}% EA` : ''}` : 'Sin política activa'}
+                </dd>
               </div>
-            </div>
+            </dl>
             {routeState?.source === 'credit-calculator' && (
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800">
                 <CheckCircle2 size={14} />
@@ -369,8 +372,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             )}
           </div>
 
-            <div className="grid min-w-0 gap-4 md:grid-cols-2" data-tour="new-credit-associate">
-              <div>
+          <div className="grid min-w-0 gap-4 md:grid-cols-2" data-tour="new-credit-associate">
+            <div>
               <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
                 Cliente
               </label>
@@ -392,6 +395,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </select>
               {borrowerErrors.customerId && (
                 <p className="mt-1.5 text-xs text-red-600" role="alert">{borrowerErrors.customerId}</p>
+              )}
+              {selectedCustomer && (
+                <p className="mt-2 truncate text-xs leading-5 text-text-secondary">
+                  Titular seleccionado: <span className="font-semibold text-text-primary">{getDisplayName(selectedCustomer)}</span>
+                </p>
               )}
             </div>
 
@@ -421,83 +429,59 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 ))}
               </select>
               <p id="associate-help" className="mt-2 text-xs leading-5 text-text-secondary">
-                Úsalo solo cuando el crédito debe quedar asociado a un socio.
+                {selectedAssociate
+                  ? `Socio asignado: ${getDisplayName(selectedAssociate)}`
+                  : 'Úsalo solo cuando el crédito debe quedar asociado a un socio.'}
               </p>
             </div>
           </div>
         </div>
-
-        <dl className="mt-5 grid gap-x-8 gap-y-3 border-t border-border-subtle pt-4 text-sm md:grid-cols-3" data-tour="new-credit-policy-summary">
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Cliente seleccionado</dt>
-            <dd className="mt-1 truncate font-semibold text-text-primary">
-              {selectedCustomer ? getDisplayName(selectedCustomer) : 'Pendiente'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa sugerida</dt>
-            <dd className="mt-1 truncate font-semibold text-text-primary">
-              {resolvedRatePolicy ? `${resolvedRatePolicy.annualEffectiveRate}% · ${resolvedRatePolicy.label}` : `${input.interestRate}%`}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora sugerida</dt>
-            <dd className="mt-1 truncate font-semibold text-text-primary">
-              {resolvedLateFeePolicy ? `${resolvedLateFeePolicy.label}${annualLateFeeRate ? ` · ${annualLateFeeRate}% EA` : ''}` : 'Sin política activa'}
-            </dd>
-          </div>
-        </dl>
-
-        {selectedAssociate && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
-            <CheckCircle2 size={14} />
-            Socio asignado: {getDisplayName(selectedAssociate)}
-          </div>
-        )}
       </section>
 
       <section data-tour="new-credit-simulation">
         <CreditSimulationWorkspace
-        title="Simulación y cronograma"
-        description="Ajusta capital, tasa, plazo y fecha. La validación usa el perfil de cálculo activo; al registrar, el crédito queda guardado con esa versión exacta."
-        modeLabel="Creación real"
-        actionLabel="Validar crédito"
-        input={input}
-        result={result}
-        isSimulating={isSimulating}
-        error={calculationError}
-        fieldErrors={calculationFieldErrors}
-        isResultStale={isResultStale}
-        onSimulate={simulate}
-        onInputChange={handleCalculationInputChange}
-        onReset={resetCalculation}
-        showScenarioTools={false}
-        hideHeaderActions
-        helperText="La validación no crea el crédito. Revisa la cuota, el total a pagar y el cronograma antes de registrar."
-        resultBadge={result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : null}
-        validationStatus={result ? {
-          valid: !isResultStale,
-          message: isResultStale
-            ? 'Cambiaste parámetros después de validar. Ejecuta la validación otra vez antes de registrar.'
-            : 'Listo para registrar: el crédito se creará con el perfil activo y conservará esta versión.',
-        } : null}
-        emptyTitle="Valida antes de registrar"
-        emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
-        emptyScheduleDescription="Las cuotas calculadas aparecerán aquí después de validar."
-      />
+          title="Simulación y cronograma"
+          description="Ajusta capital, tasa, plazo y fecha. La validación usa el perfil de cálculo activo; al registrar, el crédito queda guardado con esa versión exacta."
+          modeLabel="Creación real"
+          actionLabel="Validar crédito"
+          input={input}
+          result={result}
+          isSimulating={isSimulating}
+          error={calculationError}
+          fieldErrors={calculationFieldErrors}
+          isResultStale={isResultStale}
+          onSimulate={simulate}
+          onInputChange={handleCalculationInputChange}
+          onReset={resetCalculation}
+          showScenarioTools={false}
+          hideHeaderActions
+          compactChrome
+          helperText="La validación no crea el crédito. Revisa la cuota, el total a pagar y el cronograma antes de registrar."
+          resultBadge={result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : null}
+          validationStatus={result ? {
+            valid: !isResultStale,
+            message: isResultStale
+              ? 'Cambiaste parámetros después de validar. Ejecuta la validación otra vez antes de registrar.'
+              : 'Listo para registrar: el crédito se creará con el perfil activo y conservará esta versión.',
+          } : null}
+          emptyTitle="Valida antes de registrar"
+          emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
+          emptyScheduleDescription="Las cuotas calculadas aparecerán aquí después de validar."
+        />
       </section>
 
       <div
-        className="z-30 ml-auto w-full max-w-[560px] rounded-2xl border border-border-subtle bg-bg-surface/95 p-3 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
+        className="sticky bottom-4 z-30 ml-auto w-full max-w-[760px] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
         data-tour="new-credit-action-dock"
       >
-        <div className="mb-3 flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-text-primary">Siguiente acción</p>
-          <p className={`text-xs font-medium ${isRegistrationReady ? 'text-emerald-700 dark:text-emerald-300' : 'text-text-secondary'}`}>
-            {nextActionMessage}
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 px-2 py-1">
+            <p className="text-sm font-semibold text-text-primary">Siguiente acción</p>
+            <p className={`mt-0.5 text-xs font-medium ${isRegistrationReady ? 'text-emerald-700 dark:text-emerald-300' : 'text-text-secondary'}`}>
+              {nextActionMessage}
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 md:w-auto md:min-w-[520px]">
             <button
               type="button"
               onClick={resetCalculation}
@@ -531,6 +515,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               <span>Registrar crédito</span>
             </button>
+          </div>
         </div>
       </div>
     </form>

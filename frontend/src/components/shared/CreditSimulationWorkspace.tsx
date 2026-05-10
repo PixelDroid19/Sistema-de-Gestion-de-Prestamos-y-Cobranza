@@ -50,6 +50,7 @@ type CreditSimulationWorkspaceProps = {
   actionLabel?: string;
   simulateButtonDataTour?: string;
   hideHeaderActions?: boolean;
+  compactChrome?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
   emptyScheduleDescription?: string;
@@ -163,6 +164,7 @@ export default function CreditSimulationWorkspace({
   actionLabel = tTerm('simulator.form.simulate'),
   simulateButtonDataTour,
   hideHeaderActions = false,
+  compactChrome = false,
   emptyTitle = 'Sin resultados todavía',
   emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
   emptyScheduleDescription = 'Tras calcular, aquí verás cada cuota con vencimiento, pago e intereses.',
@@ -268,7 +270,7 @@ export default function CreditSimulationWorkspace({
   return (
     <section className="flex flex-col gap-6" aria-labelledby={titleId}>
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-        <div className="border-b border-border-subtle px-6 py-6 sm:px-8">
+        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-5 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
@@ -284,7 +286,7 @@ export default function CreditSimulationWorkspace({
                 )}
               </div>
               <div>
-                <h3 id={titleId} className="text-2xl font-semibold text-text-primary sm:text-3xl">
+                <h3 id={titleId} className={`${compactChrome ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-semibold text-text-primary`}>
                   {title}
                 </h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
@@ -306,52 +308,54 @@ export default function CreditSimulationWorkspace({
                   {actionLabel}
                 </button>
                 {onReset && (
-                <button
-                  type="button"
-                  onClick={onReset}
-                  disabled={disabled || isSimulating}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Restablecer parámetros
-                </button>
+                  <button
+                    type="button"
+                    onClick={onReset}
+                    disabled={disabled || isSimulating}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Restablecer parámetros
+                  </button>
                 )}
               </div>
             )}
           </div>
 
-          <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                <DollarSign size={14} />
-                Monto base
-              </dt>
-              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatCurrency(input.amount)}</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                <Percent size={14} />
-                Tasa anual
-              </dt>
-              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.interestRate}%</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                <Clock3 size={14} />
-                Plazo
-              </dt>
-              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.termMonths} meses</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                <AlertCircle size={14} />
-                Mora
-              </dt>
-              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
-            </div>
-          </dl>
+          {!compactChrome && (
+            <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
+                  <DollarSign size={14} />
+                  Monto base
+                </dt>
+                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatCurrency(input.amount)}</dd>
+              </div>
+              <div>
+                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
+                  <Percent size={14} />
+                  Tasa anual
+                </dt>
+                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.interestRate}%</dd>
+              </div>
+              <div>
+                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
+                  <Clock3 size={14} />
+                  Plazo
+                </dt>
+                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.termMonths} meses</dd>
+              </div>
+              <div>
+                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
+                  <AlertCircle size={14} />
+                  Mora
+                </dt>
+                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
+              </div>
+            </dl>
+          )}
         </div>
 
-        <div className="grid gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]">
+        <div className={`grid gap-6 lg:gap-7 ${compactChrome ? 'p-5 sm:p-6 xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)] 2xl:grid-cols-[minmax(380px,0.75fr)_minmax(0,1.35fr)]' : 'p-6 sm:p-8 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
           <div className="space-y-5">
             <section className="space-y-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
