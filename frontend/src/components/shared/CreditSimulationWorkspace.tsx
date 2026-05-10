@@ -183,32 +183,33 @@ export default function CreditSimulationWorkspace({
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
   const [scenarioName, setScenarioName] = useState('');
   const [isComparisonVisible, setIsComparisonVisible] = useState(false);
+  const freshResult = isResultStale ? null : result;
 
   const summaryCards = useMemo(() => {
-    if (!result) {
+    if (!freshResult) {
       return [];
     }
 
-    const totalInstallments = Math.max(result.schedule.length, input.termMonths || 0, 1);
-    const averageInterestPerInstallment = result.summary.totalInterest / totalInstallments;
+    const totalInstallments = Math.max(freshResult.schedule.length, input.termMonths || 0, 1);
+    const averageInterestPerInstallment = freshResult.summary.totalInterest / totalInstallments;
 
     return [
       {
         id: 'installment',
         label: 'Cuota estimada',
-        value: formatCurrency(result.summary.installmentAmount),
+        value: formatCurrency(freshResult.summary.installmentAmount),
         tone: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300',
       },
       {
         id: 'payable',
         label: 'Total a pagar',
-        value: formatCurrency(result.summary.totalPayable),
+        value: formatCurrency(freshResult.summary.totalPayable),
         tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
       },
       {
         id: 'interest',
         label: 'Interés total',
-        value: formatCurrency(result.summary.totalInterest),
+        value: formatCurrency(freshResult.summary.totalInterest),
         tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
       },
       {
@@ -218,10 +219,10 @@ export default function CreditSimulationWorkspace({
         tone: 'border-border-subtle bg-bg-base text-text-primary',
       },
     ];
-  }, [input.termMonths, result]);
+  }, [freshResult, input.termMonths]);
 
   const handleSaveScenario = () => {
-    if (!showScenarioTools || !result) {
+    if (!showScenarioTools || !freshResult) {
       return;
     }
 
@@ -229,7 +230,7 @@ export default function CreditSimulationWorkspace({
       id: `${Date.now()}`,
       name: scenarioName.trim() || getDefaultScenarioName(savedScenarios.length),
       input: { ...input },
-      result,
+      result: freshResult,
       createdAt: new Date(),
     };
 
@@ -540,7 +541,7 @@ export default function CreditSimulationWorkspace({
                     <button
                       type="button"
                       onClick={handleSaveScenario}
-                      disabled={disabled || !result}
+                      disabled={disabled || !freshResult}
                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Save size={16} />
@@ -575,7 +576,7 @@ export default function CreditSimulationWorkspace({
                   Comparación de escenarios
                 </div>
                 <div className="mt-4 space-y-3">
-                  {result && (
+                  {freshResult && (
                     <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -591,11 +592,11 @@ export default function CreditSimulationWorkspace({
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <dt className="text-text-secondary">Cuota</dt>
-                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(result.summary.installmentAmount)}</dd>
+                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(freshResult.summary.installmentAmount)}</dd>
                         </div>
                         <div>
                           <dt className="text-text-secondary">Interés total</dt>
-                          <dd className="font-semibold text-text-primary">{formatCurrency(result.summary.totalInterest)}</dd>
+                          <dd className="font-semibold text-text-primary">{formatCurrency(freshResult.summary.totalInterest)}</dd>
                         </div>
                       </dl>
                     </article>
@@ -660,13 +661,13 @@ export default function CreditSimulationWorkspace({
                     Resultado consolidado de la fórmula.
                   </p>
                 </div>
-                {result && (
+                {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(result.method)}
+                      Método: {formatCalculationMethod(freshResult.method)}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Próximo vencimiento: {formatDate(result.summary.nextInstallment?.dueDate || '')}
+                      Próximo vencimiento: {formatDate(freshResult.summary.nextInstallment?.dueDate || '')}
                     </div>
                   </div>
                 )}
@@ -681,7 +682,7 @@ export default function CreditSimulationWorkspace({
                     </div>
                   ))}
                 </div>
-              ) : result ? (
+              ) : freshResult ? (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {summaryCards.map((card) => (
                      <article key={card.id} className={`rounded-xl border p-4 ${card.tone}`}>
@@ -712,13 +713,13 @@ export default function CreditSimulationWorkspace({
                     Desglose mensual de pago, interés, capital y saldo restante.
                   </p>
                 </div>
-                {result && (
+                {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Perfil: {result.calculationProfileVersionId != null ? `v${result.calculationProfileVersionId}` : 'Activo sin versión visible'}
+                      Perfil: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activo sin versión visible'}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(result.method)}
+                      Método: {formatCalculationMethod(freshResult.method)}
                     </div>
                   </div>
                 )}
@@ -758,8 +759,8 @@ export default function CreditSimulationWorkspace({
                             </div>
                           </td>
                         </tr>
-                      ) : result && result.schedule.length > 0 ? (
-                        result.schedule.map((row) => (
+                      ) : freshResult && freshResult.schedule.length > 0 ? (
+                        freshResult.schedule.map((row) => (
                           <tr key={row.installmentNumber} className="hover:bg-hover-bg/60">
                             <td className="px-4 py-3 font-medium text-text-primary">{row.installmentNumber}</td>
                             <td className="px-4 py-3 text-text-secondary">{formatDate(row.dueDate)}</td>
