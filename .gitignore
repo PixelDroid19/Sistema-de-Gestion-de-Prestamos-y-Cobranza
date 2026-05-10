@@ -4,9 +4,8 @@ backend/.qwen/
 frontend/node_modules/
 backend/package-lock.json
 backend/pnpm-lock.yaml
-frontend/package-lock.json 
+frontend/package-lock.json
 .atl/
-nul
 openspec/
 node_modules/
 artifacts/
