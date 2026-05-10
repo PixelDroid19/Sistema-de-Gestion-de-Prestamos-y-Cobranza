@@ -41,7 +41,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     if (!value) return 'N/A';
 
     const parsedDate = new Date(value as string | number | Date);
-    return Number.isNaN(parsedDate.getTime()) ? 'N/A' : parsedDate.toLocaleDateString();
+    return Number.isNaN(parsedDate.getTime()) ? 'N/A' : parsedDate.toLocaleDateString('es-CO', { dateStyle: 'medium' });
   };
 
   const getCustomerName = (customer: any) => {

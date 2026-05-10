@@ -37,7 +37,7 @@ const confirmStyles = {
         ? 'bg-red-500 text-white hover:bg-red-600'
         : 'bg-text-primary text-bg-base hover:bg-text-secondary'
     }`,
-  input: 'w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-primary outline-none focus:ring-1 focus:ring-border-strong',
+  input: 'w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-primary/35 focus:border-brand-primary/40',
   label: 'block text-sm font-medium text-text-secondary mb-2 mt-4',
 };
 

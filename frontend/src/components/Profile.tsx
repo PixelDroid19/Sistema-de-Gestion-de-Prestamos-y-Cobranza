@@ -82,7 +82,7 @@ export default function Profile() {
           <User size={32} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold">Mi perfil</h2>
+          <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Mi perfil</h2>
           <p className="text-sm text-text-secondary mt-1">Administra tu información personal y seguridad.</p>
         </div>
         <div className="sm:ml-auto flex items-center gap-3">

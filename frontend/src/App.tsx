@@ -38,7 +38,7 @@ function RouteLoadingFallback() {
     <div className="flex min-h-[240px] items-center justify-center">
       <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
-        Cargando modulo...
+        Cargando módulo...
       </div>
     </div>
   );
@@ -83,7 +83,7 @@ function MainLayout() {
       />
       <div className="flex flex-col flex-1 min-w-0">
         <Header setCurrentView={setCurrentView} toggleMobileSidebar={() => setIsMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-bg-base p-6">
+        <main className="flex-1 overflow-y-auto bg-bg-base p-4 sm:p-6 lg:p-8">
           <React.Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<RoleHomeRedirect />} />
