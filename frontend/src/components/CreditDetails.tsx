@@ -24,6 +24,7 @@ import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { QuickGuideButton } from './shared/HelpSupport';
 import { MetricCard } from './shared/Surfaces';
+import { formatLoanAlertTypeLabel } from '../lib/loanAlertLabels';
 
 type InstallmentActionButtonProps = {
   label: string;
@@ -230,7 +231,11 @@ export default function CreditDetails() {
       case 'cancelled':
         return { label: 'Cancelado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'pending':
-        return { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' };
+        return {
+          label: 'Pendiente',
+          className:
+            'bg-amber-200/95 text-amber-950 border border-amber-500/45 dark:bg-amber-500/20 dark:text-amber-100 dark:border-amber-400/35',
+        };
       case 'rejected':
         return { label: 'Rechazado', className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
       default:
@@ -337,7 +342,11 @@ export default function CreditDetails() {
       const events = [{
         id: `alert-created-${alert.id}`,
         action: alert.status === 'resolved' ? 'Alerta resuelta' : 'Alerta activa',
-        description: `${alert.alertType || 'Seguimiento'} ${alert.installmentNumber ? `cuota #${alert.installmentNumber}` : ''} · ${formatCurrency(alert.outstandingAmount)}`,
+        description: [
+          formatLoanAlertTypeLabel(alert.alertType || alert.type),
+          alert.installmentNumber != null ? `Cuota n.º ${alert.installmentNumber}` : null,
+          formatCurrency(alert.outstandingAmount),
+        ].filter(Boolean).join(' · '),
         date: alert.resolvedAt || alert.createdAt || alert.dueDate,
         type: 'alert',
         status: alert.status,
@@ -1137,7 +1146,7 @@ export default function CreditDetails() {
   }) => (
     <div className="flex min-w-0 items-center gap-2 text-sm">
       <Icon size={15} className="shrink-0 text-brand-primary" />
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{label}</span>
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary/60 dark:text-text-secondary">{label}</span>
       <span className="min-w-0 break-words font-semibold leading-5 text-text-primary">{value}</span>
     </div>
   );
@@ -1206,7 +1215,7 @@ export default function CreditDetails() {
       {label}
       {badge !== undefined && badge > 0 && (
         <span className={`ml-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold ${
-          activeTab === id ? 'bg-brand-primary text-white' : 'bg-border-strong text-text-primary'
+          activeTab === id ? 'bg-brand-primary text-white' : 'bg-border-subtle text-text-secondary'
         }`}>
           {badge}
         </span>
@@ -1245,79 +1254,86 @@ export default function CreditDetails() {
             </div>
           </div>
 
-          <div className="w-full xl:max-w-[34rem] xl:pt-1" data-tour="credit-detail-primary-actions">
-            <div className="flex flex-wrap gap-2 xl:justify-end">
-              <QuickGuideButton
-                guideKey="credit-details"
-                guideContext={{ loanId }}
-                className="min-h-10 w-full sm:w-auto sm:min-w-[12rem]"
-              />
-              {installmentPaymentGuard.visible && (
+          <div className="w-full xl:max-w-[40rem] xl:pt-1" data-tour="credit-detail-primary-actions">
+            <div className="flex w-full flex-col gap-3 xl:items-end">
+              <div className="flex w-full flex-wrap gap-2 xl:justify-end">
+                <QuickGuideButton
+                  guideKey="credit-details"
+                  guideContext={{ loanId }}
+                  className="min-h-10 shrink-0 sm:min-w-[10.5rem]"
+                />
+                {installmentPaymentGuard.visible && (
+                  <button
+                    onClick={openNextInstallmentPayment}
+                    disabled={!installmentPaymentGuard.executable}
+                    title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:min-w-[12rem]"
+                  >
+                    <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
+                  </button>
+                )}
+              </div>
+              <div className="flex w-full flex-wrap gap-2 border-t border-border-subtle/80 pt-3 xl:justify-end">
+                {isAdmin && capitalPaymentGuard.visible && (
+                  <button
+                    onClick={() => setShowCapitalModal(true)}
+                    disabled={!capitalPaymentGuard.executable}
+                    title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                  >
+                    <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
+                  </button>
+                )}
+                {isAdmin && lateFeeUpdateGuard.visible && (
+                  <button
+                    onClick={() => {
+                      setLateFeeRate(String(loan.annualLateFeeRate || ''));
+                      setShowLateFeeModal(true);
+                    }}
+                    disabled={!lateFeeUpdateGuard.executable}
+                    title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                  >
+                    <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
+                  </button>
+                )}
+                {isAdmin && creditStatusUpdateGuard.visible && (
+                  <button
+                    onClick={() => setShowStatusModal(true)}
+                    disabled={!creditStatusUpdateGuard.executable}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                    title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
+                  >
+                    <Edit2 size={16} /> Estado
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => runExportCreditExcel(loanId)}
+                    disabled={isExportingCreditExcel}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-wait disabled:opacity-60"
+                    title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
+                  >
+                    <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando...' : 'Excel'}
+                  </button>
+                )}
                 <button
-                  onClick={openNextInstallmentPayment}
-                  disabled={!installmentPaymentGuard.executable}
-                  title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:w-auto sm:min-w-[12rem]"
+                  onClick={() => navigate(`/credits/${loanId}/schedule`)}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg"
+                  title="Ver plan de pagos completo"
                 >
-                  <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
+                  <Table size={16} /> Plan de pagos
                 </button>
-              )}
-              {isAdmin && capitalPaymentGuard.visible && (
-                <button
-                  onClick={() => setShowCapitalModal(true)}
-                  disabled={!capitalPaymentGuard.executable}
-                  title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto sm:min-w-[12rem]"
-                >
-                  <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
-                </button>
-              )}
-              {isAdmin && lateFeeUpdateGuard.visible && (
-                <button
-                  onClick={() => {
-                    setLateFeeRate(String(loan.annualLateFeeRate || ''));
-                    setShowLateFeeModal(true);
-                  }}
-                  disabled={!lateFeeUpdateGuard.executable}
-                  title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
-                >
-                  <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
-                </button>
-              )}
-              {isAdmin && creditStatusUpdateGuard.visible && (
-                <button
-                  onClick={() => setShowStatusModal(true)}
-                  disabled={!creditStatusUpdateGuard.executable}
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base sm:w-auto"
-                  title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
-                >
-                  <Edit2 size={16} /> Estado
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => runExportCreditExcel(loanId)}
-                  disabled={isExportingCreditExcel}
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-wait disabled:opacity-60 sm:w-auto"
-                  title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
-                >
-                  <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando...' : 'Excel'}
-                </button>
-              )}
-              <button
-                onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg sm:w-auto"
-                title="Ver plan de pagos completo"
-              >
-                <Table size={16} /> Plan de pagos
-              </button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-tour="credit-detail-metrics">
+      <section
+        className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fill,minmax(13.5rem,1fr))]"
+        data-tour="credit-detail-metrics"
+      >
           <SummaryMetricItem
             icon={Calendar}
             label="Cuotas totales"
@@ -1552,7 +1568,7 @@ export default function CreditDetails() {
                           <AlertCircle className={alert.status === 'resolved' ? 'text-emerald-500 shrink-0 mt-0.5' : 'text-amber-500 shrink-0 mt-0.5'} size={20} />
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium text-text-primary">{alert.type || alert.alertType || 'Alerta de crédito'}</p>
+                              <p className="font-medium text-text-primary">{formatLoanAlertTypeLabel(alert.type || alert.alertType)}</p>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 alert.status === 'resolved'
                                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'

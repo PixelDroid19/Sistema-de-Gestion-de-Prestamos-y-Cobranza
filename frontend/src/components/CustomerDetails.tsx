@@ -87,7 +87,9 @@ export default function CustomerDetails() {
       return 'Fecha no disponible';
     }
 
-    return includeTime ? parsedDate.toLocaleString() : parsedDate.toLocaleDateString();
+    return includeTime
+      ? parsedDate.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+      : parsedDate.toLocaleDateString('es-CO', { dateStyle: 'medium' });
   };
 
   const formatLoanId = (value: unknown) => {

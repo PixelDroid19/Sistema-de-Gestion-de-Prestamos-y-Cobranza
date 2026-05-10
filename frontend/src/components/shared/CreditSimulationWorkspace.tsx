@@ -52,6 +52,7 @@ type CreditSimulationWorkspaceProps = {
   hideHeaderActions?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyScheduleDescription?: string;
 };
 
 const lateFeeModeOptions: Array<{ value: NonNullable<CreditCalculationInput['lateFeeMode']>; label: string; helper: string }> = [
@@ -80,6 +81,16 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
   currency: 'COP',
   maximumFractionDigits: 0,
 }).format(value);
+
+const formatAmountInputDisplay = (value: number) =>
+  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number.isFinite(value) ? value : 0);
+
+const parseDigitsToAmount = (raw: string) => {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return 0;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : 0;
+};
 
 const formatDate = (value: string) => {
   if (!value) {
@@ -154,6 +165,7 @@ export default function CreditSimulationWorkspace({
   hideHeaderActions = false,
   emptyTitle = 'Sin resultados todavía',
   emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
+  emptyScheduleDescription = 'Tras calcular, aquí verás cada cuota con vencimiento, pago e intereses.',
 }: CreditSimulationWorkspaceProps) {
   const instanceId = useId();
   const titleId = `${instanceId}-credit-simulation-title`;
@@ -245,6 +257,11 @@ export default function CreditSimulationWorkspace({
       return;
     }
 
+    if (field === 'amount') {
+      onInputChange({ amount: parseDigitsToAmount(nextValue) });
+      return;
+    }
+
     onInputChange({ [field]: Number(nextValue) || 0 });
   };
 
@@ -304,37 +321,37 @@ export default function CreditSimulationWorkspace({
 
           <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
             <div>
-              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
                 <DollarSign size={14} />
                 Monto base
               </dt>
-              <dd className="mt-2 text-lg font-semibold text-text-primary">{formatCurrency(input.amount)}</dd>
+              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatCurrency(input.amount)}</dd>
             </div>
             <div>
-              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
                 <Percent size={14} />
                 Tasa anual
               </dt>
-              <dd className="mt-2 text-lg font-semibold text-text-primary">{input.interestRate}%</dd>
+              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.interestRate}%</dd>
             </div>
             <div>
-              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
                 <Clock3 size={14} />
                 Plazo
               </dt>
-              <dd className="mt-2 text-lg font-semibold text-text-primary">{input.termMonths} meses</dd>
+              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.termMonths} meses</dd>
             </div>
             <div>
-              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+              <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
                 <AlertCircle size={14} />
                 Mora
               </dt>
-              <dd className="mt-2 text-lg font-semibold text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
+              <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
             </div>
           </dl>
         </div>
 
-        <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]">
+        <div className="grid gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]">
           <div className="space-y-5">
             <section className="space-y-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -357,15 +374,15 @@ export default function CreditSimulationWorkspace({
                     <DollarSign size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                     <input
                       id={amountInputId}
-                      type="number"
-                      min="0"
+                      type="text"
                       inputMode="numeric"
-                      value={input.amount}
+                      autoComplete="off"
+                      value={formatAmountInputDisplay(input.amount)}
                       onChange={handleFieldChange('amount')}
                       aria-describedby={fieldErrors.amount ? `${amountInputId}-error` : undefined}
                       aria-invalid={!!fieldErrors.amount}
                       disabled={disabled}
-                        className={`w-full rounded-xl border bg-bg-base px-10 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                      className={`w-full rounded-xl border bg-bg-base px-10 py-3 text-sm tabular-nums text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                     />
                   </div>
                   {fieldErrors.amount && (
@@ -669,8 +686,8 @@ export default function CreditSimulationWorkspace({
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {summaryCards.map((card) => (
                      <article key={card.id} className={`rounded-xl border p-4 ${card.tone}`}>
-                      <p className="text-xs font-medium uppercase tracking-[0.14em]">{card.label}</p>
-                      <p className="mt-2 text-lg font-semibold">{card.value}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-90">{card.label}</p>
+                      <p className="mt-2 text-xl font-bold tabular-nums tracking-tight">{card.value}</p>
                     </article>
                   ))}
                 </div>
@@ -699,7 +716,7 @@ export default function CreditSimulationWorkspace({
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Perfil: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activo sin version visible'}
+                      Perfil: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activo sin versión visible'}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
                       Método: {formatCalculationMethod(freshResult.method)}
@@ -761,7 +778,7 @@ export default function CreditSimulationWorkspace({
                       ) : (
                         <tr>
                           <td colSpan={7} className="px-4 py-12 text-center text-sm leading-6 text-text-secondary">
-                            {emptyDescription}
+                            {emptyScheduleDescription}
                           </td>
                         </tr>
                       )}

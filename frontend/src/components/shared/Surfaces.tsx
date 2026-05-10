@@ -123,7 +123,7 @@ export function MetricCard({
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
-            <p className="min-w-0 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-text-secondary">
+            <p className="min-w-0 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-text-primary/60 dark:text-text-secondary">
               {label}
             </p>
             {tooltip ? <HelpTooltip text={tooltip} align="right" iconSize={11} /> : null}

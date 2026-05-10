@@ -150,7 +150,7 @@ export default function Payouts() {
       return 'Sin fecha';
     }
 
-    return parsedDate.toLocaleString();
+    return parsedDate.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
   };
 
   const formatPaymentMethod = (payment: any) => {
