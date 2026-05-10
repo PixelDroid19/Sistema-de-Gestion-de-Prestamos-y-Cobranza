@@ -391,9 +391,9 @@ function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onC
       onClick={onClick}
       title={tooltip}
       data-active={active ? "true" : "false"}
-      className={`w-full flex items-center text-left py-2 px-3 rounded-lg transition-colors text-sm relative group ${
-        active 
-          ? 'bg-slate-100 font-semibold text-text-primary dark:bg-slate-800/70 dark:text-slate-50' 
+      className={`w-full flex items-center text-left py-2.5 px-3 rounded-lg transition-colors text-sm relative group ${
+        active
+          ? 'bg-brand-primary/12 font-semibold text-text-primary ring-1 ring-inset ring-brand-primary/20 dark:bg-brand-primary/18 dark:text-text-primary dark:ring-brand-primary/30'
           : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
       }`}
     >

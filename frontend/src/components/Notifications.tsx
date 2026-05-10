@@ -14,7 +14,9 @@ const formatNotificationDate = (value: unknown) => {
   }
 
   const date = new Date(value as string | number | Date);
-  return Number.isNaN(date.getTime()) ? 'Fecha no disponible' : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? 'Fecha no disponible'
+    : date.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
 };
 
 export default function Notifications() {
@@ -70,13 +72,15 @@ export default function Notifications() {
   };
 
   return (
-    <div className="flex h-full w-full max-w-4xl flex-col gap-6 mx-auto" data-tour="notifications-page">
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-6" data-tour="notifications-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" data-tour="notifications-header">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-2xl font-semibold">
-            <Bell size={24} /> Notificaciones
+          <h2 className="flex flex-wrap items-center gap-2 text-2xl font-semibold text-text-primary tracking-tight">
+            <Bell size={24} className="shrink-0 text-brand-primary" aria-hidden /> Notificaciones
             {unreadCount > 0 && (
-              <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">{unreadCount} no leídas</span>
+              <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+                {unreadCount} no leídas
+              </span>
             )}
           </h2>
           <p className="mt-1 text-sm text-text-secondary">Alertas operativas, cobros y novedades del sistema.</p>
@@ -101,42 +105,49 @@ export default function Notifications() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col divide-y divide-border-subtle rounded-xl border border-border-subtle bg-white shadow-sm dark:bg-bg-surface" data-tour="notifications-list">
+      <div className="flex flex-1 flex-col divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-sm" data-tour="notifications-list">
         {isLoading ? (
-          <div className="p-4 text-center text-text-secondary">Cargando notificaciones...</div>
+          <div className="px-4 py-10 text-center text-sm text-text-secondary">Cargando notificaciones...</div>
         ) : isError ? (
-          <div className="p-4 text-center text-red-500">
+          <div className="px-4 py-10 text-center text-sm text-red-600 dark:text-red-400">
             {getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })}
           </div>
         ) : notifications.length === 0 ? (
-          <div className="p-4 text-center text-text-secondary">No tienes notificaciones.</div>
+          <div className="px-4 py-12 text-center text-sm text-text-secondary">No tienes notificaciones.</div>
         ) : (
           notifications.map((notification: any) => {
             const destination = resolveNotificationDestinationForUser(notification, user);
             const canOpen = Boolean(destination);
             const key = notification.id ?? `${notification.title}-${notification.createdAt ?? 'sin-fecha'}`;
-            const containerClassName = `w-full p-4 text-left transition-colors ${!notification.read ? 'bg-hover-bg' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40' : ''}`;
+            const containerClassName = `w-full px-4 py-5 text-left transition-colors ${!notification.read ? 'bg-brand-primary/[0.04] dark:bg-brand-primary/10' : 'hover:bg-hover-bg'} ${canOpen ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35' : ''}`;
 
             const content = (
               <>
-                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notification.read ? 'bg-blue-500' : 'bg-transparent'}`}></div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <h4 className={`text-sm ${!notification.read ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
+                <div
+                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${!notification.read ? 'bg-red-600' : 'bg-transparent'}`}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex gap-3 sm:items-start">
+                    <div className="min-w-0 flex-1">
+                      <h4 className={`text-sm ${!notification.read ? 'font-semibold text-text-primary' : 'font-medium text-text-secondary'}`}>
                         {notification.title}
                       </h4>
-                      <p className="mt-1 text-sm text-text-secondary">
+                      <p className="mt-1.5 text-sm leading-relaxed text-text-primary/85 dark:text-text-primary/80">
                         {notification.message || 'Sin contenido'}
                       </p>
                     </div>
-                    {canOpen ? (
-                      <span className="shrink-0 rounded-full border border-border-strong bg-bg-surface px-2.5 py-1 text-xs font-medium text-text-primary">
-                        Abrir
-                      </span>
-                    ) : null}
+                    <div className="flex w-[4.75rem] shrink-0 justify-end pt-0.5">
+                      {canOpen ? (
+                        <span className="rounded-full border border-border-strong bg-bg-base px-2.5 py-1 text-xs font-medium text-text-primary">
+                          Abrir
+                        </span>
+                      ) : (
+                        <span className="inline-block min-h-[1.75rem] w-full" aria-hidden />
+                      )}
+                    </div>
                   </div>
-                  <span className="mt-2 block text-xs text-text-secondary">
+                  <span className="mt-2.5 block text-xs font-medium text-text-primary/50 dark:text-text-secondary">
                     {formatNotificationDate(notification.createdAt)}
                   </span>
                 </div>

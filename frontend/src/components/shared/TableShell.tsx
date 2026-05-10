@@ -48,18 +48,18 @@ export default function TableShell(props: TableShellProps) {
       </div>
 
       {pagination && hasData && !isLoading && !isError && (
-        <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3.5 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <span>
+            <span className="text-text-primary/80">
               Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} {recordsLabel}
             </span>
             {pagination.onPageSizeChange && (
               <label className="flex items-center gap-2">
-                <span>Filas por página</span>
+                <span className="text-text-primary/70">Filas por página</span>
                 <select
                   value={pagination.pageSize}
                   onChange={(event) => pagination.onPageSizeChange?.(Number(event.target.value))}
-                  className="rounded-lg border border-border-subtle bg-bg-base px-2 py-1 text-text-primary"
+                  className="min-h-9 rounded-lg border border-border-strong bg-bg-base px-2.5 py-1.5 text-sm text-text-primary outline-none transition focus-visible:ring-2 focus-visible:ring-brand-primary/35"
                 >
                   {(pagination.pageSizeOptions ?? [10, 25, 50, 100]).map((size) => (
                     <option key={size} value={size}>{size}</option>
@@ -68,18 +68,20 @@ export default function TableShell(props: TableShellProps) {
               </label>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
+              type="button"
               disabled={pagination.page === 1}
               onClick={pagination.onPrev}
-              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-9 rounded-lg border border-border-strong bg-bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Anterior
             </button>
             <button
+              type="button"
               disabled={pagination.page === pagination.totalPages}
               onClick={pagination.onNext}
-              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-9 rounded-lg border border-border-strong bg-bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Siguiente
             </button>

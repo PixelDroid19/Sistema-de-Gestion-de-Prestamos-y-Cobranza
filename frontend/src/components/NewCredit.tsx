@@ -413,6 +413,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         } : null}
         emptyTitle="Valida antes de registrar"
         emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
+        emptyScheduleDescription="Las cuotas calculadas aparecerán aquí después de validar."
       />
       </section>
 
