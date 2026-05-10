@@ -125,7 +125,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="credits-page-title"]', title: 'Encabezado', description: 'Desde aquí navegas acciones del módulo y mides su estado.' },
       { selector: '[data-tour="credits-export"]', title: 'Exportar cartera', description: 'Descarga el estado actual en Excel para reconciliación y respaldo.' },
       { selector: '[data-tour="credits-preview"]', title: 'Previsualizar crédito', description: 'Simula escenarios antes de crear un crédito real.' },
-      { selector: '[data-tour="credits-new"]', title: 'Crear crédito', description: 'Abre el flujo de origen para registrar un crédito con el perfil de cálculo activo.' },
+      { selector: '[data-tour="credits-new"]', title: 'Crear crédito', description: 'Abre el flujo de origen para registrar un crédito con la regla de cálculo activa.' },
       { selector: '[data-tour="credits-tabs"]', title: 'Vista principal', description: 'Alterna entre créditos vigentes y calendario para operación diaria.' },
       { selector: '[data-tour="credits-search"]', title: 'Búsqueda y filtros', description: 'Filtra por cliente, estado y fechas para encontrar el préstamo correcto.' },
       { selector: '[data-tour="credits-filters"]', title: 'Filtros avanzados', description: 'Ajusta montos y fechas antes de buscar.' },
@@ -136,7 +136,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
   'new-credit': {
     default: [
       { selector: '[data-tour="new-credit-page"]', title: 'Nuevo crédito', description: 'Este flujo registra un crédito real y congela la fórmula usada en ese momento.' },
-      { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa el perfil de cálculo activo. Registrar crea un crédito real en cartera.' },
+      { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa la regla de cálculo activa. Registrar crea un crédito real en cartera.' },
       { selector: '[data-tour="new-credit-customer-select"]', title: 'Cliente del crédito', description: 'Debes seleccionar al titular antes de validar y registrar.' },
       { selector: '[data-tour="new-credit-associate"]', title: 'Socio asignado', description: 'Es opcional y sirve para relación interna o participación. No cambia cuota, tasa ni mora.' },
       { selector: '[data-tour="new-credit-policy-summary"]', title: 'Políticas sugeridas', description: 'Muestra tasa y mora resueltas desde configuración antes de ajustar parámetros.' },
@@ -241,7 +241,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
   },
   'credit-calculator': {
     default: [
-      { selector: '[data-tour="credit-calculator-page"]', title: 'Previsualizar crédito', description: 'Simula el crédito con el perfil de cálculo activo antes de crear uno real.' },
+      { selector: '[data-tour="credit-calculator-page"]', title: 'Previsualizar crédito', description: 'Simula el crédito con la regla de cálculo activa antes de crear uno real.' },
       { selector: '[data-tour="credit-calculator-header"]', title: 'Controles del simulador', description: 'Vuelve a créditos o pasa el escenario validado a originación.' },
       { selector: '[data-tour="credit-calculator-simulation"]', title: 'Simulación', description: 'Aquí ajustas monto, tasa, plazo, mora y revisas el cronograma.' },
       { selector: '[data-tour="credit-calculator-next"]', title: 'Continuar a registro', description: 'Cuando el escenario sirve, lo envías a Nuevo crédito sin rearmarlo.' },

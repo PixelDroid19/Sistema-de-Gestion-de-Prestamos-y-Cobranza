@@ -48,7 +48,7 @@ export default function CreditSimulator() {
         <div>
           <h2 className="text-2xl font-semibold">Previsualizar crédito</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            Simula un crédito con el perfil de cálculo activo. Si el escenario sirve, continúa al registro sin rearmar los parámetros.
+            Simula un crédito con la regla de cálculo activa. Si el escenario sirve, continúa al registro sin rearmar los parámetros.
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export default function CreditSimulator() {
         <CreditSimulationWorkspace
         title="Escenario previo del crédito"
         description="Revisa cuota, total a pagar, método aplicado y cronograma antes de registrar un crédito real."
-        modeLabel="Perfil activo"
+        modeLabel="Regla activa"
         input={input}
         result={result}
         error={error}
@@ -87,7 +87,7 @@ export default function CreditSimulator() {
         onSimulate={simulate}
         showScenarioTools
         helperText="Si cambias parámetros después de calcular, la interfaz marca el resultado como desactualizado hasta que vuelvas a ejecutar el cálculo."
-        resultBadge={result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : null}
+        resultBadge={result?.calculationProfileVersionId != null ? `Regla v${result.calculationProfileVersionId}` : null}
         emptyTitle="Configura tu escenario"
         emptyDescription="Ajusta el crédito que quieres proyectar y ejecuta el cálculo para revisar cuota, interés total y cronograma mensual."
         />
@@ -99,7 +99,7 @@ export default function CreditSimulator() {
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Listo para originación</h3>
               <p className="mt-1 text-sm text-text-secondary">
-                Este escenario usa el mismo perfil de cálculo activo que se aplicará al crear el crédito real.
+                Este escenario usa la misma regla de cálculo activa que se aplicará al crear el crédito real.
               </p>
             </div>
             <button

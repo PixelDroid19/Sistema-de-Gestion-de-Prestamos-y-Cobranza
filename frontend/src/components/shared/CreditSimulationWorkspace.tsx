@@ -270,28 +270,35 @@ export default function CreditSimulationWorkspace({
   return (
     <section className="flex flex-col gap-6" aria-labelledby={titleId}>
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-5 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
+        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-4 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
-                <span className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-[11px] tracking-[0.2em]">
-                  <Sparkles size={12} />
-                  {modeLabel}
-                </span>
-                {resultBadge && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-[11px] tracking-[0.12em] text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
-                    <Check size={12} />
-                    {resultBadge}
+            <div className={`max-w-3xl ${compactChrome ? 'space-y-1' : 'space-y-3'}`}>
+              {!compactChrome && (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-[11px] tracking-[0.2em]">
+                    <Sparkles size={12} />
+                    {modeLabel}
                   </span>
-                )}
-              </div>
+                  {resultBadge && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-3 py-1 text-[11px] tracking-[0.12em] text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
+                      <Check size={12} />
+                      {resultBadge}
+                    </span>
+                  )}
+                </div>
+              )}
               <div>
                 <h3 id={titleId} className={`${compactChrome ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-semibold text-text-primary`}>
                   {title}
                 </h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
+                <p className={`mt-2 max-w-2xl text-sm leading-6 text-text-secondary ${compactChrome ? '' : 'sm:text-base'}`}>
                   {description}
                 </p>
+                {compactChrome && (
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                    {modeLabel}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -720,7 +727,7 @@ export default function CreditSimulationWorkspace({
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                      Perfil: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activo sin versión visible'}
+                      Regla: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activa sin versión visible'}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
                       Método: {formatCalculationMethod(freshResult.method)}

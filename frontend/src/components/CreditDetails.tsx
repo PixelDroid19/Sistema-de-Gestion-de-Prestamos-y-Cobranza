@@ -1110,7 +1110,7 @@ export default function CreditDetails() {
   const calculationProfileSummary = loan?.calculationProfile?.name
     ? `${loan.calculationProfile.name} (v${loan.calculationProfile.version})`
     : loan?.calculationProfileVersionId
-      ? `Perfil v${loan.calculationProfileVersionId}`
+      ? `Regla de cálculo v${loan.calculationProfileVersionId}`
       : 'Snapshot financiero congelado';
 
   const getInstallmentStatusInfo = (status: unknown) => {

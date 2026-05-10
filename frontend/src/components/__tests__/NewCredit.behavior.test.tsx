@@ -140,7 +140,7 @@ describe('NewCredit behavior', () => {
       initialInput: routeState.calculationInput,
       autoRun: true,
     });
-    expect(screen.getByText('Escenario precargado desde Previsualizar crédito')).toBeInTheDocument();
+    expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('sticky');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('fixed');
 
@@ -168,14 +168,14 @@ describe('NewCredit behavior', () => {
   it('guides the operator through customer, validation and registration readiness', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByLabelText('Progreso de creación de crédito')).toBeInTheDocument();
-    expect(screen.getByText('Titular requerido')).toBeInTheDocument();
-    expect(screen.getAllByText('Perfil v9').length).toBeGreaterThan(0);
+    expect(screen.getByText('Preparación del crédito')).toBeInTheDocument();
+    expect(screen.getByLabelText('Estado de preparación del crédito')).toBeInTheDocument();
+    expect(screen.getAllByText('Regla v9').length).toBeGreaterThan(0);
     expect(screen.getByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
 
-    expect(screen.getAllByText('Cliente QA').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Cliente')).toHaveValue('10');
     expect(screen.getByText('Listo para registrar el crédito real.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });

@@ -53,7 +53,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
   {
     view: 'credit-calculator',
     label: 'Calcular crédito',
-    description: 'Prueba el perfil de cálculo activo antes de registrar.',
+    description: 'Prueba la regla de cálculo activa antes de registrar.',
     roles: ['admin'],
     keywords: ['simulador', 'calculadora', 'cuota', 'perfil'],
   },

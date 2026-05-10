@@ -247,7 +247,7 @@ export default function Sidebar({
                     active={currentView === 'credit-calculator' || currentView === 'simulator'}
                     onClick={() => setCurrentView('credit-calculator')}
                     title="Cálculo de Crédito"
-                    tooltip="Calcula cuotas con el perfil activo del crédito"
+                    tooltip="Calcula cuotas con la regla activa del crédito"
                   />
                 )}
 
