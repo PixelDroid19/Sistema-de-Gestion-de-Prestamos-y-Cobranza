@@ -408,6 +408,38 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('formats alert details without exposing technical audit tokens', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockAlerts = [{
+      id: 44,
+      alertType: 'payment_reminder',
+      installmentNumber: 1,
+      outstandingAmount: 0,
+      status: 'active',
+      dueDate: '2026-05-10T00:00:00.000Z',
+      createdAt: '2026-05-10T18:09:49.192Z',
+      notes: '[2026-05-10T18:09:49.192Z] REMINDER actor:3 status:active prueba',
+    }];
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }));
+
+    expect(screen.getByText('Recordatorio de pago')).toBeInTheDocument();
+    expect(screen.getByText('Cuota n.º 1')).toBeInTheDocument();
+    expect(screen.getByText('Sin saldo pendiente')).toBeInTheDocument();
+    expect(screen.getByText('prueba')).toBeInTheDocument();
+    expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
+
+    expect(screen.getByText('Alerta activa')).toBeInTheDocument();
+    expect(screen.getByText('Recordatorio de pago · Cuota n.º 1 · Sin saldo pendiente')).toBeInTheDocument();
+    expect(screen.getByText('Seguimiento registrado')).toBeInTheDocument();
+    expect(screen.getByText('prueba')).toBeInTheDocument();
+    expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
+  });
+
   it('hides stale payoff data and disables financial actions once the credit is completed', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockLoan = {
