@@ -129,6 +129,8 @@ describe('CreditSimulator behavior', () => {
 
     expect(topCta).toBeDisabled();
     expect(lowerCta).toBeDisabled();
+    expect(screen.getByText(/Ejecuta nuevamente para actualizar los resultados/i)).toBeInTheDocument();
+    expect(screen.queryByText('$210.000')).not.toBeInTheDocument();
 
     fireEvent.click(topCta);
     fireEvent.click(lowerCta);
