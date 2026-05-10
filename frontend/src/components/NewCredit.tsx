@@ -140,6 +140,48 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && hasValidatedResult && !isSubmitting && !isSimulating;
+  const isBorrowerReady = Boolean(borrower.customerId);
+  const isRegistrationReady = isBorrowerReady && hasValidatedResult;
+  const nextActionMessage = !isBorrowerReady
+    ? 'Selecciona el cliente que recibirá el crédito.'
+    : !result
+      ? 'Valida el cálculo antes de registrar.'
+      : isResultStale
+        ? 'Hay cambios sin validar. Ejecuta la validación otra vez.'
+        : 'Listo para registrar el crédito real.';
+  const flowSteps = [
+    {
+      label: 'Cliente',
+      status: isBorrowerReady ? 'Listo' : 'Pendiente',
+      detail: selectedCustomer ? getDisplayName(selectedCustomer) : 'Titular requerido',
+      icon: User,
+      className: isBorrowerReady
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200'
+        : 'border-border-subtle bg-bg-surface text-text-secondary',
+    },
+    {
+      label: 'Validación',
+      status: hasValidatedResult ? 'Vigente' : result && isResultStale ? 'Revalidar' : 'Pendiente',
+      detail: hasValidatedResult
+        ? (result?.calculationProfileVersionId != null ? `Perfil v${result.calculationProfileVersionId}` : 'Perfil activo')
+        : 'Cálculo requerido',
+      icon: Calculator,
+      className: hasValidatedResult
+        ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200'
+        : result && isResultStale
+          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200'
+          : 'border-border-subtle bg-bg-surface text-text-secondary',
+    },
+    {
+      label: 'Registro',
+      status: isRegistrationReady ? 'Disponible' : 'Bloqueado',
+      detail: isRegistrationReady ? 'Puede crear cartera' : 'Requiere pasos previos',
+      icon: Save,
+      className: isRegistrationReady
+        ? 'border-slate-300 bg-slate-900 text-white dark:border-slate-600 dark:bg-slate-100 dark:text-slate-900'
+        : 'border-border-subtle bg-bg-surface text-text-secondary',
+    },
+  ];
   const handleBorrowerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = event.target;
     setBorrower((current) => ({ ...current, [name]: value }));
@@ -251,7 +293,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <div className="min-w-0" data-tour="new-credit-header">
             <h2 className="text-3xl font-bold tracking-tight text-text-primary">Nuevo crédito</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
-              Selecciona el cliente, valida el perfil de cálculo activo y registra el crédito real con el mismo cálculo que se usará en producción.
+              Crea cartera real en tres pasos: titular, validación financiera y registro final.
             </p>
           </div>
         </div>
@@ -269,26 +311,54 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </div>
 
       <section
+        className="grid gap-3 rounded-2xl border border-border-subtle bg-bg-surface p-3 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:grid-cols-3"
+        aria-label="Progreso de creación de crédito"
+      >
+        {flowSteps.map((step) => {
+          const StepIcon = step.icon;
+
+          return (
+            <article key={step.label} className={`rounded-xl border px-4 py-3 ${step.className}`}>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70 text-current shadow-sm dark:bg-black/10">
+                  <StepIcon size={16} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">{step.label}</p>
+                  <p className="mt-1 text-sm font-semibold">{step.status}</p>
+                  <p className="mt-0.5 truncate text-xs opacity-80">{step.detail}</p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section
         className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] sm:p-6"
         data-tour="new-credit-customer"
       >
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.95fr)] xl:items-start">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <User size={18} className="text-brand-primary" />
-              Cliente y responsable
+              Titular y trazabilidad
             </div>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
-              Esta selección define a quién se le crea el crédito. La simulación no registra nada hasta usar “Registrar crédito”.
+              Define el titular del crédito. El socio es opcional y no modifica tasa, mora ni cronograma.
             </p>
-            <div className="mt-4 grid gap-3 text-sm text-text-secondary sm:grid-cols-2">
-              <div className="border-l border-border-subtle pl-3">
-                <span className="block font-semibold text-text-primary">Cliente</span>
-                Recibe el crédito y será dueño del plan de pagos.
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
+                <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Cliente</span>
+                <span className="mt-1 block truncate font-semibold text-text-primary">
+                  {selectedCustomer ? getDisplayName(selectedCustomer) : 'Pendiente de selección'}
+                </span>
               </div>
-              <div className="border-l border-border-subtle pl-3">
-                <span className="block font-semibold text-text-primary">Socio asignado</span>
-                Es opcional; solo deja trazabilidad interna y no cambia la cuota.
+              <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3">
+                <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Socio</span>
+                <span className="mt-1 block truncate font-semibold text-text-primary">
+                  {selectedAssociate ? getDisplayName(selectedAssociate) : 'Sin asignar'}
+                </span>
               </div>
             </div>
             {routeState?.source === 'credit-calculator' && (
@@ -351,7 +421,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 ))}
               </select>
               <p id="associate-help" className="mt-2 text-xs leading-5 text-text-secondary">
-                No modifica tasa, mora ni cronograma; solo deja trazabilidad del socio relacionado.
+                Úsalo solo cuando el crédito debe quedar asociado a un socio.
               </p>
             </div>
           </div>
@@ -418,10 +488,16 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </section>
 
       <div
-        className="z-30 ml-auto w-[min(calc(100vw-2rem),430px)] rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
+        className="z-30 ml-auto w-full max-w-[560px] rounded-2xl border border-border-subtle bg-bg-surface/95 p-3 shadow-[0_22px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
         data-tour="new-credit-action-dock"
       >
-        <div className="grid grid-cols-3 gap-2">
+        <div className="mb-3 flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-text-primary">Siguiente acción</p>
+          <p className={`text-xs font-medium ${isRegistrationReady ? 'text-emerald-700 dark:text-emerald-300' : 'text-text-secondary'}`}>
+            {nextActionMessage}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
             <button
               type="button"
               onClick={resetCalculation}
@@ -442,7 +518,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:bg-blue-500/20"
             >
               {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-              <span>Validar</span>
+              <span>Validar crédito</span>
             </button>
             <button
               type="submit"
@@ -453,7 +529,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              <span>Registrar</span>
+              <span>Registrar crédito</span>
             </button>
         </div>
       </div>
