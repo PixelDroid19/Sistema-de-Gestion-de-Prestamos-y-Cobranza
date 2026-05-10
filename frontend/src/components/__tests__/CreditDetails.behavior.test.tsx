@@ -43,7 +43,7 @@ const buildMockLoan = () => ({
     },
 	    payoffEligibility: {
 	      allowed: true,
-	      denialReasons: [] as Array<string | { message?: string }>,
+	      denialReasons: [] as Array<string | { code?: string; message?: string }>,
 	    },
 	  },
   Customer: { name: 'Cliente Demo' },
@@ -443,6 +443,37 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Tasa de mora' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Estado' })).toBeDisabled();
+  });
+
+  it('shows a specific payoff denial reason when an active credit still has balance', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      status: 'active',
+      paymentContext: {
+        snapshot: {
+          outstandingInstallments: 4,
+          totalInterest: 28357.91,
+          totalPaidPrincipal: 146296.58,
+          outstandingPrincipal: 603703.42,
+          outstandingBalance: 622686.33,
+        },
+        payoffEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'PAYOFF_BEFORE_LOAN_START',
+            message: 'Payoff effective date must be on or after the loan start date',
+          }],
+        },
+      },
+    };
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pago total' }));
+
+    expect(screen.getByText('El pago total solo puede ejecutarse desde la fecha de inicio del crédito.')).toBeInTheDocument();
+    expect(screen.queryByText('Este crédito ya no tiene saldo pendiente para liquidar.')).not.toBeInTheDocument();
   });
 
   it('renders a customer-safe detail view with own payment actions only', () => {

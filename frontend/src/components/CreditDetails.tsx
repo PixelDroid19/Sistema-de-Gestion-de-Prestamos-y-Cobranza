@@ -118,6 +118,29 @@ function InstallmentActionButton({
   );
 }
 
+type PayoffDenialReason = string | {
+  code?: string;
+  message?: string;
+};
+
+const PAYOFF_DENIAL_MESSAGES: Record<string, string> = {
+  LOAN_ALREADY_PAID: 'Este crédito ya no tiene saldo pendiente para liquidar.',
+  NO_OUTSTANDING_BALANCE: 'Este crédito ya no tiene saldo pendiente para liquidar.',
+  LOAN_NOT_PAYABLE_STATUS: 'El estado actual del crédito no permite pago total.',
+  PAYOFF_BEFORE_LOAN_START: 'El pago total solo puede ejecutarse desde la fecha de inicio del crédito.',
+  OVERDUE_UNPAID_INSTALLMENTS: 'Regulariza las cuotas vencidas antes de ejecutar el pago total.',
+  FINANCIAL_BLOCK: 'Este crédito tiene un bloqueo financiero activo.',
+};
+
+const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
+  if (!reason) return '';
+  if (typeof reason === 'string') return reason;
+  if (reason.code && PAYOFF_DENIAL_MESSAGES[reason.code]) {
+    return PAYOFF_DENIAL_MESSAGES[reason.code];
+  }
+  return reason.message || '';
+};
+
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -330,13 +353,16 @@ export default function CreditDetails() {
   const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
   const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
   const activePayoffQuote = payoffEligibility?.allowed ? payoffQuote : null;
-  const payoffUnavailableDescription = primaryPayoffDenialReason?.message
+  const hasNoOutstandingPayoffBalance = (
+    (loan?.paymentContext?.snapshot?.outstandingBalance ?? 0) <= 0.01
+    || ['closed', 'completed', 'paid', 'cancelled'].includes(String(loan?.status || '').toLowerCase())
+  );
+  const payoffUnavailableDescription = formatPayoffDenialReason(primaryPayoffDenialReason)
     || (
-      (loan?.paymentContext?.snapshot?.outstandingBalance ?? 0) <= 0.01
-      || ['closed', 'completed', 'paid', 'cancelled'].includes(String(loan?.status || '').toLowerCase())
-    )
-      ? 'Este crédito ya no tiene saldo pendiente para liquidar.'
-      : 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.';
+      hasNoOutstandingPayoffBalance
+        ? 'Este crédito ya no tiene saldo pendiente para liquidar.'
+        : 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.'
+    );
   const operationalHistoryEntries = useMemo(() => {
     const alertEvents = alertEntries.flatMap((alert: any) => {
       const events = [{
