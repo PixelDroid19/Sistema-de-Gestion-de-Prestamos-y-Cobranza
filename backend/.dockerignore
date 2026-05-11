@@ -17,6 +17,7 @@ scripts/
 scripts/**
 !scripts/
 !scripts/resetProductionQaDataset.js
+!scripts/railwayCreditSmokeTest.js
 tests/
 tests/**
 
