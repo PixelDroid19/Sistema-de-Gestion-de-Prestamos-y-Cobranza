@@ -1,10 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, Bell, Clock, CreditCard, CheckCircle,
-  Edit2, FileText, DollarSign, ShieldAlert, Percent, History,
-  Layers, AlertTriangle, AlertCircle, Info, ChevronRight, Activity, Table, GitBranch, FileSpreadsheet
+  Calendar, Bell, Clock, CreditCard, CheckCircle,
+  Edit2, FileText, DollarSign, ShieldAlert, History,
+  AlertTriangle, AlertCircle, Info, ChevronRight, Activity
 } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useConfig } from '../services/configService';
@@ -22,101 +21,11 @@ import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constant
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { QuickGuideButton } from './shared/HelpSupport';
-import { MetricCard, ToolbarSurface } from './shared/Surfaces';
 import { formatLoanAlertTypeLabel } from '../lib/loanAlertLabels';
-
-type InstallmentActionButtonProps = {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-  className: string;
-  children: React.ReactNode;
-};
-
-function InstallmentActionButton({
-  label,
-  disabled = false,
-  onClick,
-  className,
-  children,
-}: InstallmentActionButtonProps) {
-  const anchorRef = React.useRef<HTMLSpanElement | null>(null);
-  const [visible, setVisible] = React.useState(false);
-  const [position, setPosition] = React.useState<{ top: number; left: number; placement: 'top' | 'bottom' } | null>(null);
-
-  React.useLayoutEffect(() => {
-    if (!visible || !anchorRef.current) {
-      setPosition(null);
-      return undefined;
-    }
-
-    const updatePosition = () => {
-      const rect = anchorRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const tooltipWidth = 224;
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-      const left = Math.min(
-        Math.max(12, viewportWidth - tooltipWidth - 12),
-        Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2),
-      );
-      const showBelow = rect.top < 48 && viewportHeight - rect.bottom > 88;
-
-      setPosition({
-        top: showBelow ? rect.bottom + 8 : rect.top - 8,
-        left,
-        placement: showBelow ? 'bottom' : 'top',
-      });
-    };
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [visible]);
-
-  return (
-    <span
-      ref={anchorRef}
-      className="inline-flex"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
-      onBlur={() => setVisible(false)}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        className={className}
-        title={label}
-        aria-label={label}
-      >
-        {children}
-      </button>
-      {visible && position && typeof document !== 'undefined' && createPortal(
-        <span
-          role="tooltip"
-          className="pointer-events-none fixed z-[1000] w-56 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-medium leading-5 text-text-primary shadow-lg"
-          style={{
-            left: position.left,
-            top: position.top,
-            transform: position.placement === 'top' ? 'translateY(-100%)' : undefined,
-          }}
-        >
-          {label}
-        </span>,
-        document.body,
-      )}
-    </span>
-  );
-}
+import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
+import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
+import { CreditDetailsTabs, TabEmptyState, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
+import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
 
 type PayoffDenialReason = string | {
   code?: string;
@@ -141,67 +50,6 @@ const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
   return reason.message || '';
 };
 
-type CreditDetailsTab = 'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history';
-
-function InlineMetaLine({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <Icon size={15} className="shrink-0 text-brand-primary" />
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary/60 dark:text-text-secondary">{label}</span>
-      <span className="min-w-0 break-words font-semibold leading-5 text-text-primary">{value}</span>
-    </div>
-  );
-}
-
-function SummaryMetricItem({
-  icon: Icon,
-  label,
-  tooltip,
-  value,
-  tone = 'default',
-  className = '',
-}: {
-  icon: React.ElementType;
-  label: React.ReactNode;
-  tooltip?: string;
-  value: React.ReactNode;
-  tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
-  className?: string;
-}) {
-  const accent = {
-    default: 'slate',
-    success: 'emerald',
-    warning: 'amber',
-    danger: 'rose',
-    brand: 'blue',
-  }[tone];
-
-  return (
-    <MetricCard
-      label={label}
-      value={value}
-      tooltip={tooltip}
-      icon={<Icon />}
-      accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
-      className={`min-h-[6.75rem] ${className}`}
-    />
-  );
-}
-
-const creditPrimaryActionClassName =
-  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-bg-muted disabled:text-text-muted';
-
-const creditSecondaryActionClassName =
-  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-3.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-brand-primary/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:bg-bg-muted disabled:text-text-muted';
-
 function stableCreditKey(prefix: string, ...parts: Array<unknown>) {
   const body = parts
     .map((part) => String(part ?? '').trim())
@@ -219,69 +67,6 @@ function getInstallmentRowKey(row: any) {
     row?.dueDate,
     row?.scheduledPayment,
     row?.closingBalance,
-  );
-}
-
-function TabEmptyState({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border-strong bg-bg-base/70 px-6 py-12 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-hover-bg text-text-secondary">
-        <Icon size={24} />
-      </div>
-      <p className="mt-4 text-base font-semibold text-text-primary">{title}</p>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">{description}</p>
-    </div>
-  );
-}
-
-function TabButton({
-  id,
-  icon: Icon,
-  label,
-  badge,
-  activeTab,
-  onSelect,
-}: {
-  id: CreditDetailsTab;
-  icon: React.ElementType;
-  label: string;
-  badge?: number;
-  activeTab: CreditDetailsTab;
-  onSelect: (tab: CreditDetailsTab) => void;
-}) {
-  const isActive = activeTab === id;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(id)}
-      className={`relative flex items-center gap-2 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
-        isActive
-          ? 'bg-brand-primary/8 text-brand-primary'
-          : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
-      }`}
-    >
-      <Icon size={18} className={isActive ? 'text-brand-primary' : 'text-text-secondary opacity-70'} />
-      {label}
-      {badge !== undefined && badge > 0 && (
-        <span className={`ml-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold ${
-          isActive ? 'bg-brand-primary text-white' : 'bg-border-subtle text-text-secondary'
-        }`}>
-          {badge}
-        </span>
-      )}
-      {isActive && (
-        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--color-brand-primary),0.5)]" />
-      )}
-    </button>
   );
 }
 
@@ -1365,181 +1150,57 @@ export default function CreditDetails() {
 
   return (
     <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
-      <section className="border-b border-border-subtle pb-4" data-tour="credit-detail-header">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                <button
-                  onClick={() => navigate('/credits')}
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
-                  aria-label="Volver a créditos"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loan.id}</h1>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
-                  {statusInfo.label}
-                </span>
-              </div>
-              <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
-                {creditDetailSubtitle}
-              </p>
+      <CreditDetailHeader
+        loanId={loan.id}
+        statusInfo={statusInfo}
+        subtitle={creditDetailSubtitle}
+        customerLabel={customerLabel}
+        calculationProfileSummary={calculationProfileSummary}
+        registerPaymentLabel={isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
+        capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
+        lateFeeRateLabel={tTerm('creditDetails.cta.lateFeeRate')}
+        isAdmin={isAdmin}
+        isExportingCreditExcel={isExportingCreditExcel}
+        installmentPaymentGuard={installmentPaymentGuard}
+        capitalPaymentGuard={capitalPaymentGuard}
+        lateFeeUpdateGuard={lateFeeUpdateGuard}
+        creditStatusUpdateGuard={creditStatusUpdateGuard}
+        onBack={() => navigate('/credits')}
+        onRegisterPayment={openNextInstallmentPayment}
+        onOpenCapitalPayment={() => setShowCapitalModal(true)}
+        onOpenLateFeeRate={() => {
+          setLateFeeRate(String(loan.annualLateFeeRate || ''));
+          setShowLateFeeModal(true);
+        }}
+        onOpenStatus={() => setShowStatusModal(true)}
+        onExportCreditExcel={() => runExportCreditExcel(loanId)}
+        onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
+      />
 
-              <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-                <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
-                <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end" data-tour="credit-detail-primary-actions">
-              <QuickGuideButton
-                guideKey="credit-details"
-                guideContext={{ loanId }}
-                className="h-10 shrink-0"
-              />
-              {installmentPaymentGuard.visible && (
-                <button
-                  type="button"
-                  onClick={openNextInstallmentPayment}
-                  disabled={!installmentPaymentGuard.executable}
-                  title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                  className={creditPrimaryActionClassName}
-                >
-                  <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <ToolbarSurface className="p-2 lg:items-center lg:justify-start" data-tour="credit-detail-secondary-actions">
-            <span className="shrink-0 px-2 text-[11px] font-bold uppercase tracking-[0.16em] text-text-primary/60">
-              Operaciones
-            </span>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              {isAdmin && capitalPaymentGuard.visible && (
-                <button
-                  type="button"
-                  onClick={() => setShowCapitalModal(true)}
-                  disabled={!capitalPaymentGuard.executable}
-                  title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                  className={creditSecondaryActionClassName}
-                >
-                  <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
-                </button>
-              )}
-              {isAdmin && lateFeeUpdateGuard.visible && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLateFeeRate(String(loan.annualLateFeeRate || ''));
-                    setShowLateFeeModal(true);
-                  }}
-                  disabled={!lateFeeUpdateGuard.executable}
-                  title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-                  className={creditSecondaryActionClassName}
-                >
-                  <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
-                </button>
-              )}
-              {isAdmin && creditStatusUpdateGuard.visible && (
-                <button
-                  type="button"
-                  onClick={() => setShowStatusModal(true)}
-                  disabled={!creditStatusUpdateGuard.executable}
-                  className={creditSecondaryActionClassName}
-                  title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
-                >
-                  <Edit2 size={16} /> Estado
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => runExportCreditExcel(loanId)}
-                  disabled={isExportingCreditExcel}
-                  className={creditSecondaryActionClassName}
-                  title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
-                >
-                  <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando…' : 'Excel'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                className={creditSecondaryActionClassName}
-                title="Ver plan de pagos completo"
-              >
-                <Table size={16} /> Plan de pagos
-              </button>
-            </div>
-          </ToolbarSurface>
-        </div>
-      </section>
-
-      <section
-        className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-        data-tour="credit-detail-metrics"
-      >
-          <SummaryMetricItem
-            icon={Activity}
-            label="Capital vivo"
-            tooltip="Capital del crédito que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
-            tone="brand"
-            value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
-          />
-          <SummaryMetricItem
-            icon={Calendar}
-            label="Cuotas totales"
-            tooltip="Cantidad de cuotas pactadas al crear el crédito. No cambia aunque después se registren pagos o ajustes operativos."
-            value={loan.termMonths ?? '—'}
-          />
-          <SummaryMetricItem
-            icon={Clock}
-            label="Cuotas a Pagar"
-            tooltip="Cuotas que todavía tienen saldo pendiente. Si llega a cero, el crédito ya no tiene cuotas operables."
-            value={paymentSnapshot?.outstandingInstallments ?? '—'}
-          />
-          <SummaryMetricItem
-            icon={Percent}
-            label="Interés total"
-            tooltip="Suma de todos los intereses programados por la fórmula aplicada al crédito. Es el costo financiero del cronograma, no lo que falta por pagar."
-            value={<span title={formatCurrency(paymentSnapshot?.totalInterest)}>{formatMetricCurrency(paymentSnapshot?.totalInterest)}</span>}
-          />
-          <SummaryMetricItem
-            icon={CheckCircle}
-            label="Capital Pagado"
-            tooltip="Parte del crédito original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
-            tone="brand"
-            value={<span title={formatCurrency(paymentSnapshot?.totalPaidPrincipal)}>{formatMetricCurrency(paymentSnapshot?.totalPaidPrincipal)}</span>}
-          />
-          <SummaryMetricItem
-            icon={DollarSign}
-            label="Interés Pagado"
-            tooltip="Intereses que ya fueron cobrados y aplicados al crédito. Debe crecer a medida que se registran cuotas o pagos parciales."
-            tone="warning"
-            value={<span title={formatCurrency(paymentSnapshot?.totalPaidInterest)}>{formatMetricCurrency(paymentSnapshot?.totalPaidInterest)}</span>}
-          />
-          <SummaryMetricItem
-            icon={ShieldAlert}
-            label="Tasa mora EA"
-            tooltip="Tasa efectiva anual usada para calcular mora sobre saldos vencidos cuando una cuota entra en atraso."
-            tone="danger"
-            value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
-          />
-      </section>
+      <CreditSummaryMetrics
+        loan={loan}
+        paymentSnapshot={paymentSnapshot}
+        formatCurrency={formatCurrency}
+        formatMetricCurrency={formatMetricCurrency}
+      />
 
       <section className="min-w-0">
-        <div className="overflow-x-auto border-b border-border-subtle py-2 hide-scrollbar" data-tour="credit-detail-tabs">
-          <div className="flex min-w-max items-center gap-2">
-            <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} activeTab={activeTab} onSelect={setActiveTab} />
-            {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} activeTab={activeTab} onSelect={setActiveTab} />}
-            {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} activeTab={activeTab} onSelect={setActiveTab} />}
-            <TabButton id="payouts" icon={DollarSign} label="Historial de pagos" badge={paymentHistoryEntries.length} activeTab={activeTab} onSelect={setActiveTab} />
-            {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} activeTab={activeTab} onSelect={setActiveTab} />}
-            <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} activeTab={activeTab} onSelect={setActiveTab} />
-          </div>
-        </div>
+        <CreditDetailsTabs
+          activeTab={activeTab}
+          isAdmin={isAdmin}
+          canViewPayoff={canViewPayoff}
+          alertCount={alertEntries.length}
+          pendingPromiseCount={promiseEntries.filter((promise: any) => promise.status === 'pending').length}
+          paymentHistoryCount={paymentHistoryEntries.length}
+          labels={{
+            calendar: tTerm('creditDetails.tab.calendar'),
+            alerts: tTerm('creditDetails.tab.alerts'),
+            promises: tTerm('creditDetails.tab.promises'),
+            payoff: tTerm('creditDetails.tab.payoff'),
+            history: tTerm('creditDetails.tab.history'),
+          }}
+          onSelect={setActiveTab}
+        />
 
         <div className="py-4 sm:py-5 lg:py-6">
           {/* TAB: CALENDAR */}
