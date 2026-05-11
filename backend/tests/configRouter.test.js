@@ -1,4 +1,4 @@
-const { test, afterEach } = require('node:test');
+const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
@@ -6,12 +6,11 @@ const { createConfigRouter } = require('@/modules/config/presentation/router');
 const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
-let activeServer;
-
-afterEach(async () => {
-  await closeServer(activeServer);
-  activeServer = null;
-});
+const listenForTest = async (t, app) => {
+  const server = await listen(app);
+  t.after(() => closeServer(server));
+  return server;
+};
 
 const allowAdminOnly = (allowedRoles = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
@@ -23,7 +22,7 @@ const allowAdminOnly = (allowedRoles = []) => (req, res, next) => {
   return next();
 };
 
-test('createConfigRouter serves payment-method, settings, and catalog contract responses', async () => {
+test('createConfigRouter serves payment-method, settings, and catalog contract responses', async (t) => {
   const calls = [];
   const app = express();
 
@@ -67,7 +66,7 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   }));
   app.use(globalErrorHandler);
 
-  activeServer = await listen(app);
+  const activeServer = await listenForTest(t, app);
 
   const createPayload = {
     label: 'Transferencia',
@@ -163,7 +162,7 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
   ]);
 });
 
-test('createConfigRouter emits audit entries and notifications for config mutations', async () => {
+test('createConfigRouter emits audit entries and notifications for config mutations', async (t) => {
   const auditEntries = [];
   const notifications = [];
   const app = express();
@@ -195,7 +194,7 @@ test('createConfigRouter emits audit entries and notifications for config mutati
   }));
   app.use(globalErrorHandler);
 
-  activeServer = await listen(app);
+  const activeServer = await listenForTest(t, app);
 
   const paymentMethodResponse = await requestJson(activeServer, {
     method: 'POST',
@@ -224,7 +223,7 @@ test('createConfigRouter emits audit entries and notifications for config mutati
   assert.match(notifications[1].message, /Política de mora/);
 });
 
-test('createConfigRouter denies non-admin access without invoking config use cases', async () => {
+test('createConfigRouter denies non-admin access without invoking config use cases', async (t) => {
   let invoked = false;
   const app = express();
 
@@ -267,7 +266,7 @@ test('createConfigRouter denies non-admin access without invoking config use cas
     },
   }));
 
-  activeServer = await listen(app);
+  const activeServer = await listenForTest(t, app);
 
   const response = await requestJson(activeServer, {
     method: 'GET',
@@ -286,7 +285,7 @@ test('createConfigRouter denies non-admin access without invoking config use cas
   });
 });
 
-test('createConfigRouter does not expose legacy /pmconfig', async () => {
+test('createConfigRouter does not expose legacy /pmconfig', async (t) => {
   let called = false;
   const app = express();
 
@@ -312,7 +311,7 @@ test('createConfigRouter does not expose legacy /pmconfig', async () => {
   }));
   app.use(globalErrorHandler);
 
-  activeServer = await listen(app);
+  const activeServer = await listenForTest(t, app);
 
   const response = await requestJson(activeServer, {
     method: 'GET',

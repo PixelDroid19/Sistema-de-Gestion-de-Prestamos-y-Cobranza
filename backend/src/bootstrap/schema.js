@@ -63,6 +63,91 @@ const SCHEMA_MODES = {
   RESET: 'reset',
 };
 
+const OPERATIONAL_CONFIG_SEEDS = Object.freeze([
+  {
+    category: 'payment_method',
+    key: 'transfer',
+    label: 'Transferencia',
+    isActive: true,
+    value: {
+      description: 'Pago por transferencia bancaria o billetera digital con soporte verificable.',
+      requiresReference: true,
+      metadata: { type: 'bank_transfer', seeded: true },
+    },
+  },
+  {
+    category: 'payment_method',
+    key: 'cash',
+    label: 'Efectivo',
+    isActive: true,
+    value: {
+      description: 'Pago recibido en caja o recaudo físico.',
+      requiresReference: false,
+      metadata: { type: 'cash', seeded: true },
+    },
+  },
+  {
+    category: 'payment_method',
+    key: 'card',
+    label: 'Tarjeta',
+    isActive: true,
+    value: {
+      description: 'Pago por datáfono o pasarela con comprobante transaccional.',
+      requiresReference: true,
+      metadata: { type: 'card', seeded: true },
+    },
+  },
+  {
+    category: 'payment_method',
+    key: 'check',
+    label: 'Cheque',
+    isActive: true,
+    value: {
+      description: 'Pago con cheque sujeto a validación administrativa.',
+      requiresReference: true,
+      metadata: { type: 'other', seeded: true },
+    },
+  },
+  {
+    category: 'payment_method',
+    key: 'other',
+    label: 'Otro',
+    isActive: true,
+    value: {
+      description: 'Método excepcional documentado por el operador.',
+      requiresReference: true,
+      metadata: { type: 'other', seeded: true },
+    },
+  },
+  {
+    category: 'rate_policy',
+    key: 'standard-credit',
+    label: 'Crédito estándar',
+    isActive: true,
+    value: {
+      minAmount: 0,
+      maxAmount: null,
+      annualEffectiveRate: 36,
+      priority: 100,
+      description: 'Tasa base usada cuando el crédito toma tasa desde configuración.',
+      metadata: { seeded: true },
+    },
+  },
+  {
+    category: 'late_fee_policy',
+    key: 'standard-simple-late-fee',
+    label: 'Mora simple estándar',
+    isActive: true,
+    value: {
+      annualEffectiveRate: 12,
+      lateFeeMode: 'SIMPLE',
+      priority: 100,
+      description: 'Regla base para calcular mora sobre cuotas vencidas.',
+      metadata: { seeded: true },
+    },
+  },
+]);
+
 const normalizeTableNames = (tables) => tables.map((table) => {
   if (typeof table === 'string') {
     return table;
@@ -500,9 +585,19 @@ const seedCalculationProfileVersions = async () => {
   });
 };
 
+const seedOperationalConfigDefaults = async () => {
+  for (const seed of OPERATIONAL_CONFIG_SEEDS) {
+    await ConfigEntry.findOrCreate({
+      where: { category: seed.category, key: seed.key },
+      defaults: seed,
+    });
+  }
+};
+
 const seedFinancialProductsAndProfiles = async () => {
   await seedFinancialProductsAndPermissions();
   await seedCalculationProfileVersions();
+  await seedOperationalConfigDefaults();
 };
 
 module.exports = {
@@ -522,5 +617,6 @@ module.exports = {
   seedPermissionCatalogAndRoleDefaults,
   seedFinancialProductsAndPermissions,
   seedCalculationProfileVersions,
+  seedOperationalConfigDefaults,
   seedFinancialProductsAndProfiles,
 };

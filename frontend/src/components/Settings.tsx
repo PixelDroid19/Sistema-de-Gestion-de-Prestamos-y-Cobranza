@@ -489,7 +489,7 @@ export default function Settings() {
       <section className="space-y-4" data-tour="settings-content">
         {activeTab === 'payment-methods' && (
           <>
-            <ToolbarSurface as="form" onSubmit={handleCreatePaymentMethod} aria-label="Crear método de pago">
+            <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreatePaymentMethod} aria-label="Crear método de pago">
               <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[minmax(220px,1fr)_180px_minmax(220px,1fr)]">
                 <label className="block min-w-0">
                   <HelpLabel
@@ -620,7 +620,7 @@ export default function Settings() {
 
         {activeTab === 'rate-policies' && (
           <>
-            <ToolbarSurface as="form" onSubmit={handleCreateRatePolicy} aria-label="Crear política de tasa">
+            <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreateRatePolicy} aria-label="Crear política de tasa">
               <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(200px,1fr)_150px_150px_130px_110px]">
                 <label className="block min-w-0">
                   <HelpLabel
@@ -778,7 +778,7 @@ export default function Settings() {
 
         {activeTab === 'late-fee-policies' && (
           <>
-            <ToolbarSurface as="form" onSubmit={handleCreateLateFeePolicy} aria-label="Crear política de mora">
+            <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreateLateFeePolicy} aria-label="Crear política de mora">
               <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_110px]">
                 <label className="block min-w-0">
                   <HelpLabel

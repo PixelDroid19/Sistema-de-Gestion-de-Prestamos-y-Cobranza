@@ -179,6 +179,10 @@
       align-items: center;
       justify-content: space-between;
     }
+
+    .settings-config-form {
+      align-items: flex-end;
+    }
   }
 
   .audit-filter-surface {
@@ -367,6 +371,12 @@
     padding: 2rem 1rem;
     text-align: center;
     color: var(--text-secondary);
+  }
+
+  td.table-empty-state {
+    display: table-cell;
+    height: 11rem;
+    vertical-align: middle;
   }
 
   .react-grid-layout {

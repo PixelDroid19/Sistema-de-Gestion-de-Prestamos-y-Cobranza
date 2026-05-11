@@ -8,6 +8,7 @@ const {
   REQUIRED_SCHEMA_MODELS,
   resolveSchemaMode,
   resetDatabaseSchema,
+  seedOperationalConfigDefaults,
   seedPermissionCatalogAndRoleDefaults,
   syncDatabaseSchema,
   verifyRequiredSchema,
@@ -393,6 +394,33 @@ test('seedPermissionCatalogAndRoleDefaults seeds the permission catalog and gran
   assert.ok(grantedRolePermissions.length > 0);
   assert.ok(grantedRolePermissions.every((entry) => entry.role === 'admin'));
   assert.ok(grantedRolePermissions.some((entry) => Number.isInteger(entry.permissionId) && entry.permissionId > 0));
+});
+
+test('seedOperationalConfigDefaults seeds payment methods and policy entries without overwriting existing config', async () => {
+  const calls = [];
+  const { ConfigEntry } = require('@/models');
+  const originalFindOrCreate = ConfigEntry.findOrCreate;
+
+  ConfigEntry.findOrCreate = async ({ where, defaults }) => {
+    calls.push({ where, defaults });
+    return [{ id: calls.length, ...defaults }, true];
+  };
+
+  try {
+    await seedOperationalConfigDefaults();
+  } finally {
+    ConfigEntry.findOrCreate = originalFindOrCreate;
+  }
+
+  const byKey = new Map(calls.map((call) => [call.where.key, call]));
+  assert.equal(calls.length, 7);
+  assert.deepEqual(byKey.get('transfer').where, { category: 'payment_method', key: 'transfer' });
+  assert.equal(byKey.get('transfer').defaults.value.metadata.type, 'bank_transfer');
+  assert.equal(byKey.get('cash').defaults.value.requiresReference, false);
+  assert.deepEqual(byKey.get('standard-credit').where, { category: 'rate_policy', key: 'standard-credit' });
+  assert.equal(byKey.get('standard-credit').defaults.value.annualEffectiveRate, 36);
+  assert.deepEqual(byKey.get('standard-simple-late-fee').where, { category: 'late_fee_policy', key: 'standard-simple-late-fee' });
+  assert.equal(byKey.get('standard-simple-late-fee').defaults.value.lateFeeMode, 'SIMPLE');
 });
 
 test('syncDatabaseSchema alters schema only when alter mode is explicitly requested', async () => {
