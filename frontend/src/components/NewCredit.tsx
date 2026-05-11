@@ -14,6 +14,7 @@ import {
 } from './hooks/useActiveCreditSimulation';
 import type { CreditCalculationInput } from '../types/creditCalculation';
 import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
+import { getCalculationValueLabel } from '../lib/creditCalculationLabels';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -136,6 +137,20 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? resolvedLateFeePolicy?.annualEffectiveRate
     ?? 0,
   );
+  const rateSourceLabel = resolvedRateSource === 'policy' ? 'Configuración' : 'Manual';
+  const lateFeeSourceLabel = resolvedLateFeeSource === 'policy' ? 'Configuración' : 'Manual';
+  const rateSummaryValue = `${Number(input.interestRate ?? resolvedRatePolicy?.annualEffectiveRate ?? 0)}% EA`;
+  const rateSummaryDetail = resolvedRateSource === 'policy' && resolvedRatePolicy
+    ? resolvedRatePolicy.label
+    : 'Editada en este crédito';
+  const lateFeeModeLabel = getCalculationValueLabel(
+    input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE',
+    'lateFeeMode',
+  );
+  const lateFeeSummaryDetail = resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
+    ? resolvedLateFeePolicy.label
+    : 'Editada en este crédito';
+  const lateFeeSummaryValue = `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
@@ -461,24 +476,33 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 </span>
               )}
             </div>
-            <dl className="mt-2 grid grid-cols-[0.55fr_1.2fr_1fr] gap-3 text-sm">
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa</dt>
-                <dd className="mt-0.5 truncate font-semibold text-text-primary">
-                  {resolvedRatePolicy ? `${resolvedRatePolicy.annualEffectiveRate}%` : `${input.interestRate}%`}
+            <dl className="mt-3 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa del crédito</dt>
+                <dd className="mt-1 font-semibold text-text-primary">
+                  {rateSummaryValue}
                 </dd>
+                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
+                  {rateSourceLabel}: {rateSummaryDetail}
+                </p>
               </div>
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
-                <dd className="mt-0.5 truncate font-semibold text-text-primary">
-                  {resolvedLateFeePolicy ? resolvedLateFeePolicy.label : 'Sin política'}
+              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo de mora</dt>
+                <dd className="mt-1 font-semibold text-text-primary">
+                  {lateFeeSummaryValue}
                 </dd>
+                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
+                  {lateFeeSourceLabel}: {lateFeeSummaryDetail}
+                </p>
               </div>
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo</dt>
-                <dd className="mt-0.5 truncate font-semibold text-text-primary">
+              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Validación</dt>
+                <dd className="mt-1 font-semibold text-text-primary">
                   {hasValidatedResult ? calculationRuleLabel : 'Pendiente'}
                 </dd>
+                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
+                  La validación congela la regla usada al registrar.
+                </p>
               </div>
             </dl>
             {routeState?.source === 'credit-calculator' && (

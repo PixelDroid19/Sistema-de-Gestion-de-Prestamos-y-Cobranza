@@ -18,6 +18,13 @@ interface ContributionModalProps {
   canAddContribution?: boolean;
 }
 
+const dateFormatter = new Intl.DateTimeFormat('es-CO');
+
+const formatDate = (value: unknown) => {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
+};
+
 export default function ContributionModal({
   contributions,
   isLoading,
@@ -56,7 +63,7 @@ export default function ContributionModal({
         <div className="flex items-center justify-between p-4 border-b border-border-subtle">
           <div className="flex items-center gap-2">
             <History size={20} className="text-emerald-600" />
-            <h3 className="text-lg font-bold text-text-primary">Historial de aportes</h3>
+            <h3 className="text-lg font-semibold text-text-primary">Historial de aportes</h3>
           </div>
           <button
             onClick={onClose}
@@ -135,7 +142,7 @@ export default function ContributionModal({
                       {contribution.displayAmount || `$${contribution.amount.toLocaleString()}`}
                     </p>
                     <p className="text-xs text-text-secondary">
-                      {new Date(contribution.date).toLocaleDateString()}
+                      {formatDate(contribution.date)}
                     </p>
                     {contribution.notes && (
                       <p className="text-xs text-text-secondary mt-1">{contribution.notes}</p>

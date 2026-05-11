@@ -140,7 +140,7 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="new-credit-customer-select"]', title: 'Cliente del crédito', description: 'Debes seleccionar al titular antes de validar y registrar.' },
       { selector: '[data-tour="new-credit-associate"]', title: 'Socio asignado', description: 'Es opcional y sirve para relación interna o participación. No cambia cuota, tasa ni mora.' },
       { selector: '[data-tour="new-credit-policy-summary"]', title: 'Políticas sugeridas', description: 'Muestra tasa y mora resueltas desde configuración antes de ajustar parámetros.' },
-      { selector: '[data-tour="new-credit-late-fee-mode"]', title: 'Modo de mora', description: 'Define cómo reaccionará el crédito si una cuota se vence.' },
+      { selector: '[data-tour="new-credit-late-fee-mode"]', title: 'Cálculo de mora', description: 'Define el método matemático de recargo. La tasa viene de la política activa si no se ajusta manualmente.' },
       { selector: '[data-tour="new-credit-simulation"]', title: 'Simulación y cronograma', description: 'Revisa cuota, intereses, total a pagar y tabla de amortización antes de registrar.' },
       { selector: '[data-tour="new-credit-action-dock"]', title: 'Acciones de registro', description: 'Restablece, valida o registra desde el cierre del formulario sin tapar la información revisada.' },
     ],

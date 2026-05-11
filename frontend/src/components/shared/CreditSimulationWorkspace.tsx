@@ -57,21 +57,21 @@ type CreditSimulationWorkspaceProps = {
 };
 
 const lateFeeModeOptions: Array<{ value: NonNullable<CreditCalculationInput['lateFeeMode']>; label: string; helper: string }> = [
-  { value: 'NONE', label: 'Sin mora', helper: 'No aplica recargo.' },
-  { value: 'SIMPLE', label: 'Interés simple', helper: 'Recomendado para cobranza clara.' },
-  { value: 'COMPOUND', label: 'Interés compuesto', helper: 'Capitaliza recargos.' },
-  { value: 'FLAT', label: 'Cargo fijo', helper: 'Valor fijo por atraso.' },
-  { value: 'TIERED', label: 'Escalonado', helper: 'Tramos por días vencidos.' },
+  { value: 'NONE', label: 'Sin recargo', helper: 'No aplica mora.' },
+  { value: 'SIMPLE', label: 'Mora simple', helper: 'Recargo claro sobre cuota vencida.' },
+  { value: 'COMPOUND', label: 'Mora compuesta', helper: 'Capitaliza recargos.' },
+  { value: 'FLAT', label: 'Cargo fijo por mora', helper: 'Valor fijo por atraso.' },
+  { value: 'TIERED', label: 'Mora por tramos', helper: 'Tramos por días vencidos.' },
 ];
 
 const formatLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) => {
   const selectedOption = lateFeeModeOptions.find((option) => option.value === (value || 'SIMPLE'));
-  return selectedOption?.label || 'Interés simple';
+  return selectedOption?.label || 'Mora simple';
 };
 
 const lateFeeModeDescriptions: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, string> = {
   NONE: 'No cobra recargo por atraso.',
-  SIMPLE: 'Cobra sobre cuota vencida, sin mora sobre mora.',
+  SIMPLE: 'Cobra sobre la cuota vencida, sin cobrar mora sobre mora.',
   COMPOUND: 'Capitaliza recargos vencidos; úsalo solo con política aprobada.',
   FLAT: 'Aplica un valor fijo por atraso.',
   TIERED: 'Usa tramos por días vencidos o severidad.',
@@ -131,7 +131,7 @@ const fieldHelp = {
   rate: 'Porcentaje anual usado para construir la cuota mensual equivalente.',
   term: 'Número total de cuotas mensuales del cronograma.',
   startDate: 'Fecha exacta de vencimiento de la primera cuota. Las siguientes cuotas se calculan mes a mes desde esta fecha.',
-  lateFee: 'Define cómo se calcula el recargo cuando una cuota se vence. Este valor queda guardado con el crédito.',
+  lateFee: 'Define el método matemático de la mora. La política activa de Configuración aporta la tasa y el valor queda guardado con el crédito.',
   scenarios: 'Guarda resultados para comparar cuota e interés sin registrar un crédito.',
 };
 
@@ -486,7 +486,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
-                        Modo de mora
+                        Cálculo de mora
                       </label>
                       <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
                     </div>

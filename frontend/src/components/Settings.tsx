@@ -450,10 +450,10 @@ export default function Settings() {
           accent="teal"
         />
         <MetricCard
-          label="Moras activas"
+          label="Políticas de mora activas"
           value={activeCounts.lateFeePolicies}
           helper={`${lateFeePolicies.length} políticas registradas`}
-          tooltip="Reglas usadas para calcular cargos de mora cuando una cuota vence."
+          tooltip="Políticas que aportan tasa y método de mora a créditos nuevos."
           icon={<AlertTriangle />}
           accent="amber"
         />
@@ -479,7 +479,7 @@ export default function Settings() {
         <TabButton
           id="late-fee-policies"
           activeTab={activeTab}
-          label="Mora"
+          label="Políticas de mora"
           count={lateFeePolicies.length}
           icon={AlertTriangle}
           onClick={setActiveTab}
@@ -782,12 +782,12 @@ export default function Settings() {
               <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_110px]">
                 <label className="block min-w-0">
                   <HelpLabel
-                    label="Nombre de política"
-                    text="Etiqueta visible para identificar cómo se cobrará la mora."
+                    label="Nombre de la política"
+                    text="Etiqueta visible para identificar la política que se aplicará a créditos nuevos."
                     className="mb-1 text-xs font-semibold text-text-secondary"
                   />
                   <input
-                    aria-label="Nombre de política de mora"
+                    aria-label="Nombre de la política de mora"
                     required
                     value={newLateFeePolicy.label}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
@@ -797,12 +797,12 @@ export default function Settings() {
                 </label>
                 <label className="block min-w-0">
                   <HelpLabel
-                    label="Tasa EA %"
-                    text="Tasa efectiva anual para calcular mora sobre cuotas vencidas."
+                    label="Tasa de mora EA %"
+                    text="Tasa efectiva anual que se usará como recargo por mora."
                     className="mb-1 text-xs font-semibold text-text-secondary"
                   />
                   <input
-                    aria-label="Tasa efectiva anual de mora"
+                    aria-label="Tasa de mora efectiva anual"
                     required
                     type="number"
                     min="0"
@@ -816,12 +816,12 @@ export default function Settings() {
                 </label>
                 <label className="block min-w-0">
                   <HelpLabel
-                    label="Modo de mora"
-                    text="Simple calcula sobre el valor vencido. Compuesta acumula mora sobre mora. Sin mora desactiva cargos."
+                    label="Cálculo aplicado"
+                    text="Método matemático de la mora. Esto no crea otra regla: es parte de la política seleccionada."
                     className="mb-1 text-xs font-semibold text-text-secondary"
                   />
                   <select
-                    aria-label="Modo de mora"
+                    aria-label="Cálculo aplicado de mora"
                     value={newLateFeePolicy.lateFeeMode}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
@@ -838,7 +838,7 @@ export default function Settings() {
                     className="mb-1 text-xs font-semibold text-text-secondary"
                   />
                   <input
-                    aria-label="Prioridad de mora"
+                    aria-label="Prioridad de política de mora"
                     type="number"
                     min="0"
                     value={newLateFeePolicy.priority}
@@ -853,7 +853,7 @@ export default function Settings() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save size={16} />
-                Crear mora
+                Crear política
               </button>
             </ToolbarSurface>
 
@@ -864,7 +864,7 @@ export default function Settings() {
                     <tr>
                       <th>Política</th>
                       <th>Tasa EA</th>
-                      <th>Modo</th>
+                      <th>Cálculo</th>
                       <th>Prioridad</th>
                       <th>Estado</th>
                       <th className="text-right">Acciones</th>

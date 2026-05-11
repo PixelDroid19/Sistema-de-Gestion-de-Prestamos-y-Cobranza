@@ -6,13 +6,41 @@ import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
-import { MetricCard } from './shared/Surfaces';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
 const formatCurrency = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
+
+const dateFormatter = new Intl.DateTimeFormat('es-CO');
+
+const formatDate = (value: unknown) => {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
+};
+
+const getInstallmentStatusPresentation = (installment: any) => {
+  if (installment?.status === 'paid') {
+    return {
+      label: 'Pagado',
+      className: 'bg-emerald-100 text-emerald-700',
+    };
+  }
+
+  const dueTimestamp = Date.parse(String(installment?.dueDate || ''));
+  if (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now()) {
+    return {
+      label: 'Vencido',
+      className: 'bg-red-100 text-red-700',
+    };
+  }
+
+  return {
+    label: 'Pendiente',
+    className: 'bg-amber-100 text-amber-700',
+  };
+};
 
 const getLoanStatusPresentation = (status: unknown) => {
   const normalizedStatus = String(status || '').toLowerCase();
@@ -43,7 +71,10 @@ const getLoanStatusPresentation = (status: unknown) => {
   }
 };
 
-const actionButtonClassName = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors';
+const actionButtonBaseClassName = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40';
+const secondaryActionButtonClassName = `${actionButtonBaseClassName} border border-border-subtle bg-bg-surface text-text-primary hover:bg-hover-bg`;
+const primaryActionButtonClassName = `${actionButtonBaseClassName} bg-emerald-700 text-white hover:bg-emerald-800`;
+const neutralActionButtonClassName = `${actionButtonBaseClassName} bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-950 dark:hover:bg-white`;
 
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
@@ -157,8 +188,13 @@ export default function AssociateDetails() {
         />
       </div>
 
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Créditos participados</h3>
+      <DataTableSurface>
+        <div className="px-5 pt-5 sm:px-6">
+          <h3 className="text-lg font-semibold text-text-primary">Créditos participados</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Créditos donde este socio quedó asociado para trazabilidad de aportes o participación.
+          </p>
+        </div>
         <TableShell
           isLoading={false}
           isError={false}
@@ -193,7 +229,7 @@ export default function AssociateDetails() {
             </tbody>
           </table>
         </TableShell>
-      </div>
+      </DataTableSurface>
     </>
   );
 
@@ -222,8 +258,13 @@ export default function AssociateDetails() {
       </div>
 
       {/* Installments Table */}
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Cuotas del socio</h3>
+      <DataTableSurface>
+        <div className="px-5 pt-5 sm:px-6">
+          <h3 className="text-lg font-semibold text-text-primary">Cuotas del socio</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Cuotas vinculadas a créditos donde participa este socio.
+          </p>
+        </div>
         <TableShell
           isLoading={false}
           isError={false}
@@ -244,20 +285,17 @@ export default function AssociateDetails() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {installmentsData.installments.map((inst: any) => (
+              {installmentsData.installments.map((inst: any) => {
+                const status = getInstallmentStatusPresentation(inst);
+
+                return (
                 <tr key={inst.id} className="hover:bg-hover-bg transition-colors">
                   <td className="font-medium">{inst.installmentNumber}</td>
                   <td className="font-medium">${Number(inst.amount).toLocaleString()}</td>
-                  <td>{new Date(inst.dueDate).toLocaleDateString()}</td>
+                  <td>{formatDate(inst.dueDate)}</td>
                   <td>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      inst.status === 'paid' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : new Date(inst.dueDate) < new Date()
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {inst.status === 'paid' ? 'Pagado' : new Date(inst.dueDate) < new Date() ? 'Vencido' : 'Pendiente'}
+                    <span className={`px-2 py-1 rounded-full text-xs ${status.className}`}>
+                      {status.label}
                     </span>
                   </td>
                   <td>
@@ -271,11 +309,12 @@ export default function AssociateDetails() {
                     )}
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </TableShell>
-      </div>
+      </DataTableSurface>
     </div>
   );
 
@@ -310,8 +349,13 @@ export default function AssociateDetails() {
       </div>
 
       {/* Calendar Events */}
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-        <h3 className="text-lg font-bold text-text-primary mb-4">Eventos del calendario</h3>
+      <DataTableSurface>
+        <div className="px-5 pt-5 sm:px-6">
+          <h3 className="text-lg font-semibold text-text-primary">Eventos del calendario</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Fechas de aportes, distribuciones y cuotas relacionadas con el socio.
+          </p>
+        </div>
         <TableShell
           isLoading={false}
           isError={false}
@@ -331,9 +375,9 @@ export default function AssociateDetails() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {calendarData.events.map((event: any, idx: number) => (
-                <tr key={idx} className="hover:bg-hover-bg transition-colors">
-                  <td>{new Date(event.date).toLocaleDateString()}</td>
+              {calendarData.events.map((event: any) => (
+                <tr key={event.id ?? `${event.type}-${event.date}-${event.displayAmount}-${event.notes ?? ''}`} className="hover:bg-hover-bg transition-colors">
+                  <td>{formatDate(event.date)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       event.type === 'contribution' 
@@ -352,50 +396,62 @@ export default function AssociateDetails() {
             </tbody>
           </table>
         </TableShell>
-      </div>
+      </DataTableSurface>
     </div>
   );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-0" data-tour="associate-details-page">
-      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between" data-tour="associate-details-header">
-        <div className="flex items-center gap-4">
-          <button 
+    <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
+      <PageHeader
+        title="Portal del socio"
+        subtitle={`${associateName} · Consulta aportes, cuotas y créditos asociados sin mezclarlo con la originación de créditos.`}
+        guideKey="associate-details"
+        tourId="associate-details-header"
+        actions={(
+          <button
+            type="button"
             onClick={() => navigate('/associates')}
             aria-label="Volver a socios"
             title="Volver a socios"
-            className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
+            className={secondaryActionButtonClassName}
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={16} />
+            Volver
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary">Portal del socio</h1>
-            <p className="text-sm text-text-secondary">{associateName}</p>
-          </div>
+        )}
+      />
+
+      <ToolbarSurface className="items-stretch gap-4 lg:items-center" data-tour="associate-details-actions">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-primary">Acciones del socio</p>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
+            Consulta historial y cuotas, o registra movimientos de capital. Estas acciones no cambian tasa, mora ni cronograma de créditos existentes.
+          </p>
         </div>
-        <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
-          <QuickGuideButton guideKey="associate-details" className="min-h-11 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold" />
-          <button onClick={() => setShowContributionsModal(true)} className={`${actionButtonClassName} bg-emerald-600 text-white hover:bg-emerald-700`}>
-            <History size={16} /> Historial de aportes
-          </button>
-          <button onClick={() => setShowInstallmentsModal(true)} className={`${actionButtonClassName} bg-amber-600 text-white hover:bg-amber-700`}>
-            <Clock size={16} /> Cobros rápidos
-          </button>
+        <div className="grid gap-2 lg:min-w-[23rem]">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" onClick={() => setShowContributionsModal(true)} className={secondaryActionButtonClassName}>
+              <History size={16} /> Ver historial
+            </button>
+            <button type="button" onClick={() => setShowInstallmentsModal(true)} className={secondaryActionButtonClassName}>
+              <Clock size={16} /> Ver cuotas
+            </button>
+          </div>
           {isAdmin && (
-            <>
-              <button onClick={() => setShowModal('contribution')} className={`${actionButtonClassName} bg-emerald-600 text-white hover:bg-emerald-700`}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button type="button" onClick={() => setShowModal('contribution')} className={primaryActionButtonClassName}>
                 <Wallet size={16} /> Registrar aporte
               </button>
-              <button onClick={() => setShowModal('distribution')} className={`${actionButtonClassName} bg-brand-primary text-white hover:bg-brand-primary/90`}>
+              <button type="button" onClick={() => setShowModal('distribution')} className={neutralActionButtonClassName}>
                 <Download size={16} /> Registrar retiro
               </button>
-              <button onClick={() => setShowModal('reinvestment')} className={`${actionButtonClassName} bg-blue-600 text-white hover:bg-blue-700`}>
+              <button type="button" onClick={() => setShowModal('reinvestment')} className={`${secondaryActionButtonClassName} sm:col-span-2`}>
                 <RefreshCw size={16} /> Registrar reinversión
               </button>
-            </>
+            </div>
           )}
         </div>
-      </div>
+      </ToolbarSurface>
 
       {isSocio && (
         <div className="rounded-2xl border border-border-subtle bg-bg-surface px-5 py-4 text-sm text-text-secondary">
@@ -449,7 +505,7 @@ export default function AssociateDetails() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
-            <h3 className="text-xl font-bold mb-4">
+            <h3 className="text-xl font-semibold mb-4">
               {showModal === 'contribution' ? 'Registrar aporte de capital' :
                showModal === 'distribution' ? 'Distribuir ganancias' :
                'Reinvertir ganancias'}
@@ -509,6 +565,6 @@ export default function AssociateDetails() {
           onClose={() => setShowInstallmentsModal(false)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

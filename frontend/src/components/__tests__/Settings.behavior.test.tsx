@@ -93,7 +93,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('heading', { name: 'Configuración operativa' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Métodos de pago/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tasas de crédito/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Mora\s*1$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Roles y Permisos/i })).not.toBeInTheDocument();
   });
@@ -168,14 +168,14 @@ describe('Settings operational configuration', () => {
   it('blocks duplicated active late-fee policy priorities', async () => {
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^Mora\s*1$/i }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de mora' }), {
+    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora QA alterna' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual de mora' }), {
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
       target: { value: '18' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prioridad de mora' }), {
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prioridad de política de mora' }), {
       target: { value: '10' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));

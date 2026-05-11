@@ -15,6 +15,26 @@ interface InstallmentsModalProps {
   onClose: () => void;
 }
 
+const dateFormatter = new Intl.DateTimeFormat('es-CO');
+
+const formatDate = (value: unknown) => {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
+};
+
+const getInstallmentStatusPresentation = (installment: Installment) => {
+  if (installment.status === 'paid') {
+    return { label: 'Pagado', className: 'bg-emerald-100 text-emerald-700' };
+  }
+
+  const dueTimestamp = Date.parse(String(installment.dueDate || ''));
+  if (installment.status === 'overdue' || (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now())) {
+    return { label: 'Vencido', className: 'bg-red-100 text-red-700' };
+  }
+
+  return { label: 'Pendiente', className: 'bg-amber-100 text-amber-700' };
+};
+
 export default function InstallmentsModal({
   installments,
   isLoading,
@@ -29,7 +49,7 @@ export default function InstallmentsModal({
         <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
           <div className="flex items-center gap-2">
             <Clock size={20} className="text-amber-600" />
-            <h3 className="text-lg font-bold text-text-primary">Cuotas del socio</h3>
+            <h3 className="text-lg font-semibold text-text-primary">Cuotas del socio</h3>
           </div>
           <button
             onClick={onClose}
@@ -84,30 +104,22 @@ export default function InstallmentsModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {installmentsData.installments.map((inst) => (
+                  {installmentsData.installments.map((inst) => {
+                    const status = getInstallmentStatusPresentation(inst);
+
+                    return (
                     <tr key={inst.id} className="hover:bg-hover-bg transition-colors">
                       <td className="py-3 font-medium">{inst.installmentNumber}</td>
                       <td className="py-3 font-medium">${Number(inst.amount).toLocaleString()}</td>
-                      <td className="py-3">{new Date(inst.dueDate).toLocaleDateString()}</td>
+                      <td className="py-3">{formatDate(inst.dueDate)}</td>
                       <td className="py-3">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            inst.status === 'paid'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : inst.status === 'overdue' || new Date(inst.dueDate) < new Date()
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {inst.status === 'paid'
-                            ? 'Pagado'
-                            : inst.status === 'overdue' || new Date(inst.dueDate) < new Date()
-                            ? 'Vencido'
-                            : 'Pendiente'}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.className}`}>
+                          {status.label}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
