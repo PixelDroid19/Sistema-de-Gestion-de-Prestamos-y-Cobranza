@@ -165,7 +165,7 @@ export default function AssociateDetails() {
   };
 
   const renderOverviewTab = () => (
-    <>
+    <div className="space-y-6">
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MetricCard
@@ -230,7 +230,7 @@ export default function AssociateDetails() {
           </table>
         </TableShell>
       </DataTableSurface>
-    </>
+    </div>
   );
 
   const renderInstallmentsTab = () => (
