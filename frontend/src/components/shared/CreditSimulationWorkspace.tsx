@@ -774,7 +774,7 @@ export default function CreditSimulationWorkspace({
                           <td colSpan={7} className="px-4 py-12 text-center">
                             <div className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary">
                               <Loader2 size={16} className="animate-spin" />
-                              Calculando cronograma...
+                              Calculando cronograma…
                             </div>
                           </td>
                         </tr>

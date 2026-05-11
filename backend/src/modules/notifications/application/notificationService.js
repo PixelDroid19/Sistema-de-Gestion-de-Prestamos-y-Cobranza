@@ -1,5 +1,6 @@
-const { Notification } = require('@/models');
+const { Notification, User } = require('@/models');
 const { createPushProviderRegistry } = require('@/services/push/providerRegistry');
+const { createResendEmailProvider } = require('@/services/email/providers/resendEmailProvider');
 
 /**
  * Contract for notification providers used by backend infrastructure seams.
@@ -33,13 +34,17 @@ class NotificationService {
 class SequelizeNotificationService extends NotificationService {
   constructor({
     notificationModel = Notification,
+    userModel = User,
     pushSubscriptionRepository = null,
     providerRegistry = createPushProviderRegistry(),
+    emailProvider = createResendEmailProvider(),
   } = {}) {
     super();
     this.notificationModel = notificationModel;
+    this.userModel = userModel;
     this.pushSubscriptionRepository = pushSubscriptionRepository;
     this.providerRegistry = providerRegistry;
+    this.emailProvider = emailProvider;
   }
 
   setPushDeliveryDependencies({ pushSubscriptionRepository, providerRegistry } = {}) {
@@ -49,6 +54,16 @@ class SequelizeNotificationService extends NotificationService {
 
     if (providerRegistry) {
       this.providerRegistry = providerRegistry;
+    }
+  }
+
+  setEmailDeliveryDependencies({ emailProvider, userModel } = {}) {
+    if (emailProvider) {
+      this.emailProvider = emailProvider;
+    }
+
+    if (userModel) {
+      this.userModel = userModel;
     }
   }
 
@@ -93,9 +108,11 @@ class SequelizeNotificationService extends NotificationService {
       dedupeKey,
     });
 
-    await this.dispatchPushFanout(this.serialize(notification));
+    const serialized = this.serialize(notification);
+    await this.dispatchPushFanout(serialized);
+    await this.dispatchEmailFanout(serialized);
 
-    return this.serialize(notification);
+    return serialized;
   }
 
   async dispatchPushFanout(notification) {
@@ -121,6 +138,33 @@ class SequelizeNotificationService extends NotificationService {
           detail: error.message || 'push_delivery_failed',
         });
       }
+    }
+  }
+
+  async dispatchEmailFanout(notification) {
+    if (!this.emailProvider?.isConfigured || !this.userModel) {
+      return;
+    }
+
+    if (
+      typeof this.emailProvider.supportsNotification === 'function'
+      && !this.emailProvider.supportsNotification(notification)
+    ) {
+      return;
+    }
+
+    try {
+      const recipient = await this.userModel.findByPk(notification.userId, {
+        attributes: ['id', 'name', 'email', 'isActive'],
+      });
+
+      if (!recipient || recipient.isActive === false) {
+        return;
+      }
+
+      await this.emailProvider.send({ notification, recipient });
+    } catch (_error) {
+      // Notification persistence must not fail because an external email provider is unavailable.
     }
   }
 

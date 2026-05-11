@@ -66,7 +66,7 @@ describe('ProtectedRoute behavior', () => {
       </Routes>,
     );
 
-    expect(screen.getByText('Restaurando sesión...')).toBeInTheDocument();
+    expect(screen.getByText('Restaurando sesión…')).toBeInTheDocument();
     expect(screen.queryByText('Acceso')).not.toBeInTheDocument();
     expect(restoreAccessToken).not.toHaveBeenCalled();
   });

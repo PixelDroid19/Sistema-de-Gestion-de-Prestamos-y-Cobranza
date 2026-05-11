@@ -123,7 +123,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       <div className="flex h-full items-center justify-center rounded-2xl border border-border-subtle bg-bg-surface">
         <div className="flex items-center gap-3 text-sm text-text-secondary">
           <Loader2 size={16} className="animate-spin" />
-          Cargando datos del cliente...
+          Cargando datos del cliente…
         </div>
       </div>
     );
@@ -188,29 +188,29 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
             </h3>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Nombres</label>
+                <label htmlFor="new-customer-first-name" className="text-sm font-medium text-text-secondary">Nombres</label>
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. Juan" />
+                  <input id="new-customer-first-name" type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. Juan" />
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Apellidos</label>
+                <label htmlFor="new-customer-last-name" className="text-sm font-medium text-text-secondary">Apellidos</label>
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. Pérez" />
+                  <input id="new-customer-last-name" type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. Pérez" />
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">DNI / Identificación</label>
+                <label htmlFor="new-customer-document-id" className="text-sm font-medium text-text-secondary">DNI / Identificación</label>
                 <div className="relative">
                   <CreditCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="text" name="documentId" value={formData.documentId} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. 12345678" />
+                  <input id="new-customer-document-id" type="text" name="documentId" value={formData.documentId} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Ej. 12345678" />
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Estado</label>
-                <select name="status" value={formData.status} onChange={handleChange} className="w-full cursor-pointer appearance-none rounded-lg border border-border-subtle bg-bg-base px-4 py-2.5 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <label htmlFor="new-customer-status" className="text-sm font-medium text-text-secondary">Estado</label>
+                <select id="new-customer-status" name="status" value={formData.status} onChange={handleChange} className="w-full cursor-pointer appearance-none rounded-lg border border-border-subtle bg-bg-base px-4 py-2.5 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
                   <option value="blacklisted">Bloqueado</option>
@@ -225,24 +225,24 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
             </h3>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Teléfono</label>
+                <label htmlFor="new-customer-phone" className="text-sm font-medium text-text-secondary">Teléfono</label>
                 <div className="relative">
                   <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="+1 234 567 890" />
+                  <input id="new-customer-phone" type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="+1 234 567 890" />
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">Correo electrónico</label>
+                <label htmlFor="new-customer-email" className="text-sm font-medium text-text-secondary">Correo electrónico</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="correo@ejemplo.com" />
+                  <input id="new-customer-email" type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="correo@ejemplo.com" />
                 </div>
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <label className="text-sm font-medium text-text-secondary">Dirección Completa</label>
+                <label htmlFor="new-customer-address" className="text-sm font-medium text-text-secondary">Dirección Completa</label>
                 <div className="relative">
                   <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
-                  <textarea name="address" value={formData.address} onChange={handleChange} rows={3} className="w-full resize-none rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Calle Principal 123, Ciudad, Provincia, Código Postal" />
+                  <textarea id="new-customer-address" name="address" value={formData.address} onChange={handleChange} rows={3} className="w-full resize-none rounded-lg border border-border-subtle bg-bg-base py-2.5 pl-10 pr-4 text-text-primary transition-all focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Calle Principal 123, Ciudad, Provincia, Código Postal" />
                 </div>
               </div>
             </div>

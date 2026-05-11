@@ -141,12 +141,128 @@ const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
   return reason.message || '';
 };
 
+type CreditDetailsTab = 'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history';
+
+function InlineMetaLine({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-sm">
+      <Icon size={15} className="shrink-0 text-brand-primary" />
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary/60 dark:text-text-secondary">{label}</span>
+      <span className="min-w-0 break-words font-semibold leading-5 text-text-primary">{value}</span>
+    </div>
+  );
+}
+
+function SummaryMetricItem({
+  icon: Icon,
+  label,
+  tooltip,
+  value,
+  tone = 'default',
+}: {
+  icon: React.ElementType;
+  label: React.ReactNode;
+  tooltip?: string;
+  value: React.ReactNode;
+  tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
+}) {
+  const accent = {
+    default: 'slate',
+    success: 'emerald',
+    warning: 'amber',
+    danger: 'rose',
+    brand: 'blue',
+  }[tone];
+
+  return (
+    <MetricCard
+      label={label}
+      value={value}
+      tooltip={tooltip}
+      icon={<Icon />}
+      accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
+      className="min-h-[6.75rem]"
+    />
+  );
+}
+
+function TabEmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border-strong bg-bg-base/70 px-6 py-12 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full bg-hover-bg text-text-secondary">
+        <Icon size={24} />
+      </div>
+      <p className="mt-4 text-base font-semibold text-text-primary">{title}</p>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">{description}</p>
+    </div>
+  );
+}
+
+function TabButton({
+  id,
+  icon: Icon,
+  label,
+  badge,
+  activeTab,
+  onSelect,
+}: {
+  id: CreditDetailsTab;
+  icon: React.ElementType;
+  label: string;
+  badge?: number;
+  activeTab: CreditDetailsTab;
+  onSelect: (tab: CreditDetailsTab) => void;
+}) {
+  const isActive = activeTab === id;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(id)}
+      className={`relative flex items-center gap-2 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
+        isActive
+          ? 'bg-brand-primary/8 text-brand-primary'
+          : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
+      }`}
+    >
+      <Icon size={18} className={isActive ? 'text-brand-primary' : 'text-text-secondary opacity-70'} />
+      {label}
+      {badge !== undefined && badge > 0 && (
+        <span className={`ml-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold ${
+          isActive ? 'bg-brand-primary text-white' : 'bg-border-subtle text-text-secondary'
+        }`}>
+          {badge}
+        </span>
+      )}
+      {isActive && (
+        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--color-brand-primary),0.5)]" />
+      )}
+    </button>
+  );
+}
+
 export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const loanId = Number(id);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'alerts' | 'promises' | 'payouts' | 'payoff' | 'history'>('calendar');
+  const [activeTab, setActiveTab] = useState<CreditDetailsTab>('calendar');
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
   const canViewPayoff = user?.role === 'customer' || isAdmin;
@@ -668,7 +784,7 @@ export default function CreditDetails() {
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
-        <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+        <AlertCircle className="size-12 text-red-400 mb-4" />
         <h2 className="text-xl font-semibold text-text-primary mb-2">ID de crédito inválido</h2>
         <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
           ← Volver a créditos
@@ -680,8 +796,8 @@ export default function CreditDetails() {
   if (isLoadingLoans || isLoadingLoanRecord || isLoadingDetails) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-text-secondary font-medium">Cargando detalles del crédito...</p>
+        <div className="size-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-text-secondary font-medium">Cargando detalles del crédito…</p>
       </div>
     );
   }
@@ -689,7 +805,7 @@ export default function CreditDetails() {
   if (!loan) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
-        <FileText className="w-12 h-12 text-text-secondary opacity-50 mb-4" />
+        <FileText className="size-12 text-text-secondary opacity-50 mb-4" />
         <h2 className="text-xl font-semibold text-text-primary mb-2">Crédito no encontrado</h2>
         <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
           ← Volver a créditos
@@ -1181,7 +1297,7 @@ export default function CreditDetails() {
           <InstallmentActionButton
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
             label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
             <DollarSign size={16} />
@@ -1192,7 +1308,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openPromiseFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
               label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
             >
               <Clock size={16} />
@@ -1200,7 +1316,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openFollowUpFromInstallment(row)}
               disabled={!isNextPendingInstallment}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
               label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
             >
               <Bell size={16} />
@@ -1208,7 +1324,7 @@ export default function CreditDetails() {
             <InstallmentActionButton
               onClick={() => openAnnulModal(row.installmentNumber)}
               disabled={!isNextPendingInstallment || !annulGuard.executable}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
               label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
             >
               <ShieldAlert size={16} />
@@ -1219,97 +1335,6 @@ export default function CreditDetails() {
     );
   };
 
-  const InlineMetaLine = ({
-    icon: Icon,
-    label,
-    value,
-  }: {
-    icon: React.ElementType;
-    label: string;
-    value: React.ReactNode;
-  }) => (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <Icon size={15} className="shrink-0 text-brand-primary" />
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary/60 dark:text-text-secondary">{label}</span>
-      <span className="min-w-0 break-words font-semibold leading-5 text-text-primary">{value}</span>
-    </div>
-  );
-
-  const SummaryMetricItem = ({
-    icon: Icon,
-    label,
-    tooltip,
-    value,
-    tone = 'default',
-  }: {
-    icon: React.ElementType;
-    label: React.ReactNode;
-    tooltip?: string;
-    value: React.ReactNode;
-    tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
-  }) => {
-    const accent = {
-      default: 'slate',
-      success: 'emerald',
-      warning: 'amber',
-      danger: 'rose',
-      brand: 'blue',
-    }[tone];
-
-    return (
-      <MetricCard
-        label={label}
-        value={value}
-        tooltip={tooltip}
-        icon={<Icon />}
-        accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
-        className="min-h-[6.75rem]"
-      />
-    );
-  };
-
-  const TabEmptyState = ({
-    icon: Icon,
-    title,
-    description,
-  }: {
-    icon: React.ElementType;
-    title: string;
-    description: string;
-  }) => (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border-strong bg-bg-base/70 px-6 py-12 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-hover-bg text-text-secondary">
-        <Icon size={24} />
-      </div>
-      <p className="mt-4 text-base font-semibold text-text-primary">{title}</p>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">{description}</p>
-    </div>
-  );
-
-  const TabButton = ({ id, icon: Icon, label, badge }: { id: typeof activeTab, icon: any, label: string, badge?: number }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`relative flex items-center gap-2 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 whitespace-nowrap outline-none ${
-        activeTab === id 
-          ? 'bg-brand-primary/8 text-brand-primary' 
-          : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
-      }`}
-    >
-      <Icon size={18} className={activeTab === id ? 'text-brand-primary' : 'text-text-secondary opacity-70'} />
-      {label}
-      {badge !== undefined && badge > 0 && (
-        <span className={`ml-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold ${
-          activeTab === id ? 'bg-brand-primary text-white' : 'bg-border-subtle text-text-secondary'
-        }`}>
-          {badge}
-        </span>
-      )}
-      {activeTab === id && (
-        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--color-brand-primary),0.5)]" />
-      )}
-    </button>
-  );
-
   return (
     <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <section className="border-b border-border-subtle pb-4" data-tour="credit-detail-header">
@@ -1318,7 +1343,7 @@ export default function CreditDetails() {
             <div className="flex min-w-0 flex-wrap items-center gap-2.5">
               <button
                 onClick={() => navigate('/credits')}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
                 aria-label="Volver a créditos"
               >
                 <ArrowLeft size={20} />
@@ -1398,7 +1423,7 @@ export default function CreditDetails() {
                     className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-wait disabled:opacity-60"
                     title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
                   >
-                    <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando...' : 'Excel'}
+                    <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando…' : 'Excel'}
                   </button>
                 )}
                 <button
@@ -1469,12 +1494,12 @@ export default function CreditDetails() {
       <section className="min-w-0">
         <div className="overflow-x-auto border-b border-border-subtle py-2 hide-scrollbar" data-tour="credit-detail-tabs">
           <div className="flex min-w-max items-center gap-2">
-            <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} />
-            {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} />}
-            {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} />}
-            <TabButton id="payouts" icon={DollarSign} label="Historial de pagos" badge={paymentHistoryEntries.length} />
-            {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} />}
-            <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} />
+            <TabButton id="calendar" icon={Calendar} label={tTerm('creditDetails.tab.calendar')} activeTab={activeTab} onSelect={setActiveTab} />
+            {isAdmin && <TabButton id="alerts" icon={Bell} label={tTerm('creditDetails.tab.alerts')} badge={alertEntries.length} activeTab={activeTab} onSelect={setActiveTab} />}
+            {isAdmin && <TabButton id="promises" icon={Clock} label={tTerm('creditDetails.tab.promises')} badge={promiseEntries.filter((p:any)=>p.status==='pending').length} activeTab={activeTab} onSelect={setActiveTab} />}
+            <TabButton id="payouts" icon={DollarSign} label="Historial de pagos" badge={paymentHistoryEntries.length} activeTab={activeTab} onSelect={setActiveTab} />
+            {canViewPayoff && <TabButton id="payoff" icon={CreditCard} label={tTerm('creditDetails.tab.payoff')} activeTab={activeTab} onSelect={setActiveTab} />}
+            <TabButton id="history" icon={Activity} label={tTerm('creditDetails.tab.history')} activeTab={activeTab} onSelect={setActiveTab} />
           </div>
         </div>
 
@@ -1652,7 +1677,7 @@ export default function CreditDetails() {
                     <div key={alert.id || index} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex gap-4">
-                          <span className={`mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${alertPresentation.iconClassName}`}>
+                          <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${alertPresentation.iconClassName}`}>
                             <AlertCircle size={20} />
                           </span>
                           <div className="min-w-0">
@@ -1953,7 +1978,7 @@ export default function CreditDetails() {
           {activeTab === 'history' && (
             <div className="animate-in fade-in duration-300 max-w-5xl" data-tour="credit-detail-history">
               {isLoadingHistory ? (
-                <p className="text-text-secondary">Cargando historial...</p>
+                <p className="text-text-secondary">Cargando historial…</p>
               ) : operationalHistoryEntries.length > 0 ? (
                 <div className="space-y-3">
                   {operationalHistoryEntries.map((event: any, index: number) => {
@@ -1964,7 +1989,7 @@ export default function CreditDetails() {
                     return (
                       <div key={event.id || index} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                         <div className="flex gap-4">
-                          <span className={`mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                          <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${
                             isPayment ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300' :
                             isAlert ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300' :
                             isPromise ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300' :
@@ -2050,13 +2075,14 @@ export default function CreditDetails() {
               <h3 className="text-lg font-medium text-text-primary">Cambiar estado</h3>
             </div>
             <div className="p-6">
-              <label className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
+              <label htmlFor="credit-status-select" className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
               <select 
+                id="credit-status-select"
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
                 className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
               >
-                <option value="">Seleccione un estado...</option>
+                <option value="">Seleccione un estado…</option>
                 {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {LOAN_STATUS_LABELS[status]}
@@ -2084,7 +2110,7 @@ export default function CreditDetails() {
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold">Cotización cuota #{selectedInstallmentNumber}</span>
-                    {installmentQuoteQuery.isFetching && <span className="text-xs">Calculando...</span>}
+                    {installmentQuoteQuery.isFetching && <span className="text-xs">Calculando…</span>}
                   </div>
                   {installmentQuote ? (
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -2124,10 +2150,11 @@ export default function CreditDetails() {
                 </div>
               )}
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Monto a pagar</label>
+                <label htmlFor="credit-payment-amount" className="block text-sm text-text-secondary mb-1">Monto a pagar</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
                   <input
+                    id="credit-payment-amount"
                     type="number"
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
@@ -2138,8 +2165,9 @@ export default function CreditDetails() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1">Fecha</label>
+                  <label htmlFor="credit-payment-date" className="block text-sm text-text-secondary mb-1">Fecha</label>
                   <input
+                    id="credit-payment-date"
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
@@ -2147,8 +2175,9 @@ export default function CreditDetails() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1">Método</label>
+                  <label htmlFor="credit-payment-method" className="block text-sm text-text-secondary mb-1">Método</label>
                   <select
+                    id="credit-payment-method"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                     className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
@@ -2183,8 +2212,9 @@ export default function CreditDetails() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Monto prometido</label>
+                <label htmlFor="credit-promise-amount" className="block text-sm text-text-secondary mb-1">Monto prometido</label>
                 <input
+                  id="credit-promise-amount"
                   type="number"
                   value={promiseAmount}
                   onChange={(e) => setPromiseAmount(e.target.value)}
@@ -2192,8 +2222,9 @@ export default function CreditDetails() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Fecha comprometida</label>
+                <label htmlFor="credit-promise-date" className="block text-sm text-text-secondary mb-1">Fecha comprometida</label>
                 <input
+                  id="credit-promise-date"
                   type="date"
                   value={promiseDateInput}
                   onChange={(e) => setPromiseDateInput(e.target.value)}
@@ -2201,8 +2232,9 @@ export default function CreditDetails() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Notas</label>
+                <label htmlFor="credit-promise-notes" className="block text-sm text-text-secondary mb-1">Notas</label>
                 <textarea
+                  id="credit-promise-notes"
                   value={promiseNotes}
                   onChange={(e) => setPromiseNotes(e.target.value)}
                   rows={3}
@@ -2227,8 +2259,9 @@ export default function CreditDetails() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Detalle</label>
+                <label htmlFor="credit-follow-up-notes" className="block text-sm text-text-secondary mb-1">Detalle</label>
                 <textarea
+                  id="credit-follow-up-notes"
                   value={followUpNotes}
                   onChange={(e) => setFollowUpNotes(e.target.value)}
                   rows={4}
@@ -2254,8 +2287,9 @@ export default function CreditDetails() {
             <div className="p-6">
               <p className="text-sm text-text-secondary mb-4">Esta acción marcará la cuota como anulada y recalculará el calendario. No se puede deshacer.</p>
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
+                <label htmlFor="credit-annul-reason" className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
                 <textarea
+                  id="credit-annul-reason"
                   value={annulReason}
                   onChange={(e) => setAnnulReason(e.target.value)}
                   className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 resize-none"
@@ -2284,10 +2318,11 @@ export default function CreditDetails() {
             <div className="p-6 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Monto del abono</label>
+                  <label htmlFor="credit-capital-amount" className="block text-sm font-medium text-text-primary mb-1">Monto del abono</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
                     <input
+                      id="credit-capital-amount"
                       type="number"
                       value={capitalAmount}
                       onChange={(e) => setCapitalAmount(e.target.value)}
@@ -2297,8 +2332,9 @@ export default function CreditDetails() {
                   </div>
                 </div>
                 <div className="relative">
-                  <label className="block text-sm font-medium text-text-primary mb-1">Fecha del abono</label>
+                  <label htmlFor="credit-capital-date" className="block text-sm font-medium text-text-primary mb-1">Fecha del abono</label>
                   <input
+                    id="credit-capital-date"
                     type="date"
                     value={capitalPaymentDate}
                     onChange={(e) => setCapitalPaymentDate(e.target.value)}
@@ -2308,8 +2344,9 @@ export default function CreditDetails() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Método</label>
+                  <label htmlFor="credit-capital-method" className="block text-sm font-medium text-text-primary mb-1">Método</label>
                   <select
+                    id="credit-capital-method"
                     value={capitalMethod}
                     onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
                     className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
@@ -2320,8 +2357,9 @@ export default function CreditDetails() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Estrategia</label>
+                  <label htmlFor="credit-capital-strategy" className="block text-sm font-medium text-text-primary mb-1">Estrategia</label>
                   <select
+                    id="credit-capital-strategy"
                     value={capitalStrategy}
                     onChange={(e) => setCapitalStrategy(e.target.value as CapitalStrategy)}
                     className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
@@ -2431,9 +2469,10 @@ export default function CreditDetails() {
               <h3 className="text-lg font-medium text-text-primary">Tasa de mora anual</h3>
             </div>
             <div className="p-6">
-              <label className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
+              <label htmlFor="credit-late-fee-rate" className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
               <div className="relative">
                 <input
+                  id="credit-late-fee-rate"
                   type="number"
                   value={lateFeeRate}
                   onChange={(e) => setLateFeeRate(e.target.value)}

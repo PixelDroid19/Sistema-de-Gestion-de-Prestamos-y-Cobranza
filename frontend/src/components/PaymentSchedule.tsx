@@ -87,7 +87,7 @@ export default function PaymentSchedule() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 size={32} className="animate-spin text-brand-primary" />
-        <p className="text-text-secondary">Cargando plan de pagos...</p>
+        <p className="text-text-secondary">Cargando plan de pagos…</p>
       </div>
     );
   }

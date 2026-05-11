@@ -67,12 +67,13 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
     <form onSubmit={handleSubmit} className="toolbar-surface audit-filter-surface">
       <div className="grid w-full grid-cols-1 gap-3 xl:grid-cols-[minmax(280px,1.35fr)_minmax(170px,0.65fr)_minmax(190px,0.75fr)]">
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-entity-id" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Buscar evento
           </label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" />
             <input
+              id="audit-filter-entity-id"
               type="text"
               value={filters.entityId}
               onChange={(e) => handleChange('entityId', e.target.value)}
@@ -84,10 +85,11 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-ip" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             IP origen
           </label>
           <input
+            id="audit-filter-ip"
             type="text"
             value={filters.ip}
             onChange={(e) => handleChange('ip', e.target.value)}
@@ -98,10 +100,11 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-module" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Servicio
           </label>
           <select
+            id="audit-filter-module"
             value={filters.module}
             onChange={(e) => handleChange('module', e.target.value)}
             className="w-full rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-brand-primary"
@@ -118,10 +121,11 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
 
       <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(160px,0.7fr)_minmax(140px,0.6fr)_minmax(180px,0.75fr)_minmax(300px,1.25fr)]">
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-action" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Acción
           </label>
           <select
+            id="audit-filter-action"
             value={filters.action}
             onChange={(e) => handleChange('action', e.target.value)}
             className="w-full rounded-xl border border-border-subtle bg-bg-base px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-brand-primary"
@@ -136,10 +140,11 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-user-id" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             ID usuario
           </label>
           <input
+            id="audit-filter-user-id"
             type="text"
             value={filters.userId}
             onChange={(e) => handleChange('userId', e.target.value)}
@@ -149,10 +154,11 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <label htmlFor="audit-filter-entity-type" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Tipo de entidad
           </label>
           <input
+            id="audit-filter-entity-type"
             type="text"
             value={filters.entityType}
             onChange={(e) => handleChange('entityType', e.target.value)}
@@ -162,9 +168,9 @@ export default function AuditFilters({ values, onFilter, onReset }: AuditFilters
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Rango de fechas
-          </label>
+          </span>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <input
               type="date"

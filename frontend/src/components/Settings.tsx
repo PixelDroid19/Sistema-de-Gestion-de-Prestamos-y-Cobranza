@@ -418,7 +418,7 @@ export default function Settings() {
           guideKey="settings"
           tourId="settings-header"
         />
-        <div className="table-empty-state">Cargando configuración...</div>
+        <div className="table-empty-state">Cargando configuración…</div>
       </PageShell>
     );
   }
@@ -501,7 +501,7 @@ export default function Settings() {
                     aria-label="Nombre del método"
                     required
                     value={newPaymentMethod.name}
-                    onChange={(event) => setNewPaymentMethod({ ...newPaymentMethod, name: event.target.value })}
+                    onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Transferencia Bancolombia"
                   />
@@ -516,7 +516,7 @@ export default function Settings() {
                   <select
                     aria-label="Tipo de método"
                     value={newPaymentMethod.type}
-                    onChange={(event) => setNewPaymentMethod({ ...newPaymentMethod, type: event.target.value as PaymentMethodDraft['type'] })}
+                    onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   >
                     <option value="bank_transfer">Transferencia</option>
@@ -531,7 +531,7 @@ export default function Settings() {
                   <input
                     aria-label="Descripción del método"
                     value={newPaymentMethod.description}
-                    onChange={(event) => setNewPaymentMethod({ ...newPaymentMethod, description: event.target.value })}
+                    onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: requiere referencia bancaria"
                   />
@@ -632,7 +632,7 @@ export default function Settings() {
                     aria-label="Nombre de política de tasa"
                     required
                     value={newRatePolicy.label}
-                    onChange={(event) => setNewRatePolicy({ ...newRatePolicy, label: event.target.value })}
+                    onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Crédito estándar"
                   />
@@ -644,7 +644,7 @@ export default function Settings() {
                     type="number"
                     min="0"
                     value={newRatePolicy.minAmount}
-                    onChange={(event) => setNewRatePolicy({ ...newRatePolicy, minAmount: event.target.value })}
+                    onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, minAmount: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="0"
                   />
@@ -656,7 +656,7 @@ export default function Settings() {
                     type="number"
                     min="0"
                     value={newRatePolicy.maxAmount}
-                    onChange={(event) => setNewRatePolicy({ ...newRatePolicy, maxAmount: event.target.value })}
+                    onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Sin tope"
                   />
@@ -675,7 +675,7 @@ export default function Settings() {
                     max="100"
                     step="0.01"
                     value={newRatePolicy.annualEffectiveRate}
-                    onChange={(event) => setNewRatePolicy({ ...newRatePolicy, annualEffectiveRate: event.target.value })}
+                    onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="60"
                   />
@@ -691,7 +691,7 @@ export default function Settings() {
                     type="number"
                     min="0"
                     value={newRatePolicy.priority}
-                    onChange={(event) => setNewRatePolicy({ ...newRatePolicy, priority: event.target.value })}
+                    onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, priority: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
                 </label>
@@ -790,7 +790,7 @@ export default function Settings() {
                     aria-label="Nombre de política de mora"
                     required
                     value={newLateFeePolicy.label}
-                    onChange={(event) => setNewLateFeePolicy({ ...newLateFeePolicy, label: event.target.value })}
+                    onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Mora simple estándar"
                   />
@@ -809,7 +809,7 @@ export default function Settings() {
                     max="100"
                     step="0.01"
                     value={newLateFeePolicy.annualEffectiveRate}
-                    onChange={(event) => setNewLateFeePolicy({ ...newLateFeePolicy, annualEffectiveRate: event.target.value })}
+                    onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="24"
                   />
@@ -823,7 +823,7 @@ export default function Settings() {
                   <select
                     aria-label="Modo de mora"
                     value={newLateFeePolicy.lateFeeMode}
-                    onChange={(event) => setNewLateFeePolicy({ ...newLateFeePolicy, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] })}
+                    onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   >
                     <option value="SIMPLE">Mora simple</option>
@@ -842,7 +842,7 @@ export default function Settings() {
                     type="number"
                     min="0"
                     value={newLateFeePolicy.priority}
-                    onChange={(event) => setNewLateFeePolicy({ ...newLateFeePolicy, priority: event.target.value })}
+                    onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, priority: event.target.value }))}
                     className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
                 </label>

@@ -137,7 +137,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             <input
               type="text"
               value={searchQuery}
-              placeholder="Buscar módulo..."
+              placeholder="Buscar módulo…"
               onFocus={() => setIsSearchOpen(true)}
               onChange={(event) => {
                 setSearchQuery(event.target.value);
@@ -157,7 +157,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
               aria-expanded={isSearchOpen}
               aria-label="Buscar módulo"
             />
-            <div className="pointer-events-none absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-hover-bg text-[10px] text-text-secondary">
+            <div className="pointer-events-none absolute right-3 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded bg-hover-bg text-[10px] text-text-secondary">
               ↵
             </div>
 
@@ -197,7 +197,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
 
           <button
             onClick={toggleTheme}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
             title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
@@ -231,7 +231,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             <img
               src="https://i.pravatar.cc/150?u=admin"
               alt="Usuario"
-              className="h-9 w-9 shrink-0 rounded-full border border-border-strong md:h-10 md:w-10"
+              className="size-9 shrink-0 rounded-full border border-border-strong md:h-10 md:w-10"
             />
             <div className="hidden min-w-0 max-w-[14rem] flex-col sm:flex">
               <div className="flex items-center gap-1">

@@ -58,9 +58,9 @@ export default function Login() {
         <div className="absolute inset-0 bg-slate-900" />
         
         {/* Animated orbs */}
-        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-emerald-500/15 rounded-full blur-[100px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-slate-800/50 rounded-full blur-[120px]" />
+        <div className="absolute top-1/4 -left-20 size-96 bg-blue-500/20 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 -right-20 size-96 bg-emerald-500/15 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 left-1/2 size-[600px] -translate-x-1/2 -translate-y-1/2 bg-slate-800/50 rounded-full blur-[120px]" />
         
         {/* Subtle grid */}
         <div 
@@ -73,8 +73,8 @@ export default function Login() {
 
         {/* Content */}
         <div className="relative z-10 text-center px-16 max-w-lg">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl mb-8">
-            <Lock className="w-7 h-7 text-white/80" strokeWidth={1.5} />
+          <div className="inline-flex items-center justify-center size-16 rounded-2xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl mb-8">
+            <Lock className="size-7 text-white/80" strokeWidth={1.5} />
           </div>
           
           <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
@@ -90,8 +90,8 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 relative">
         {/* Mobile header */}
         <div className="lg:hidden flex flex-col items-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 mb-4">
-            <Lock className="w-5 h-5 text-white" strokeWidth={1.5} />
+          <div className="inline-flex items-center justify-center size-12 rounded-xl bg-slate-900 mb-4">
+            <Lock className="size-5 text-white" strokeWidth={1.5} />
           </div>
           <h1 className="text-xl font-bold text-text-primary">{APP_BRAND.name}</h1>
         </div>
@@ -112,7 +112,7 @@ export default function Login() {
             {/* Error */}
             {error && (
               <div className="rounded-xl bg-red-50 dark:bg-red-500/[0.08] border border-red-200 dark:border-red-500/20 p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <AlertCircle className="size-5 text-red-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700 dark:text-red-400 leading-relaxed">
                   {error}
                 </p>
@@ -126,7 +126,7 @@ export default function Login() {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Mail className="h-[18px] w-[18px] text-text-secondary/40" />
+                  <Mail className="size-[18px] text-text-secondary/40" />
                 </div>
                 <input
                   id="email"
@@ -150,7 +150,7 @@ export default function Login() {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Lock className="h-[18px] w-[18px] text-text-secondary/40" />
+                  <Lock className="size-[18px] text-text-secondary/40" />
                 </div>
                 <input
                   id="password"
@@ -173,9 +173,9 @@ export default function Login() {
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-[18px] w-[18px]" />
+                    <EyeOff className="size-[18px]" />
                   ) : (
-                    <Eye className="h-[18px] w-[18px]" />
+                    <Eye className="size-[18px]" />
                   )}
                 </button>
               </div>
@@ -189,13 +189,13 @@ export default function Login() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Iniciando sesión...</span>
+                  <Loader2 className="size-4 animate-spin" />
+                  <span>Iniciando sesión…</span>
                 </>
               ) : (
                 <>
                   <span>Iniciar sesión</span>
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+                  <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform duration-200" />
                 </>
               )}
             </button>

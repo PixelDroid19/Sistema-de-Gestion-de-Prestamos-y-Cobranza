@@ -332,7 +332,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <button
             type="button"
             onClick={onBack}
-            className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-surface text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
+            className="mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-surface text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
             aria-label="Volver a créditos"
           >
             <ArrowLeft size={20} />
@@ -406,7 +406,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 ${borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-brand-primary'}`}
               aria-invalid={!!borrowerErrors.customerId}
             >
-              <option value="">Seleccionar cliente...</option>
+              <option value="">Seleccionar cliente…</option>
               {customers.map((customer: any) => (
                 <option key={customer.id} value={customer.id}>
                   {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}

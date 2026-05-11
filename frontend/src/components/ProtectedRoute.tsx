@@ -16,10 +16,10 @@ interface GuestRouteProps {
   children: React.ReactNode;
 }
 
-const SessionLoadingState = ({ label = 'Restaurando sesión...' }: { label?: string }) => (
+const SessionLoadingState = ({ label = 'Restaurando sesión…' }: { label?: string }) => (
   <div className="flex h-screen w-full items-center justify-center bg-bg-base">
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-border-subtle bg-bg-surface px-6 py-8 shadow-sm">
-      <Loader2 className="h-10 w-10 animate-spin text-brand-primary" />
+      <Loader2 className="size-10 animate-spin text-brand-primary" />
       <p className="text-sm font-medium text-text-secondary">{label}</p>
     </div>
   </div>
@@ -36,7 +36,7 @@ const SessionRestoreErrorState = ({
     <div className="w-full max-w-md rounded-3xl border border-border-subtle bg-bg-surface p-6 shadow-sm">
       <div className="mb-4 flex items-start gap-3">
         <div className="mt-0.5 rounded-2xl bg-red-50 p-2 text-red-600">
-          <AlertCircle className="h-5 w-5" />
+          <AlertCircle className="size-5" />
         </div>
         <div className="space-y-1">
           <h1 className="text-lg font-semibold text-text-primary">No se pudo restaurar la sesión</h1>
@@ -52,7 +52,7 @@ const SessionRestoreErrorState = ({
           onClick={onRetry}
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="size-4" />
           Reintentar
         </button>
         <button
@@ -152,7 +152,7 @@ export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
   } = useResolvedSession();
 
   if (!hasHydrated || (refreshToken && !accessToken && isRestoring)) {
-    return <SessionLoadingState label="Revisando tu acceso..." />;
+    return <SessionLoadingState label="Revisando tu acceso…" />;
   }
 
   if (accessToken && user) {

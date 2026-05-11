@@ -132,7 +132,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
             disabled={isExporting}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
           >
-            <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('associates.cta.exportExcel')}
+            <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('associates.cta.exportExcel')}
           </button>
           <button onClick={() => setCurrentView('associates-new')} className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
             <Plus size={16} /> {tTerm('associates.cta.new')}
@@ -148,7 +148,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
               <input 
                 type="text" 
-                placeholder="Buscar por nombre, correo o teléfono..." 
+                placeholder="Buscar por nombre, correo o teléfono…" 
                 value={searchTerm}
                 onChange={(event) => {
                   setSearchTerm(event.target.value);
@@ -177,7 +177,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           isLoading={isLoading}
           isError={isError}
           hasData={associates.length > 0}
-          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando socios...</div>}
+          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando socios…</div>}
           errorContent={<div className="py-4 text-center text-red-500">Error al cargar socios.</div>}
           emptyContent={<div className="py-4 text-center text-text-secondary">No hay socios registrados.</div>}
           recordsLabel="socios"
@@ -215,7 +215,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 <tr key={associate.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4 text-text-secondary font-mono">{String(associate.id).substring(0, 8)}</td>
                   <td className="py-4 font-medium flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                    <div className="size-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
                       {getAssociateInitials(associate)}
                     </div>
                     {getAssociateName(associate)}

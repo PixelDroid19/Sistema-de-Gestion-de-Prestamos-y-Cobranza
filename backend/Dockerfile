@@ -8,13 +8,10 @@ WORKDIR /app
 # Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Copy backend manifests (this Dockerfile is built with backend/ as context root)
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then \
-      npm ci --only=production; \
-    else \
-      npm install --only=production; \
-    fi
+# Copy the versioned backend manifest. package-lock.json is intentionally
+# ignored in this repo, so the image build must not depend on a local lockfile.
+COPY package.json ./
+RUN npm install --omit=dev
 
 # ==========================================
 # Stage 2: Production image
@@ -27,8 +24,10 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy backend production dependencies from builder
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+# Copy backend production dependencies from builder. Runtime only needs to read
+# dependencies, so keep this copy cheap and avoid ownership rewrites over
+# node_modules.
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy application code
 # Copy backend source
@@ -37,8 +36,10 @@ COPY --chown=nodejs:nodejs . .
 # Remove unnecessary files that might contain secrets or dev data
 RUN rm -f .env .env.local .env.*.local docker-compose.yml Dockerfile.dev
 
-# Ensure runtime writable directories for non-root user
-RUN mkdir -p logs uploads uploads/attachments && chown -R nodejs:nodejs /app
+# Ensure runtime writable directories for non-root user. The COPY steps above
+# already set ownership for application files and node_modules, so avoid a slow
+# recursive chown over the full image filesystem.
+RUN install -d -o nodejs -g nodejs logs uploads uploads/attachments
 
 # Switch to non-root user
 USER nodejs

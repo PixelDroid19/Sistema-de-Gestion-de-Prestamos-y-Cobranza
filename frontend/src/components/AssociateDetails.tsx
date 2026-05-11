@@ -64,7 +64,7 @@ export default function AssociateDetails() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">Cargando portal del socio...</div>;
+    return <div className="p-8 text-center text-text-secondary">Cargando portal del socio…</div>;
   }
 
   if (!associate && !portal) {
@@ -456,8 +456,9 @@ export default function AssociateDetails() {
             </h3>
             <form onSubmit={handleAction} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
+                <label htmlFor="associate-action-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
                 <input 
+                  id="associate-action-amount"
                   type="number"
                   required
                   min="1"
@@ -481,7 +482,7 @@ export default function AssociateDetails() {
                   disabled={isSubmitting}
                   className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Procesando...' : 'Confirmar'}
+                  {isSubmitting ? 'Procesando…' : 'Confirmar'}
                 </button>
               </div>
             </form>

@@ -45,7 +45,7 @@ export default function AuditTable({
       <DataTableSurface>
         <div className="table-empty-state">
           <div>
-            <Server className="mx-auto mb-3 h-8 w-8 text-text-secondary" />
+            <Server className="mx-auto mb-3 size-8 text-text-secondary" />
             <p className="font-semibold text-text-primary">Sin eventos para revisar</p>
             <p className="mt-1 text-sm text-text-secondary">Ajusta filtros por IP, servicio o fecha para ampliar la búsqueda.</p>
           </div>
@@ -80,7 +80,7 @@ export default function AuditTable({
                   </td>
                   <td>
                     <div className="flex min-w-0 items-start gap-2">
-                      <Network className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" />
+                      <Network className="mt-0.5 size-4 shrink-0 text-brand-primary" />
                       <div className="min-w-0">
                         <p className="truncate font-mono text-xs font-semibold text-text-primary" title={serviceLabel}>
                           {serviceLabel}

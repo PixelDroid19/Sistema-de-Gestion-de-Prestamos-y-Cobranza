@@ -146,7 +146,7 @@ export default function CustomerDetails() {
   if (isCustomerLoading) {
     return (
       <div className="p-8 text-center text-text-secondary">
-        <p>Cargando cliente...</p>
+        <p>Cargando cliente…</p>
       </div>
     );
   }
@@ -314,16 +314,17 @@ export default function CustomerDetails() {
             
             <form onSubmit={handleUpload} className="mb-8 flex flex-col gap-4 rounded-xl border border-dashed border-border-strong bg-bg-base p-4 lg:flex-row lg:items-end">
               <div className="w-full lg:flex-1">
-                <label className="block text-xs text-text-secondary mb-1">Tipo de Documento</label>
-                <select value={docType} onChange={(e) => setDocType(e.target.value)} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm">
+                <label htmlFor="customer-document-type" className="block text-xs text-text-secondary mb-1">Tipo de Documento</label>
+                <select id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm">
                   {CUSTOMER_DOCUMENT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </div>
               <div className="w-full lg:flex-1">
-                <label className="block text-xs text-text-secondary mb-1">Archivo</label>
+                <label htmlFor="customer-document-file" className="block text-xs text-text-secondary mb-1">Archivo</label>
                 <input
+                  id="customer-document-file"
                   key={fileInputKey}
                   type="file"
                   accept={CUSTOMER_DOCUMENT_ACCEPT}
@@ -411,9 +412,10 @@ export default function CustomerDetails() {
             <h3 className="font-bold mb-4">Detalle de créditos</h3>
             <div className="space-y-3">
               {customerLoans.map((loan: any) => (
-                <div
+                <button
+                  type="button"
                   key={loan.id}
-                  className="p-4 border border-border-subtle rounded-xl hover:bg-hover-bg cursor-pointer transition-colors"
+                  className="block w-full p-4 text-left border border-border-subtle rounded-xl hover:bg-hover-bg cursor-pointer transition-colors"
                   onClick={() => navigate(`/credits/${loan.id}`)}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -454,7 +456,7 @@ export default function CustomerDetails() {
                       <p className="text-xs text-text-secondary mt-2">Pagado: {formatCurrency(loan.totalPaid || 0)}</p>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
               {customerLoans.length === 0 && (
                 <div className="text-center py-12 text-text-secondary">

@@ -47,7 +47,7 @@ export default function UserPermissionsTable({ onManagePermissions }: UserPermis
   };
 
   if (isLoadingUsers) {
-    return <div className="p-8 text-center text-text-secondary">Cargando usuarios...</div>;
+    return <div className="p-8 text-center text-text-secondary">Cargando usuarios…</div>;
   }
 
   if (!users || users.length === 0) {
@@ -104,7 +104,7 @@ function UserRow({ user, onRevoke, onGrant, onManage }: UserRowProps) {
     <tr className="border-b border-border-subtle hover:bg-hover-bg transition-colors">
       <td className="px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand-primary/10 flex items-center justify-center">
+          <div className="size-8 rounded-full bg-brand-primary/10 flex items-center justify-center">
             <User size={16} className="text-brand-primary" />
           </div>
           <div>
@@ -121,7 +121,7 @@ function UserRow({ user, onRevoke, onGrant, onManage }: UserRowProps) {
       </td>
       <td className="px-4 py-4">
         {isLoadingPermissions ? (
-          <span className="text-sm text-text-secondary">Cargando...</span>
+          <span className="text-sm text-text-secondary">Cargando…</span>
         ) : directPermissions.length === 0 ? (
           <span className="text-sm text-text-secondary">Sin permisos directos</span>
         ) : (

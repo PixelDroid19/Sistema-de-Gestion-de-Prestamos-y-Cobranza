@@ -87,7 +87,7 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-base text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-base text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
             aria-label="Cerrar detalle de auditoría"
           >
             <X size={18} />
@@ -97,19 +97,19 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
         <div className="overflow-y-auto px-5 py-4">
           <section className="grid gap-3 border-b border-border-subtle pb-4 md:grid-cols-3">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
                 <Server size={18} />
               </span>
               <Fact label="Servicio" value={service} mono />
             </div>
             <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200">
+              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200">
                 <Globe2 size={18} />
               </span>
               <Fact label="IP origen" value={auditLog.ip || 'No registrada'} mono />
             </div>
             <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                 <Activity size={18} />
               </span>
               <Fact
@@ -165,7 +165,7 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
             <section className="grid gap-4 py-4 lg:grid-cols-[0.85fr_1.15fr]">
               <div className="space-y-4">
                 <div className="flex items-start gap-3 rounded-xl border border-border-subtle bg-bg-base p-3">
-                  <UserRound className="mt-0.5 h-5 w-5 text-brand-primary" />
+                  <UserRound className="mt-0.5 size-5 text-brand-primary" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary">Cliente HTTP</p>
                     <p className="mt-1 break-words font-mono text-xs leading-5 text-text-secondary">
@@ -174,7 +174,7 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-xl border border-border-subtle bg-bg-base p-3">
-                  <Code2 className="mt-0.5 h-5 w-5 text-text-secondary" />
+                  <Code2 className="mt-0.5 size-5 text-text-secondary" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary">Contexto de servicio</p>
                     <p className="mt-1 break-words font-mono text-xs leading-5 text-text-secondary">

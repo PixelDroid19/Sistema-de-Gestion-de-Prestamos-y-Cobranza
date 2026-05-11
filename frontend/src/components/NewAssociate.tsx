@@ -90,7 +90,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       <div className="flex h-full items-center justify-center rounded-2xl border border-border-subtle bg-bg-surface">
         <div className="flex items-center gap-3 text-sm text-text-secondary">
           <Loader2 size={16} className="animate-spin" />
-          Cargando datos del socio...
+          Cargando datos del socio…
         </div>
       </div>
     );
@@ -135,46 +135,50 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6" data-tour="new-associate-form">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Nombre Completo *</label>
+            <label htmlFor="new-associate-name" className="mb-1 block text-sm font-medium text-text-secondary">Nombre Completo *</label>
             <input
+              id="new-associate-name"
               type="text"
               required
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Nombre del socio"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Correo electrónico</label>
+            <label htmlFor="new-associate-email" className="mb-1 block text-sm font-medium text-text-secondary">Correo electrónico</label>
             <input
+              id="new-associate-email"
               type="email"
               required
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
               className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="correo@ejemplo.com"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Teléfono</label>
+            <label htmlFor="new-associate-phone" className="mb-1 block text-sm font-medium text-text-secondary">Teléfono</label>
             <input
+              id="new-associate-phone"
               type="tel"
               required
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
               className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Número de teléfono"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Estado</label>
+            <label htmlFor="new-associate-status" className="mb-1 block text-sm font-medium text-text-secondary">Estado</label>
             <select
+              id="new-associate-status"
               value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
               className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
             >
               <option value="active">Activo</option>
@@ -183,14 +187,15 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Participación sobre utilidades (%)</label>
+            <label htmlFor="new-associate-participation" className="mb-1 block text-sm font-medium text-text-secondary">Participación sobre utilidades (%)</label>
             <input
+              id="new-associate-participation"
               type="number"
               min="0"
               max="100"
               step="0.0001"
               value={formData.participationPercentage}
-              onChange={(e) => setFormData({ ...formData, participationPercentage: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, participationPercentage: e.target.value }))}
               className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Opcional. Ejemplo: 25"
             />
@@ -212,7 +217,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               disabled={isSubmitting}
               className="flex-1 rounded-lg bg-brand-primary py-2 text-white hover:bg-brand-primary/90 disabled:opacity-50"
             >
-              {isSubmitting ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar cambios' : 'Crear socio')}
+              {isSubmitting ? (isEditing ? 'Guardando…' : 'Creando…') : (isEditing ? 'Guardar cambios' : 'Crear socio')}
             </button>
           </div>
         </form>

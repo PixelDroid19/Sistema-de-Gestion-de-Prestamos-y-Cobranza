@@ -207,3 +207,163 @@ test('SequelizeNotificationService records transient provider failures without t
   assert.equal(notification.id, 31);
   assert.deepEqual(deliveryResults, [[19, 'transient_failure', 'network timeout']]);
 });
+
+test('SequelizeNotificationService sends configured email notifications after persistence', async () => {
+  const calls = [];
+  const service = new SequelizeNotificationService({
+    notificationModel: {
+      async findOne() {
+        return null;
+      },
+      async create(payload) {
+        calls.push(['create', payload.userId]);
+        return {
+          id: 41,
+          ...payload,
+          createdAt: '2026-03-19T00:00:00.000Z',
+          toJSON() {
+            return this;
+          },
+        };
+      },
+    },
+    userModel: {
+      async findByPk(userId) {
+        calls.push(['findUser', userId]);
+        return { id: userId, email: 'customer@test.local', name: 'Customer', isActive: true };
+      },
+    },
+    emailProvider: {
+      isConfigured: true,
+      async send({ notification, recipient }) {
+        calls.push(['sendEmail', notification.id, recipient.email]);
+        return { status: 'delivered', providerMessageId: 'email_123' };
+      },
+    },
+  });
+
+  const notification = await service.sendNotification(8, 'Payment received', 'payment_registered', { loanId: 12 });
+
+  assert.equal(notification.id, 41);
+  assert.deepEqual(calls, [
+    ['create', 8],
+    ['findUser', 8],
+    ['sendEmail', 41, 'customer@test.local'],
+  ]);
+});
+
+test('SequelizeNotificationService skips email lookup when email provider is disabled', async () => {
+  let userLookupCalled = false;
+  const service = new SequelizeNotificationService({
+    notificationModel: {
+      async findOne() {
+        return null;
+      },
+      async create(payload) {
+        return {
+          id: 42,
+          ...payload,
+          createdAt: '2026-03-19T00:00:00.000Z',
+          toJSON() {
+            return this;
+          },
+        };
+      },
+    },
+    userModel: {
+      async findByPk() {
+        userLookupCalled = true;
+        return { email: 'customer@test.local' };
+      },
+    },
+    emailProvider: {
+      isConfigured: false,
+      async send() {
+        throw new Error('send should not be called');
+      },
+    },
+  });
+
+  await service.sendNotification(8, 'Payment received', 'payment_registered', { loanId: 12 });
+
+  assert.equal(userLookupCalled, false);
+});
+
+test('SequelizeNotificationService skips email for notification types that do not need email', async () => {
+  let userLookupCalled = false;
+  let emailSendCalled = false;
+  const service = new SequelizeNotificationService({
+    notificationModel: {
+      async findOne() {
+        return null;
+      },
+      async create(payload) {
+        return {
+          id: 44,
+          ...payload,
+          createdAt: '2026-03-19T00:00:00.000Z',
+          toJSON() {
+            return this;
+          },
+        };
+      },
+    },
+    userModel: {
+      async findByPk() {
+        userLookupCalled = true;
+        return { email: 'customer@test.local' };
+      },
+    },
+    emailProvider: {
+      isConfigured: true,
+      supportsNotification(notification) {
+        return notification.type === 'payment_registered';
+      },
+      async send() {
+        emailSendCalled = true;
+        throw new Error('send should not be called');
+      },
+    },
+  });
+
+  const notification = await service.sendNotification(8, 'Config changed', 'config_changed', { section: 'payments' });
+
+  assert.equal(notification.id, 44);
+  assert.equal(userLookupCalled, false);
+  assert.equal(emailSendCalled, false);
+});
+
+test('SequelizeNotificationService never fails persistence when email delivery fails', async () => {
+  const service = new SequelizeNotificationService({
+    notificationModel: {
+      async findOne() {
+        return null;
+      },
+      async create(payload) {
+        return {
+          id: 43,
+          ...payload,
+          createdAt: '2026-03-19T00:00:00.000Z',
+          toJSON() {
+            return this;
+          },
+        };
+      },
+    },
+    userModel: {
+      async findByPk(userId) {
+        return { id: userId, email: 'customer@test.local', isActive: true };
+      },
+    },
+    emailProvider: {
+      isConfigured: true,
+      async send() {
+        throw new Error('resend timeout');
+      },
+    },
+  });
+
+  const notification = await service.sendNotification(8, 'Payment received', 'payment_registered', { loanId: 12 });
+
+  assert.equal(notification.id, 43);
+});

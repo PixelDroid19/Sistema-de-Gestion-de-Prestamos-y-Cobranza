@@ -135,7 +135,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
               type="text" 
-              placeholder="Buscar por nombre, correo o documento..." 
+              placeholder="Buscar por nombre, correo o documento…" 
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
@@ -179,7 +179,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           hasData={customers.length > 0}
           loadingContent={
             <div className="flex items-center justify-center h-64 text-text-secondary">
-              Cargando clientes...
+              Cargando clientes…
             </div>
           }
           errorContent={<div className="flex items-center justify-center h-64 text-red-500">Error al cargar los clientes.</div>}
@@ -224,7 +224,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                   <tr key={customer.id} className="hover:bg-hover-bg transition-colors">
                     <td className="py-4 text-text-secondary">{formatCustomerId(customer?.id)}</td>
                     <td className="py-4 font-medium flex items-center gap-3">
-                      <img src={`https://i.pravatar.cc/150?u=${customer.id}`} className="w-8 h-8 rounded-full" alt="avatar" />
+                      <img src={`https://i.pravatar.cc/150?u=${customer.id}`} className="size-8 rounded-full" alt="avatar" />
                       {getCustomerName(customer)}
                     </td>
                     <td className="py-4 text-text-secondary">{customer.email}</td>

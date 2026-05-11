@@ -134,7 +134,7 @@ export function HelpTooltip({
         ref={buttonRef}
         type="button"
         aria-label={text}
-        className={`inline-flex h-5 w-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 ${buttonClassName}`}
+        className={`inline-flex size-5 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30 ${buttonClassName}`}
       >
         <CircleHelp size={iconSize} aria-hidden="true" />
       </button>

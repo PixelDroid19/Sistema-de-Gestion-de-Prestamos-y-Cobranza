@@ -187,6 +187,22 @@ interface CalendarOverviewResponse {
   entries: CalendarOverviewEntry[];
 }
 
+function CalendarInstallmentEvent({ event }: { event: InstallmentEvent }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-semibold truncate">{event.title}</span>
+      <span className="truncate opacity-90">
+        ${event.amountToPay.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+      </span>
+      {event.arrears > 0 && (
+        <span className="truncate font-bold text-red-100">
+          + Mora: ${event.arrears.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
  * Credits page displays the loan portfolio with filtering, search,
  * calendar view, and simulation capabilities. Provides actions for
@@ -221,7 +237,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   });
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
-  const searchPlaceholder = isAdmin ? 'Buscar por cliente o crédito...' : 'Buscar crédito...';
+  const searchPlaceholder = isAdmin ? 'Buscar por cliente o crédito…' : 'Buscar crédito…';
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
 
@@ -545,20 +561,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     };
   };
 
-  const CustomEvent = ({ event }: { event: InstallmentEvent }) => (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-semibold truncate">{event.title}</span>
-      <span className="truncate opacity-90">
-        ${event.amountToPay.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-      </span>
-      {event.arrears > 0 && (
-        <span className="truncate font-bold text-red-100">
-          + Mora: ${event.arrears.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-        </span>
-      )}
-    </div>
-  );
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -646,7 +648,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               data-tour="credits-export"
               className="flex items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
             >
-              <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('credits.cta.exportExcel')}
+              <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('credits.cta.exportExcel')}
             </button>
           )}
           {isAdmin && (
@@ -781,10 +783,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Estado</label>
+                  <label htmlFor="credits-filter-status" className="block text-xs text-text-secondary mb-1">Estado</label>
                   <select
+                    id="credits-filter-status"
                     value={filters.status}
-                    onChange={(e) => setFilters({...filters, status: e.target.value})}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
                     className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   >
                     <option value="">Todos</option>
@@ -799,40 +802,44 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Monto mínimo</label>
+                  <label htmlFor="credits-filter-min-amount" className="block text-xs text-text-secondary mb-1">Monto mínimo</label>
                   <input
+                    id="credits-filter-min-amount"
                     type="number"
                     value={filters.minAmount}
-                    onChange={(e) => setFilters({...filters, minAmount: e.target.value})}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, minAmount: e.target.value }))}
                     placeholder="0"
                     className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Monto máximo</label>
+                  <label htmlFor="credits-filter-max-amount" className="block text-xs text-text-secondary mb-1">Monto máximo</label>
                   <input
+                    id="credits-filter-max-amount"
                     type="number"
                     value={filters.maxAmount}
-                    onChange={(e) => setFilters({...filters, maxAmount: e.target.value})}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))}
                     placeholder="Sin límite"
                     className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Fecha inicio</label>
+                  <label htmlFor="credits-filter-start-date" className="block text-xs text-text-secondary mb-1">Fecha inicio</label>
                   <input
+                    id="credits-filter-start-date"
                     type="date"
                     value={filters.startDate}
-                    onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
                     className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1">Fecha fin</label>
+                  <label htmlFor="credits-filter-end-date" className="block text-xs text-text-secondary mb-1">Fecha fin</label>
                   <input
+                    id="credits-filter-end-date"
                     type="date"
                     value={filters.endDate}
-                    onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
                     className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
                 </div>
@@ -861,7 +868,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           <div className="space-y-3 md:hidden">
             {isLoading ? (
-              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">Cargando créditos...</div>
+              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">Cargando créditos…</div>
             ) : isError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 py-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">Error al cargar créditos.</div>
             ) : creditsList.length === 0 ? (
@@ -964,7 +971,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {isLoading ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">Cargando créditos...</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">Cargando créditos…</td></tr>
                 ) : isError ? (
                   <tr><td colSpan={12} className="px-4 py-8 text-center text-red-600">Error al cargar créditos.</td></tr>
                 ) : creditsList.length === 0 ? (
@@ -1192,15 +1199,15 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
+                  <div className="size-3 rounded-full bg-slate-400 dark:bg-slate-500" />
                   Pagadas
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-blue-500" />
+                  <div className="size-3 rounded-full bg-blue-500" />
                   Pendientes
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-red-500" />
+                  <div className="size-3 rounded-full bg-red-500" />
                   En mora
                 </div>
               </div>
@@ -1229,7 +1236,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <section className="rounded-2xl border border-border-subtle bg-bg-surface p-4 sm:p-5 min-h-[640px]">
               {isCalendarLoading ? (
                 <div className="flex h-full min-h-[520px] items-center justify-center text-text-secondary">
-                  Cargando calendario de créditos...
+                  Cargando calendario de créditos…
                 </div>
               ) : (
                 <Calendar
@@ -1250,7 +1257,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   culture="es"
                   eventPropGetter={eventStyleGetter}
                   components={{
-                    event: CustomEvent,
+                    event: CalendarInstallmentEvent,
                   }}
                   onSelectEvent={(event) => setSelectedEvent(event as InstallmentEvent)}
                   className="dark:text-text-primary"

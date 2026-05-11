@@ -84,8 +84,9 @@ export default function ContributionModal({
               <h4 className="text-sm font-medium text-text-primary mb-3">Registrar nuevo aporte</h4>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
+                  <label htmlFor="new-contribution-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
                   <input
+                    id="new-contribution-amount"
                     type="number"
                     required
                     min="1"
@@ -112,7 +113,7 @@ export default function ContributionModal({
                     disabled={isSubmitting}
                     className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Guardando...' : 'Confirmar'}
+                    {isSubmitting ? 'Guardando…' : 'Confirmar'}
                   </button>
                 </div>
               </div>
@@ -121,7 +122,7 @@ export default function ContributionModal({
 
           {/* Contributions List */}
           {isLoading ? (
-            <div className="text-center py-8 text-text-secondary">Cargando historial...</div>
+            <div className="text-center py-8 text-text-secondary">Cargando historial…</div>
           ) : contributions && contributions.length > 0 ? (
             <div className="space-y-2">
               {contributions.map((contribution) => (

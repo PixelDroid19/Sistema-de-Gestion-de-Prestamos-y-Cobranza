@@ -74,7 +74,7 @@ describe('Customers behavior', () => {
     expect(screen.queryByRole('option', { name: 'Pendiente' })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Bloqueado' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, correo o documento...'), {
+    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, correo o documento…'), {
       target: { value: 'ana' },
     });
     fireEvent.change(screen.getByDisplayValue('Todos los estados'), {

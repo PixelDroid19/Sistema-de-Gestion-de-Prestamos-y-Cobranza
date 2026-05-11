@@ -8,55 +8,77 @@ type InvalidateInput = {
 };
 
 const invalidateCommonLoanSurface = async (queryClient: QueryClient, loanId?: number, loansParams?: InvalidateInput['loansParams']) => {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.loans.statistics });
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: queryKeys.loans.listRoot }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.loans.statistics }),
+  ];
 
   if (loanId) {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.loans.calendar(loanId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.loans.alerts(loanId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.loans.promises(loanId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.reports.creditHistory(loanId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.timeline.loan(loanId) });
+    invalidations.push(
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.detail(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.calendar(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.alerts(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.loans.promises(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.creditHistory(loanId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.timeline.loan(loanId) }),
+    );
   }
+
+  await Promise.all(invalidations);
 };
 
 export const invalidateAfterDelete = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
   await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
-  await queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot }),
+  ]);
 };
 
 export const invalidateAfterPayment = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
   await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
-  await queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot });
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot }),
+  ];
 
   if (input.loanId) {
-    await queryClient.invalidateQueries({ queryKey: ['loans.payoffQuote', input.loanId] });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) });
+    invalidations.push(
+      queryClient.invalidateQueries({ queryKey: ['loans.payoffQuote', input.loanId] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) }),
+    );
   }
+
+  await Promise.all(invalidations);
 };
 
 export const invalidateAfterPromiseOrFollowUp = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
   await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
-  await queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot });
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: queryKeys.payments.listRoot }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot }),
+  ];
 
   if (input.loanId) {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) });
+    invalidations.push(queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) }));
   }
+
+  await Promise.all(invalidations);
 };
 
 export const invalidateAfterReport = async (queryClient: QueryClient, input: InvalidateInput = {}) => {
   await invalidateCommonLoanSurface(queryClient, input.loanId, input.loansParams);
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard });
-  await queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot });
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.payoutsRoot }),
+  ];
 
   if (input.loanId) {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) });
+    invalidations.push(queryClient.invalidateQueries({ queryKey: queryKeys.reports.paymentSchedule(input.loanId) }));
   }
+
+  await Promise.all(invalidations);
 };

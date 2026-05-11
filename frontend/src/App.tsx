@@ -37,8 +37,8 @@ function RouteLoadingFallback() {
   return (
     <div className="flex min-h-[240px] items-center justify-center">
       <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
-        Cargando módulo...
+        <div className="size-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+        Cargando módulo…
       </div>
     </div>
   );

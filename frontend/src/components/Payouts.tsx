@@ -420,7 +420,7 @@ export default function Payouts() {
               type="text" 
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Buscar por ID de crédito o cliente..."
+              placeholder="Buscar por ID de crédito o cliente…"
               className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
             />
           </div>
@@ -431,7 +431,7 @@ export default function Payouts() {
           isLoading={isLoading}
           isError={isError}
           hasData={payments.length > 0}
-          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando pagos...</div>}
+          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando pagos…</div>}
           errorContent={<div className="py-4 text-center text-red-500">Error al cargar pagos.</div>}
           emptyContent={<div className="py-4 text-center text-text-secondary">No hay pagos registrados.</div>}
           recordsLabel="pagos"
@@ -600,7 +600,7 @@ export default function Payouts() {
                   type="number"
                   required
                   value={formData.loanId}
-                  onChange={(e) => setFormData({...formData, loanId: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, loanId: e.target.value }))}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   placeholder="Ej: 1"
                 />
@@ -615,7 +615,7 @@ export default function Payouts() {
                   min="1"
                   step="0.01"
                   value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   placeholder="0.00"
                 />
@@ -628,7 +628,7 @@ export default function Payouts() {
                   type="date"
                   required
                   value={formData.paymentDate}
-                  onChange={(e) => setFormData({...formData, paymentDate: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, paymentDate: e.target.value }))}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 />
               </div>
@@ -638,7 +638,7 @@ export default function Payouts() {
                 <select 
                   id="payout-method"
                   value={formData.paymentMethod}
-                  onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
                   {paymentMethodOptions.map((method) => (
@@ -676,7 +676,7 @@ export default function Payouts() {
                   disabled={isSubmitting}
                   className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Procesando...' : 'Confirmar Pago'}
+                  {isSubmitting ? 'Procesando…' : 'Confirmar Pago'}
                 </button>
               </div>
             </form>
@@ -696,8 +696,9 @@ export default function Payouts() {
             )}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
+                <label htmlFor="edit-payment-method" className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
                 <select
+                  id="edit-payment-method"
                   value={editedMethod}
                   onChange={(event) => setEditedMethod(event.target.value as PaymentMethod)}
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
@@ -709,8 +710,9 @@ export default function Payouts() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Referencia de conciliación (opcional)</label>
+                <label htmlFor="edit-payment-reference" className="block text-sm font-medium text-text-secondary mb-1">Referencia de conciliación (opcional)</label>
                 <input
+                  id="edit-payment-reference"
                   value={editedReference}
                   onChange={(event) => setEditedReference(event.target.value)}
                   placeholder="Ej: REF-123"

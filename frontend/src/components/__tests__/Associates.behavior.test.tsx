@@ -81,7 +81,7 @@ describe('Associates behavior', () => {
   it('forwards search and status filters to the associates query', () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, correo o teléfono...'), {
+    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, correo o teléfono…'), {
       target: { value: 'socio' },
     });
     fireEvent.change(screen.getByDisplayValue('Todos los estados'), {

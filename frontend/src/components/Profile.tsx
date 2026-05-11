@@ -78,7 +78,7 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 h-full pb-8" data-tour="profile-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center" data-tour="profile-header">
-        <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex shrink-0 items-center justify-center text-brand-primary">
+        <div className="size-16 bg-brand-primary/10 rounded-full flex shrink-0 items-center justify-center text-brand-primary">
           <User size={32} />
         </div>
         <div className="min-w-0">
@@ -123,7 +123,7 @@ export default function Profile() {
                 type="text"
                 required
                 value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
+                onChange={e => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
@@ -134,7 +134,7 @@ export default function Profile() {
                 type="email"
                 required
                 value={formData.email}
-                onChange={e => setFormData({...formData, email: e.target.value})}
+                onChange={e => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
@@ -145,7 +145,7 @@ export default function Profile() {
                   id="profile-phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  onChange={e => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
                   className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
                 />
               </div>
@@ -171,7 +171,7 @@ export default function Profile() {
                 type="password"
                 required
                 value={passwordData.currentPassword}
-                onChange={e => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                onChange={e => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
@@ -182,7 +182,7 @@ export default function Profile() {
                 type="password"
                 required
                 value={passwordData.newPassword}
-                onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
+                onChange={e => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>
@@ -193,7 +193,7 @@ export default function Profile() {
                 type="password"
                 required
                 value={passwordData.confirmPassword}
-                onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                onChange={e => setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
             </div>

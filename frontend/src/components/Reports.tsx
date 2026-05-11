@@ -187,7 +187,7 @@ export default function Reports() {
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">Cargando reportes...</div>;
+    return <div className="p-8 text-center text-text-secondary">Cargando reportes…</div>;
   }
 
   if (isError) {
@@ -215,7 +215,7 @@ export default function Reports() {
               title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
               className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Download size={16} /> {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
+              <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('reports.cta.export')}
             </button>
           )}
         </div>
@@ -264,7 +264,7 @@ export default function Reports() {
               title={hasInvalidRange ? 'El rango de fechas es inválido.' : (reportExportGuard.executable ? 'Exportar reporte contextual' : (reportExportGuard.reason || 'Acción no disponible'))}
               className="w-full flex items-center justify-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Download size={16} /> {isExporting ? 'Exportando...' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
+              <Download size={16} /> {isExporting ? 'Exportando…' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
             </button>
           </div>
         </div>
@@ -452,7 +452,7 @@ export default function Reports() {
             {statusData.map((item: any, index: number) => (
               <div key={index} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                  <div className="size-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                   <span className="text-text-secondary capitalize">{item.status}</span>
                 </div>
                 <span className="font-medium">{item.count}</span>
@@ -650,14 +650,14 @@ export default function Reports() {
                   <input
                     type="date"
                     value={payoutFilters.fromDate || ''}
-                    onChange={(e) => setPayoutFilters({ ...payoutFilters, fromDate: e.target.value })}
+                    onChange={(e) => setPayoutFilters((prev) => ({ ...prev, fromDate: e.target.value }))}
                     className="bg-bg-base text-sm text-text-primary rounded-lg px-3 py-2 border border-border-subtle focus:outline-none"
                   />
                   <span className="text-text-secondary">a</span>
                   <input
                     type="date"
                     value={payoutFilters.toDate || ''}
-                    onChange={(e) => setPayoutFilters({ ...payoutFilters, toDate: e.target.value })}
+                    onChange={(e) => setPayoutFilters((prev) => ({ ...prev, toDate: e.target.value }))}
                     className="bg-bg-base text-sm text-text-primary rounded-lg px-3 py-2 border border-border-subtle focus:outline-none"
                   />
                 </div>
@@ -696,7 +696,7 @@ export default function Reports() {
                 <tbody className="divide-y divide-border-subtle">
                   {isPayoutsLoading ? (
                     <tr>
-                      <td colSpan={9} className="py-4 text-center text-text-secondary">Cargando pagos...</td>
+                      <td colSpan={9} className="py-4 text-center text-text-secondary">Cargando pagos…</td>
                     </tr>
                   ) : payouts.length === 0 ? (
                     <tr>
@@ -734,14 +734,14 @@ export default function Reports() {
                 <div className="flex gap-2">
                   <button 
                     disabled={payoutPage === 1}
-                    onClick={() => setPayoutPage(payoutPage - 1)}
+                    onClick={() => setPayoutPage((currentPage) => currentPage - 1)}
                     className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
                   >
                     Anterior
                   </button>
                   <button 
                     disabled={payoutPage === payoutPagination.totalPages}
-                    onClick={() => setPayoutPage(payoutPage + 1)}
+                    onClick={() => setPayoutPage((currentPage) => currentPage + 1)}
                     className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
                   >
                     Siguiente
@@ -773,7 +773,7 @@ export default function Reports() {
                 disabled={!selectedLoanId || isScheduleLoading}
                 className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
               >
-                {isScheduleLoading ? 'Cargando...' : 'Ver Calendario'}
+                {isScheduleLoading ? 'Cargando…' : 'Ver Calendario'}
               </button>
             </div>
           </div>

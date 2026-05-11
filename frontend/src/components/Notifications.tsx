@@ -92,7 +92,7 @@ export default function Notifications() {
             disabled={unreadCount === 0 || markAllAsRead.isPending}
             className="flex items-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-600 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300"
           >
-            <CheckCircle2 size={16} /> {markAllAsRead.isPending ? 'Marcando...' : 'Marcar leídas'}
+            <CheckCircle2 size={16} /> {markAllAsRead.isPending ? 'Marcando…' : 'Marcar leídas'}
           </button>
           <button
             type="button"
@@ -100,14 +100,14 @@ export default function Notifications() {
             disabled={notifications.length === 0 || clearNotifications.isPending}
             className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:border-red-200 disabled:bg-red-50 disabled:text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:disabled:border-red-500/30 dark:disabled:bg-red-500/10 dark:disabled:text-red-200"
           >
-            <Trash2 size={16} /> {clearNotifications.isPending ? 'Limpiando...' : 'Limpiar'}
+            <Trash2 size={16} /> {clearNotifications.isPending ? 'Limpiando…' : 'Limpiar'}
           </button>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-sm" data-tour="notifications-list">
         {isLoading ? (
-          <div className="px-4 py-10 text-center text-sm text-text-secondary">Cargando notificaciones...</div>
+          <div className="px-4 py-10 text-center text-sm text-text-secondary">Cargando notificaciones…</div>
         ) : isError ? (
           <div className="px-4 py-10 text-center text-sm text-red-600 dark:text-red-400">
             {getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })}
@@ -124,7 +124,7 @@ export default function Notifications() {
             const content = (
               <>
                 <div
-                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${!notification.read ? 'bg-red-600' : 'bg-transparent'}`}
+                  className={`mt-1.5 size-2 shrink-0 rounded-full ${!notification.read ? 'bg-red-600' : 'bg-transparent'}`}
                   aria-hidden
                 />
                 <div className="min-w-0 flex-1">

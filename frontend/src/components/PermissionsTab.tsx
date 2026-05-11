@@ -193,7 +193,7 @@ export default function PermissionsTab() {
   };
 
   if (isLoadingPermissions || isLoadingUsers) {
-    return <div className="p-8 text-center text-text-secondary">Cargando permisos...</div>;
+    return <div className="p-8 text-center text-text-secondary">Cargando permisos…</div>;
   }
 
   return (
@@ -261,8 +261,9 @@ export default function PermissionsTab() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Usuario</label>
+              <label htmlFor="permissions-user-select" className="block text-xs text-text-secondary mb-1">Usuario</label>
               <select
+                id="permissions-user-select"
                 value={selectedUserId}
                 onChange={(event) => setSelectedUserId(event.target.value)}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
@@ -276,8 +277,9 @@ export default function PermissionsTab() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Módulo</label>
+              <label htmlFor="permissions-module-filter" className="block text-xs text-text-secondary mb-1">Módulo</label>
               <select
+                id="permissions-module-filter"
                 value={moduleFilter}
                 onChange={(event) => setModuleFilter(event.target.value)}
                 className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
@@ -294,7 +296,7 @@ export default function PermissionsTab() {
                 disabled={!selectedUserId || selectedUserPermissionsQuery.isLoading}
                 className="w-full px-3 py-2 rounded-lg border border-border-subtle hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {selectedUserPermissionsQuery.isLoading ? 'Actualizando...' : 'Actualizar permisos'}
+                {selectedUserPermissionsQuery.isLoading ? 'Actualizando…' : 'Actualizar permisos'}
               </button>
             </div>
           </div>

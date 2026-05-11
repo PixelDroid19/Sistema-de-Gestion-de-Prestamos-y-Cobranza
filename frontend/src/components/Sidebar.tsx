@@ -89,7 +89,9 @@ export default function Sidebar({
     <>
       {/* Mobile Backdrop */}
       {isMobileOpen && (
-        <div 
+        <button
+          type="button"
+          aria-label="Cerrar menú lateral"
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
           onClick={() => setIsMobileOpen(false)}
         />
@@ -105,12 +107,17 @@ export default function Sidebar({
       `}>
         {/* Header / Logo */}
         <div className={`flex shrink-0 items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setCurrentView(homeView)}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-brand-primary text-white font-bold text-xl shrink-0 shadow-[0_10px_24px_-14px_rgba(20,95,116,0.7)] transition-transform group-hover:scale-105">
+          <button
+            type="button"
+            className="flex items-center gap-3 cursor-pointer group text-left"
+            onClick={() => setCurrentView(homeView)}
+            aria-label={`Ir a ${APP_BRAND.name}`}
+          >
+            <div className="size-10 rounded-xl flex items-center justify-center bg-brand-primary text-white font-bold text-xl shrink-0 shadow-[0_10px_24px_-14px_rgba(20,95,116,0.7)] transition-transform group-hover:scale-105">
               {APP_BRAND.monogram}
             </div>
             {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">{APP_BRAND.name}</span>}
-          </div>
+          </button>
           
           {/* Botón cerrar (Solo Móvil) */}
           <button 
@@ -334,7 +341,7 @@ export default function Sidebar({
           <NavItem
             icon={<LogOut size={20} />}
             onClick={handleLogout}
-            title={isLoggingOut ? 'Cerrando sesión...' : tTerm('sidebar.logout')}
+            title={isLoggingOut ? 'Cerrando sesión…' : tTerm('sidebar.logout')}
             isCollapsed={isCollapsed}
             className="text-text-secondary hover:text-text-primary hover:bg-hover-bg"
           />

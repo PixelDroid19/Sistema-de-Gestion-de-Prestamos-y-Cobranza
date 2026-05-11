@@ -172,7 +172,7 @@ describe('Reports behavioral parity scenarios', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText('Cargando reportes...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando reportes…')).toBeInTheDocument();
 
     reportsState = {
       ...reportsState,

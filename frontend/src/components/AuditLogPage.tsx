@@ -106,7 +106,7 @@ export default function AuditLogPage() {
 
       {filters.ip && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div>
             <p className="font-semibold">Investigando actividad por IP: <span className="font-mono">{filters.ip}</span></p>
             <p className="mt-1 text-xs opacity-80">La tabla muestra acciones que coinciden parcial o totalmente con esa dirección.</p>

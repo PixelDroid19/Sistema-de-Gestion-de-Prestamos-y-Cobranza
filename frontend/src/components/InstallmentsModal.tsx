@@ -71,7 +71,7 @@ export default function InstallmentsModal({
 
           {/* Installments Table */}
           {isLoading ? (
-            <div className="text-center py-8 text-text-secondary">Cargando cuotas...</div>
+            <div className="text-center py-8 text-text-secondary">Cargando cuotas…</div>
           ) : installmentsData.installments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
