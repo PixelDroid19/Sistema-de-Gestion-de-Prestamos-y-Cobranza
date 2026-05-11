@@ -23,7 +23,7 @@ import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { QuickGuideButton } from './shared/HelpSupport';
-import { MetricCard } from './shared/Surfaces';
+import { MetricCard, ToolbarSurface } from './shared/Surfaces';
 import { formatLoanAlertTypeLabel } from '../lib/loanAlertLabels';
 
 type InstallmentActionButtonProps = {
@@ -167,12 +167,14 @@ function SummaryMetricItem({
   tooltip,
   value,
   tone = 'default',
+  className = '',
 }: {
   icon: React.ElementType;
   label: React.ReactNode;
   tooltip?: string;
   value: React.ReactNode;
   tone?: 'default' | 'success' | 'warning' | 'danger' | 'brand';
+  className?: string;
 }) {
   const accent = {
     default: 'slate',
@@ -189,8 +191,34 @@ function SummaryMetricItem({
       tooltip={tooltip}
       icon={<Icon />}
       accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
-      className="min-h-[6.75rem]"
+      className={`min-h-[6.75rem] ${className}`}
     />
+  );
+}
+
+const creditPrimaryActionClassName =
+  'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-bg-muted disabled:text-text-muted sm:w-auto';
+
+const creditSecondaryActionClassName =
+  'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-3.5 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-brand-primary/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:bg-bg-muted disabled:text-text-muted';
+
+function stableCreditKey(prefix: string, ...parts: Array<unknown>) {
+  const body = parts
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join('-');
+
+  return body ? `${prefix}-${body}` : prefix;
+}
+
+function getInstallmentRowKey(row: any) {
+  return stableCreditKey(
+    'installment',
+    row?.id,
+    row?.installmentNumber,
+    row?.dueDate,
+    row?.scheduledPayment,
+    row?.closingBalance,
   );
 }
 
@@ -491,7 +519,7 @@ export default function CreditDetails() {
 
     return [
       ...payments.map((payment: any) => ({
-        id: payment.id ?? payment.createdAt ?? Math.random(),
+        id: payment.id ?? stableCreditKey('payment', payment.paymentDate, payment.createdAt, payment.amount, payment.installmentNumber),
         paymentId: Number(payment.id),
         amount: payment.amount,
         paymentType: payment.paymentType,
@@ -508,7 +536,7 @@ export default function CreditDetails() {
         type: 'payment',
       })),
       ...payoffHistory.map((event: any) => ({
-        id: `payoff-${event.id ?? event.createdAt ?? Math.random()}`,
+        id: stableCreditKey('payoff', event.id, event.paymentDate, event.createdAt, event.amount, event.quotedTotal),
         action: 'Pago total aplicado',
         description: `Monto: ${formatCurrency(event.amount ?? event.quotedTotal)}`,
         date: event.paymentDate || event.createdAt,
@@ -1363,54 +1391,63 @@ export default function CreditDetails() {
             </div>
           </div>
 
-          <div className="w-full xl:max-w-[40rem] xl:pt-1" data-tour="credit-detail-primary-actions">
-            <div className="flex w-full flex-col gap-3 xl:items-end">
-              <div className="flex w-full flex-wrap gap-2 xl:justify-end">
+          <div className="w-full xl:max-w-[41rem]" data-tour="credit-detail-primary-actions">
+            <ToolbarSurface className="items-stretch gap-4 p-3 lg:items-stretch">
+              <div className="min-w-0 flex-1 lg:max-w-[14rem]">
+                <p className="text-sm font-semibold text-text-primary">Acciones del crédito</p>
+                <p className="mt-1 text-xs leading-5 text-text-secondary">
+                  Opera pagos, estado y reportes sin cambiar la fórmula congelada al crear el crédito.
+                </p>
+              </div>
+              <div className="grid min-w-0 flex-[1.4] gap-2 sm:grid-cols-2">
                 <QuickGuideButton
                   guideKey="credit-details"
                   guideContext={{ loanId }}
-                  className="min-h-10 shrink-0 sm:min-w-[10.5rem]"
+                  className="min-h-10 w-full justify-center"
                 />
                 {installmentPaymentGuard.visible && (
                   <button
+                    type="button"
                     onClick={openNextInstallmentPayment}
                     disabled={!installmentPaymentGuard.executable}
                     title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand-primary disabled:hover:shadow-none sm:min-w-[12rem]"
+                    className={creditPrimaryActionClassName}
                   >
                     <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
                   </button>
                 )}
-              </div>
-              <div className="flex w-full flex-wrap gap-2 border-t border-border-subtle/80 pt-3 xl:justify-end">
+                <div className="grid gap-2 border-t border-border-subtle/80 pt-2 sm:col-span-2 sm:grid-cols-2">
                 {isAdmin && capitalPaymentGuard.visible && (
                   <button
+                    type="button"
                     onClick={() => setShowCapitalModal(true)}
                     disabled={!capitalPaymentGuard.executable}
                     title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                    className={creditSecondaryActionClassName}
                   >
                     <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
                   </button>
                 )}
                 {isAdmin && lateFeeUpdateGuard.visible && (
                   <button
+                    type="button"
                     onClick={() => {
                       setLateFeeRate(String(loan.annualLateFeeRate || ''));
                       setShowLateFeeModal(true);
                     }}
                     disabled={!lateFeeUpdateGuard.executable}
                     title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                    className={creditSecondaryActionClassName}
                   >
                     <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
                   </button>
                 )}
                 {isAdmin && creditStatusUpdateGuard.visible && (
                   <button
+                    type="button"
                     onClick={() => setShowStatusModal(true)}
                     disabled={!creditStatusUpdateGuard.executable}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-base"
+                    className={creditSecondaryActionClassName}
                     title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
                   >
                     <Edit2 size={16} /> Estado
@@ -1418,31 +1455,42 @@ export default function CreditDetails() {
                 )}
                 {isAdmin && (
                   <button
+                    type="button"
                     onClick={() => runExportCreditExcel(loanId)}
                     disabled={isExportingCreditExcel}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-wait disabled:opacity-60"
+                    className={creditSecondaryActionClassName}
                     title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
                   >
                     <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando…' : 'Excel'}
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong bg-bg-base px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg"
+                  className={`${creditSecondaryActionClassName} sm:col-span-2`}
                   title="Ver plan de pagos completo"
                 >
                   <Table size={16} /> Plan de pagos
                 </button>
               </div>
-            </div>
+              </div>
+            </ToolbarSurface>
           </div>
         </div>
       </section>
 
       <section
-        className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fill,minmax(13.5rem,1fr))]"
+        className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8"
         data-tour="credit-detail-metrics"
       >
+          <SummaryMetricItem
+            icon={Activity}
+            label="Capital vivo"
+            tooltip="Capital del crédito que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
+            tone="brand"
+            className="xl:col-span-2 2xl:col-span-2"
+            value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
+          />
           <SummaryMetricItem
             icon={Calendar}
             label="Cuotas totales"
@@ -1481,13 +1529,6 @@ export default function CreditDetails() {
             tooltip="Tasa efectiva anual usada para calcular mora sobre saldos vencidos cuando una cuota entra en atraso."
             tone="danger"
             value={loan.annualLateFeeRate ? `${loan.annualLateFeeRate}%` : '—'}
-          />
-          <SummaryMetricItem
-            icon={Activity}
-            label="Capital Vivo"
-            tooltip="Capital del crédito que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
-            tone="brand"
-            value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
           />
       </section>
 
@@ -1531,11 +1572,11 @@ export default function CreditDetails() {
                   </div>
 
                   <div className="grid gap-4 lg:hidden">
-                    {installmentRows.map((row: any, idx: number) => {
+                    {installmentRows.map((row: any) => {
                       const installmentStatusInfo = getInstallmentStatusInfo(row.status);
 
                       return (
-                        <div key={`installment-card-${idx}`} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+                        <div key={getInstallmentRowKey(row)} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">Cuota #{row.installmentNumber}</p>
@@ -1608,7 +1649,7 @@ export default function CreditDetails() {
 
                         return (
                         <tr
-                          key={idx}
+                          key={getInstallmentRowKey(row)}
                           data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined}
                           className="group"
                         >
@@ -1670,11 +1711,11 @@ export default function CreditDetails() {
             <div className="animate-in fade-in duration-300 max-w-5xl">
               {alertEntries.length > 0 ? (
                 <div className="space-y-4">
-                  {alertEntries.map((alert: any, index: number) => {
+                  {alertEntries.map((alert: any) => {
                     const alertPresentation = getAlertPresentation(alert);
 
                     return (
-                    <div key={alert.id || index} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+                    <div key={stableCreditKey('alert', alert.id, alert.type, alert.installmentNumber, alert.dueDate, alert.createdAt)} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex gap-4">
                           <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${alertPresentation.iconClassName}`}>
@@ -1739,13 +1780,13 @@ export default function CreditDetails() {
             <div className="animate-in fade-in duration-300">
               {promiseEntries.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {promiseEntries.map((promise: any, index: number) => {
+                  {promiseEntries.map((promise: any) => {
                     const isKept = promise.status === 'kept';
                     const isBroken = promise.status === 'broken';
                     const isPending = promise.status === 'pending';
-                    
+
                     return (
-                      <div key={promise.id || index} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
+                      <div key={stableCreditKey('promise', promise.id, promiseDate(promise), promise.createdAt, promise.amount)} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
                         <div className="flex justify-between items-start mb-4">
                           <div>
                             <p className="text-sm text-text-secondary mb-1">Monto Prometido</p>
@@ -1778,8 +1819,8 @@ export default function CreditDetails() {
                               <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> Historial
                             </summary>
                             <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
-                              {promise.statusHistory.slice().reverse().map((entry: any, hi: number) => (
-                                <div key={hi} className="text-sm">
+                              {promise.statusHistory.slice().reverse().map((entry: any) => (
+                                <div key={stableCreditKey('promise-history', promise.id, entry.id, entry.status, entry.changedAt)} className="text-sm">
                                   <span className="text-text-primary">{
                                     entry.status === 'kept' ? 'Cumplida' :
                                     entry.status === 'broken' ? 'Incumplida' :
@@ -1874,8 +1915,8 @@ export default function CreditDetails() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paymentHistoryEntries.map((entry: any, index: number) => (
-                        <tr key={index} className="border-b border-border-subtle hover:bg-hover-bg">
+                      {paymentHistoryEntries.map((entry: any) => (
+                        <tr key={stableCreditKey('payment-row', entry.id, entry.date, entry.amount, entry.installmentNumber)} className="border-b border-border-subtle hover:bg-hover-bg">
                           <td className="py-3 px-4 text-text-secondary">{entry.paymentId ? `#${entry.paymentId}` : entry.id ? `#${entry.id}` : '—'}</td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -1981,13 +2022,13 @@ export default function CreditDetails() {
                 <p className="text-text-secondary">Cargando historial…</p>
               ) : operationalHistoryEntries.length > 0 ? (
                 <div className="space-y-3">
-                  {operationalHistoryEntries.map((event: any, index: number) => {
+                  {operationalHistoryEntries.map((event: any) => {
                     const paymentId = extractPaymentId(event.id);
                     const isPayment = event.type === 'payment';
                     const isAlert = event.type === 'alert';
                     const isPromise = event.type === 'promise';
                     return (
-                      <div key={event.id || index} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
+                      <div key={stableCreditKey('history', event.id, event.type, event.date, event.createdAt, event.action)} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                         <div className="flex gap-4">
                           <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${
                             isPayment ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300' :
