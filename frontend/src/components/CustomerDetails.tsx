@@ -9,6 +9,7 @@ import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { extractRawErrorMessage } from '../services/safeErrorMessages';
 import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton } from './shared/Surfaces';
 
 const CUSTOMER_DOCUMENT_OPTIONS = [
   { value: 'identification', label: 'Identificación (INE/Pasaporte)' },
@@ -343,9 +344,9 @@ export default function CustomerDetails() {
                 />
                 Visible para el cliente
               </label>
-              <button type="submit" disabled={!file || uploadDocument.isPending} className="flex items-center justify-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-medium text-bg-base">
-                <Upload size={16} /> Subir
-              </button>
+              <ActionButton type="submit" disabled={!file || uploadDocument.isPending} isLoading={uploadDocument.isPending} icon={<Upload size={16} />} variant="primary">
+                Subir
+              </ActionButton>
             </form>
 
             <div className="space-y-3">

@@ -7,7 +7,7 @@ import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
-import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
@@ -127,16 +127,17 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
         tourId="associates-header"
         actions={(
         <>
-          <button 
+          <ActionButton
             onClick={handleExportAssociatesExcel}
             disabled={isExporting}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            isLoading={isExporting}
+            icon={<Download size={16} />}
           >
-            <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('associates.cta.exportExcel')}
-          </button>
-          <button onClick={() => setCurrentView('associates-new')} className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90">
-            <Plus size={16} /> {tTerm('associates.cta.new')}
-          </button>
+            {tTerm('associates.cta.exportExcel')}
+          </ActionButton>
+          <ActionButton onClick={() => setCurrentView('associates-new')} icon={<Plus size={16} />} variant="primary">
+            {tTerm('associates.cta.new')}
+          </ActionButton>
         </>
         )}
       />

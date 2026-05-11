@@ -34,7 +34,7 @@ import { tTerm } from '../i18n/terminology';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, MetricCard, ModalShell, PageHeader, PageShell, SectionSurface, ToolbarSurface } from './shared/Surfaces';
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
 const locales = {
@@ -1189,7 +1189,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
       {activeTab === 'calendar' && (
         <div className="relative flex flex-1 flex-col gap-5 min-w-0">
-          <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5">
+          <SectionSurface>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-3xl">
                 <h3 className="text-lg font-semibold text-text-primary">Agenda operativa</h3>
@@ -1230,10 +1230,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 );
               })}
             </div>
-          </section>
+          </SectionSurface>
 
           <div className="grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
-            <section className="rounded-2xl border border-border-subtle bg-bg-surface p-4 sm:p-5 min-h-[640px]">
+            <SectionSurface className="min-h-[640px]">
               {isCalendarLoading ? (
                 <div className="flex h-full min-h-[520px] items-center justify-center text-text-secondary">
                   Cargando calendario de créditos…
@@ -1269,9 +1269,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   No hay cuotas para mostrar con los créditos visibles en esta página.
                 </div>
               )}
-            </section>
+            </SectionSurface>
 
-            <aside className="rounded-2xl border border-border-subtle bg-bg-surface p-4 sm:p-5">
+            <SectionSurface as="section">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold text-text-primary">Próximas acciones</h4>
@@ -1365,27 +1365,35 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   </div>
                 ))}
               </div>
-            </aside>
+            </SectionSurface>
           </div>
 
           {/* Modal de Detalles del Evento */}
           {selectedEvent && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-2xl p-4">
-              <div className="bg-bg-surface w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-border-subtle flex flex-col">
-                <div className="p-5 border-b border-border-subtle flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-semibold text-text-primary mb-1">Detalle de Cuota</h3>
-                    <p className="text-sm text-text-secondary">{selectedEvent.clientName}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedEvent(null)}
-                    className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-5 flex-1 overflow-y-auto">
+            <ModalShell
+              title="Detalle de cuota"
+              subtitle={selectedEvent.clientName}
+              footer={(
+                <>
+                  <ActionButton onClick={() => setSelectedEvent(null)} fullWidth>
+                    Cerrar
+                  </ActionButton>
+                  {selectedEvent.type !== 'paid' && selectedEvent.canPay && (
+                    <ActionButton
+                      onClick={() => {
+                        setSelectedEvent(null);
+                        setCurrentView?.(`credits/${selectedEvent.loanId}`);
+                      }}
+                      variant="primary"
+                      fullWidth
+                    >
+                      Registrar pago
+                    </ActionButton>
+                  )}
+                </>
+              )}
+            >
+                <div>
                   <div className="flex items-center gap-3 mb-6">
                     <div className={`p-3 rounded-full ${
                       selectedEvent.type === 'paid' ? 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300' :
@@ -1452,28 +1460,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     )}
                   </div>
                 </div>
-
-                <div className="p-5 border-t border-border-subtle bg-bg-base flex gap-3">
-                  <button
-                    onClick={() => setSelectedEvent(null)}
-                    className="flex-1 px-4 py-2 border border-border-strong rounded-lg text-sm font-medium hover:bg-hover-bg transition-colors"
-                  >
-                    Cerrar
-                  </button>
-                  {selectedEvent.type !== 'paid' && selectedEvent.canPay && (
-                    <button
-                      onClick={() => {
-                        setSelectedEvent(null);
-                        setCurrentView?.(`credits/${selectedEvent.loanId}`);
-                      }}
-                      className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Registrar pago
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            </ModalShell>
           )}
         </div>
       )}

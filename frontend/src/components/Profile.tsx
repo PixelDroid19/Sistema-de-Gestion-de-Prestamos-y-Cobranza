@@ -4,6 +4,7 @@ import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
 import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton } from './shared/Surfaces';
 
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
@@ -155,9 +156,9 @@ export default function Profile() {
               </div>
             )}
             <div className="pt-4">
-              <button type="submit" disabled={updateProfile.isPending} className="bg-text-primary text-bg-base px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
-                <Save size={16} /> Guardar cambios
-              </button>
+              <ActionButton type="submit" disabled={updateProfile.isPending} isLoading={updateProfile.isPending} icon={<Save size={16} />} variant="primary">
+                Guardar cambios
+              </ActionButton>
             </div>
           </form>
         )}
@@ -198,9 +199,9 @@ export default function Profile() {
               />
             </div>
             <div className="pt-4">
-              <button type="submit" disabled={changePassword.isPending} className="bg-text-primary text-bg-base px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
-                <Lock size={16} /> Actualizar contraseña
-              </button>
+              <ActionButton type="submit" disabled={changePassword.isPending} isLoading={changePassword.isPending} icon={<Lock size={16} />} variant="primary">
+                Actualizar contraseña
+              </ActionButton>
             </div>
           </form>
         )}

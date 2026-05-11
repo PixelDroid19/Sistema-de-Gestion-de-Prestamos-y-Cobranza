@@ -3,7 +3,7 @@ import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Loader2 } from 
 import { useParams } from 'react-router-dom';
 import { useCustomers, useCustomerById } from '../services/customerService';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton, EmptyState, PageHeader, PageShell, SectionSurface } from './shared/Surfaces';
 
 type CustomerFormData = {
   firstName: string;
@@ -120,72 +120,60 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
 
   if (isEditing && isLoadingCustomer) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-border-subtle bg-bg-surface">
-        <div className="flex items-center gap-3 text-sm text-text-secondary">
-          <Loader2 size={16} className="animate-spin" />
-          Cargando datos del cliente…
-        </div>
-      </div>
+      <PageShell>
+        <SectionSurface>
+          <EmptyState compact title="Cargando datos del cliente…" icon={<Loader2 size={16} className="animate-spin" />} />
+        </SectionSurface>
+      </PageShell>
     );
   }
 
   if (isEditing && isCustomerLoadError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 rounded-2xl border border-border-subtle bg-bg-surface p-8 text-center">
-        <div>
-          <h2 className="text-xl font-semibold text-text-primary">No fue posible cargar el cliente</h2>
-          <p className="mt-2 text-sm text-text-secondary">Revisa la conexión o vuelve a la lista para intentarlo de nuevo.</p>
-        </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-hover-bg"
-        >
-          Volver a clientes
-        </button>
-      </div>
+      <PageShell>
+        <SectionSurface>
+          <EmptyState
+            title="No fue posible cargar el cliente"
+            description="Revisa la conexión o vuelve a la lista para intentarlo de nuevo."
+            action={<ActionButton onClick={onBack}>Volver a clientes</ActionButton>}
+          />
+        </SectionSurface>
+      </PageShell>
     );
   }
 
   return (
-    <div className="flex h-full flex-col gap-6" data-tour="new-customer-page">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center" data-tour="new-customer-header">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="rounded-lg border border-border-subtle bg-bg-surface p-2 transition-colors hover:bg-hover-bg">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-semibold">{title}</h2>
-            <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <QuickGuideButton guideKey="new-customer" />
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={isSubmitting}
-            className="flex items-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-medium text-bg-base shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
-          >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            {submitLabel}
-          </button>
-        </div>
-      </div>
+    <PageShell className="h-full" data-tour="new-customer-page">
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        guideKey="new-customer"
+        tourId="new-customer-header"
+        actions={(
+          <>
+            <ActionButton type="button" onClick={onBack} icon={<ArrowLeft size={16} />}>
+              Cancelar
+            </ActionButton>
+            <ActionButton
+              type="button"
+              onClick={() => handleSubmit()}
+              disabled={isSubmitting}
+              isLoading={isSubmitting}
+              icon={isSubmitting ? undefined : <Save size={16} />}
+              variant="primary"
+            >
+              {submitLabel}
+            </ActionButton>
+          </>
+        )}
+      />
 
       <div className="flex-1 overflow-y-auto pb-8">
         <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6" data-tour="new-customer-personal">
-            <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
-              <User size={20} className="text-blue-500" /> Información personal
-            </h3>
+          <SectionSurface
+            data-tour="new-customer-personal"
+            title={<span className="flex items-center gap-2"><User size={20} className="text-blue-500" /> Información personal</span>}
+          >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="new-customer-first-name" className="text-sm font-medium text-text-secondary">Nombres</label>
@@ -217,12 +205,12 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
                 </select>
               </div>
             </div>
-          </div>
+          </SectionSurface>
 
-          <div className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm sm:p-6" data-tour="new-customer-contact">
-            <h3 className="mb-6 flex items-center gap-2 border-b border-border-subtle pb-4 text-lg font-medium">
-              <MapPin size={20} className="text-emerald-500" /> Contacto y Dirección
-            </h3>
+          <SectionSurface
+            data-tour="new-customer-contact"
+            title={<span className="flex items-center gap-2"><MapPin size={20} className="text-emerald-500" /> Contacto y dirección</span>}
+          >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="new-customer-phone" className="text-sm font-medium text-text-secondary">Teléfono</label>
@@ -246,9 +234,9 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
             </div>
-          </div>
+          </SectionSurface>
         </form>
       </div>
-    </div>
+    </PageShell>
   );
 }

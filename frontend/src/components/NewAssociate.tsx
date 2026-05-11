@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton, EmptyState, PageHeader, PageShell, SectionSurface } from './shared/Surfaces';
 
 interface AssociateFormData {
   name: string;
@@ -87,53 +87,44 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
 
   if (isEditing && isLoadingAssociate) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-border-subtle bg-bg-surface">
-        <div className="flex items-center gap-3 text-sm text-text-secondary">
-          <Loader2 size={16} className="animate-spin" />
-          Cargando datos del socio…
-        </div>
-      </div>
+      <PageShell>
+        <SectionSurface>
+          <EmptyState compact title="Cargando datos del socio…" icon={<Loader2 size={16} className="animate-spin" />} />
+        </SectionSurface>
+      </PageShell>
     );
   }
 
   if (isEditing && isAssociateLoadError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 rounded-2xl border border-border-subtle bg-bg-surface p-8 text-center">
-        <div>
-          <h2 className="text-xl font-semibold text-text-primary">No fue posible cargar el socio</h2>
-          <p className="mt-2 text-sm text-text-secondary">Vuelve a la lista e inténtalo de nuevo.</p>
-        </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-hover-bg"
-        >
-          Volver a socios
-        </button>
-      </div>
+      <PageShell>
+        <SectionSurface>
+          <EmptyState
+            title="No fue posible cargar el socio"
+            description="Vuelve a la lista e inténtalo de nuevo."
+            action={<ActionButton onClick={onBack}>Volver a socios</ActionButton>}
+          />
+        </SectionSurface>
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl" data-tour="new-associate-page">
-      <div className="mb-6 flex items-center gap-4" data-tour="new-associate-header">
-        <button
-          onClick={onBack}
-          className="rounded-xl p-2 text-text-secondary transition-colors hover:bg-hover-bg"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
-          <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>
-        </div>
-        <div className="ml-auto">
-          <QuickGuideButton guideKey="new-associate" />
-        </div>
-      </div>
+    <PageShell className="mx-auto w-full max-w-3xl" data-tour="new-associate-page">
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        guideKey="new-associate"
+        tourId="new-associate-header"
+        actions={(
+          <ActionButton onClick={onBack} icon={<ArrowLeft size={16} />}>
+            Volver
+          </ActionButton>
+        )}
+      />
 
-      <div className="rounded-2xl border border-border-subtle bg-bg-surface p-6" data-tour="new-associate-form">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form">
+        <div className="space-y-4">
           <div>
             <label htmlFor="new-associate-name" className="mb-1 block text-sm font-medium text-text-secondary">Nombre Completo *</label>
             <input
@@ -205,23 +196,21 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex-1 rounded-lg border border-border-subtle py-2 text-text-secondary hover:bg-hover-bg"
-            >
+            <ActionButton type="button" onClick={onBack} fullWidth>
               Cancelar
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 rounded-lg bg-brand-primary py-2 text-white hover:bg-brand-primary/90 disabled:opacity-50"
+              isLoading={isSubmitting}
+              variant="primary"
+              fullWidth
             >
-              {isSubmitting ? (isEditing ? 'Guardando…' : 'Creando…') : (isEditing ? 'Guardar cambios' : 'Crear socio')}
-            </button>
+              {isEditing ? 'Guardar cambios' : 'Crear socio'}
+            </ActionButton>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </SectionSurface>
+    </PageShell>
   );
 }

@@ -40,7 +40,7 @@ type DataTableSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   className?: string;
 };
 
-type SectionSurfaceProps = React.HTMLAttributes<HTMLElement> & {
+type SectionSurfaceProps = Omit<React.HTMLAttributes<HTMLElement>, 'title'> & {
   children: React.ReactNode;
   title?: React.ReactNode;
   subtitle?: React.ReactNode;
@@ -66,7 +66,7 @@ type EmptyStateProps = React.HTMLAttributes<HTMLDivElement> & {
   compact?: boolean;
 };
 
-type ModalShellProps = React.HTMLAttributes<HTMLDivElement> & {
+type ModalShellProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> & {
   children: React.ReactNode;
   title: React.ReactNode;
   subtitle?: React.ReactNode;

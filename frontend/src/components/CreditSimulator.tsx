@@ -1,9 +1,9 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ClipboardPlus } from 'lucide-react';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton, PageHeader, PageShell, SectionSurface } from './shared/Surfaces';
 
 /**
  * Standalone credit calculation route for admins.
@@ -43,34 +43,28 @@ export default function CreditSimulator() {
   }, [canContinueToRegistration, input, navigate]);
 
   return (
-    <div className="flex flex-col gap-6 h-full" data-tour="credit-calculator-page">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between" data-tour="credit-calculator-header">
-        <div>
-          <h2 className="text-2xl font-semibold">Previsualizar crédito</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Simula un crédito con la regla de cálculo activa. Si el escenario sirve, continúa al registro sin rearmar los parámetros.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <QuickGuideButton guideKey="credit-calculator" />
-          <Link
-            to="/credits"
-            className="inline-flex items-center justify-center rounded-xl border border-border-strong bg-bg-surface px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg"
-          >
+    <PageShell className="h-full" data-tour="credit-calculator-page">
+      <PageHeader
+        title="Previsualizar crédito"
+        subtitle="Simula un crédito con la regla de cálculo activa. Si el escenario sirve, continúa al registro sin rearmar los parámetros."
+        guideKey="credit-calculator"
+        tourId="credit-calculator-header"
+        actions={(
+          <>
+            <ActionButton onClick={() => navigate('/credits')}>
             Volver a créditos
-          </Link>
-          <button
-            type="button"
-            disabled={!canContinueToRegistration}
-            onClick={navigateToCreditRegistration}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-          >
-            <ClipboardPlus size={16} />
+            </ActionButton>
+            <ActionButton
+              disabled={!canContinueToRegistration}
+              onClick={navigateToCreditRegistration}
+              icon={<ClipboardPlus size={16} />}
+              variant="primary"
+            >
             Usar este cálculo para registrar
-          </button>
-        </div>
-      </div>
+            </ActionButton>
+          </>
+        )}
+      />
 
       <div data-tour="credit-calculator-simulation">
         <CreditSimulationWorkspace
@@ -94,7 +88,7 @@ export default function CreditSimulator() {
       </div>
 
       {result && (
-        <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+        <SectionSurface>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Listo para originación</h3>
@@ -102,18 +96,16 @@ export default function CreditSimulator() {
                 Este escenario usa la misma regla de cálculo activa que se aplicará al crear el crédito real.
               </p>
             </div>
-            <button
-              type="button"
+            <ActionButton
               disabled={!canContinueToRegistration}
               onClick={navigateToCreditRegistration}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary/5 px-4 py-3 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/10 disabled:cursor-not-allowed disabled:border-border-strong disabled:bg-slate-100 disabled:text-text-secondary"
+              icon={<ArrowRight size={16} />}
             >
               Continuar a registro
-              <ArrowRight size={16} />
-            </button>
+            </ActionButton>
           </div>
-        </section>
+        </SectionSurface>
       )}
-    </div>
+    </PageShell>
   );
 }

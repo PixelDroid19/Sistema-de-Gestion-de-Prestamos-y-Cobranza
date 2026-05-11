@@ -26,6 +26,7 @@ import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
 import { CreditDetailsTabs, TabEmptyState, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
 import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
+import { ActionButton, ModalShell } from './shared/Surfaces';
 
 type PayoffDenialReason = string | {
   code?: string;
@@ -1768,43 +1769,57 @@ export default function CreditDetails() {
       
       {/* Modal: Change Status */}
       {showStatusModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Cambiar estado</h3>
-            </div>
-            <div className="p-6">
-              <label htmlFor="credit-status-select" className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
-              <select 
-                id="credit-status-select"
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
-              >
-                <option value="">Seleccione un estado…</option>
-                {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {LOAN_STATUS_LABELS[status]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={() => setShowStatusModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleUpdateStatus} disabled={!newStatus} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Guardar</button>
-            </div>
-          </div>
-        </div>
+        <ModalShell
+          title="Cambiar estado"
+          footer={(
+            <>
+              <ActionButton onClick={() => setShowStatusModal(false)} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleUpdateStatus} disabled={!newStatus} variant="primary" fullWidth>
+                Guardar
+              </ActionButton>
+            </>
+          )}
+        >
+          <label htmlFor="credit-status-select" className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
+          <select
+            id="credit-status-select"
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
+            className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
+          >
+            <option value="">Seleccione un estado…</option>
+            {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {LOAN_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </ModalShell>
       )}
 
       {/* Modal: Record Payment */}
       {isRecordPaymentModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Registrar pago</h3>
-            </div>
-            <div className="p-6 space-y-4">
+        <ModalShell
+          title="Registrar pago"
+          footer={(
+            <>
+              <ActionButton onClick={operationalModal.closeModal} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton
+                onClick={handleRecordPayment}
+                disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || Boolean(installmentQuote && !installmentQuote.canPay)}
+                variant="primary"
+                fullWidth
+              >
+                Registrar pago
+              </ActionButton>
+            </>
+          )}
+        >
+            <div className="space-y-4">
               {selectedInstallmentNumber && (
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
                   <div className="flex items-center justify-between gap-3">
@@ -1888,28 +1903,25 @@ export default function CreditDetails() {
                 </div>
               </div>
             </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button
-                onClick={handleRecordPayment}
-                disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || Boolean(installmentQuote && !installmentQuote.canPay)}
-                className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50"
-              >
-                Registrar pago
-              </button>
-            </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
 
       {/* Modal: Promise from installment */}
       {isPromiseModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Crear compromiso de pago</h3>
-            </div>
-            <div className="p-6 space-y-4">
+        <ModalShell
+          title="Crear compromiso de pago"
+          footer={(
+            <>
+              <ActionButton onClick={operationalModal.closeModal} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleCreatePromise} variant="primary" fullWidth>
+                Guardar compromiso
+              </ActionButton>
+            </>
+          )}
+        >
+            <div className="space-y-4">
               <div>
                 <label htmlFor="credit-promise-amount" className="block text-sm text-text-secondary mb-1">Monto prometido</label>
                 <input
@@ -1941,22 +1953,25 @@ export default function CreditDetails() {
                 />
               </div>
             </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleCreatePromise} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar compromiso</button>
-            </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
 
       {/* Modal: Follow-up from installment */}
       {isFollowUpModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Registrar Seguimiento</h3>
-            </div>
-            <div className="p-6 space-y-4">
+        <ModalShell
+          title="Registrar seguimiento"
+          footer={(
+            <>
+              <ActionButton onClick={operationalModal.closeModal} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleCreateFollowUp} variant="primary" fullWidth>
+                Guardar seguimiento
+              </ActionButton>
+            </>
+          )}
+        >
+            <div className="space-y-4">
               <div>
                 <label htmlFor="credit-follow-up-notes" className="block text-sm text-text-secondary mb-1">Detalle</label>
                 <textarea
@@ -1968,53 +1983,65 @@ export default function CreditDetails() {
                 />
               </div>
             </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={operationalModal.closeModal} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleCreateFollowUp} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar seguimiento</button>
-            </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
 
       {/* Modal: Annul Installment */}
       {showAnnulModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-border-subtle shadow-xl overflow-hidden">
-             <div className="p-6 border-b border-border-subtle bg-red-50 dark:bg-red-500/10">
-              <h3 className="text-lg font-medium text-red-600 dark:text-red-400">Anular Cuota #{annulInstallmentNumber}</h3>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-text-secondary mb-4">Esta acción marcará la cuota como anulada y recalculará el calendario. No se puede deshacer.</p>
-              <div>
-                <label htmlFor="credit-annul-reason" className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
-                <textarea
-                  id="credit-annul-reason"
-                  value={annulReason}
-                  onChange={(e) => setAnnulReason(e.target.value)}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 resize-none"
-                  rows={3}
-                />
-              </div>
-            </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={() => { setShowAnnulModal(false); setAnnulInstallmentNumber(null); }} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleAnnulInstallment} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Confirmar anulación</button>
-            </div>
-          </div>
-        </div>
+        <ModalShell
+          title={<span className="text-red-600 dark:text-red-400">Anular cuota #{annulInstallmentNumber}</span>}
+          subtitle="Esta acción marcará la cuota como anulada y recalculará el calendario. No se puede deshacer."
+          footer={(
+            <>
+              <ActionButton
+                onClick={() => {
+                  setShowAnnulModal(false);
+                  setAnnulInstallmentNumber(null);
+                }}
+                fullWidth
+              >
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleAnnulInstallment} variant="danger" fullWidth>
+                Confirmar anulación
+              </ActionButton>
+            </>
+          )}
+        >
+          <label htmlFor="credit-annul-reason" className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
+          <textarea
+            id="credit-annul-reason"
+            value={annulReason}
+            onChange={(e) => setAnnulReason(e.target.value)}
+            className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 resize-none"
+            rows={3}
+          />
+        </ModalShell>
       )}
 
       {/* Modal: Capital Contribution */}
       {showCapitalModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-2xl border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-semibold text-text-primary">Abono a capital</h3>
-              <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Reduce capital vivo. No paga cuotas futuras; recalcula el cronograma pendiente.
-              </p>
-            </div>
-            <div className="p-6 space-y-4">
+        <ModalShell
+          title="Abono a capital"
+          subtitle="Reduce capital vivo. No paga cuotas futuras; recalcula el cronograma pendiente."
+          maxWidthClassName="max-w-2xl"
+          footer={(
+            <>
+              <ActionButton onClick={() => setShowCapitalModal(false)} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton
+                onClick={handleRecordCapital}
+                disabled={!capitalAmount || parseFloat(capitalAmount) <= 0}
+                variant="primary"
+                fullWidth
+              >
+                Registrar abono
+              </ActionButton>
+            </>
+          )}
+        >
+            <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label htmlFor="credit-capital-amount" className="block text-sm font-medium text-text-primary mb-1">Monto del abono</label>
@@ -2102,21 +2129,36 @@ export default function CreditDetails() {
                 </p>
               </div>
             </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={() => setShowCapitalModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleRecordCapital} disabled={!capitalAmount || parseFloat(capitalAmount) <= 0} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50">Registrar abono</button>
-            </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
 
       {showEditPaymentMethodModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Editar método de pago</h3>
-            </div>
-            <div className="p-6 space-y-4">
+        <ModalShell
+          title="Editar método de pago"
+          footer={(
+            <>
+              <ActionButton
+                onClick={() => {
+                  setShowEditPaymentMethodModal(false);
+                  setEditingPaymentId(null);
+                  setEditingPaymentReconciled(false);
+                }}
+                fullWidth
+              >
+                Cancelar
+              </ActionButton>
+              <ActionButton
+                onClick={handleUpdatePaymentMethod}
+                disabled={editingPaymentReconciled}
+                variant="primary"
+                fullWidth
+              >
+                Guardar
+              </ActionButton>
+            </>
+          )}
+        >
+            <div className="space-y-4">
               {editingPaymentReconciled && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                   El pago está conciliado. No se permite editar su método.
@@ -2137,56 +2179,37 @@ export default function CreditDetails() {
                 </select>
               </div>
             </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button
-                onClick={() => {
-                  setShowEditPaymentMethodModal(false);
-                  setEditingPaymentId(null);
-                  setEditingPaymentReconciled(false);
-                }}
-                className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleUpdatePaymentMethod}
-                disabled={editingPaymentReconciled}
-                className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
 
       {/* Modal: Late Fee Rate */}
       {showLateFeeModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-xl w-full max-w-sm border border-border-subtle shadow-xl overflow-hidden">
-             <div className="p-6 border-b border-border-subtle">
-              <h3 className="text-lg font-medium text-text-primary">Tasa de mora anual</h3>
-            </div>
-            <div className="p-6">
-              <label htmlFor="credit-late-fee-rate" className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
-              <div className="relative">
-                <input
-                  id="credit-late-fee-rate"
-                  type="number"
-                  value={lateFeeRate}
-                  onChange={(e) => setLateFeeRate(e.target.value)}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg pl-3 pr-8 py-2 outline-none focus:border-text-primary"
-                  placeholder="0.00" min="0" max="100" step="0.01"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
-              </div>
-            </div>
-            <div className="p-4 bg-bg-base border-t border-border-subtle flex gap-3">
-              <button onClick={() => setShowLateFeeModal(false)} className="flex-1 py-2 text-sm text-text-secondary hover:bg-hover-bg rounded-lg">Cancelar</button>
-              <button onClick={handleUpdateLateFeeRate} className="flex-1 py-2 text-sm bg-text-primary text-bg-base rounded-lg">Guardar</button>
-            </div>
+        <ModalShell
+          title="Tasa de mora anual"
+          footer={(
+            <>
+              <ActionButton onClick={() => setShowLateFeeModal(false)} fullWidth>
+                Cancelar
+              </ActionButton>
+              <ActionButton onClick={handleUpdateLateFeeRate} variant="primary" fullWidth>
+                Guardar
+              </ActionButton>
+            </>
+          )}
+        >
+          <label htmlFor="credit-late-fee-rate" className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
+          <div className="relative">
+            <input
+              id="credit-late-fee-rate"
+              type="number"
+              value={lateFeeRate}
+              onChange={(e) => setLateFeeRate(e.target.value)}
+              className="w-full bg-bg-base border border-border-strong rounded-lg pl-3 pr-8 py-2 outline-none focus:border-text-primary"
+              placeholder="0.00" min="0" max="100" step="0.01"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
           </div>
-        </div>
+        </ModalShell>
       )}
 
     </div>

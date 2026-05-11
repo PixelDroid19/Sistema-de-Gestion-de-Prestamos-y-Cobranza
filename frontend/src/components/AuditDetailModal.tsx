@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, Code2, Globe2, Server, UserRound, X } from 'lucide-react';
+import { Activity, Code2, Globe2, Server, UserRound } from 'lucide-react';
 import { AuditLog } from '../services/auditService';
+import { ActionButton, ModalShell } from './shared/Surfaces';
 import {
   formatAuditDate,
   getAuditEntityTypeLabel,
@@ -74,27 +75,14 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
   const service = getAuditServiceLabel(auditLog);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_24px_70px_-35px_rgba(15,23,42,0.65)]">
-        <header className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Evento auditable</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-text-primary">Detalle de operación</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-5 text-text-secondary">
-              Revisa servicio, origen de red, actor y cambios registrados.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-base text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
-            aria-label="Cerrar detalle de auditoría"
-          >
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="overflow-y-auto px-5 py-4">
+    <ModalShell
+      title="Detalle de operación"
+      subtitle="Revisa servicio, origen de red, actor y cambios registrados."
+      maxWidthClassName="max-w-4xl"
+      footer={<ActionButton onClick={onClose}>Cerrar</ActionButton>}
+    >
+        <div className="overflow-y-auto">
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Evento auditable</p>
           <section className="grid gap-3 border-b border-border-subtle pb-4 md:grid-cols-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
@@ -187,17 +175,6 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
             </section>
           )}
         </div>
-
-        <footer className="flex justify-end border-t border-border-subtle bg-bg-base px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
-          >
-            Cerrar
-          </button>
-        </footer>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
