@@ -12,7 +12,7 @@ import {
 import { useConfig } from '../services/configService';
 import { toast } from '../lib/toast';
 import { confirmDanger } from '../lib/confirmModal';
-import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
 type SettingsTab = 'payment-methods' | 'rate-policies' | 'late-fee-policies';
@@ -537,14 +537,14 @@ export default function Settings() {
                   />
                 </label>
               </div>
-              <button
+              <ActionButton
                 type="submit"
                 disabled={createPaymentMethod.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="primary"
+                icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 Crear método
-              </button>
+              </ActionButton>
             </ToolbarSurface>
 
             <DataTableSurface>
@@ -571,7 +571,7 @@ export default function Settings() {
                         <td><StatusBadge active={method.isActive !== false} /></td>
                         <td>
                           <div className="flex justify-end gap-2">
-                            <button
+                            <ActionButton
                               type="button"
                               onClick={async () => {
                                 try {
@@ -583,12 +583,13 @@ export default function Settings() {
                                 }
                               }}
                               disabled={updatePaymentMethod.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-primary transition hover:bg-hover-bg disabled:opacity-50"
+                              variant="ghost"
+                              icon={method.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              {method.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                               {method.isActive === false ? 'Activar' : 'Desactivar'}
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                               type="button"
                               onClick={() => handleDelete({
                                 title: 'Eliminar método de pago',
@@ -597,11 +598,12 @@ export default function Settings() {
                                 successMessage: 'Método eliminado',
                               })}
                               disabled={deletePaymentMethod.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-400/10"
+                              variant="danger"
+                              icon={<Trash2 size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              <Trash2 size={14} />
                               Eliminar
-                            </button>
+                            </ActionButton>
                           </div>
                         </td>
                       </tr>
@@ -696,14 +698,14 @@ export default function Settings() {
                   />
                 </label>
               </div>
-              <button
+              <ActionButton
                 type="submit"
                 disabled={createRatePolicy.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="primary"
+                icon={<Save size={16} />}
               >
-                <Save size={16} />
                 Crear tasa
-              </button>
+              </ActionButton>
             </ToolbarSurface>
 
             <DataTableSurface>
@@ -729,7 +731,7 @@ export default function Settings() {
                         <td><StatusBadge active={policy.isActive !== false} /></td>
                         <td>
                           <div className="flex justify-end gap-2">
-                            <button
+                            <ActionButton
                               type="button"
                               onClick={async () => {
                                 try {
@@ -741,12 +743,13 @@ export default function Settings() {
                                 }
                               }}
                               disabled={updateRatePolicy.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-primary transition hover:bg-hover-bg disabled:opacity-50"
+                              variant="ghost"
+                              icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              {policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                               {policy.isActive === false ? 'Activar' : 'Desactivar'}
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                               type="button"
                               onClick={() => handleDelete({
                                 title: 'Eliminar política de tasa',
@@ -755,11 +758,12 @@ export default function Settings() {
                                 successMessage: 'Política eliminada',
                               })}
                               disabled={deleteRatePolicy.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-400/10"
+                              variant="danger"
+                              icon={<Trash2 size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              <Trash2 size={14} />
                               Eliminar
-                            </button>
+                            </ActionButton>
                           </div>
                         </td>
                       </tr>
@@ -847,14 +851,14 @@ export default function Settings() {
                   />
                 </label>
               </div>
-              <button
+              <ActionButton
                 type="submit"
                 disabled={createLateFeePolicy.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="primary"
+                icon={<Save size={16} />}
               >
-                <Save size={16} />
                 Crear política
-              </button>
+              </ActionButton>
             </ToolbarSurface>
 
             <DataTableSurface>
@@ -880,7 +884,7 @@ export default function Settings() {
                         <td><StatusBadge active={policy.isActive !== false} /></td>
                         <td>
                           <div className="flex justify-end gap-2">
-                            <button
+                            <ActionButton
                               type="button"
                               onClick={async () => {
                                 try {
@@ -892,12 +896,13 @@ export default function Settings() {
                                 }
                               }}
                               disabled={updateLateFeePolicy.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-primary transition hover:bg-hover-bg disabled:opacity-50"
+                              variant="ghost"
+                              icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              {policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                               {policy.isActive === false ? 'Activar' : 'Desactivar'}
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                               type="button"
                               onClick={() => handleDelete({
                                 title: 'Eliminar política de mora',
@@ -906,11 +911,12 @@ export default function Settings() {
                                 successMessage: 'Política eliminada',
                               })}
                               disabled={deleteLateFeePolicy.isPending}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-400/10"
+                              variant="danger"
+                              icon={<Trash2 size={14} />}
+                              className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              <Trash2 size={14} />
                               Eliminar
-                            </button>
+                            </ActionButton>
                           </div>
                         </td>
                       </tr>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Plus, History } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { toast } from '../lib/toast';
+import { ActionButton, EmptyState, ModalShell, SectionSurface } from './shared/Surfaces';
 
 interface Contribution {
   id: number;
@@ -57,38 +58,30 @@ export default function ContributionModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-surface rounded-2xl w-full max-w-lg border border-border-subtle">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <div className="flex items-center gap-2">
-            <History size={20} className="text-emerald-600" />
-            <h3 className="text-lg font-semibold text-text-primary">Historial de aportes</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 max-h-[60vh] overflow-y-auto">
-          {/* Add Contribution Button */}
+    <ModalShell
+      title="Historial de aportes"
+      subtitle="Consulta y registra aportes asociados al socio."
+      maxWidthClassName="max-w-lg"
+      footer={(
+        <ActionButton onClick={onClose} fullWidth>
+          Cerrar
+        </ActionButton>
+      )}
+    >
           {canAddContribution && !showAddForm && (
-            <button
+            <ActionButton
               onClick={() => setShowAddForm(true)}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors mb-4"
+              variant="primary"
+              fullWidth
+              icon={<Plus size={16} />}
+              className="mb-4"
             >
-              <Plus size={16} /> Nuevo aporte
-            </button>
+              Nuevo aporte
+            </ActionButton>
           )}
 
-          {/* Add Contribution Form */}
           {canAddContribution && showAddForm && (
-            <form onSubmit={handleSubmit} className="bg-bg-base border border-border-subtle rounded-xl p-4 mb-4">
-              <h4 className="text-sm font-medium text-text-primary mb-3">Registrar nuevo aporte</h4>
+            <SectionSurface as="form" onSubmit={handleSubmit} className="mb-4" title="Registrar nuevo aporte">
               <div className="space-y-3">
                 <div>
                   <label htmlFor="new-contribution-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
@@ -105,31 +98,31 @@ export default function ContributionModal({
                   />
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <ActionButton
                     type="button"
                     onClick={() => {
                       setShowAddForm(false);
                       setAmount('');
                     }}
-                    className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg text-text-secondary"
+                    fullWidth
                   >
                     Cancelar
-                  </button>
-                  <button
+                  </ActionButton>
+                  <ActionButton
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                    variant="primary"
+                    fullWidth
                   >
-                    {isSubmitting ? 'Guardando…' : 'Confirmar'}
-                  </button>
+                    {isSubmitting ? 'Guardando...' : 'Confirmar'}
+                  </ActionButton>
                 </div>
               </div>
-            </form>
+            </SectionSurface>
           )}
 
-          {/* Contributions List */}
           {isLoading ? (
-            <div className="text-center py-8 text-text-secondary">Cargando historial…</div>
+            <EmptyState compact title="Cargando historial..." />
           ) : contributions && contributions.length > 0 ? (
             <div className="space-y-2">
               {contributions.map((contribution) => (
@@ -155,22 +148,8 @@ export default function ContributionModal({
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-text-secondary">
-              No hay aportes registrados.
-            </div>
+            <EmptyState title="No hay aportes registrados." />
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-border-subtle">
-          <button
-            onClick={onClose}
-            className="w-full py-2 border border-border-subtle rounded-lg hover:bg-hover-bg text-text-secondary"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

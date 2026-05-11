@@ -11,12 +11,23 @@ import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import MeasuredChart from './shared/MeasuredChart';
-import { MetricCard } from './shared/Surfaces';
-import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
+import {
+  ActionButton,
+  DataTableSurface,
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SectionSurface,
+  ToolbarSurface,
+} from './shared/Surfaces';
+import { HelpTooltip } from './shared/HelpSupport';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
 const formatMoney = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
+
+const reportTabClassName = (selected: boolean) => `view-tab ${selected ? 'view-tab--active' : ''}`;
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -199,30 +210,26 @@ export default function Reports() {
   }
 
   return (
-    <div className="flex flex-col gap-6 h-full pb-8" data-tour="reports-page">
-      <div className="flex justify-between items-center" data-tour="reports-header">
-        <div>
-          <h2 className="text-2xl font-semibold">{tTerm('reports.module.title')}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tTerm('reports.module.subtitle')}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <QuickGuideButton guideKey="reports" />
-          {reportExportGuard.visible && (
-            <button
-              type="button"
-              onClick={handleExportReport}
-              disabled={isExporting || !reportExportGuard.executable}
-              title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
-              className="flex items-center gap-2 bg-bg-surface border border-border-strong text-text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-hover-bg disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('reports.cta.export')}
-            </button>
-          )}
-        </div>
-      </div>
+    <PageShell data-tour="reports-page">
+      <PageHeader
+        title={tTerm('reports.module.title')}
+        subtitle={tTerm('reports.module.subtitle')}
+        guideKey="reports"
+        tourId="reports-header"
+        actions={reportExportGuard.visible ? (
+          <ActionButton
+            onClick={handleExportReport}
+            disabled={isExporting || !reportExportGuard.executable}
+            title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
+            icon={<Download size={16} />}
+          >
+            {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
+          </ActionButton>
+        ) : null}
+      />
 
       {reportExportGuard.visible && (
-      <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
+      <ToolbarSurface as="form" className="settings-config-form" aria-label="Exportar reportes por rango">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label htmlFor="report-type" className="block text-xs text-text-secondary mb-1">Tipo de reporte</label>
@@ -257,53 +264,54 @@ export default function Reports() {
             />
           </div>
           <div className="flex items-end">
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              fullWidth
               onClick={handleExportContextualReport}
               disabled={isExporting || hasInvalidRange || !reportExportGuard.executable}
               title={hasInvalidRange ? 'El rango de fechas es inválido.' : (reportExportGuard.executable ? 'Exportar reporte contextual' : (reportExportGuard.reason || 'Acción no disponible'))}
-              className="w-full flex items-center justify-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              icon={<Download size={16} />}
             >
-              <Download size={16} /> {isExporting ? 'Exportando…' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
-            </button>
+              {isExporting ? 'Exportando...' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
+            </ActionButton>
           </div>
         </div>
         {hasInvalidRange && (
           <p className="mt-2 text-sm text-red-600">La fecha "Desde" no puede ser mayor que "Hasta".</p>
         )}
-      </div>
+      </ToolbarSurface>
       )}
 
-      <div className="flex gap-6 border-b border-border-subtle" data-tour="reports-tabs">
+      <div className="view-tabs" data-tour="reports-tabs">
         <button 
           onClick={() => setActiveTab('dashboard')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={reportTabClassName(activeTab === 'dashboard')}
         >
           Dashboard General
         </button>
         <button 
           onClick={() => setActiveTab('outstanding')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'outstanding' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={reportTabClassName(activeTab === 'outstanding')}
           title="Clientes y créditos con cuotas vencidas"
         >
           Créditos en mora
         </button>
         <button 
           onClick={() => setActiveTab('profitability')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profitability' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={reportTabClassName(activeTab === 'profitability')}
         >
           Rentabilidad de clientes
         </button>
         <button 
           onClick={() => setActiveTab('payouts')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'payouts' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={reportTabClassName(activeTab === 'payouts')}
           title="Resumen y detalle de pagos aplicados"
         >
           Pagos y desembolsos
         </button>
         <button 
           onClick={() => setActiveTab('schedule')}
-          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'schedule' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          className={reportTabClassName(activeTab === 'schedule')}
           title="Cronograma de cuotas por crédito"
         >
           Calendario de pagos
@@ -348,9 +356,8 @@ export default function Reports() {
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Chart */}
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6 lg:col-span-2">
-          <div className="flex justify-between items-center mb-6">
+        <SectionSurface className="lg:col-span-2">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
             <div className="flex items-center gap-2">
               <h3 className="font-medium">
                 {tTerm('reports.chart.disbursementRecovery.title')}
@@ -404,23 +411,20 @@ export default function Reports() {
               </MeasuredChart>
             </div>
           ) : (
-            <div className="h-72 w-full rounded-xl border border-dashed border-border-subtle bg-bg-base flex flex-col items-center justify-center text-center px-6">
-              <p className="text-sm font-medium text-text-primary">
-                {hasKpiTotals
-                  ? tTerm('reports.chart.disbursementRecovery.emptyWithKpi')
-                  : tTerm('reports.chart.disbursementRecovery.empty')}
-              </p>
-              <p className="text-xs text-text-secondary mt-2">
-                {hasKpiTotals
-                  ? tTerm('reports.chart.disbursementRecovery.emptyWithKpiHint')
-                  : tTerm('reports.chart.disbursementRecovery.emptyHint')}
-              </p>
-            </div>
+            <EmptyState
+              className="h-72 rounded-xl border border-dashed border-border-subtle bg-bg-base"
+              title={hasKpiTotals
+                ? tTerm('reports.chart.disbursementRecovery.emptyWithKpi')
+                : tTerm('reports.chart.disbursementRecovery.empty')}
+              description={hasKpiTotals
+                ? tTerm('reports.chart.disbursementRecovery.emptyWithKpiHint')
+                : tTerm('reports.chart.disbursementRecovery.emptyHint')}
+            />
           )}
-        </div>
+        </SectionSurface>
 
         {/* Pie Chart */}
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
+        <SectionSurface>
           <h3 className="font-medium mb-6">Estado de la Cartera</h3>
           <div className="h-64 w-full min-w-0">
             <MeasuredChart className="h-full w-full min-w-0" minHeight={256}>
@@ -459,48 +463,50 @@ export default function Reports() {
               </div>
             ))}
           </div>
-            </div>
+            </SectionSurface>
           </div>
         </>
       )}
 
       {activeTab === 'outstanding' && (
-        <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-          <h3 className="font-medium mb-6">Detalle de créditos en mora</h3>
+        <DataTableSurface>
+          <div className="px-4 py-4 sm:px-5">
+            <h3 className="font-medium">Detalle de créditos en mora</h3>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-text-secondary border-b border-border-subtle">
+              <thead>
                 <tr>
-                  <th className="pb-3 font-medium">Cliente</th>
-                  <th className="pb-3 font-medium">Días de Atraso</th>
-                  <th className="pb-3 font-medium">Monto en mora</th>
-                  <th className="pb-3 font-medium">Capital Restante</th>
+                  <th>Cliente</th>
+                  <th>Días de Atraso</th>
+                  <th>Monto en mora</th>
+                  <th>Capital Restante</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-subtle">
+              <tbody>
                 {overdueLoans.map((item: any, i: number) => (
-                  <tr key={i} className="hover:bg-hover-bg transition-colors">
-                    <td className="py-4 font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
-                    <td className="py-4 text-status-warning font-medium">{item.daysOverdue} días</td>
-                    <td className="py-4 font-bold text-status-warning">${item.overdueAmount?.toLocaleString()}</td>
-                    <td className="py-4">${item.remainingCapital?.toLocaleString()}</td>
+                  <tr key={i}>
+                    <td className="font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
+                    <td className="font-medium text-amber-600">{item.daysOverdue} días</td>
+                    <td className="font-bold text-amber-600">${item.overdueAmount?.toLocaleString()}</td>
+                    <td>${item.remainingCapital?.toLocaleString()}</td>
                   </tr>
                 ))}
                 {overdueLoans.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-text-secondary">No hay créditos en mora.</td>
+                    <td colSpan={4} className="table-empty-state">No hay créditos en mora.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </div>
+        </DataTableSurface>
       )}
 
       {activeTab === 'profitability' && (
         <div className="flex flex-col gap-6">
-          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+          <DataTableSurface>
+            <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
               <h3 className="font-medium">Rentabilidad por Cliente</h3>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-text-secondary">Año analítico</span>
@@ -514,34 +520,34 @@ export default function Reports() {
             </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-text-secondary border-b border-border-subtle">
+              <thead>
                 <tr>
-                  <th className="pb-3 font-medium">Cliente</th>
-                  <th className="pb-3 font-medium">Créditos totales</th>
-                  <th className="pb-3 font-medium">Interés Cobrado</th>
-                  <th className="pb-3 font-medium">Mora cobrada</th>
-                  <th className="pb-3 font-medium">Rentabilidad Total</th>
+                  <th>Cliente</th>
+                  <th>Créditos totales</th>
+                  <th>Interés Cobrado</th>
+                  <th>Mora cobrada</th>
+                  <th>Rentabilidad Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-subtle">
+              <tbody>
                 {profitabilityData.map((item: any, i: number) => (
-                  <tr key={i} className="hover:bg-hover-bg transition-colors">
-                    <td className="py-4 font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
-                    <td className="py-4">{item.totalLoans}</td>
-                    <td className="py-4 text-emerald-600">${item.interestCollected?.toLocaleString()}</td>
-                    <td className="py-4 text-amber-600">${item.lateFeesCollected?.toLocaleString()}</td>
-                    <td className="py-4 font-bold text-brand-primary">${item.totalProfit?.toLocaleString()}</td>
+                  <tr key={i}>
+                    <td className="font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
+                    <td>{item.totalLoans}</td>
+                    <td className="text-emerald-600">${item.interestCollected?.toLocaleString()}</td>
+                    <td className="text-amber-600">${item.lateFeesCollected?.toLocaleString()}</td>
+                    <td className="font-bold text-brand-primary">${item.totalProfit?.toLocaleString()}</td>
                   </tr>
                 ))}
                 {profitabilityData.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-text-secondary">No hay datos de rentabilidad disponibles.</td>
+                    <td colSpan={5} className="table-empty-state">No hay datos de rentabilidad disponibles.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          </div>
+          </DataTableSurface>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <MetricCard
@@ -568,8 +574,7 @@ export default function Reports() {
             />
           </div>
 
-          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-            <h4 className="font-medium mb-4">Tendencia avanzada de recuperación y mora</h4>
+          <SectionSurface title="Tendencia avanzada de recuperación y mora">
             {advancedTrendSeries.length > 0 ? (
               <div className="h-72 min-w-0">
                 <MeasuredChart className="h-full min-w-0" minHeight={288}>
@@ -590,11 +595,9 @@ export default function Reports() {
                 </MeasuredChart>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-border-subtle bg-bg-base p-6 text-sm text-text-secondary text-center">
-                No hay series avanzadas para el año seleccionado.
-              </div>
+              <EmptyState compact title="No hay series avanzadas para el año seleccionado." />
             )}
-          </div>
+          </SectionSurface>
         </div>
       )}
 
@@ -641,9 +644,8 @@ export default function Reports() {
             </div>
           )}
 
-          {/* Payouts Table */}
-          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
+          <DataTableSurface>
+            <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
               <h3 className="font-medium">Detalle de pagos</h3>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -680,44 +682,44 @@ export default function Reports() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-text-secondary border-b border-border-subtle">
+                <thead>
                   <tr>
-                    <th className="pb-3 font-medium">ID Pago</th>
-                    <th className="pb-3 font-medium">ID crédito</th>
-                    <th className="pb-3 font-medium">Fecha</th>
-                    <th className="pb-3 font-medium">Monto</th>
-                    <th className="pb-3 font-medium">Capital</th>
-                    <th className="pb-3 font-medium">Interés</th>
-                    <th className="pb-3 font-medium">Mora</th>
-                    <th className="pb-3 font-medium">Tipo</th>
-                    <th className="pb-3 font-medium">Método</th>
+                    <th>ID Pago</th>
+                    <th>ID crédito</th>
+                    <th>Fecha</th>
+                    <th>Monto</th>
+                    <th>Capital</th>
+                    <th>Interés</th>
+                    <th>Mora</th>
+                    <th>Tipo</th>
+                    <th>Método</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle">
+                <tbody>
                   {isPayoutsLoading ? (
                     <tr>
-                      <td colSpan={9} className="py-4 text-center text-text-secondary">Cargando pagos…</td>
+                      <td colSpan={9} className="table-empty-state">Cargando pagos...</td>
                     </tr>
                   ) : payouts.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-4 text-center text-text-secondary">No hay pagos registrados.</td>
+                      <td colSpan={9} className="table-empty-state">No hay pagos registrados.</td>
                     </tr>
                   ) : (
                     payouts.map((payout: any, i: number) => (
-                      <tr key={i} className="hover:bg-hover-bg transition-colors">
-                        <td className="py-4 font-mono text-text-secondary">#{payout.id}</td>
-                        <td className="py-4 font-mono text-blue-600 dark:text-blue-400">#{payout.loanId}</td>
-                        <td className="py-4">{payout.paymentDate ? new Date(payout.paymentDate).toLocaleDateString() : 'N/A'}</td>
-                        <td className="py-4 font-medium">${Number(payout.amount || 0).toLocaleString()}</td>
-                        <td className="py-4 text-text-secondary">${Number(payout.principalApplied || 0).toLocaleString()}</td>
-                        <td className="py-4 text-emerald-600">${Number(payout.interestApplied || 0).toLocaleString()}</td>
-                        <td className="py-4 text-amber-600">${Number(payout.penaltyApplied || 0).toLocaleString()}</td>
-                        <td className="py-4">
+                      <tr key={i}>
+                        <td className="font-mono text-text-secondary">#{payout.id}</td>
+                        <td className="font-mono text-blue-600 dark:text-blue-400">#{payout.loanId}</td>
+                        <td>{payout.paymentDate ? new Date(payout.paymentDate).toLocaleDateString() : 'N/A'}</td>
+                        <td className="font-medium">${Number(payout.amount || 0).toLocaleString()}</td>
+                        <td className="text-text-secondary">${Number(payout.principalApplied || 0).toLocaleString()}</td>
+                        <td className="text-emerald-600">${Number(payout.interestApplied || 0).toLocaleString()}</td>
+                        <td className="text-amber-600">${Number(payout.penaltyApplied || 0).toLocaleString()}</td>
+                        <td>
                           <span className={`px-2 py-1 rounded text-xs ${getChipClassName('info')}`}>
                             {getPaymentTypeLabel(payout.paymentType)}
                           </span>
                         </td>
-                        <td className="py-4 text-text-secondary capitalize">{payout.paymentMethod || 'N/A'}</td>
+                        <td className="text-text-secondary capitalize">{payout.paymentMethod || 'N/A'}</td>
                       </tr>
                     ))
                   )}
@@ -727,7 +729,7 @@ export default function Reports() {
 
             {/* Pagination */}
             {payoutPagination && payoutPagination.totalPages > 1 && (
-              <div className="mt-4 flex justify-between items-center text-sm text-text-secondary">
+              <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   Mostrando {(payoutPage - 1) * payoutPageSize + 1} a {Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems)} de {payoutPagination.totalItems} pagos
                 </div>
@@ -735,48 +737,50 @@ export default function Reports() {
                   <button 
                     disabled={payoutPage === 1}
                     onClick={() => setPayoutPage((currentPage) => currentPage - 1)}
-                    className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+                    className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:opacity-50"
                   >
                     Anterior
                   </button>
                   <button 
                     disabled={payoutPage === payoutPagination.totalPages}
                     onClick={() => setPayoutPage((currentPage) => currentPage + 1)}
-                    className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+                    className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:opacity-50"
                   >
                     Siguiente
                   </button>
                 </div>
               </div>
             )}
-          </div>
+          </DataTableSurface>
         </div>
       )}
 
       {activeTab === 'schedule' && (
         <div className="flex flex-col gap-6">
-          {/* Loan Selector */}
-          <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-            <h3 className="font-medium mb-4">Seleccionar crédito</h3>
-            <div className="flex gap-4 items-center">
+          <ToolbarSurface className="items-stretch lg:items-end">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-medium">Seleccionar crédito</h3>
+              <p className="mt-1 text-sm text-text-secondary">Consulta el calendario operativo de un crédito específico.</p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <input
                 type="number"
                 placeholder="Ingrese ID del crédito"
                 value={selectedLoanId || ''}
                 onChange={(e) => setSelectedLoanId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                className="bg-bg-base text-sm text-text-primary rounded-lg px-4 py-2 border border-border-subtle focus:outline-none w-64"
+                className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-primary focus:outline-none sm:w-64"
               />
-              <button
+              <ActionButton
+                variant="primary"
                 onClick={() => {
                   void refetchSchedule();
                 }}
                 disabled={!selectedLoanId || isScheduleLoading}
-                className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
               >
-                {isScheduleLoading ? 'Cargando…' : 'Ver Calendario'}
-              </button>
+                {isScheduleLoading ? 'Cargando...' : 'Ver calendario'}
+              </ActionButton>
             </div>
-          </div>
+          </ToolbarSurface>
 
           {/* Schedule Display */}
           {scheduleLoan && scheduleSummary && (
@@ -839,8 +843,7 @@ export default function Reports() {
               </div>
 
               {/* Installment Progress */}
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-                <h3 className="font-medium mb-4">Progreso de cuotas</h3>
+              <SectionSurface title="Progreso de cuotas">
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="h-4 bg-bg-base rounded-full overflow-hidden">
@@ -854,36 +857,37 @@ export default function Reports() {
                     {scheduleSummary.paidInstallments} de {scheduleSummary.totalInstallments} cuotas pagadas
                   </span>
                 </div>
-              </div>
+              </SectionSurface>
 
-              {/* Amortization Schedule Table */}
-              <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
-                <h3 className="font-medium mb-6">Calendario de amortización</h3>
+              <DataTableSurface>
+                <div className="px-4 py-4 sm:px-5">
+                  <h3 className="font-medium">Calendario de amortización</h3>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-text-secondary border-b border-border-subtle">
+                    <thead>
                       <tr>
-                        <th className="pb-3 font-medium">#</th>
-                        <th className="pb-3 font-medium">Fecha vencimiento</th>
-                        <th className="pb-3 font-medium">Saldo inicial</th>
-                        <th className="pb-3 font-medium">Cuota</th>
-                        <th className="pb-3 font-medium">Capital</th>
-                        <th className="pb-3 font-medium">Interés</th>
-                        <th className="pb-3 font-medium">Saldo final</th>
-                        <th className="pb-3 font-medium">Estado</th>
+                        <th>#</th>
+                        <th>Fecha vencimiento</th>
+                        <th>Saldo inicial</th>
+                        <th>Cuota</th>
+                        <th>Capital</th>
+                        <th>Interés</th>
+                        <th>Saldo final</th>
+                        <th>Estado</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border-subtle">
+                    <tbody>
                       {schedule.map((entry: any, i: number) => (
-                        <tr key={i} className="hover:bg-hover-bg transition-colors">
-                          <td className="py-4 font-medium">{entry.installmentNumber || i + 1}</td>
-                          <td className="py-4">{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : 'N/A'}</td>
-                          <td className="py-4">${Number(entry.openingBalance || 0).toLocaleString()}</td>
-                          <td className="py-4 font-medium">${Number(entry.scheduledPayment || 0).toLocaleString()}</td>
-                          <td className="py-4 text-text-secondary">${Number(entry.principalComponent || 0).toLocaleString()}</td>
-                          <td className="py-4 text-emerald-600">${Number(entry.interestComponent || 0).toLocaleString()}</td>
-                          <td className="py-4">${Number(entry.remainingBalance || 0).toLocaleString()}</td>
-                          <td className="py-4">
+                        <tr key={i}>
+                          <td className="font-medium">{entry.installmentNumber || i + 1}</td>
+                          <td>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : 'N/A'}</td>
+                          <td>${Number(entry.openingBalance || 0).toLocaleString()}</td>
+                          <td className="font-medium">${Number(entry.scheduledPayment || 0).toLocaleString()}</td>
+                          <td className="text-text-secondary">${Number(entry.principalComponent || 0).toLocaleString()}</td>
+                          <td className="text-emerald-600">${Number(entry.interestComponent || 0).toLocaleString()}</td>
+                          <td>${Number(entry.remainingBalance || 0).toLocaleString()}</td>
+                          <td>
                             <span className={`px-2 py-1 rounded text-xs ${entry.status === 'paid' ? getChipClassName('success') : getChipClassName('warning')}`}>
                               {entry.status === 'paid' ? 'Pagado' : 'Pendiente'}
                             </span>
@@ -893,21 +897,22 @@ export default function Reports() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </DataTableSurface>
             </>
           )}
 
-          {/* Empty State */}
           {!scheduleLoan && !isScheduleLoading && (
-            <div className="bg-bg-surface border border-border-subtle rounded-2xl p-12 text-center">
-              <CalendarClock size={48} className="mx-auto text-text-secondary mb-4" />
-              <h3 className="text-lg font-medium mb-2">Sin datos del calendario</h3>
-              <p className="text-text-secondary">Ingrese un ID de crédito y haga clic en "Ver Calendario" para ver el calendario de pagos.</p>
-            </div>
+            <DataTableSurface>
+              <EmptyState
+                icon={<CalendarClock size={22} />}
+                title="Sin datos del calendario"
+                description='Ingrese un ID de crédito y haga clic en "Ver calendario" para ver el calendario de pagos.'
+              />
+            </DataTableSurface>
           )}
         </div>
       )}
 
-    </div>
+    </PageShell>
   );
 }

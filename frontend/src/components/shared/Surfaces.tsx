@@ -40,6 +40,41 @@ type DataTableSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   className?: string;
 };
 
+type SectionSurfaceProps = React.HTMLAttributes<HTMLElement> & {
+  children: React.ReactNode;
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  as?: 'section' | 'form';
+};
+
+type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  fullWidth?: boolean;
+  isLoading?: boolean;
+};
+
+type EmptyStateProps = React.HTMLAttributes<HTMLDivElement> & {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  icon?: React.ReactNode;
+  action?: React.ReactNode;
+  compact?: boolean;
+};
+
+type ModalShellProps = React.HTMLAttributes<HTMLDivElement> & {
+  children: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  footer?: React.ReactNode;
+  maxWidthClassName?: string;
+  onClose?: () => void;
+};
+
 const accentClassNames: Record<NonNullable<MetricCardProps['accent']>, string> = {
   teal: 'metric-card--teal',
   emerald: 'metric-card--emerald',
@@ -152,5 +187,105 @@ export function DataTableSurface({ children, className = '', ...rest }: DataTabl
     <section className={`data-table-surface ${className}`} {...rest}>
       {children}
     </section>
+  );
+}
+
+export function SectionSurface({
+  children,
+  title,
+  subtitle,
+  actions,
+  className = '',
+  bodyClassName = '',
+  as: Component = 'section',
+  ...rest
+}: SectionSurfaceProps) {
+  return (
+    <Component className={`section-surface ${className}`} {...rest}>
+      {(title || subtitle || actions) && (
+        <div className="section-surface-header">
+          <div className="min-w-0">
+            {title && <h3 className="section-surface-title">{title}</h3>}
+            {subtitle && <p className="section-surface-subtitle">{subtitle}</p>}
+          </div>
+          {actions && <div className="section-surface-actions">{actions}</div>}
+        </div>
+      )}
+      <div className={bodyClassName}>{children}</div>
+    </Component>
+  );
+}
+
+const actionButtonClassNames: Record<NonNullable<ActionButtonProps['variant']>, string> = {
+  primary: 'action-button--primary',
+  secondary: 'action-button--secondary',
+  ghost: 'action-button--ghost',
+  danger: 'action-button--danger',
+};
+
+export function ActionButton({
+  children,
+  icon,
+  variant = 'secondary',
+  fullWidth = false,
+  isLoading = false,
+  className = '',
+  disabled,
+  ...rest
+}: ActionButtonProps) {
+  return (
+    <button
+      className={`action-button ${actionButtonClassNames[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
+      disabled={disabled || isLoading}
+      type="button"
+      {...rest}
+    >
+      {icon && <span className="action-button-icon" aria-hidden="true">{icon}</span>}
+      <span>{isLoading ? 'Procesando...' : children}</span>
+    </button>
+  );
+}
+
+export function EmptyState({
+  title,
+  description,
+  icon,
+  action,
+  compact = false,
+  className = '',
+  ...rest
+}: EmptyStateProps) {
+  return (
+    <div className={`empty-state ${compact ? 'empty-state--compact' : ''} ${className}`} {...rest}>
+      {icon && <div className="empty-state-icon" aria-hidden="true">{icon}</div>}
+      <div className="min-w-0">
+        <p className="empty-state-title">{title}</p>
+        {description && <p className="empty-state-description">{description}</p>}
+      </div>
+      {action && <div className="empty-state-action">{action}</div>}
+    </div>
+  );
+}
+
+export function ModalShell({
+  children,
+  title,
+  subtitle,
+  footer,
+  maxWidthClassName = 'max-w-md',
+  className = '',
+  ...rest
+}: ModalShellProps) {
+  return (
+    <div className="modal-overlay">
+      <div className={`modal-panel ${maxWidthClassName} ${className}`} {...rest}>
+        <div className="modal-header">
+          <h3 className="modal-title">{title}</h3>
+          {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+        </div>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-footer">{footer}</div>}
+      </div>
+    </div>
   );
 }

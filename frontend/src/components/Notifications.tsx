@@ -6,7 +6,7 @@ import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
-import { QuickGuideButton } from './shared/HelpSupport';
+import { ActionButton, DataTableSurface, EmptyState, PageHeader, PageShell } from './shared/Surfaces';
 
 const formatNotificationDate = (value: unknown) => {
   if (!value) {
@@ -72,48 +72,51 @@ export default function Notifications() {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-6" data-tour="notifications-page">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" data-tour="notifications-header">
-        <div className="min-w-0">
-          <h2 className="flex flex-wrap items-center gap-2 text-2xl font-semibold text-text-primary tracking-tight">
-            <Bell size={24} className="shrink-0 text-brand-primary" aria-hidden /> Notificaciones
-            {unreadCount > 0 && (
+    <PageShell className="mx-auto w-full max-w-3xl" data-tour="notifications-page">
+      <PageHeader
+        title={(
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Bell size={24} className="shrink-0 text-brand-primary" aria-hidden />
+            Notificaciones
+            {unreadCount > 0 ? (
               <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">
                 {unreadCount} no leídas
               </span>
-            )}
-          </h2>
-          <p className="mt-1 text-sm text-text-secondary">Alertas operativas, cobros y novedades del sistema.</p>
-        </div>
-        <div className="flex flex-wrap gap-3" data-tour="notifications-actions">
-          <QuickGuideButton guideKey="notifications" />
-          <button 
+            ) : null}
+          </span>
+        )}
+        subtitle="Alertas operativas, cobros y novedades del sistema."
+        guideKey="notifications"
+        tourId="notifications-header"
+        actions={(
+          <div className="flex flex-wrap gap-2" data-tour="notifications-actions">
+          <ActionButton
             onClick={handleMarkAllAsRead}
             disabled={unreadCount === 0 || markAllAsRead.isPending}
-            className="flex items-center gap-2 rounded-lg border border-border-strong bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-600 dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300"
+            icon={<CheckCircle2 size={16} />}
           >
-            <CheckCircle2 size={16} /> {markAllAsRead.isPending ? 'Marcando…' : 'Marcar leídas'}
-          </button>
-          <button
+            {markAllAsRead.isPending ? 'Marcando...' : 'Marcar leídas'}
+          </ActionButton>
+          <ActionButton
             type="button"
             onClick={handleClearNotifications}
             disabled={notifications.length === 0 || clearNotifications.isPending}
-            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:border-red-200 disabled:bg-red-50 disabled:text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:disabled:border-red-500/30 dark:disabled:bg-red-500/10 dark:disabled:text-red-200"
+            variant="danger"
+            icon={<Trash2 size={16} />}
           >
-            <Trash2 size={16} /> {clearNotifications.isPending ? 'Limpiando…' : 'Limpiar'}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col divide-y divide-border-subtle overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-sm" data-tour="notifications-list">
-        {isLoading ? (
-          <div className="px-4 py-10 text-center text-sm text-text-secondary">Cargando notificaciones…</div>
-        ) : isError ? (
-          <div className="px-4 py-10 text-center text-sm text-red-600 dark:text-red-400">
-            {getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })}
+            {clearNotifications.isPending ? 'Limpiando...' : 'Limpiar'}
+          </ActionButton>
           </div>
+        )}
+      />
+
+      <DataTableSurface className="flex flex-1 flex-col divide-y divide-border-subtle" data-tour="notifications-list">
+        {isLoading ? (
+          <EmptyState compact title="Cargando notificaciones..." />
+        ) : isError ? (
+          <EmptyState compact title={getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })} />
         ) : notifications.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-text-secondary">No tienes notificaciones.</div>
+          <EmptyState title="No tienes notificaciones." description="Cuando existan cobros, vencimientos o novedades, aparecerán aquí." />
         ) : (
           notifications.map((notification: any) => {
             const destination = resolveNotificationDestinationForUser(notification, user);
@@ -179,7 +182,7 @@ export default function Notifications() {
             );
           })
         )}
-      </div>
-    </div>
+      </DataTableSurface>
+    </PageShell>
   );
 }

@@ -13,7 +13,7 @@ import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
 import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
-import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, ModalShell, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Payouts() {
@@ -569,10 +569,7 @@ export default function Payouts() {
       </div>
 
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
-            <h3 className="text-xl font-bold mb-4">{tTerm('payouts.cta.recordPayment')}</h3>
-            
+        <ModalShell title={tTerm('payouts.cta.recordPayment')}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="payout-type" className="block text-sm font-medium text-text-secondary mb-1" title="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal">Tipo de pago</label>
@@ -664,31 +661,29 @@ export default function Payouts() {
               )}
 
               <div className="flex gap-3 pt-4">
-                <button 
+                <ActionButton
                   type="button"
                   onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg"
+                  variant="secondary"
+                  fullWidth
                 >
                   Cancelar
-                </button>
-                <button 
+                </ActionButton>
+                <ActionButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
+                  variant="primary"
+                  fullWidth
                 >
-                  {isSubmitting ? 'Procesando…' : 'Confirmar Pago'}
-                </button>
+                  {isSubmitting ? 'Procesando...' : 'Confirmar Pago'}
+                </ActionButton>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {showEditMethodModal && editingPayment && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
-            <h3 className="text-xl font-bold mb-2">Editar método de pago</h3>
-            <p className="text-sm text-text-secondary mb-4">Pago #{editingPayment.id}</p>
+        <ModalShell title="Editar método de pago" subtitle={`Pago #${editingPayment.id}`}>
             {Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled) && (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 El pago está conciliado y no puede modificarse.
@@ -722,27 +717,28 @@ export default function Payouts() {
               </div>
             </div>
             <div className="flex gap-3 pt-4">
-              <button
+              <ActionButton
                 type="button"
                 onClick={() => {
                   setShowEditMethodModal(false);
                   setEditingPayment(null);
                 }}
-                className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg"
+                variant="secondary"
+                fullWidth
               >
                 Cancelar
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 type="button"
                 onClick={handleSavePaymentMethod}
                 disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
-                className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                fullWidth
               >
                 Guardar cambios
-              </button>
+              </ActionButton>
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </PageShell>
   );

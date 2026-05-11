@@ -6,7 +6,7 @@ import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
-import { DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, MetricCard, ModalShell, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
@@ -503,13 +503,11 @@ export default function AssociateDetails() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-surface rounded-2xl w-full max-w-md p-6 border border-border-subtle">
-            <h3 className="text-xl font-semibold mb-4">
-              {showModal === 'contribution' ? 'Registrar aporte de capital' :
-               showModal === 'distribution' ? 'Distribuir ganancias' :
-               'Reinvertir ganancias'}
-            </h3>
+        <ModalShell
+          title={showModal === 'contribution' ? 'Registrar aporte de capital' :
+            showModal === 'distribution' ? 'Distribuir ganancias' :
+              'Reinvertir ganancias'}
+        >
             <form onSubmit={handleAction} className="space-y-4">
               <div>
                 <label htmlFor="associate-action-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
@@ -526,24 +524,24 @@ export default function AssociateDetails() {
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button 
+                <ActionButton
                   type="button"
                   onClick={() => setShowModal(null)}
-                  className="flex-1 py-2 border border-border-subtle rounded-lg hover:bg-hover-bg"
+                  fullWidth
                 >
                   Cancelar
-                </button>
-                <button 
+                </ActionButton>
+                <ActionButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 disabled:opacity-50"
+                  variant="primary"
+                  fullWidth
                 >
-                  {isSubmitting ? 'Procesando…' : 'Confirmar'}
-                </button>
+                  {isSubmitting ? 'Procesando...' : 'Confirmar'}
+                </ActionButton>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {showContributionsModal && contributions !== undefined && (

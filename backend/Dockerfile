@@ -1,8 +1,8 @@
+FROM node:20-alpine AS builder
+
 # ==========================================
 # Stage 1: Build dependencies
 # ==========================================
-FROM node:20-alpine AS builder
-
 WORKDIR /app
 
 # Install build dependencies for native modules
