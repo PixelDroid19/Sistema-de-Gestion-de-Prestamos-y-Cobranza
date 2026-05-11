@@ -197,10 +197,10 @@ function SummaryMetricItem({
 }
 
 const creditPrimaryActionClassName =
-  'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-bg-muted disabled:text-text-muted sm:w-auto';
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-primary bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-primary/90 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-bg-muted disabled:text-text-muted';
 
 const creditSecondaryActionClassName =
-  'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-3.5 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-brand-primary/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:bg-bg-muted disabled:text-text-muted';
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-3.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-brand-primary/35 hover:bg-brand-soft disabled:cursor-not-allowed disabled:bg-bg-muted disabled:text-text-muted';
 
 function stableCreditKey(prefix: string, ...parts: Array<unknown>) {
   const body = parts
@@ -1366,121 +1366,119 @@ export default function CreditDetails() {
   return (
     <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <section className="border-b border-border-subtle pb-4" data-tour="credit-detail-header">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => navigate('/credits')}
-                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
-                aria-label="Volver a créditos"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loan.id}</h1>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
-                {statusInfo.label}
-              </span>
-            </div>
-            <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
-              {creditDetailSubtitle}
-            </p>
-
-            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-              <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
-              <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
-            </div>
-          </div>
-
-          <div className="w-full xl:max-w-[41rem]" data-tour="credit-detail-primary-actions">
-            <ToolbarSurface className="items-stretch gap-4 p-3 lg:items-stretch">
-              <div className="min-w-0 flex-1 lg:max-w-[14rem]">
-                <p className="text-sm font-semibold text-text-primary">Acciones del crédito</p>
-                <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  Opera pagos, estado y reportes sin cambiar la fórmula congelada al crear el crédito.
-                </p>
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => navigate('/credits')}
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                  aria-label="Volver a créditos"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loan.id}</h1>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
+                  {statusInfo.label}
+                </span>
               </div>
-              <div className="grid min-w-0 flex-[1.4] gap-2 sm:grid-cols-2">
-                <QuickGuideButton
-                  guideKey="credit-details"
-                  guideContext={{ loanId }}
-                  className="min-h-10 w-full justify-center"
-                />
-                {installmentPaymentGuard.visible && (
-                  <button
-                    type="button"
-                    onClick={openNextInstallmentPayment}
-                    disabled={!installmentPaymentGuard.executable}
-                    title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-                    className={creditPrimaryActionClassName}
-                  >
-                    <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
-                  </button>
-                )}
-                <div className="grid gap-2 border-t border-border-subtle/80 pt-2 sm:col-span-2 sm:grid-cols-2">
-                {isAdmin && capitalPaymentGuard.visible && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCapitalModal(true)}
-                    disabled={!capitalPaymentGuard.executable}
-                    title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                    className={creditSecondaryActionClassName}
-                  >
-                    <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
-                  </button>
-                )}
-                {isAdmin && lateFeeUpdateGuard.visible && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLateFeeRate(String(loan.annualLateFeeRate || ''));
-                      setShowLateFeeModal(true);
-                    }}
-                    disabled={!lateFeeUpdateGuard.executable}
-                    title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-                    className={creditSecondaryActionClassName}
-                  >
-                    <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
-                  </button>
-                )}
-                {isAdmin && creditStatusUpdateGuard.visible && (
-                  <button
-                    type="button"
-                    onClick={() => setShowStatusModal(true)}
-                    disabled={!creditStatusUpdateGuard.executable}
-                    className={creditSecondaryActionClassName}
-                    title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
-                  >
-                    <Edit2 size={16} /> Estado
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => runExportCreditExcel(loanId)}
-                    disabled={isExportingCreditExcel}
-                    className={creditSecondaryActionClassName}
-                    title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
-                  >
-                    <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando…' : 'Excel'}
-                  </button>
-                )}
+              <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
+                {creditDetailSubtitle}
+              </p>
+
+              <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+                <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
+                <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end" data-tour="credit-detail-primary-actions">
+              <QuickGuideButton
+                guideKey="credit-details"
+                guideContext={{ loanId }}
+                className="h-10 shrink-0"
+              />
+              {installmentPaymentGuard.visible && (
                 <button
                   type="button"
-                  onClick={() => navigate(`/credits/${loanId}/schedule`)}
-                  className={`${creditSecondaryActionClassName} sm:col-span-2`}
-                  title="Ver plan de pagos completo"
+                  onClick={openNextInstallmentPayment}
+                  disabled={!installmentPaymentGuard.executable}
+                  title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
+                  className={creditPrimaryActionClassName}
                 >
-                  <Table size={16} /> Plan de pagos
+                  <DollarSign size={16} /> {isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
                 </button>
-              </div>
-              </div>
-            </ToolbarSurface>
+              )}
+            </div>
           </div>
+
+          <ToolbarSurface className="p-2 lg:items-center lg:justify-start" data-tour="credit-detail-secondary-actions">
+            <span className="shrink-0 px-2 text-[11px] font-bold uppercase tracking-[0.16em] text-text-primary/60">
+              Operaciones
+            </span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {isAdmin && capitalPaymentGuard.visible && (
+                <button
+                  type="button"
+                  onClick={() => setShowCapitalModal(true)}
+                  disabled={!capitalPaymentGuard.executable}
+                  title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+                  className={creditSecondaryActionClassName}
+                >
+                  <Layers size={16} /> {tTerm('creditDetails.cta.capitalContribution')}
+                </button>
+              )}
+              {isAdmin && lateFeeUpdateGuard.visible && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLateFeeRate(String(loan.annualLateFeeRate || ''));
+                    setShowLateFeeModal(true);
+                  }}
+                  disabled={!lateFeeUpdateGuard.executable}
+                  title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
+                  className={creditSecondaryActionClassName}
+                >
+                  <Percent size={16} /> {tTerm('creditDetails.cta.lateFeeRate')}
+                </button>
+              )}
+              {isAdmin && creditStatusUpdateGuard.visible && (
+                <button
+                  type="button"
+                  onClick={() => setShowStatusModal(true)}
+                  disabled={!creditStatusUpdateGuard.executable}
+                  className={creditSecondaryActionClassName}
+                  title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
+                >
+                  <Edit2 size={16} /> Estado
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => runExportCreditExcel(loanId)}
+                  disabled={isExportingCreditExcel}
+                  className={creditSecondaryActionClassName}
+                  title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
+                >
+                  <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando…' : 'Excel'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate(`/credits/${loanId}/schedule`)}
+                className={creditSecondaryActionClassName}
+                title="Ver plan de pagos completo"
+              >
+                <Table size={16} /> Plan de pagos
+              </button>
+            </div>
+          </ToolbarSurface>
         </div>
       </section>
 
       <section
-        className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8"
+        className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4"
         data-tour="credit-detail-metrics"
       >
           <SummaryMetricItem
@@ -1488,7 +1486,6 @@ export default function CreditDetails() {
             label="Capital vivo"
             tooltip="Capital del crédito que todavía no ha sido amortizado. Es el principal pendiente antes de sumar intereses o mora."
             tone="brand"
-            className="xl:col-span-2 2xl:col-span-2"
             value={<span title={formatCurrency(paymentSnapshot?.outstandingPrincipal)}>{formatMetricCurrency(paymentSnapshot?.outstandingPrincipal)}</span>}
           />
           <SummaryMetricItem
