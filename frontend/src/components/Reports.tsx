@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, DollarSign, AlertCircle, Download, Calendar, Wallet, CalendarClock } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, AlertCircle, Download, Wallet, CalendarClock } from 'lucide-react';
 import { useReports, usePayoutsReport, usePaymentSchedule, exportDashboardSummary, exportContextualReport, useFinancialAnalytics } from '../services/reportService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
@@ -361,18 +361,17 @@ export default function Reports() {
               </h3>
               <HelpTooltip text={tTerm('reports.chart.disbursementRecovery.help')} align="right" />
             </div>
-            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-1.5">
-              <Calendar size={14} className="text-text-secondary" />
-              <select
+            <div className="min-w-44">
+              <SelectInput
+                aria-label="Rango de gráfica"
                 value={chartRange}
-                 onChange={(event) => setChartRange(event.target.value as 'last6' | 'year' | 'historical')}
-                 className="bg-transparent text-sm text-text-secondary focus:outline-none cursor-pointer appearance-none pr-2"
-               >
-                 <option value="last6">{tTerm('reports.chart.disbursementRecovery.range.last6')}</option>
-                 <option value="year">{tTerm('reports.chart.disbursementRecovery.range.year')}</option>
-                 <option value="historical">{tTerm('reports.chart.disbursementRecovery.range.historical')}</option>
-               </select>
-             </div>
+                onChange={(event) => setChartRange(event.target.value as 'last6' | 'year' | 'historical')}
+              >
+                <option value="last6">{tTerm('reports.chart.disbursementRecovery.range.last6')}</option>
+                <option value="year">{tTerm('reports.chart.disbursementRecovery.range.year')}</option>
+                <option value="historical">{tTerm('reports.chart.disbursementRecovery.range.historical')}</option>
+              </SelectInput>
+            </div>
            </div>
           <p className="text-xs text-text-secondary mb-4">
             <span className="font-medium">{tTerm('reports.chart.scope.label')}:</span> {tTerm('reports.chart.scope.selectedRange')} {tTerm('reports.chart.scope.currentRangePrefix')} {chartRangeLabel}.
@@ -505,15 +504,13 @@ export default function Reports() {
           <DataTableSurface>
             <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
               <h3 className="font-medium">Rentabilidad por Cliente</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-text-secondary">Año analítico</span>
-                <input
+              <FormField label="Año analítico" className="md:w-36">
+                <TextInput
                   type="number"
                   value={analyticsYear}
                   onChange={(event) => setAnalyticsYear(Number(event.target.value) || new Date().getFullYear())}
-                  className="w-28 bg-bg-base border border-border-subtle rounded-lg px-3 py-1.5 text-sm"
                 />
-              </div>
+              </FormField>
             </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
