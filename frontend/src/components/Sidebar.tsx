@@ -6,6 +6,7 @@ import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { APP_BRAND } from '../constants/appShell';
 import { useAuth } from '../services/authService';
+import { IconActionButton } from './shared/Surfaces';
 
 export default function Sidebar({ 
   currentView, 
@@ -120,12 +121,12 @@ export default function Sidebar({
           </button>
           
           {/* Botón cerrar (Solo Móvil) */}
-          <button 
-            className="md:hidden p-2 text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors"
+          <IconActionButton
+            className="md:hidden"
+            label="Cerrar menú"
+            icon={<X size={20} />}
             onClick={() => setIsMobileOpen(false)}
-          >
-            <X size={20} />
-          </button>
+          />
         </div>
         
         {/* Navegación Principal */}
@@ -143,35 +144,14 @@ export default function Sidebar({
           {/* Menú Clientes */}
           {isAdmin && (
           <div className="mt-1">
-              <button 
+              <SectionNavButton
+                icon={<Users size={20} />}
+                label={tTerm('sidebar.customers')}
+                active={isCustomersView}
+                isCollapsed={isCollapsed}
+                isOpen={openMenus['clientes']}
                 onClick={() => handleSectionClick('clientes', 'customers', isCustomersView)}
-                data-active={isCollapsed && isCustomersView ? "true" : "false"}
-                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                isCollapsed ? 'justify-center' : 'justify-between gap-3'
-              } ${
-                isCustomersView && isCollapsed
-                  ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary' 
-                  : isCustomersView 
-                    ? 'text-text-primary font-semibold' 
-                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-              }`}
-              title={isCollapsed ? tTerm('sidebar.customers') : undefined}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`${isCustomersView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
-                  <Users size={20} />
-                </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.customers')}</span>}
-              </div>
-              {!isCollapsed && (
-                <div className={`transition-transform duration-200 ${openMenus['clientes'] ? 'rotate-180' : ''}`}>
-                  <ChevronDown size={16} />
-                </div>
-              )}
-              {isCustomersView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
-              )}
-            </button>
+              />
             
             {openMenus['clientes'] && !isCollapsed && (
                   <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
@@ -195,35 +175,14 @@ export default function Sidebar({
           {/* Menú Créditos */}
           {canAccessCredits && (
           <div className="mt-1">
-              <button 
+              <SectionNavButton
+                icon={<CreditCard size={20} />}
+                label={tTerm('sidebar.credits')}
+                active={isCreditsView}
+                isCollapsed={isCollapsed}
+                isOpen={openMenus['creditos']}
                 onClick={() => handleSectionClick('creditos', 'credits', isCreditsView)}
-                data-active={isCollapsed && isCreditsView ? "true" : "false"}
-                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
-                } ${
-                  isCreditsView && isCollapsed
-                    ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary'
-                    : isCreditsView
-                      ? 'text-text-primary font-semibold'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-                }`}
-              title={isCollapsed ? tTerm('sidebar.credits') : undefined}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`${isCreditsView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
-                  <CreditCard size={20} />
-                </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.credits')}</span>}
-              </div>
-              {!isCollapsed && (
-                <div className={`transition-transform duration-200 ${openMenus['creditos'] ? 'rotate-180' : ''}`}>
-                  <ChevronDown size={16} />
-                </div>
-              )}
-              {isCreditsView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
-              )}
-            </button>
+              />
             
             {openMenus['creditos'] && !isCollapsed && (
               <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
@@ -266,35 +225,14 @@ export default function Sidebar({
           {/* Menú Socios */}
           {(isAdmin || isSocio) && (
           <div className="mt-1">
-              <button 
+              <SectionNavButton
+                icon={<UserPlus size={20} />}
+                label={tTerm('sidebar.associates')}
+                active={isAssociatesView}
+                isCollapsed={isCollapsed}
+                isOpen={openMenus['socios']}
                 onClick={() => handleSectionClick('socios', associatesHomeView, isAssociatesView)}
-                data-active={isCollapsed && isAssociatesView ? "true" : "false"}
-                className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
-                  isCollapsed ? 'justify-center' : 'justify-between gap-3'
-                } ${
-                  isAssociatesView && isCollapsed
-                    ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary' 
-                    : isAssociatesView
-                      ? 'text-text-primary font-semibold' 
-                      : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
-                }`}
-              title={isCollapsed ? tTerm('sidebar.associates') : undefined}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`${isAssociatesView ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
-                  <UserPlus size={20} />
-                </div>
-                {!isCollapsed && <span className="text-sm whitespace-nowrap">{tTerm('sidebar.associates')}</span>}
-              </div>
-              {!isCollapsed && (
-                <div className={`transition-transform duration-200 ${openMenus['socios'] ? 'rotate-180' : ''}`}>
-                  <ChevronDown size={16} />
-                </div>
-              )}
-              {isAssociatesView && isCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
-              )}
-            </button>
+              />
             
             {openMenus['socios'] && !isCollapsed && (
               <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
@@ -347,16 +285,64 @@ export default function Sidebar({
           />
           
           {/* Botón Colapsar (Solo Escritorio) */}
-          <button 
+          <IconActionButton
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:flex mt-4 w-full items-center justify-center p-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
-            title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
-          >
-            {isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
-          </button>
+            className="mt-4 hidden w-full md:flex"
+            label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+            icon={isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+          />
         </div>
       </aside>
     </>
+  );
+}
+
+function SectionNavButton({
+  icon,
+  label,
+  active,
+  isCollapsed,
+  isOpen,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  isCollapsed: boolean;
+  isOpen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-active={isCollapsed && active ? 'true' : 'false'}
+      className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
+        isCollapsed ? 'justify-center' : 'justify-between gap-3'
+      } ${
+        active && isCollapsed
+          ? 'bg-brand-primary/12 text-text-primary font-semibold dark:bg-brand-primary/25 dark:text-text-primary'
+          : active
+            ? 'text-text-primary font-semibold'
+            : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+      }`}
+      title={isCollapsed ? label : undefined}
+    >
+      <span className="flex items-center gap-3">
+        <span className={`${active ? 'text-text-primary' : ''} transition-transform duration-200 group-hover:scale-110`}>
+          {icon}
+        </span>
+        {!isCollapsed && <span className="text-sm whitespace-nowrap">{label}</span>}
+      </span>
+      {!isCollapsed && (
+        <span className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+          <ChevronDown size={16} />
+        </span>
+      )}
+      {active && isCollapsed && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
+      )}
+    </button>
   );
 }
 
