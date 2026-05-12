@@ -335,6 +335,24 @@ export const useMonthlyEarnings = (year?: number) => {
   };
 };
 
+export const useMonthlyCashFlow = (year?: number) => {
+  const getMonthlyCashFlow = useQuery({
+    queryKey: queryKeys.reports.monthlyCashFlow(year),
+    queryFn: async () => {
+      const params = year ? { year } : {};
+      const { data } = await apiClient.get('/reports/cash-flow/monthly', { params });
+      return data;
+    },
+  });
+
+  return {
+    data: getMonthlyCashFlow.data?.data,
+    isLoading: getMonthlyCashFlow.isLoading,
+    isError: getMonthlyCashFlow.isError,
+    error: getMonthlyCashFlow.error,
+  };
+};
+
 export const useMonthlyInterest = (year?: number) => {
   const getMonthlyInterest = useQuery({
     queryKey: queryKeys.reports.monthlyInterest(year),
@@ -591,6 +609,24 @@ export const exportDashboardSummary = async (): Promise<void> => {
     url: '/reports/dashboard/excel',
     fileName: 'dashboard-report.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+};
+
+export const exportMonthlyCashFlowExcel = async (year?: number): Promise<void> => {
+  await downloadBlobWithParams({
+    url: '/reports/cash-flow/monthly/excel',
+    fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.xlsx`,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    params: { year },
+  });
+};
+
+export const exportMonthlyCashFlowPdf = async (year?: number): Promise<void> => {
+  await downloadBlobWithParams({
+    url: '/reports/cash-flow/monthly/pdf',
+    fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.pdf`,
+    mimeType: 'application/pdf',
+    params: { year },
   });
 };
 

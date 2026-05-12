@@ -1,7 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 import { TrendingUp, Users, DollarSign, AlertCircle, Download, Wallet, CalendarClock } from 'lucide-react';
-import { useReports, usePayoutsReport, usePaymentSchedule, exportDashboardSummary, exportContextualReport, useFinancialAnalytics } from '../services/reportService';
+import {
+  useReports,
+  usePayoutsReport,
+  usePaymentSchedule,
+  exportDashboardSummary,
+  exportContextualReport,
+  useFinancialAnalytics,
+  useMonthlyCashFlow,
+  exportMonthlyCashFlowExcel,
+  exportMonthlyCashFlowPdf,
+} from '../services/reportService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
@@ -62,14 +72,17 @@ export default function Reports() {
     refetch: refetchSchedule,
   } = usePaymentSchedule(selectedLoanId);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'outstanding' | 'profitability' | 'payouts' | 'schedule'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashflow' | 'outstanding' | 'profitability' | 'payouts' | 'schedule'>('dashboard');
   const [chartRange, setChartRange] = useState<'last6' | 'year' | 'historical'>('last6');
   const [isExporting, setIsExporting] = useState(false);
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
+  const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
+  const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
   const [reportType, setReportType] = useState<'credits' | 'payouts'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
+  const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear);
 
   const metrics = dashboardData?.metrics || {
     totalActiveLoans: 0,
@@ -199,6 +212,23 @@ export default function Reports() {
     setIsExporting(false);
   };
 
+  const handleExportCashFlow = async (format: 'excel' | 'pdf') => {
+    setIsCashFlowExporting(format);
+    await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: user?.permissions },
+      run: async () => {
+        if (format === 'excel') {
+          await exportMonthlyCashFlowExcel(cashFlowYear);
+          return;
+        }
+        await exportMonthlyCashFlowPdf(cashFlowYear);
+      },
+      successMessage: format === 'excel' ? 'Flujo de caja exportado en Excel' : 'Flujo de caja exportado en PDF',
+    });
+    setIsCashFlowExporting(null);
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center text-text-secondary">Cargando reportes…</div>;
   }
@@ -284,6 +314,7 @@ export default function Reports() {
         onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
         tabs={[
           { id: 'dashboard', label: 'Dashboard General' },
+          { id: 'cashflow', label: 'Flujo de caja', title: 'Control mensual de entradas, salidas y caja disponible' },
           { id: 'outstanding', label: 'Créditos en mora', title: 'Clientes y créditos con cuotas vencidas' },
           { id: 'profitability', label: 'Rentabilidad de clientes' },
           { id: 'payouts', label: 'Pagos y desembolsos', title: 'Resumen y detalle de pagos aplicados' },
@@ -438,6 +469,153 @@ export default function Reports() {
             </SectionSurface>
           </div>
         </>
+      )}
+
+      {activeTab === 'cashflow' && (
+        <div className="flex flex-col gap-6">
+          <ToolbarSurface className="items-stretch lg:items-end">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-medium text-text-primary">Control financiero mensual</h3>
+              <p className="mt-1 text-sm text-text-secondary">
+                Compara el dinero recibido por cuotas contra el capital entregado en préstamos. La caja disponible se calcula como entradas menos salidas acumuladas.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <FormField label="Año">
+                <TextInput
+                  type="number"
+                  value={cashFlowYear}
+                  min={2000}
+                  max={2100}
+                  onChange={(event) => setCashFlowYear(Number(event.target.value) || new Date().getFullYear())}
+                  className="sm:w-32"
+                />
+              </FormField>
+              <ActionButton
+                onClick={() => handleExportCashFlow('excel')}
+                disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
+                title={reportExportGuard.executable ? 'Exportar flujo de caja mensual en Excel' : (reportExportGuard.reason || 'Acción no disponible')}
+                icon={<Download size={16} />}
+              >
+                {isCashFlowExporting === 'excel' ? 'Exportando...' : 'Excel'}
+              </ActionButton>
+              <ActionButton
+                onClick={() => handleExportCashFlow('pdf')}
+                disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
+                title={reportExportGuard.executable ? 'Exportar flujo de caja mensual en PDF' : (reportExportGuard.reason || 'Acción no disponible')}
+                icon={<Download size={16} />}
+              >
+                {isCashFlowExporting === 'pdf' ? 'Exportando...' : 'PDF'}
+              </ActionButton>
+            </div>
+          </ToolbarSurface>
+
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Entradas por cuotas"
+              value={formatMoney(cashFlowData?.summary?.totalInflows)}
+              tooltip="Pagos completados recibidos durante el año seleccionado."
+              icon={<Wallet size={18} />}
+              accent="emerald"
+            />
+            <MetricCard
+              label="Salidas por préstamos"
+              value={formatMoney(cashFlowData?.summary?.totalOutflows)}
+              tooltip="Capital entregado en créditos durante el año seleccionado."
+              icon={<DollarSign size={18} />}
+              accent="blue"
+            />
+            <MetricCard
+              label="Caja disponible"
+              value={formatMoney(cashFlowData?.summary?.availableCash)}
+              tooltip="Entradas por cuotas menos salidas por préstamos. Ejemplo: entran 50M y se prestan 40M, quedan 10M."
+              icon={<TrendingUp size={18} />}
+              accent="slate"
+            />
+            <MetricCard
+              label="Resultado neto"
+              value={formatMoney(cashFlowData?.summary?.netProfitIndicator)}
+              tooltip="Ganancia cobrada por intereses y mora menos capital en riesgo por mora/default."
+              icon={<AlertCircle size={18} />}
+              accent={Number(cashFlowData?.summary?.netProfitIndicator || 0) < 0 ? 'rose' : 'emerald'}
+            />
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-3">
+            <MetricCard
+              label="Ganancia cobrada"
+              value={formatMoney(cashFlowData?.summary?.totalCollectedProfit)}
+              tooltip="Interés cobrado más mora cobrada. Es dinero realmente recibido, no interés programado."
+              icon={<TrendingUp size={18} />}
+              accent="emerald"
+            />
+            <MetricCard
+              label="Pérdidas en riesgo"
+              value={formatMoney(cashFlowData?.summary?.lossesAtRisk)}
+              tooltip="Capital pendiente en créditos vencidos o en default. Sirve para anticipar deterioro de cartera."
+              icon={<AlertCircle size={18} />}
+              accent="rose"
+            />
+            <MetricCard
+              label="Pagos recibidos"
+              value={Number(cashFlowData?.summary?.paymentCount || 0).toLocaleString()}
+              tooltip="Cantidad de pagos completados que alimentan las entradas del flujo de caja."
+              icon={<Users size={18} />}
+              accent="amber"
+            />
+          </section>
+
+          <DataTableSurface>
+            <div className="px-4 py-4 sm:px-5">
+              <h3 className="font-medium">Historial mensual</h3>
+              <p className="mt-1 text-sm text-text-secondary">
+                Cada fila muestra el cuadre del mes y la caja acumulada disponible al cierre.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr>
+                    <th>Mes</th>
+                    <th>Entradas por cuotas</th>
+                    <th>Salidas por préstamos</th>
+                    <th>Flujo neto</th>
+                    <th>Caja disponible</th>
+                    <th>Ganancia cobrada</th>
+                    <th>Pérdidas en riesgo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isCashFlowLoading ? (
+                    <tr>
+                      <td colSpan={7} className="table-empty-state">Cargando flujo de caja...</td>
+                    </tr>
+                  ) : (cashFlowData?.months || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="table-empty-state">No hay movimientos para el año seleccionado.</td>
+                    </tr>
+                  ) : (
+                    (cashFlowData?.months || []).map((month: any) => (
+                      <tr key={month.month}>
+                        <td className="font-medium">{month.month}</td>
+                        <td className="text-emerald-600">{formatMoney(month.inflows)}</td>
+                        <td className="text-blue-600">{formatMoney(month.outflows)}</td>
+                        <td className={Number(month.netCashFlow || 0) < 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                          {formatMoney(month.netCashFlow)}
+                        </td>
+                        <td className="font-semibold">{formatMoney(month.availableCash)}</td>
+                        <td className="text-emerald-600">{formatMoney(month.collectedProfit)}</td>
+                        <td className={Number(month.lossesAtRisk || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}>
+                          {formatMoney(month.lossesAtRisk)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </DataTableSurface>
+        </div>
       )}
 
       {activeTab === 'outstanding' && (

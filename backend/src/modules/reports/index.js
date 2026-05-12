@@ -32,6 +32,9 @@ const {
   createExportPayoutsExcel,
   createGetPayoutsReport,
   createGetPaymentSchedule,
+  createGetMonthlyCashFlow,
+  createExportMonthlyCashFlowExcel,
+  createExportMonthlyCashFlowPdf,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { associateRepository } = require('@/modules/associates/infrastructure/repositories');
@@ -79,6 +82,9 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     // Enhanced reports - payouts and payment schedule
     getPayoutsReport: createGetPayoutsReport({ reportRepository, paymentRepository }),
     getPaymentSchedule: createGetPaymentSchedule({ loanAccessPolicy }),
+    getMonthlyCashFlow: createGetMonthlyCashFlow({ reportRepository }),
+    exportMonthlyCashFlowExcel: createExportMonthlyCashFlowExcel({ reportRepository }),
+    exportMonthlyCashFlowPdf: createExportMonthlyCashFlowPdf({ reportRepository }),
   };
 
   return createModule({

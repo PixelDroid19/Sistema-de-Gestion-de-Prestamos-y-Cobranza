@@ -5,6 +5,8 @@ import Reports from '../Reports';
 
 const mockExportDashboardSummary = vi.fn().mockResolvedValue(undefined);
 const mockExportContextualReport = vi.fn().mockResolvedValue(undefined);
+const mockExportMonthlyCashFlowExcel = vi.fn().mockResolvedValue(undefined);
+const mockExportMonthlyCashFlowPdf = vi.fn().mockResolvedValue(undefined);
 const mockToastError = vi.fn();
 
 let currentUser = {
@@ -42,10 +44,39 @@ vi.mock('../../services/reportService', () => ({
     forecastAnalysis: { data: null, isLoading: false },
     nextMonthProjection: { data: null, isLoading: false },
   }),
+  useMonthlyCashFlow: () => ({
+    data: {
+      year: 2026,
+      summary: {
+        totalInflows: '50000000.00',
+        totalOutflows: '40000000.00',
+        availableCash: '10000000.00',
+        totalCollectedProfit: '5000000.00',
+        lossesAtRisk: '0.00',
+        netProfitIndicator: '5000000.00',
+        paymentCount: 3,
+      },
+      months: [
+        {
+          month: '2026-01',
+          inflows: '50000000.00',
+          outflows: '40000000.00',
+          netCashFlow: '10000000.00',
+          availableCash: '10000000.00',
+          collectedProfit: '5000000.00',
+          lossesAtRisk: '0.00',
+        },
+      ],
+    },
+    isLoading: false,
+    isError: false,
+  }),
   usePayoutsReport: () => ({ payouts: [], summary: null, pagination: null, isLoading: false }),
   usePaymentSchedule: () => ({ schedule: [], summary: null, loan: null, isLoading: false }),
   exportDashboardSummary: (...args: unknown[]) => mockExportDashboardSummary(...args),
   exportContextualReport: (...args: unknown[]) => mockExportContextualReport(...args),
+  exportMonthlyCashFlowExcel: (...args: unknown[]) => mockExportMonthlyCashFlowExcel(...args),
+  exportMonthlyCashFlowPdf: (...args: unknown[]) => mockExportMonthlyCashFlowPdf(...args),
 }));
 
 vi.mock('../../store/sessionStore', () => ({
@@ -201,6 +232,28 @@ describe('Reports behavioral parity scenarios', () => {
         fromDate: '2026-01-01',
         toDate: '2026-01-31',
       });
+    });
+  });
+
+  it('shows monthly cash flow control and exports Excel/PDF', async () => {
+    renderReports();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Flujo de caja' }));
+
+    expect(screen.getByRole('heading', { name: 'Control financiero mensual' })).toBeInTheDocument();
+    expect(screen.getAllByText('Entradas por cuotas').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Salidas por préstamos').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Caja disponible').length).toBeGreaterThan(0);
+    expect(screen.getByText('2026-01')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+    await waitFor(() => {
+      expect(mockExportMonthlyCashFlowExcel).toHaveBeenCalledWith(2026);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    await waitFor(() => {
+      expect(mockExportMonthlyCashFlowPdf).toHaveBeenCalledWith(2026);
     });
   });
 

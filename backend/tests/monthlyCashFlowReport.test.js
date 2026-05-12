@@ -1,0 +1,224 @@
+const { test, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
+const express = require('express');
+const http = require('node:http');
+const ExcelJS = require('exceljs');
+
+const { createReportsRouter } = require('@/modules/reports/presentation/router');
+const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
+const {
+  buildMonthlyCashFlowReport,
+  createGetMonthlyCashFlow,
+  createExportMonthlyCashFlowExcel,
+  createExportMonthlyCashFlowPdf,
+} = require('@/modules/reports/application/useCases/createMonthlyCashFlowReport');
+const { closeServer, listen, requestJson } = require('./helpers/http');
+
+let activeServer;
+
+afterEach(async () => {
+  await closeServer(activeServer);
+  activeServer = null;
+});
+
+const makeLoan = (overrides = {}) => ({
+  id: overrides.id || 1,
+  amount: overrides.amount ?? 0,
+  status: overrides.status || 'active',
+  startDate: overrides.startDate || overrides.createdAt || '2026-01-05T00:00:00.000Z',
+  createdAt: overrides.createdAt || overrides.startDate || '2026-01-05T00:00:00.000Z',
+  principalOutstanding: overrides.principalOutstanding ?? 0,
+  financialSnapshot: overrides.financialSnapshot || {},
+  ...overrides,
+});
+
+const makePayment = (overrides = {}) => ({
+  id: overrides.id || 1,
+  amount: overrides.amount ?? 0,
+  principalApplied: overrides.principalApplied ?? 0,
+  interestApplied: overrides.interestApplied ?? 0,
+  penaltyApplied: overrides.penaltyApplied ?? 0,
+  status: overrides.status || 'completed',
+  paymentDate: overrides.paymentDate || '2026-01-10T00:00:00.000Z',
+  ...overrides,
+});
+
+const requestBuffer = (server, { path, headers = {} }) => new Promise((resolve, reject) => {
+  const { port } = server.address();
+  const request = http.request({
+    hostname: '127.0.0.1',
+    port,
+    method: 'GET',
+    path,
+    headers,
+  }, (response) => {
+    const chunks = [];
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => resolve({
+      statusCode: response.statusCode,
+      headers: response.headers,
+      body: Buffer.concat(chunks),
+    }));
+  });
+  request.on('error', reject);
+  request.end();
+});
+
+test('buildMonthlyCashFlowReport reconciles monthly inflows, outflows, available cash, profit and losses', () => {
+  const report = buildMonthlyCashFlowReport({
+    year: 2026,
+    loans: [
+      makeLoan({ id: 1, amount: 40000000, status: 'active', startDate: '2026-01-02T00:00:00.000Z' }),
+      makeLoan({ id: 2, amount: 5000000, status: 'rejected', startDate: '2026-01-08T00:00:00.000Z' }),
+      makeLoan({
+        id: 3,
+        amount: 10000000,
+        status: 'defaulted',
+        startDate: '2026-02-03T00:00:00.000Z',
+        principalOutstanding: 7000000,
+      }),
+    ],
+    payments: [
+      makePayment({ id: 10, amount: 50000000, principalApplied: 45000000, interestApplied: 4000000, penaltyApplied: 1000000, paymentDate: '2026-01-20T00:00:00.000Z' }),
+      makePayment({ id: 11, amount: 1000000, principalApplied: 1000000, status: 'annulled', paymentDate: '2026-01-21T00:00:00.000Z' }),
+      makePayment({ id: 12, amount: 8000000, principalApplied: 7000000, interestApplied: 1000000, paymentDate: '2026-02-20T00:00:00.000Z' }),
+    ],
+  });
+
+  assert.equal(report.summary.totalInflows, '58000000.00');
+  assert.equal(report.summary.totalOutflows, '50000000.00');
+  assert.equal(report.summary.availableCash, '8000000.00');
+  assert.equal(report.summary.totalCollectedProfit, '6000000.00');
+  assert.equal(report.summary.lossesAtRisk, '7000000.00');
+  assert.equal(report.summary.netProfitIndicator, '-1000000.00');
+
+  assert.equal(report.months[0].month, '2026-01');
+  assert.equal(report.months[0].inflows, '50000000.00');
+  assert.equal(report.months[0].outflows, '40000000.00');
+  assert.equal(report.months[0].availableCash, '10000000.00');
+  assert.equal(report.months[0].collectedProfit, '5000000.00');
+
+  assert.equal(report.months[1].month, '2026-02');
+  assert.equal(report.months[1].inflows, '8000000.00');
+  assert.equal(report.months[1].outflows, '10000000.00');
+  assert.equal(report.months[1].availableCash, '8000000.00');
+  assert.equal(report.months[1].lossesAtRisk, '7000000.00');
+});
+
+test('createGetMonthlyCashFlow reads canonical dataset from repository', async () => {
+  const useCase = createGetMonthlyCashFlow({
+    reportRepository: {
+      async listCashFlowDataset({ year }) {
+        assert.equal(year, 2026);
+        return {
+          loans: [makeLoan({ amount: 40000000 })],
+          payments: [makePayment({ amount: 50000000, principalApplied: 45000000, interestApplied: 5000000 })],
+        };
+      },
+    },
+  });
+
+  const response = await useCase({ actor: { role: 'admin' }, year: 2026 });
+
+  assert.equal(response.success, true);
+  assert.equal(response.data.summary.availableCash, '10000000.00');
+  assert.equal(response.data.months.length, 12);
+});
+
+test('monthly cash flow Excel and PDF exports include operational fields', async () => {
+  const dependencies = {
+    reportRepository: {
+      async listCashFlowDataset() {
+        return {
+          loans: [makeLoan({ amount: 40000000 })],
+          payments: [makePayment({ amount: 50000000, principalApplied: 45000000, interestApplied: 4000000, penaltyApplied: 1000000 })],
+        };
+      },
+    },
+  };
+  const excelUseCase = createExportMonthlyCashFlowExcel(dependencies);
+  const pdfUseCase = createExportMonthlyCashFlowPdf(dependencies);
+
+  const excel = await excelUseCase({ actor: { role: 'admin' }, year: 2026 });
+  assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.match(excel.fileName, /flujo-caja-mensual-2026/);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await buildWorkbookBuffer(excel.sheets));
+  assert.ok(workbook.getWorksheet('Resumen Financiero'));
+  assert.ok(workbook.getWorksheet('Historial Mensual'));
+  const history = workbook.getWorksheet('Historial Mensual');
+  const headers = history.getRow(2).values;
+  assert.ok(headers.includes('Entradas por Cuotas'));
+  assert.ok(headers.includes('Salidas por Préstamos'));
+  assert.ok(headers.includes('Caja Disponible'));
+
+  const pdf = await pdfUseCase({ actor: { role: 'admin' }, year: 2026 });
+  assert.equal(pdf.contentType, 'application/pdf');
+  assert.match(pdf.buffer.toString('utf8'), /%PDF-1.4/);
+  assert.match(pdf.buffer.toString('utf8'), /Flujo de caja mensual 2026/);
+});
+
+test('reports router exposes monthly cash flow JSON, Excel and PDF routes', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: () => (req, _res, next) => {
+      req.user = { id: 1, role: req.headers['x-test-role'] || 'admin' };
+      next();
+    },
+    useCases: {
+      async getMonthlyCashFlow({ actor, year }) {
+        calls.push(['json', actor.role, year]);
+        return { success: true, data: { year, summary: { availableCash: '10000.00' }, months: [] } };
+      },
+      async exportMonthlyCashFlowExcel({ actor, year }) {
+        calls.push(['excel', actor.role, year]);
+        return {
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          fileName: 'flujo-caja-mensual-2026.xlsx',
+          sheets: [{ name: 'Resumen Financiero', rows: [{ indicador: 'Caja disponible', valor: 10000 }] }],
+        };
+      },
+      async exportMonthlyCashFlowPdf({ actor, year }) {
+        calls.push(['pdf', actor.role, year]);
+        return {
+          contentType: 'application/pdf',
+          fileName: 'flujo-caja-mensual-2026.pdf',
+          buffer: Buffer.from('%PDF-1.4 test', 'utf8'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const jsonResponse = await requestJson(activeServer, {
+    path: '/cash-flow/monthly?year=2026',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  assert.equal(jsonResponse.statusCode, 200);
+  assert.equal(jsonResponse.body.data.summary.availableCash, '10000.00');
+
+  const excelResponse = await requestBuffer(activeServer, {
+    path: '/cash-flow/monthly/excel?year=2026',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  assert.equal(excelResponse.statusCode, 200);
+  assert.equal(excelResponse.headers['content-type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+  const pdfResponse = await requestBuffer(activeServer, {
+    path: '/cash-flow/monthly/pdf?year=2026',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  assert.equal(pdfResponse.statusCode, 200);
+  assert.equal(pdfResponse.headers['content-type'], 'application/pdf');
+
+  assert.deepEqual(calls, [
+    ['json', 'admin', 2026],
+    ['excel', 'admin', 2026],
+    ['pdf', 'admin', 2026],
+  ]);
+});

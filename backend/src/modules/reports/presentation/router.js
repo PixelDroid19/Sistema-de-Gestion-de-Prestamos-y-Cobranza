@@ -299,6 +299,28 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
+  router.get('/cash-flow/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    res.json(await useCases.getMonthlyCashFlow({ actor: req.user, year }));
+  }));
+
+  router.get('/cash-flow/monthly/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const exportFile = await useCases.exportMonthlyCashFlowExcel({ actor: req.user, year });
+    const buffer = await buildWorkbookBuffer(exportFile.sheets);
+    sendBufferDownload(res, {
+      contentType: exportFile.contentType,
+      fileName: exportFile.fileName,
+      buffer,
+    });
+  }));
+
+  router.get('/cash-flow/monthly/pdf', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const exportFile = await useCases.exportMonthlyCashFlowPdf({ actor: req.user, year });
+    sendBufferDownload(res, exportFile);
+  }));
+
   router.get('/customer-history/:customerId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerHistory({ actor: req.user, customerId: req.params.customerId }));
   }));

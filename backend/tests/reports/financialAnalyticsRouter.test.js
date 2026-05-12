@@ -12,9 +12,12 @@ afterEach(async () => {
   activeServer = null;
 });
 
-const roleAwareAuth = (roles = []) => (req, res, next) => {
+const roleAwareAuth = (options = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
-  if (roles.length > 0 && !roles.includes(role)) {
+  const allowedRoles = Array.isArray(options)
+    ? options
+    : (options?.permissions ? ['admin', 'employee', 'socio'] : []);
+  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }

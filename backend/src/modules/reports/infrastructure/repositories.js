@@ -377,6 +377,47 @@ const reportRepository = {
       totalLoanAmount: parseFloat(loans.totalAmount) || 0,
     };
   },
+
+  /**
+   * List canonical loans and payments used to reconcile monthly cash flow.
+   * Inflows are completed payments. Outflows are disbursed loan principal.
+   * @param {{year: number}} options
+   * @returns {Promise<{loans: Array<object>, payments: Array<object>}>}
+   */
+  async listCashFlowDataset({ year }) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    const [loans, payments] = await Promise.all([
+      Loan.findAll({
+        where: {
+          status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] },
+          [Op.or]: [
+            { startDate: { [Op.gte]: startDate, [Op.lte]: endDate } },
+            { createdAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
+          ],
+        },
+        include: reportIncludes,
+        order: [['startDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+      Payment.findAll({
+        where: {
+          status: 'completed',
+          paymentDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        include: [
+          {
+            model: Loan,
+            attributes: ['id', 'amount', 'status', 'customerId'],
+            include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
+          },
+        ],
+        order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+    ]);
+
+    return { loans, payments };
+  },
 };
 
 /**

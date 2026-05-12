@@ -12,9 +12,15 @@ afterEach(async () => {
   activeServer = null;
 });
 
-const roleAwareAuth = (roles = []) => (req, res, next) => {
+const roleAwareAuth = (options = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
-  if (roles.length > 0 && !roles.includes(role)) {
+  const allowedRoles = Array.isArray(options)
+    ? options
+    : (options?.permissions ? ['admin', 'employee', 'socio'] : []);
+  const effectiveAllowedRoles = req.path.startsWith('/credit-history/')
+    ? [...allowedRoles, 'customer']
+    : allowedRoles;
+  if (effectiveAllowedRoles.length > 0 && !effectiveAllowedRoles.includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }

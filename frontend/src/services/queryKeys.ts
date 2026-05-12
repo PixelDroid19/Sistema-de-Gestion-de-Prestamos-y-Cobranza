@@ -101,6 +101,7 @@ export const queryKeys = {
     creditEarnings: ['reports.creditEarnings'] as const,
     interestEarnings: (year?: number) => ['reports.interestEarnings', year] as const,
     monthlyEarnings: (year?: number) => ['reports.monthlyEarnings', year] as const,
+    monthlyCashFlow: (year?: number) => ['reports.monthlyCashFlow', year] as const,
     monthlyInterest: (year?: number) => ['reports.monthlyInterest', year] as const,
     performanceAnalysis: (year?: number) => ['reports.performanceAnalysis', year] as const,
     executiveDashboard: ['reports.executiveDashboard'] as const,

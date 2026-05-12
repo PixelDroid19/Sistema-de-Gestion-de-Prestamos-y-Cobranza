@@ -400,6 +400,39 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Archivo Excel del dashboard' } },
       },
     },
+    '/reports/cash-flow/monthly': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Consultar control financiero mensual',
+        description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, ganancia cobrada y pérdidas en riesgo.',
+        parameters: [
+          { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+        ],
+        responses: { 200: { description: 'Resumen financiero mensual e historial por mes' } },
+      },
+    },
+    '/reports/cash-flow/monthly/excel': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar flujo de caja mensual a Excel',
+        description: 'Genera un Excel con hojas Resumen Financiero e Historial Mensual. Los totales coinciden con préstamos y pagos completados registrados en base de datos.',
+        parameters: [
+          { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+        ],
+        responses: { 200: { description: 'Archivo Excel de flujo de caja mensual' } },
+      },
+    },
+    '/reports/cash-flow/monthly/pdf': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar flujo de caja mensual a PDF',
+        description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, ganancia cobrada, pérdidas en riesgo y resultado neto del año seleccionado.',
+        parameters: [
+          { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+        ],
+        responses: { 200: { description: 'Archivo PDF de flujo de caja mensual' } },
+      },
+    },
     '/reports/payouts/excel': {
       get: {
         tags: ['Reports'],

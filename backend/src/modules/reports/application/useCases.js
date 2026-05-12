@@ -1288,4 +1288,7 @@ module.exports = {
   // Enhanced reports use cases
   createGetPayoutsReport: require('./useCases/createGetPayoutsReport').createGetPayoutsReport,
   createGetPaymentSchedule: require('./useCases/createGetPaymentSchedule').createGetPaymentSchedule,
+  createGetMonthlyCashFlow: require('./useCases/createMonthlyCashFlowReport').createGetMonthlyCashFlow,
+  createExportMonthlyCashFlowExcel: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowExcel,
+  createExportMonthlyCashFlowPdf: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowPdf,
 };
