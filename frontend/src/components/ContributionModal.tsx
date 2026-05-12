@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { toast } from '../lib/toast';
-import { ActionButton, EmptyState, ModalShell, SectionSurface } from './shared/Surfaces';
+import { ActionButton, EmptyState, FormField, ModalShell, SectionSurface, TextInput } from './shared/Surfaces';
 
 interface Contribution {
   id: number;
@@ -68,88 +68,91 @@ export default function ContributionModal({
         </ActionButton>
       )}
     >
-          {canAddContribution && !showAddForm && (
+      {canAddContribution && !showAddForm && (
+        <ActionButton
+          onClick={() => setShowAddForm(true)}
+          variant="primary"
+          fullWidth
+          icon={<Plus size={16} />}
+          className="mb-4"
+        >
+          Nuevo aporte
+        </ActionButton>
+      )}
+
+      {canAddContribution && showAddForm && (
+        <SectionSurface
+          as="form"
+          onSubmit={handleSubmit}
+          className="mb-4"
+          title="Registrar nuevo aporte"
+          bodyClassName="space-y-3"
+        >
+          <FormField label="Monto" htmlFor="new-contribution-amount" tooltip="Valor que el socio aporta al fondo o relación operativa.">
+            <TextInput
+              id="new-contribution-amount"
+              type="number"
+              required
+              min="1"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </FormField>
+          <div className="flex gap-2">
             <ActionButton
-              onClick={() => setShowAddForm(true)}
+              type="button"
+              onClick={() => {
+                setShowAddForm(false);
+                setAmount('');
+              }}
+              fullWidth
+            >
+              Cancelar
+            </ActionButton>
+            <ActionButton
+              type="submit"
+              disabled={isSubmitting}
               variant="primary"
               fullWidth
-              icon={<Plus size={16} />}
-              className="mb-4"
             >
-              Nuevo aporte
+              {isSubmitting ? 'Guardando...' : 'Confirmar'}
             </ActionButton>
-          )}
+          </div>
+        </SectionSurface>
+      )}
 
-          {canAddContribution && showAddForm && (
-            <SectionSurface as="form" onSubmit={handleSubmit} className="mb-4" title="Registrar nuevo aporte">
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="new-contribution-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
-                  <input
-                    id="new-contribution-amount"
-                    type="number"
-                    required
-                    min="1"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full bg-bg-surface border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <ActionButton
-                    type="button"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setAmount('');
-                    }}
-                    fullWidth
-                  >
-                    Cancelar
-                  </ActionButton>
-                  <ActionButton
-                    type="submit"
-                    disabled={isSubmitting}
-                    variant="primary"
-                    fullWidth
-                  >
-                    {isSubmitting ? 'Guardando...' : 'Confirmar'}
-                  </ActionButton>
-                </div>
+      {isLoading ? (
+        <EmptyState compact title="Cargando historial..." />
+      ) : contributions && contributions.length > 0 ? (
+        <div className="space-y-2">
+          {contributions.map((contribution) => (
+            <SectionSurface
+              key={contribution.id}
+              className="rounded-lg"
+              bodyClassName="flex items-center justify-between gap-3"
+            >
+              <div>
+                <p className="font-medium text-text-primary">
+                  {contribution.displayAmount || `$${contribution.amount.toLocaleString()}`}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  {formatDate(contribution.date)}
+                </p>
+                {contribution.notes && (
+                  <p className="text-xs text-text-secondary mt-1">{contribution.notes}</p>
+                )}
               </div>
+              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                Completado
+              </span>
             </SectionSurface>
-          )}
-
-          {isLoading ? (
-            <EmptyState compact title="Cargando historial..." />
-          ) : contributions && contributions.length > 0 ? (
-            <div className="space-y-2">
-              {contributions.map((contribution) => (
-                <div
-                  key={contribution.id}
-                  className="flex items-center justify-between p-3 bg-bg-base border border-border-subtle rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-text-primary">
-                      {contribution.displayAmount || `$${contribution.amount.toLocaleString()}`}
-                    </p>
-                    <p className="text-xs text-text-secondary">
-                      {formatDate(contribution.date)}
-                    </p>
-                    {contribution.notes && (
-                      <p className="text-xs text-text-secondary mt-1">{contribution.notes}</p>
-                    )}
-                  </div>
-                  <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                    Completado
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No hay aportes registrados." />
-          )}
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No hay aportes registrados." />
+      )}
     </ModalShell>
   );
 }
