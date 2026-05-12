@@ -45,6 +45,10 @@ const buildMockLoan = () => ({
 	      allowed: true,
 	      denialReasons: [] as Array<string | { code?: string; message?: string }>,
 	    },
+      capitalEligibility: {
+        allowed: true,
+        denialReasons: [] as Array<string | { code?: string; message?: string }>,
+      },
 	  },
   Customer: { name: 'Cliente Demo' },
 });
@@ -457,6 +461,10 @@ describe('CreditDetails behavioral parity scenarios', () => {
           allowed: false,
           denialReasons: [{ message: 'Este crédito ya no tiene saldo pendiente para liquidar.' }],
         },
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{ code: 'NO_OUTSTANDING_BALANCE', message: 'Loan has no outstanding balance for capital payment' }],
+        },
       },
     };
     mockPayoffQuote = {
@@ -475,6 +483,30 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Tasa de mora' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Estado' })).toBeDisabled();
+  });
+
+  it('disables capital payments until the first installment is paid', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      paymentContext: {
+        ...buildMockLoan().paymentContext,
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+          }],
+        },
+      },
+    };
+
+    renderCreditDetails();
+
+    const capitalButton = screen.getByRole('button', { name: 'Abono a capital' });
+    expect(capitalButton).toBeDisabled();
+    fireEvent.click(capitalButton);
+    expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
   });
 
   it('shows a specific payoff denial reason when an active credit still has balance', () => {
@@ -496,6 +528,10 @@ describe('CreditDetails behavioral parity scenarios', () => {
             code: 'PAYOFF_BEFORE_LOAN_START',
             message: 'Payoff effective date must be on or after the loan start date',
           }],
+        },
+        capitalEligibility: {
+          allowed: true,
+          denialReasons: [],
         },
       },
     };

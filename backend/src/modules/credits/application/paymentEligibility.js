@@ -10,6 +10,7 @@ const PAYMENT_DENIAL_CODES = Object.freeze({
   NO_OUTSTANDING_BALANCE: 'NO_OUTSTANDING_BALANCE',
   LOAN_NOT_PAYABLE_STATUS: 'LOAN_NOT_PAYABLE_STATUS',
   PAYOFF_BEFORE_LOAN_START: 'PAYOFF_BEFORE_LOAN_START',
+  FIRST_INSTALLMENT_PAYMENT_REQUIRED: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
 });
 
 const buildOutstandingBalance = (snapshot = {}) => roundCurrency(
@@ -67,6 +68,24 @@ const buildFinancialBlockReason = (financialBlock) => ({
   ...(financialBlock.code ? { blockCode: financialBlock.code } : {}),
   ...(financialBlock.reason ? { blockReason: financialBlock.reason } : {}),
 });
+
+const getInstallmentOutstanding = (row = {}) => roundCurrency(
+  Number(row.remainingPrincipal || 0) + Number(row.remainingInterest || 0),
+);
+
+const isPaidInstallment = (row = {}) => (
+  String(row.status || '').toLowerCase() === 'paid'
+  || (Number(row.paidTotal || 0) > 0.01 && getInstallmentOutstanding(row) <= 0.01)
+);
+
+const hasFirstInstallmentPaid = (schedule = []) => {
+  const payableRows = schedule
+    .filter((row) => String(row?.status || '').toLowerCase() !== 'annulled')
+    .sort((left, right) => Number(left?.installmentNumber || 0) - Number(right?.installmentNumber || 0));
+
+  const firstInstallment = payableRows.find((row) => Number(row?.installmentNumber) === 1) || payableRows[0];
+  return Boolean(firstInstallment && isPaidInstallment(firstInstallment));
+};
 
 const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDate = new Date() }) => {
   const denialReasons = [];
@@ -133,6 +152,13 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.NO_OUTSTANDING_BALANCE,
       message: 'Loan has no outstanding balance for capital payment',
+    });
+  }
+
+  if (outstandingBalance > 0.01 && outstandingPrincipal > 0.01 && !hasFirstInstallmentPaid(schedule)) {
+    denialReasons.push({
+      code: PAYMENT_DENIAL_CODES.FIRST_INSTALLMENT_PAYMENT_REQUIRED,
+      message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
     });
   }
 

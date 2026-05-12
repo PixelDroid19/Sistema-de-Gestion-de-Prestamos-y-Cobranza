@@ -392,6 +392,48 @@ test('evaluateCapitalPaymentEligibility denies no-outstanding-balance, overdue, 
   ]);
 });
 
+test('evaluateCapitalPaymentEligibility denies capital payment until the first installment is paid', () => {
+  const eligibility = evaluateCapitalPaymentEligibility({
+    loan: {
+      status: 'active',
+      principalOutstanding: 900,
+    },
+    schedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-01T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-01T00:00:00.000Z',
+        remainingPrincipal: 300,
+        remainingInterest: 15,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    snapshot: {
+      outstandingPrincipal: 900,
+      outstandingBalance: 935,
+    },
+    asOfDate: new Date('2026-05-15T00:00:00.000Z'),
+  });
+
+  assert.equal(eligibility.allowed, false);
+  assert.deepEqual(eligibility.denialReasons, [{
+    code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+    message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+  }]);
+});
+
 test('normalizeFinancialBlock reads fallback block details from financialSnapshot', () => {
   assert.deepEqual(normalizeFinancialBlock({
     financialSnapshot: {

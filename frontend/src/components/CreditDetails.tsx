@@ -42,11 +42,30 @@ const PAYOFF_DENIAL_MESSAGES: Record<string, string> = {
   FINANCIAL_BLOCK: 'Este crédito tiene un bloqueo financiero activo.',
 };
 
+const CAPITAL_PAYMENT_DENIAL_MESSAGES: Record<string, string> = {
+  FIRST_INSTALLMENT_PAYMENT_REQUIRED: 'Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.',
+  NO_OUTSTANDING_BALANCE: 'Este crédito no tiene capital vivo disponible para abonar.',
+  LOAN_NOT_PAYABLE_STATUS: 'El estado actual del crédito no permite abonos a capital.',
+  OVERDUE_UNPAID_INSTALLMENTS: 'Regulariza las cuotas vencidas antes de abonar a capital.',
+  FINANCIAL_BLOCK: 'Este crédito tiene un bloqueo financiero activo.',
+  PARTIAL_INSTALLMENT_PENDING: 'Completa la cuota parcial pendiente antes de abonar a capital.',
+  DUE_INTEREST_PENDING: 'Primero paga el interés exigible de la cuota pendiente.',
+};
+
 const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
   if (!reason) return '';
   if (typeof reason === 'string') return reason;
   if (reason.code && PAYOFF_DENIAL_MESSAGES[reason.code]) {
     return PAYOFF_DENIAL_MESSAGES[reason.code];
+  }
+  return reason.message || '';
+};
+
+const formatCapitalPaymentDenialReason = (reason: PayoffDenialReason | null) => {
+  if (!reason) return '';
+  if (typeof reason === 'string') return reason;
+  if (reason.code && CAPITAL_PAYMENT_DENIAL_MESSAGES[reason.code]) {
+    return CAPITAL_PAYMENT_DENIAL_MESSAGES[reason.code];
   }
   return reason.message || '';
 };
@@ -109,9 +128,13 @@ export default function CreditDetails() {
       : [];
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
   const payoffEligibility = loan?.paymentContext?.payoffEligibility;
+  const capitalEligibility = loan?.paymentContext?.capitalEligibility;
   const shouldFetchPayoffQuote = canViewPayoff && Boolean(payoffEligibility?.allowed);
   const primaryPayoffDenialReason = Array.isArray(payoffEligibility?.denialReasons)
     ? payoffEligibility.denialReasons[0]
+    : null;
+  const primaryCapitalDenialReason = Array.isArray(capitalEligibility?.denialReasons)
+    ? capitalEligibility.denialReasons[0]
     : null;
 
   const {
@@ -278,11 +301,20 @@ export default function CreditDetails() {
     permissions: user?.permissions,
     loanStatus: loan?.status,
   });
-  const capitalPaymentGuard = resolveOperationalGuard('capital.payment', {
+  const baseCapitalPaymentGuard = resolveOperationalGuard('capital.payment', {
     role: user?.role,
     permissions: user?.permissions,
     loanStatus: loan?.status,
   });
+  const capitalUnavailableDescription = formatCapitalPaymentDenialReason(primaryCapitalDenialReason)
+    || 'Primero debe existir al menos la primera cuota pagada para abonar a capital.';
+  const capitalPaymentGuard = {
+    ...baseCapitalPaymentGuard,
+    executable: Boolean(baseCapitalPaymentGuard.executable && capitalEligibility?.allowed !== false),
+    reason: baseCapitalPaymentGuard.executable && capitalEligibility?.allowed === false
+      ? capitalUnavailableDescription
+      : baseCapitalPaymentGuard.reason,
+  };
   const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', {
     role: user?.role,
     permissions: user?.permissions,
@@ -906,6 +938,13 @@ export default function CreditDetails() {
     const amount = parseFloat(capitalAmount);
     if (!amount || amount <= 0) {
       toast.error({ title: 'Ingrese un monto válido' });
+      return;
+    }
+    if (!capitalPaymentGuard.executable) {
+      toast.error({
+        title: 'Abono a capital no disponible',
+        description: capitalPaymentGuard.reason || capitalUnavailableDescription,
+      });
       return;
     }
     await executeGuardedAction({
@@ -1975,7 +2014,8 @@ export default function CreditDetails() {
               </ActionButton>
               <ActionButton
                 onClick={handleRecordCapital}
-                disabled={!capitalAmount || parseFloat(capitalAmount) <= 0}
+                disabled={!capitalPaymentGuard.executable || !capitalAmount || parseFloat(capitalAmount) <= 0}
+                title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
                 variant="primary"
                 fullWidth
               >
@@ -2061,8 +2101,13 @@ export default function CreditDetails() {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-text-secondary">
-                  Si hay cuotas vencidas, intereses exigibles o una cuota parcial, primero se debe regularizar esa cuota.
+                  Para abonar a capital, la primera cuota debe estar pagada. Si hay cuotas vencidas, intereses exigibles o una cuota parcial, primero se debe regularizar esa cuota.
                 </p>
+                {!capitalPaymentGuard.executable && (
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
+                    {capitalPaymentGuard.reason || capitalUnavailableDescription}
+                  </p>
+                )}
               </div>
             </div>
           </ModalShell>

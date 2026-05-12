@@ -358,8 +358,18 @@ test('applyCapitalPayment accepts configured payment method keys and caches idem
     emiSchedule: [
       {
         installmentNumber: 1,
+        dueDate: '2026-11-01T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 100,
+        paidInterest: 0,
+        paidTotal: 100,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
         dueDate: '2026-12-01T00:00:00.000Z',
-        remainingPrincipal: 1000,
+        remainingPrincipal: 900,
         remainingInterest: 0,
         paidPrincipal: 0,
         paidInterest: 0,

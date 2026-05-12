@@ -1,5 +1,5 @@
 const express = require('express');
-const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
+const { asyncHandler, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http');
 
@@ -7,6 +7,15 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   const router = express.Router();
   const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
   const resolveIdempotencyKey = (req) => req.headers['idempotency-key'] || null;
+  const isBackofficeActor = (actor) => ['admin', 'employee'].includes(actor?.role);
+  const assertBackofficeActor = (actor, message) => {
+    if (!isBackofficeActor(actor)) {
+      throw new AuthorizationError(message);
+    }
+  };
+  const requireBackofficeIdempotencyKey = (req) => (
+    isBackofficeActor(req.user) ? requireIdempotencyKey(req) : null
+  );
   const requireIdempotencyKey = (req) => {
     const rawKey = resolveIdempotencyKey(req);
     const key = Array.isArray(rawKey) ? rawKey[0] : rawKey;
@@ -52,7 +61,8 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create partial payment (admin only; customers use installment or payoff flows).
   router.post('/partial', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
-    const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: requireIdempotencyKey(req) });
+    assertBackofficeActor(req.user, 'Only authorized backoffice users can create partial payments');
+    const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: requireBackofficeIdempotencyKey(req) });
     res.status(201).json({
       success: true,
       message: 'Partial payment created successfully',
@@ -66,11 +76,12 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
 
   // Create capital reduction payment (admin only)
   router.post('/capital', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
+    assertBackofficeActor(req.user, 'Only authorized backoffice users can create capital reduction payments');
     const result = await useCases.createCapitalPayment({
       actor: req.user,
       ...req.body,
       strategy: req.body?.strategy,
-      idempotencyKey: requireIdempotencyKey(req),
+      idempotencyKey: requireBackofficeIdempotencyKey(req),
     });
     res.status(201).json({
       success: true,

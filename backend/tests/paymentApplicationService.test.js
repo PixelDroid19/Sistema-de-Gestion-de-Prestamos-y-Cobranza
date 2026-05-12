@@ -301,6 +301,65 @@ test('applyCapitalPayment reduce_payment preserves pending installment count and
   assert.ok(futureRows.every((row) => row.paidTotal === 0));
 });
 
+test('applyCapitalPayment rejects loans before the first installment is paid', async () => {
+  const loan = {
+    id: 332,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 1000,
+    financialSnapshot: {
+      outstandingPrincipal: 1000,
+      outstandingInterest: 40,
+      outstandingBalance: 1040,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-01T00:00:00.000Z',
+        remainingPrincipal: 250,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-01T00:00:00.000Z',
+        remainingPrincipal: 250,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-first-installment' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 332,
+    amount: 100,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+      message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+    }]);
+    return true;
+  });
+});
+
 test('applyCapitalPayment rejects loans with overdue unpaid installments and exposes denial reasons', async () => {
   const loan = {
     id: 34,
@@ -316,16 +375,16 @@ test('applyCapitalPayment rejects loans with overdue unpaid installments and exp
       {
         installmentNumber: 1,
         dueDate: '2026-03-01T00:00:00.000Z',
-        remainingPrincipal: 100,
-        remainingInterest: 10,
-        paidPrincipal: 0,
-        paidInterest: 0,
-        paidTotal: 0,
-        status: 'pending',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 100,
+        paidInterest: 10,
+        paidTotal: 110,
+        status: 'paid',
       },
       {
         installmentNumber: 2,
-        dueDate: '2026-05-01T00:00:00.000Z',
+        dueDate: '2026-03-10T00:00:00.000Z',
         remainingPrincipal: 200,
         remainingInterest: 20,
         paidPrincipal: 0,
@@ -374,23 +433,23 @@ test('applyCapitalPayment rejects loans with a partial operative installment bef
     emiSchedule: [
       {
         installmentNumber: 1,
-        dueDate: '2026-05-01T00:00:00.000Z',
-        remainingPrincipal: 90,
-        remainingInterest: 10,
-        paidPrincipal: 10,
-        paidInterest: 0,
-        paidTotal: 10,
-        status: 'partial',
+        dueDate: '2026-04-01T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 100,
+        paidInterest: 10,
+        paidTotal: 110,
+        status: 'paid',
       },
       {
         installmentNumber: 2,
         dueDate: '2026-06-01T00:00:00.000Z',
         remainingPrincipal: 200,
         remainingInterest: 20,
-        paidPrincipal: 0,
+        paidPrincipal: 10,
         paidInterest: 0,
-        paidTotal: 0,
-        status: 'pending',
+        paidTotal: 10,
+        status: 'partial',
       },
     ],
     async save() {
@@ -437,8 +496,18 @@ test('applyCapitalPayment rejects loans with a financial block and exposes denia
       {
         installmentNumber: 1,
         dueDate: '2026-04-01T00:00:00.000Z',
-        remainingPrincipal: 100,
-        remainingInterest: 10,
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 100,
+        paidInterest: 10,
+        paidTotal: 110,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-05-01T00:00:00.000Z',
+        remainingPrincipal: 200,
+        remainingInterest: 20,
         paidPrincipal: 0,
         paidInterest: 0,
         paidTotal: 0,

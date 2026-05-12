@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
+const { AuthorizationError, BusinessRuleViolationError, ValidationError } = require('@/utils/errorHandler');
 
 const {
   createListPayments,
@@ -17,12 +17,12 @@ const {
 } = require('@/modules/payouts/application/useCases');
 const { createPayoutsModule } = require('@/modules/payouts');
 
-test('createCreatePayment delegates actor-aware canonical payment application', async () => {
+test('createCreatePayment delegates backoffice canonical payment application', async () => {
   let serviceInput;
   const createPayment = createCreatePayment({
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
-        assert.deepEqual(actor, { id: 12, role: 'customer' });
+        assert.deepEqual(actor, { id: 12, role: 'admin' });
         return { id: Number(loanId) };
       },
     },
@@ -40,7 +40,7 @@ test('createCreatePayment delegates actor-aware canonical payment application', 
   });
 
   const result = await createPayment({
-    actor: { id: 12, role: 'customer' },
+    actor: { id: 12, role: 'admin' },
     loanId: 4,
     amount: 250,
     paymentDate: '2026-03-18',
@@ -201,7 +201,7 @@ test('createCreatePayment stops hidden loan payments before persistence', async 
   });
 });
 
-test('createCreatePayment rejects non-customer payment creation attempts', async () => {
+test('createCreatePayment rejects non-backoffice payment creation attempts', async () => {
   const createPayment = createCreatePayment({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
@@ -215,7 +215,7 @@ test('createCreatePayment rejects non-customer payment creation attempts', async
     },
   });
 
-  await assert.rejects(() => createPayment({ actor: { id: 8, role: 'admin' }, loanId: 4, amount: 250 }), (error) => {
+  await assert.rejects(() => createPayment({ actor: { id: 8, role: 'socio' }, loanId: 4, amount: 250 }), (error) => {
     assert.ok(error instanceof AuthorizationError);
     return true;
   });
@@ -280,7 +280,13 @@ test('createListPaymentsByLoan returns payments plus canonical loan context for 
           outstandingPrincipal: 650,
         },
         payoffEligibility: { allowed: true, denialReasons: [] },
-        capitalEligibility: { allowed: true, denialReasons: [] },
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+          }],
+        },
       },
     },
   });
@@ -348,7 +354,13 @@ test('createListPaymentsByLoan returns paginated payments plus canonical loan co
           outstandingPrincipal: 650,
         },
         payoffEligibility: { allowed: true, denialReasons: [] },
-        capitalEligibility: { allowed: true, denialReasons: [] },
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+          }],
+        },
       },
     },
   });
@@ -499,7 +511,7 @@ test('createCreatePartialPayment rejects customer self-service partial payments'
 
   await assert.rejects(
     () => createPartialPayment({ actor: { id: 7, role: 'customer' }, loanId: 5, amount: 80 }),
-    /Only admins can create partial payments/,
+    /Only authorized backoffice users can create partial payments/,
   );
 });
 
@@ -583,6 +595,65 @@ test('createCreateCapitalPayment delegates payment method to capital application
   });
 });
 
+test('createCreateCapitalPayment audits invalid capital payment attempts', async () => {
+  let auditPayload;
+  const createCapitalPayment = createCreateCapitalPayment({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 5 };
+      },
+    },
+    paymentApplicationService: {
+      async applyCapitalPayment() {
+        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+          code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+          denialReasons: [{
+            code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+          }],
+        });
+      },
+    },
+    auditService: {
+      async log(payload) {
+        auditPayload = payload;
+      },
+    },
+    clock: () => new Date('2026-03-20T00:00:00.000Z'),
+  });
+
+  await assert.rejects(
+    () => createCapitalPayment({
+      actor: { id: 1, name: 'Admin QA', role: 'admin' },
+      loanId: 5,
+      amount: 80,
+      paymentDate: '2026-03-23',
+      paymentMethod: 'transfer',
+      req: { method: 'POST', originalUrl: '/api/payments/capital', headers: {}, ip: '127.0.0.1' },
+    }),
+    BusinessRuleViolationError,
+  );
+
+  assert.deepEqual(auditPayload, {
+    actor: { id: 1, name: 'Admin QA', role: 'admin' },
+    action: 'REJECT',
+    module: 'payments',
+    entityId: '5',
+    entityType: 'CapitalPaymentAttempt',
+    metadata: {
+      amount: 80,
+      paymentMethod: 'transfer',
+      strategy: undefined,
+      errorCode: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+      denialReasons: [{
+        code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+        message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+      }],
+    },
+    req: { method: 'POST', originalUrl: '/api/payments/capital', headers: {}, ip: '127.0.0.1' },
+  });
+});
+
 test('createAnnulInstallment uses mutation access policy and delegates to the service', async () => {
   let serviceInput;
   const annulInstallment = createAnnulInstallment({
@@ -649,7 +720,7 @@ test('createPayoutsModule consumes shared auth and shared credits public ports',
   assert.equal(moduleRegistration.basePath, '/api/payments');
 });
 
-test('payment document use cases enforce loan access and customer visibility', async () => {
+test('payment document use cases enforce loan access for backoffice documents', async () => {
   const paymentRepository = {
     async findById() {
       return { id: 51, loanId: 9 };
@@ -676,8 +747,8 @@ test('payment document use cases enforce loan access and customer visibility', a
     },
   };
 
-  const documents = await createListPaymentDocuments({ paymentRepository, loanAccessPolicy })({ actor: { id: 7, role: 'customer' }, paymentId: 51 });
-  assert.equal(documents.length, 1);
+  const documents = await createListPaymentDocuments({ paymentRepository, loanAccessPolicy })({ actor: { id: 7, role: 'admin' }, paymentId: 51 });
+  assert.equal(documents.length, 2);
 
   const uploadResult = await createUploadPaymentDocument({
     paymentRepository,

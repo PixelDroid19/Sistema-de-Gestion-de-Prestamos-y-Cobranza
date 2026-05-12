@@ -23,7 +23,7 @@ const { createPayoutsRouter } = require('./presentation/router');
 /**
  * Compose the payouts module entrypoint from payment and loan public seams.
  */
-const createPayoutsModule = ({ sharedRuntime } = {}) => {
+const createPayoutsModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const {
     loanAccessPolicy,
@@ -36,7 +36,7 @@ const createPayoutsModule = ({ sharedRuntime } = {}) => {
     listPayments: createListPayments({ paymentRepository }),
     createPayment: createCreatePayment({ paymentApplicationService, loanAccessPolicy }),
     createPartialPayment: createCreatePartialPayment({ paymentApplicationService, loanAccessPolicy }),
-    createCapitalPayment: createCreateCapitalPayment({ paymentApplicationService, loanAccessPolicy }),
+    createCapitalPayment: createCreateCapitalPayment({ paymentApplicationService, loanAccessPolicy, auditService }),
     calculateTotalDebt: createCalculateTotalDebt({ loanAccessPolicy, loanViewService }),
     payTotalDebt: createPayTotalDebt({ paymentApplicationService, loanAccessPolicy, loanViewService }),
     annulInstallment: createAnnulInstallment({ paymentApplicationService, loanAccessPolicy }),

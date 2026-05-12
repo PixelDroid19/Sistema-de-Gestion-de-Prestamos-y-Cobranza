@@ -1,4 +1,9 @@
-const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
+const {
+  AuthorizationError,
+  BusinessRuleViolationError,
+  NotFoundError,
+  ValidationError,
+} = require('@/utils/errorHandler');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
@@ -224,24 +229,85 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
 };
 
 /**
+ * Audit a rejected capital payment attempt without masking the original denial.
+ * @param {{ auditService?: object, actor?: object, loanId: number|string, amount: number|string, paymentMethod?: string|null, strategy?: string|null, error: Error, req?: object }} params
+ * @returns {Promise<void>}
+ */
+const auditRejectedCapitalPayment = async ({
+  auditService,
+  actor,
+  loanId,
+  amount,
+  paymentMethod,
+  strategy,
+  error,
+  req,
+}) => {
+  if (!auditService || typeof auditService.log !== 'function') {
+    return;
+  }
+
+  try {
+    await auditService.log({
+      actor,
+      action: 'REJECT',
+      module: 'payments',
+      entityId: loanId ? String(loanId) : null,
+      entityType: 'CapitalPaymentAttempt',
+      metadata: {
+        amount,
+        paymentMethod,
+        strategy,
+        errorCode: error?.code || error?.name || 'CAPITAL_PAYMENT_REJECTED',
+        denialReasons: Array.isArray(error?.denialReasons) ? error.denialReasons : [],
+      },
+      req,
+    });
+  } catch (auditError) {
+    console.error('Capital payment rejection audit failed:', auditError?.message || auditError);
+  }
+};
+
+/**
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
-const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, idempotencyKey }) => {
+const createCreateCapitalPayment = ({
+  paymentApplicationService,
+  loanAccessPolicy,
+  auditService,
+  clock = () => new Date(),
+}) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, idempotencyKey, req }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
     throw new AuthorizationError('Only authorized backoffice users can create capital reduction payments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
 
-  return paymentApplicationService.applyCapitalPayment({
-    loanId: loan.id,
-    amount,
-    paymentDate: resolvePaymentDateInput(paymentDate, clock),
-    paymentMethod,
-    strategy,
-    actorId: actor?.id || 0,
-    idempotencyKey,
-  });
+  try {
+    return await paymentApplicationService.applyCapitalPayment({
+      loanId: loan.id,
+      amount,
+      paymentDate: resolvePaymentDateInput(paymentDate, clock),
+      paymentMethod,
+      strategy,
+      actorId: actor?.id || 0,
+      idempotencyKey,
+    });
+  } catch (error) {
+    if (error instanceof BusinessRuleViolationError && error.code === 'CAPITAL_PAYMENT_NOT_ALLOWED') {
+      await auditRejectedCapitalPayment({
+        auditService,
+        actor,
+        loanId: loan.id,
+        amount,
+        paymentMethod,
+        strategy,
+        error,
+        req,
+      });
+    }
+    throw error;
+  }
 };
 
 const createCalculateTotalDebt = ({ loanAccessPolicy, loanViewService }) => async ({ actor, loanId, asOfDate }) => {
