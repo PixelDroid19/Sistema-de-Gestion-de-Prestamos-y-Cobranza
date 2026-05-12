@@ -6,7 +6,20 @@ import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
-import { ActionButton, DataTableSurface, EmptyState, MetricCard, ModalShell, PageHeader, PageShell, SectionSurface, ToolbarSurface } from './shared/Surfaces';
+import {
+  ActionButton,
+  DataTableSurface,
+  EmptyState,
+  FormField,
+  MetricCard,
+  ModalShell,
+  PageHeader,
+  PageShell,
+  SectionSurface,
+  TextInput,
+  ToolbarSurface,
+  ViewTabs,
+} from './shared/Surfaces';
 import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
@@ -467,28 +480,17 @@ export default function AssociateDetails() {
       )}
 
       {/* Tabs */}
-      <div data-tour="associate-details-tabs">
-        <nav className="view-tabs">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`view-tab ${activeTab === 'overview' ? 'view-tab--active' : ''}`}
-          >
-            Resumen
-          </button>
-          <button
-            onClick={() => setActiveTab('installments')}
-            className={`view-tab ${activeTab === 'installments' ? 'view-tab--active' : ''}`}
-          >
-            <Wallet size={16} /> Cuotas
-          </button>
-          <button
-            onClick={() => setActiveTab('calendar')}
-            className={`view-tab ${activeTab === 'calendar' ? 'view-tab--active' : ''}`}
-          >
-            <Calendar size={16} /> Calendario
-          </button>
-        </nav>
-      </div>
+      <ViewTabs
+        data-tour="associate-details-tabs"
+        ariaLabel="Secciones del socio"
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as TabType)}
+        tabs={[
+          { id: 'overview', label: 'Resumen' },
+          { id: 'installments', label: 'Cuotas', icon: Wallet },
+          { id: 'calendar', label: 'Calendario', icon: Calendar },
+        ]}
+      />
 
       {/* Tab Content */}
       <div data-tour="associate-details-content">
@@ -504,9 +506,8 @@ export default function AssociateDetails() {
               'Reinvertir ganancias'}
         >
             <form onSubmit={handleAction} className="space-y-4">
-              <div>
-                <label htmlFor="associate-action-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto</label>
-                <input 
+              <FormField label="Monto" htmlFor="associate-action-amount">
+                <TextInput
                   id="associate-action-amount"
                   type="number"
                   required
@@ -514,10 +515,9 @@ export default function AssociateDetails() {
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   placeholder="0.00"
                 />
-              </div>
+              </FormField>
               <div className="flex gap-3 pt-4">
                 <ActionButton
                   type="button"

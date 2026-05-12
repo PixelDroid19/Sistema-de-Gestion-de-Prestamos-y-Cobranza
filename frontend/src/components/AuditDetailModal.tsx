@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Activity, Code2, Globe2, Server, UserRound } from 'lucide-react';
 import { AuditLog } from '../services/auditService';
-import { ActionButton, ModalShell } from './shared/Surfaces';
+import { ActionButton, ModalShell, ViewTabs } from './shared/Surfaces';
 import {
   formatAuditDate,
   getAuditEntityTypeLabel,
@@ -111,22 +111,13 @@ export default function AuditDetailModal({ auditLog, onClose }: AuditDetailModal
             </div>
           </section>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-b border-border-subtle">
-            {tabItems.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`border-b-2 px-3 py-2 text-sm font-semibold transition ${
-                  activeTab === tab
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                {tabLabels[tab]}
-              </button>
-            ))}
-          </div>
+          <ViewTabs
+            className="mt-4"
+            ariaLabel="Detalle de auditoría"
+            activeTab={activeTab}
+            onChange={(tabId) => setActiveTab(tabId as DetailTab)}
+            tabs={tabItems.map((tab) => ({ id: tab, label: tabLabels[tab] }))}
+          />
 
           {activeTab === 'resumen' && (
             <section className="grid gap-x-6 gap-y-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
