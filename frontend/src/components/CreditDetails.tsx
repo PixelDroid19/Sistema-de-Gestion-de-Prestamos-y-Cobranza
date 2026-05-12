@@ -26,7 +26,7 @@ import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
 import { CreditDetailsTabs, TabEmptyState, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
 import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
-import { ActionButton, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from './shared/Surfaces';
+import { ActionButton, EmptyState, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from './shared/Surfaces';
 
 type PayoffDenialReason = string | {
   code?: string;
@@ -597,33 +597,40 @@ export default function CreditDetails() {
 
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
-        <AlertCircle className="size-12 text-red-400 mb-4" />
-        <h2 className="text-xl font-semibold text-text-primary mb-2">ID de crédito inválido</h2>
-        <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
-          ← Volver a créditos
-        </button>
+      <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
+        <EmptyState
+          title="ID de crédito inválido"
+          icon={<AlertCircle size={18} />}
+          action={(
+            <ActionButton onClick={() => navigate('/credits')}>
+              Volver a créditos
+            </ActionButton>
+          )}
+        />
       </div>
     );
   }
 
   if (isLoadingLoans || isLoadingLoanRecord || isLoadingDetails) {
     return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <div className="size-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-text-secondary font-medium">Cargando detalles del crédito…</p>
+      <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
+        <EmptyState title="Cargando detalles del crédito…" icon={<Activity size={18} />} compact />
       </div>
     );
   }
 
   if (!loan) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
-        <FileText className="size-12 text-text-secondary opacity-50 mb-4" />
-        <h2 className="text-xl font-semibold text-text-primary mb-2">Crédito no encontrado</h2>
-        <button onClick={() => navigate('/credits')} className="text-brand-primary hover:underline font-medium transition-all">
-          ← Volver a créditos
-        </button>
+      <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
+        <EmptyState
+          title="Crédito no encontrado"
+          icon={<FileText size={18} />}
+          action={(
+            <ActionButton onClick={() => navigate('/credits')}>
+              Volver a créditos
+            </ActionButton>
+          )}
+        />
       </div>
     );
   }
@@ -1651,17 +1658,14 @@ export default function CreditDetails() {
                     </div>
                   </div>
 
-                  <button 
+                  <ActionButton
                     onClick={handlePayoff}
                     disabled={!canViewPayoff || !payoffEligibility?.allowed}
-                    className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                      canViewPayoff && payoffEligibility?.allowed
-                        ? 'bg-text-primary text-bg-base hover:bg-text-secondary' 
-                        : 'bg-bg-base border border-border-subtle text-text-secondary cursor-not-allowed'
-                    }`}
+                    variant="primary"
+                    fullWidth
                   >
                     {canViewPayoff && payoffEligibility?.allowed ? 'Confirmar pago total' : 'Acción no disponible'}
-                  </button>
+                  </ActionButton>
                 </div>
               ) : (
                 <div className="max-w-2xl">
@@ -1845,13 +1849,14 @@ export default function CreditDetails() {
                       </div>
                       <div>
                         <span className="block text-blue-700 dark:text-blue-300">Total sugerido</span>
-                        <button
+                        <ActionButton
                           type="button"
                           onClick={() => setPaymentAmount(String(installmentQuote.totalDue ?? ''))}
-                          className="font-semibold text-brand-primary hover:underline"
+                          variant="ghost"
+                          className="!min-h-0 !border-0 !bg-transparent !p-0 !font-semibold !text-brand-primary hover:!bg-transparent"
                         >
                           {formatCurrency(installmentQuote.totalDue)}
-                        </button>
+                        </ActionButton>
                       </div>
                       {!installmentQuote.canPay && installmentQuote.disabledReason && (
                         <div className="col-span-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
