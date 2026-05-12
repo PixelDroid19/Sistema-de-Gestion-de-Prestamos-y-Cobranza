@@ -275,7 +275,7 @@ test('createUpsertSetting updates existing records and listAdminCatalogs keeps r
   });
 
   const catalogs = await createListAdminCatalogs()();
-  assert.deepEqual(catalogs.roles, ['admin', 'customer', 'socio']);
+  assert.deepEqual(catalogs.roles, ['admin', 'employee']);
   assert.deepEqual(catalogs.paymentVisibilities, ['customer', 'internal']);
 });
 
@@ -355,20 +355,20 @@ test('createConfigModule consumes shared auth context and registers the config s
   assert.deepEqual(authMiddlewareRoles, ['admin']);
 });
 
-test('createListRoles returns the catalog of available roles', async () => {
+test('createListRoles returns only administrative login roles', async () => {
   const listRoles = createListRoles();
   const roles = await listRoles();
 
   assert.ok(Array.isArray(roles));
-  assert.ok(roles.length > 0);
-  
-  // Verify role structure
-  const customerRole = roles.find(r => r.id === 'CUSTOMER');
-  assert.ok(customerRole);
-  assert.equal(customerRole.name, 'Cliente');
-  assert.ok(Array.isArray(customerRole.defaultPermissions));
-  
-  const partnerRole = roles.find(r => r.id === 'PARTNER');
-  assert.ok(partnerRole);
-  assert.ok(partnerRole.defaultPermissions.includes('READ_CREDITOS'));
+  assert.deepEqual(roles.map((role) => role.id), ['admin', 'employee']);
+
+  const adminRole = roles.find((role) => role.id === 'admin');
+  assert.equal(adminRole.name, 'Administrador');
+  assert.ok(adminRole.description.includes('Acceso completo'));
+
+  const employeeRole = roles.find((role) => role.id === 'employee');
+  assert.equal(employeeRole.name, 'Empleado');
+  assert.ok(employeeRole.description.includes('módulos autorizados'));
+
+  assert.equal(roles.some((role) => ['CUSTOMER', 'PARTNER', 'customer', 'socio'].includes(role.id)), false);
 });

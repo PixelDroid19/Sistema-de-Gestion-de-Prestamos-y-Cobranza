@@ -1,37 +1,20 @@
 const APPLICATION_ROLES = ['admin', 'employee', 'customer', 'socio'];
 const ADMINISTRATIVE_LOGIN_ROLES = ['admin', 'employee'];
 
-// Extended roles catalog with descriptions and default permissions
+// Operator-facing access catalog. Customer and socio records can still exist as
+// domain data, but they are not administrative login roles.
 const ROLES = [
   {
-    id: 'SUPER_ADMIN',
-    name: 'Super Administrador',
-    description: 'Acceso completo al sistema sin restricciones',
-    defaultPermissions: [],
-  },
-  {
-    id: 'ADMINISTRATOR',
+    id: 'admin',
     name: 'Administrador',
-    description: 'Acceso administrativo completo excepto configuración de sistema',
+    description: 'Acceso completo a la plataforma administrativa y a la configuración sensible.',
     defaultPermissions: [],
   },
   {
-    id: 'EMPLOYEE',
+    id: 'employee',
     name: 'Empleado',
-    description: 'Usuario interno con acceso limitado por permisos asignados',
+    description: 'Usuario interno con acceso limitado a los módulos autorizados por un administrador.',
     defaultPermissions: [],
-  },
-  {
-    id: 'PARTNER',
-    name: 'Socio',
-    description: 'Perfil de negocio sin acceso al sistema administrativo',
-    defaultPermissions: ['READ_CREDITOS', 'READ_REPORTES'],
-  },
-  {
-    id: 'CUSTOMER',
-    name: 'Cliente',
-    description: 'Cliente de crédito sin acceso al sistema administrativo',
-    defaultPermissions: ['READ_MIS_CREDITOS', 'READ_MIS_PAGOS'],
   },
 ];
 
