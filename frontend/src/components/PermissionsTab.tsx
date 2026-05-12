@@ -10,6 +10,7 @@ import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
 import {
   ActionButton,
+  ClickableSurface,
   EmptyState,
   FormField,
   SelectInput,
@@ -223,7 +224,8 @@ export default function PermissionsTab() {
           ) : (
             groupedPermissions.map((group) => (
               <div key={group.module} className="border border-border-subtle rounded-xl overflow-hidden">
-                <button
+                <ClickableSurface
+                  variant="list"
                   onClick={() => toggleModule(group.module)}
                   className="w-full px-4 py-3 flex items-center justify-between bg-bg-base hover:bg-hover-bg transition-colors"
                 >
@@ -235,7 +237,7 @@ export default function PermissionsTab() {
                     </span>
                   </div>
                   {expandedModules.has(group.module) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
+                </ClickableSurface>
 
                 {expandedModules.has(group.module) && (
                   <div className="divide-y divide-border-subtle">

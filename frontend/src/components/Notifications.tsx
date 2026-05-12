@@ -6,7 +6,7 @@ import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
 import { confirm as confirmModal } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
-import { ActionButton, DataTableSurface, EmptyState, PageHeader, PageShell } from './shared/Surfaces';
+import { ActionButton, ClickableSurface, DataTableSurface, EmptyState, PageHeader, PageShell } from './shared/Surfaces';
 
 const formatNotificationDate = (value: unknown) => {
   if (!value) {
@@ -159,9 +159,9 @@ export default function Notifications() {
 
             if (canOpen) {
               return (
-                <button
+                <ClickableSurface
                   key={key}
-                  type="button"
+                  variant="list"
                   className={containerClassName}
                   onClick={() => handleOpenNotification({ ...notification, destination })}
                   title="Abrir origen de la notificación"
@@ -169,7 +169,7 @@ export default function Notifications() {
                   <div className="flex items-start gap-4">
                     {content}
                   </div>
-                </button>
+                </ClickableSurface>
               );
             }
 

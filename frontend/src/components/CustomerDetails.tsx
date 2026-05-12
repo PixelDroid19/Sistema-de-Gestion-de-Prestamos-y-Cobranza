@@ -11,6 +11,7 @@ import { extractRawErrorMessage } from '../services/safeErrorMessages';
 import {
   ActionButton,
   CheckboxInput,
+  ClickableSurface,
   EmptyState,
   FormField,
   IconActionButton,
@@ -410,10 +411,8 @@ export default function CustomerDetails() {
             <h3 className="font-bold mb-4">Detalle de créditos</h3>
             <div className="space-y-3">
               {customerLoans.map((loan: any) => (
-                <button
-                  type="button"
+                <ClickableSurface
                   key={loan.id}
-                  className="block w-full p-4 text-left border border-border-subtle rounded-xl hover:bg-hover-bg cursor-pointer transition-colors"
                   onClick={() => navigate(`/credits/${loan.id}`)}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -454,7 +453,7 @@ export default function CustomerDetails() {
                       <p className="text-xs text-text-secondary mt-2">Pagado: {formatCurrency(loan.totalPaid || 0)}</p>
                     </div>
                   </div>
-                </button>
+                </ClickableSurface>
               ))}
               {customerLoans.length === 0 && (
                 <EmptyState title="No tiene créditos registrados" icon={<CreditCard size={28} />} />
