@@ -336,6 +336,10 @@ export function TextInput({ className = '', ...rest }: React.InputHTMLAttributes
   return <input className={`form-control ${className}`} {...rest} />;
 }
 
+export function CheckboxInput({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="checkbox" className={`form-checkbox ${className}`} {...rest} />;
+}
+
 export function TextAreaInput({ className = '', ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={`form-control min-h-24 resize-none ${className}`} {...rest} />;
 }

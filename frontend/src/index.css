@@ -366,6 +366,21 @@
     opacity: 0.6;
   }
 
+  .form-checkbox {
+    height: 1rem;
+    width: 1rem;
+    border-radius: 0.35rem;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+    color: var(--brand-primary);
+    accent-color: var(--brand-primary);
+  }
+
+  .form-checkbox:focus {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    outline-offset: 2px;
+  }
+
   .form-field-helper,
   .form-field-error {
     margin-top: 0.35rem;

@@ -15,6 +15,7 @@ import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type C
 import { useConfig } from '../services/configService';
 import {
   ActionButton,
+  CheckboxInput,
   FormField,
   IconActionButton,
   ModalShell,
@@ -464,12 +465,10 @@ export default function Payouts() {
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
                 <th className="pb-3 font-medium w-10">
-                  <input
-                    type="checkbox"
+                  <CheckboxInput
                     aria-label="Seleccionar todos los pagos"
                     checked={allVisibleSelected}
                     onChange={(event) => handleToggleSelectAll(event.target.checked)}
-                    className="rounded border-border-subtle"
                   />
                 </th>
                 <th className="pb-3 font-medium">Recibo ID</th>
@@ -489,12 +488,10 @@ export default function Payouts() {
               {payments.map((payment: any) => (
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4">
-                    <input
-                      type="checkbox"
+                    <CheckboxInput
                       aria-label={`Seleccionar pago ${payment.id}`}
                       checked={selectedPaymentIds.includes(Number(payment.id))}
                       onChange={(event) => handleToggleSelection(Number(payment.id), event.target.checked)}
-                      className="rounded border-border-subtle"
                     />
                   </td>
                   <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
