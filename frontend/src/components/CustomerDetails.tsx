@@ -10,6 +10,7 @@ import { confirmDanger } from '../lib/confirmModal';
 import { extractRawErrorMessage } from '../services/safeErrorMessages';
 import {
   ActionButton,
+  CheckboxInput,
   EmptyState,
   FormField,
   IconActionButton,
@@ -20,6 +21,7 @@ import {
   SectionSurface,
   SelectInput,
   TextInput,
+  ViewTabs,
 } from './shared/Surfaces';
 
 const CUSTOMER_DOCUMENT_OPTIONS = [
@@ -254,32 +256,18 @@ export default function CustomerDetails() {
         )}
       />
 
-      <div className="view-tabs" data-tour="customer-details-tabs">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`view-tab ${activeTab === 'profile' ? 'view-tab--active' : ''}`}
-        >
-          Perfil y Score
-        </button>
-        <button
-          onClick={() => setActiveTab('documents')}
-          className={`view-tab ${activeTab === 'documents' ? 'view-tab--active' : ''}`}
-        >
-          Documentos
-        </button>
-        <button
-          onClick={() => setActiveTab('loans')}
-          className={`view-tab ${activeTab === 'loans' ? 'view-tab--active' : ''}`}
-        >
-          Créditos
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`view-tab ${activeTab === 'history' ? 'view-tab--active' : ''}`}
-        >
-          Historial
-        </button>
-      </div>
+      <ViewTabs
+        data-tour="customer-details-tabs"
+        ariaLabel="Secciones del cliente"
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
+        tabs={[
+          { id: 'profile', label: 'Perfil y Score' },
+          { id: 'documents', label: 'Documentos' },
+          { id: 'loans', label: 'Créditos' },
+          { id: 'history', label: 'Historial' },
+        ]}
+      />
 
       <SectionSurface>
         {activeTab === 'profile' && (
@@ -353,11 +341,9 @@ export default function CustomerDetails() {
                 />
               </FormField>
               <label className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-secondary">
-                <input
-                  type="checkbox"
+                <CheckboxInput
                   checked={customerVisible}
                   onChange={(e) => setCustomerVisible(e.target.checked)}
-                  className="rounded border-border-subtle"
                 />
                 Visible para el cliente
               </label>
