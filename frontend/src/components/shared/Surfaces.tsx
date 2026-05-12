@@ -35,6 +35,13 @@ type MetricCardProps = {
   className?: string;
 };
 
+type StatusChipProps = React.HTMLAttributes<HTMLSpanElement> & {
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'neutral' | 'success' | 'info' | 'warning' | 'danger' | 'dark';
+  size?: 'sm' | 'md';
+};
+
 type DataTableSurfaceProps = React.HTMLAttributes<HTMLElement> & {
   children: React.ReactNode;
   className?: string;
@@ -123,6 +130,15 @@ const accentClassNames: Record<NonNullable<MetricCardProps['accent']>, string> =
   amber: 'metric-card--amber',
   rose: 'metric-card--rose',
   slate: 'metric-card--slate',
+};
+
+const statusChipClassNames: Record<NonNullable<StatusChipProps['tone']>, string> = {
+  neutral: 'status-chip--neutral',
+  success: 'status-chip--success',
+  info: 'status-chip--info',
+  warning: 'status-chip--warning',
+  danger: 'status-chip--danger',
+  dark: 'status-chip--dark',
 };
 
 export function PageShell({ children, className = '', ...rest }: PageShellProps) {
@@ -220,6 +236,25 @@ export function MetricCard({
         </p>
       )}
     </article>
+  );
+}
+
+export function StatusChip({
+  children,
+  icon,
+  tone = 'neutral',
+  size = 'md',
+  className = '',
+  ...rest
+}: StatusChipProps) {
+  return (
+    <span
+      className={`status-chip ${statusChipClassNames[tone]} ${size === 'sm' ? 'status-chip--sm' : ''} ${className}`}
+      {...rest}
+    >
+      {icon ? <span className="status-chip-icon" aria-hidden="true">{icon}</span> : null}
+      <span className="min-w-0 truncate">{children}</span>
+    </span>
   );
 }
 

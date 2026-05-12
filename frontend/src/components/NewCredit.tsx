@@ -15,7 +15,7 @@ import {
 import type { CreditCalculationInput } from '../types/creditCalculation';
 import { QuickGuideButton } from './shared/HelpSupport';
 import { getCalculationValueLabel } from '../lib/creditCalculationLabels';
-import { ActionButton, FormField, IconActionButton, SectionSurface, SelectInput } from './shared/Surfaces';
+import { ActionButton, FormField, IconActionButton, SectionSurface, SelectInput, StatusChip } from './shared/Surfaces';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -171,27 +171,19 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       label: 'Cliente',
       status: isBorrowerReady ? 'Listo' : 'Pendiente',
       icon: User,
-      toneClassName: isBorrowerReady
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200'
-        : 'border-border-subtle bg-bg-surface text-text-secondary',
+      tone: isBorrowerReady ? 'success' : 'neutral',
     },
     {
       label: 'Validación',
       status: hasValidatedResult ? 'Vigente' : result && isResultStale ? 'Revalidar' : 'Pendiente',
       icon: Calculator,
-      toneClassName: hasValidatedResult
-        ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200'
-        : result && isResultStale
-          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200'
-          : 'border-border-subtle bg-bg-surface text-text-secondary',
+      tone: hasValidatedResult ? 'info' : result && isResultStale ? 'warning' : 'neutral',
     },
     {
       label: 'Registro',
       status: isRegistrationReady ? 'Disponible' : 'Bloqueado',
       icon: Save,
-      toneClassName: isRegistrationReady
-        ? 'border-slate-300 bg-slate-900 text-white dark:border-slate-600 dark:bg-slate-100 dark:text-slate-900'
-        : 'border-border-subtle bg-bg-surface text-text-secondary',
+      tone: isRegistrationReady ? 'dark' : 'neutral',
     },
   ];
   const handleBorrowerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -382,14 +374,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               const StatusIcon = item.icon;
 
               return (
-                <span
+                <StatusChip
                   key={item.label}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${item.toneClassName}`}
+                  tone={item.tone as 'neutral' | 'success' | 'info' | 'warning' | 'dark'}
                 >
-                  <StatusIcon size={14} />
+                  <StatusIcon size={14} aria-hidden="true" />
                   <span className="opacity-70">{item.label}</span>
                   <span>{item.status}</span>
-                </span>
+                </StatusChip>
               );
             })}
           </div>

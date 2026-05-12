@@ -1,7 +1,7 @@
 import type React from 'react';
-import { ArrowLeft, DollarSign, Edit2, FileSpreadsheet, FileText, GitBranch, Layers, Percent, Table } from 'lucide-react';
+import { ArrowLeft, CreditCard, DollarSign, Edit2, FileSpreadsheet, FileText, GitBranch, Layers, Percent, Table } from 'lucide-react';
 import { QuickGuideButton } from '../shared/HelpSupport';
-import { ActionButton } from '../shared/Surfaces';
+import { ActionButton, IconActionButton, StatusChip } from '../shared/Surfaces';
 
 type CreditActionGuard = {
   visible: boolean;
@@ -22,16 +22,17 @@ type CreditDetailHeaderProps = {
   calculationProfileSummary: string;
   registerPaymentLabel: string;
   capitalContributionLabel: string;
-  lateFeeRateLabel: string;
   isAdmin: boolean;
   isExportingCreditExcel: boolean;
   installmentPaymentGuard: CreditActionGuard;
   capitalPaymentGuard: CreditActionGuard;
+  payoffPaymentGuard: CreditActionGuard;
   lateFeeUpdateGuard: CreditActionGuard;
   creditStatusUpdateGuard: CreditActionGuard;
   onBack: () => void;
   onRegisterPayment: () => void;
   onOpenCapitalPayment: () => void;
+  onPayoff: () => void;
   onOpenLateFeeRate: () => void;
   onOpenStatus: () => void;
   onExportCreditExcel: () => void;
@@ -64,16 +65,17 @@ export function CreditDetailHeader({
   calculationProfileSummary,
   registerPaymentLabel,
   capitalContributionLabel,
-  lateFeeRateLabel,
   isAdmin,
   isExportingCreditExcel,
   installmentPaymentGuard,
   capitalPaymentGuard,
+  payoffPaymentGuard,
   lateFeeUpdateGuard,
   creditStatusUpdateGuard,
   onBack,
   onRegisterPayment,
   onOpenCapitalPayment,
+  onPayoff,
   onOpenLateFeeRate,
   onOpenStatus,
   onExportCreditExcel,
@@ -84,18 +86,16 @@ export function CreditDetailHeader({
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-            <button
-              type="button"
+            <IconActionButton
               onClick={onBack}
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
-              aria-label="Volver a créditos"
-            >
-              <ArrowLeft size={20} />
-            </button>
+              label="Volver a créditos"
+              icon={<ArrowLeft size={20} />}
+              className="shrink-0"
+            />
             <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loanId}</h1>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${statusInfo.className}`}>
+            <StatusChip size="sm" className={`uppercase tracking-[0.12em] ${statusInfo.className}`}>
               {statusInfo.label}
-            </span>
+            </StatusChip>
           </div>
           <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
             {subtitle}
@@ -107,54 +107,20 @@ export function CreditDetailHeader({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end" data-tour="credit-detail-primary-actions">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 xl:max-w-[42rem] xl:justify-end" data-tour="credit-detail-primary-actions">
           <QuickGuideButton
             guideKey="credit-details"
             guideContext={{ loanId }}
             className="min-h-11 shrink-0"
           />
-          {installmentPaymentGuard.visible && (
-            <ActionButton
-              onClick={onRegisterPayment}
-              disabled={!installmentPaymentGuard.executable}
-              title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-              icon={<DollarSign size={16} />}
-              variant="primary"
-            >
-              {registerPaymentLabel}
-            </ActionButton>
-          )}
-        </div>
-      </div>
-
-      <div
-        className="mt-4 flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-surface px-3 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between"
-        data-tour="credit-detail-secondary-actions"
-      >
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
-          Operaciones del crédito
-        </p>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
-          {isAdmin && capitalPaymentGuard.visible && (
-            <ActionButton
-              onClick={onOpenCapitalPayment}
-              disabled={!capitalPaymentGuard.executable}
-              title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-              icon={<Layers size={16} />}
-              className="w-full lg:w-auto"
-            >
-              {capitalContributionLabel}
-            </ActionButton>
-          )}
           {isAdmin && lateFeeUpdateGuard.visible && (
             <ActionButton
               onClick={onOpenLateFeeRate}
               disabled={!lateFeeUpdateGuard.executable}
-              title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
+              title={lateFeeUpdateGuard.executable ? 'Ajustar tasa de mora del crédito' : lateFeeUpdateGuard.reason}
               icon={<Percent size={16} />}
-              className="w-full lg:w-auto"
             >
-              {lateFeeRateLabel}
+              Tasa de mora
             </ActionButton>
           )}
           {isAdmin && creditStatusUpdateGuard.visible && (
@@ -163,7 +129,6 @@ export function CreditDetailHeader({
               disabled={!creditStatusUpdateGuard.executable}
               title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
               icon={<Edit2 size={16} />}
-              className="w-full lg:w-auto"
             >
               Estado
             </ActionButton>
@@ -175,7 +140,6 @@ export function CreditDetailHeader({
               isLoading={isExportingCreditExcel}
               title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
               icon={<FileSpreadsheet size={16} />}
-              className="w-full lg:w-auto"
             >
               Excel
             </ActionButton>
@@ -184,11 +148,66 @@ export function CreditDetailHeader({
             onClick={onOpenSchedule}
             title="Ver plan de pagos completo"
             icon={<Table size={16} />}
-            className="w-full lg:w-auto"
           >
             Plan de pagos
           </ActionButton>
         </div>
+      </div>
+
+      <div
+        className="mt-4 flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-surface px-3 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between"
+        data-tour="credit-detail-secondary-actions"
+      >
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
+            Acciones de pago
+          </p>
+          <p className="mt-1 text-xs leading-5 text-text-secondary">
+            Opera recaudos, abonos y liquidación sin mezclar opciones informativas.
+          </p>
+        </div>
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
+          {installmentPaymentGuard.visible && (
+            <ActionButton
+              onClick={onRegisterPayment}
+              disabled={!installmentPaymentGuard.executable}
+              title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
+              icon={<DollarSign size={16} />}
+              variant="primary"
+              className="w-full lg:w-auto"
+            >
+              {registerPaymentLabel}
+            </ActionButton>
+          )}
+          {isAdmin && capitalPaymentGuard.visible && (
+            <ActionButton
+              onClick={onOpenCapitalPayment}
+              disabled={!capitalPaymentGuard.executable}
+              title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+              icon={<Layers size={16} />}
+              className="w-full lg:w-auto"
+            >
+              {capitalContributionLabel}
+            </ActionButton>
+          )}
+          {payoffPaymentGuard.visible && (
+            <ActionButton
+              onClick={onPayoff}
+              disabled={!payoffPaymentGuard.executable}
+              title={payoffPaymentGuard.executable ? 'Liquidar el saldo completo del crédito' : payoffPaymentGuard.reason}
+              icon={<CreditCard size={16} />}
+              className="w-full lg:w-auto"
+            >
+              Pago total
+            </ActionButton>
+          )}
+        </div>
+        {payoffPaymentGuard.visible && !payoffPaymentGuard.executable && payoffPaymentGuard.reason && (
+          <p className="text-xs leading-5 text-text-secondary lg:basis-full lg:text-right">
+            <span className="font-semibold text-text-primary">El pago total no está disponible</span>{' '}
+            {payoffPaymentGuard.reason}
+          </p>
+        )}
       </div>
     </section>
   );

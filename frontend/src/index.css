@@ -587,6 +587,91 @@
     --metric-accent: #475569;
   }
 
+  .status-chip {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+  }
+
+  .status-chip--sm {
+    gap: 0.3rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.68rem;
+  }
+
+  .status-chip-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status-chip-icon svg {
+    height: 0.9rem;
+    width: 0.9rem;
+  }
+
+  .status-chip--success {
+    border-color: color-mix(in srgb, #059669 28%, var(--border-subtle));
+    background: color-mix(in srgb, #059669 9%, var(--bg-surface));
+    color: #047857;
+  }
+
+  .status-chip--info {
+    border-color: color-mix(in srgb, #2563eb 28%, var(--border-subtle));
+    background: color-mix(in srgb, #2563eb 8%, var(--bg-surface));
+    color: #1d4ed8;
+  }
+
+  .status-chip--warning {
+    border-color: color-mix(in srgb, #d97706 32%, var(--border-subtle));
+    background: color-mix(in srgb, #d97706 10%, var(--bg-surface));
+    color: #b45309;
+  }
+
+  .status-chip--danger {
+    border-color: color-mix(in srgb, #e11d48 30%, var(--border-subtle));
+    background: color-mix(in srgb, #e11d48 8%, var(--bg-surface));
+    color: #be123c;
+  }
+
+  .status-chip--dark {
+    border-color: color-mix(in srgb, var(--text-primary) 18%, var(--border-subtle));
+    background: var(--text-primary);
+    color: var(--bg-base);
+  }
+
+  .dark .status-chip--success {
+    color: #86efac;
+  }
+
+  .dark .status-chip--info {
+    color: #93c5fd;
+  }
+
+  .dark .status-chip--warning {
+    color: #fcd34d;
+  }
+
+  .dark .status-chip--danger {
+    color: #fda4af;
+  }
+
+  .dark .status-chip--dark {
+    background: var(--text-primary);
+    color: var(--bg-base);
+  }
+
   .dark .metric-card--teal,
   .dark .metric-card--emerald {
     --metric-accent: #5eead4;

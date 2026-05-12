@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, Bell, Clock, CreditCard, CheckCircle,
   Edit2, FileText, DollarSign, ShieldAlert, History,
-  AlertTriangle, AlertCircle, Info, ChevronRight, Activity
+  AlertTriangle, AlertCircle, ChevronRight, Activity
 } from 'lucide-react';
 import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useConfig } from '../services/configService';
@@ -343,7 +343,6 @@ export default function CreditDetails() {
   const paymentSnapshot = loan?.paymentContext?.snapshot;
   const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
   const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
-  const activePayoffQuote = payoffEligibility?.allowed ? payoffQuote : null;
   const hasNoOutstandingPayoffBalance = (
     (loan?.paymentContext?.snapshot?.outstandingBalance ?? 0) <= 0.01
     || ['closed', 'completed', 'paid', 'cancelled'].includes(String(loan?.status || '').toLowerCase())
@@ -354,6 +353,13 @@ export default function CreditDetails() {
         ? 'Este crédito ya no tiene saldo pendiente para liquidar.'
         : 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.'
     );
+  const payoffPaymentGuard = {
+    visible: canViewPayoff,
+    executable: Boolean(canViewPayoff && payoffEligibility?.allowed && payoffQuote),
+    reason: payoffEligibility?.allowed
+      ? 'Estamos preparando la cotización de liquidación. Intenta de nuevo en unos segundos.'
+      : payoffUnavailableDescription,
+  };
   const operationalHistoryEntries = useMemo(() => {
     const alertEvents = alertEntries.flatMap((alert: any) => {
       const alertPresentation = getAlertPresentation(alert);
@@ -415,16 +421,10 @@ export default function CreditDetails() {
       tabs.push('alerts', 'promises');
     }
 
-    tabs.push('payouts');
-
-    if (canViewPayoff) {
-      tabs.push('payoff');
-    }
-
-    tabs.push('history');
+    tabs.push('payouts', 'history');
 
     return tabs;
-  }, [canViewPayoff, isAdmin]);
+  }, [isAdmin]);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -1166,16 +1166,17 @@ export default function CreditDetails() {
         calculationProfileSummary={calculationProfileSummary}
         registerPaymentLabel={isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
-        lateFeeRateLabel={tTerm('creditDetails.cta.lateFeeRate')}
         isAdmin={isAdmin}
         isExportingCreditExcel={isExportingCreditExcel}
         installmentPaymentGuard={installmentPaymentGuard}
         capitalPaymentGuard={capitalPaymentGuard}
+        payoffPaymentGuard={payoffPaymentGuard}
         lateFeeUpdateGuard={lateFeeUpdateGuard}
         creditStatusUpdateGuard={creditStatusUpdateGuard}
         onBack={() => navigate('/credits')}
         onRegisterPayment={openNextInstallmentPayment}
         onOpenCapitalPayment={() => setShowCapitalModal(true)}
+        onPayoff={handlePayoff}
         onOpenLateFeeRate={() => {
           setLateFeeRate(String(loan.annualLateFeeRate || ''));
           setShowLateFeeModal(true);
@@ -1196,7 +1197,6 @@ export default function CreditDetails() {
         <CreditDetailsTabs
           activeTab={activeTab}
           isAdmin={isAdmin}
-          canViewPayoff={canViewPayoff}
           alertCount={alertEntries.length}
           pendingPromiseCount={promiseEntries.filter((promise: any) => promise.status === 'pending').length}
           paymentHistoryCount={paymentHistoryEntries.length}
@@ -1204,7 +1204,6 @@ export default function CreditDetails() {
             calendar: tTerm('creditDetails.tab.calendar'),
             alerts: tTerm('creditDetails.tab.alerts'),
             promises: tTerm('creditDetails.tab.promises'),
-            payoff: tTerm('creditDetails.tab.payoff'),
             history: tTerm('creditDetails.tab.history'),
           }}
           onSelect={setActiveTab}
@@ -1624,57 +1623,6 @@ export default function CreditDetails() {
                   title="Sin pagos registrados"
                   description="Cuando registres un recaudo, aquí verás capital, interés, mora y el método usado para cada movimiento."
                 />
-              )}
-            </div>
-          )}
-
-          {/* TAB: PAYOFF */}
-          {activeTab === 'payoff' && (
-            <div className="animate-in fade-in duration-300">
-              {activePayoffQuote ? (
-                <div className="max-w-md border border-border-subtle rounded-xl p-6 bg-bg-surface">
-                  <h3 className="text-lg font-medium text-text-primary mb-1">Cotización de pago total</h3>
-                  <p className="text-sm text-text-secondary mb-6">Válida al {formatDate(activePayoffQuote.asOfDate)}</p>
-                    
-                  <div className="space-y-4 mb-6">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-text-secondary">Capital restante:</span>
-                      <span className="text-text-primary">{formatCurrency(activePayoffQuote.outstandingPrincipal ?? activePayoffQuote.principalBalance)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-text-secondary">Intereses a la fecha:</span>
-                    <span className="text-text-primary">{formatCurrency(activePayoffQuote.accruedInterest ?? activePayoffQuote.breakdown?.accruedInterest ?? 0)}</span>
-                    </div>
-                    {Number(activePayoffQuote.lateFees) > 0 && (
-                      <div className="flex justify-between text-sm text-amber-600">
-                        <span>Cargos por mora:</span>
-                        <span>{formatCurrency(activePayoffQuote.lateFees)}</span>
-                      </div>
-                    )}
-                    
-                    <div className="pt-4 border-t border-border-subtle flex justify-between items-end">
-                      <span className="font-medium text-text-primary">Total a Pagar</span>
-                      <span className="text-2xl font-bold text-brand-primary">{formatCurrency(activePayoffQuote.total ?? activePayoffQuote.totalPayoffAmount)}</span>
-                    </div>
-                  </div>
-
-                  <ActionButton
-                    onClick={handlePayoff}
-                    disabled={!canViewPayoff || !payoffEligibility?.allowed}
-                    variant="primary"
-                    fullWidth
-                  >
-                    {canViewPayoff && payoffEligibility?.allowed ? 'Confirmar pago total' : 'Acción no disponible'}
-                  </ActionButton>
-                </div>
-              ) : (
-                <div className="max-w-2xl">
-                  <TabEmptyState
-                    icon={Info}
-                    title="El pago total no está disponible"
-                    description={payoffUnavailableDescription}
-                  />
-                </div>
               )}
             </div>
           )}
