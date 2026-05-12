@@ -8,6 +8,13 @@ import {
 } from '../services/permissionsService';
 import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
+import {
+  ActionButton,
+  EmptyState,
+  FormField,
+  SelectInput,
+  ToolbarSurface,
+} from './shared/Surfaces';
 
 type PermissionRecord = {
   permission: string;
@@ -34,6 +41,8 @@ const getModuleLabel = (module: string) => {
   const normalizedModule = module.trim().toLowerCase();
   return MODULE_DISPLAY_LABELS[normalizedModule] || module;
 };
+
+const permissionViewTabClassName = (isActive: boolean) => `view-tab ${isActive ? 'view-tab--active' : ''}`;
 
 export default function PermissionsTab() {
   const { permissions, isLoading: isLoadingPermissions } = usePermissions();
@@ -193,25 +202,21 @@ export default function PermissionsTab() {
   };
 
   if (isLoadingPermissions || isLoadingUsers) {
-    return <div className="p-8 text-center text-text-secondary">Cargando permisos…</div>;
+    return <EmptyState title="Cargando permisos…" compact />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex border-b border-border-subtle">
+      <div className="view-tabs">
         <button
           onClick={() => setActiveView('all')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeView === 'all' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
-          }`}
+          className={permissionViewTabClassName(activeView === 'all')}
         >
           <Shield size={16} /> Catálogo de permisos
         </button>
         <button
           onClick={() => setActiveView('user')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeView === 'user' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
-          }`}
+          className={permissionViewTabClassName(activeView === 'user')}
         >
           <Users size={16} /> Gestión por usuario
         </button>
@@ -220,7 +225,7 @@ export default function PermissionsTab() {
       {activeView === 'all' && (
         <div className="space-y-3">
           {groupedPermissions.length === 0 ? (
-            <p className="text-text-secondary py-4">No hay permisos disponibles.</p>
+            <EmptyState title="No hay permisos disponibles" compact />
           ) : (
             groupedPermissions.map((group) => (
               <div key={group.module} className="border border-border-subtle rounded-xl overflow-hidden">
@@ -259,14 +264,12 @@ export default function PermissionsTab() {
 
       {activeView === 'user' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label htmlFor="permissions-user-select" className="block text-xs text-text-secondary mb-1">Usuario</label>
-              <select
+          <ToolbarSurface className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <FormField label="Usuario">
+              <SelectInput
                 id="permissions-user-select"
                 value={selectedUserId}
                 onChange={(event) => setSelectedUserId(event.target.value)}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Seleccione un usuario</option>
                 {users.map((user: any) => (
@@ -274,38 +277,37 @@ export default function PermissionsTab() {
                     {user.name || user.email} ({user.role || 'sin rol'})
                   </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="permissions-module-filter" className="block text-xs text-text-secondary mb-1">Módulo</label>
-              <select
+              </SelectInput>
+            </FormField>
+            <FormField label="Módulo">
+              <SelectInput
                 id="permissions-module-filter"
                 value={moduleFilter}
                 onChange={(event) => setModuleFilter(event.target.value)}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
               >
                 <option value="all">Todos los módulos</option>
                 {groupedPermissions.map((group) => (
                   <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
                 ))}
-              </select>
-            </div>
+              </SelectInput>
+            </FormField>
             <div className="flex items-end">
-              <button
+              <ActionButton
                 onClick={() => selectedUserPermissionsQuery.refetch()}
                 disabled={!selectedUserId || selectedUserPermissionsQuery.isLoading}
-                className="w-full px-3 py-2 rounded-lg border border-border-subtle hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
+                fullWidth
               >
                 {selectedUserPermissionsQuery.isLoading ? 'Actualizando…' : 'Actualizar permisos'}
-              </button>
+              </ActionButton>
             </div>
-          </div>
+          </ToolbarSurface>
 
           {!selectedUserId ? (
-            <div className="text-text-secondary py-8 text-center">
-              <Users size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Seleccione un usuario para gestionar permisos por módulo y permiso individual.</p>
-            </div>
+            <EmptyState
+              title="Seleccione un usuario"
+              description="Luego podrá gestionar permisos por módulo y permiso individual."
+              icon={<Users size={36} />}
+            />
           ) : (
             <div className="space-y-3">
               <div className="rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-secondary">
@@ -328,20 +330,20 @@ export default function PermissionsTab() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
+                        <ActionButton
                           onClick={() => handleToggleModulePermissions(group.module, true)}
                           disabled={isBusy}
-                          className="text-xs px-2 py-1 rounded border border-border-subtle hover:bg-hover-bg disabled:opacity-50"
+                          className="!min-h-0 !px-2 !py-1 text-xs"
                         >
                           Conceder módulo
-                        </button>
-                        <button
+                        </ActionButton>
+                        <ActionButton
                           onClick={() => handleToggleModulePermissions(group.module, false)}
                           disabled={isBusy || directCount === 0}
-                          className="text-xs px-2 py-1 rounded border border-border-subtle hover:bg-hover-bg disabled:opacity-50"
+                          className="!min-h-0 !px-2 !py-1 text-xs"
                         >
                           Revocar directos
-                        </button>
+                        </ActionButton>
                       </div>
                     </div>
                     <div className="divide-y divide-border-subtle">
