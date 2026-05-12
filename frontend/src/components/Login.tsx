@@ -11,9 +11,9 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Loader2,
   AlertCircle,
 } from 'lucide-react';
+import { ActionButton, FormField, IconActionButton, TextInput } from './shared/Surfaces';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -120,15 +120,12 @@ export default function Login() {
             )}
 
             {/* Email */}
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="block text-[13px] font-semibold text-text-primary ml-1">
-                Correo electrónico
-              </label>
+            <FormField label="Correo electrónico">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Mail className="size-[18px] text-text-secondary/40" />
                 </div>
-                <input
+                <TextInput
                   id="email"
                   name="email"
                   type="email"
@@ -138,21 +135,18 @@ export default function Login() {
                   placeholder="nombre@empresa.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-subtle bg-bg-surface text-text-primary placeholder:text-text-secondary/30 focus:outline-none focus:ring-[3px] focus:ring-blue-500/10 focus:border-blue-500/40 transition-all duration-200 disabled:opacity-50 text-[15px]"
+                  className="rounded-xl py-2.5 pl-10 pr-4 text-[15px]"
                 />
               </div>
-            </div>
+            </FormField>
 
             {/* Password */}
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="block text-[13px] font-semibold text-text-primary ml-1">
-                Contraseña
-              </label>
+            <FormField label="Contraseña">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="size-[18px] text-text-secondary/40" />
                 </div>
-                <input
+                <TextInput
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
@@ -162,43 +156,32 @@ export default function Login() {
                   placeholder="Ingresa tu contraseña"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-11 py-2.5 rounded-xl border border-border-subtle bg-bg-surface text-text-primary placeholder:text-text-secondary/30 focus:outline-none focus:ring-[3px] focus:ring-blue-500/10 focus:border-blue-500/40 transition-all duration-200 disabled:opacity-50 text-[15px]"
+                  className="rounded-xl py-2.5 pl-10 pr-11 text-[15px]"
                 />
-                <button
-                  type="button"
+                <IconActionButton
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary/40 hover:text-text-secondary focus:outline-none transition-colors disabled:opacity-50"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 !border-0 !bg-transparent"
                   tabIndex={-1}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-[18px]" />
-                  ) : (
-                    <Eye className="size-[18px]" />
-                  )}
-                </button>
+                  label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  icon={showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+                />
               </div>
-            </div>
+            </FormField>
 
             {/* Submit */}
-            <button
+            <ActionButton
               type="submit"
               disabled={!isFormValid || isLoading}
-              className="group relative w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-text-primary text-bg-base font-semibold text-[15px] hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-[3px] focus:ring-blue-500/20 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 mt-2"
+              className="group mt-2 rounded-xl py-2.5 text-[15px]"
+              fullWidth
+              variant="primary"
+              isLoading={isLoading}
+              loadingLabel="Iniciando sesión…"
+              icon={!isLoading ? <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform duration-200" /> : undefined}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  <span>Iniciando sesión…</span>
-                </>
-              ) : (
-                <>
-                  <span>Iniciar sesión</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform duration-200" />
-                </>
-              )}
-            </button>
+              Iniciar sesión
+            </ActionButton>
           </form>
         </div>
       </div>

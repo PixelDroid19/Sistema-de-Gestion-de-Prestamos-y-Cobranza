@@ -56,6 +56,7 @@ type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   fullWidth?: boolean;
   isLoading?: boolean;
+  loadingLabel?: React.ReactNode;
 };
 
 type IconActionButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
@@ -264,6 +265,7 @@ export function ActionButton({
   variant = 'secondary',
   fullWidth = false,
   isLoading = false,
+  loadingLabel = 'Procesando...',
   className = '',
   disabled,
   ...rest
@@ -276,7 +278,7 @@ export function ActionButton({
       {...rest}
     >
       {icon && <span className="action-button-icon" aria-hidden="true">{icon}</span>}
-      <span>{isLoading ? 'Procesando...' : children}</span>
+      <span>{isLoading ? loadingLabel : children}</span>
     </button>
   );
 }
