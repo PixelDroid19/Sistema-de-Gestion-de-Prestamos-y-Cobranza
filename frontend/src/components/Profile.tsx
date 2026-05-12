@@ -3,7 +3,7 @@ import { User, Lock, Save, Shield } from 'lucide-react';
 import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
-import { ActionButton, FormField, PageHeader, PageShell, SectionSurface, TextInput } from './shared/Surfaces';
+import { ActionButton, FormField, PageHeader, PageShell, SectionSurface, TextInput, ViewTabs } from './shared/Surfaces';
 
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
@@ -90,20 +90,15 @@ export default function Profile() {
         )}
       />
 
-      <div className="view-tabs" data-tour="profile-tabs">
-        <button
-          onClick={() => setActiveTab('info')}
-          className={`view-tab ${activeTab === 'info' ? 'view-tab--active' : ''}`}
-        >
-          <User size={16} /> Información personal
-        </button>
-        <button
-          onClick={() => setActiveTab('security')}
-          className={`view-tab ${activeTab === 'security' ? 'view-tab--active' : ''}`}
-        >
-          <Lock size={16} /> Seguridad
-        </button>
-      </div>
+      <ViewTabs
+        data-tour="profile-tabs"
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
+        tabs={[
+          { id: 'info', label: 'Información personal', icon: User },
+          { id: 'security', label: 'Seguridad', icon: Lock },
+        ]}
+      />
 
       <SectionSurface data-tour="profile-content">
         {activeTab === 'info' && (
