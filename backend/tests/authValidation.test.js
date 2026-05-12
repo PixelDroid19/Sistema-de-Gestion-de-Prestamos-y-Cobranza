@@ -5,15 +5,24 @@ const { authValidation } = require('@/middleware/validation');
 const { ValidationError } = require('@/utils/errorHandler');
 const { runMiddleware, captureMiddlewareError } = require('./helpers/middleware');
 
-test('authValidation.register accepts customer self-signup without phone', async () => {
-  await assert.doesNotReject(() => runMiddleware(authValidation.register, {
+test('authValidation.register rejects public signup with a clear provisioning error', async () => {
+  const error = await captureMiddlewareError(authValidation.register, {
     body: {
       name: 'Ana Customer',
       email: 'ana@example.com',
       password: 'Secret12',
       role: 'customer',
     },
-  }));
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Please correct the following errors');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'role',
+      message: 'Public registration is disabled. An administrator must create employee accounts.',
+    },
+  ]);
 });
 
 test('authValidation.register rejects privileged public roles with a clear role error', async () => {
@@ -32,12 +41,12 @@ test('authValidation.register rejects privileged public roles with a clear role 
   assert.deepEqual(error.errors, [
     {
       field: 'role',
-      message: 'Public registration only allows the customer role',
+      message: 'Public registration is disabled. An administrator must create employee accounts.',
     },
   ]);
 });
 
-test('authValidation.adminRegister rejects agent as an unsupported application role', async () => {
+test('authValidation.adminRegister rejects agent as an unsupported administrative role', async () => {
   const error = await captureMiddlewareError(authValidation.adminRegister, {
     body: {
       name: 'Ana Agent',
@@ -52,7 +61,7 @@ test('authValidation.adminRegister rejects agent as an unsupported application r
   assert.deepEqual(error.errors, [
     {
       field: 'role',
-      message: 'Role must be one of: admin, customer, socio',
+      message: 'Role must be one of: admin, employee',
     },
   ]);
 });

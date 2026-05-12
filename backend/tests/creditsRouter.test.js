@@ -602,8 +602,8 @@ test('createCreditsRouter protects admin-only portfolio analytics routes', async
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(statisticsResponse.statusCode, 403);
-  assert.equal(duePaymentsResponse.statusCode, 403);
+  assert.equal(statisticsResponse.statusCode, 401);
+  assert.equal(duePaymentsResponse.statusCode, 401);
 });
 
 test('createCreditsRouter POST /calculations returns canonical credit calculation data', async () => {
@@ -718,7 +718,7 @@ test('createCreditsRouter does not expose legacy /simulations endpoint', async (
   assert.equal(calls.length, 0);
 });
 
-test('createCreditsRouter GET / scopes loans to the authenticated customer at runtime', async () => {
+test('createCreditsRouter GET / rejects customer tokens at the administrative auth boundary', async () => {
   const loanRepository = {
     async list() {
       return [
@@ -747,18 +747,8 @@ test('createCreditsRouter GET / scopes loans to the authenticated customer at ru
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.body, {
-    success: true,
-    count: 2,
-    data: {
-      loans: [
-        { id: 41, customerId: 7, status: 'approved' },
-        { id: 43, customerId: 7, status: 'defaulted' },
-      ],
-      pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
-    },
-  });
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.error.message, 'This account cannot access the administrative platform');
 });
 
 test('createCreditsRouter GET / returns all loans to admins at runtime', async () => {
@@ -934,7 +924,7 @@ test('createCreditsRouter DELETE /:id blocks customer deletion attempts at runti
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 401);
   assert.equal(response.body.success, false);
   assert.equal(destroyCalled, false);
 });
@@ -1326,7 +1316,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
 
 test('createCreditsRouter rejects invalid payoff payloads through runtime validation', async () => {
   const app = createRuntimeApp({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'employee' },
     useCases: createUseCases({}),
   });
 
@@ -1352,7 +1342,7 @@ test('createCreditsRouter rejects invalid payoff payloads through runtime valida
 
 test('createCreditsRouter returns structured denial reasons for payoff denials', async () => {
   const app = createRuntimeApp({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'employee' },
     useCases: createUseCases({
       async getPayoffQuote() {
         const error = new Error('Total payoff is not allowed for this loan');
@@ -1386,7 +1376,7 @@ test('createCreditsRouter returns structured denial reasons for payoff denials',
 
 test('createCreditsRouter returns structured denial reasons for payoff execution no-outstanding-balance denials', async () => {
   const app = createRuntimeApp({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'employee' },
     useCases: createUseCases({
       async executePayoff() {
         const error = new Error('Total payoff is not allowed for this loan');
@@ -1434,5 +1424,5 @@ test('createCreditsRouter blocks payoff execution for unsupported actors at the 
     body: { asOfDate: '2026-03-15', quotedTotal: 955.12 },
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 401);
 });

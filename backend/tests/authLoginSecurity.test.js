@@ -63,7 +63,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
             id: 1,
             email: 'test@test.com',
             password: 'hashed',
-            role: 'customer',
+            role: 'employee',
             failedLoginAttempts: 3,
             lockedUntil: null,
           };
@@ -97,7 +97,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
             id: 1,
             email: 'test@test.com',
             password: 'hashed',
-            role: 'customer',
+            role: 'employee',
             failedLoginAttempts: 0,
             lockedUntil: null,
           };
@@ -132,7 +132,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
             id: 1,
             email: 'test@test.com',
             password: 'hashed',
-            role: 'customer',
+            role: 'employee',
             failedLoginAttempts: 4,
             lockedUntil: null,
           };
@@ -169,7 +169,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
             id: 1,
             email: 'test@test.com',
             password: 'hashed',
-            role: 'customer',
+            role: 'employee',
             failedLoginAttempts: 5,
             lockedUntil: futureLockout,
           };
@@ -206,7 +206,7 @@ describe('createLoginUser with progressive delays and lockout', () => {
             id: 1,
             email: 'test@test.com',
             password: 'hashed',
-            role: 'customer',
+            role: 'employee',
             failedLoginAttempts: 5,
             lockedUntil: pastLockout,
           };

@@ -225,7 +225,7 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
   assert.equal(loan.paymentContext.isPayable, true);
   assert.equal(loan.paymentContext.snapshot.outstandingBalance, 1030);
   assert.equal(loan.paymentContext.payoffEligibility.allowed, true);
-  assert.equal(loan.paymentContext.capitalEligibility.allowed, true);
+  assert.equal(loan.paymentContext.capitalEligibility.allowed, false);
   assert.deepEqual(loan.customerSummary, {
     totalLoans: 3,
     activeLoans: 2,
@@ -399,7 +399,7 @@ test('createDeleteLoan rejects non-admin actors before touching the repository',
     loanId: 77,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Only admins can delete loans');
+    assert.equal(error.message, 'Only authorized backoffice users can delete loans');
     return true;
   });
 
@@ -936,12 +936,12 @@ test('createGetPayoffQuote rejects already settled loans', async () => {
   });
 });
 
-test('createExecutePayoff allows customer payment authority and forwards execution inputs with actor', async () => {
+test('createExecutePayoff allows backoffice payment authority and forwards execution inputs with actor', async () => {
   let executionInput;
   const executePayoff = createExecutePayoff({
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
-        assert.equal(actor.role, 'customer');
+        assert.equal(actor.role, 'employee');
         assert.equal(loanId, 22);
         return { id: 22, customerId: 7 };
       },
@@ -956,7 +956,7 @@ test('createExecutePayoff allows customer payment authority and forwards executi
   });
 
   const result = await executePayoff({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'employee' },
     loanId: 22,
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
@@ -968,7 +968,7 @@ test('createExecutePayoff allows customer payment authority and forwards executi
     asOfDate: '2026-03-15',
     quotedTotal: 104.56,
     paymentDate: new Date('2026-03-15T18:30:00.000Z'),
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'employee' },
     idempotencyKey: undefined,
   });
 });

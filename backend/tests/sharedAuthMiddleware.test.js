@@ -24,7 +24,7 @@ test('createAuthMiddleware enforces role policies', async () => {
   const auth = createAuthMiddleware({
     tokenService: {
       verify() {
-        return { id: 44, role: 'customer' };
+        return { id: 44, role: 'employee' };
       },
     },
   });
