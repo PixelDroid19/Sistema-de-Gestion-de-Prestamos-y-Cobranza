@@ -26,7 +26,7 @@ import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
 import { CreditDetailsTabs, TabEmptyState, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
 import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
-import { ActionButton, ModalShell } from './shared/Surfaces';
+import { ActionButton, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from './shared/Surfaces';
 
 type PayoffDenialReason = string | {
   code?: string;
@@ -1785,20 +1785,20 @@ export default function CreditDetails() {
             </>
           )}
         >
-          <label htmlFor="credit-status-select" className="block text-sm text-text-secondary mb-2">Nuevo estado</label>
-          <select
-            id="credit-status-select"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            className="w-full bg-bg-base border border-border-strong rounded-lg px-4 py-2 outline-none focus:border-text-primary text-sm"
-          >
-            <option value="">Seleccione un estado…</option>
-            {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {LOAN_STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
+          <FormField label="Nuevo estado">
+            <SelectInput
+              id="credit-status-select"
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value)}
+            >
+              <option value="">Seleccione un estado…</option>
+              {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {LOAN_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </SelectInput>
+          </FormField>
         </ModalShell>
       )}
 
@@ -1866,44 +1866,39 @@ export default function CreditDetails() {
                   )}
                 </div>
               )}
-              <div>
-                <label htmlFor="credit-payment-amount" className="block text-sm text-text-secondary mb-1">Monto a pagar</label>
+              <FormField label="Monto a pagar">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                  <input
+                  <TextInput
                     id="credit-payment-amount"
                     type="number"
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
+                    className="pl-8"
                     placeholder="0.00" min="0" step="0.01"
                   />
                 </div>
-              </div>
+              </FormField>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="credit-payment-date" className="block text-sm text-text-secondary mb-1">Fecha</label>
-                  <input
+                <FormField label="Fecha">
+                  <TextInput
                     id="credit-payment-date"
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   />
-                </div>
-                <div>
-                  <label htmlFor="credit-payment-method" className="block text-sm text-text-secondary mb-1">Método</label>
-                  <select
+                </FormField>
+                <FormField label="Método">
+                  <SelectInput
                     id="credit-payment-method"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   >
                     {paymentMethodOptions.map((method) => (
                       <option key={method.value} value={method.value}>{method.label}</option>
                     ))}
-                  </select>
-                </div>
+                  </SelectInput>
+                </FormField>
               </div>
             </div>
           </ModalShell>
@@ -1925,36 +1920,30 @@ export default function CreditDetails() {
           )}
         >
             <div className="space-y-4">
-              <div>
-                <label htmlFor="credit-promise-amount" className="block text-sm text-text-secondary mb-1">Monto prometido</label>
-                <input
+              <FormField label="Monto prometido">
+                <TextInput
                   id="credit-promise-amount"
                   type="number"
                   value={promiseAmount}
                   onChange={(e) => setPromiseAmount(e.target.value)}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
                 />
-              </div>
-              <div>
-                <label htmlFor="credit-promise-date" className="block text-sm text-text-secondary mb-1">Fecha comprometida</label>
-                <input
+              </FormField>
+              <FormField label="Fecha comprometida">
+                <TextInput
                   id="credit-promise-date"
                   type="date"
                   value={promiseDateInput}
                   onChange={(e) => setPromiseDateInput(e.target.value)}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
                 />
-              </div>
-              <div>
-                <label htmlFor="credit-promise-notes" className="block text-sm text-text-secondary mb-1">Notas</label>
-                <textarea
+              </FormField>
+              <FormField label="Notas">
+                <TextAreaInput
                   id="credit-promise-notes"
                   value={promiseNotes}
                   onChange={(e) => setPromiseNotes(e.target.value)}
                   rows={3}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
                 />
-              </div>
+              </FormField>
             </div>
           </ModalShell>
       )}
@@ -1975,16 +1964,14 @@ export default function CreditDetails() {
           )}
         >
             <div className="space-y-4">
-              <div>
-                <label htmlFor="credit-follow-up-notes" className="block text-sm text-text-secondary mb-1">Detalle</label>
-                <textarea
+              <FormField label="Detalle">
+                <TextAreaInput
                   id="credit-follow-up-notes"
                   value={followUpNotes}
                   onChange={(e) => setFollowUpNotes(e.target.value)}
                   rows={4}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2"
                 />
-              </div>
+              </FormField>
             </div>
           </ModalShell>
       )}
@@ -2011,14 +1998,14 @@ export default function CreditDetails() {
             </>
           )}
         >
-          <label htmlFor="credit-annul-reason" className="block text-sm text-text-secondary mb-1">Razón de anulación (opcional)</label>
-          <textarea
-            id="credit-annul-reason"
-            value={annulReason}
-            onChange={(e) => setAnnulReason(e.target.value)}
-            className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 resize-none"
-            rows={3}
-          />
+          <FormField label="Razón de anulación (opcional)">
+            <TextAreaInput
+              id="credit-annul-reason"
+              value={annulReason}
+              onChange={(e) => setAnnulReason(e.target.value)}
+              rows={3}
+            />
+          </FormField>
         </ModalShell>
       )}
 
@@ -2046,58 +2033,51 @@ export default function CreditDetails() {
         >
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label htmlFor="credit-capital-amount" className="block text-sm font-medium text-text-primary mb-1">Monto del abono</label>
+                <FormField label="Monto del abono">
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                    <input
+                    <TextInput
                       id="credit-capital-amount"
                       type="number"
                       value={capitalAmount}
                       onChange={(e) => setCapitalAmount(e.target.value)}
-                      className="w-full bg-bg-base border border-border-strong rounded-lg pl-8 pr-3 py-2 outline-none focus:border-text-primary"
+                      className="pl-8"
                       placeholder="0.00" min="0" step="0.01"
                     />
                   </div>
-                </div>
-                <div className="relative">
-                  <label htmlFor="credit-capital-date" className="block text-sm font-medium text-text-primary mb-1">Fecha del abono</label>
-                  <input
+                </FormField>
+                <FormField label="Fecha del abono">
+                  <TextInput
                     id="credit-capital-date"
                     type="date"
                     value={capitalPaymentDate}
                     onChange={(e) => setCapitalPaymentDate(e.target.value)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 outline-none focus:border-text-primary"
                   />
-                </div>
+                </FormField>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="credit-capital-method" className="block text-sm font-medium text-text-primary mb-1">Método</label>
-                  <select
+                <FormField label="Método">
+                  <SelectInput
                     id="credit-capital-method"
                     value={capitalMethod}
                     onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   >
                     {paymentMethodOptions.map((method) => (
                       <option key={method.value} value={method.value}>{method.label}</option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="credit-capital-strategy" className="block text-sm font-medium text-text-primary mb-1">Estrategia</label>
-                  <select
+                  </SelectInput>
+                </FormField>
+                <FormField label="Estrategia">
+                  <SelectInput
                     id="credit-capital-strategy"
                     value={capitalStrategy}
                     onChange={(e) => setCapitalStrategy(e.target.value as CapitalStrategy)}
-                    className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary"
                   >
                     {CAPITAL_STRATEGIES.map((strategy) => (
                       <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
                     ))}
-                  </select>
-                </div>
+                  </SelectInput>
+                </FormField>
               </div>
               <div className="rounded-xl border border-border-subtle bg-bg-base/70 p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">Previsualización</p>
@@ -2167,20 +2147,18 @@ export default function CreditDetails() {
                   El pago está conciliado. No se permite editar su método.
                 </div>
               )}
-              <div>
-                <label htmlFor="credit-payment-method-select" className="block text-sm text-text-secondary mb-1">Nuevo método</label>
-                <select
+              <FormField label="Nuevo método">
+                <SelectInput
                   id="credit-payment-method-select"
                   value={newPaymentMethod}
                   onChange={(event) => setNewPaymentMethod(event.target.value as PaymentMethod)}
                   disabled={editingPaymentReconciled}
-                  className="w-full bg-bg-base border border-border-strong rounded-lg px-3 py-2 text-sm outline-none focus:border-text-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
-                </select>
-              </div>
+                </SelectInput>
+              </FormField>
             </div>
           </ModalShell>
       )}
@@ -2200,18 +2178,19 @@ export default function CreditDetails() {
             </>
           )}
         >
-          <label htmlFor="credit-late-fee-rate" className="block text-sm text-text-secondary mb-1">Tasa (%)</label>
-          <div className="relative">
-            <input
-              id="credit-late-fee-rate"
-              type="number"
-              value={lateFeeRate}
-              onChange={(e) => setLateFeeRate(e.target.value)}
-              className="w-full bg-bg-base border border-border-strong rounded-lg pl-3 pr-8 py-2 outline-none focus:border-text-primary"
-              placeholder="0.00" min="0" max="100" step="0.01"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
-          </div>
+          <FormField label="Tasa (%)">
+            <div className="relative">
+              <TextInput
+                id="credit-late-fee-rate"
+                type="number"
+                value={lateFeeRate}
+                onChange={(e) => setLateFeeRate(e.target.value)}
+                className="pr-8"
+                placeholder="0.00" min="0" max="100" step="0.01"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
+            </div>
+          </FormField>
         </ModalShell>
       )}
 
