@@ -1411,15 +1411,14 @@ export default function CreditDetails() {
                             )}
                           </div>
                         </div>
-                        <button
+                        <ActionButton
                           type="button"
                           onClick={() => handleUpdateAlertStatus(alert, alert.status === 'resolved' ? 'active' : 'resolved')}
                           disabled={updateAlertStatus.isPending}
-                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                          icon={alert.status === 'resolved' ? <Bell size={16} /> : <CheckCircle size={16} />}
                         >
-                          {alert.status === 'resolved' ? <Bell size={16} /> : <CheckCircle size={16} />}
                           {alert.status === 'resolved' ? 'Reactivar' : 'Resolver'}
-                        </button>
+                        </ActionButton>
                       </div>
                     </div>
                   )})}
@@ -1495,49 +1494,51 @@ export default function CreditDetails() {
                         <div className="mt-5 flex flex-wrap gap-2">
                           {isPending ? (
                             <>
-                              <button
+                              <ActionButton
                                 type="button"
                                 onClick={() => handleUpdatePromiseStatus(promise, 'kept')}
                                 disabled={updatePromiseStatus.isPending}
-                                className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                variant="primary"
+                                icon={<CheckCircle size={16} />}
                               >
-                                <CheckCircle size={16} /> Cumplida
-                              </button>
-                              <button
+                                Cumplida
+                              </ActionButton>
+                              <ActionButton
                                 type="button"
                                 onClick={() => handleUpdatePromiseStatus(promise, 'broken')}
                                 disabled={updatePromiseStatus.isPending}
-                                className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                variant="danger"
+                                icon={<AlertTriangle size={16} />}
                               >
-                                <AlertTriangle size={16} /> Incumplida
-                              </button>
-                              <button
+                                Incumplida
+                              </ActionButton>
+                              <ActionButton
                                 type="button"
                                 onClick={() => handleUpdatePromiseStatus(promise, 'cancelled')}
                                 disabled={updatePromiseStatus.isPending}
-                                className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-secondary hover:bg-hover-bg disabled:opacity-50"
+                                variant="ghost"
                               >
                                 Cancelar
-                              </button>
+                              </ActionButton>
                             </>
                           ) : (
-                            <button
+                            <ActionButton
                               type="button"
                               onClick={() => handleUpdatePromiseStatus(promise, 'pending')}
                               disabled={updatePromiseStatus.isPending}
-                              className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                              icon={<Clock size={16} />}
                             >
-                              <Clock size={16} /> Reabrir
-                            </button>
+                              Reabrir
+                            </ActionButton>
                           )}
-                          <button
+                          <ActionButton
                             type="button"
                             onClick={() => handleDownloadPromise(promise)}
                             disabled={downloadPromiseDocument.isPending}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg disabled:opacity-50"
+                            icon={<FileText size={16} />}
                           >
-                            <FileText size={16} /> Descargar
-                          </button>
+                            Descargar
+                          </ActionButton>
                         </div>
                       </div>
                     );
@@ -1715,12 +1716,13 @@ export default function CreditDetails() {
                               </div>
                               {paymentId && (
                                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                  <button
+                                  <ActionButton
                                     onClick={() => handleDownloadVoucher(paymentId)}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-lg transition-colors border border-border-subtle"
+                                    className="!min-h-0 !px-3 !py-1.5"
+                                    icon={<FileText size={16} />}
                                   >
-                                    <FileText size={16} /> Recibo
-                                  </button>
+                                    Recibo
+                                  </ActionButton>
                                   {(() => {
                                     const editGuard = resolveOperationalGuard('installment.editPaymentMethod', {
                                       role: user?.role,
@@ -1733,14 +1735,15 @@ export default function CreditDetails() {
                                     if (!isAdmin || !editGuard.visible) return null;
 
                                     return (
-                                      <button
+                                      <ActionButton
                                         onClick={() => openEditPaymentMethodModal(event)}
                                         disabled={!editGuard.executable}
-                                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-text-secondary hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="!min-h-0 !px-3 !py-1.5"
+                                        icon={<Edit2 size={16} />}
                                         title={editGuard.executable ? 'Editar método de pago' : (editGuard.reason || 'Acción no disponible')}
                                       >
-                                        <Edit2 size={16} /> Método
-                                      </button>
+                                        Método
+                                      </ActionButton>
                                     );
                                   })()}
                                 </div>
