@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock, DollarSign, TrendingUp, Calendar, AlertTriangle, CreditCard } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Download, Trash2, CheckCircle, Clock, DollarSign, AlertTriangle, CreditCard } from 'lucide-react';
 import { useCustomerById, useCustomerDocuments } from '../services/customerService';
 import { useCustomerReports } from '../services/reportService';
 import { useLoans } from '../services/loanService';
@@ -8,8 +8,17 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { extractRawErrorMessage } from '../services/safeErrorMessages';
-import { QuickGuideButton } from './shared/HelpSupport';
-import { ActionButton } from './shared/Surfaces';
+import {
+  ActionButton,
+  EmptyState,
+  FormField,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SectionSurface,
+  SelectInput,
+  TextInput,
+} from './shared/Surfaces';
 
 const CUSTOMER_DOCUMENT_OPTIONS = [
   { value: 'identification', label: 'Identificación (INE/Pasaporte)' },
@@ -146,18 +155,25 @@ export default function CustomerDetails() {
 
   if (isCustomerLoading) {
     return (
-      <div className="p-8 text-center text-text-secondary">
-        <p>Cargando cliente…</p>
-      </div>
+      <PageShell className="mx-auto max-w-6xl">
+        <EmptyState title="Cargando cliente…" compact />
+      </PageShell>
     );
   }
 
   if (isCustomerError || !customer) {
     return (
-      <div className="p-8 text-center text-text-secondary">
-        <p>Cliente no encontrado.</p>
-        <button onClick={() => navigate('/customers')} className="mt-4 text-brand-primary">Volver a clientes</button>
-      </div>
+      <PageShell className="mx-auto max-w-6xl">
+        <EmptyState
+          title="Cliente no encontrado"
+          description="No fue posible cargar el perfil solicitado."
+          action={(
+            <ActionButton onClick={() => navigate('/customers')} icon={<ArrowLeft size={16} />}>
+              Volver a clientes
+            </ActionButton>
+          )}
+        />
+      </PageShell>
     );
   }
 
@@ -212,20 +228,17 @@ export default function CustomerDetails() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6" data-tour="customer-details-page">
-      <div className="flex items-center gap-4 mb-6" data-tour="customer-details-header">
-        <button 
-          onClick={() => navigate('/customers')}
-          className="p-2 hover:bg-hover-bg rounded-xl text-text-secondary transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">{customerName}</h1>
-          <p className="text-sm text-text-secondary">ID: {customer.id} | Documento: {customer.documentNumber || 'N/A'}</p>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <QuickGuideButton guideKey="customer-details" />
+    <PageShell className="mx-auto max-w-6xl" data-tour="customer-details-page">
+      <PageHeader
+        title={customerName}
+        subtitle={`ID: ${customer.id} | Documento: ${customer.documentNumber || 'N/A'}`}
+        guideKey="customer-details"
+        tourId="customer-details-header"
+        actions={(
+          <>
+            <ActionButton onClick={() => navigate('/customers')} icon={<ArrowLeft size={16} />}>
+              Volver
+            </ActionButton>
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             normalizedCustomerStatus === 'active'
               ? 'bg-status-success-bg text-status-success'
@@ -235,37 +248,38 @@ export default function CustomerDetails() {
           }`}>
             {normalizedCustomerStatus === 'active' ? 'Activo' : normalizedCustomerStatus === 'blacklisted' ? 'Bloqueado' : 'Inactivo'}
           </span>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
-      <div className="flex border-b border-border-subtle overflow-x-auto" data-tour="customer-details-tabs">
+      <div className="view-tabs" data-tour="customer-details-tabs">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'profile' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}
+          className={`view-tab ${activeTab === 'profile' ? 'view-tab--active' : ''}`}
         >
           Perfil y Score
         </button>
         <button
           onClick={() => setActiveTab('documents')}
-          className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'documents' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}
+          className={`view-tab ${activeTab === 'documents' ? 'view-tab--active' : ''}`}
         >
           Documentos
         </button>
         <button
           onClick={() => setActiveTab('loans')}
-          className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'loans' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}
+          className={`view-tab ${activeTab === 'loans' ? 'view-tab--active' : ''}`}
         >
           Créditos
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-6 py-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${activeTab === 'history' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'}`}
+          className={`view-tab ${activeTab === 'history' ? 'view-tab--active' : ''}`}
         >
           Historial
         </button>
       </div>
 
-      <div className="bg-bg-surface border border-border-subtle rounded-2xl p-6">
+      <SectionSurface>
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
@@ -288,7 +302,7 @@ export default function CustomerDetails() {
             {customerCreditProfile && (
               <div>
                 <h3 className="font-bold mb-4">Perfil Crediticio</h3>
-                <div className="p-4 bg-brand-primary/5 border border-brand-primary/20 rounded-xl space-y-3 text-sm">
+                <div className="rounded-xl border border-border-subtle bg-bg-base p-4 text-sm">
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Score Interno</span>
                     <span className="font-bold text-brand-primary">{customerCreditSummary?.score ?? 'N/A'}</span>
@@ -313,28 +327,29 @@ export default function CustomerDetails() {
               <h3 className="font-bold">Gestión Documental</h3>
             </div>
             
-            <form onSubmit={handleUpload} className="mb-8 flex flex-col gap-4 rounded-xl border border-dashed border-border-strong bg-bg-base p-4 lg:flex-row lg:items-end">
-              <div className="w-full lg:flex-1">
-                <label htmlFor="customer-document-type" className="block text-xs text-text-secondary mb-1">Tipo de Documento</label>
-                <select id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)} className="w-full bg-bg-surface border border-border-subtle rounded-lg px-3 py-2 text-sm">
+            <SectionSurface
+              as="form"
+              onSubmit={handleUpload}
+              className="mb-8 border-dashed"
+              bodyClassName="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_minmax(14rem,1fr)_auto_auto] lg:items-end"
+            >
+              <FormField label="Tipo de documento" htmlFor="customer-document-type">
+                <SelectInput id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
                   {CUSTOMER_DOCUMENT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
-                </select>
-              </div>
-              <div className="w-full lg:flex-1">
-                <label htmlFor="customer-document-file" className="block text-xs text-text-secondary mb-1">Archivo</label>
-                <input
+                </SelectInput>
+              </FormField>
+              <FormField label="Archivo" htmlFor="customer-document-file" helper="Formato permitido: PDF, JPG, PNG o WEBP.">
+                <TextInput
                   id="customer-document-file"
                   key={fileInputKey}
                   type="file"
                   accept={CUSTOMER_DOCUMENT_ACCEPT}
                   required
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm"
                 />
-                <p className="mt-1 text-xs text-text-secondary">Formato permitido: PDF, JPG, PNG o WEBP.</p>
-              </div>
+              </FormField>
               <label className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-secondary">
                 <input
                   type="checkbox"
@@ -347,15 +362,15 @@ export default function CustomerDetails() {
               <ActionButton type="submit" disabled={!file || uploadDocument.isPending} isLoading={uploadDocument.isPending} icon={<Upload size={16} />} variant="primary">
                 Subir
               </ActionButton>
-            </form>
+            </SectionSurface>
 
             <div className="space-y-3">
               {documents?.map((doc: any) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 border border-border-subtle rounded-xl">
-                  <div className="flex items-center gap-3">
+                <div key={doc.id} className="flex flex-col gap-3 rounded-xl border border-border-subtle p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
                     <FileText className="text-text-secondary" size={20} />
-                    <div>
-                      <p className="font-medium text-sm">{doc.originalName}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium" title={doc.originalName}>{doc.originalName}</p>
                       <p className="text-xs text-text-secondary">
                         {getDocumentTypeLabel(doc.category)}
                         {doc.customerVisible === false ? ' • Uso interno' : ' • Visible para cliente'}
@@ -365,17 +380,24 @@ export default function CustomerDetails() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <a href={downloadDocumentUrl(doc.id)} target="_blank" rel="noreferrer" title="Descargar documento" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                      <Download size={16} />
+                    <a href={downloadDocumentUrl(doc.id)} target="_blank" rel="noreferrer" title="Descargar documento" className="action-button action-button--ghost h-9 w-9 !min-h-0 !p-0">
+                      <Download size={16} aria-hidden="true" />
+                      <span className="sr-only">Descargar documento</span>
                     </a>
-                    <button onClick={() => handleDeleteDoc(doc.id)} title="Eliminar documento" className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
+                    <ActionButton
+                      onClick={() => handleDeleteDoc(doc.id)}
+                      title="Eliminar documento"
+                      icon={<Trash2 size={16} />}
+                      variant="danger"
+                      className="h-9 w-9 !min-h-0 !p-0"
+                    >
+                      <span className="sr-only">Eliminar documento</span>
+                    </ActionButton>
                   </div>
                 </div>
               ))}
               {(!documents || documents.length === 0) && (
-                <p className="text-center text-text-secondary py-4">No hay documentos subidos.</p>
+                <EmptyState title="No hay documentos subidos" compact />
               )}
             </div>
           </div>
@@ -384,29 +406,14 @@ export default function CustomerDetails() {
         {activeTab === 'loans' && (
           <div>
             {/* Loan Statistics */}
-            <div className="mb-6 p-4 bg-bg-base border border-border-subtle rounded-xl">
+            <div className="mb-6">
               <h4 className="text-sm font-medium text-text-secondary mb-4">Resumen de Cartera</h4>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-blue-50 dark:bg-blue-500/10 rounded-lg p-3">
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Total créditos</p>
-                  <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{customerLoans.length}</p>
-                </div>
-                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg p-3">
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Activos</p>
-                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{activeLoans.length}</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-500/10 rounded-lg p-3">
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Completados</p>
-                  <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{completedLoans.length}</p>
-                </div>
-                <div className="bg-red-50 dark:bg-red-500/10 rounded-lg p-3">
-                  <p className="text-xs text-red-600 dark:text-red-400 mb-1">Vencidos</p>
-                  <p className="text-lg font-bold text-red-700 dark:text-red-300">{overdueLoans.length}</p>
-                </div>
-                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-lg p-3">
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Total Desembolsado</p>
-                  <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalDisbursed)}</p>
-                </div>
+                <MetricCard label="Total créditos" value={customerLoans.length} icon={<CreditCard size={18} />} accent="blue" />
+                <MetricCard label="Activos" value={activeLoans.length} icon={<CheckCircle size={18} />} accent="emerald" />
+                <MetricCard label="Completados" value={completedLoans.length} icon={<Clock size={18} />} accent="slate" />
+                <MetricCard label="Vencidos" value={overdueLoans.length} icon={<AlertTriangle size={18} />} accent="rose" />
+                <MetricCard label="Total desembolsado" value={formatCurrency(totalDisbursed)} icon={<DollarSign size={18} />} accent="teal" />
               </div>
             </div>
 
@@ -460,10 +467,7 @@ export default function CustomerDetails() {
                 </button>
               ))}
               {customerLoans.length === 0 && (
-                <div className="text-center py-12 text-text-secondary">
-                  <CreditCard size={48} className="mx-auto mb-3 opacity-30" />
-                  <p>No tiene créditos registrados.</p>
-                </div>
+                <EmptyState title="No tiene créditos registrados" icon={<CreditCard size={28} />} />
               )}
             </div>
           </div>
@@ -484,12 +488,12 @@ export default function CustomerDetails() {
                 </div>
               ))}
               {historyEntries.length === 0 && (
-                <p className="text-center text-text-secondary py-4">No hay historial disponible.</p>
+                <EmptyState title="No hay historial disponible" compact />
               )}
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </SectionSurface>
+    </PageShell>
   );
 }
