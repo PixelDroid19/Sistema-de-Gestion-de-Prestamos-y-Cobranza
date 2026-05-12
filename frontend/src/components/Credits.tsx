@@ -34,7 +34,20 @@ import { tTerm } from '../i18n/terminology';
 import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { ActionButton, DataTableSurface, MetricCard, ModalShell, PageHeader, PageShell, SectionSurface, ToolbarSurface } from './shared/Surfaces';
+import {
+  ActionButton,
+  DataTableSurface,
+  EmptyState,
+  FormField,
+  MetricCard,
+  ModalShell,
+  PageHeader,
+  PageShell,
+  SectionSurface,
+  SelectInput,
+  TextInput,
+  ToolbarSurface,
+} from './shared/Surfaces';
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
 const locales = {
@@ -71,6 +84,7 @@ const getLoanStatusTone = (status?: string): ChipTone => {
 
 const STATUS_COLUMN_HELP = 'Estado: etapa administrativa del crédito. Define si está vigente, cerrado, rechazado, vencido o bloqueado para operación.';
 const RECOVERY_COLUMN_HELP = 'Situación: lectura de cobranza. Indica si el crédito está al día, en mora, recuperado o en seguimiento operativo.';
+const creditTabClassName = (isActive: boolean) => `view-tab ${isActive ? 'view-tab--active' : ''}`;
 
 const getLoanStatusDescription = (status?: string) => {
   switch (String(status || '').toLowerCase()) {
@@ -642,40 +656,41 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         actions={(
           <>
           {isAdmin && (
-            <button
+            <ActionButton
               onClick={handleExportCreditsExcel}
               disabled={isExporting}
               data-tour="credits-export"
-              className="flex items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              variant="primary"
+              icon={<Download size={16} />}
             >
-              <Download size={16} /> {isExporting ? 'Exportando…' : tTerm('credits.cta.exportExcel')}
-            </button>
+              {isExporting ? 'Exportando…' : tTerm('credits.cta.exportExcel')}
+            </ActionButton>
           )}
           {isAdmin && (
-            <button
+            <ActionButton
               onClick={() => setCurrentView?.('credit-calculator')}
               data-tour="credits-preview"
-              className="flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3.5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg dark:bg-bg-base"
+              icon={<Calculator size={16} />}
             >
-              <Calculator size={16} /> Previsualizar crédito
-            </button>
+              Previsualizar crédito
+            </ActionButton>
           )}
           {isAdmin && (
-            <button
+            <ActionButton
               onClick={() => setCurrentView?.('credits-new')}
               data-tour="credits-new"
-              className="flex items-center justify-center gap-2 rounded-lg bg-text-primary px-4 py-2 text-sm font-semibold text-bg-base hover:opacity-90"
+              variant="primary"
+              icon={<Plus size={16} />}
             >
-              <Plus size={16} /> {tTerm('credits.cta.new')}
-            </button>
+              {tTerm('credits.cta.new')}
+            </ActionButton>
           )}
           </>
         )}
       />
 
       {/* Tabs */}
-      <div className="border-b border-border-subtle" data-tour="credits-tabs">
-        <div className="flex gap-6 overflow-x-auto">
+      <div className="view-tabs" data-tour="credits-tabs">
           {[
             {
               id: 'list',
@@ -698,11 +713,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 key={tab.id}
                 type="button"
                 onClick={() => updateActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary'
-                }`}
+                className={creditTabClassName(isActive)}
                 title={tab.title}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -711,7 +722,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               </button>
             );
           })}
-        </div>
       </div>
 
       {activeTab === 'list' && (
@@ -730,7 +740,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative w-full sm:w-80">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <input
+                <TextInput
                   type="text"
                   data-tour="credits-search"
                   placeholder={searchPlaceholder}
@@ -742,16 +752,17 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       applyFilters();
                     }
                   }}
-                  className="w-full rounded-lg border border-border-subtle bg-white py-2 pl-10 pr-4 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
+                  className="pl-10"
                 />
               </div>
-              <button
+              <ActionButton
                 onClick={() => setShowFilters(!showFilters)}
                 data-tour="credits-filters"
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${showFilters ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200' : 'border-border-subtle bg-white text-text-secondary hover:border-border-strong hover:text-text-primary dark:bg-bg-base'}`}
+                variant={showFilters ? 'primary' : 'secondary'}
+                icon={<Filter size={16} />}
               >
-                <Filter size={16} /> Filtrar
-              </button>
+                Filtrar
+              </ActionButton>
             </div>
             <div className="text-sm font-medium text-text-secondary">
               Total: {pagination?.totalItems ?? creditsList.length} créditos
@@ -762,33 +773,31 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
               <div className="flex flex-wrap items-center gap-2">
-                <button
+                <ActionButton
                   onClick={handleDownloadSelectedReports}
-                  className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-bg-base dark:text-blue-200"
+                  className="!min-h-0 !px-3 !py-1.5"
                 >
                   Descargar reportes
-                </button>
-                <button
+                </ActionButton>
+                <ActionButton
                   onClick={() => setSelectedCreditIds([])}
-                  className="rounded-lg border border-border-subtle bg-white px-3 py-1.5 font-semibold hover:bg-hover-bg dark:bg-bg-base"
+                  className="!min-h-0 !px-3 !py-1.5"
                 >
                   Limpiar selección
-                </button>
+                </ActionButton>
               </div>
             </div>
           )}
 
           {/* Filter Panel */}
           {showFilters && (
-            <div className="rounded-xl border border-border-subtle bg-white p-4 shadow-sm dark:bg-bg-surface">
+            <SectionSurface bodyClassName="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-                <div>
-                  <label htmlFor="credits-filter-status" className="block text-xs text-text-secondary mb-1">Estado</label>
-                  <select
+                <FormField label="Estado">
+                  <SelectInput
                     id="credits-filter-status"
                     value={filters.status}
                     onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   >
                     <option value="">Todos</option>
                     <option value="active">Activo</option>
@@ -799,80 +808,72 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     <option value="paid">Pagado</option>
                     <option value="closed">Cerrado</option>
                     <option value="cancelled">Cancelado</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="credits-filter-min-amount" className="block text-xs text-text-secondary mb-1">Monto mínimo</label>
-                  <input
+                  </SelectInput>
+                </FormField>
+                <FormField label="Monto mínimo">
+                  <TextInput
                     id="credits-filter-min-amount"
                     type="number"
                     value={filters.minAmount}
                     onChange={(e) => setFilters((prev) => ({ ...prev, minAmount: e.target.value }))}
                     placeholder="0"
-                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
-                </div>
-                <div>
-                  <label htmlFor="credits-filter-max-amount" className="block text-xs text-text-secondary mb-1">Monto máximo</label>
-                  <input
+                </FormField>
+                <FormField label="Monto máximo">
+                  <TextInput
                     id="credits-filter-max-amount"
                     type="number"
                     value={filters.maxAmount}
                     onChange={(e) => setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))}
                     placeholder="Sin límite"
-                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
-                </div>
-                <div>
-                  <label htmlFor="credits-filter-start-date" className="block text-xs text-text-secondary mb-1">Fecha inicio</label>
-                  <input
+                </FormField>
+                <FormField label="Fecha inicio">
+                  <TextInput
                     id="credits-filter-start-date"
                     type="date"
                     value={filters.startDate}
                     onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
-                </div>
-                <div>
-                  <label htmlFor="credits-filter-end-date" className="block text-xs text-text-secondary mb-1">Fecha fin</label>
-                  <input
+                </FormField>
+                <FormField label="Fecha fin">
+                  <TextInput
                     id="credits-filter-end-date"
                     type="date"
                     value={filters.endDate}
                     onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full rounded-lg border border-border-subtle bg-white px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:bg-bg-base"
                   />
-                </div>
+                </FormField>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button
+                <ActionButton
                   onClick={() => {
                     setFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' });
                     setSearchQuery('');
                     setAppliedFilters({ status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '', search: '' });
                     setPage(1);
                   }}
-                  className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary"
+                  variant="ghost"
                 >
                   Limpiar
-                </button>
-                <button
+                </ActionButton>
+                <ActionButton
                   onClick={applyFilters}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                  variant="primary"
                 >
                   Aplicar
-                </button>
+                </ActionButton>
               </div>
-            </div>
+            </SectionSurface>
           )}
 
           <div className="space-y-3 md:hidden">
             {isLoading ? (
-              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">Cargando créditos…</div>
+              <EmptyState title="Cargando créditos…" compact />
             ) : isError ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 py-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">Error al cargar créditos.</div>
+              <EmptyState title="Error al cargar créditos" compact />
             ) : creditsList.length === 0 ? (
-              <div className="rounded-xl border border-border-subtle bg-white py-8 text-center text-sm text-text-secondary dark:bg-bg-surface">No hay créditos registrados.</div>
+              <EmptyState title="No hay créditos registrados" compact />
             ) : (
               creditsList.map((credit: any) => {
                 const principalOutstanding = Number(credit.principalOutstanding) || 0;
