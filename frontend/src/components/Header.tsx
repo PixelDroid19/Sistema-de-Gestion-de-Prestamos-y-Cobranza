@@ -5,6 +5,7 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
+import { IconActionButton, TextInput } from './shared/Surfaces';
 
 type HeaderProps = {
   setCurrentView: (view: string) => void;
@@ -106,13 +107,12 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {toggleMobileSidebar && (
-            <button
-              className="rounded-lg p-2 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary md:hidden"
+            <IconActionButton
+              className="md:hidden"
               onClick={toggleMobileSidebar}
-              aria-label="Abrir menú"
-            >
-              <Menu size={24} />
-            </button>
+              label="Abrir menú"
+              icon={<Menu size={24} />}
+            />
           )}
 
           <button
@@ -134,7 +134,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
         <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
           <div ref={searchRef} className="relative hidden lg:block">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input
+            <TextInput
               type="text"
               value={searchQuery}
               placeholder="Buscar módulo…"
@@ -153,7 +153,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                   setIsSearchOpen(false);
                 }
               }}
-              className="w-[min(22rem,30vw)] rounded-full border border-border-subtle bg-bg-surface py-2 pl-10 pr-12 text-sm text-text-primary outline-none transition focus:border-border-strong focus:ring-1 focus:ring-border-strong"
+              className="w-[min(22rem,30vw)] rounded-full py-2 pl-10 pr-12"
               aria-expanded={isSearchOpen}
               aria-label="Buscar módulo"
             />
@@ -195,13 +195,13 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             )}
           </div>
 
-          <button
+          <IconActionButton
             onClick={toggleTheme}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-bg-surface text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
             title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-          >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+            label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            icon={isDark ? <Sun size={18} /> : <Moon size={18} />}
+            className="rounded-full"
+          />
 
           <button
             onClick={() => setCurrentView('notifications')}
