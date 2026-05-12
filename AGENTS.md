@@ -4,7 +4,7 @@
 - There is no root workspace runner. Install and verify `backend/` and `frontend/` separately.
 - Frontend entrypoints are `frontend/src/main.tsx` and `frontend/src/App.tsx`. Routing and role gates live in `App.tsx`; most screens still live in `frontend/src/components/`, not `src/pages/` or `src/features/`.
 - Backend entrypoint is `backend/src/server.js`. Boot flow is `server.js -> bootstrap/index.js -> app.js`; API surfaces are mounted from `backend/src/modules/index.js`.
-- Keep backend work inside `backend/src/modules/<domain>/...`; tests assert the old `src/controllers/*` and `src/routes/*` pattern stays removed.
+- Keep backend work inside `backend/src/modules/<domain>/...`; do not create root-level controller/route folders outside the modular architecture.
 
 ## Commands
 - Install deps separately: `cd backend && npm install`, `cd frontend && npm install`.
@@ -36,7 +36,7 @@
 - Migrations exist under `backend/src/db/migrations`, but the normal runtime source of truth is `backend/src/bootstrap/schema.js`.
 - `.sequelizerc` points seeders to `backend/src/db/seeders`, but the repo currently has `backend/src/db/seeds`; do not assume Sequelize CLI seeding is wired correctly.
 - Mounted APIs currently include `/api/audits` and `/api/permissions` in addition to `/api/auth`, `/api/customers`, `/api/associates`, `/api/loans`, `/api/payments`, `/api/reports`, `/api/notifications`, `/api/users`, and `/api/config`.
-- Current administrative login roles are `admin` and `employee`. `customer` and `socio` can still exist as domain data or historical role values, but they must not enter the administrative platform. `agent` is roster data now, not a login role.
+- Current administrative login roles are `admin` and `employee`. `customer` and `socio` exist as financial domain records, but they must not enter the administrative platform. `agent` is roster data now, not a login role.
 
 ## Frontend Gotchas
 - Vite is pinned to port `3000`; `setup.md` and `frontend/README.md` are stale here.
@@ -118,7 +118,7 @@ Treat these as implemented product contracts, not open goals. If a future change
 - Credit history exports are operational audit artifacts, not technical dumps.
 - Exports must include user-facing Spanish headers, formatted money/dates/percentages, created credits, installments received, interest collected/generated, recovered principal, overdue/defaulted credits, losses, profits, and available cash where the selected report supports them.
 - Main credit Excel exports should follow the previous backend workbook style: `Resumen General`, `Detalle de Créditos`, and per-credit sheets with amortization and payment history.
-- Do not expose internal fields such as DAG versions, raw policy ids, JavaScript object keys, or implementation labels in user-facing Excel headers.
+- Do not expose internal fields such as calculation version ids, raw policy ids, JavaScript object keys, or implementation labels in user-facing Excel headers.
 - Backend source files: `backend/src/modules/reports/application/`, `backend/src/modules/reports/presentation/router.js`.
 - Frontend source files: `frontend/src/components/Reports.tsx`, `frontend/src/services/reportService.ts`, download helpers.
 - Guard tests: `backend/tests/reportsExcelExport.test.js`, `backend/tests/monthlyCashFlowReport.test.js`.
@@ -134,8 +134,8 @@ Treat these as implemented product contracts, not open goals. If a future change
 ### Master Modernization Contract
 - The current product modernization includes roles/permissions, amount-based rate policies, capital-prepayment restrictions, investor associates, monthly financial control, report exports, and financial UI action hierarchy.
 - Preserve compatibility with existing production data. Add migrations safely and never reset production data as a shortcut.
-- Do not reintroduce DAG runtime behavior. The current credit calculation engine is versioned calculation profiles plus frozen policy snapshots.
-- Do not reintroduce legacy physical deletion for financial operations. Prefer status changes, annulment/correction, audit logs, and traceable history.
+- Credit calculation must stay on versioned calculation profiles plus frozen policy snapshots.
+- Do not physically delete financial operations. Prefer status changes, annulment/correction, audit logs, and traceable history.
 - Before claiming completion after touching these flows, run relevant focused tests plus:
   - `cd backend && npm run lint`
   - `cd backend && NODE_ENV=test node --require module-alias/register --test`
@@ -146,10 +146,10 @@ Treat these as implemented product contracts, not open goals. If a future change
 ## Stale Docs And Naming
 - `frontend/README.md` is leftover AI Studio/Gemini boilerplate and is not the current source of truth.
 - `setup.md` is stale for frontend port and `VITE_API_URL`; prefer `frontend/package.json` and `frontend/vite.config.ts`.
-- Branding is mid-migration: both `CrediCobranza` and legacy `LendFlow` still appear in UI, tests, storage keys, and generated documents. Inspect nearby usage before doing brand-wide replacements.
+- Branding is mid-migration: both `CrediCobranza` and `LendFlow` still appear in UI, tests, storage keys, and generated documents. Inspect nearby usage before doing brand-wide replacements.
 
-## Credit Calculation Engine (No DAG)
-The system no longer uses DAG graphs at runtime. All credit calculation behavior is centralized in a dedicated domain module and persisted via versioned calculation profiles.
+## Credit Calculation Engine
+All credit calculation behavior is centralized in a dedicated domain module and persisted via versioned calculation profiles.
 
 ### Current architecture
 - `backend/src/modules/credits/domain/calculation/` contains the financial source of truth for:
@@ -174,13 +174,12 @@ The system no longer uses DAG graphs at runtime. All credit calculation behavior
   - `data.calculation.summary`
   - `data.calculation.policySnapshot`
   - `data.calculation.explanation`
-- Legacy `simulation` or `graphVersionId` contracts are not supported for new operations.
+- New operations use the calculation contract above and must not add parallel calculation contracts.
 
 ### Migration model
 - `backend/src/db/migrations/20260507000001_add_calculation_profile_versions.js` introduces `CalculationProfileVersion`.
-- `backend/src/db/migrations/20260507000002_remove_dag_artifacts.js` removes old DAG runtime artifacts and moves any historical trace data into `Loan.policySnapshot.retiredCalculationTrace`.
-- `backend/src/models/Loan.js` includes `calculationProfileVersionId` and no longer stores DAG runtime FK.
-- For historical compatibility, old DAG columns/routes are not required by new workflows and are validated as absent where applicable.
+- `backend/src/models/Loan.js` includes `calculationProfileVersionId`.
+- New credit workflows must persist `calculationProfileVersionId` and `policySnapshot`.
 
 ### Key files
 - `backend/src/modules/credits/domain/calculation/index.js`
