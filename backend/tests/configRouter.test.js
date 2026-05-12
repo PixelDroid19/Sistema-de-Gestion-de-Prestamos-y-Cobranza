@@ -223,7 +223,7 @@ test('createConfigRouter emits audit entries and notifications for config mutati
   assert.match(notifications[1].message, /Política de mora/);
 });
 
-test('createConfigRouter denies non-admin access without invoking config use cases', async (t) => {
+test('createConfigRouter denies non-admin access to sensitive configuration without invoking config use cases', async (t) => {
   let invoked = false;
   const app = express();
 
@@ -268,21 +268,34 @@ test('createConfigRouter denies non-admin access without invoking config use cas
 
   const activeServer = await listenForTest(t, app);
 
-  const response = await requestJson(activeServer, {
-    method: 'GET',
-    path: '/payment-methods',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
-  });
+  const blockedRequests = [
+    { role: 'employee', method: 'GET', path: '/rate-policies' },
+    { role: 'employee', method: 'POST', path: '/rate-policies', body: { label: 'No permitido', annualEffectiveRate: 1 } },
+    { role: 'employee', method: 'PUT', path: '/late-fee-policies/7', body: { label: 'No permitido', annualEffectiveRate: 1 } },
+    { role: 'employee', method: 'DELETE', path: '/payment-methods/9' },
+    { role: 'customer', method: 'GET', path: '/payment-methods' },
+    { role: 'socio', method: 'GET', path: '/settings' },
+  ];
 
-  assert.equal(response.statusCode, 403);
+  for (const request of blockedRequests) {
+    const response = await requestJson(activeServer, {
+      method: request.method,
+      path: request.path,
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': request.role },
+      body: request.body,
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.deepEqual(response.body, {
+      success: false,
+      error: {
+        message: 'Access denied',
+        statusCode: 403,
+      },
+    });
+  }
+
   assert.equal(invoked, false);
-  assert.deepEqual(response.body, {
-    success: false,
-    error: {
-      message: 'Access denied',
-      statusCode: 403,
-    },
-  });
 });
 
 test('createConfigRouter does not expose legacy /pmconfig', async (t) => {
