@@ -288,26 +288,27 @@ export function ActionButton({
   );
 }
 
-export function ClickableSurface({
+export const ClickableSurface = React.forwardRef<HTMLButtonElement, ClickableSurfaceProps>(function ClickableSurface({
   children,
   variant = 'card',
   className = '',
   ...rest
-}: ClickableSurfaceProps) {
+}, ref) {
   const variantClassName = variant === 'card'
-    ? 'block w-full rounded-xl border border-border-subtle bg-bg-surface p-4'
+    ? 'block w-full rounded-xl border border-border-subtle bg-bg-surface p-4 hover:bg-hover-bg'
     : '';
 
   return (
     <button
+      ref={ref}
       type="button"
-      className={`text-left transition-colors hover:bg-hover-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 ${variantClassName} ${className}`}
+      className={`text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 ${variantClassName} ${className}`}
       {...rest}
     >
       {children}
     </button>
   );
-}
+});
 
 export function IconActionButton({
   label,

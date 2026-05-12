@@ -6,7 +6,7 @@ import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { APP_BRAND } from '../constants/appShell';
 import { useAuth } from '../services/authService';
-import { IconActionButton } from './shared/Surfaces';
+import { ClickableSurface, IconActionButton } from './shared/Surfaces';
 
 export default function Sidebar({ 
   currentView, 
@@ -108,8 +108,8 @@ export default function Sidebar({
       `}>
         {/* Header / Logo */}
         <div className={`flex shrink-0 items-center mb-8 px-5 gap-3 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-          <button
-            type="button"
+          <ClickableSurface
+            variant="list"
             className="flex items-center gap-3 cursor-pointer group text-left"
             onClick={() => setCurrentView(homeView)}
             aria-label={`Ir a ${APP_BRAND.name}`}
@@ -118,7 +118,7 @@ export default function Sidebar({
               {APP_BRAND.monogram}
             </div>
             {!isCollapsed && <span className="font-bold text-lg tracking-tight text-text-primary whitespace-nowrap">{APP_BRAND.name}</span>}
-          </button>
+          </ClickableSurface>
           
           {/* Botón cerrar (Solo Móvil) */}
           <IconActionButton
@@ -313,8 +313,8 @@ function SectionNavButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <ClickableSurface
+      variant="list"
       onClick={onClick}
       data-active={isCollapsed && active ? 'true' : 'false'}
       className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative ${
@@ -342,16 +342,16 @@ function SectionNavButton({
       {active && isCollapsed && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
       )}
-    </button>
+    </ClickableSurface>
   );
 }
 
 // Subcomponente de Ítem de Navegación Principal
 const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string, tooltip?: string, isCollapsed?: boolean, className?: string }>(({ icon, active, onClick, title, tooltip, isCollapsed, className }, ref) => {
   return (
-    <button 
+    <ClickableSurface
+      variant="list"
       ref={ref}
-      type="button"
       onClick={onClick}
       title={isCollapsed ? title : tooltip}
       data-active={active ? "true" : "false"}
@@ -372,7 +372,7 @@ const NavItem = React.forwardRef<HTMLButtonElement, { icon: React.ReactNode; act
       {active && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-primary rounded-r-full" />
       )}
-    </button>
+    </ClickableSurface>
   );
 });
 NavItem.displayName = 'NavItem';
@@ -380,7 +380,8 @@ NavItem.displayName = 'NavItem';
 // Subcomponente de Ítem Anidado
 function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onClick?: () => void; title: string; tooltip?: string }) {
   return (
-    <button 
+    <ClickableSurface
+      variant="list"
       onClick={onClick}
       title={tooltip}
       data-active={active ? "true" : "false"}
@@ -391,6 +392,6 @@ function SubNavItem({ active, onClick, title, tooltip }: { active?: boolean; onC
       }`}
     >
       {title}
-    </button>
+    </ClickableSurface>
   );
 }
