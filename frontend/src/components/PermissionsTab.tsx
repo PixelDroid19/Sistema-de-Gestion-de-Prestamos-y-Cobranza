@@ -14,6 +14,7 @@ import {
   FormField,
   SelectInput,
   ToolbarSurface,
+  ViewTabs,
 } from './shared/Surfaces';
 
 type PermissionRecord = {
@@ -41,8 +42,6 @@ const getModuleLabel = (module: string) => {
   const normalizedModule = module.trim().toLowerCase();
   return MODULE_DISPLAY_LABELS[normalizedModule] || module;
 };
-
-const permissionViewTabClassName = (isActive: boolean) => `view-tab ${isActive ? 'view-tab--active' : ''}`;
 
 export default function PermissionsTab() {
   const { permissions, isLoading: isLoadingPermissions } = usePermissions();
@@ -207,20 +206,15 @@ export default function PermissionsTab() {
 
   return (
     <div className="space-y-6">
-      <div className="view-tabs">
-        <button
-          onClick={() => setActiveView('all')}
-          className={permissionViewTabClassName(activeView === 'all')}
-        >
-          <Shield size={16} /> Catálogo de permisos
-        </button>
-        <button
-          onClick={() => setActiveView('user')}
-          className={permissionViewTabClassName(activeView === 'user')}
-        >
-          <Users size={16} /> Gestión por usuario
-        </button>
-      </div>
+      <ViewTabs
+        ariaLabel="Vistas de permisos"
+        activeTab={activeView}
+        onChange={(tabId) => setActiveView(tabId as typeof activeView)}
+        tabs={[
+          { id: 'all', label: 'Catálogo de permisos', icon: Shield },
+          { id: 'user', label: 'Gestión por usuario', icon: Users },
+        ]}
+      />
 
       {activeView === 'all' && (
         <div className="space-y-3">
@@ -365,21 +359,20 @@ export default function PermissionsTab() {
                                   <Lock size={12} /> heredado
                                 </span>
                               )}
-                              <button
+                              <ActionButton
                                 onClick={() => handleToggleUserPermission(permission, !grantedDirect)}
                                 disabled={isBusy || grantedByRole}
-                                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-border-subtle disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  effectiveGranted ? 'text-emerald-600 bg-emerald-50' : 'text-text-secondary bg-bg-surface'
-                                }`}
+                                icon={effectiveGranted ? <Check size={12} /> : <X size={12} />}
+                                variant={effectiveGranted ? 'secondary' : 'ghost'}
+                                className="!min-h-0 !px-2 !py-1 text-xs"
                                 title={grantedByRole
                                   ? 'Permiso heredado desde rol. No se puede revocar aquí.'
                                   : grantedDirect
                                     ? 'Revocar permiso directo'
                                     : 'Conceder permiso directo'}
                               >
-                                {effectiveGranted ? <Check size={12} /> : <X size={12} />}
                                 {grantedDirect ? 'Revocar' : 'Conceder'}
-                              </button>
+                              </ActionButton>
                             </div>
                           </div>
                         );
