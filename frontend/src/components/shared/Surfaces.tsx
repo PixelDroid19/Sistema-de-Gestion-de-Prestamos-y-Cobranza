@@ -365,7 +365,7 @@ export function EmptyState({
     <div className={`empty-state ${compact ? 'empty-state--compact' : ''} ${className}`} {...rest}>
       {icon && <div className="empty-state-icon" aria-hidden="true">{icon}</div>}
       <div className="min-w-0">
-        <p className="empty-state-title">{title}</p>
+        <h2 className="empty-state-title">{title}</h2>
         {description && <p className="empty-state-description">{description}</p>}
       </div>
       {action && <div className="empty-state-action">{action}</div>}

@@ -17,7 +17,7 @@ import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
 import MeasuredChart from './shared/MeasuredChart';
-import { MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, EmptyState, IconActionButton, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpTooltip } from './shared/HelpSupport';
 
 type LayoutType = {
@@ -474,26 +474,27 @@ export default function Dashboard() {
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">{tTerm('dashboard.loading')}</div>;
+    return (
+      <PageShell>
+        <EmptyState title={tTerm('dashboard.loading')} icon={<Activity size={18} />} compact />
+      </PageShell>
+    );
   }
 
   if (isError) {
     return (
-      <div className="p-8">
-        <div className="rounded-xl border border-border-subtle bg-bg-surface p-6 text-center">
-          <h2 className="text-lg font-semibold text-text-primary">{tTerm('dashboard.error.title')}</h2>
-          <p className="mt-2 text-sm text-text-secondary">
-            {getSafeErrorText(error, { domain: 'reports', action: 'reports.load' })}
-          </p>
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="mt-4 inline-flex items-center justify-center rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm font-medium text-text-primary hover:bg-hover-bg"
-          >
-            {tTerm('dashboard.error.retry')}
-          </button>
-        </div>
-      </div>
+      <PageShell>
+        <EmptyState
+          title={tTerm('dashboard.error.title')}
+          description={getSafeErrorText(error, { domain: 'reports', action: 'reports.load' })}
+          icon={<AlertTriangle size={18} />}
+          action={(
+            <ActionButton type="button" onClick={() => void refetch()}>
+              {tTerm('dashboard.error.retry')}
+            </ActionButton>
+          )}
+        />
+      </PageShell>
     );
   }
 
@@ -505,19 +506,21 @@ export default function Dashboard() {
         guideKey="dashboard"
         tourId="dashboard-header"
         actions={(
-        <div className="flex gap-2">
-          <button
+        <div className="flex flex-wrap gap-2">
+          <ActionButton
             onClick={() => setShowWidgetManager(!showWidgetManager)}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${showWidgetManager ? 'border-border-strong bg-hover-bg' : 'border-border-subtle bg-bg-surface hover:bg-hover-bg'}`}
+            variant={showWidgetManager ? 'primary' : 'secondary'}
+            icon={<Layers3 size={16} />}
           >
-            <Layers3 size={16} /> {tTerm('dashboard.cta.widgets')}
-          </button>
-          <button
+            {tTerm('dashboard.cta.widgets')}
+          </ActionButton>
+          <ActionButton
             onClick={() => setIsEditMode(!isEditMode)}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${isEditMode ? 'border-text-primary bg-text-primary text-bg-base' : 'border-border-subtle bg-bg-surface hover:bg-hover-bg'}`}
+            variant={isEditMode ? 'primary' : 'secondary'}
+            icon={<Settings2 size={16} />}
           >
-            <Settings2 size={16} /> {isEditMode ? tTerm('dashboard.cta.saveLayout') : tTerm('dashboard.cta.editLayout')}
-          </button>
+            {isEditMode ? tTerm('dashboard.cta.saveLayout') : tTerm('dashboard.cta.editLayout')}
+          </ActionButton>
         </div>
         )}
       />
@@ -530,25 +533,25 @@ export default function Dashboard() {
         <ToolbarSurface className="animate-in fade-in slide-in-from-top-4" data-tour="dashboard-toolbar">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-text-primary">{tTerm('dashboard.widgetManager.title')}</h3>
-            <button onClick={() => setShowWidgetManager(false)} className="text-text-secondary hover:text-text-primary">
-              <X size={16} />
-            </button>
+            <IconActionButton
+              label="Cerrar gestor de widgets"
+              icon={<X size={16} />}
+              onClick={() => setShowWidgetManager(false)}
+            />
           </div>
           <div className="flex flex-wrap gap-2">
             {AVAILABLE_WIDGETS.map((widget) => {
               const isVisible = visibleWidgets.includes(widget.id);
               return (
-                <button
+                <ActionButton
                   key={widget.id}
                   onClick={() => toggleWidget(widget.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
-                    isVisible
-                      ? 'bg-text-primary text-bg-base border-text-primary'
-                      : 'bg-bg-base text-text-secondary border-border-subtle hover:border-border-strong'
-                  }`}
+                  variant={isVisible ? 'primary' : 'secondary'}
+                  className="!min-h-0 !rounded-full !px-3 !py-1.5"
+                  icon={isVisible ? <X size={14} /> : <Plus size={14} />}
                 >
-                  {isVisible ? <X size={14} /> : <Plus size={14} />} {tTerm(widget.titleKey)}
-                </button>
+                  {tTerm(widget.titleKey)}
+                </ActionButton>
               );
             })}
           </div>
@@ -602,12 +605,13 @@ export default function Dashboard() {
                   </div>
                 )}
                 {isEditMode && (
-                  <button
+                  <IconActionButton
                     onClick={() => toggleWidget(id)}
-                    className="absolute left-2 top-2 z-10 cursor-pointer rounded-lg border border-border-subtle bg-bg-elevated/90 p-1.5 text-red-500 shadow-sm backdrop-blur transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
-                  >
-                    <X size={16} />
-                  </button>
+                    className="absolute left-2 top-2 z-10 bg-bg-elevated/90 shadow-sm backdrop-blur"
+                    label={`Ocultar ${tTerm(AVAILABLE_WIDGETS.find((widget) => widget.id === id)?.titleKey ?? 'dashboard.cta.widgets')}`}
+                    icon={<X size={16} />}
+                    variant="danger"
+                  />
                 )}
                 <div className={isMetricWidget ? 'h-full' : 'dashboard-widget-content'}>
                   {renderWidgetContent(id)}
