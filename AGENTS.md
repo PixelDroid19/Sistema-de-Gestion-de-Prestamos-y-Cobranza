@@ -36,7 +36,7 @@
 - Migrations exist under `backend/src/db/migrations`, but the normal runtime source of truth is `backend/src/bootstrap/schema.js`.
 - `.sequelizerc` points seeders to `backend/src/db/seeders`, but the repo currently has `backend/src/db/seeds`; do not assume Sequelize CLI seeding is wired correctly.
 - Mounted APIs currently include `/api/audits` and `/api/permissions` in addition to `/api/auth`, `/api/customers`, `/api/associates`, `/api/loans`, `/api/payments`, `/api/reports`, `/api/notifications`, `/api/users`, and `/api/config`.
-- Current authenticated roles are `admin`, `customer`, and `socio`; `agent` is roster data now, not a login role.
+- Current administrative login roles are `admin` and `employee`. `customer` and `socio` can still exist as domain data or historical role values, but they must not enter the administrative platform. `agent` is roster data now, not a login role.
 
 ## Frontend Gotchas
 - Vite is pinned to port `3000`; `setup.md` and `frontend/README.md` are stale here.
@@ -45,6 +45,24 @@
 - Auth state lives in `frontend/src/store/sessionStore.ts`: `refreshToken` and `user` persist in `sessionStorage` key `lendflow-session`; `accessToken` stays in memory and `api/client.ts` auto-refreshes once on `401`.
 - Reuse `frontend/src/services/queryKeys.ts` for TanStack Query cache keys/invalidation instead of inventing ad-hoc string keys.
 - `frontend/src/components/__tests__/bannedApis.test.ts` forbids `window.alert`, `window.confirm`, `window.prompt`, bare `confirm()/prompt()`, and `<dialog>`; use `frontend/src/lib/confirmModal.tsx` instead.
+
+## Administrative Access And Permissions
+- The backoffice app is only for `admin` and `employee`. Do not add customer/socio administrative routes, sidebar entries, dashboards, or self-service payment surfaces back into this frontend unless a separate customer/socio portal is explicitly introduced.
+- Backend authentication is centralized in `backend/src/modules/shared/auth.js`; it rejects non-administrative roles before module-level role or permission checks. `backend/src/modules/shared/roles.js` is the source of truth for `ADMINISTRATIVE_LOGIN_ROLES`.
+- Frontend route gates live in `frontend/src/App.tsx` and `frontend/src/components/ProtectedRoute.tsx`. Main operational routes use `allowedRoles={['admin', 'employee']}` plus `requiredPermissions`. `/settings` is admin-only.
+- `frontend/src/constants/appAccess.ts` sends `admin` to `/dashboard`, `employee` to `/profile`, and any other role to `/login`. Keep this behavior unless the product gets a separate non-admin portal.
+- Employees start with no default permissions. Admins receive the full permission catalog from `backend/src/bootstrap/schema.js`. Permission names are seeded from `backend/src/db/seeds/permissions_catalog.js`.
+- Employee access is permission-driven through `/api/permissions/me`. Sidebar/header visibility and route access should use the same permission names as backend middleware: for example `CREDITS_VIEW_ALL`, `CREDITS_CREATE`, `PAYMENTS_CREATE`, `REPORTS_VIEW_ALL`, `SOCIOS_VIEW_ALL`, `AUDIT_VIEW_ALL`.
+- Sensitive configuration stays admin-only at both layers:
+  - Backend: `backend/src/modules/config/presentation/router.js` applies `authMiddleware(['admin'])` after public `/roles`.
+  - Frontend: `/settings` uses `allowedRoles={['admin']}`.
+  - Employees must not create, update, delete, or resolve operational finance settings through `/api/config/rate-policies`, `/api/config/late-fee-policies`, `/api/config/payment-methods`, or `/api/config/settings`.
+- Permission management is also admin-only for mutation routes. Listing/checking permissions can be permission-gated for employees, but grant/revoke/user provisioning flows stay admin-only.
+- Keep tests aligned with this contract:
+  - `backend/tests/permissionsAuthMiddleware.test.js` verifies customer/socio tokens are rejected at the administrative auth boundary.
+  - `backend/tests/configRouter.test.js` verifies employees cannot access sensitive config routes.
+  - `frontend/src/components/__tests__/ProtectedRoute.behavior.test.tsx` verifies employee redirect from `/settings` and customer/socio redirect away from admin routes.
+  - `frontend/src/components/__tests__/Sidebar.terminology.test.tsx` verifies employee navigation is permission-scoped.
 
 ## Stale Docs And Naming
 - `frontend/README.md` is leftover AI Studio/Gemini boilerplate and is not the current source of truth.
