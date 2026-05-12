@@ -6,7 +6,7 @@ import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
 import { useSessionStore } from '../store/sessionStore';
-import { ActionButton, DataTableSurface, MetricCard, ModalShell, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, EmptyState, MetricCard, ModalShell, PageHeader, PageShell, SectionSurface, ToolbarSurface } from './shared/Surfaces';
 import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
@@ -71,11 +71,6 @@ const getLoanStatusPresentation = (status: unknown) => {
   }
 };
 
-const actionButtonBaseClassName = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40';
-const secondaryActionButtonClassName = `${actionButtonBaseClassName} border border-border-subtle bg-bg-surface text-text-primary hover:bg-hover-bg`;
-const primaryActionButtonClassName = `${actionButtonBaseClassName} bg-emerald-700 text-white hover:bg-emerald-800`;
-const neutralActionButtonClassName = `${actionButtonBaseClassName} bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-950 dark:hover:bg-white`;
-
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -95,15 +90,26 @@ export default function AssociateDetails() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">Cargando portal del socio…</div>;
+    return (
+      <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <SectionSurface>
+          <EmptyState title="Cargando portal del socio" description="Estamos preparando aportes, cuotas y calendario." compact />
+        </SectionSurface>
+      </PageShell>
+    );
   }
 
   if (!associate && !portal) {
     return (
-      <div className="p-8 text-center text-text-secondary">
-        <p>Socio no encontrado.</p>
-        <button onClick={() => navigate('/associates')} className="mt-4 text-brand-primary">Volver a socios</button>
-      </div>
+      <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <SectionSurface>
+          <EmptyState
+            title="Socio no encontrado"
+            description="No pudimos cargar este portal. Revisa el listado de socios o intenta nuevamente."
+            action={<ActionButton onClick={() => navigate('/associates')}>Volver a socios</ActionButton>}
+          />
+        </SectionSurface>
+      </PageShell>
     );
   }
 
@@ -300,12 +306,13 @@ export default function AssociateDetails() {
                   </td>
                   <td>
                     {isAdmin && inst.status === 'pending' && (
-                      <button
+                      <ActionButton
                         onClick={() => handlePayInstallment(inst.installmentNumber)}
-                        className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                        icon={<CheckCircle size={14} />}
+                        className="min-h-8 px-2.5 py-1.5 text-xs"
                       >
-                        <CheckCircle size={14} /> Marcar como pagado
-                      </button>
+                        Marcar como pagado
+                      </ActionButton>
                     )}
                   </td>
                 </tr>
@@ -408,16 +415,14 @@ export default function AssociateDetails() {
         guideKey="associate-details"
         tourId="associate-details-header"
         actions={(
-          <button
-            type="button"
+          <ActionButton
             onClick={() => navigate('/associates')}
             aria-label="Volver a socios"
             title="Volver a socios"
-            className={secondaryActionButtonClassName}
+            icon={<ArrowLeft size={16} />}
           >
-            <ArrowLeft size={16} />
             Volver
-          </button>
+          </ActionButton>
         )}
       />
 
@@ -430,65 +435,55 @@ export default function AssociateDetails() {
         </div>
         <div className="grid gap-2 lg:min-w-[23rem]">
           <div className="grid gap-2 sm:grid-cols-2">
-            <button type="button" onClick={() => setShowContributionsModal(true)} className={secondaryActionButtonClassName}>
-              <History size={16} /> Ver historial
-            </button>
-            <button type="button" onClick={() => setShowInstallmentsModal(true)} className={secondaryActionButtonClassName}>
-              <Clock size={16} /> Ver cuotas
-            </button>
+            <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
+              Ver historial
+            </ActionButton>
+            <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
+              Ver cuotas
+            </ActionButton>
           </div>
           {isAdmin && (
             <div className="grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => setShowModal('contribution')} className={primaryActionButtonClassName}>
-                <Wallet size={16} /> Registrar aporte
-              </button>
-              <button type="button" onClick={() => setShowModal('distribution')} className={neutralActionButtonClassName}>
-                <Download size={16} /> Registrar retiro
-              </button>
-              <button type="button" onClick={() => setShowModal('reinvestment')} className={`${secondaryActionButtonClassName} sm:col-span-2`}>
-                <RefreshCw size={16} /> Registrar reinversión
-              </button>
+              <ActionButton onClick={() => setShowModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
+                Registrar aporte
+              </ActionButton>
+              <ActionButton onClick={() => setShowModal('distribution')} icon={<Download size={16} />} variant="secondary" fullWidth>
+                Registrar retiro
+              </ActionButton>
+              <ActionButton onClick={() => setShowModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth className="sm:col-span-2">
+                Registrar reinversión
+              </ActionButton>
             </div>
           )}
         </div>
       </ToolbarSurface>
 
       {isSocio && (
-        <div className="rounded-2xl border border-border-subtle bg-bg-surface px-5 py-4 text-sm text-text-secondary">
+        <SectionSurface className="py-4">
+          <p className="text-sm leading-6 text-text-secondary">
           Este portal te permite revisar tus aportes, distribuciones, cuotas y calendario. Los movimientos financieros se registran desde la mesa operativa.
-        </div>
+          </p>
+        </SectionSurface>
       )}
 
       {/* Tabs */}
-      <div className="border-b border-border-subtle" data-tour="associate-details-tabs">
-        <nav className="flex gap-4">
+      <div data-tour="associate-details-tabs">
+        <nav className="view-tabs">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'overview'
-                ? 'border-brand-primary text-brand-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+            className={`view-tab ${activeTab === 'overview' ? 'view-tab--active' : ''}`}
           >
             Resumen
           </button>
           <button
             onClick={() => setActiveTab('installments')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'installments'
-                ? 'border-brand-primary text-brand-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+            className={`view-tab ${activeTab === 'installments' ? 'view-tab--active' : ''}`}
           >
             <Wallet size={16} /> Cuotas
           </button>
           <button
             onClick={() => setActiveTab('calendar')}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'calendar'
-                ? 'border-brand-primary text-brand-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
+            className={`view-tab ${activeTab === 'calendar' ? 'view-tab--active' : ''}`}
           >
             <Calendar size={16} /> Calendario
           </button>

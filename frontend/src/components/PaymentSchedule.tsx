@@ -4,7 +4,7 @@ import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileS
 import { usePaymentSchedule, exportCreditExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
-import { DataTableSurface, MetricCard } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, EmptyState, MetricCard, PageHeader, PageShell } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
@@ -71,79 +71,66 @@ export default function PaymentSchedule() {
 
   if (!loanId) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <p className="text-text-secondary">Selecciona un crédito para ver su plan de pagos.</p>
-        <button
-          onClick={() => navigate('/credits')}
-          className="mt-4 px-4 py-2 bg-brand-primary text-white rounded-lg text-sm"
-        >
-          Volver a Créditos
-        </button>
-      </div>
+      <PageShell>
+        <EmptyState
+          title="Selecciona un crédito"
+          description="El plan de pagos necesita un crédito válido para mostrar amortización y estados."
+          action={<ActionButton onClick={() => navigate('/credits')}>Volver a créditos</ActionButton>}
+        />
+      </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <Loader2 size={32} className="animate-spin text-brand-primary" />
-        <p className="text-text-secondary">Cargando plan de pagos…</p>
-      </div>
+      <PageShell>
+        <EmptyState
+          title="Cargando plan de pagos"
+          description="Estamos preparando la amortización del crédito."
+          icon={<Loader2 size={24} className="animate-spin" />}
+          compact
+        />
+      </PageShell>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="text-red-500">
-          <FileSpreadsheet size={48} />
-        </div>
-        <p className="text-text-secondary">
-          {error ? (error as any).message || 'Error al cargar el plan de pagos' : 'Error al cargar el plan de pagos'}
-        </p>
-        <button
-          onClick={() => navigate('/credits')}
-          className="px-4 py-2 bg-brand-primary text-white rounded-lg text-sm"
-        >
-          Volver a Créditos
-        </button>
-      </div>
+      <PageShell>
+        <EmptyState
+          title="No se pudo cargar el plan"
+          description={error ? (error as any).message || 'Error al cargar el plan de pagos' : 'Error al cargar el plan de pagos'}
+          icon={<FileSpreadsheet size={24} />}
+          action={<ActionButton onClick={() => navigate('/credits')}>Volver a créditos</ActionButton>}
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 h-full" data-tour="payment-schedule-page">
+    <PageShell data-tour="payment-schedule-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" data-tour="payment-schedule-header">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 bg-bg-surface border border-border-subtle rounded-lg hover:bg-hover-bg transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-semibold flex items-center gap-3">
-              <Calendar size={28} className="text-brand-primary" />
-              Plan de pagos
-            </h2>
-            <p className="text-sm text-text-secondary mt-1">
-              {loan?.customerName ? `Cliente: ${loan.customerName}` : 'Tabla de amortización'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <QuickGuideButton guideKey="payment-schedule" />
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 bg-bg-surface border border-border-subtle rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors disabled:opacity-50"
-          >
-            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            Exportar
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Plan de pagos"
+        subtitle={loan?.customerName ? `Cliente: ${loan.customerName}` : 'Tabla de amortización'}
+        tourId="payment-schedule-header"
+        actions={(
+          <>
+            <QuickGuideButton guideKey="payment-schedule" />
+            <ActionButton onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
+              Volver
+            </ActionButton>
+            <ActionButton
+              onClick={handleExport}
+              disabled={isExporting}
+              isLoading={isExporting}
+              icon={isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            >
+              Exportar
+            </ActionButton>
+          </>
+        )}
+      />
 
       {/* Loan Summary */}
       {loan && (
@@ -221,6 +208,6 @@ export default function PaymentSchedule() {
           </table>
         </div>
       </DataTableSurface>
-    </div>
+    </PageShell>
   );
 }

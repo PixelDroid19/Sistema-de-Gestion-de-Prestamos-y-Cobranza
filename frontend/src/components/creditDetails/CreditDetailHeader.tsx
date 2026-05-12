@@ -1,7 +1,7 @@
 import type React from 'react';
 import { ArrowLeft, DollarSign, Edit2, FileSpreadsheet, FileText, GitBranch, Layers, Percent, Table } from 'lucide-react';
 import { QuickGuideButton } from '../shared/HelpSupport';
-import { ToolbarSurface } from '../shared/Surfaces';
+import { ActionButton, ToolbarSurface } from '../shared/Surfaces';
 
 type CreditActionGuard = {
   visible: boolean;
@@ -36,17 +36,6 @@ type CreditDetailHeaderProps = {
   onOpenStatus: () => void;
   onExportCreditExcel: () => void;
   onOpenSchedule: () => void;
-};
-
-const actionButtonBaseClassName =
-  'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-hover-bg disabled:text-text-secondary disabled:opacity-55 disabled:shadow-none';
-
-const actionButtonClassNames = {
-  primary: `${actionButtonBaseClassName} border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800`,
-  capital: `${actionButtonBaseClassName} border border-teal-700 bg-teal-700 text-white hover:bg-teal-800`,
-  warning: `${actionButtonBaseClassName} border border-amber-600 bg-amber-600 text-white hover:bg-amber-700`,
-  neutral: `${actionButtonBaseClassName} border border-slate-800 bg-slate-800 text-white hover:bg-slate-900 dark:border-slate-200 dark:bg-slate-200 dark:text-slate-950 dark:hover:bg-white`,
-  secondary: `${actionButtonBaseClassName} border border-border-subtle bg-bg-surface text-text-primary hover:bg-hover-bg`,
 };
 
 function InlineMetaLine({
@@ -125,15 +114,15 @@ export function CreditDetailHeader({
             className="min-h-11 shrink-0"
           />
           {installmentPaymentGuard.visible && (
-            <button
-              type="button"
+            <ActionButton
               onClick={onRegisterPayment}
               disabled={!installmentPaymentGuard.executable}
               title={installmentPaymentGuard.executable ? undefined : installmentPaymentGuard.reason}
-              className={actionButtonClassNames.primary}
+              icon={<DollarSign size={16} />}
+              variant="primary"
             >
-              <DollarSign size={16} /> {registerPaymentLabel}
-            </button>
+              {registerPaymentLabel}
+            </ActionButton>
           )}
         </div>
       </div>
@@ -147,57 +136,58 @@ export function CreditDetailHeader({
         </div>
         <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {isAdmin && capitalPaymentGuard.visible && (
-            <button
-              type="button"
+            <ActionButton
               onClick={onOpenCapitalPayment}
               disabled={!capitalPaymentGuard.executable}
               title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-              className={actionButtonClassNames.capital}
+              icon={<Layers size={16} />}
+              fullWidth
             >
-              <Layers size={16} /> {capitalContributionLabel}
-            </button>
+              {capitalContributionLabel}
+            </ActionButton>
           )}
           {isAdmin && lateFeeUpdateGuard.visible && (
-            <button
-              type="button"
+            <ActionButton
               onClick={onOpenLateFeeRate}
               disabled={!lateFeeUpdateGuard.executable}
               title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
-              className={actionButtonClassNames.warning}
+              icon={<Percent size={16} />}
+              fullWidth
             >
-              <Percent size={16} /> {lateFeeRateLabel}
-            </button>
+              {lateFeeRateLabel}
+            </ActionButton>
           )}
           {isAdmin && creditStatusUpdateGuard.visible && (
-            <button
-              type="button"
+            <ActionButton
               onClick={onOpenStatus}
               disabled={!creditStatusUpdateGuard.executable}
-              className={actionButtonClassNames.neutral}
               title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
+              icon={<Edit2 size={16} />}
+              fullWidth
             >
-              <Edit2 size={16} /> Estado
-            </button>
+              Estado
+            </ActionButton>
           )}
           {isAdmin && (
-            <button
-              type="button"
+            <ActionButton
               onClick={onExportCreditExcel}
               disabled={isExportingCreditExcel}
-              className={actionButtonClassNames.secondary}
+              isLoading={isExportingCreditExcel}
               title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
+              icon={<FileSpreadsheet size={16} />}
+              fullWidth
             >
-              <FileSpreadsheet size={16} /> {isExportingCreditExcel ? 'Exportando...' : 'Excel'}
-            </button>
+              Excel
+            </ActionButton>
           )}
-          <button
-            type="button"
+          <ActionButton
             onClick={onOpenSchedule}
-            className={actionButtonClassNames.secondary}
             title="Ver plan de pagos completo"
+            icon={<Table size={16} />}
+            fullWidth
           >
-            <Table size={16} /> Plan de pagos
-          </button>
+            Plan de pagos
+          </ActionButton>
         </div>
       </ToolbarSurface>
     </section>

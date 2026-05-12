@@ -17,6 +17,7 @@ import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { HelpTooltip } from './HelpSupport';
+import { ActionButton, DataTableSurface, SectionSurface } from './Surfaces';
 
 type SavedScenario = {
   id: string;
@@ -308,25 +309,25 @@ export default function CreditSimulationWorkspace({
 
             {!hideHeaderActions && (
               <div className="flex flex-col items-stretch gap-3 lg:min-w-[260px]">
-                <button
-                  type="button"
+                <ActionButton
                   data-tour={simulateButtonDataTour}
                   onClick={onSimulate}
                   disabled={disabled || isSimulating}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-4 py-3 text-sm font-semibold text-bg-base shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  isLoading={isSimulating}
+                  icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+                  variant="primary"
+                  className="py-3"
                 >
-                  {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
                   {actionLabel}
-                </button>
+                </ActionButton>
                 {onReset && (
-                  <button
-                    type="button"
+                  <ActionButton
                     onClick={onReset}
                     disabled={disabled || isSimulating}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
+                    className="py-3"
                   >
                     Restablecer parámetros
-                  </button>
+                  </ActionButton>
                 )}
               </div>
             )}
@@ -553,15 +554,14 @@ export default function CreditSimulationWorkspace({
                       disabled={disabled}
                        className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
-                    <button
-                      type="button"
+                    <ActionButton
                       onClick={handleSaveScenario}
                       disabled={disabled || !freshResult}
-                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-base px-4 py-3 text-sm font-medium text-text-primary transition hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-60"
+                      icon={<Save size={16} />}
+                      className="py-3"
                     >
-                      <Save size={16} />
                       Guardar escenario
-                    </button>
+                    </ActionButton>
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -569,15 +569,15 @@ export default function CreditSimulationWorkspace({
                       {savedScenarios.length} escenario{savedScenarios.length === 1 ? '' : 's'} guardado{savedScenarios.length === 1 ? '' : 's'}.
                     </p>
                     {savedScenarios.length > 0 && (
-                      <button
-                        type="button"
+                      <ActionButton
                         onClick={() => setIsComparisonVisible((currentValue) => !currentValue)}
-                        className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-primary transition hover:bg-hover-bg"
+                        icon={<GitCompareArrows size={14} />}
+                        variant="ghost"
+                        className="min-h-8 px-3 py-1.5 text-xs"
                         aria-expanded={isComparisonVisible}
                       >
-                        <GitCompareArrows size={14} />
                         {isComparisonVisible ? 'Ocultar comparación' : 'Comparar escenarios'}
-                      </button>
+                      </ActionButton>
                     )}
                   </div>
                 </div>
@@ -585,12 +585,16 @@ export default function CreditSimulationWorkspace({
             </section>
 
             {showScenarioTools && isComparisonVisible && savedScenarios.length > 0 && (
-              <section className="rounded-2xl border border-border-subtle bg-bg-surface p-5 shadow-sm" aria-label="Comparación de escenarios guardados">
-                <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                  <GitCompareArrows size={16} />
-                  Comparación de escenarios
-                </div>
-                <div className="mt-4 space-y-3">
+              <SectionSurface
+                aria-label="Comparación de escenarios guardados"
+                title={(
+                  <span className="flex items-center gap-2">
+                    <GitCompareArrows size={16} />
+                    Comparación de escenarios
+                  </span>
+                )}
+                bodyClassName="space-y-3"
+              >
                   {freshResult && (
                     <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
                       <div className="flex items-start justify-between gap-3">
@@ -650,8 +654,7 @@ export default function CreditSimulationWorkspace({
                       </dl>
                     </article>
                   ))}
-                </div>
-              </section>
+              </SectionSurface>
             )}
           </div>
 
@@ -744,7 +747,7 @@ export default function CreditSimulationWorkspace({
                 )}
               </div>
 
-               <div className="overflow-hidden rounded-xl border border-border-subtle bg-bg-base">
+               <DataTableSurface>
                 <div className={`${compactChrome ? 'max-h-[460px] pb-24' : 'max-h-[540px]'} overflow-auto`}>
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
@@ -804,7 +807,7 @@ export default function CreditSimulationWorkspace({
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </DataTableSurface>
             </section>
           </div>
         </div>

@@ -15,6 +15,7 @@ import {
 import type { CreditCalculationInput } from '../types/creditCalculation';
 import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
 import { getCalculationValueLabel } from '../lib/creditCalculationLabels';
+import { ActionButton, SectionSurface } from './shared/Surfaces';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -286,11 +287,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   };
 
   const actionDock = (
-    <div
-      className="sticky top-4 z-30 w-full rounded-2xl border border-border-subtle bg-bg-surface/95 p-2 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
+    <SectionSurface
+      className="sticky top-4 z-30 w-full p-2 backdrop-blur supports-[backdrop-filter]:bg-bg-surface/88"
+      bodyClassName="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between"
       data-tour="new-credit-action-dock"
     >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 px-2 py-1">
           <p className="text-sm font-semibold text-text-primary">Siguiente acción</p>
           <p className={`mt-0.5 text-xs font-medium ${isRegistrationReady ? 'text-emerald-700 dark:text-emerald-300' : 'text-text-secondary'}`}>
@@ -298,42 +299,42 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-[520px]">
-          <button
-            type="button"
+          <ActionButton
             onClick={resetCalculation}
             disabled={isSimulating}
             aria-label="Restablecer parámetros"
             title="Limpia los parametros editados y vuelve a los valores base de la simulacion."
-            className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-surface px-3 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition hover:border-slate-300 hover:bg-hover-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:border-slate-600"
+            fullWidth
           >
             Restablecer
-          </button>
-          <button
-            type="button"
+          </ActionButton>
+          <ActionButton
             data-tour="new-credit-validate"
             onClick={simulate}
             disabled={isSimulating}
+            isLoading={isSimulating}
             aria-label="Validar crédito"
             title="Calcula la cuota, intereses y cronograma antes de crear el credito real."
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:bg-blue-500/20"
+            icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+            fullWidth
           >
-            {isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-            <span>Validar crédito</span>
-          </button>
-          <button
+            Validar crédito
+          </ActionButton>
+          <ActionButton
             type="submit"
             disabled={!canRegister}
             data-tour="new-credit-submit"
+            isLoading={isSubmitting}
             aria-label="Registrar crédito"
             title={canRegister ? 'Crea el crédito real con la regla validada.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+            icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            variant="primary"
+            fullWidth
           >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            <span>Registrar crédito</span>
-          </button>
+            Registrar crédito
+          </ActionButton>
         </div>
-      </div>
-    </div>
+    </SectionSurface>
   );
 
   return (
@@ -362,18 +363,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
         <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
           <QuickGuideButton guideKey="new-credit" />
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center justify-center rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg active:scale-[0.98]"
-          >
+          <ActionButton onClick={onBack}>
             Cancelar
-          </button>
+          </ActionButton>
         </div>
       </div>
 
-      <section
-        className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]"
+      <SectionSurface
+        className="p-0"
+        bodyClassName="contents"
         data-tour="new-credit-customer"
       >
         <div className="flex flex-col gap-4 border-b border-border-subtle px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
@@ -477,7 +475,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               )}
             </div>
             <dl className="mt-3 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+              <div className="min-w-0">
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa del crédito</dt>
                 <dd className="mt-1 font-semibold text-text-primary">
                   {rateSummaryValue}
@@ -486,7 +484,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   {rateSourceLabel}: {rateSummaryDetail}
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+              <div className="min-w-0">
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo de mora</dt>
                 <dd className="mt-1 font-semibold text-text-primary">
                   {lateFeeSummaryValue}
@@ -495,7 +493,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   {lateFeeSourceLabel}: {lateFeeSummaryDetail}
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5">
+              <div className="min-w-0">
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Validación</dt>
                 <dd className="mt-1 font-semibold text-text-primary">
                   {hasValidatedResult ? calculationRuleLabel : 'Pendiente'}
@@ -507,10 +505,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
             </dl>
             {routeState?.source === 'credit-calculator' && (
               <p className="sr-only">Escenario precargado</p>
-            )}
-          </aside>
-        </div>
-      </section>
+          )}
+        </aside>
+      </div>
+      </SectionSurface>
 
       {actionDock}
 
