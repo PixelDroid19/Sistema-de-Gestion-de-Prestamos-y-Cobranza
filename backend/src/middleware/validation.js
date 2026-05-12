@@ -181,6 +181,54 @@ const pushParticipationValidation = ({ req, errors, participationPercentage }) =
   }
 };
 
+const validateAssociateInterestRate = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue)
+    && numericValue >= 0
+    && numericValue <= 100
+    && hasDecimalPrecision(value, 4);
+};
+
+const validateIntegerRange = (value, min, max) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue >= min && numericValue <= max;
+};
+
+const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt }) => {
+  if (interestType !== undefined && !['monthly', 'annual'].includes(String(interestType).trim().toLowerCase())) {
+    errors.push({ field: 'interestType', message: 'interestType must be monthly or annual' });
+  }
+
+  if (!validateAssociateInterestRate(interestRate)) {
+    errors.push({ field: 'interestRate', message: 'interestRate must be between 0 and 100 with up to 4 decimal places' });
+  }
+
+  if (!validateIntegerRange(interestPaymentDay, 1, 28)) {
+    errors.push({ field: 'interestPaymentDay', message: 'interestPaymentDay must be an integer between 1 and 28' });
+  }
+
+  if (!validateIntegerRange(interestPaymentMonth, 1, 12)) {
+    errors.push({ field: 'interestPaymentMonth', message: 'interestPaymentMonth must be an integer between 1 and 12' });
+  }
+
+  if (initialCapital !== undefined && (!validateAmount(Number(initialCapital)) || !validateCurrencyPrecision(initialCapital))) {
+    errors.push({ field: 'initialCapital', message: 'initialCapital must be a positive number with up to 2 decimal places' });
+  }
+
+  const effectiveStartDate = interestStartsAt ?? interestStartDate;
+  if (!validateOptionalDateInput(effectiveStartDate)) {
+    errors.push({ field: 'interestStartDate', message: 'interestStartDate must be a valid date' });
+  }
+};
+
 const validateOptionalDateInput = (value) => {
   if (value === undefined || value === null || value === '') {
     return true;
@@ -617,6 +665,13 @@ const associateValidation = {
       phone,
       status,
       participationPercentage,
+      interestType,
+      interestRate,
+      interestPaymentDay,
+      interestPaymentMonth,
+      initialCapital,
+      interestStartDate,
+      interestStartsAt,
     } = req.body;
     const errors = [];
 
@@ -625,6 +680,7 @@ const associateValidation = {
     pushPhoneValidation({ errors, phone, required: true });
     pushActiveInactiveStatusValidation({ errors, status });
     pushParticipationValidation({ req, errors, participationPercentage });
+    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));
@@ -641,6 +697,12 @@ const associateValidation = {
       phone,
       status,
       participationPercentage,
+      interestType,
+      interestRate,
+      interestPaymentDay,
+      interestPaymentMonth,
+      interestStartDate,
+      interestStartsAt,
     } = req.body;
     const errors = [];
 
@@ -649,6 +711,7 @@ const associateValidation = {
     pushPhoneValidation({ errors, phone, required: false });
     pushActiveInactiveStatusValidation({ errors, status });
     pushParticipationValidation({ req, errors, participationPercentage });
+    pushAssociateFinancialTermsValidation({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, interestStartDate, interestStartsAt });
 
     if (errors.length > 0) {
       return next(buildValidationError(errors));

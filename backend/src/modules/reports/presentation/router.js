@@ -82,6 +82,11 @@ const DASHBOARD_NOTIFICATION_COLUMNS = [
 const ASSOCIATES_COLUMNS = [
   { header: 'ID Socio', key: 'associateId', width: 12 },
   { header: 'Socio', key: 'associateName', width: 28 },
+  { header: 'Tipo de Interés', key: 'interestType', width: 18 },
+  { header: 'Tasa Pactada %', key: 'interestRate', width: 18 },
+  moneyColumn('Deuda con Socio', 'interestDebt', 20),
+  moneyColumn('Interés Pagado', 'totalInterestPaid', 20),
+  dateColumn('Próximo Pago', 'nextInterestPaymentDate', 18),
   { header: 'Sección', key: 'section', width: 16 },
   { header: 'ID Movimiento', key: 'entryId', width: 16 },
   { header: 'Referencia', key: 'reference', width: 24 },

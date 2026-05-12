@@ -26,6 +26,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     { name: 'Calculation profiles' },
     { name: 'Config' },
     { name: 'Payments' },
+    { name: 'Associates' },
     { name: 'Reports' },
     { name: 'Notifications' },
     { name: 'Audits' },
@@ -145,6 +146,35 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           annualEffectiveRate: { type: 'number', minimum: 0, maximum: 100 },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           priority: { type: 'integer' },
+        },
+      },
+      AssociateInput: {
+        type: 'object',
+        required: ['name', 'email', 'phone'],
+        properties: {
+          name: { type: 'string', minLength: 2 },
+          email: { type: 'string', format: 'email' },
+          phone: { type: 'string' },
+          status: { type: 'string', enum: ['active', 'inactive'] },
+          participationPercentage: { type: 'number', minimum: 0, maximum: 100, nullable: true },
+          initialCapital: {
+            type: 'number',
+            minimum: 0.01,
+            description: 'Capital inicial opcional. Si se envía, el backend registra aporte inicial y agenda el primer pago de interés.',
+          },
+          interestType: { type: 'string', enum: ['monthly', 'annual'], description: 'Periodicidad de interés reconocido al socio.' },
+          interestRate: { type: 'number', minimum: 0, maximum: 100, description: 'Tasa pactada por periodo: mensual si interestType=monthly, anual si interestType=annual.' },
+          interestPaymentDay: { type: 'integer', minimum: 1, maximum: 28 },
+          interestPaymentMonth: { type: 'integer', minimum: 1, maximum: 12, description: 'Mes de pago cuando el interés es anual.' },
+          interestStartDate: { type: 'string', format: 'date', description: 'Fecha desde la que se calcula el primer vencimiento de interés.' },
+        },
+      },
+      AssociateInstallmentPaymentInput: {
+        type: 'object',
+        properties: {
+          paymentDate: { type: 'string', format: 'date-time' },
+          paymentMethod: { type: 'string' },
+          notes: { type: 'string' },
         },
       },
     },
@@ -272,6 +302,62 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Comprobante PDF' } },
       },
     },
+    '/associates': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Listar socios',
+        description: 'Lista personas que aportan capital, con términos de interés pactados y participación operativa.',
+        responses: { 200: { description: 'Socios visibles para el rol' } },
+      },
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar socio con capital e interés pactado',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateInput' } } },
+        },
+        responses: { 201: { description: 'Socio registrado con trazabilidad de capital inicial e interés cuando aplica' } },
+      },
+    },
+    '/associates/{associateId}/portal': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Consultar portal financiero del socio',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Resumen de capital, interés pagado, deuda, movimientos y créditos asociados' } },
+      },
+    },
+    '/associates/{associateId}/contributions': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar aporte de capital del socio',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 201: { description: 'Aporte registrado y siguiente interés agendado cuando no hay cuota pendiente' } },
+      },
+    },
+    '/associates/{associateId}/installments': {
+      get: {
+        tags: ['Associates'],
+        summary: 'Listar intereses programados del socio',
+        parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Cuotas de interés con totales pagados, pendientes y vencidos' } },
+      },
+    },
+    '/associates/{associateId}/installments/{installmentNumber}/pay': {
+      post: {
+        tags: ['Associates'],
+        summary: 'Registrar pago de interés al socio',
+        parameters: [
+          { name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'installmentNumber', in: 'path', required: true, schema: { type: 'integer' } },
+        ],
+        requestBody: {
+          required: false,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssociateInstallmentPaymentInput' } } },
+        },
+        responses: { 200: { description: 'Pago registrado y siguiente vencimiento de interés generado' } },
+      },
+    },
     '/loans/{loanId}/payoff-executions': {
       post: {
         tags: ['Payments'],
@@ -334,7 +420,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       get: {
         tags: ['Reports'],
         summary: 'Exportar socios a Excel operativo',
-        description: 'Genera hojas inspiradas en el reporte anterior de socios: Resumen General, Distribución por Estado, Detalle de Socios, Análisis de Rentabilidad y Rangos de Inversión.',
+        description: 'Genera hojas inspiradas en el reporte anterior de socios: Resumen General, Distribución por Estado, Detalle de Socios, Análisis de Rentabilidad y Rangos de Inversión. Incluye capital aportado, tipo/tasa de interés, deuda con el socio, interés pagado, próximo pago y movimientos.',
         responses: { 200: { description: 'Archivo Excel de socios' } },
       },
     },

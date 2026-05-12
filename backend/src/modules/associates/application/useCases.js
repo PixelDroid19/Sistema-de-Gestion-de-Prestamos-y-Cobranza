@@ -13,6 +13,9 @@ const formatCurrency = (value) => roundCurrency(value).toFixed(2);
 const PERCENTAGE_SCALE = 10000;
 const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
 const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);
+const ALLOWED_INTEREST_TYPES = new Set(['monthly', 'annual']);
+const DEFAULT_INTEREST_PAYMENT_DAY = 1;
+const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -39,15 +42,128 @@ const normalizeParticipationPercentage = (value) => {
   return units === null ? null : (units / PERCENTAGE_SCALE).toFixed(4);
 };
 
-const normalizeAssociatePayload = (payload) => {
-  if (!hasOwn(payload, 'participationPercentage')) {
-    return payload;
+const parseCurrencyAmount = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
   }
 
-  return {
-    ...payload,
-    participationPercentage: normalizeParticipationPercentage(payload.participationPercentage),
-  };
+  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
+  if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) {
+    throw new ValidationError(`${fieldName} must be greater than 0 and use up to 2 decimal places`);
+  }
+
+  const numericValue = Number(normalizedValue);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    throw new ValidationError(`${fieldName} must be greater than 0`);
+  }
+
+  return roundCurrency(numericValue);
+};
+
+const normalizeInterestType = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return 'monthly';
+  }
+
+  const normalizedValue = String(value).trim().toLowerCase();
+  if (!ALLOWED_INTEREST_TYPES.has(normalizedValue)) {
+    throw new ValidationError('interestType must be monthly or annual');
+  }
+
+  return normalizedValue;
+};
+
+const normalizeInterestRate = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return '0.0000';
+  }
+
+  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
+  if (!/^\d+(\.\d{1,4})?$/.test(normalizedValue)) {
+    throw new ValidationError('interestRate must be between 0 and 100 with up to 4 decimal places');
+  }
+
+  const numericValue = Number(normalizedValue);
+  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+    throw new ValidationError('interestRate must be between 0 and 100 with up to 4 decimal places');
+  }
+
+  return numericValue.toFixed(4);
+};
+
+const normalizePaymentDay = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return DEFAULT_INTEREST_PAYMENT_DAY;
+  }
+
+  const day = Number(value);
+  if (!Number.isInteger(day) || day < 1 || day > 28) {
+    throw new ValidationError('interestPaymentDay must be an integer between 1 and 28');
+  }
+
+  return day;
+};
+
+const normalizePaymentMonth = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH;
+  }
+
+  const month = Number(value);
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new ValidationError('interestPaymentMonth must be an integer between 1 and 12');
+  }
+
+  return month;
+};
+
+const normalizeOptionalDateOnly = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ValidationError(`${fieldName} must be a valid date`);
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
+const normalizeAssociatePayload = (payload) => {
+  const normalizedPayload = { ...payload };
+
+  if (hasOwn(payload, 'participationPercentage')) {
+    normalizedPayload.participationPercentage = normalizeParticipationPercentage(payload.participationPercentage);
+  }
+
+  if (hasOwn(payload, 'interestType')) {
+    normalizedPayload.interestType = normalizeInterestType(payload.interestType);
+  }
+
+  if (hasOwn(payload, 'interestRate')) {
+    normalizedPayload.interestRate = normalizeInterestRate(payload.interestRate);
+  }
+
+  if (hasOwn(payload, 'interestPaymentDay')) {
+    normalizedPayload.interestPaymentDay = normalizePaymentDay(payload.interestPaymentDay);
+  }
+
+  if (hasOwn(payload, 'interestPaymentMonth')) {
+    normalizedPayload.interestPaymentMonth = normalizePaymentMonth(payload.interestPaymentMonth);
+  }
+
+  if (hasOwn(payload, 'interestStartDate') || hasOwn(payload, 'interestStartsAt')) {
+    normalizedPayload.interestStartsAt = normalizeOptionalDateOnly(
+      payload.interestStartsAt ?? payload.interestStartDate,
+      'interestStartDate',
+    );
+    delete normalizedPayload.interestStartDate;
+  }
+
+  delete normalizedPayload.initialCapital;
+
+  return normalizedPayload;
 };
 
 const normalizeAssociateListFilters = (filters = {}) => {
@@ -100,7 +216,132 @@ const normalizeAssociateRecord = (associate) => {
       || serializedAssociate.participationPercentage === undefined
       ? null
       : normalizeParticipationPercentage(serializedAssociate.participationPercentage),
+    interestType: normalizeInterestType(serializedAssociate.interestType),
+    interestRate: normalizeInterestRate(serializedAssociate.interestRate),
+    interestPaymentDay: normalizePaymentDay(serializedAssociate.interestPaymentDay),
+    interestPaymentMonth: serializedAssociate.interestPaymentMonth === null || serializedAssociate.interestPaymentMonth === undefined
+      ? null
+      : normalizePaymentMonth(serializedAssociate.interestPaymentMonth),
   };
+};
+
+const addMonthsUtc = (date, months) => new Date(Date.UTC(
+  date.getUTCFullYear(),
+  date.getUTCMonth() + months,
+  date.getUTCDate(),
+));
+
+const addYearsUtc = (date, years) => new Date(Date.UTC(
+  date.getUTCFullYear() + years,
+  date.getUTCMonth(),
+  date.getUTCDate(),
+));
+
+const buildInterestDueDate = ({ associate, fromDate = new Date(), afterDate = null }) => {
+  const interestType = normalizeInterestType(associate.interestType);
+  const paymentDay = normalizePaymentDay(associate.interestPaymentDay);
+  const paymentMonth = normalizePaymentMonth(associate.interestPaymentMonth);
+  const baseDate = afterDate ? new Date(afterDate) : new Date(fromDate);
+  const year = baseDate.getUTCFullYear();
+  const month = baseDate.getUTCMonth();
+  let dueDate = interestType === 'annual'
+    ? new Date(Date.UTC(year, paymentMonth - 1, paymentDay))
+    : new Date(Date.UTC(year, month, paymentDay));
+
+  if (dueDate.getTime() <= baseDate.getTime()) {
+    dueDate = interestType === 'annual' ? addYearsUtc(dueDate, 1) : addMonthsUtc(dueDate, 1);
+  }
+
+  return dueDate;
+};
+
+const buildInterestPeriod = ({ interestType, dueDate }) => {
+  const periodEndDate = new Date(dueDate);
+  const periodStartDate = interestType === 'annual'
+    ? addYearsUtc(periodEndDate, -1)
+    : addMonthsUtc(periodEndDate, -1);
+
+  return { periodStartDate, periodEndDate };
+};
+
+const calculateInterestInstallmentAmount = ({ capitalBase, interestRate }) => roundCurrency(
+  Number(capitalBase || 0) * (Number(interestRate || 0) / 100),
+);
+
+const getTotalContributed = (contributions = []) => roundCurrency(
+  contributions.reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0),
+);
+
+const getNextInstallmentNumber = (installments = []) => {
+  const maxInstallmentNumber = installments.reduce((max, installment) => (
+    Math.max(max, Number(installment.installmentNumber || 0))
+  ), 0);
+
+  return maxInstallmentNumber + 1;
+};
+
+const ensureNextInterestInstallment = async ({
+  associateRepository,
+  associate,
+  transaction,
+  fromDate = new Date(),
+  afterDate = null,
+  capitalBaseOverride = null,
+  excludeInstallmentNumber = null,
+}) => {
+  if (typeof associateRepository.createInstallment !== 'function') {
+    return null;
+  }
+
+  const interestRate = normalizeInterestRate(associate.interestRate);
+  if (Number(interestRate) <= 0) {
+    return null;
+  }
+
+  const [contributions, installments] = await Promise.all([
+    typeof associateRepository.listContributionsByAssociate === 'function'
+      ? associateRepository.listContributionsByAssociate(associate.id, { transaction })
+      : [],
+    typeof associateRepository.findInstallmentsByAssociateId === 'function'
+      ? associateRepository.findInstallmentsByAssociateId(associate.id, { transaction })
+      : [],
+  ]);
+
+  const hasPendingInstallment = installments.some((installment) => (
+    installment.status === 'pending'
+      && Number(installment.installmentNumber) !== Number(excludeInstallmentNumber)
+  ));
+  if (hasPendingInstallment) {
+    return null;
+  }
+
+  const capitalBase = capitalBaseOverride === null ? getTotalContributed(contributions) : roundCurrency(capitalBaseOverride);
+  if (capitalBase <= 0) {
+    return null;
+  }
+
+  const interestType = normalizeInterestType(associate.interestType);
+  const dueDate = buildInterestDueDate({ associate, fromDate, afterDate });
+  const { periodStartDate, periodEndDate } = buildInterestPeriod({ interestType, dueDate });
+  const amount = calculateInterestInstallmentAmount({ capitalBase, interestRate });
+
+  if (amount <= 0) {
+    return null;
+  }
+
+  return associateRepository.createInstallment({
+    associateId: associate.id,
+    installmentNumber: getNextInstallmentNumber(installments),
+    amount,
+    dueDate,
+    capitalBase,
+    interestRate,
+    interestType,
+    periodStartDate,
+    periodEndDate,
+    status: 'pending',
+    notes: 'Interés programado sobre capital aportado',
+  }, { transaction });
 };
 
 const normalizeDistributionRecord = (distribution) => {
@@ -336,8 +577,9 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
  * @returns {Function}
  */
 const createCreateAssociate = ({ associateRepository, auditService }) => {
-  const useCase = async ({ payload }) => {
+  const useCase = async ({ actor, payload }) => {
     const normalizedPayload = normalizeAssociatePayload(payload);
+    const initialCapital = parseCurrencyAmount(payload.initialCapital, 'initialCapital');
 
     await ensureUniqueAssociateContact({
       associateRepository,
@@ -345,7 +587,34 @@ const createCreateAssociate = ({ associateRepository, auditService }) => {
       phone: normalizedPayload.phone,
     });
 
-    return normalizeAssociateRecord(await associateRepository.create(normalizedPayload));
+    const createAssociateWithFinancialTrace = async (transaction) => {
+      const associate = await associateRepository.create(normalizedPayload, { transaction });
+      if (initialCapital !== null) {
+        await associateRepository.createContribution({
+          associateId: associate.id,
+          amount: initialCapital,
+          contributionDate: normalizedPayload.interestStartsAt ? new Date(normalizedPayload.interestStartsAt) : new Date(),
+          createdByUserId: actor?.id || null,
+          notes: 'Capital inicial registrado al crear el socio',
+        }, { transaction });
+
+        await ensureNextInterestInstallment({
+          associateRepository,
+          associate,
+          transaction,
+          fromDate: normalizedPayload.interestStartsAt ? new Date(normalizedPayload.interestStartsAt) : new Date(),
+          capitalBaseOverride: initialCapital,
+        });
+      }
+
+      return associate;
+    };
+
+    const associate = initialCapital !== null && typeof associateRepository.runInTransaction === 'function'
+      ? await associateRepository.runInTransaction(createAssociateWithFinancialTrace)
+      : await createAssociateWithFinancialTrace();
+
+    return normalizeAssociateRecord(associate);
   };
 
   if (auditService) {
@@ -454,14 +723,37 @@ const ensureAssociatePortalAccess = async ({ actor, associateRepository, associa
 
 const createListAssociatePortalSummary = ({ associateRepository }) => async ({ actor, associateId }) => {
   const associate = await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
-  const [contributions, distributions, loans] = await Promise.all([
+  const [contributions, distributions, loans, installments] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
     associateRepository.listLoansByAssociate(associate.id),
+    associateRepository.findInstallmentsByAssociateId(associate.id),
   ]);
 
   const totalContributed = contributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const totalDistributed = distributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const totalInterestPaid = installments
+    .filter((installment) => installment.status === 'paid')
+    .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
+  const interestDebt = installments
+    .filter((installment) => installment.status === 'pending')
+    .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
+  const nextInterestPayment = installments
+    .filter((installment) => installment.status === 'pending')
+    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())[0] || null;
+  const paymentHistory = installments
+    .filter((installment) => installment.status === 'paid')
+    .sort((left, right) => new Date(right.paidAt || right.updatedAt || 0).getTime() - new Date(left.paidAt || left.updatedAt || 0).getTime())
+    .map((installment) => ({
+      id: installment.id,
+      amount: roundCurrency(installment.amount),
+      installmentNumber: installment.installmentNumber,
+      dueDate: installment.dueDate,
+      paidAt: installment.paidAt,
+      paidBy: installment.paidBy,
+      paidByUser: installment.paidByUser,
+      paymentMethod: installment.paymentMethod || null,
+    }));
   const activeLoans = loans.filter((loan) => ['approved', 'active', 'defaulted'].includes(loan.status));
 
   return {
@@ -469,12 +761,17 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
     summary: {
       totalContributed: roundCurrency(totalContributed),
       totalDistributed: roundCurrency(totalDistributed),
+      totalInterestPaid: roundCurrency(totalInterestPaid),
+      interestDebt: roundCurrency(interestDebt),
+      nextInterestPaymentDate: nextInterestPayment?.dueDate ? new Date(nextInterestPayment.dueDate).toISOString() : null,
       netProfit: roundCurrency(totalDistributed),
       activeLoanCount: activeLoans.length,
       portfolioExposure: roundCurrency(activeLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0)),
+      debtStatus: interestDebt > 0 ? 'pending' : 'up_to_date',
     },
     contributions,
     distributions: distributions.map(normalizeDistributionRecord),
+    paymentHistory,
     loans,
   };
 };
@@ -495,13 +792,21 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       throw new ValidationError('Contribution amount must be greater than 0');
     }
 
-    return associateRepository.createContribution({
+    const contribution = await associateRepository.createContribution({
       associateId: associate.id,
       amount,
       contributionDate: payload.contributionDate ? new Date(payload.contributionDate) : new Date(),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
     });
+
+    await ensureNextInterestInstallment({
+      associateRepository,
+      associate,
+      fromDate: contribution.contributionDate || payload.contributionDate || new Date(),
+    });
+
+    return contribution;
   };
 
   if (auditService) {
@@ -826,13 +1131,26 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       'paid',
       paymentDate,
       paidBy,
+      payload?.paymentMethod || null,
+      payload?.notes ? String(payload.notes).trim() : null,
     );
+
+    const associate = await associateRepository.findById(associateId);
+    if (associate) {
+      await ensureNextInterestInstallment({
+        associateRepository,
+        associate,
+        afterDate: installment.dueDate,
+        excludeInstallmentNumber: installmentNumber,
+      });
+    }
 
     const updatedInstallment = {
       ...installment.toJSON(),
       status: 'paid',
       paidAt: paymentDate,
       paidBy,
+      paymentMethod: payload?.paymentMethod || null,
     };
 
     return {

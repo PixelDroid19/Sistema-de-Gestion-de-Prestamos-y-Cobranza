@@ -85,11 +85,11 @@ const associateRepository = {
       };
     });
   },
-  findById(id) {
-    return Associate.findByPk(id);
+  findById(id, { transaction } = {}) {
+    return Associate.findByPk(id, { transaction });
   },
-  create(payload) {
-    return Associate.create(payload);
+  create(payload, { transaction } = {}) {
+    return Associate.create(payload, { transaction });
   },
   findConflictingContact({ email, phone, excludeId = null }) {
     const where = {
@@ -120,15 +120,19 @@ const associateRepository = {
   destroy(associate) {
     return associate.destroy();
   },
-  listContributionsByAssociate(associateId) {
+  listContributionsByAssociate(associateId, { transaction } = {}) {
     return AssociateContribution.findAll({
       where: { associateId },
       include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
       order: [['contributionDate', 'DESC'], ['createdAt', 'DESC']],
+      transaction,
     });
   },
   createContribution(payload, { transaction } = {}) {
     return AssociateContribution.create(payload, { transaction });
+  },
+  createInstallment(payload, { transaction } = {}) {
+    return AssociateInstallment.create(payload, { transaction });
   },
   listActiveAssociatesWithParticipation({ transaction } = {}) {
     return Associate.findAll({
@@ -201,16 +205,17 @@ const associateRepository = {
       include: [{ model: User, as: 'portalUsers', where: { id: userId }, attributes: [] }],
     });
   },
-  findInstallmentsByAssociateId(associateId) {
+  findInstallmentsByAssociateId(associateId, { transaction } = {}) {
     return AssociateInstallment.findAll({
       where: { associateId },
       include: [{ model: User, as: 'paidByUser', attributes: ['id', 'name', 'email', 'role'] }],
       order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
+      transaction,
     });
   },
-  updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
+  updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy, paymentMethod = null, notes = null) {
     return AssociateInstallment.update(
-      { status, paidAt, paidBy },
+      { status, paidAt, paidBy, paymentMethod, notes },
       {
         where: {
           associateId,

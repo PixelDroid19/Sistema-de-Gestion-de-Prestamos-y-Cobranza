@@ -30,7 +30,10 @@ test('createListAssociates returns repository results in name order', async () =
   });
 
   const associates = await listAssociates();
-  assert.deepEqual(associates, [{ id: 4, participationPercentage: null }, { id: 3, participationPercentage: null }]);
+  assert.deepEqual(associates, [
+    { id: 4, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+    { id: 3, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+  ]);
 });
 
 test('createListAssociates preserves pagination metadata with normalized associate rows', async () => {
@@ -48,7 +51,10 @@ test('createListAssociates preserves pagination metadata with normalized associa
   const result = await listAssociates({ pagination: { page: 2, pageSize: 5 } });
 
   assert.deepEqual(result, {
-    items: [{ id: 4, participationPercentage: '25.0000' }, { id: 3, participationPercentage: null }],
+    items: [
+      { id: 4, participationPercentage: '25.0000', interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+      { id: 3, participationPercentage: null, interestType: 'monthly', interestRate: '0.0000', interestPaymentDay: 1, interestPaymentMonth: null },
+    ],
     pagination: { page: 2, pageSize: 5, totalItems: 7, totalPages: 2 },
   });
 });
@@ -175,6 +181,130 @@ test('createCreateAssociate delegates persistence to the repository', async () =
   assert.equal(associate.participationPercentage, '25.0000');
 });
 
+test('createCreateAssociate records initial capital and schedules the first monthly interest payment', async () => {
+  const calls = [];
+  const createAssociate = createCreateAssociate({
+    associateRepository: {
+      async findConflictingContact() {
+        return null;
+      },
+      async runInTransaction(work) {
+        return work('tx-1');
+      },
+      async create(payload, options) {
+        calls.push(['createAssociate', payload, options]);
+        return { id: 12, ...payload };
+      },
+      async createContribution(payload, options) {
+        calls.push(['createContribution', payload, options]);
+        return { id: 40, ...payload };
+      },
+      async createInstallment(payload, options) {
+        calls.push(['createInstallment', payload, options]);
+        return { id: 50, ...payload };
+      },
+    },
+  });
+
+  const associate = await createAssociate({
+    actor: { id: 7, role: 'admin' },
+    payload: {
+      name: 'Socio Capital',
+      email: 'socio.capital@example.com',
+      phone: '+573001112244',
+      initialCapital: '2000000',
+      interestType: 'monthly',
+      interestRate: '2.5',
+      interestPaymentDay: 15,
+      interestStartDate: '2026-05-02',
+    },
+  });
+
+  assert.equal(associate.id, 12);
+  assert.equal(associate.interestType, 'monthly');
+  assert.equal(associate.interestRate, '2.5000');
+  assert.equal(calls[1][0], 'createContribution');
+  assert.equal(calls[1][1].amount, 2000000);
+  assert.equal(calls[1][1].createdByUserId, 7);
+  assert.equal(calls[2][0], 'createInstallment');
+  assert.equal(calls[2][1].amount, 50000);
+  assert.equal(calls[2][1].capitalBase, 2000000);
+  assert.equal(calls[2][1].interestType, 'monthly');
+  assert.equal(calls[2][1].interestRate, '2.5000');
+  assert.equal(calls[2][1].dueDate.toISOString().slice(0, 10), '2026-05-15');
+});
+
+test('createCreateAssociate schedules annual interest on the configured month and day', async () => {
+  let installmentPayload = null;
+  const createAssociate = createCreateAssociate({
+    associateRepository: {
+      async findConflictingContact() {
+        return null;
+      },
+      async runInTransaction(work) {
+        return work();
+      },
+      async create(payload) {
+        return { id: 77, ...payload };
+      },
+      async createContribution(payload) {
+        return { id: 78, ...payload };
+      },
+      async createInstallment(payload) {
+        installmentPayload = payload;
+        return { id: 79, ...payload };
+      },
+    },
+  });
+
+  await createAssociate({
+    actor: { id: 7, role: 'admin' },
+    payload: {
+      name: 'Socio Anual',
+      email: 'socio.anual@example.com',
+      phone: '+573001112245',
+      initialCapital: 3000000,
+      interestType: 'annual',
+      interestRate: 12,
+      interestPaymentMonth: 12,
+      interestPaymentDay: 20,
+      interestStartDate: '2026-05-02',
+    },
+  });
+
+  assert.equal(installmentPayload.amount, 360000);
+  assert.equal(installmentPayload.interestType, 'annual');
+  assert.equal(installmentPayload.dueDate.toISOString().slice(0, 10), '2026-12-20');
+});
+
+test('createCreateAssociate rejects invalid associate interest terms', async () => {
+  const createAssociate = createCreateAssociate({
+    associateRepository: {
+      async findConflictingContact() {
+        return null;
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => createAssociate({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Bad Terms',
+      email: 'bad.terms@example.com',
+      phone: '+573001112246',
+      interestType: 'weekly',
+      interestRate: 2,
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'interestType must be monthly or annual');
+    return true;
+  });
+});
+
 test('createCreateAssociate rejects duplicate contact details through the repository port', async () => {
   const createAssociate = createCreateAssociate({
     associateRepository: {
@@ -208,13 +338,19 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   const listAssociatePortalSummary = createListAssociatePortalSummary({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
+        return { id, name: 'Partner One', participationPercentage: '25.0000', interestType: 'monthly', interestRate: '2.0000' };
       },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
       },
       async listProfitDistributionsByAssociate() {
         return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 3, amount: 20, dueDate: new Date('2026-04-15'), status: 'paid', paidAt: new Date('2026-04-16') },
+          { id: 4, amount: 20, dueDate: new Date('2026-05-15'), status: 'pending', paidAt: null },
+        ];
       },
       async listLoansByAssociate() {
         return [{ id: 3, status: 'active', amount: 4000 }];
@@ -228,18 +364,34 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   assert.equal(report.associate.participationPercentage, '25.0000');
   assert.equal(report.summary.totalContributed, 1000);
   assert.equal(report.summary.totalDistributed, 150);
+  assert.equal(report.summary.totalInterestPaid, 20);
+  assert.equal(report.summary.interestDebt, 20);
+  assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15T00:00:00.000Z');
   assert.equal(report.summary.activeLoanCount, 1);
+  assert.equal(report.paymentHistory.length, 1);
   assert.equal(report.distributions[0].distributionType, 'proportional');
 });
 
 test('createCreateAssociateContribution validates positive amounts', async () => {
+  const calls = [];
   const createAssociateContribution = createCreateAssociateContribution({
     associateRepository: {
       async findById() {
-        return { id: 12 };
+        return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+      },
+      async listContributionsByAssociate() {
+        return [{ amount: 500 }];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
       },
       async createContribution(payload) {
+        calls.push(['createContribution', payload]);
         return { id: 4, ...payload };
+      },
+      async createInstallment(payload) {
+        calls.push(['createInstallment', payload]);
+        return { id: 5, ...payload };
       },
     },
   });
@@ -252,6 +404,9 @@ test('createCreateAssociateContribution validates positive amounts', async () =>
 
   assert.equal(contribution.id, 4);
   assert.equal(contribution.amount, 500);
+  assert.equal(calls[1][0], 'createInstallment');
+  assert.equal(calls[1][1].amount, 7.5);
+  assert.equal(calls[1][1].capitalBase, 500);
 });
 
 test('createCreateProfitDistribution rejects non-admin actors', async () => {
@@ -631,14 +786,16 @@ test('createGetAssociateInstallments rejects unauthorized socio accessing anothe
 });
 
 test('createPayAssociateInstallment marks installment as paid', async () => {
+  const calls = [];
   const payInstallment = createPayAssociateInstallment({
     associateRepository: {
       async findInstallmentsByAssociateId(associateId) {
         return [
-          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date(), status: 'pending', toJSON: () => ({ id: 2, installmentNumber: 2, amount: 100, dueDate: new Date(), status: 'pending' }) },
+          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-15'), status: 'pending', toJSON: () => ({ id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-15'), status: 'pending' }) },
         ];
       },
       async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
+        calls.push(['updateInstallmentStatus', { associateId, installmentNumber, status, paidAt, paidBy }]);
         assert.equal(associateId, 12);
         assert.equal(installmentNumber, 2);
         assert.equal(status, 'paid');
@@ -646,7 +803,14 @@ test('createPayAssociateInstallment marks installment as paid', async () => {
         return 1;
       },
       async findById() {
-        return { id: 12, name: 'Partner One' };
+        return { id: 12, name: 'Partner One', interestType: 'monthly', interestRate: '2.0000', interestPaymentDay: 15 };
+      },
+      async listContributionsByAssociate() {
+        return [{ amount: 1000 }];
+      },
+      async createInstallment(payload) {
+        calls.push(['createInstallment', payload]);
+        return { id: 3, ...payload };
       },
     },
   });
@@ -660,6 +824,10 @@ test('createPayAssociateInstallment marks installment as paid', async () => {
 
   assert.equal(result.success, true);
   assert.equal(result.installment.status, 'paid');
+  assert.equal(calls[1][0], 'createInstallment');
+  assert.equal(calls[1][1].installmentNumber, 3);
+  assert.equal(calls[1][1].amount, 20);
+  assert.equal(calls[1][1].dueDate.toISOString().slice(0, 10), '2026-03-15');
 });
 
 test('createPayAssociateInstallment rejects already paid installment', async () => {

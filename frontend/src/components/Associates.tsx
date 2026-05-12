@@ -65,6 +65,12 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     ? 'bg-blue-50 text-blue-700'
     : 'bg-slate-100 text-slate-600');
 
+  const getInterestLabel = (associate: any) => {
+    const rate = Number(associate?.interestRate || 0);
+    const type = associate?.interestType === 'annual' ? 'anual' : 'mensual';
+    return `${rate.toLocaleString('es-CO', { maximumFractionDigits: 4 })}% ${type}`;
+  };
+
   const handleDelete = async (associate: any) => {
     const associateId = Number(associate?.id);
     if (!Number.isFinite(associateId)) return;
@@ -210,6 +216,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 <th className="pb-3 font-medium">
                   <HelpLabel label="Participación" text="Porcentaje o reparto con el que el socio participa en los créditos relacionados." />
                 </th>
+                <th className="pb-3 font-medium">
+                  <HelpLabel label="Interés pactado" text="Tasa mensual o anual que se reconoce al socio sobre su capital aportado." />
+                </th>
                 <th className="pb-3 font-medium">Créditos relacionados</th>
                 <th className="pb-3 font-medium">Acciones</th>
               </tr>
@@ -232,6 +241,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   <td className="py-4 text-text-secondary">
                     {associate.participationPercentage ? `${associate.participationPercentage}%` : 'Sin definir'}
                   </td>
+                  <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
                   <td className="py-4">{associate.loanCount ?? associate.relatedLoans?.length ?? 0}</td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">

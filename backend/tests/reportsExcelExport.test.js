@@ -22,6 +22,8 @@ test('export associates use case builds previous-system sheet structure', async 
     name: 'Socio Excel QA',
     status: 'active',
     participationPercentage: 25,
+    interestType: 'monthly',
+    interestRate: '2.5000',
   };
   const useCase = createExportAssociatesExcel({
     associateRepository: {
@@ -39,6 +41,13 @@ test('export associates use case builds previous-system sheet structure', async 
       async listProfitDistributionsByAssociate(id) {
         assert.equal(Number(id), 4);
         return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'completed', distributionType: 'proportional' }];
+      },
+      async findInstallmentsByAssociateId(id) {
+        assert.equal(Number(id), 4);
+        return [
+          { id: 3, installmentNumber: 1, amount: 25000, dueDate: '2026-02-15', status: 'paid', paidAt: '2026-02-16', paymentMethod: 'transfer' },
+          { id: 4, installmentNumber: 2, amount: 25000, dueDate: '2026-03-15', status: 'pending' },
+        ];
       },
       async listLoansByAssociate(id) {
         assert.equal(Number(id), 4);
@@ -60,6 +69,10 @@ test('export associates use case builds previous-system sheet structure', async 
   ]);
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'ID Socio'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tipo de Interés'));
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Deuda con Socio'));
+  assert.ok(result.data.rows.some((row) => row.section === 'interest-payment'));
+  assert.ok(result.data.rows.some((row) => row.section === 'interest-due'));
 });
 
 test('export credits use case builds previous-system workbook fields with current snapshots', async () => {
@@ -220,9 +233,15 @@ test('export credits use case builds previous-system workbook fields with curren
   assert.match(creditAmountRow.getCell(2).numFmt, /\$/);
 });
 
-const roleAwareAuth = (roles = []) => (req, res, next) => {
+const roleAwareAuth = (config = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
+  const roles = Array.isArray(config) ? config : [];
+  const permissions = Array.isArray(config?.permissions) ? config.permissions : [];
   if (roles.length > 0 && !roles.includes(role)) {
+    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    return;
+  }
+  if (permissions.includes('REPORTS_VIEW_ALL') && !['admin', 'socio'].includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
@@ -593,6 +612,8 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   const headers = workbook.getWorksheet('Detalle de Socios').getRow(2).values;
   assert.ok(headers.includes('ID Socio'));
   assert.ok(headers.includes('Participación %'));
+  assert.ok(headers.includes('Tipo de Interés'));
+  assert.ok(headers.includes('Deuda con Socio'));
   assert.equal(headers.includes('associateId'), false);
 });
 

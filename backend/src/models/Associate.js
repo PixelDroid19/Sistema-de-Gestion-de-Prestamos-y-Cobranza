@@ -13,6 +13,15 @@ const Associate = sequelize.define('Associate', {
     defaultValue: 'active',
   },
   participationPercentage: { type: DataTypes.DECIMAL(7, 4), allowNull: true },
+  interestType: {
+    type: DataTypes.ENUM('monthly', 'annual'),
+    allowNull: false,
+    defaultValue: 'monthly',
+  },
+  interestRate: { type: DataTypes.DECIMAL(7, 4), allowNull: false, defaultValue: 0 },
+  interestPaymentDay: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  interestPaymentMonth: { type: DataTypes.INTEGER, allowNull: true },
+  interestStartsAt: { type: DataTypes.DATEONLY, allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
 }, {
   timestamps: true,

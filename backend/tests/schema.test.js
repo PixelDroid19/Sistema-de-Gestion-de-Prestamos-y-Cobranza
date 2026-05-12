@@ -35,7 +35,11 @@ const buildDescribedTable = (tableName) => {
   }
 
   if (tableName === 'Associates') {
-    return { id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, participationPercentage: {}, notes: {}, createdAt: {}, updatedAt: {} };
+    return {
+      id: {}, name: {}, email: {}, phone: {}, address: {}, status: {}, participationPercentage: {},
+      interestType: {}, interestRate: {}, interestPaymentDay: {}, interestPaymentMonth: {}, interestStartsAt: {},
+      notes: {}, createdAt: {}, updatedAt: {},
+    };
   }
 
   if (tableName === 'Loans') {
@@ -143,7 +147,9 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'AssociateInstallments') {
     return {
-      id: {}, associateId: {}, installmentNumber: {}, amount: {}, dueDate: {}, status: {}, paidAt: {}, paidBy: {}, createdAt: {}, updatedAt: {},
+      id: {}, associateId: {}, installmentNumber: {}, amount: {}, dueDate: {},
+      capitalBase: {}, interestRate: {}, interestType: {}, periodStartDate: {}, periodEndDate: {}, paymentMethod: {}, notes: {},
+      status: {}, paidAt: {}, paidBy: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -230,6 +236,13 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(requiredSchema.find((entry) => entry.tableName === 'Users').columns.includes('lockedUntil'));
   assert.ok(associates.columns.includes('email'));
   assert.ok(associates.columns.includes('participationPercentage'));
+  assert.ok(associates.columns.includes('interestType'));
+  assert.ok(associates.columns.includes('interestRate'));
+  assert.ok(associates.columns.includes('interestPaymentDay'));
+  assert.ok(associateInstallments.columns.includes('capitalBase'));
+  assert.ok(associateInstallments.columns.includes('interestRate'));
+  assert.ok(associateInstallments.columns.includes('interestType'));
+  assert.ok(associateInstallments.columns.includes('paymentMethod'));
   assert.ok(loans.columns.includes('associateId'));
   assert.equal(loans.columns.includes(['dag', 'GraphVersionId'].join('')), false);
   assert.ok(loans.columns.includes('calculationProfileVersionId'));

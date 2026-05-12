@@ -133,8 +133,15 @@ export default function AssociateDetails() {
   const portalSummary = portal?.summary;
   const totalContributions = portalSummary?.totalContributed ?? portal?.totalContributions ?? 0;
   const totalDistributions = portalSummary?.totalDistributed ?? portal?.totalDistributions ?? 0;
+  const totalInterestPaid = portalSummary?.totalInterestPaid ?? 0;
+  const interestDebt = portalSummary?.interestDebt ?? 0;
+  const nextInterestPaymentDate = portalSummary?.nextInterestPaymentDate ?? null;
+  const debtStatus = portalSummary?.debtStatus === 'pending' ? 'Con intereses pendientes' : 'Al día';
   const activeLoansCount = portalSummary?.activeLoanCount ?? portal?.activeLoansCount ?? 0;
   const participatedLoans = Array.isArray(portal?.loans) ? portal.loans : [];
+  const paymentHistory = Array.isArray(portal?.paymentHistory) ? portal.paymentHistory : [];
+  const interestTypeLabel = associate?.interestType === 'annual' ? 'Anual' : 'Mensual';
+  const interestRateLabel = `${Number(associate?.interestRate || 0).toLocaleString('es-CO', { maximumFractionDigits: 4 })}% ${interestTypeLabel.toLowerCase()}`;
 
   const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 } };
   const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
@@ -186,7 +193,7 @@ export default function AssociateDetails() {
   const renderOverviewTab = () => (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label="Capital aportado"
           value={formatCurrency(totalContributions)}
@@ -200,16 +207,34 @@ export default function AssociateDetails() {
           accent="emerald"
         />
         <MetricCard
-          label="Créditos activos"
-          value={activeLoansCount}
+          label="Interés pagado"
+          value={formatCurrency(totalInterestPaid)}
           icon={<CheckCircle size={18} />}
+          accent="emerald"
+        />
+        <MetricCard
+          label="Deuda con socio"
+          value={formatCurrency(interestDebt)}
+          icon={<AlertCircle size={18} />}
+          accent={interestDebt > 0 ? 'rose' : 'slate'}
+        />
+        <MetricCard
+          label="Interés pactado"
+          value={interestRateLabel}
+          icon={<Clock size={18} />}
+          accent="amber"
+        />
+        <MetricCard
+          label="Próximo pago"
+          value={nextInterestPaymentDate ? formatDate(nextInterestPaymentDate) : 'Sin fecha'}
+          icon={<Calendar size={18} />}
           accent="slate"
         />
       </div>
 
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">Créditos participados</h3>
+          <h3 className="text-lg font-semibold text-text-primary">Créditos participados ({activeLoansCount} activos)</h3>
           <p className="mt-1 text-sm text-text-secondary">
             Créditos donde este socio quedó asociado para trazabilidad de aportes o participación.
           </p>
@@ -243,6 +268,47 @@ export default function AssociateDetails() {
                       {getLoanStatusPresentation(loan?.status).label}
                     </span>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableShell>
+      </DataTableSurface>
+
+      <DataTableSurface>
+        <div className="px-5 pt-5 sm:px-6">
+          <h3 className="text-lg font-semibold text-text-primary">Historial de intereses pagados</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Pagos de intereses reconocidos al socio. La deuda pendiente se calcula con cuotas programadas no pagadas.
+          </p>
+        </div>
+        <TableShell
+          isLoading={false}
+          isError={false}
+          hasData={paymentHistory.length > 0}
+          loadingContent={null}
+          errorContent={null}
+          emptyContent={<div className="py-4 text-center text-text-secondary">Todavía no hay pagos de intereses registrados.</div>}
+          recordsLabel="pagos"
+        >
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-text-secondary border-b border-border-subtle">
+              <tr>
+                <th className="font-medium">Cuota</th>
+                <th className="font-medium">Monto pagado</th>
+                <th className="font-medium">Vencimiento</th>
+                <th className="font-medium">Fecha de pago</th>
+                <th className="font-medium">Método</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {paymentHistory.map((entry: any) => (
+                <tr key={entry.id} className="hover:bg-hover-bg transition-colors">
+                  <td className="font-medium">{entry.installmentNumber}</td>
+                  <td className="font-medium text-emerald-600">{formatCurrency(entry.amount)}</td>
+                  <td>{formatDate(entry.dueDate)}</td>
+                  <td>{formatDate(entry.paidAt)}</td>
+                  <td className="text-text-secondary">{entry.paymentMethod || 'No especificado'}</td>
                 </tr>
               ))}
             </tbody>
@@ -424,7 +490,7 @@ export default function AssociateDetails() {
     <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
         title="Portal del socio"
-        subtitle={`${associateName} · Consulta aportes, cuotas y créditos asociados sin mezclarlo con la originación de créditos.`}
+        subtitle={`${associateName} · ${debtStatus} · Interés ${interestRateLabel}. Consulta aportes, cuotas y pagos sin mezclarlo con la originación de créditos.`}
         guideKey="associate-details"
         tourId="associate-details-header"
         actions={(

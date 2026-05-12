@@ -45,15 +45,31 @@ const buildDetailsResponse = () => ({
       name: 'Socio Uno',
       status: 'active',
       participationPercentage: '25.0000',
+      interestType: 'monthly',
+      interestRate: '2.5000',
     },
     summary: {
       totalContributed: 2500000,
       totalDistributed: 150000,
+      totalInterestPaid: 125000,
+      interestDebt: 62500,
+      nextInterestPaymentDate: '2026-06-15T00:00:00.000Z',
+      debtStatus: 'pending',
       activeLoanCount: 2,
     },
     loans: [],
     contributions: [],
     distributions: [],
+    paymentHistory: [
+      {
+        id: 50,
+        installmentNumber: 1,
+        amount: 125000,
+        dueDate: '2026-05-15T00:00:00.000Z',
+        paidAt: '2026-05-16T00:00:00.000Z',
+        paymentMethod: 'transfer',
+      },
+    ],
   },
   installments: {
     installments: [
@@ -146,5 +162,21 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Pendiente')).toBeInTheDocument();
     expect(screen.queryByText(/^active$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows associate interest debt and payment history trace', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    expect(screen.getByText(/Con intereses pendientes/i)).toBeInTheDocument();
+    expect(screen.getByText('Interés pagado')).toBeInTheDocument();
+    expect(screen.getByText('Deuda con socio')).toBeInTheDocument();
+    expect(screen.getByText('Interés pactado')).toBeInTheDocument();
+    expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
+    expect(screen.getAllByText(/\$125[,.]000/).length).toBeGreaterThan(0);
+    expect(screen.getByText('transfer')).toBeInTheDocument();
   });
 });

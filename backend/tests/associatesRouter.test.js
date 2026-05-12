@@ -13,9 +13,15 @@ afterEach(async () => {
   activeServer = null;
 });
 
-const roleAwareAuth = (roles = []) => (req, res, next) => {
+const roleAwareAuth = (config = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
+  const permissions = Array.isArray(config?.permissions) ? config.permissions : [];
+  const roles = Array.isArray(config) ? config : [];
   if (roles.length > 0 && !roles.includes(role)) {
+    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
+    return;
+  }
+  if (permissions.includes('SOCIOS_UPDATE') && !['admin', 'employee'].includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
