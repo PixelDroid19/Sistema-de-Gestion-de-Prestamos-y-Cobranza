@@ -23,14 +23,13 @@ import {
   SelectInput,
   TextInput,
   ToolbarSurface,
+  ViewTabs,
 } from './shared/Surfaces';
 import { HelpTooltip } from './shared/HelpSupport';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
 const formatMoney = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
-
-const reportTabClassName = (selected: boolean) => `view-tab ${selected ? 'view-tab--active' : ''}`;
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -279,41 +278,18 @@ export default function Reports() {
       </ToolbarSurface>
       )}
 
-      <div className="view-tabs" data-tour="reports-tabs">
-        <button 
-          onClick={() => setActiveTab('dashboard')}
-          className={reportTabClassName(activeTab === 'dashboard')}
-        >
-          Dashboard General
-        </button>
-        <button 
-          onClick={() => setActiveTab('outstanding')}
-          className={reportTabClassName(activeTab === 'outstanding')}
-          title="Clientes y créditos con cuotas vencidas"
-        >
-          Créditos en mora
-        </button>
-        <button 
-          onClick={() => setActiveTab('profitability')}
-          className={reportTabClassName(activeTab === 'profitability')}
-        >
-          Rentabilidad de clientes
-        </button>
-        <button 
-          onClick={() => setActiveTab('payouts')}
-          className={reportTabClassName(activeTab === 'payouts')}
-          title="Resumen y detalle de pagos aplicados"
-        >
-          Pagos y desembolsos
-        </button>
-        <button 
-          onClick={() => setActiveTab('schedule')}
-          className={reportTabClassName(activeTab === 'schedule')}
-          title="Cronograma de cuotas por crédito"
-        >
-          Calendario de pagos
-        </button>
-      </div>
+      <ViewTabs
+        data-tour="reports-tabs"
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
+        tabs={[
+          { id: 'dashboard', label: 'Dashboard General' },
+          { id: 'outstanding', label: 'Créditos en mora', title: 'Clientes y créditos con cuotas vencidas' },
+          { id: 'profitability', label: 'Rentabilidad de clientes' },
+          { id: 'payouts', label: 'Pagos y desembolsos', title: 'Resumen y detalle de pagos aplicados' },
+          { id: 'schedule', label: 'Calendario de pagos', title: 'Cronograma de cuotas por crédito' },
+        ]}
+      />
 
       {activeTab === 'dashboard' && (
         <>

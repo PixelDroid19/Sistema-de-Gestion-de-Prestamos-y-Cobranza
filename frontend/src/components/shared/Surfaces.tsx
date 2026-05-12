@@ -86,6 +86,21 @@ type EmptyStateProps = React.HTMLAttributes<HTMLDivElement> & {
   compact?: boolean;
 };
 
+type ViewTabItem = {
+  id: string;
+  label: React.ReactNode;
+  title?: string;
+  count?: React.ReactNode;
+  icon?: React.ElementType;
+};
+
+type ViewTabsProps = React.HTMLAttributes<HTMLElement> & {
+  tabs: ViewTabItem[];
+  activeTab: string;
+  onChange: (tabId: string) => void;
+  ariaLabel?: string;
+};
+
 type ModalShellProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> & {
   children: React.ReactNode;
   title: React.ReactNode;
@@ -370,6 +385,43 @@ export function EmptyState({
       </div>
       {action && <div className="empty-state-action">{action}</div>}
     </div>
+  );
+}
+
+export function ViewTabs({
+  tabs,
+  activeTab,
+  onChange,
+  ariaLabel,
+  className = '',
+  ...rest
+}: ViewTabsProps) {
+  return (
+    <nav className={`view-tabs ${className}`} aria-label={ariaLabel} {...rest}>
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`view-tab ${isActive ? 'view-tab--active' : ''}`}
+            title={tab.title}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            {Icon ? <Icon size={16} aria-hidden="true" /> : null}
+            <span>{tab.label}</span>
+            {tab.count !== undefined ? (
+              <span className="rounded-full bg-bg-base px-2 py-0.5 text-xs font-semibold text-text-secondary ring-1 ring-border-subtle">
+                {tab.count}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 

@@ -22,6 +22,7 @@ import {
   SelectInput,
   TextInput,
   ToolbarSurface,
+  ViewTabs,
 } from './shared/Surfaces';
 import { ExplainedChip } from './shared/HelpSupport';
 
@@ -254,42 +255,6 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
-function TabButton({
-  id,
-  activeTab,
-  label,
-  count,
-  icon: Icon,
-  onClick,
-}: {
-  id: SettingsTab;
-  activeTab: SettingsTab;
-  label: string;
-  count: number;
-  icon: React.ElementType;
-  onClick: (tab: SettingsTab) => void;
-}) {
-  const selected = activeTab === id;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(id)}
-      className={`inline-flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition ${
-        selected
-          ? 'border-brand-primary text-text-primary'
-          : 'border-transparent text-text-secondary hover:border-border-subtle hover:text-text-primary'
-      }`}
-    >
-      <Icon size={16} aria-hidden="true" />
-      {label}
-      <span className="rounded-full bg-bg-base px-2 py-0.5 text-xs font-semibold text-text-secondary ring-1 ring-border-subtle">
-        {count}
-      </span>
-    </button>
-  );
-}
-
 export default function Settings() {
   const {
     paymentMethods: rawPaymentMethods,
@@ -469,32 +434,17 @@ export default function Settings() {
         />
       </div>
 
-      <nav className="flex gap-6 overflow-x-auto border-b border-border-subtle" data-tour="settings-tabs" aria-label="Secciones de configuración">
-        <TabButton
-          id="payment-methods"
-          activeTab={activeTab}
-          label="Métodos de pago"
-          count={paymentMethods.length}
-          icon={CreditCard}
-          onClick={setActiveTab}
-        />
-        <TabButton
-          id="rate-policies"
-          activeTab={activeTab}
-          label="Tasas de crédito"
-          count={ratePolicies.length}
-          icon={Percent}
-          onClick={setActiveTab}
-        />
-        <TabButton
-          id="late-fee-policies"
-          activeTab={activeTab}
-          label="Políticas de mora"
-          count={lateFeePolicies.length}
-          icon={AlertTriangle}
-          onClick={setActiveTab}
-        />
-      </nav>
+      <ViewTabs
+        data-tour="settings-tabs"
+        ariaLabel="Secciones de configuración"
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as SettingsTab)}
+        tabs={[
+          { id: 'payment-methods', label: 'Métodos de pago', count: paymentMethods.length, icon: CreditCard },
+          { id: 'rate-policies', label: 'Tasas de crédito', count: ratePolicies.length, icon: Percent },
+          { id: 'late-fee-policies', label: 'Políticas de mora', count: lateFeePolicies.length, icon: AlertTriangle },
+        ]}
+      />
 
       <section className="space-y-4" data-tour="settings-content">
         {activeTab === 'payment-methods' && (
