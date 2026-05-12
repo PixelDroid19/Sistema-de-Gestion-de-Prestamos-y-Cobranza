@@ -3,8 +3,7 @@ import { User, Lock, Save, Shield } from 'lucide-react';
 import { useAuth } from '../services/authService';
 import { useSessionStore } from '../store/sessionStore';
 import { toast } from '../lib/toast';
-import { QuickGuideButton } from './shared/HelpSupport';
-import { ActionButton } from './shared/Surfaces';
+import { ActionButton, FormField, PageHeader, PageShell, SectionSurface, TextInput } from './shared/Surfaces';
 
 export default function Profile() {
   const { profile, updateProfile, changePassword } = useAuth();
@@ -77,79 +76,65 @@ export default function Profile() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 h-full pb-8" data-tour="profile-page">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center" data-tour="profile-header">
-        <div className="size-16 bg-brand-primary/10 rounded-full flex shrink-0 items-center justify-center text-brand-primary">
-          <User size={32} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Mi perfil</h2>
-          <p className="text-sm text-text-secondary mt-1">Administra tu información personal y seguridad.</p>
-        </div>
-        <div className="sm:ml-auto flex items-center gap-3">
-          <QuickGuideButton guideKey="profile" />
+    <PageShell className="mx-auto max-w-4xl" data-tour="profile-page">
+      <PageHeader
+        title="Mi perfil"
+        subtitle="Administra tu información personal y seguridad."
+        guideKey="profile"
+        tourId="profile-header"
+        actions={(
           <div className="flex w-fit items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-subtle rounded-lg text-sm">
             <Shield size={16} className="text-emerald-500" />
             <span className="font-medium capitalize">{user?.role || 'Usuario'}</span>
           </div>
-        </div>
-      </div>
+        )}
+      />
 
-      <div className="flex overflow-x-auto border-b border-border-subtle" data-tour="profile-tabs">
+      <div className="view-tabs" data-tour="profile-tabs">
         <button
           onClick={() => setActiveTab('info')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'info' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
-          }`}
+          className={`view-tab ${activeTab === 'info' ? 'view-tab--active' : ''}`}
         >
           <User size={16} /> Información personal
         </button>
         <button
           onClick={() => setActiveTab('security')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'security' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary'
-          }`}
+          className={`view-tab ${activeTab === 'security' ? 'view-tab--active' : ''}`}
         >
           <Lock size={16} /> Seguridad
         </button>
       </div>
 
-      <section className="min-w-0 rounded-xl border border-border-subtle bg-white p-5 shadow-sm dark:bg-bg-surface" data-tour="profile-content">
+      <SectionSurface data-tour="profile-content">
         {activeTab === 'info' && (
           <form onSubmit={handleUpdateProfile} className="space-y-4 max-w-lg">
-            <div>
-              <label htmlFor="profile-name" className="block text-sm font-medium text-text-secondary mb-1">Nombre completo</label>
-              <input
+            <FormField label="Nombre completo">
+              <TextInput
                 id="profile-name"
                 type="text"
                 required
                 value={formData.name}
                 onChange={e => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
-            </div>
-            <div>
-              <label htmlFor="profile-email" className="block text-sm font-medium text-text-secondary mb-1">Correo electrónico</label>
-              <input
+            </FormField>
+            <FormField label="Correo electrónico">
+              <TextInput
                 id="profile-email"
                 type="email"
                 required
                 value={formData.email}
                 onChange={e => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
-            </div>
+            </FormField>
             {supportsPhoneProfile ? (
-              <div>
-                <label htmlFor="profile-phone" className="block text-sm font-medium text-text-secondary mb-1">Teléfono</label>
-                <input
+              <FormField label="Teléfono">
+                <TextInput
                   id="profile-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={e => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
                 />
-              </div>
+              </FormField>
             ) : (
               <div className="rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-secondary">
                 Este perfil usa solo nombre y correo. El teléfono aplica para clientes y socios.
@@ -165,39 +150,33 @@ export default function Profile() {
 
         {activeTab === 'security' && (
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
-            <div>
-              <label htmlFor="profile-current-password" className="block text-sm font-medium text-text-secondary mb-1">Contraseña actual</label>
-              <input
+            <FormField label="Contraseña actual">
+              <TextInput
                 id="profile-current-password"
                 type="password"
                 required
                 value={passwordData.currentPassword}
                 onChange={e => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
-            </div>
-            <div>
-              <label htmlFor="profile-new-password" className="block text-sm font-medium text-text-secondary mb-1">Nueva contraseña</label>
-              <input
+            </FormField>
+            <FormField label="Nueva contraseña">
+              <TextInput
                 id="profile-new-password"
                 type="password"
                 required
                 value={passwordData.newPassword}
                 onChange={e => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
-            </div>
-            <div>
-              <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-text-secondary mb-1">Confirmar nueva contraseña</label>
-              <input
+            </FormField>
+            <FormField label="Confirmar nueva contraseña">
+              <TextInput
                 id="profile-confirm-password"
                 type="password"
                 required
                 value={passwordData.confirmPassword}
                 onChange={e => setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 text-text-primary"
               />
-            </div>
+            </FormField>
             <div className="pt-4">
               <ActionButton type="submit" disabled={changePassword.isPending} isLoading={changePassword.isPending} icon={<Lock size={16} />} variant="primary">
                 Actualizar contraseña
@@ -205,7 +184,7 @@ export default function Profile() {
             </div>
           </form>
         )}
-      </section>
-    </div>
+      </SectionSurface>
+    </PageShell>
   );
 }

@@ -9,7 +9,7 @@ import {
   getAuditModuleLabel,
   getAuditServiceLabel,
 } from '../lib/auditPresentation';
-import { DataTableSurface } from './shared/Surfaces';
+import { ActionButton, DataTableSurface } from './shared/Surfaces';
 
 interface AuditTableProps {
   logs: AuditLog[];
@@ -106,26 +106,28 @@ export default function AuditTable({
                   </td>
                   <td className="whitespace-nowrap">
                     {log.ip ? (
-                      <button
+                      <ActionButton
                         type="button"
                         onClick={() => onFilterIp(log.ip || '')}
-                        className="rounded-lg border border-border-subtle bg-bg-base px-2 py-1 font-mono text-xs text-text-primary transition hover:border-brand-primary hover:text-brand-primary"
+                        variant="ghost"
+                        className="min-h-7 px-2 py-1 font-mono text-xs"
                         title="Filtrar todo lo registrado por esta IP"
                       >
                         {log.ip}
-                      </button>
+                      </ActionButton>
                     ) : (
                       <span className="text-xs text-text-secondary">Sin IP</span>
                     )}
                   </td>
                   <td className="text-right">
-                    <button
+                    <ActionButton
                       onClick={() => onViewDetails(log)}
-                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
+                      variant="ghost"
+                      className="min-h-8 px-3 py-1.5 text-xs"
+                      icon={<Eye size={14} />}
                     >
-                      <Eye size={14} />
                       Ver
-                    </button>
+                    </ActionButton>
                   </td>
                 </tr>
               );
@@ -140,20 +142,22 @@ export default function AuditTable({
             Mostrando {((pagination.page - 1) * pagination.pageSize) + 1} a {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems} eventos
           </span>
           <div className="flex gap-2">
-            <button
+            <ActionButton
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+              variant="ghost"
+              className="min-h-8 px-3 py-1.5 text-xs"
             >
               Anterior
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages}
-              className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50"
+              variant="ghost"
+              className="min-h-8 px-3 py-1.5 text-xs"
             >
               Siguiente
-            </button>
+            </ActionButton>
           </div>
         </div>
       )}
