@@ -13,9 +13,9 @@ import {
   useActiveCreditSimulation,
 } from './hooks/useActiveCreditSimulation';
 import type { CreditCalculationInput } from '../types/creditCalculation';
-import { HelpTooltip, QuickGuideButton } from './shared/HelpSupport';
+import { QuickGuideButton } from './shared/HelpSupport';
 import { getCalculationValueLabel } from '../lib/creditCalculationLabels';
-import { ActionButton, SectionSurface } from './shared/Surfaces';
+import { ActionButton, FormField, IconActionButton, SectionSurface, SelectInput } from './shared/Surfaces';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -345,14 +345,12 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <button
-            type="button"
+          <IconActionButton
             onClick={onBack}
-            className="mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-bg-surface text-text-secondary transition hover:bg-hover-bg hover:text-text-primary"
-            aria-label="Volver a créditos"
-          >
-            <ArrowLeft size={20} />
-          </button>
+            className="mt-1"
+            label="Volver a créditos"
+            icon={<ArrowLeft size={20} />}
+          />
           <div className="min-w-0" data-tour="new-credit-header">
             <h2 className="text-3xl font-bold tracking-tight text-text-primary">Nuevo crédito</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
@@ -406,17 +404,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           className="grid gap-4 px-5 py-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,0.62fr)] xl:items-start"
           data-tour="new-credit-associate"
         >
-          <div>
-            <label htmlFor="customerId" className="block text-sm font-medium text-text-primary">
-              Cliente
-            </label>
-            <select
+          <FormField label="Cliente" error={borrowerErrors.customerId}>
+            <SelectInput
               id="customerId"
               name="customerId"
               data-tour="new-credit-customer-select"
               value={borrower.customerId}
               onChange={handleBorrowerChange}
-              className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 ${borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-brand-primary'}`}
+              className={borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : ''}
               aria-invalid={!!borrowerErrors.customerId}
             >
               <option value="">Seleccionar cliente…</option>
@@ -425,29 +420,21 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}
                 </option>
               ))}
-            </select>
-            {borrowerErrors.customerId && (
-              <p className="mt-1.5 text-xs text-red-600" role="alert">{borrowerErrors.customerId}</p>
-            )}
-          </div>
+            </SelectInput>
+          </FormField>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="associateId" className="block text-sm font-medium text-text-primary">
-                Socio asignado
-              </label>
-              <HelpTooltip
-                align="right"
-                text="Es opcional. Úsalo para dejar trazabilidad del socio o inversionista relacionado. No cambia la tasa, la mora ni la cuota."
-              />
-            </div>
-            <select
+          <FormField
+            label="Socio asignado"
+            tooltip="Es opcional. Úsalo para dejar trazabilidad del socio o inversionista relacionado. No cambia la tasa, la mora ni la cuota."
+            helper="Solo si el crédito debe quedar asociado a un socio."
+          >
+            <SelectInput
               id="associateId"
               name="associateId"
+              aria-label="Socio asignado"
               value={borrower.associateId}
               onChange={handleBorrowerChange}
               aria-describedby="associate-help"
-              className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm outline-none transition focus:ring-2 focus:ring-brand-primary"
             >
               <option value="">Sin socio asignado</option>
               {associates.map((associate: any) => (
@@ -455,11 +442,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   {getDisplayName(associate)}
                 </option>
               ))}
-            </select>
-            <p id="associate-help" className="mt-1.5 text-xs leading-5 text-text-secondary">
-              Solo si el crédito debe quedar asociado a un socio.
-            </p>
-          </div>
+            </SelectInput>
+          </FormField>
 
           <aside
             className="min-w-0 rounded-xl border border-border-subtle bg-bg-base/60 px-4 py-3"
