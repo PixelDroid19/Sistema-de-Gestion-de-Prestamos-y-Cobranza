@@ -1,7 +1,7 @@
 import type React from 'react';
 import { ArrowLeft, DollarSign, Edit2, FileSpreadsheet, FileText, GitBranch, Layers, Percent, Table } from 'lucide-react';
 import { QuickGuideButton } from '../shared/HelpSupport';
-import { ActionButton, ToolbarSurface } from '../shared/Surfaces';
+import { ActionButton } from '../shared/Surfaces';
 
 type CreditActionGuard = {
   visible: boolean;
@@ -127,21 +127,21 @@ export function CreditDetailHeader({
         </div>
       </div>
 
-      <ToolbarSurface className="mt-4 gap-3 p-3 lg:grid lg:grid-cols-[minmax(13rem,0.65fr)_minmax(0,1.8fr)] lg:items-center" data-tour="credit-detail-secondary-actions">
-        <div className="min-w-0 px-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">Operaciones del crédito</p>
-          <p className="mt-1 max-w-xl text-sm leading-5 text-text-secondary">
-            Acciones administrativas sobre pagos, estado y reportes sin cambiar la fórmula congelada.
-          </p>
-        </div>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div
+        className="mt-4 flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-surface px-3 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between"
+        data-tour="credit-detail-secondary-actions"
+      >
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
+          Operaciones del crédito
+        </p>
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
           {isAdmin && capitalPaymentGuard.visible && (
             <ActionButton
               onClick={onOpenCapitalPayment}
               disabled={!capitalPaymentGuard.executable}
               title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
               icon={<Layers size={16} />}
-              fullWidth
+              className="w-full lg:w-auto"
             >
               {capitalContributionLabel}
             </ActionButton>
@@ -152,7 +152,7 @@ export function CreditDetailHeader({
               disabled={!lateFeeUpdateGuard.executable}
               title={lateFeeUpdateGuard.executable ? undefined : lateFeeUpdateGuard.reason}
               icon={<Percent size={16} />}
-              fullWidth
+              className="w-full lg:w-auto"
             >
               {lateFeeRateLabel}
             </ActionButton>
@@ -163,7 +163,7 @@ export function CreditDetailHeader({
               disabled={!creditStatusUpdateGuard.executable}
               title={creditStatusUpdateGuard.executable ? 'Cambiar estado del crédito' : creditStatusUpdateGuard.reason}
               icon={<Edit2 size={16} />}
-              fullWidth
+              className="w-full lg:w-auto"
             >
               Estado
             </ActionButton>
@@ -175,7 +175,7 @@ export function CreditDetailHeader({
               isLoading={isExportingCreditExcel}
               title="Descargar Excel operativo de este crédito con resumen, amortización e historial de pagos"
               icon={<FileSpreadsheet size={16} />}
-              fullWidth
+              className="w-full lg:w-auto"
             >
               Excel
             </ActionButton>
@@ -184,12 +184,12 @@ export function CreditDetailHeader({
             onClick={onOpenSchedule}
             title="Ver plan de pagos completo"
             icon={<Table size={16} />}
-            fullWidth
+            className="w-full lg:w-auto"
           >
             Plan de pagos
           </ActionButton>
         </div>
-      </ToolbarSurface>
+      </div>
     </section>
   );
 }
