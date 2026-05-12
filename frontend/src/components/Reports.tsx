@@ -15,10 +15,13 @@ import {
   ActionButton,
   DataTableSurface,
   EmptyState,
+  FormField,
   MetricCard,
   PageHeader,
   PageShell,
   SectionSurface,
+  SelectInput,
+  TextInput,
   ToolbarSurface,
 } from './shared/Surfaces';
 import { HelpTooltip } from './shared/HelpSupport';
@@ -231,38 +234,32 @@ export default function Reports() {
       {reportExportGuard.visible && (
       <ToolbarSurface as="form" className="settings-config-form" aria-label="Exportar reportes por rango">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div>
-            <label htmlFor="report-type" className="block text-xs text-text-secondary mb-1">Tipo de reporte</label>
-            <select
+          <FormField label="Tipo de reporte">
+            <SelectInput
               id="report-type"
               value={reportType}
               onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts')}
-              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
             >
               <option value="credits">Créditos por rango</option>
               <option value="payouts">Pagos por rango</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="report-from" className="block text-xs text-text-secondary mb-1">Desde</label>
-            <input
+            </SelectInput>
+          </FormField>
+          <FormField label="Desde">
+            <TextInput
               id="report-from"
               type="date"
               value={reportRange.fromDate}
               onChange={(event) => setReportRange((prev) => ({ ...prev, fromDate: event.target.value }))}
-              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
             />
-          </div>
-          <div>
-            <label htmlFor="report-to" className="block text-xs text-text-secondary mb-1">Hasta</label>
-            <input
+          </FormField>
+          <FormField label="Hasta">
+            <TextInput
               id="report-to"
               type="date"
               value={reportRange.toDate}
               onChange={(event) => setReportRange((prev) => ({ ...prev, toDate: event.target.value }))}
-              className="w-full bg-bg-base border border-border-subtle rounded-lg px-3 py-2 text-sm"
             />
-          </div>
+          </FormField>
           <div className="flex items-end">
             <ActionButton
               variant="primary"
@@ -647,37 +644,37 @@ export default function Reports() {
           <DataTableSurface>
             <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
               <h3 className="font-medium">Detalle de pagos</h3>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <input
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+                  <FormField label="Desde">
+                    <TextInput
                     type="date"
                     value={payoutFilters.fromDate || ''}
                     onChange={(e) => setPayoutFilters((prev) => ({ ...prev, fromDate: e.target.value }))}
-                    className="bg-bg-base text-sm text-text-primary rounded-lg px-3 py-2 border border-border-subtle focus:outline-none"
-                  />
-                  <span className="text-text-secondary">a</span>
-                  <input
+                    />
+                  </FormField>
+                  <span className="pb-2.5 text-sm text-text-secondary">a</span>
+                  <FormField label="Hasta">
+                    <TextInput
                     type="date"
                     value={payoutFilters.toDate || ''}
                     onChange={(e) => setPayoutFilters((prev) => ({ ...prev, toDate: e.target.value }))}
-                    className="bg-bg-base text-sm text-text-primary rounded-lg px-3 py-2 border border-border-subtle focus:outline-none"
-                  />
+                    />
+                  </FormField>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-text-secondary">
-                  <span>Filas</span>
-                  <select
+                <FormField label="Filas" className="w-24">
+                  <SelectInput
                     value={payoutPageSize}
                     onChange={(event) => {
                       setPayoutPageSize(Number(event.target.value));
                       setPayoutPage(1);
                     }}
-                    className="bg-bg-base text-sm text-text-primary rounded-lg px-2 py-2 border border-border-subtle focus:outline-none"
                   >
                     {[10, 20, 50, 100].map((size) => (
                       <option key={size} value={size}>{size}</option>
                     ))}
-                  </select>
-                </label>
+                  </SelectInput>
+                </FormField>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -734,20 +731,22 @@ export default function Reports() {
                   Mostrando {(payoutPage - 1) * payoutPageSize + 1} a {Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems)} de {payoutPagination.totalItems} pagos
                 </div>
                 <div className="flex gap-2">
-                  <button 
+                  <ActionButton
                     disabled={payoutPage === 1}
                     onClick={() => setPayoutPage((currentPage) => currentPage - 1)}
-                    className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:opacity-50"
+                    variant="ghost"
+                    className="min-h-8 px-3 py-1.5 text-xs"
                   >
                     Anterior
-                  </button>
-                  <button 
+                  </ActionButton>
+                  <ActionButton
                     disabled={payoutPage === payoutPagination.totalPages}
                     onClick={() => setPayoutPage((currentPage) => currentPage + 1)}
-                    className="rounded-lg border border-border-subtle bg-bg-surface px-3 py-1.5 font-medium hover:bg-hover-bg disabled:opacity-50"
+                    variant="ghost"
+                    className="min-h-8 px-3 py-1.5 text-xs"
                   >
                     Siguiente
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             )}
@@ -763,12 +762,12 @@ export default function Reports() {
               <p className="mt-1 text-sm text-text-secondary">Consulta el calendario operativo de un crédito específico.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <input
+              <TextInput
                 type="number"
                 placeholder="Ingrese ID del crédito"
                 value={selectedLoanId || ''}
                 onChange={(e) => setSelectedLoanId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-primary focus:outline-none sm:w-64"
+                className="sm:w-64"
               />
               <ActionButton
                 variant="primary"

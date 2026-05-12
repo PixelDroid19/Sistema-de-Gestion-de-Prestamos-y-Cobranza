@@ -58,6 +58,14 @@ type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   isLoading?: boolean;
 };
 
+type FormFieldProps = Omit<React.LabelHTMLAttributes<HTMLLabelElement>, 'children'> & {
+  label: React.ReactNode;
+  tooltip?: string;
+  helper?: React.ReactNode;
+  error?: React.ReactNode;
+  children: React.ReactNode;
+};
+
 type EmptyStateProps = React.HTMLAttributes<HTMLDivElement> & {
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -243,6 +251,43 @@ export function ActionButton({
       {icon && <span className="action-button-icon" aria-hidden="true">{icon}</span>}
       <span>{isLoading ? 'Procesando...' : children}</span>
     </button>
+  );
+}
+
+export function FormField({
+  label,
+  tooltip,
+  helper,
+  error,
+  children,
+  className = '',
+  ...rest
+}: FormFieldProps) {
+  return (
+    <label className={`form-field ${className}`} {...rest}>
+      <span className="form-field-label">
+        <span>{label}</span>
+        {tooltip ? <HelpTooltip text={tooltip} align="right" iconSize={12} /> : null}
+      </span>
+      {children}
+      {error ? (
+        <span className="form-field-error">{error}</span>
+      ) : helper ? (
+        <span className="form-field-helper">{helper}</span>
+      ) : null}
+    </label>
+  );
+}
+
+export function TextInput({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`form-control ${className}`} {...rest} />;
+}
+
+export function SelectInput({ className = '', children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select className={`form-control ${className}`} {...rest}>
+      {children}
+    </select>
   );
 }
 

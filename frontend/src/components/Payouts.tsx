@@ -13,7 +13,16 @@ import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
 import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
-import { ActionButton, ModalShell, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import {
+  ActionButton,
+  FormField,
+  ModalShell,
+  PageHeader,
+  PageShell,
+  SelectInput,
+  TextInput,
+  ToolbarSurface,
+} from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Payouts() {
@@ -377,51 +386,52 @@ export default function Payouts() {
         guideKey="payouts"
         tourId="payouts-header"
         actions={(
-        <button 
+        <ActionButton
           onClick={openPaymentModal}
           disabled={!canOpenPaymentModal}
           title={canOpenPaymentModal ? 'Registrar pago' : (selectedPayoutTypeGuard.reason || 'Acción no disponible')}
-          className="flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          variant="primary"
+          icon={<Plus size={16} />}
         >
-          <Plus size={16} /> {tTerm('payouts.cta.recordPayment')}
-        </button>
+          {tTerm('payouts.cta.recordPayment')}
+        </ActionButton>
         )}
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         {selectedPayments.length > 0 && (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 shadow-sm">
+          <ToolbarSurface>
             <p className="text-sm text-text-secondary">
               {selectedPayments.length} pago(s) seleccionado(s)
             </p>
             <div className="flex items-center gap-2">
-              <button
+              <ActionButton
                 type="button"
                 onClick={handleBulkDownloadVouchers}
-                className="rounded-lg bg-text-primary px-3 py-1.5 text-sm text-bg-base transition hover:opacity-90"
+                variant="primary"
               >
                 Descargar comprobantes
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 type="button"
                 onClick={() => setSelectedPaymentIds([])}
-                className="rounded-lg border border-border-subtle px-3 py-1.5 text-sm transition hover:bg-hover-bg"
+                variant="ghost"
               >
                 Limpiar selección
-              </button>
+              </ActionButton>
             </div>
-          </div>
+          </ToolbarSurface>
         )}
 
         <ToolbarSurface data-tour="payouts-search">
-          <div className="relative">
+          <div className="relative w-full sm:w-72">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input 
+            <TextInput
               type="text" 
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Buscar por ID de crédito o cliente…"
-              className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
+              className="pl-10"
             />
           </div>
         </ToolbarSurface>
@@ -571,41 +581,37 @@ export default function Payouts() {
       {showPaymentModal && (
         <ModalShell title={tTerm('payouts.cta.recordPayment')}>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="payout-type" className="block text-sm font-medium text-text-secondary mb-1" title="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal">Tipo de pago</label>
-                <select 
+              <FormField
+                label="Tipo de pago"
+                tooltip="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal."
+                helper={payoutTypeOptions.find((option) => option.value === paymentType)?.description || selectedPayoutTypeGuard.reason}
+              >
+                <SelectInput
                   id="payout-type"
                   value={paymentType}
                   onChange={(e) => setPaymentType(e.target.value as any)}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
                   {payoutTypeOptions.map((option) => (
                     <option key={option.value} value={option.value} disabled={!option.guard.executable}>
                       {option.label}
                     </option>
                   ))}
-                </select>
-                <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  {payoutTypeOptions.find((option) => option.value === paymentType)?.description || selectedPayoutTypeGuard.reason}
-                </p>
-              </div>
+                </SelectInput>
+              </FormField>
 
-              <div>
-                <label htmlFor="payout-loan-id" className="block text-sm font-medium text-text-secondary mb-1">ID del crédito</label>
-                <input 
+              <FormField label="ID del crédito">
+                <TextInput
                   id="payout-loan-id"
                   type="number"
                   required
                   value={formData.loanId}
                   onChange={(e) => setFormData((prev) => ({ ...prev, loanId: e.target.value }))}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   placeholder="Ej: 1"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label htmlFor="payout-amount" className="block text-sm font-medium text-text-secondary mb-1">Monto a pagar</label>
-                <input 
+              <FormField label="Monto a pagar">
+                <TextInput
                   id="payout-amount"
                   type="number"
                   required
@@ -613,51 +619,44 @@ export default function Payouts() {
                   step="0.01"
                   value={formData.amount}
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   placeholder="0.00"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label htmlFor="payout-date" className="block text-sm font-medium text-text-secondary mb-1">Fecha de pago</label>
-                <input 
+              <FormField label="Fecha de pago">
+                <TextInput
                   id="payout-date"
                   type="date"
                   required
                   value={formData.paymentDate}
                   onChange={(e) => setFormData((prev) => ({ ...prev, paymentDate: e.target.value }))}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label htmlFor="payout-method" className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
-                <select 
+              <FormField label="Método de pago">
+                <SelectInput
                   id="payout-method"
                   value={formData.paymentMethod}
                   onChange={(e) => setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                 >
                   {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
-                </select>
-              </div>
+                </SelectInput>
+              </FormField>
 
               {paymentType === 'capital' && (
-                <div>
-                  <label htmlFor="payout-capital-strategy" className="block text-sm font-medium text-text-secondary mb-1">Estrategia de abono</label>
-                  <select
+                <FormField label="Estrategia de abono">
+                  <SelectInput
                     id="payout-capital-strategy"
                     value={capitalStrategy}
                     onChange={(event) => setCapitalStrategy(event.target.value as CapitalStrategy)}
-                    className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2"
                   >
                     {CAPITAL_STRATEGIES.map((strategy) => (
                       <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
                     ))}
-                  </select>
-                </div>
+                  </SelectInput>
+                </FormField>
               )}
 
               <div className="flex gap-3 pt-4">
@@ -690,31 +689,27 @@ export default function Payouts() {
               </div>
             )}
             <div className="space-y-4">
-              <div>
-                <label htmlFor="edit-payment-method" className="block text-sm font-medium text-text-secondary mb-1">Método de pago</label>
-                <select
+              <FormField label="Método de pago">
+                <SelectInput
                   id="edit-payment-method"
                   value={editedMethod}
                   onChange={(event) => setEditedMethod(event.target.value as PaymentMethod)}
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {paymentMethodOptions.map((method) => (
                     <option key={method.value} value={method.value}>{method.label}</option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="edit-payment-reference" className="block text-sm font-medium text-text-secondary mb-1">Referencia de conciliación (opcional)</label>
-                <input
+                </SelectInput>
+              </FormField>
+              <FormField label="Referencia de conciliación (opcional)">
+                <TextInput
                   id="edit-payment-reference"
                   value={editedReference}
                   onChange={(event) => setEditedReference(event.target.value)}
                   placeholder="Ej: REF-123"
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
-                  className="w-full bg-bg-base border border-border-subtle rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
-              </div>
+              </FormField>
             </div>
             <div className="flex gap-3 pt-4">
               <ActionButton

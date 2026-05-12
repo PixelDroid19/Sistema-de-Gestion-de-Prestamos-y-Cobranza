@@ -321,6 +321,67 @@
     color: #fda4af;
   }
 
+  .form-field {
+    display: block;
+    min-width: 0;
+  }
+
+  .form-field-label {
+    margin-bottom: 0.35rem;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.2;
+    color: var(--text-secondary);
+  }
+
+  .form-control {
+    width: 100%;
+    min-height: 2.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  }
+
+  .form-control::placeholder {
+    color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
+  }
+
+  .form-control:focus {
+    border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--border-subtle));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  }
+
+  .form-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .form-field-helper,
+  .form-field-error {
+    margin-top: 0.35rem;
+    display: block;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .form-field-helper {
+    color: var(--text-secondary);
+  }
+
+  .form-field-error {
+    color: #be123c;
+  }
+
   .empty-state {
     display: flex;
     min-height: 11rem;

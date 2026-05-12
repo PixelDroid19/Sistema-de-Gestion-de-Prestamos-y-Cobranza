@@ -12,8 +12,18 @@ import {
 import { useConfig } from '../services/configService';
 import { toast } from '../lib/toast';
 import { confirmDanger } from '../lib/confirmModal';
-import { ActionButton, DataTableSurface, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
-import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
+import {
+  ActionButton,
+  DataTableSurface,
+  FormField,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SelectInput,
+  TextInput,
+  ToolbarSurface,
+} from './shared/Surfaces';
+import { ExplainedChip } from './shared/HelpSupport';
 
 type SettingsTab = 'payment-methods' | 'rate-policies' | 'late-fee-policies';
 
@@ -491,51 +501,43 @@ export default function Settings() {
           <>
             <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreatePaymentMethod} aria-label="Crear método de pago">
               <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[minmax(220px,1fr)_180px_minmax(220px,1fr)]">
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Nombre del método"
-                    text="Nombre visible al registrar pagos. Debe ser claro para caja y cartera."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                <FormField
+                  label="Nombre del método"
+                  tooltip="Nombre visible al registrar pagos. Debe ser claro para caja y cartera."
+                >
+                  <TextInput
                     aria-label="Nombre del método"
                     required
                     value={newPaymentMethod.name}
                     onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Transferencia Bancolombia"
                   />
-                </label>
+                </FormField>
 
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Tipo de método"
-                    text="Clasifica el pago. Transferencias y tarjetas pueden exigir referencia o comprobante."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <select
+                <FormField
+                  label="Tipo de método"
+                  tooltip="Clasifica el pago. Transferencias y tarjetas pueden exigir referencia o comprobante."
+                >
+                  <SelectInput
                     aria-label="Tipo de método"
                     value={newPaymentMethod.type}
                     onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   >
                     <option value="bank_transfer">Transferencia</option>
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>
                     <option value="other">Otro</option>
-                  </select>
-                </label>
+                  </SelectInput>
+                </FormField>
 
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-xs font-semibold text-text-secondary">Descripción opcional</span>
-                  <input
+                <FormField label="Descripción opcional">
+                  <TextInput
                     aria-label="Descripción del método"
                     value={newPaymentMethod.description}
                     onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: requiere referencia bancaria"
                   />
-                </label>
+                </FormField>
               </div>
               <ActionButton
                 type="submit"
@@ -624,52 +626,43 @@ export default function Settings() {
           <>
             <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreateRatePolicy} aria-label="Crear política de tasa">
               <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(200px,1fr)_150px_150px_130px_110px]">
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Nombre de política"
-                    text="Etiqueta para identificar cuándo aplica esta tasa al crear créditos nuevos."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                <FormField
+                  label="Nombre de política"
+                  tooltip="Etiqueta para identificar cuándo aplica esta tasa al crear créditos nuevos."
+                >
+                  <TextInput
                     aria-label="Nombre de política de tasa"
                     required
                     value={newRatePolicy.label}
                     onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Crédito estándar"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-xs font-semibold text-text-secondary">Monto mínimo</span>
-                  <input
+                </FormField>
+                <FormField label="Monto mínimo">
+                  <TextInput
                     aria-label="Monto mínimo de tasa"
                     type="number"
                     min="0"
                     value={newRatePolicy.minAmount}
                     onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, minAmount: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="0"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-xs font-semibold text-text-secondary">Monto máximo</span>
-                  <input
+                </FormField>
+                <FormField label="Monto máximo">
+                  <TextInput
                     aria-label="Monto máximo de tasa"
                     type="number"
                     min="0"
                     value={newRatePolicy.maxAmount}
                     onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Sin tope"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Tasa EA %"
-                    text="Tasa efectiva anual usada como entrada del cálculo financiero."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                </FormField>
+                <FormField
+                  label="Tasa EA %"
+                  tooltip="Tasa efectiva anual usada como entrada del cálculo financiero."
+                >
+                  <TextInput
                     aria-label="Tasa efectiva anual"
                     required
                     type="number"
@@ -678,25 +671,21 @@ export default function Settings() {
                     step="0.01"
                     value={newRatePolicy.annualEffectiveRate}
                     onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="60"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Prioridad"
-                    text="Si varias políticas aplican al mismo monto, gana la menor prioridad numérica."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                </FormField>
+                <FormField
+                  label="Prioridad"
+                  tooltip="Si varias políticas aplican al mismo monto, gana la menor prioridad numérica."
+                >
+                  <TextInput
                     aria-label="Prioridad de tasa"
                     type="number"
                     min="0"
                     value={newRatePolicy.priority}
                     onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, priority: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
-                </label>
+                </FormField>
               </div>
               <ActionButton
                 type="submit"
@@ -784,28 +773,23 @@ export default function Settings() {
           <>
             <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreateLateFeePolicy} aria-label="Crear política de mora">
               <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_110px]">
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Nombre de la política"
-                    text="Etiqueta visible para identificar la política que se aplicará a créditos nuevos."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                <FormField
+                  label="Nombre de la política"
+                  tooltip="Etiqueta visible para identificar la política que se aplicará a créditos nuevos."
+                >
+                  <TextInput
                     aria-label="Nombre de la política de mora"
                     required
                     value={newLateFeePolicy.label}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="Ej: Mora simple estándar"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Tasa de mora EA %"
-                    text="Tasa efectiva anual que se usará como recargo por mora."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                </FormField>
+                <FormField
+                  label="Tasa de mora EA %"
+                  tooltip="Tasa efectiva anual que se usará como recargo por mora."
+                >
+                  <TextInput
                     aria-label="Tasa de mora efectiva anual"
                     required
                     type="number"
@@ -814,42 +798,35 @@ export default function Settings() {
                     step="0.01"
                     value={newLateFeePolicy.annualEffectiveRate}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     placeholder="24"
                   />
-                </label>
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Cálculo aplicado"
-                    text="Método matemático de la mora. Esto no crea otra regla: es parte de la política seleccionada."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <select
+                </FormField>
+                <FormField
+                  label="Cálculo aplicado"
+                  tooltip="Método matemático de la mora. Esto no crea otra regla: es parte de la política seleccionada."
+                >
+                  <SelectInput
                     aria-label="Cálculo aplicado de mora"
                     value={newLateFeePolicy.lateFeeMode}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   >
                     <option value="SIMPLE">Mora simple</option>
                     <option value="COMPOUND">Mora compuesta</option>
                     <option value="NONE">Sin mora</option>
-                  </select>
-                </label>
-                <label className="block min-w-0">
-                  <HelpLabel
-                    label="Prioridad"
-                    text="Si hay varias políticas activas, gana la menor prioridad numérica."
-                    className="mb-1 text-xs font-semibold text-text-secondary"
-                  />
-                  <input
+                  </SelectInput>
+                </FormField>
+                <FormField
+                  label="Prioridad"
+                  tooltip="Si hay varias políticas activas, gana la menor prioridad numérica."
+                >
+                  <TextInput
                     aria-label="Prioridad de política de mora"
                     type="number"
                     min="0"
                     value={newLateFeePolicy.priority}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, priority: event.target.value }))}
-                    className="w-full rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
-                </label>
+                </FormField>
               </div>
               <ActionButton
                 type="submit"
