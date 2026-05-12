@@ -368,20 +368,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       </div>
 
       <SectionSurface
-        className="p-0"
-        bodyClassName="contents"
         data-tour="new-credit-customer"
-      >
-        <div className="flex flex-col gap-4 border-b border-border-subtle px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-base font-semibold text-text-primary">
-              <User size={18} className="text-brand-primary" />
-              Preparación del crédito
-            </div>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
-              El socio es opcional; no modifica tasa, mora ni cronograma.
-            </p>
-          </div>
+        title={(
+          <span className="inline-flex items-center gap-2">
+            <User size={18} className="text-brand-primary" />
+            Preparación del crédito
+          </span>
+        )}
+        subtitle="Selecciona el titular y revisa las reglas que se usarán al registrar. El socio es opcional y solo agrega trazabilidad."
+        actions={(
           <div className="flex flex-wrap gap-2" aria-label="Estado de preparación del crédito">
             {readinessSummary.map((item) => {
               const StatusIcon = item.icon;
@@ -398,10 +393,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               );
             })}
           </div>
-        </div>
+        )}
+      >
 
         <div
-          className="grid gap-4 px-5 py-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,0.62fr)] xl:items-start"
+          className="grid gap-4 xl:grid-cols-2"
           data-tour="new-credit-associate"
         >
           <FormField label="Cliente" error={borrowerErrors.customerId}>
@@ -444,54 +440,50 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               ))}
             </SelectInput>
           </FormField>
+        </div>
 
-          <aside
-            className="min-w-0 rounded-xl border border-border-subtle bg-bg-base/60 px-4 py-3"
-            data-tour="new-credit-policy-summary"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-text-primary">Resumen</h3>
-              {routeState?.source === 'credit-calculator' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
-                  <CheckCircle2 size={13} />
-                  Precargado
-                </span>
-              )}
-            </div>
-            <dl className="mt-3 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa del crédito</dt>
-                <dd className="mt-1 font-semibold text-text-primary">
-                  {rateSummaryValue}
-                </dd>
-                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  {rateSourceLabel}: {rateSummaryDetail}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cálculo de mora</dt>
-                <dd className="mt-1 font-semibold text-text-primary">
-                  {lateFeeSummaryValue}
-                </dd>
-                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  {lateFeeSourceLabel}: {lateFeeSummaryDetail}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Validación</dt>
-                <dd className="mt-1 font-semibold text-text-primary">
-                  {hasValidatedResult ? calculationRuleLabel : 'Pendiente'}
-                </dd>
-                <p className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  La validación congela la regla usada al registrar.
-                </p>
-              </div>
-            </dl>
+        <div
+          className="mt-4 rounded-xl border border-border-subtle bg-bg-base/60 p-3"
+          data-tour="new-credit-policy-summary"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-text-primary">Reglas que se aplicarán</h3>
             {routeState?.source === 'credit-calculator' && (
-              <p className="sr-only">Escenario precargado</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200">
+                <CheckCircle2 size={13} />
+                Precargado desde calculadora
+              </span>
+            )}
+          </div>
+          <dl className="mt-3 grid gap-3 md:grid-cols-3">
+            <div className="min-w-0 rounded-lg bg-bg-surface px-3 py-2 ring-1 ring-border-subtle">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tasa</dt>
+              <dd className="mt-1 text-sm font-semibold text-text-primary">{rateSummaryValue}</dd>
+              <p className="mt-0.5 truncate text-xs text-text-secondary" title={`${rateSourceLabel}: ${rateSummaryDetail}`}>
+                {rateSourceLabel}: {rateSummaryDetail}
+              </p>
+            </div>
+            <div className="min-w-0 rounded-lg bg-bg-surface px-3 py-2 ring-1 ring-border-subtle">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
+              <dd className="mt-1 text-sm font-semibold text-text-primary">{lateFeeSummaryValue}</dd>
+              <p className="mt-0.5 truncate text-xs text-text-secondary" title={`${lateFeeSourceLabel}: ${lateFeeSummaryDetail}`}>
+                {lateFeeSourceLabel}: {lateFeeSummaryDetail}
+              </p>
+            </div>
+            <div className="min-w-0 rounded-lg bg-bg-surface px-3 py-2 ring-1 ring-border-subtle">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Validación</dt>
+              <dd className="mt-1 text-sm font-semibold text-text-primary">
+                {hasValidatedResult ? calculationRuleLabel : 'Pendiente'}
+              </dd>
+              <p className="mt-0.5 truncate text-xs text-text-secondary" title="La validación congela la regla usada al registrar.">
+                Congela la regla usada al registrar.
+              </p>
+            </div>
+          </dl>
+          {routeState?.source === 'credit-calculator' && (
+            <p className="sr-only">Escenario precargado</p>
           )}
-        </aside>
-      </div>
+        </div>
       </SectionSurface>
 
       {actionDock}
