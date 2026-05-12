@@ -283,6 +283,10 @@ export function TextInput({ className = '', ...rest }: React.InputHTMLAttributes
   return <input className={`form-control ${className}`} {...rest} />;
 }
 
+export function TextAreaInput({ className = '', ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`form-control min-h-24 resize-none ${className}`} {...rest} />;
+}
+
 export function SelectInput({ className = '', children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select className={`form-control ${className}`} {...rest}>

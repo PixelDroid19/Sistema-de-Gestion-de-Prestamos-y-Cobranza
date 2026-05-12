@@ -4,7 +4,16 @@ import { useParams } from 'react-router-dom';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
-import { ActionButton, EmptyState, PageHeader, PageShell, SectionSurface } from './shared/Surfaces';
+import {
+  ActionButton,
+  EmptyState,
+  FormField,
+  PageHeader,
+  PageShell,
+  SectionSurface,
+  SelectInput,
+  TextInput,
+} from './shared/Surfaces';
 
 interface AssociateFormData {
   name: string;
@@ -125,61 +134,55 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
 
       <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form">
         <div className="space-y-4">
-          <div>
-            <label htmlFor="new-associate-name" className="mb-1 block text-sm font-medium text-text-secondary">Nombre Completo *</label>
-            <input
+          <FormField label="Nombre completo *">
+            <TextInput
               id="new-associate-name"
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-              className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Nombre del socio"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="new-associate-email" className="mb-1 block text-sm font-medium text-text-secondary">Correo electrónico</label>
-            <input
+          <FormField label="Correo electrónico">
+            <TextInput
               id="new-associate-email"
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-              className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="correo@ejemplo.com"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="new-associate-phone" className="mb-1 block text-sm font-medium text-text-secondary">Teléfono</label>
-            <input
+          <FormField label="Teléfono">
+            <TextInput
               id="new-associate-phone"
               type="tel"
               required
               value={formData.phone}
               onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-              className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Número de teléfono"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="new-associate-status" className="mb-1 block text-sm font-medium text-text-secondary">Estado</label>
-            <select
+          <FormField label="Estado">
+            <SelectInput
               id="new-associate-status"
               value={formData.status}
               onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
-              className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
             >
               <option value="active">Activo</option>
               <option value="inactive">Inactivo</option>
-            </select>
-          </div>
+            </SelectInput>
+          </FormField>
 
-          <div>
-            <label htmlFor="new-associate-participation" className="mb-1 block text-sm font-medium text-text-secondary">Participación sobre utilidades (%)</label>
-            <input
+          <FormField
+            label="Participación sobre utilidades (%)"
+            helper="Úsalo cuando el socio participe en distribuciones proporcionales. La suma de socios activos debe cerrar en 100%."
+          >
+            <TextInput
               id="new-associate-participation"
               type="number"
               min="0"
@@ -187,13 +190,9 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               step="0.0001"
               value={formData.participationPercentage}
               onChange={(e) => setFormData((prev) => ({ ...prev, participationPercentage: e.target.value }))}
-              className="w-full rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-text-primary"
               placeholder="Opcional. Ejemplo: 25"
             />
-            <p className="mt-1 text-xs text-text-secondary">
-              Úsalo cuando el socio participe en distribuciones proporcionales. La suma de socios activos debe cerrar en 100%.
-            </p>
-          </div>
+          </FormField>
 
           <div className="flex gap-3 pt-4">
             <ActionButton type="button" onClick={onBack} fullWidth>

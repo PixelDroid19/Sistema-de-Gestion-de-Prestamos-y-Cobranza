@@ -6,6 +6,7 @@ import { restoreAccessToken } from '../api/client';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useSessionStore } from '../store/sessionStore';
 import { extractStatusCode } from '../services/safeErrorMessages';
+import { ActionButton, SectionSurface } from './shared/Surfaces';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -18,10 +19,10 @@ interface GuestRouteProps {
 
 const SessionLoadingState = ({ label = 'Restaurando sesión…' }: { label?: string }) => (
   <div className="flex h-screen w-full items-center justify-center bg-bg-base">
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-border-subtle bg-bg-surface px-6 py-8 shadow-sm">
+    <SectionSurface className="flex flex-col items-center gap-4 px-6 py-8">
       <Loader2 className="size-10 animate-spin text-brand-primary" />
       <p className="text-sm font-medium text-text-secondary">{label}</p>
-    </div>
+    </SectionSurface>
   </div>
 );
 
@@ -33,7 +34,7 @@ const SessionRestoreErrorState = ({
   onExit: () => void;
 }) => (
   <div className="flex h-screen w-full items-center justify-center bg-bg-base px-4">
-    <div className="w-full max-w-md rounded-3xl border border-border-subtle bg-bg-surface p-6 shadow-sm">
+    <SectionSurface className="w-full max-w-md">
       <div className="mb-4 flex items-start gap-3">
         <div className="mt-0.5 rounded-2xl bg-red-50 p-2 text-red-600">
           <AlertCircle className="size-5" />
@@ -47,23 +48,24 @@ const SessionRestoreErrorState = ({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button
+        <ActionButton
           type="button"
           onClick={onRetry}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-4 py-2.5 text-sm font-medium text-text-primary transition hover:bg-hover-bg"
+          icon={<RotateCcw className="size-4" />}
+          fullWidth
         >
-          <RotateCcw className="size-4" />
           Reintentar
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
           onClick={onExit}
-          className="inline-flex flex-1 items-center justify-center rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-base transition hover:opacity-90"
+          variant="primary"
+          fullWidth
         >
           Volver al acceso
-        </button>
+        </ActionButton>
       </div>
-    </div>
+    </SectionSurface>
   </div>
 );
 
