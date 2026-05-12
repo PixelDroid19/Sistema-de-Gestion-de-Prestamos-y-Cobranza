@@ -36,9 +36,11 @@ import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import {
   ActionButton,
+  CheckboxInput,
   DataTableSurface,
   EmptyState,
   FormField,
+  IconActionButton,
   MetricCard,
   ModalShell,
   PageHeader,
@@ -47,6 +49,7 @@ import {
   SelectInput,
   TextInput,
   ToolbarSurface,
+  ViewTabs,
 } from './shared/Surfaces';
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
@@ -84,7 +87,6 @@ const getLoanStatusTone = (status?: string): ChipTone => {
 
 const STATUS_COLUMN_HELP = 'Estado: etapa administrativa del crédito. Define si está vigente, cerrado, rechazado, vencido o bloqueado para operación.';
 const RECOVERY_COLUMN_HELP = 'Situación: lectura de cobranza. Indica si el crédito está al día, en mora, recuperado o en seguimiento operativo.';
-const creditTabClassName = (isActive: boolean) => `view-tab ${isActive ? 'view-tab--active' : ''}`;
 
 const getLoanStatusDescription = (status?: string) => {
   switch (String(status || '').toLowerCase()) {
@@ -689,40 +691,25 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         )}
       />
 
-      {/* Tabs */}
-      <div className="view-tabs" data-tour="credits-tabs">
-          {[
-            {
-              id: 'list',
-              label: 'Créditos vigentes',
-              title: 'Créditos con saldo o cuotas pendientes',
-              icon: CreditCard,
-            },
-            {
-              id: 'calendar',
-              label: 'Calendario',
-              title: 'Calendario de cuotas pagadas, pendientes y vencidas',
-              icon: CalendarIcon,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => updateActiveTab(tab.id)}
-                className={creditTabClassName(isActive)}
-                title={tab.title}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon size={16} aria-hidden="true" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-      </div>
+      <ViewTabs
+        data-tour="credits-tabs"
+        activeTab={activeTab}
+        onChange={updateActiveTab}
+        tabs={[
+          {
+            id: 'list',
+            label: 'Créditos vigentes',
+            title: 'Créditos con saldo o cuotas pendientes',
+            icon: CreditCard,
+          },
+          {
+            id: 'calendar',
+            label: 'Calendario',
+            title: 'Calendario de cuotas pagadas, pendientes y vencidas',
+            icon: CalendarIcon,
+          },
+        ]}
+      />
 
       {activeTab === 'list' && (
         <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -925,15 +912,17 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     </div>
 
                     {viewGuard.visible && (
-                      <button
+                      <ActionButton
                         type="button"
                         onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                         disabled={!viewGuard.executable}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg disabled:cursor-not-allowed disabled:opacity-50 dark:bg-bg-base"
+                        className="mt-4"
+                        fullWidth
+                        icon={<Eye size={16} />}
                         title={viewGuard.executable ? 'Abrir crédito' : (viewGuard.reason || 'Acción no disponible')}
                       >
-                        <Eye size={16} /> Ver detalle
-                      </button>
+                        Ver detalle
+                      </ActionButton>
                     )}
                   </article>
                 );
@@ -946,7 +935,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <thead className="border-b border-border-subtle text-xs uppercase tracking-wide text-text-secondary">
                 <tr>
                   <th className="w-10 px-3 py-3 font-semibold">
-                    <input
+                    <CheckboxInput
                       type="checkbox"
                       aria-label="Seleccionar todos los créditos visibles"
                       checked={creditsList.length > 0 && creditsList.every((credit: any) => selectedCreditIds.includes(Number(credit?.id)))}
@@ -999,7 +988,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     return (
                       <tr key={credit.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-hover-bg/60">
                         <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
-                          <input
+                          <CheckboxInput
                             type="checkbox"
                             aria-label={`Seleccionar crédito ${credit.id}`}
                             checked={selectedCreditIds.includes(Number(credit.id))}
@@ -1084,54 +1073,45 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                               return (
                                 <>
                                   {viewGuard.visible && (
-                                    <button
+                                    <IconActionButton
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!viewGuard.executable}
-                                      className="p-1.5 text-text-secondary hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={getActionTitle(viewGuard, 'credit.view')}
-                                    >
-                                      <Eye size={16} />
-                                    </button>
+                                      label={getActionTitle(viewGuard, 'credit.view')}
+                                      icon={<Eye size={16} />}
+                                    />
                                   )}
                                   {paymentGuard.visible && (
-                                    <button
+                                    <IconActionButton
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!paymentGuard.executable}
-                                      className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                      title={getActionTitle(paymentGuard, 'installment.pay')}
-                                    >
-                                      <DollarSign size={16} />
-                                    </button>
+                                      label={getActionTitle(paymentGuard, 'installment.pay')}
+                                      icon={<DollarSign size={16} />}
+                                    />
                                   )}
                                   {promiseGuard.visible && (
-                                    <button
+                                    <IconActionButton
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!promiseGuard.executable}
-                                      className="p-1.5 text-text-secondary hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={getActionTitle(promiseGuard, 'installment.promise')}
-                                    >
-                                      <Clock size={16} />
-                                    </button>
+                                      label={getActionTitle(promiseGuard, 'installment.promise')}
+                                      icon={<Clock size={16} />}
+                                    />
                                   )}
                                   {followUpGuard.visible && (
-                                    <button
+                                    <IconActionButton
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!followUpGuard.executable}
-                                      className="p-1.5 text-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={getActionTitle(followUpGuard, 'installment.followUp')}
-                                    >
-                                      <CalendarIcon size={16} />
-                                    </button>
+                                      label={getActionTitle(followUpGuard, 'installment.followUp')}
+                                      icon={<CalendarIcon size={16} />}
+                                    />
                                   )}
                                   {annulGuard.visible && (
-                                    <button
+                                    <IconActionButton
                                       onClick={() => setCurrentView?.(`credits/${credit.id}`)}
                                       disabled={!annulGuard.executable}
-                                      className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                      title={getActionTitle(annulGuard, 'installment.annul')}
-                                    >
-                                      <X size={16} />
-                                    </button>
+                                      label={getActionTitle(annulGuard, 'installment.annul')}
+                                      icon={<X size={16} />}
+                                      variant="danger"
+                                    />
                                   )}
                                 </>
                               );
@@ -1153,35 +1133,35 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
                 <label className="flex items-center gap-2">
                   <span>Filas por página</span>
-                  <select
+                  <SelectInput
                     value={pageSize}
                     onChange={(event) => {
                       setPageSize(Number(event.target.value));
                       setPage(1);
                     }}
-                    className="bg-bg-base border border-border-subtle rounded px-2 py-1 text-text-primary"
+                    className="!min-h-0 !py-1"
                   >
                     {[10, 25, 50, 100].map((size) => (
                       <option key={size} value={size}>{size}</option>
                     ))}
-                  </select>
+                  </SelectInput>
                 </label>
               </div>
               <div className="flex gap-2">
-                <button
+                <ActionButton
                   disabled={page === 1}
                   onClick={() => setPage(page - 1)}
-                  className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+                  className="!min-h-0 !px-3 !py-1"
                 >
                   Anterior
-                </button>
-                <button
+                </ActionButton>
+                <ActionButton
                   disabled={page === (pagination?.totalPages || 1)}
                   onClick={() => setPage(page + 1)}
-                  className="px-3 py-1 border border-border-subtle rounded hover:bg-hover-bg disabled:opacity-50"
+                  className="!min-h-0 !px-3 !py-1"
                 >
                   Siguiente
-                </button>
+                </ActionButton>
               </div>
             </div>
           )}
@@ -1346,21 +1326,20 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     )}
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button
+                      <ActionButton
                         type="button"
                         onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
-                        className="rounded-lg border border-border-strong bg-bg-surface px-3 py-2 text-sm font-semibold text-text-primary hover:bg-hover-bg"
                       >
                         Ver crédito
-                      </button>
+                      </ActionButton>
                       {item.canPay && (
-                        <button
+                        <ActionButton
                           type="button"
                           onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
-                          className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:opacity-90"
+                          variant="primary"
                         >
                           Registrar pago
-                        </button>
+                        </ActionButton>
                       )}
                     </div>
                   </div>

@@ -94,7 +94,7 @@ type ViewTabItem = {
   icon?: React.ElementType;
 };
 
-type ViewTabsProps = React.HTMLAttributes<HTMLElement> & {
+type ViewTabsProps = Omit<React.HTMLAttributes<HTMLElement>, 'onChange'> & {
   tabs: ViewTabItem[];
   activeTab: string;
   onChange: (tabId: string) => void;
