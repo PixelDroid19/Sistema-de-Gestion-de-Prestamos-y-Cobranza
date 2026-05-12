@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, Calendar, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
 import { useCustomers } from '../services/customerService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import TableShell from './shared/TableShell';
-import { PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
@@ -120,55 +120,54 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
         guideKey="customers"
         tourId="customers-header"
         actions={(
-        <button 
-          onClick={() => setCurrentView && setCurrentView('customers-new')}
-          className="flex items-center gap-2 bg-text-primary text-bg-base px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
-        >
-          <Plus size={16} /> {tTerm('customers.cta.new')}
-        </button>
+          <ActionButton
+            onClick={() => setCurrentView && setCurrentView('customers-new')}
+            icon={<Plus size={16} />}
+            variant="primary"
+          >
+            {tTerm('customers.cta.new')}
+          </ActionButton>
         )}
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <ToolbarSurface data-tour="customers-filters">
-          <div className="relative" data-tour="customers-search">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input 
-              type="text" 
-              placeholder="Buscar por nombre, correo o documento…" 
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-              className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Filtra la lista por estado del cliente">
-              <Filter size={14} className="text-text-secondary" />
-              <select 
+          <div className="grid gap-3 md:grid-cols-[minmax(18rem,1fr)_14rem_14rem]">
+            <FormField label="Buscar cliente" className="md:max-w-xl" data-tour="customers-search">
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <TextInput
+                  type="text"
+                  placeholder="Buscar por nombre, correo o documento…"
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                  className="pl-10"
+                />
+              </div>
+            </FormField>
+            <FormField label="Estado" tooltip="Filtra la lista por estado operativo del cliente.">
+              <SelectInput
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                className="bg-transparent text-sm text-text-secondary focus:outline-none cursor-pointer appearance-none pr-4"
               >
                 <option value="all">Todos los estados</option>
                 <option value="active">Activo</option>
                 <option value="inactive">Inactivo</option>
                 <option value="blacklisted">Bloqueado</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 bg-bg-base border border-border-subtle rounded-lg px-3 py-2" title="Acota clientes por fecha de registro">
-              <Calendar size={14} className="text-text-secondary" />
-              <select 
+              </SelectInput>
+            </FormField>
+            <FormField label="Registro" tooltip="Acota clientes por fecha de alta en la plataforma.">
+              <SelectInput
                 value={dateFilter}
                 onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
-                className="bg-transparent text-sm text-text-secondary focus:outline-none cursor-pointer appearance-none pr-4"
               >
                 <option value="all">Todo el tiempo</option>
                 <option value="today">Hoy</option>
                 <option value="week">Esta semana</option>
                 <option value="month">Este mes</option>
                 <option value="year">Este año</option>
-              </select>
-            </div>
+              </SelectInput>
+            </FormField>
           </div>
         </ToolbarSurface>
 
@@ -242,28 +241,42 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                     <td className="py-4 text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
                     <td className="py-4">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)} className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" title="Ver detalles"><Eye size={16} /></button>
-                        <button
+                        <ActionButton
+                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)}
+                          icon={<Eye size={16} />}
+                          variant="ghost"
+                          className="h-9 w-9 !min-h-0 !p-0"
+                          title="Ver detalles"
+                        >
+                          <span className="sr-only">Ver detalles</span>
+                        </ActionButton>
+                        <ActionButton
                           onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
-                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                          icon={<Edit size={16} />}
+                          variant="ghost"
+                          className="h-9 w-9 !min-h-0 !p-0"
                           title="Editar"
                         >
-                          <Edit size={16} />
-                        </button>
-                        <button
+                          <span className="sr-only">Editar</span>
+                        </ActionButton>
+                        <ActionButton
                           onClick={() => handleToggleStatus(customer)}
-                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" 
+                          icon={<RotateCcw size={16} />}
+                          variant="ghost"
+                          className="h-9 w-9 !min-h-0 !p-0"
                           title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
                         >
-                          <RotateCcw size={16} />
-                        </button>
-                        <button
+                          <span className="sr-only">{customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}</span>
+                        </ActionButton>
+                        <ActionButton
                           onClick={() => handleDelete(customer)}
-                          className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-red-600 dark:hover:text-red-400"
+                          icon={<Trash2 size={16} />}
+                          variant="danger"
+                          className="h-9 w-9 !min-h-0 !p-0"
                           title="Eliminar"
                         >
-                          <Trash2 size={16} />
-                        </button>
+                          <span className="sr-only">Eliminar</span>
+                        </ActionButton>
                       </div>
                     </td>
                   </tr>

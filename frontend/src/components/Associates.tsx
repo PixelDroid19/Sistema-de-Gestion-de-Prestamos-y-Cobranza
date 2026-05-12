@@ -7,7 +7,7 @@ import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
-import { ActionButton, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
@@ -144,32 +144,35 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <ToolbarSurface data-tour="associates-search">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-              <input 
-                type="text" 
-                placeholder="Buscar por nombre, correo o teléfono…" 
-                value={searchTerm}
+          <div className="grid gap-3 md:grid-cols-[minmax(18rem,1fr)_14rem]">
+            <FormField label="Buscar socio" className="md:max-w-xl">
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <TextInput
+                  type="text"
+                  placeholder="Buscar por nombre, correo o teléfono…"
+                  value={searchTerm}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div>
+            </FormField>
+            <FormField label="Estado" tooltip="Filtra socios activos o inactivos dentro de la operación.">
+              <SelectInput
+                value={statusFilter}
                 onChange={(event) => {
-                  setSearchTerm(event.target.value);
+                  setStatusFilter(event.target.value);
                   setPage(1);
                 }}
-                className="bg-bg-base text-sm text-text-primary rounded-lg pl-10 pr-4 py-2 w-72 focus:outline-none focus:ring-1 focus:ring-border-strong border border-border-subtle"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value);
-                setPage(1);
-              }}
-              className="rounded-lg border border-border-subtle bg-bg-base px-3 py-2 text-sm text-text-primary"
-            >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activos</option>
-              <option value="inactive">Inactivos</option>
-            </select>
+              >
+                <option value="all">Todos los estados</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </SelectInput>
+            </FormField>
           </div>
         </ToolbarSurface>
 
@@ -232,28 +235,42 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   <td className="py-4">{associate.loanCount ?? associate.relatedLoans?.length ?? 0}</td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setCurrentView(`associates/${associate.id}`)} className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary" title="Ver detalles"><Eye size={16} /></button>
-                      <button
+                      <ActionButton
+                        onClick={() => setCurrentView(`associates/${associate.id}`)}
+                        icon={<Eye size={16} />}
+                        variant="ghost"
+                        className="h-9 w-9 !min-h-0 !p-0"
+                        title="Ver detalles"
+                      >
+                        <span className="sr-only">Ver detalles</span>
+                      </ActionButton>
+                      <ActionButton
                         onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
-                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                        icon={<Edit size={16} />}
+                        variant="ghost"
+                        className="h-9 w-9 !min-h-0 !p-0"
                         title="Editar"
                       >
-                        <Edit size={16} />
-                      </button>
-                      <button
+                        <span className="sr-only">Editar</span>
+                      </ActionButton>
+                      <ActionButton
                         onClick={() => handleToggleStatus(associate)}
-                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-text-primary"
+                        icon={<MoreVertical size={16} />}
+                        variant="ghost"
+                        className="h-9 w-9 !min-h-0 !p-0"
                         title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
                       >
-                        <MoreVertical size={16} />
-                      </button>
-                      <button
+                        <span className="sr-only">{associate.status === 'active' ? 'Desactivar' : 'Reactivar'}</span>
+                      </ActionButton>
+                      <ActionButton
                         onClick={() => handleDelete(associate)}
-                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-red-600 dark:hover:text-red-400"
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                        className="h-9 w-9 !min-h-0 !p-0"
                         title="Eliminar"
                       >
-                        <Trash2 size={16} />
-                      </button>
+                        <span className="sr-only">Eliminar</span>
+                      </ActionButton>
                     </div>
                   </td>
                 </tr>
