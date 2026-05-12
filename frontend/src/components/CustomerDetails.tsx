@@ -12,6 +12,8 @@ import {
   ActionButton,
   EmptyState,
   FormField,
+  IconActionButton,
+  IconActionLink,
   MetricCard,
   PageHeader,
   PageShell,
@@ -380,19 +382,21 @@ export default function CustomerDetails() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <a href={downloadDocumentUrl(doc.id)} target="_blank" rel="noreferrer" title="Descargar documento" className="action-button action-button--ghost h-9 w-9 !min-h-0 !p-0">
-                      <Download size={16} aria-hidden="true" />
-                      <span className="sr-only">Descargar documento</span>
-                    </a>
-                    <ActionButton
+                    <IconActionLink
+                      href={downloadDocumentUrl(doc.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      label="Descargar documento"
+                      title="Descargar documento"
+                      icon={<Download size={16} />}
+                    />
+                    <IconActionButton
                       onClick={() => handleDeleteDoc(doc.id)}
+                      label="Eliminar documento"
                       title="Eliminar documento"
-                      icon={<Trash2 size={16} />}
                       variant="danger"
-                      className="h-9 w-9 !min-h-0 !p-0"
-                    >
-                      <span className="sr-only">Eliminar documento</span>
-                    </ActionButton>
+                      icon={<Trash2 size={16} />}
+                    />
                   </div>
                 </div>
               ))}

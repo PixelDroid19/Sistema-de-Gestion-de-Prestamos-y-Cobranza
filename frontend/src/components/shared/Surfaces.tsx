@@ -58,6 +58,18 @@ type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   isLoading?: boolean;
 };
 
+type IconActionButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+  label: string;
+  icon: React.ReactNode;
+  variant?: 'ghost' | 'secondary' | 'danger';
+};
+
+type IconActionLinkProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'children'> & {
+  label: string;
+  icon: React.ReactNode;
+  variant?: 'ghost' | 'secondary' | 'danger';
+};
+
 type FormFieldProps = Omit<React.LabelHTMLAttributes<HTMLLabelElement>, 'children'> & {
   label: React.ReactNode;
   tooltip?: string;
@@ -251,6 +263,47 @@ export function ActionButton({
       {icon && <span className="action-button-icon" aria-hidden="true">{icon}</span>}
       <span>{isLoading ? 'Procesando...' : children}</span>
     </button>
+  );
+}
+
+export function IconActionButton({
+  label,
+  icon,
+  variant = 'ghost',
+  className = '',
+  title,
+  ...rest
+}: IconActionButtonProps) {
+  return (
+    <button
+      aria-label={label}
+      className={`action-button ${actionButtonClassNames[variant]} h-9 w-9 !min-h-0 !p-0 ${className}`}
+      title={title ?? label}
+      type="button"
+      {...rest}
+    >
+      <span className="action-button-icon" aria-hidden="true">{icon}</span>
+    </button>
+  );
+}
+
+export function IconActionLink({
+  label,
+  icon,
+  variant = 'ghost',
+  className = '',
+  title,
+  ...rest
+}: IconActionLinkProps) {
+  return (
+    <a
+      aria-label={label}
+      className={`action-button ${actionButtonClassNames[variant]} h-9 w-9 !min-h-0 !p-0 ${className}`}
+      title={title ?? label}
+      {...rest}
+    >
+      <span className="action-button-icon" aria-hidden="true">{icon}</span>
+    </a>
   );
 }
 

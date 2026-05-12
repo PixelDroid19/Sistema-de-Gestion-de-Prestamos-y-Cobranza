@@ -16,6 +16,7 @@ import { useConfig } from '../services/configService';
 import {
   ActionButton,
   FormField,
+  IconActionButton,
   ModalShell,
   PageHeader,
   PageShell,
@@ -513,13 +514,12 @@ export default function Payouts() {
                   </td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">
-                      <button
-                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary"
-                        title="Descargar Comprobante"
+                      <IconActionButton
+                        label="Descargar comprobante"
+                        title="Descargar comprobante"
                         onClick={() => handleDownloadVoucher(payment.id)}
-                      >
-                        <FileText size={16} />
-                      </button>
+                        icon={<FileText size={16} />}
+                      />
                       {(() => {
                         const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
                         const editGuard = resolveOperationalGuard('payout.metadata.edit', {
@@ -537,34 +537,32 @@ export default function Payouts() {
                         return (
                           <>
                             {viewGuard.visible && (
-                              <button
-                                className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                              <IconActionButton
+                                label="Ver crédito"
                                 title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
                                 onClick={() => handleViewCredit(Number(payment.loanId))}
                                 disabled={!viewGuard.executable}
-                              >
-                                <Eye size={16} />
-                              </button>
+                                icon={<Eye size={16} />}
+                              />
                             )}
                             {editGuard.visible && (
-                              <button
-                                className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-hover-bg hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                              <IconActionButton
+                                label="Editar método de pago"
                                 title={editGuard.executable ? 'Editar método de pago real' : (editGuard.reason || 'Acción no disponible')}
                                 onClick={() => handleEditPayment(payment)}
                                 disabled={!editGuard.executable}
-                              >
-                                <Edit size={16} />
-                              </button>
+                                icon={<Edit size={16} />}
+                              />
                             )}
                             {deleteGuard.visible && (
-                              <button
-                                className="p-1.5 text-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              <IconActionButton
+                                label="Eliminar pago"
+                                variant="danger"
                                 title={deleteGuard.reason || 'Eliminar'}
                                 onClick={() => toast.error({ title: deleteGuard.reason || 'Acción no disponible' })}
                                 disabled={!deleteGuard.executable}
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                                icon={<Trash2 size={16} />}
+                              />
                             )}
                           </>
                         );
