@@ -5,7 +5,7 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
-import { IconActionButton, TextInput } from './shared/Surfaces';
+import { ClickableSurface, IconActionButton, TextInput } from './shared/Surfaces';
 
 type HeaderProps = {
   setCurrentView: (view: string) => void;
@@ -115,8 +115,8 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             />
           )}
 
-          <button
-            type="button"
+          <ClickableSurface
+            variant="list"
             className="hidden min-w-0 items-center gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-hover-bg sm:flex"
             onClick={() => setCurrentView(homeView)}
           >
@@ -128,7 +128,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                 {APP_BRAND.workspace}
               </span>
             </div>
-          </button>
+          </ClickableSurface>
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
@@ -170,9 +170,9 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                 {searchResults.length > 0 ? (
                   <div className="p-2">
                     {searchResults.map((item) => (
-                      <button
+                      <ClickableSurface
                         key={item.view}
-                        type="button"
+                        variant="list"
                         onClick={() => goToDestination(item.view)}
                         className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-hover-bg"
                       >
@@ -183,7 +183,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                           <div className="truncate text-sm font-medium text-text-primary">{item.label}</div>
                           <div className="mt-1 text-xs leading-5 text-text-secondary">{item.description}</div>
                         </div>
-                      </button>
+                      </ClickableSurface>
                     ))}
                   </div>
                 ) : (
@@ -203,7 +203,8 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             className="rounded-full"
           />
 
-          <button
+          <ClickableSurface
+            variant="list"
             onClick={() => setCurrentView('notifications')}
             className="relative flex shrink-0 items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-2 text-sm transition-colors hover:bg-hover-bg sm:px-4"
             aria-label={unreadCount > 0 ? `${unreadCount} notificaciones nuevas` : 'Sin notificaciones nuevas'}
@@ -217,14 +218,14 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             <span className="hidden xl:inline">
               {unreadCount > 0 ? `${unreadCount} nuevas` : 'Sin novedades'}
             </span>
-          </button>
+          </ClickableSurface>
 
           <div className="hidden items-center rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary 2xl:flex">
             Hoy · {displayDate}
           </div>
 
-          <button
-            type="button"
+          <ClickableSurface
+            variant="list"
             className="flex min-w-0 items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-hover-bg md:gap-3 md:p-2"
             onClick={() => setCurrentView('profile')}
           >
@@ -242,7 +243,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                 {userLabel} · {userHandle}
               </span>
             </div>
-          </button>
+          </ClickableSurface>
         </div>
       </div>
     </header>

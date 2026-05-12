@@ -295,13 +295,13 @@ export function ClickableSurface({
   ...rest
 }: ClickableSurfaceProps) {
   const variantClassName = variant === 'card'
-    ? 'rounded-xl border border-border-subtle bg-bg-surface p-4'
+    ? 'block w-full rounded-xl border border-border-subtle bg-bg-surface p-4'
     : '';
 
   return (
     <button
       type="button"
-      className={`block w-full text-left transition-colors hover:bg-hover-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 ${variantClassName} ${className}`}
+      className={`text-left transition-colors hover:bg-hover-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/35 ${variantClassName} ${className}`}
       {...rest}
     >
       {children}
