@@ -7,8 +7,8 @@ const { buildAmortizationSchedule } = require('@/modules/credits/application/cre
  * @returns {object} use case
  */
 const createGetPaymentSchedule = ({ loanAccessPolicy }) => async ({ actor, loanId }) => {
-  // Allow admin, customer, and socio roles to access payment schedule
-  const allowedRoles = ['admin', 'customer', 'socio'];
+  // Allow authorized backoffice users to access payment schedules.
+  const allowedRoles = ['admin', 'employee'];
   if (!allowedRoles.includes(actor.role)) {
     throw new AuthorizationError('You do not have permission to access this payment schedule');
   }

@@ -1,6 +1,7 @@
 const { ValidationError, NotFoundError, ConflictError } = require('@/utils/errorHandler');
+const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole } = require('@/modules/shared/roles');
 
-const VALID_ROLES = ['admin', 'customer', 'socio'];
+const VALID_ROLES = ADMINISTRATIVE_LOGIN_ROLES;
 
 const sanitizeUser = (user) => ({
   id: user.id,
@@ -14,7 +15,7 @@ const sanitizeUser = (user) => ({
 });
 
 const validateRole = (role) => {
-  if (!VALID_ROLES.includes(role)) {
+  if (!isAdministrativeLoginRole(role)) {
     throw new ValidationError(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
   }
 };

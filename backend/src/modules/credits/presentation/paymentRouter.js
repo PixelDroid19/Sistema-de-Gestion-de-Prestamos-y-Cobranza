@@ -5,6 +5,7 @@ const { createLoanViewService } = require('@/modules/credits/application/loanFin
 
 const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAccessPolicy } = {}) => {
   const router = express.Router();
+  const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
 
   const loanViewService = createLoanViewService();
   const paymentService = paymentApplicationService || createPaymentApplicationService({ loanViewService });
@@ -64,7 +65,7 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
    * Process an installment payment after validating loan ownership for customer self-service.
    */
   router.post('/process', 
-    authMiddleware ? authMiddleware(['admin', 'customer']) : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); },
+    authMiddleware ? requirePermission('PAYMENTS_CREATE') : (req, res, next) => { req.user = { id: 0, role: 'system' }; next(); },
     paymentLimiter,
     validateProcessPaymentBody, 
     asyncHandler(async (req, res) => {

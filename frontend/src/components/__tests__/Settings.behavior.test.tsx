@@ -59,6 +59,17 @@ vi.mock('../../services/configService', () => ({
   }),
 }));
 
+vi.mock('../../services/userService', () => ({
+  useUsers: () => ({
+    data: { data: { users: [] } },
+    registerWithPermissions: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
+vi.mock('../PermissionsTab', () => ({
+  default: () => <div data-testid="permissions-tab">Gestión de permisos</div>,
+}));
+
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
@@ -94,12 +105,13 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('button', { name: /Métodos de pago/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tasas de crédito/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Empleados y permisos/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Roles y Permisos/i })).not.toBeInTheDocument();
   });
 
   it('creates payment methods through the real config mutation', async () => {
     render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), { target: { value: 'Daviplata QA' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de método' }), { target: { value: 'other' } });
@@ -118,6 +130,7 @@ describe('Settings operational configuration', () => {
 
   it('blocks duplicated payment methods before sending the mutation', async () => {
     render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), {
       target: { value: 'Transferencia bancaria' },
@@ -202,6 +215,7 @@ describe('Settings operational configuration', () => {
 
   it('executes destructive payment-method actions through confirmation', async () => {
     render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
 

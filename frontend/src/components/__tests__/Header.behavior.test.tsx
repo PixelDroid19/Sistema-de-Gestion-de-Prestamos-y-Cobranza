@@ -6,7 +6,7 @@ let currentUser: {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'customer' | 'socio';
+  role: 'admin' | 'employee';
   associateId: number | null;
 } = {
   id: 1,
@@ -19,6 +19,15 @@ let currentUser: {
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => ({
     user: currentUser,
+  }),
+}));
+
+let currentPermissions: Array<{ permission: string; name?: string }> = [];
+
+vi.mock('../../services/permissionsService', () => ({
+  useMyPermissions: () => ({
+    permissions: currentPermissions,
+    isLoading: false,
   }),
 }));
 
@@ -39,6 +48,7 @@ describe('Header behavior', () => {
       role: 'admin' as const,
       associateId: null,
     };
+    currentPermissions = [];
   });
 
   it('routes to the first matching module from global search on Enter', () => {
@@ -53,14 +63,15 @@ describe('Header behavior', () => {
     expect(setCurrentView).toHaveBeenCalledWith('audit-log');
   });
 
-  it('includes the socio portal in global search for socio users', () => {
+  it('includes only permissioned modules in global search for employee users', () => {
     currentUser = {
       id: 8,
-      name: 'Socio QA',
-      email: 'socio@example.com',
-      role: 'socio',
-      associateId: 9,
+      name: 'Empleado QA',
+      email: 'employee@example.com',
+      role: 'employee',
+      associateId: null,
     };
+    currentPermissions = [{ permission: 'SOCIOS_VIEW_ALL' }];
 
     const setCurrentView = vi.fn();
     render(<Header setCurrentView={setCurrentView} />);
@@ -70,6 +81,6 @@ describe('Header behavior', () => {
     fireEvent.change(searchInput, { target: { value: 'aport' } });
     fireEvent.keyDown(searchInput, { key: 'Enter' });
 
-    expect(setCurrentView).toHaveBeenCalledWith('associates/9');
+    expect(setCurrentView).toHaveBeenCalledWith('associates');
   });
 });

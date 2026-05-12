@@ -3,6 +3,7 @@ import { Bell, ChevronDown, Menu, Moon, Search, Sun } from 'lucide-react';
 import { APP_BRAND, getRoleLabel, getShellDestinationsForUser } from '../constants/appShell';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
+import { useMyPermissions } from '../services/permissionsService';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
 import { ClickableSurface, IconActionButton, TextInput } from './shared/Surfaces';
@@ -18,6 +19,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { user } = useSessionStore();
   const { unreadCount } = useUnreadNotificationsCount();
+  const { permissions: myPermissions } = useMyPermissions();
   const searchRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -55,7 +57,11 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
     setIsDark(true);
   };
 
-  const shellDestinations = useMemo(() => getShellDestinationsForUser(user), [user]);
+  const shellUser = useMemo(() => ({
+    ...user,
+    permissions: user?.role === 'employee' ? myPermissions : undefined,
+  }), [myPermissions, user]);
+  const shellDestinations = useMemo(() => getShellDestinationsForUser(shellUser), [shellUser]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const searchResults = useMemo(() => {
     if (!normalizedQuery) {

@@ -50,12 +50,6 @@ function RoleHomeRedirect() {
 }
 
 function AssociatesLandingRoute({ setCurrentView }: { setCurrentView: (view: string) => void }) {
-  const { user } = useSessionStore();
-
-  if (user?.role === 'socio') {
-    return <Navigate to={getDefaultRouteForUser(user)} replace />;
-  }
-
   return <Associates setCurrentView={setCurrentView} />;
 }
 
@@ -90,34 +84,34 @@ function MainLayout() {
               <Route
                 path="/dashboard"
                 element={(
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['DASHBOARD_VIEW_ALL']}>
                     <Dashboard />
                   </ProtectedRoute>
                 )}
               />
-              <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin']}><Customers setCurrentView={setCurrentView} /></ProtectedRoute>} />
-              <Route path="/customers/:id" element={<ProtectedRoute allowedRoles={['admin']}><CustomerDetails /></ProtectedRoute>} />
-              <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
-              <Route path="/customers/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
-              <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
-              <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
-              <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_VIEW_ALL']}><Customers setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/customers/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_VIEW_ALL']}><CustomerDetails /></ProtectedRoute>} />
+              <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_CREATE']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
+              <Route path="/customers/:id/edit" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_UPDATE']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
+              <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
               <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
-              <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><CreditDetails /></ProtectedRoute>} />
-              <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><PaymentSchedule /></ProtectedRoute>} />
-              <Route path="/associates" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociatesLandingRoute setCurrentView={setCurrentView} /></ProtectedRoute>} />
-              <Route path="/associates-new" element={<ProtectedRoute allowedRoles={['admin']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
-              <Route path="/associates/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
-              <Route path="/associates/:id" element={<ProtectedRoute allowedRoles={['admin', 'socio']}><AssociateDetails /></ProtectedRoute>} />
-              
-              <Route path="/payouts" element={<ProtectedRoute allowedRoles={['admin']}><Payouts /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin', 'customer', 'socio']}><Notifications /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
-              <Route path="/credit-calculator" element={<ProtectedRoute allowedRoles={['admin']}><CreditSimulator /></ProtectedRoute>} />
+              <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><CreditDetails /></ProtectedRoute>} />
+              <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><PaymentSchedule /></ProtectedRoute>} />
+              <Route path="/associates" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['SOCIOS_VIEW_ALL']}><AssociatesLandingRoute setCurrentView={setCurrentView} /></ProtectedRoute>} />
+              <Route path="/associates-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['SOCIOS_CREATE']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
+              <Route path="/associates/:id/edit" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['SOCIOS_UPDATE']}><NewAssociate onBack={() => setCurrentView('associates')} /></ProtectedRoute>} />
+              <Route path="/associates/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['SOCIOS_VIEW_ALL']}><AssociateDetails /></ProtectedRoute>} />
+
+              <Route path="/payouts" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['PAYMENTS_VIEW_ALL']}><Payouts /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin', 'employee']}><Notifications /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['REPORTS_VIEW_ALL']}><Reports /></ProtectedRoute>} />
+              <Route path="/credit-calculator" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><CreditSimulator /></ProtectedRoute>} />
               <Route path="/simulator" element={<Navigate to="/credit-calculator" replace />} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin']}><AuditLogPage /></ProtectedRoute>} />
+              <Route path="/audit-log" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['AUDIT_VIEW_ALL']}><AuditLogPage /></ProtectedRoute>} />
               <Route path="*" element={<RoleHomeRedirect />} />
             </Routes>
           </React.Suspense>

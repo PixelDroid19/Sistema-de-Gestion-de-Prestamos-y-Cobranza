@@ -1,7 +1,8 @@
 const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('@/utils/errorHandler');
-const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { APPLICATION_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
 
-const PRIVILEGED_ROLES = new Set(['admin', 'socio']);
+const PRIVILEGED_ROLES = new Set(['admin']);
+const EMPLOYEE_ROLE = 'employee';
 
 // Progressive login delay configuration
 const LOGIN_DELAY_CONFIG = {
@@ -84,12 +85,12 @@ const validatePasswordStrength = (password) => {
   return { valid: true, strength };
 };
 
-const buildRoleValidationError = () => {
+const buildPublicRegistrationDisabledError = () => {
   const error = new ValidationError('Please correct the following errors');
   error.errors = [
     {
       field: 'role',
-      message: 'Public registration only allows the customer role',
+      message: 'Public registration is disabled. An administrator must create employee accounts.',
     },
   ];
 
@@ -110,16 +111,6 @@ const normalizeRegisterInput = (input) => {
     registrationSource: 'public',
     payload: input,
   };
-};
-
-const alignCustomerIdentitySequence = async ({ normalizedRole, userRepository }) => {
-  if (normalizedRole !== 'customer') {
-    return;
-  }
-
-  if (typeof userRepository?.syncPrimaryKeySequenceWithCustomerProfiles === 'function') {
-    await userRepository.syncPrimaryKeySequenceWithCustomerProfiles();
-  }
 };
 
 const normalizeLoginCredentials = (credentials = {}) => {
@@ -166,6 +157,18 @@ const buildSupportedRolesError = () => {
   return error;
 };
 
+const buildAdministrativeRoleValidationError = () => {
+  const error = new ValidationError('Please correct the following errors');
+  error.errors = [
+    {
+      field: 'role',
+      message: 'Administrative users must be admin or employee',
+    },
+  ];
+
+  return error;
+};
+
 const requireSupportedRole = (role, options) => {
   const normalizedRole = normalizeApplicationRole(role, options);
 
@@ -176,15 +179,23 @@ const requireSupportedRole = (role, options) => {
   return normalizedRole;
 };
 
+const requireAdministrativeLoginRole = (role) => {
+  const normalizedRole = requireSupportedRole(role, { allowLegacyAliases: false });
+  if (!isAdministrativeLoginRole(normalizedRole)) {
+    throw buildAdministrativeRoleValidationError();
+  }
+
+  return normalizedRole;
+};
+
 /**
- * Create the registration use case for public customer signup and trusted admin provisioning.
- * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object, passwordHasher: object, tokenService: object, auditService?: object }} dependencies
+ * Create the registration use case for trusted administrative account provisioning.
+ * Public signup is disabled; only admin-created admin/employee accounts are valid.
+ * @param {{ userRepository: object, passwordHasher: object, tokenService: object, auditService?: object }} dependencies
  * @returns {Function}
  */
 const createRegisterUser = ({
   userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
   passwordHasher,
   tokenService,
   auditService,
@@ -194,25 +205,17 @@ const createRegisterUser = ({
     registrationSource,
     payload,
   } = normalizeRegisterInput(input);
-  const {
-    name,
-    email,
-    password,
-    role,
-    phone,
-  } = payload;
+  const { name, email, password, role } = payload;
   const resolvedRole = role;
   const isPublicRegistration = registrationSource === 'public';
 
-  if (isPublicRegistration && normalizeApplicationRole(resolvedRole) !== 'customer') {
-    throw buildRoleValidationError();
+  if (isPublicRegistration) {
+    throw buildPublicRegistrationDisabledError();
   }
 
-  const normalizedRole = requireSupportedRole(resolvedRole, { allowLegacyAliases: false });
+  const normalizedRole = requireAdministrativeLoginRole(resolvedRole);
 
-  const isPrivilegedRole = PRIVILEGED_ROLES.has(normalizedRole);
-
-  if (!isPublicRegistration && isPrivilegedRole && actor?.role !== 'admin') {
+  if (!isPublicRegistration && (PRIVILEGED_ROLES.has(normalizedRole) || normalizedRole === EMPLOYEE_ROLE) && actor?.role !== 'admin') {
     throw new AuthorizationError('Privileged account creation requires admin access');
   }
 
@@ -229,50 +232,7 @@ const createRegisterUser = ({
   }
 
   const hashedPassword = await passwordHasher.hash(password);
-  await alignCustomerIdentitySequence({ normalizedRole, userRepository });
   const user = await userRepository.create({ name, email, password: hashedPassword, role: normalizedRole });
-
-  try {
-    if (normalizedRole === 'customer') {
-      if (!phone || String(phone).trim().length === 0) {
-        throw new ValidationError('Phone number is required for customer registration');
-      }
-
-      await customerProfileRepository.create({
-        id: user.id,
-        name,
-        email,
-        phone,
-        address: '',
-      });
-    }
-
-    if (normalizedRole === 'socio') {
-      if (!phone) {
-        throw new ValidationError('Phone number is required for socio registration');
-      }
-
-      if (!payload.associateId) {
-        throw new ValidationError('Associate link is required for socio registration');
-      }
-
-      const linkedAssociate = await associateProfileRepository.update(payload.associateId, {
-        name,
-        email,
-        ...(phone !== undefined ? { phone } : {}),
-      });
-
-      if (!linkedAssociate) {
-        throw new NotFoundError('Associate');
-      }
-
-      await userRepository.update(user.id, { associateId: payload.associateId });
-      user.associateId = payload.associateId;
-    }
-  } catch (error) {
-    await userRepository.remove(user.id);
-    throw error;
-  }
 
   // Audit logging for user registration
   if (auditService) {
@@ -374,6 +334,14 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
     throw new AuthenticationError('Please enter correct email/password');
   }
 
+  if (!isAdministrativeLoginRole(user.role)) {
+    throw new AuthenticationError('Please enter correct email/password');
+  }
+
+  if (user.isActive === false) {
+    throw new AuthenticationError('This account is inactive');
+  }
+
   // Successful login - reset failed attempts and clear lockout
   if (user.failedLoginAttempts > 0 || user.lockedUntil) {
     await userRepository.update(user.id, {
@@ -382,7 +350,7 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
     });
   }
 
-  requireSupportedRole(user.role);
+  requireAdministrativeLoginRole(user.role);
   const sanitizedUser = sanitizeUser(user);
 
   // Prefer token pairs with refresh-token persistence; test adapters may expose sign only.
@@ -445,24 +413,22 @@ const createGetProfile = ({ userRepository }) => async (userId) => {
   if (!user) {
     throw new NotFoundError('User');
   }
+  requireAdministrativeLoginRole(user.role);
 
   return sanitizeUser(user);
 };
 
 /**
- * Create the profile update use case while keeping role-specific profile tables aligned.
- * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object }} dependencies
+ * Create the profile update use case for administrative users.
+ * @param {{ userRepository: object }} dependencies
  * @returns {Function}
  */
-const createUpdateProfile = ({
-  userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
-}) => async (userId, { name, email, phone }) => {
+const createUpdateProfile = ({ userRepository }) => async (userId, { name, email }) => {
   const user = await userRepository.findById(userId);
   if (!user) {
     throw new NotFoundError('User');
   }
+  requireAdministrativeLoginRole(user.role);
 
   if (email && email !== user.email) {
     const existingUser = await userRepository.findByEmail(email);
@@ -475,24 +441,6 @@ const createUpdateProfile = ({
     name: name || user.name,
     email: email || user.email,
   });
-
-  const normalizedRole = requireSupportedRole(user.role);
-
-  if (normalizedRole === 'customer') {
-    await customerProfileRepository.update(userId, {
-      name: name || user.name,
-      email: email || user.email,
-      ...(phone !== undefined ? { phone } : {}),
-    });
-  }
-
-  if (normalizedRole === 'socio' && user.associateId) {
-    await associateProfileRepository.update(user.associateId, {
-      name: name || user.name,
-      email: email || user.email,
-      ...(phone !== undefined ? { phone } : {}),
-    });
-  }
 
   return sanitizeUser(updatedUser);
 };
@@ -510,6 +458,7 @@ const createChangePassword = ({ userRepository, passwordHasher, auditService }) 
   if (!user) {
     throw new NotFoundError('User');
   }
+  requireAdministrativeLoginRole(user.role);
 
   if (!currentPassword || !nextPassword) {
     throw new ValidationError('Current password and next password are required');
@@ -571,10 +520,11 @@ const createRefreshToken = ({ tokenService, refreshTokenRepository, userReposito
   if (!user) {
     throw new NotFoundError('User');
   }
+  const normalizedRole = requireAdministrativeLoginRole(user.role);
 
   // Generate new token pair
   const sanitizedUser = sanitizeUser(user);
-  const { accessToken, refreshToken: newRefreshToken } = tokenService.generateTokenPair(userId, user.role, {
+  const { accessToken, refreshToken: newRefreshToken } = tokenService.generateTokenPair(userId, normalizedRole, {
     name: user.name,
     ...(sanitizedUser.associateId !== undefined ? { associateId: sanitizedUser.associateId } : {}),
   });
@@ -614,15 +564,13 @@ const createRevokeRefreshToken = ({ refreshTokenRepository }) => async ({ refres
 };
 
 /**
- * Create the registration use case that creates a user with explicit or default permissions.
- * Requires PERMISSIONS_ASSIGN permission (admin-only).
- * @param {{ userRepository: object, customerProfileRepository: object, associateProfileRepository: object, passwordHasher: object, tokenService: object, userPermissionRepository: object, rolePermissionRepository: object, permissionRepository: object, auditService?: object }} dependencies
+ * Create the registration use case that creates an admin or employee with explicit or default permissions.
+ * Requires admin access.
+ * @param {{ userRepository: object, passwordHasher: object, tokenService: object, userPermissionRepository: object, rolePermissionRepository: object, permissionRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
 const createRegisterWithPermissions = ({
   userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
   passwordHasher,
   tokenService,
   userPermissionRepository,
@@ -630,7 +578,7 @@ const createRegisterWithPermissions = ({
   permissionRepository,
   auditService,
 }) => async ({ actor, payload }) => {
-  const { name, email, password, role, permissions: explicitPermissions, phone } = payload;
+  const { name, email, password, role, permissions: explicitPermissions } = payload;
 
   // Validate actor has PERMISSIONS_ASSIGN permission
   if (!actor || actor.role !== 'admin') {
@@ -638,10 +586,7 @@ const createRegisterWithPermissions = ({
     throw new AuthorizationError('PERMISSIONS_ASSIGN permission required');
   }
 
-  const normalizedRole = requireSupportedRole(role, { allowLegacyAliases: false });
-  if (!normalizedRole) {
-    throw buildSupportedRolesError();
-  }
+  const normalizedRole = requireAdministrativeLoginRole(role);
 
   // Check for email conflicts
   const existingUser = await userRepository.findByEmail(email);
@@ -680,7 +625,6 @@ const createRegisterWithPermissions = ({
 
   // Create user
   const hashedPassword = await passwordHasher.hash(password);
-  await alignCustomerIdentitySequence({ normalizedRole, userRepository });
   const user = await userRepository.create({ 
     name, 
     email, 
@@ -689,32 +633,6 @@ const createRegisterWithPermissions = ({
   });
 
   try {
-    // Create role-specific profile
-    if (normalizedRole === 'customer') {
-      await customerProfileRepository.create({
-        id: user.id,
-        name,
-        email,
-        phone: phone || '',
-        address: '',
-      });
-    }
-
-    if (normalizedRole === 'socio') {
-      if (!phone) {
-        throw new ValidationError('Phone number is required for socio registration');
-      }
-      if (!payload.associateId) {
-        throw new ValidationError('Associate link is required for socio registration');
-      }
-      const linkedAssociate = await associateProfileRepository.update(payload.associateId, { name, email, ...(phone !== undefined ? { phone } : {}) });
-      if (!linkedAssociate) {
-        throw new NotFoundError('Associate');
-      }
-      await userRepository.update(user.id, { associateId: payload.associateId });
-      user.associateId = payload.associateId;
-    }
-
     // Grant permissions in batch
     if (permissionsToAssign.length > 0) {
       const allPermissions = await permissionRepository.findAll();

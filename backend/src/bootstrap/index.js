@@ -1,6 +1,6 @@
 const { sequelize } = require('@/models');
 const { buildModuleRegistry } = require('@/modules');
-const { syncDatabaseSchema, ensureAuditLogEnums, seedFinancialProductsAndProfiles } = require('./schema');
+const { syncDatabaseSchema, ensureAuditLogEnums, ensureApplicationRoleEnums, seedFinancialProductsAndProfiles } = require('./schema');
 const { createSharedRuntime } = require('./sharedRuntime');
 const { loanRepository, alertRepository } = require('@/modules/credits/infrastructure/repositories');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
@@ -47,6 +47,7 @@ const bootstrap = async ({
   sequelize: database = sequelize,
   syncSchema = syncDatabaseSchema,
   ensureAuditEnums = ensureAuditLogEnums,
+  ensureRoleEnums = ensureApplicationRoleEnums,
   seedFinancialProducts = seedFinancialProductsAndProfiles,
   buildModuleRegistry: getModuleRegistry = buildModuleRegistry,
   createSharedRuntime: buildSharedRuntime = createSharedRuntime,
@@ -61,6 +62,7 @@ const bootstrap = async ({
   await database.authenticate();
 
   const schema = await syncSchema({ database, env });
+  await ensureRoleEnums({ database });
   await ensureAuditEnums({ database });
   await seedFinancialProducts();
   const sharedRuntime = buildSharedRuntime();

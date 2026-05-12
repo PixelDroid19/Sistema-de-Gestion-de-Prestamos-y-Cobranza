@@ -7,9 +7,12 @@ import {
   Percent,
   Plus,
   Save,
+  ShieldCheck,
   Trash2,
+  UserPlus,
 } from 'lucide-react';
 import { useConfig } from '../services/configService';
+import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
 import { confirmDanger } from '../lib/confirmModal';
 import {
@@ -25,8 +28,9 @@ import {
   ViewTabs,
 } from './shared/Surfaces';
 import { ExplainedChip } from './shared/HelpSupport';
+import PermissionsTab from './PermissionsTab';
 
-type SettingsTab = 'payment-methods' | 'rate-policies' | 'late-fee-policies';
+type SettingsTab = 'employees' | 'payment-methods' | 'rate-policies' | 'late-fee-policies';
 
 type PaymentMethodDraft = {
   name: string;
@@ -49,6 +53,12 @@ type LateFeePolicyDraft = {
   lateFeeMode: 'NONE' | 'SIMPLE' | 'COMPOUND';
   priority: string;
   description: string;
+};
+
+type EmployeeDraft = {
+  name: string;
+  email: string;
+  password: string;
 };
 
 const paymentMethodTypeLabels: Record<string, string> = {
@@ -255,6 +265,124 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
+function EmployeeAccessPanel() {
+  const { data: usersData, registerWithPermissions } = useUsers({ page: 1, pageSize: 100, role: 'employee' });
+  const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>({
+    name: '',
+    email: '',
+    password: '',
+  });
+
+  const users = Array.isArray(usersData?.data?.users)
+    ? usersData.data.users
+    : Array.isArray(usersData?.data)
+      ? usersData.data
+      : [];
+  const employees = users.filter((user: any) => user?.role === 'employee');
+
+  const handleCreateEmployee = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = employeeDraft.name.trim();
+    const email = employeeDraft.email.trim().toLowerCase();
+    const password = employeeDraft.password;
+
+    if (!name) {
+      toast.error({ title: 'Revisa el empleado', description: 'El nombre del empleado es obligatorio.' });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
+      toast.error({ title: 'Revisa el empleado', description: 'Ingresa un correo válido.' });
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error({ title: 'Revisa el empleado', description: 'La contraseña debe tener mínimo 8 caracteres.' });
+      return;
+    }
+
+    const duplicateEmail = employees.some((employee: any) => String(employee?.email || '').toLowerCase() === email);
+    if (duplicateEmail) {
+      toast.error({ title: 'Revisa el empleado', description: 'Ya existe un empleado con ese correo.' });
+      return;
+    }
+
+    try {
+      await registerWithPermissions.mutateAsync({
+        name,
+        email,
+        password,
+        role: 'employee',
+        permissions: [],
+      });
+      setEmployeeDraft({ name: '', email: '', password: '' });
+      toast.success({ description: 'Empleado creado. Ahora puede asignarle permisos por módulo.' });
+    } catch (error) {
+      console.error('[settings] create employee failed', error);
+      toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <ToolbarSurface as="form" onSubmit={handleCreateEmployee} aria-label="Crear empleado administrativo">
+        <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)_220px]">
+          <FormField
+            label="Nombre del empleado"
+            tooltip="Nombre visible en auditoría y operación. No crea cliente ni socio."
+          >
+            <TextInput
+              required
+              value={employeeDraft.name}
+              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, name: event.target.value }))}
+              placeholder="Ej: Ana Operaciones"
+            />
+          </FormField>
+          <FormField
+            label="Correo de acceso"
+            tooltip="Correo que usará el empleado para iniciar sesión en la plataforma administrativa."
+          >
+            <TextInput
+              required
+              type="email"
+              value={employeeDraft.email}
+              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
+              placeholder="empleado@empresa.com"
+            />
+          </FormField>
+          <FormField
+            label="Contraseña inicial"
+            tooltip="Debe tener mínimo 8 caracteres. El empleado podrá cambiarla desde su perfil si el flujo está habilitado."
+          >
+            <TextInput
+              required
+              type="password"
+              minLength={8}
+              value={employeeDraft.password}
+              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, password: event.target.value }))}
+              placeholder="Mínimo 8 caracteres"
+            />
+          </FormField>
+        </div>
+        <ActionButton
+          type="submit"
+          disabled={registerWithPermissions.isPending}
+          variant="primary"
+          icon={<UserPlus size={16} />}
+        >
+          Crear empleado
+        </ActionButton>
+      </ToolbarSurface>
+
+      <div className="rounded-xl border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary">
+        Los empleados solo pueden entrar a los módulos que tengan concedidos. Tasas, mora y métodos de pago quedan reservados para administradores.
+      </div>
+
+      <PermissionsTab />
+    </div>
+  );
+}
+
 export default function Settings() {
   const {
     paymentMethods: rawPaymentMethods,
@@ -276,7 +404,7 @@ export default function Settings() {
   const ratePolicies = rawRatePolicies as any[];
   const lateFeePolicies = rawLateFeePolicies as any[];
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('payment-methods');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('employees');
   const [newPaymentMethod, setNewPaymentMethod] = useState<PaymentMethodDraft>({
     name: '',
     description: '',
@@ -443,10 +571,13 @@ export default function Settings() {
           { id: 'payment-methods', label: 'Métodos de pago', count: paymentMethods.length, icon: CreditCard },
           { id: 'rate-policies', label: 'Tasas de crédito', count: ratePolicies.length, icon: Percent },
           { id: 'late-fee-policies', label: 'Políticas de mora', count: lateFeePolicies.length, icon: AlertTriangle },
+          { id: 'employees', label: 'Empleados y permisos', icon: ShieldCheck },
         ]}
       />
 
       <section className="space-y-4" data-tour="settings-content">
+        {activeTab === 'employees' && <EmployeeAccessPanel />}
+
         {activeTab === 'payment-methods' && (
           <>
             <ToolbarSurface className="settings-config-form" as="form" onSubmit={handleCreatePaymentMethod} aria-label="Crear método de pago">

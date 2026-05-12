@@ -1,6 +1,6 @@
 import { driver, type DriveStep } from 'driver.js';
 
-export type GuideRole = 'admin' | 'customer' | 'socio';
+export type GuideRole = 'admin' | 'employee' | 'customer' | 'socio';
 export type GuideViewKey =
   | 'dashboard'
   | 'customers'
@@ -43,6 +43,7 @@ type GuideProducer = GuideStep[] | ((context: GuideContext) => GuideStep[]);
 type ViewGuideDefinition = {
   default?: GuideProducer;
   admin?: GuideProducer;
+  employee?: GuideProducer;
   customer?: GuideProducer;
   socio?: GuideProducer;
 };

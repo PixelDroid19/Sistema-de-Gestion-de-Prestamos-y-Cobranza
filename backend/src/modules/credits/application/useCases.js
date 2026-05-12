@@ -634,7 +634,7 @@ const buildPaymentCalendarOverview = ({ normalizedLoanIds, entries, asOfDate }) 
  * @returns {Function}
  */
 const createListLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, pagination }) => {
-  if (pagination && actor?.role === 'admin') {
+  if (pagination && ['admin', 'employee'].includes(actor?.role)) {
     const result = await loanRepository.listPage(pagination);
     return enrichLoansWithCustomerSummaries({ loanRepository, result });
   }
@@ -676,7 +676,7 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
 
   return {
     isPayable: PAYABLE_LOAN_STATUSES.has(loan.status),
-    allowedPaymentTypes: actor?.role === 'admin'
+    allowedPaymentTypes: ['admin', 'employee'].includes(actor?.role)
       ? ['installment', 'partial', 'capital']
       : actor?.role === 'customer'
         ? ['installment', 'payoff']
@@ -996,8 +996,8 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
       throw new ValidationError(`Invalid recovery status. Must be one of: ${validRecoveryStatuses.join(', ')}`);
     }
 
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can update recovery status');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can update recovery status');
     }
 
     const loan = loanAccessPolicy
@@ -1029,8 +1029,8 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
  */
 const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) => {
   const useCase = async ({ actor, loanId }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can delete loans');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can delete loans');
     }
 
     const loan = loanAccessPolicy
@@ -1215,8 +1215,8 @@ const createGetPayoffQuote = ({ loanAccessPolicy, loanViewService }) => async ({
 
 const createExecutePayoff = ({ loanAccessPolicy, paymentApplicationService, auditService, clock = () => new Date() }) => {
   const useCase = async ({ actor, loanId, asOfDate, quotedTotal, idempotencyKey }) => {
-    if (!['admin', 'customer'].includes(actor?.role)) {
-      throw new AuthorizationError('Only admins or customers can execute payoff payments');
+    if (!['admin', 'employee'].includes(actor?.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can execute payoff payments');
     }
 
     const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -1244,8 +1244,8 @@ const createListPromisesToPay = ({ promiseRepository, loanAccessPolicy }) => asy
 
 const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
   const useCase = async ({ actor, loanId, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can create promises to pay');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can create promises to pay');
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1300,8 +1300,8 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notific
 };
 
 const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificationPort }) => async ({ actor, loanId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create follow-up reminders');
+  if (!['admin', 'employee'].includes(actor.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can create follow-up reminders');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1370,8 +1370,8 @@ const createCreateLoanFollowUp = ({ alertRepository, loanAccessPolicy, notificat
 };
 
 const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => async ({ actor, loanId, alertId, payload }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can update loan alerts');
+  if (!['admin', 'employee'].includes(actor.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can update loan alerts');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1405,8 +1405,8 @@ const createUpdateLoanAlertStatus = ({ alertRepository, loanAccessPolicy }) => a
 
 const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, notificationPort, auditService }) => {
   const useCase = async ({ actor, loanId, promiseId, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can update promise statuses');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can update promise statuses');
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -1464,8 +1464,8 @@ const createUpdatePromiseToPayStatus = ({ promiseRepository, loanAccessPolicy, n
 };
 
 const createDownloadPromiseToPay = ({ promiseRepository, loanAccessPolicy }) => async ({ actor, loanId, promiseId }) => {
-  if (actor.role !== 'admin') {
-    throw new AuthorizationError('Only admins can download promise documents');
+  if (!['admin', 'employee'].includes(actor.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can download promise documents');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });

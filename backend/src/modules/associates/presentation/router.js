@@ -4,6 +4,7 @@ const { attachPagination } = require('@/middleware/validation');
 
 const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases }) => {
   const router = express.Router();
+  const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
   const resolveIdempotencyKey = (req) => {
     const headerValue = req.headers['idempotency-key'];
     if (typeof headerValue === 'string' && headerValue.trim()) {
@@ -17,7 +18,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     return null;
   };
 
-  router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/', requirePermission('SOCIOS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const filters = {
       search: req.query.search,
       status: req.query.status,
@@ -40,52 +41,52 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, count: result.length, data: { associates: result } });
   }));
 
-  router.post('/', authMiddleware(['admin']), associateValidation.create, asyncHandler(async (req, res) => {
+  router.post('/', requirePermission('SOCIOS_CREATE'), associateValidation.create, asyncHandler(async (req, res) => {
     const associate = await useCases.createAssociate({ actor: req.user, payload: req.body });
     res.status(201).json({ success: true, message: 'Associate created successfully', data: { associate } });
   }));
 
-  router.get('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/:id', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const associate = await useCases.getAssociateById(req.params.id);
     res.json({ success: true, data: { associate } });
   }));
 
-  router.patch('/:id', authMiddleware(['admin']), associateValidation.update, asyncHandler(async (req, res) => {
+  router.patch('/:id', requirePermission('SOCIOS_UPDATE'), associateValidation.update, asyncHandler(async (req, res) => {
     const associate = await useCases.updateAssociate({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.json({ success: true, message: 'Associate updated successfully', data: { associate } });
   }));
 
-  router.delete('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.delete('/:id', requirePermission('SOCIOS_DELETE'), asyncHandler(async (req, res) => {
     await useCases.deleteAssociate({ actor: req.user, associateId: req.params.id });
     res.json({ success: true, message: 'Associate deleted successfully' });
   }));
 
-  router.get('/:id/portal', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/:id/portal', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const portal = await useCases.listAssociatePortalSummary({ actor: req.user, associateId: req.params.id });
     res.json({ success: true, data: { portal } });
   }));
 
-  router.get('/portal/me', authMiddleware(['socio']), asyncHandler(async (req, res) => {
+  router.get('/portal/me', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const portal = await useCases.listAssociatePortalSummary({ actor: req.user });
     res.json({ success: true, data: { portal } });
   }));
 
-  router.post('/:id/contributions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/:id/contributions', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const contribution = await useCases.createAssociateContribution({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Associate contribution created successfully', data: { contribution } });
   }));
 
-  router.post('/:id/distributions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/:id/distributions', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const distribution = await useCases.createProfitDistribution({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Profit distribution created successfully', data: { distribution } });
   }));
 
-  router.post('/:id/reinvestments', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/:id/reinvestments', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const result = await useCases.createAssociateReinvestment({ actor: req.user, associateId: req.params.id, payload: req.body });
     res.status(201).json({ success: true, message: 'Associate reinvestment created successfully', data: result });
   }));
 
-  router.post('/distributions/proportional', authMiddleware(['admin']), associateValidation.proportionalDistribution, asyncHandler(async (req, res) => {
+  router.post('/distributions/proportional', requirePermission('SOCIOS_UPDATE'), associateValidation.proportionalDistribution, asyncHandler(async (req, res) => {
     const distribution = await useCases.createProportionalProfitDistribution({
       actor: req.user,
       idempotencyKey: resolveIdempotencyKey(req),
@@ -101,7 +102,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     });
   }));
 
-  router.get('/:id/installments', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/:id/installments', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const result = await useCases.getAssociateInstallments({
       actor: req.user,
       associateId: req.params.id,
@@ -109,7 +110,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, data: { installments: result } });
   }));
 
-  router.post('/:id/installments/:installmentNumber/pay', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/:id/installments/:installmentNumber/pay', requirePermission('SOCIOS_UPDATE'), asyncHandler(async (req, res) => {
     const result = await useCases.payAssociateInstallment({
       actor: req.user,
       associateId: req.params.id,
@@ -119,7 +120,7 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
     res.json({ success: true, message: 'Installment marked as paid', data: { installment: result } });
   }));
 
-  router.get('/:id/calendar-events', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/:id/calendar-events', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const result = await useCases.getAssociateCalendar({
       actor: req.user,
       associateId: req.params.id,

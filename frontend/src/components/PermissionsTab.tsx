@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Lock, Shield, Users, X } from 'lucide-react';
 import {
   useGrantBatchPermissions,
@@ -60,6 +60,10 @@ export default function PermissionsTab() {
     : Array.isArray(usersData?.data)
       ? usersData.data
       : [];
+  const employeeUsers = useMemo(
+    () => users.filter((user: any) => user?.role === 'employee'),
+    [users],
+  );
 
   const normalizedPermissions = useMemo<PermissionRecord[]>(() => {
     return (permissions || []).map((permission: any) => ({
@@ -120,8 +124,16 @@ export default function PermissionsTab() {
     return groupedPermissions.filter((group) => group.module === moduleFilter);
   }, [groupedPermissions, moduleFilter]);
 
-  const selectedUser = users.find((user: any) => String(user.id) === selectedUserId);
+  const selectedUser = employeeUsers.find((user: any) => String(user.id) === selectedUserId);
   const isBusy = grantBatchPermissions.isPending || revokePermission.isPending;
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const stillAssignable = employeeUsers.some((user: any) => String(user.id) === selectedUserId);
+    if (!stillAssignable) {
+      setSelectedUserId('');
+    }
+  }, [employeeUsers, selectedUserId]);
 
   const toggleModule = (module: string) => {
     setExpandedModules((previous) => {
@@ -268,9 +280,9 @@ export default function PermissionsTab() {
                 onChange={(event) => setSelectedUserId(event.target.value)}
               >
                 <option value="">Seleccione un usuario</option>
-                {users.map((user: any) => (
+                {employeeUsers.map((user: any) => (
                   <option key={user.id} value={String(user.id)}>
-                    {user.name || user.email} ({user.role || 'sin rol'})
+                    {user.name || user.email} (empleado)
                   </option>
                 ))}
               </SelectInput>
@@ -300,8 +312,10 @@ export default function PermissionsTab() {
 
           {!selectedUserId ? (
             <EmptyState
-              title="Seleccione un usuario"
-              description="Luego podrá gestionar permisos por módulo y permiso individual."
+              title={employeeUsers.length === 0 ? 'No hay empleados creados' : 'Seleccione un empleado'}
+              description={employeeUsers.length === 0
+                ? 'Cree primero una cuenta de empleado. Los permisos solo se asignan a empleados administrativos.'
+                : 'Luego podrá gestionar permisos por módulo y permiso individual.'}
               icon={<Users size={36} />}
             />
           ) : (

@@ -176,7 +176,7 @@ const createDeleteCustomer = ({ customerRepository, auditService }) => {
 };
 
 const ensureCustomerDocumentAccess = async ({ actor, customerRepository, customerId }) => {
-  if (!['admin', 'customer'].includes(actor.role)) {
+  if (!['admin', 'employee', 'customer'].includes(actor.role)) {
     throw new AuthorizationError('You do not have access to customer documents');
   }
 
@@ -207,9 +207,9 @@ const createUploadCustomerDocument = ({ customerRepository, attachmentStorage, a
   const useCase = async ({ actor, customerId, file, metadata = {} }) => {
     ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
 
-    if (actor.role !== 'admin') {
+    if (!['admin', 'employee'].includes(actor.role)) {
       await attachmentStorage.deleteByAbsolutePath(file.path);
-      throw new AuthorizationError('Only admins can upload customer documents');
+      throw new AuthorizationError('Only authorized backoffice users can upload customer documents');
     }
 
     return withUploadCleanup({
@@ -254,8 +254,8 @@ const createDownloadCustomerDocument = ({ customerRepository, attachmentStorage 
 
 const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage, auditService }) => {
   const useCase = async ({ actor, customerId, documentId }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can delete customer documents');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can delete customer documents');
     }
 
     await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
@@ -285,8 +285,8 @@ const createDeleteCustomerDocument = ({ customerRepository, attachmentStorage, a
 const createRestoreCustomer = ({ customerRepository, auditService }) => {
   const useCase = async ({ actor, customerId }) => {
     // Only admins can restore customers
-    if (!actor || actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can restore customers');
+    if (!actor || !['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can restore customers');
     }
 
     // Find the customer including deleted records

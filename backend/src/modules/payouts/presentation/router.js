@@ -5,6 +5,7 @@ const { sendBufferDownload, sendPathDownload } = require('@/modules/shared/http'
 
 const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidation, useCases }) => {
   const router = express.Router();
+  const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
   const resolveIdempotencyKey = (req) => req.headers['idempotency-key'] || null;
   const requireIdempotencyKey = (req) => {
     const rawKey = resolveIdempotencyKey(req);
@@ -18,7 +19,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   };
 
   // List all payments (admin only)
-  router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/', requirePermission('PAYMENTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const result = await useCases.listPayments({
       actor: req.user,
       pagination: req.pagination,
@@ -36,7 +37,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Create regular payment (customer)
-  router.post('/', authMiddleware(['customer']), paymentValidation.create, asyncHandler(async (req, res) => {
+  router.post('/', requirePermission('PAYMENTS_CREATE'), paymentValidation.create, asyncHandler(async (req, res) => {
     const result = await useCases.createPayment({ actor: req.user, ...req.body, idempotencyKey: requireIdempotencyKey(req) });
     res.status(201).json({
       success: true,
@@ -50,7 +51,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Create partial payment (admin only; customers use installment or payoff flows).
-  router.post('/partial', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/partial', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
     const result = await useCases.createPartialPayment({ actor: req.user, ...req.body, idempotencyKey: requireIdempotencyKey(req) });
     res.status(201).json({
       success: true,
@@ -64,7 +65,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Create capital reduction payment (admin only)
-  router.post('/capital', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/capital', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
     const result = await useCases.createCapitalPayment({
       actor: req.user,
       ...req.body,
@@ -84,7 +85,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
-  router.post('/calculate-total-debt', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.post('/calculate-total-debt', requirePermission('PAYMENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const result = await useCases.calculateTotalDebt({
       actor: req.user,
       loanId: req.body.loanId,
@@ -93,7 +94,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.json({ success: true, data: result });
   }));
 
-  router.post('/pay-total-debt', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.post('/pay-total-debt', requirePermission('PAYMENTS_CREATE'), asyncHandler(async (req, res) => {
     const result = await useCases.payTotalDebt({
       actor: req.user,
       loanId: req.body.loanId,
@@ -113,7 +114,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Annul installment (admin only)
-  router.post('/annul/:loanId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/annul/:loanId', requirePermission('PAYMENTS_REVERSE'), asyncHandler(async (req, res) => {
     const result = await useCases.annulInstallment({
       actor: req.user,
       loanId: req.params.loanId,
@@ -133,7 +134,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // Get payments for a specific loan
-  router.get('/loan/:loanId', authMiddleware(), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/loan/:loanId', requirePermission('PAYMENTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const result = await useCases.listPaymentsByLoan({ actor: req.user, loanId: req.params.loanId, pagination: req.pagination });
     if (result?.pagination) {
       res.json({
@@ -158,7 +159,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     });
   }));
 
-  router.patch('/:paymentId/metadata', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.patch('/:paymentId/metadata', requirePermission('PAYMENTS_UPDATE'), asyncHandler(async (req, res) => {
     const payment = await useCases.updatePaymentMetadata({
       actor: req.user,
       paymentId: req.params.paymentId,
@@ -167,12 +168,12 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.json({ success: true, message: 'Payment metadata updated successfully', data: { payment } });
   }));
 
-  router.get('/:paymentId/documents', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:paymentId/documents', requirePermission('PAYMENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const documents = await useCases.listPaymentDocuments({ actor: req.user, paymentId: req.params.paymentId });
     res.json({ success: true, count: documents.length, data: { documents } });
   }));
 
-  router.post('/:paymentId/documents', authMiddleware(['admin']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
+  router.post('/:paymentId/documents', requirePermission('PAYMENTS_UPDATE'), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
     const document = await useCases.uploadPaymentDocument({
       actor: req.user,
       paymentId: req.params.paymentId,
@@ -182,7 +183,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
     res.status(201).json({ success: true, message: 'Payment document uploaded successfully', data: { document } });
   }));
 
-  router.get('/:paymentId/documents/:documentId/download', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:paymentId/documents/:documentId/download', requirePermission('PAYMENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const download = await useCases.downloadPaymentDocument({
       actor: req.user,
       paymentId: req.params.paymentId,
@@ -195,7 +196,7 @@ const createPayoutsRouter = ({ authMiddleware, attachmentUpload, paymentValidati
   }));
 
   // TASK-009: PDF voucher download endpoint
-  router.get('/:paymentId/voucher/pdf', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:paymentId/voucher/pdf', requirePermission('PAYMENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const voucher = await useCases.getPaymentVoucher({
       actor: req.user,
       paymentId: req.params.paymentId,

@@ -1,5 +1,5 @@
 export type AppUserLike = {
-  role?: 'admin' | 'customer' | 'socio' | string;
+  role?: 'admin' | 'employee' | 'customer' | 'socio' | string;
   associateId?: number;
 } | null | undefined;
 
@@ -11,14 +11,8 @@ export const getDefaultRouteForUser = (user: AppUserLike): string => {
     return '/dashboard';
   }
 
-  if (user?.role === 'socio') {
-    return Number.isFinite(Number(user.associateId))
-      ? `/associates/${Number(user.associateId)}`
-      : '/profile';
-  }
-
-  if (user?.role === 'customer') {
-    return '/credits';
+  if (user?.role === 'employee') {
+    return '/profile';
   }
 
   return '/login';

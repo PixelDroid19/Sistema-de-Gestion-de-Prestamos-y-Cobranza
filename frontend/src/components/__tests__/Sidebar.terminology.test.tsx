@@ -8,7 +8,7 @@ type SidebarTestUser = {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'customer' | 'socio';
+  role: 'admin' | 'employee' | 'customer' | 'socio';
   associateId: number | null;
 };
 
@@ -33,6 +33,15 @@ vi.mock('../../services/authService', () => ({
   }),
 }));
 
+let currentPermissions: Array<{ permission: string }> = [];
+
+vi.mock('../../services/permissionsService', () => ({
+  useMyPermissions: () => ({
+    permissions: currentPermissions,
+    isLoading: false,
+  }),
+}));
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
@@ -47,6 +56,7 @@ describe('Sidebar canonical terminology parity', () => {
       role: 'admin',
       associateId: null,
     };
+    currentPermissions = [];
   });
 
   it('renders canonical labels and avoids outdated synonyms', () => {
@@ -91,14 +101,15 @@ describe('Sidebar canonical terminology parity', () => {
     expect(screen.queryByRole('button', { name: 'Historial de Pagos' })).not.toBeInTheDocument();
   });
 
-  it('shows credits navigation to socios without exposing admin-only credit tools', () => {
+  it('shows only permissioned credits navigation to employees', () => {
     currentUser = {
       id: 2,
-      name: 'Socio QA',
-      email: 'socio@example.com',
-      role: 'socio',
-      associateId: 9,
+      name: 'Empleado QA',
+      email: 'employee@example.com',
+      role: 'employee',
+      associateId: null,
     };
+    currentPermissions = [{ permission: 'CREDITS_VIEW_ALL' }];
 
     const setCurrentView = vi.fn();
     const setIsCollapsed = vi.fn();
@@ -118,7 +129,7 @@ describe('Sidebar canonical terminology parity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
 
     expect(screen.getByRole('button', { name: 'Créditos vigentes' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cálculo de Crédito' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cálculo de Crédito' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nuevo crédito' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reportes' })).not.toBeInTheDocument();
   });

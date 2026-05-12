@@ -1,6 +1,6 @@
 const { AuthenticationError, AuthorizationError } = require('@/utils/errorHandler');
 const { createJwtTokenService } = require('./auth/tokenService');
-const { normalizeApplicationRole } = require('./roles');
+const { isAdministrativeLoginRole, normalizeApplicationRole } = require('./roles');
 
 const normalizeRoles = (roles = []) => {
   const requestedRoles = typeof roles === 'string' ? [roles] : roles;
@@ -53,6 +53,10 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
 
       if (!normalizedRole) {
         throw new AuthenticationError('Token contains an unsupported application role');
+      }
+
+      if (!isAdministrativeLoginRole(normalizedRole)) {
+        throw new AuthenticationError('This account cannot access the administrative platform');
       }
 
       const authenticatedUser = {

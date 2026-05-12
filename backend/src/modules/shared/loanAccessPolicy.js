@@ -3,6 +3,7 @@ const { normalizeApplicationRole } = require('./roles');
 
 const normalizeId = (value) => Number(value);
 const resolveActorRole = (actor) => normalizeApplicationRole(actor?.role);
+const isBackofficeRole = (role) => role === 'admin' || role === 'employee';
 
 /**
  * Determine whether an actor can read a loan under the shared visibility rules.
@@ -16,7 +17,7 @@ const isLoanVisibleToActor = ({ actor, loan }) => {
 
   const actorRole = resolveActorRole(actor);
 
-  if (actorRole === 'admin') {
+  if (isBackofficeRole(actorRole)) {
     return true;
   }
 
@@ -53,7 +54,7 @@ const isLoanMutableByActor = ({ actor, loan }) => {
     return false;
   }
 
-  if (resolveActorRole(actor) === 'admin') {
+  if (isBackofficeRole(resolveActorRole(actor))) {
     return true;
   }
 

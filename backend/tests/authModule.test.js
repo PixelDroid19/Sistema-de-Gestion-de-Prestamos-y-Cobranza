@@ -12,7 +12,7 @@ const {
 } = require('@/modules/auth/application/useCases');
 const { AuthenticationError, AuthorizationError, ConflictError, ValidationError } = require('@/utils/errorHandler');
 
-test('createRegisterUser creates a customer-linked identity and token response', async () => {
+test('createRegisterUser creates an admin-provisioned employee identity and token response', async () => {
   const registerUser = createRegisterUser({
     userRepository: {
       async findByEmail() {
@@ -46,30 +46,32 @@ test('createRegisterUser creates a customer-linked identity and token response',
   });
 
   const result = await registerUser({
-    name: 'Ana Customer',
-    email: 'ana@example.com',
-    password: 'Secret123',
-    role: 'customer',
-    phone: '+573001112233',
+    actor: { id: 1, role: 'admin' },
+    registrationSource: 'admin',
+    payload: {
+      name: 'Ana Employee',
+      email: 'ana@example.com',
+      password: 'Secret123',
+      role: 'employee',
+    },
   });
 
   assert.equal(result.user.id, 15);
-  assert.equal(result.user.role, 'customer');
-  assert.equal(result.token, 'token:15:customer');
+  assert.equal(result.user.role, 'employee');
+  assert.equal(result.token, 'token:15:employee');
 });
 
-test('createLoginUser preserves associateId in sanitized socio sessions', async () => {
+test('createLoginUser returns sanitized employee sessions', async () => {
   let signedPayload;
   const loginUser = createLoginUser({
     userRepository: {
       async findByLoginIdentifier() {
         return {
           id: 3,
-          name: 'QA Socio',
-          email: 'qa.socio@example.com',
+          name: 'QA Employee',
+          email: 'qa.employee@example.com',
           password: 'hashed-password',
-          role: 'socio',
-          associateId: 12,
+          role: 'employee',
           failedLoginAttempts: 0,
           lockedUntil: null,
         };
@@ -88,19 +90,17 @@ test('createLoginUser preserves associateId in sanitized socio sessions', async 
     },
   });
 
-  const result = await loginUser({ email: 'qa.socio@example.com', password: 'Admin1234' });
+  const result = await loginUser({ email: 'qa.employee@example.com', password: 'Admin1234' });
 
-  assert.equal(result.user.role, 'socio');
-  assert.equal(result.user.associateId, 12);
+  assert.equal(result.user.role, 'employee');
   assert.deepEqual(signedPayload, {
     id: 3,
-    role: 'socio',
-    name: 'QA Socio',
-    associateId: 12,
+    role: 'employee',
+    name: 'QA Employee',
   });
 });
 
-test('createRefreshToken preserves associateId in renewed socio access tokens', async () => {
+test('createRefreshToken renews employee access tokens', async () => {
   let tokenPairArgs;
   const refreshToken = createRefreshToken({
     tokenService: {
@@ -127,10 +127,9 @@ test('createRefreshToken preserves associateId in renewed socio access tokens', 
       async findById() {
         return {
           id: 3,
-          name: 'QA Socio',
-          email: 'qa.socio@example.com',
-          role: 'socio',
-          associateId: 12,
+          name: 'QA Employee',
+          email: 'qa.employee@example.com',
+          role: 'employee',
         };
       },
     },
@@ -142,15 +141,14 @@ test('createRefreshToken preserves associateId in renewed socio access tokens', 
   assert.equal(result.refreshToken, 'new-refresh-token');
   assert.deepEqual(tokenPairArgs, {
     userId: 3,
-    role: 'socio',
+    role: 'employee',
     extraPayload: {
-      name: 'QA Socio',
-      associateId: 12,
+      name: 'QA Employee',
     },
   });
 });
 
-test('createRegisterUser aligns customer-linked ids before provisioning customer accounts', async () => {
+test('createRegisterUser provisions employee accounts without customer profile side effects', async () => {
   const callOrder = [];
 
   const registerUser = createRegisterUser({
@@ -190,16 +188,15 @@ test('createRegisterUser aligns customer-linked ids before provisioning customer
     actor: { id: 1, role: 'admin' },
     registrationSource: 'admin',
     payload: {
-      name: 'Portal Customer',
-      email: 'portal.customer@example.com',
+      name: 'Portal Employee',
+      email: 'portal.employee@example.com',
       password: 'Secret123',
-      role: 'customer',
-      phone: '+573001112255',
+      role: 'employee',
     },
   });
 
   assert.equal(result.user.id, 27);
-  assert.deepEqual(callOrder, ['sync', 'create-user', 'create-customer:27']);
+  assert.deepEqual(callOrder, ['create-user']);
 });
 
 test('createRegisterUser rejects privileged public signup even when validation is bypassed', async () => {
@@ -253,7 +250,7 @@ test('createRegisterUser rejects privileged public signup even when validation i
     assert.deepEqual(error.errors, [
       {
         field: 'role',
-        message: 'Public registration only allows the customer role',
+        message: 'Public registration is disabled. An administrator must create employee accounts.',
       },
     ]);
     return true;
@@ -454,7 +451,7 @@ test('createRegisterUser blocks non-admin actors from creating privileged accoun
   }), AuthorizationError);
 });
 
-test('createRegisterUser links socio accounts to an associate record', async () => {
+test('createRegisterUser rejects socio account provisioning in administrative auth', async () => {
   let updatedAssociate;
   let updatedUser;
 
@@ -492,7 +489,7 @@ test('createRegisterUser links socio accounts to an associate record', async () 
     },
   });
 
-  const result = await registerUser({
+  await assert.rejects(() => registerUser({
     actor: { id: 1, role: 'admin' },
     registrationSource: 'trusted',
     payload: {
@@ -503,11 +500,16 @@ test('createRegisterUser links socio accounts to an associate record', async () 
       phone: '+573001112233',
       associateId: 14,
     },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.deepEqual(error.errors, [
+      { field: 'role', message: 'Administrative users must be admin or employee' },
+    ]);
+    return true;
   });
 
-  assert.equal(result.user.role, 'socio');
-  assert.equal(updatedAssociate.id, 14);
-  assert.deepEqual(updatedUser, { id: 31, payload: { associateId: 14 } });
+  assert.equal(updatedAssociate, undefined);
+  assert.equal(updatedUser, undefined);
 });
 
 test('createLoginUser rejects an invalid password', async () => {
@@ -535,10 +537,10 @@ test('createLoginUser rejects an invalid password', async () => {
   await assert.rejects(() => loginUser({ email: 'ana@example.com', password: 'wrong-pass' }), AuthenticationError);
 });
 
-test('createLoginUser rejects unsupported agent role during login', async () => {
+test('createLoginUser rejects non-administrative roles during login', async () => {
   const loginUser = createLoginUser({
     userRepository: {
-      async findByEmail() {
+      async findByLoginIdentifier() {
         return { id: 9, email: 'ana@example.com', password: 'hashed-password', role: 'agent', name: 'Ana Agent', failedLoginAttempts: 0, lockedUntil: null };
       },
       async update() {
@@ -559,10 +561,10 @@ test('createLoginUser rejects unsupported agent role during login', async () => 
 
   try {
     await loginUser({ email: 'ana@example.com', password: 'Secret1' });
-    assert.fail('Should have rejected unsupported agent role');
+    assert.fail('Should have rejected non-administrative role');
   } catch (error) {
-    assert.equal(error.statusCode, 400);
-    assert.ok(error.errors[0].message.includes('Role must be one of'), `Expected error message to contain 'Role must be one of', got: ${error.errors[0].message}`);
+    assert.equal(error.statusCode, 401);
+    assert.equal(error.message, 'Please enter correct email/password');
   }
 });
 
@@ -576,7 +578,7 @@ test('createLoginUser accepts username when email is not provided', async () => 
           name: 'ana.user',
           email: 'ana.user@example.com',
           password: 'hashed-password',
-          role: 'customer',
+          role: 'employee',
           failedLoginAttempts: 0,
           lockedUntil: null,
         };
@@ -599,7 +601,7 @@ test('createLoginUser accepts username when email is not provided', async () => 
 
   const result = await loginUser({ username: 'ana.user', password: 'Secret123' });
   assert.equal(result.user.id, 19);
-  assert.equal(result.user.role, 'customer');
+  assert.equal(result.user.role, 'employee');
 });
 
 test('createGetProfile returns the sanitized user profile', async () => {
@@ -608,9 +610,9 @@ test('createGetProfile returns the sanitized user profile', async () => {
       async findById() {
         return {
           id: 11,
-          name: 'Ana Customer',
+          name: 'Ana Employee',
           email: 'ana@example.com',
-          role: 'customer',
+          role: 'employee',
           password: 'hidden',
         };
       },
@@ -621,38 +623,26 @@ test('createGetProfile returns the sanitized user profile', async () => {
 
   assert.deepEqual(profile, {
     id: 11,
-    name: 'Ana Customer',
+    name: 'Ana Employee',
     email: 'ana@example.com',
-    role: 'customer',
+    role: 'employee',
   });
 });
 
-test('createUpdateProfile updates a customer profile happy path', async () => {
+test('createUpdateProfile updates an administrative profile happy path', async () => {
   let updatedUserPayload;
-  let updatedProfilePayload;
 
   const updateProfile = createUpdateProfile({
     userRepository: {
       async findById() {
-        return { id: 3, name: 'Ana', email: 'ana@example.com', role: 'customer' };
+        return { id: 3, name: 'Ana', email: 'ana@example.com', role: 'employee' };
       },
       async findByEmail() {
         return null;
       },
       async update(id, payload) {
         updatedUserPayload = { id, payload };
-        return { id, role: 'customer', ...payload };
-      },
-    },
-    customerProfileRepository: {
-      async update(id, payload) {
-        updatedProfilePayload = { id, payload };
-        return { id, ...payload };
-      },
-    },
-    agentProfileRepository: {
-      async update() {
-        throw new Error('agent repository should not be used');
+        return { id, role: 'employee', ...payload };
       },
     },
   });
@@ -660,14 +650,13 @@ test('createUpdateProfile updates a customer profile happy path', async () => {
   const updatedUser = await updateProfile(3, {
     name: 'Ana Maria',
     email: 'ana.maria@example.com',
-    phone: '+573001112244',
   });
 
   assert.deepEqual(updatedUser, {
     id: 3,
     name: 'Ana Maria',
     email: 'ana.maria@example.com',
-    role: 'customer',
+    role: 'employee',
   });
   assert.deepEqual(updatedUserPayload, {
     id: 3,
@@ -676,34 +665,20 @@ test('createUpdateProfile updates a customer profile happy path', async () => {
       email: 'ana.maria@example.com',
     },
   });
-  assert.deepEqual(updatedProfilePayload, {
-    id: 3,
-    payload: {
-      name: 'Ana Maria',
-      email: 'ana.maria@example.com',
-      phone: '+573001112244',
-    },
-  });
 });
 
 test('createUpdateProfile prevents duplicate email updates', async () => {
   const updateProfile = createUpdateProfile({
     userRepository: {
       async findById() {
-        return { id: 3, name: 'Ana', email: 'ana@example.com', role: 'customer' };
+        return { id: 3, name: 'Ana', email: 'ana@example.com', role: 'employee' };
       },
       async findByEmail() {
         return { id: 8, email: 'other@example.com' };
       },
       async update() {
-        return { id: 3, name: 'Ana', email: 'other@example.com', role: 'customer' };
+        return { id: 3, name: 'Ana', email: 'other@example.com', role: 'employee' };
       },
-    },
-    customerProfileRepository: {
-      async update() {},
-    },
-    agentProfileRepository: {
-      async update() {},
     },
   });
 
@@ -716,7 +691,7 @@ test('createChangePassword updates the stored password hash', async () => {
   const changePassword = createChangePassword({
     userRepository: {
       async findById() {
-        return { id: 8, password: 'hashed-Current1' };
+        return { id: 8, role: 'admin', password: 'hashed-Current1' };
       },
       async update(id, payload) {
         updates.push({ id, payload });
@@ -747,7 +722,7 @@ test('createChangePassword rejects an invalid current password', async () => {
   const changePassword = createChangePassword({
     userRepository: {
       async findById() {
-        return { id: 8, password: 'hashed-Current1' };
+        return { id: 8, role: 'admin', password: 'hashed-Current1' };
       },
       async update() {
         throw new Error('update should not be called');
@@ -773,7 +748,7 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
   const changePassword = createChangePassword({
     userRepository: {
       async findById() {
-        return { id: 8, password: 'hashed-Current1' };
+        return { id: 8, role: 'admin', password: 'hashed-Current1' };
       },
       async update() {
         throw new Error('update should not be called');
@@ -928,7 +903,7 @@ test('createRegisterWithPermissions derives default permissions when not provide
     },
     rolePermissionRepository: {
       async findByRole(role) {
-        if (role === 'socio') {
+        if (role === 'employee') {
           return [
             { Permission: { id: 3, name: 'READ_CREDITOS' } },
             { Permission: { id: 4, name: 'READ_REPORTES' } },
@@ -950,21 +925,19 @@ test('createRegisterWithPermissions derives default permissions when not provide
   const result = await registerWithPermissions({
     actor: { id: 1, role: 'admin' },
     payload: {
-      name: 'Jane Partner',
+      name: 'Jane Employee',
       email: 'jane@example.com',
-      phone: '+573001112233',
-      associateId: 5,
       password: 'Secret123',
-      role: 'socio',
+      role: 'employee',
     },
   });
 
   assert.equal(result.user.id, 26);
-  assert.equal(result.user.role, 'socio');
+  assert.equal(result.user.role, 'employee');
   assert.deepEqual(result.permissions, ['READ_CREDITOS', 'READ_REPORTES']);
 });
 
-test('createRegisterWithPermissions aligns customer-linked ids before creating customer portal accounts', async () => {
+test('createRegisterWithPermissions creates employee accounts without customer profile side effects', async () => {
   const callOrder = [];
 
   const registerWithPermissions = createRegisterWithPermissions({
@@ -1022,17 +995,16 @@ test('createRegisterWithPermissions aligns customer-linked ids before creating c
   const result = await registerWithPermissions({
     actor: { id: 1, role: 'admin' },
     payload: {
-      name: 'Permitted Customer',
-      email: 'permitted.customer@example.com',
+      name: 'Permitted Employee',
+      email: 'permitted.employee@example.com',
       password: 'Secret123',
-      role: 'customer',
-      phone: '+573001112277',
+      role: 'employee',
     },
   });
 
   assert.equal(result.user.id, 44);
   assert.deepEqual(result.permissions, []);
-  assert.deepEqual(callOrder, ['sync', 'create-user', 'create-customer:44']);
+  assert.deepEqual(callOrder, ['create-user']);
 });
 
 test('createRegisterWithPermissions throws AuthorizationError for non-admin actor', async () => {

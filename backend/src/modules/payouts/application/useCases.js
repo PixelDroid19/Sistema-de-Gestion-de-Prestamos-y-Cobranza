@@ -126,7 +126,7 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
 
   return {
     isPayable: PAYABLE_LOAN_STATUSES.has(loan.status),
-    allowedPaymentTypes: actor?.role === 'admin'
+    allowedPaymentTypes: ['admin', 'employee'].includes(actor?.role)
       ? ['installment', 'partial', 'capital']
       : actor?.role === 'customer'
         ? ['installment', 'payoff']
@@ -147,7 +147,7 @@ const buildLoanHistoryContext = ({ actor, loan, loanViewService }) => {
 };
 
 const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId }) => {
-  if (!['admin', 'customer'].includes(actor?.role)) {
+  if (!['admin', 'employee'].includes(actor?.role)) {
     throw new AuthorizationError('You do not have access to payment documents');
   }
 
@@ -163,8 +163,8 @@ const ensurePaymentDocumentAccess = async ({ actor, paymentRepository, paymentId
  * Create the use case that lists all payments for admins.
  */
 const createListPayments = ({ paymentRepository }) => async ({ actor, pagination, filters = {} }) => {
-  if (actor?.role !== 'admin') {
-    throw new AuthorizationError('Only admins can access all payments');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can access all payments');
   }
 
   if (pagination && typeof paymentRepository.listPage === 'function') {
@@ -186,8 +186,8 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
  * Create the use case that applies a customer payment against an authorized loan.
  */
 const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
-  if (actor?.role !== 'customer') {
-    throw new AuthorizationError('Only customers can create payments');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can create payments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -207,8 +207,8 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
  * Customer self-service payments must use the installment or payoff flows.
  */
 const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
-  if (actor?.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create partial payments');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can create partial payments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -227,8 +227,8 @@ const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolic
  * Create the use case that applies a capital payment (reduces debt principal directly).
  */
 const createCreateCapitalPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, idempotencyKey }) => {
-  if (actor?.role !== 'admin') {
-    throw new AuthorizationError('Only admins can create capital reduction payments');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can create capital reduction payments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
@@ -281,8 +281,8 @@ const createPayTotalDebt = ({ paymentApplicationService, loanAccessPolicy, loanV
  * Create the use case that annuls the nearest pending or overdue installment.
  */
 const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, reason, installmentNumber, idempotencyKey }) => {
-  if (actor?.role !== 'admin') {
-    throw new AuthorizationError('Only admins can annul installments');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can annul installments');
   }
 
   const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
@@ -304,8 +304,8 @@ const createAnnulInstallment = ({ paymentApplicationService, loanAccessPolicy, c
  * @returns {Function}
  */
 const createUpdatePaymentMetadata = ({ paymentRepository, loanAccessPolicy }) => async ({ actor, paymentId, payload = {} }) => {
-  if (actor?.role !== 'admin') {
-    throw new AuthorizationError('Only admins can update payment metadata');
+  if (!['admin', 'employee'].includes(actor?.role)) {
+    throw new AuthorizationError('Only authorized backoffice users can update payment metadata');
   }
 
   const payment = await paymentRepository.findById(paymentId);
@@ -387,9 +387,9 @@ const createListPaymentDocuments = ({ paymentRepository, loanAccessPolicy }) => 
 const createUploadPaymentDocument = ({ paymentRepository, loanAccessPolicy, attachmentStorage }) => async ({ actor, paymentId, file, metadata = {} }) => {
   ensureUploadedFile(file, () => new ValidationError('Attachment file is required'));
 
-  if (actor?.role !== 'admin') {
+  if (!['admin', 'employee'].includes(actor?.role)) {
     await attachmentStorage.deleteByAbsolutePath(file.path);
-    throw new AuthorizationError('Only admins can upload payment documents');
+    throw new AuthorizationError('Only authorized backoffice users can upload payment documents');
   }
 
   return withUploadCleanup({

@@ -5,8 +5,9 @@ const { sendPathDownload } = require('@/modules/shared/http');
 
 const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentUpload, useCases }) => {
   const router = express.Router();
+  const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
 
-  router.get('/', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/', requirePermission('CLIENTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     const filters = {
       search: req.query.search,
       status: req.query.status,
@@ -30,22 +31,22 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.json({ success: true, data: result, message: 'Customers retrieved successfully' });
   }));
 
-  router.post('/', authMiddleware(['admin']), customerValidation.create, asyncHandler(async (req, res) => {
+  router.post('/', requirePermission('CLIENTS_CREATE'), customerValidation.create, asyncHandler(async (req, res) => {
     const customer = await useCases.createCustomer({ actor: req.user, payload: req.body });
     res.status(201).json({ success: true, data: customer, message: 'Customer created successfully' });
   }));
 
-  router.get('/lookup/by-document', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/lookup/by-document', requirePermission('CLIENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const customer = await useCases.findCustomerByDocument({ documentNumber: req.query.documentNumber });
     res.json({ success: true, data: { customer }, message: 'Customer found successfully' });
   }));
 
-  router.get('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/:id', requirePermission('CLIENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const customer = await useCases.getCustomerById({ customerId: req.params.id });
     res.json({ success: true, data: { customer }, message: 'Customer retrieved successfully' });
   }));
 
-  router.patch('/:id', authMiddleware(['admin']), customerValidation.update, asyncHandler(async (req, res) => {
+  router.patch('/:id', requirePermission('CLIENTS_UPDATE'), customerValidation.update, asyncHandler(async (req, res) => {
     const customer = await useCases.updateCustomer({
       actor: req.user,
       customerId: req.params.id,
@@ -54,12 +55,12 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.json({ success: true, data: customer, message: 'Customer updated successfully' });
   }));
 
-  router.delete('/:id', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.delete('/:id', requirePermission('CLIENTS_DELETE'), asyncHandler(async (req, res) => {
     await useCases.deleteCustomer({ actor: req.user, customerId: req.params.id });
     res.json({ success: true, message: 'Customer deleted successfully' });
   }));
 
-  router.patch('/:id/restore', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.patch('/:id/restore', requirePermission('CLIENTS_UPDATE'), asyncHandler(async (req, res) => {
     const customer = await useCases.restoreCustomer({
       actor: req.user,
       customerId: req.params.id,
@@ -67,12 +68,12 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.json({ success: true, data: { customer }, message: 'Customer restored successfully' });
   }));
 
-  router.get('/:id/documents', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:id/documents', requirePermission('CLIENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const documents = await useCases.listCustomerDocuments({ actor: req.user, customerId: req.params.id });
     res.json({ success: true, count: documents.length, data: { documents } });
   }));
 
-  router.post('/:id/documents', authMiddleware(['admin']), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
+  router.post('/:id/documents', requirePermission('CLIENTS_UPDATE'), attachmentUpload.single('file'), asyncHandler(async (req, res) => {
     const document = await useCases.uploadCustomerDocument({
       actor: req.user,
       customerId: req.params.id,
@@ -82,7 +83,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     res.status(201).json({ success: true, message: 'Customer document uploaded successfully', data: { document } });
   }));
 
-  router.get('/:id/documents/:documentId/download', authMiddleware(['admin', 'customer']), asyncHandler(async (req, res) => {
+  router.get('/:id/documents/:documentId/download', requirePermission('CLIENTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const download = await useCases.downloadCustomerDocument({
       actor: req.user,
       customerId: req.params.id,
@@ -94,7 +95,7 @@ const createCustomersRouter = ({ customerValidation, authMiddleware, attachmentU
     });
   }));
 
-  router.delete('/:id/documents/:documentId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.delete('/:id/documents/:documentId', requirePermission('CLIENTS_DELETE'), asyncHandler(async (req, res) => {
     await useCases.deleteCustomerDocument({
       actor: req.user,
       customerId: req.params.id,

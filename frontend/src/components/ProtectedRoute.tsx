@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
-import { restoreAccessToken } from '../api/client';
+import { apiClient, restoreAccessToken } from '../api/client';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useSessionStore } from '../store/sessionStore';
 import { extractStatusCode } from '../services/safeErrorMessages';
@@ -10,7 +10,8 @@ import { ActionButton, SectionSurface } from './shared/Surfaces';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('admin' | 'customer' | 'socio')[];
+  allowedRoles?: ('admin' | 'employee' | 'customer' | 'socio')[];
+  requiredPermissions?: string[];
 }
 
 interface GuestRouteProps {
@@ -99,7 +100,19 @@ const useResolvedSession = () => {
   };
 };
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+const extractPermissionNames = (payload: unknown): string[] => {
+  const records = (payload as any)?.data?.permissions ?? (payload as any)?.data?.permissionNames ?? [];
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map((entry) => {
+      if (typeof entry === 'string') return entry;
+      return entry?.permissionName ?? entry?.permission ?? entry?.name;
+    })
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+};
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, requiredPermissions = [] }) => {
   const location = useLocation();
   const {
     user,
@@ -112,6 +125,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     restoreErrorStatus,
     retryRestore,
   } = useResolvedSession();
+
+  const permissionQuery = useQuery({
+    queryKey: ['permissions.routeGuard', user?.id],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/permissions/me');
+      return data;
+    },
+    enabled: hasHydrated
+      && Boolean(accessToken)
+      && user?.role === 'employee'
+      && requiredPermissions.length > 0,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   if (!hasHydrated || isRestoring) {
     return <SessionLoadingState />;
@@ -139,6 +166,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={getDefaultRouteForUser(user)} replace />;
+  }
+
+  if (user.role === 'employee' && requiredPermissions.length > 0) {
+    if (permissionQuery.isLoading) {
+      return <SessionLoadingState label="Validando permisos…" />;
+    }
+
+    const grantedPermissions = new Set(extractPermissionNames(permissionQuery.data));
+    const hasRequiredPermission = requiredPermissions.some((permission) => grantedPermissions.has(permission));
+    if (!hasRequiredPermission) {
+      return <Navigate to={getDefaultRouteForUser(user)} replace />;
+    }
   }
 
   return <>{children}</>;

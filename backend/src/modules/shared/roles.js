@@ -1,4 +1,5 @@
-const APPLICATION_ROLES = ['admin', 'customer', 'socio'];
+const APPLICATION_ROLES = ['admin', 'employee', 'customer', 'socio'];
+const ADMINISTRATIVE_LOGIN_ROLES = ['admin', 'employee'];
 
 // Extended roles catalog with descriptions and default permissions
 const ROLES = [
@@ -15,15 +16,21 @@ const ROLES = [
     defaultPermissions: [],
   },
   {
+    id: 'EMPLOYEE',
+    name: 'Empleado',
+    description: 'Usuario interno con acceso limitado por permisos asignados',
+    defaultPermissions: [],
+  },
+  {
     id: 'PARTNER',
     name: 'Socio',
-    description: 'Usuario asociado con participación en ganancias',
+    description: 'Perfil de negocio sin acceso al sistema administrativo',
     defaultPermissions: ['READ_CREDITOS', 'READ_REPORTES'],
   },
   {
     id: 'CUSTOMER',
     name: 'Cliente',
-    description: 'Usuario final con acceso a sus propios datos y créditos',
+    description: 'Cliente de crédito sin acceso al sistema administrativo',
     defaultPermissions: ['READ_MIS_CREDITOS', 'READ_MIS_PAGOS'],
   },
 ];
@@ -47,11 +54,14 @@ const normalizeApplicationRole = (role) => {
 
 const isApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
 const isCanonicalApplicationRole = (role) => Boolean(normalizeApplicationRole(role));
+const isAdministrativeLoginRole = (role) => ADMINISTRATIVE_LOGIN_ROLES.includes(normalizeApplicationRole(role));
 
 module.exports = {
   APPLICATION_ROLES,
+  ADMINISTRATIVE_LOGIN_ROLES,
   ROLES,
   normalizeApplicationRole,
   isApplicationRole,
   isCanonicalApplicationRole,
+  isAdministrativeLoginRole,
 };

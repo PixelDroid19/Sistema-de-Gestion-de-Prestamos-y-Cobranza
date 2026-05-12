@@ -6,7 +6,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'customer' | 'socio';
+  role: 'admin' | 'employee' | 'customer' | 'socio';
   phone?: string;
   associateId?: number;
   permissions?: string[];

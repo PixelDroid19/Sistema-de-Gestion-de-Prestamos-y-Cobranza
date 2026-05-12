@@ -35,11 +35,11 @@ describe('Login behavior', () => {
     currentLocation = {};
   });
 
-  it('redirects customers to their default route when no pending route exists', async () => {
+  it('redirects employees to their default route when no pending route exists', async () => {
     mockLogin.mockResolvedValue({
       data: {
         user: {
-          role: 'customer',
+          role: 'employee',
         },
       },
     });
@@ -55,16 +55,15 @@ describe('Login behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/credits', { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith('/profile', { replace: true });
     });
   });
 
-  it('redirects socios to their portal when no pending route exists', async () => {
+  it('redirects admins to the dashboard when no pending route exists', async () => {
     mockLogin.mockResolvedValue({
       data: {
         user: {
-          role: 'socio',
-          associateId: 12,
+          role: 'admin',
         },
       },
     });
@@ -72,7 +71,7 @@ describe('Login behavior', () => {
     render(<Login />);
 
     fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
-      target: { value: 'qa.socio@example.com' },
+      target: { value: 'qa.admin@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
       target: { value: 'Admin1234' },
@@ -80,7 +79,7 @@ describe('Login behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/associates/12', { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
     });
   });
 
@@ -95,7 +94,7 @@ describe('Login behavior', () => {
     mockLogin.mockResolvedValue({
       data: {
         user: {
-          role: 'customer',
+          role: 'employee',
         },
       },
     });

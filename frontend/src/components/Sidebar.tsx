@@ -6,6 +6,7 @@ import { tTerm } from '../i18n/terminology';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { APP_BRAND } from '../constants/appShell';
 import { useAuth } from '../services/authService';
+import { useMyPermissions } from '../services/permissionsService';
 import { ClickableSurface, IconActionButton } from './shared/Surfaces';
 
 export default function Sidebar({ 
@@ -36,15 +37,26 @@ export default function Sidebar({
   const isAssociatesView = currentView.startsWith('associate');
   const { user, logout: clearSession } = useSessionStore();
   const { logout: requestLogout } = useAuth();
+  const { permissions: myPermissions } = useMyPermissions();
   const resolvedRole = user?.role;
   const isAdmin = resolvedRole === 'admin';
-  const isCustomer = resolvedRole === 'customer';
-  const isSocio = resolvedRole === 'socio';
-  const canAccessCredits = isAdmin || isCustomer || isSocio;
+  const isEmployee = resolvedRole === 'employee';
+  const permissionSet = new Set(
+    (myPermissions || [])
+      .map((permission: any) => permission?.permission ?? permission?.name ?? permission)
+      .filter((permission): permission is string => typeof permission === 'string'),
+  );
+  const canAccess = (permission: string) => isAdmin || (isEmployee && permissionSet.has(permission));
+  const canViewDashboard = canAccess('DASHBOARD_VIEW_ALL');
+  const canViewCustomers = canAccess('CLIENTS_VIEW_ALL');
+  const canCreateCustomers = canAccess('CLIENTS_CREATE');
+  const canViewCredits = canAccess('CREDITS_VIEW_ALL');
+  const canCreateCredits = canAccess('CREDITS_CREATE');
+  const canViewReports = canAccess('REPORTS_VIEW_ALL');
+  const canViewAssociates = canAccess('SOCIOS_VIEW_ALL');
+  const canViewPayouts = canAccess('PAYMENTS_VIEW_ALL');
+  const canViewAudit = canAccess('AUDIT_VIEW_ALL');
   const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
-  const associatesHomeView = isSocio && Number.isFinite(Number(user?.associateId))
-    ? `associates/${Number(user?.associateId)}`
-    : 'associates';
   
   // Ocultar submenús al colapsar el sidebar en escritorio
   useEffect(() => {
@@ -131,7 +143,7 @@ export default function Sidebar({
         
         {/* Navegación Principal */}
         <nav className="flex min-h-0 flex-1 flex-col gap-1.5 w-full overflow-y-auto px-3">
-          {isAdmin && (
+          {canViewDashboard && (
             <NavItem 
               icon={<LayoutDashboard size={20} />} 
               active={currentView === 'dashboard'} 
@@ -142,7 +154,7 @@ export default function Sidebar({
           )}
 
           {/* Menú Clientes */}
-          {isAdmin && (
+          {(canViewCustomers || canCreateCustomers) && (
           <div className="mt-1">
               <SectionNavButton
                 icon={<Users size={20} />}
@@ -155,25 +167,29 @@ export default function Sidebar({
             
             {openMenus['clientes'] && !isCollapsed && (
                   <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
-                <SubNavItem
-                  active={currentView === 'customers'}
-                  onClick={() => setCurrentView('customers')}
-                  title={tTerm('sidebar.customers.directory')}
-                  tooltip="Consulta y busca clientes registrados"
-                />
-                <SubNavItem
-                  active={currentView === 'customers-new'}
-                  onClick={() => setCurrentView('customers-new')}
-                  title={tTerm('sidebar.customers.new')}
-                  tooltip="Registra un cliente por primera vez"
-                />
+                {canViewCustomers && (
+                  <SubNavItem
+                    active={currentView === 'customers'}
+                    onClick={() => setCurrentView('customers')}
+                    title={tTerm('sidebar.customers.directory')}
+                    tooltip="Consulta y busca clientes registrados"
+                  />
+                )}
+                {canCreateCustomers && (
+                  <SubNavItem
+                    active={currentView === 'customers-new'}
+                    onClick={() => setCurrentView('customers-new')}
+                    title={tTerm('sidebar.customers.new')}
+                    tooltip="Registra un cliente por primera vez"
+                  />
+                )}
               </div>
             )}
           </div>
           )}
 
           {/* Menú Créditos */}
-          {canAccessCredits && (
+          {(canViewCredits || canCreateCredits || canViewReports) && (
           <div className="mt-1">
               <SectionNavButton
                 icon={<CreditCard size={20} />}
@@ -186,29 +202,31 @@ export default function Sidebar({
             
             {openMenus['creditos'] && !isCollapsed && (
               <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
-                <SubNavItem
-                  active={currentView === 'credits'}
-                  onClick={() => setCurrentView('credits')}
-                  title={tTerm('sidebar.credits.portfolio')}
-                  tooltip="Créditos en curso con saldo o cuotas pendientes"
-                />
-                {isAdmin && (
-                  <>
-                <SubNavItem
+                {canViewCredits && (
+                  <SubNavItem
+                    active={currentView === 'credits'}
+                    onClick={() => setCurrentView('credits')}
+                    title={tTerm('sidebar.credits.portfolio')}
+                    tooltip="Créditos en curso con saldo o cuotas pendientes"
+                  />
+                )}
+                {canCreateCredits && (
+                  <SubNavItem
                       active={currentView === 'credits-new' || currentView === 'credits/new'}
                       onClick={() => setCurrentView('credits-new')}
                       title={tTerm('sidebar.credits.origination')}
                       tooltip="Crear y registrar un credito nuevo"
                     />
+                )}
+                {canViewReports && (
                     <SubNavItem
                       active={currentView === 'reports'}
                       onClick={() => setCurrentView('reports')}
                       title={tTerm('sidebar.credits.reports')}
                       tooltip="Indicadores de cartera, mora y recaudo"
                     />
-                  </>
                 )}
-                {isAdmin && (
+                {canViewCredits && (
                   <SubNavItem
                     active={currentView === 'credit-calculator' || currentView === 'simulator'}
                     onClick={() => setCurrentView('credit-calculator')}
@@ -223,7 +241,7 @@ export default function Sidebar({
           )}
 
           {/* Menú Socios */}
-          {(isAdmin || isSocio) && (
+          {canViewAssociates && (
           <div className="mt-1">
               <SectionNavButton
                 icon={<UserPlus size={20} />}
@@ -231,22 +249,22 @@ export default function Sidebar({
                 active={isAssociatesView}
                 isCollapsed={isCollapsed}
                 isOpen={openMenus['socios']}
-                onClick={() => handleSectionClick('socios', associatesHomeView, isAssociatesView)}
+                onClick={() => handleSectionClick('socios', 'associates', isAssociatesView)}
               />
             
             {openMenus['socios'] && !isCollapsed && (
               <div className="mt-1 ml-[22px] flex flex-col gap-1 border-l border-border-subtle pl-3 animate-in fade-in duration-200">
                 <SubNavItem
                   active={currentView === 'associates' || currentView.startsWith('associates/')}
-                  onClick={() => setCurrentView(associatesHomeView)}
-                  title={isSocio ? 'Mi portal' : tTerm('sidebar.associates.management')}
+                  onClick={() => setCurrentView('associates')}
+                  title={tTerm('sidebar.associates.management')}
                 />
               </div>
             )}
           </div>
           )}
 
-          {isAdmin && (
+          {canViewPayouts && (
             <div className="mt-1 border-t border-border-subtle pt-2 pb-1">
               <NavItem
                 icon={<DollarSign size={20} />}
@@ -273,7 +291,7 @@ export default function Sidebar({
 
         {/* Footer Sidebar (Ajustes y Colapso) */}
         <div className="flex shrink-0 flex-col gap-1 w-full px-3 mt-4 pt-4 border-t border-border-subtle">
-          {isAdmin && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
+          {canViewAudit && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
           {isAdmin && <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />}
           <NavItem icon={<UserRound size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />
           <NavItem

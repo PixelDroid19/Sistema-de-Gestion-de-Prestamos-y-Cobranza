@@ -1,7 +1,7 @@
 const { ValidationError } = require('@/utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
-const { APPLICATION_ROLES, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);
@@ -228,10 +228,8 @@ const rejectUnsupportedLateFeeMode = (lateFeeMode, errors, field = 'lateFeeMode'
 const authValidation = {
   /** @type {import('express').RequestHandler} */
   register: (req, res, next) => {
-    const { name, email, password, role, phone } = req.body;
+    const { name, email, password, phone } = req.body;
     const errors = [];
-    const normalizedRole = normalizeApplicationRole(role);
-
     if (!name || name.trim().length < 2) {
       errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
     }
@@ -251,9 +249,7 @@ const authValidation = {
       });
     }
 
-    if (normalizedRole !== 'customer') {
-      errors.push({ field: 'role', message: 'Public registration only allows the customer role' });
-    }
+    errors.push({ field: 'role', message: 'Public registration is disabled. An administrator must create employee accounts.' });
 
     if (phone && !validatePhone(phone)) {
       errors.push({ field: 'phone', message: 'Please enter a valid phone number' });
@@ -291,8 +287,8 @@ const authValidation = {
       });
     }
 
-    if (!normalizedRole) {
-      errors.push({ field: 'role', message: `Role must be one of: ${APPLICATION_ROLES.join(', ')}` });
+    if (!normalizedRole || !isAdministrativeLoginRole(normalizedRole)) {
+      errors.push({ field: 'role', message: `Role must be one of: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
     }
 
     if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {
@@ -494,8 +490,8 @@ const loanValidation = {
       });
     }
 
-    if (!normalizedRole) {
-      errors.push({ field: 'role', message: `Role must be one of: ${APPLICATION_ROLES.join(', ')}` });
+    if (!normalizedRole || !isAdministrativeLoginRole(normalizedRole)) {
+      errors.push({ field: 'role', message: `Role must be one of: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
     }
 
     if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {

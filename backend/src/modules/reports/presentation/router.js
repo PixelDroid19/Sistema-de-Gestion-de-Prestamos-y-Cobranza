@@ -161,6 +161,7 @@ const normalizeDashboardNotificationRow = (notification = {}) => ({
 
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
+  const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
   const buildCreditExportFilters = (query = {}) => ({
     customerId: query.customerId,
     loanId: query.loanId,
@@ -266,23 +267,23 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     return buildWorkbookBuffer(sheets);
   };
 
-  router.get('/recovered', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/recovered', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getRecoveredLoans({ actor: req.user, pagination: req.pagination }));
   }));
 
-  router.get('/outstanding', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/outstanding', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getOutstandingLoans({ actor: req.user, pagination: req.pagination }));
   }));
 
-  router.get('/recovery', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/recovery', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getRecoveryReport({ actor: req.user }));
   }));
 
-  router.get('/dashboard', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/dashboard', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getDashboardSummary({ actor: req.user }));
   }));
 
-  router.get('/dashboard/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/dashboard/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const dashboardSummary = await useCases.getDashboardSummary({ actor: req.user });
     const buffer = await buildDashboardWorkbookBuffer(dashboardSummary?.data);
 
@@ -293,27 +294,27 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/customer-history/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/customer-history/:customerId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerHistory({ actor: req.user, customerId: req.params.customerId }));
   }));
 
-  router.get('/customer-history/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/customer-history/:customerId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerHistory({ actor: req.user, customerId: req.params.customerId, format });
     sendBufferDownload(res, exportFile);
   }));
 
-  router.get('/customer-credit-profile/:customerId', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/customer-credit-profile/:customerId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId }));
   }));
 
-  router.get('/customer-credit-profile/:customerId/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/customer-credit-profile/:customerId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId, format });
     sendBufferDownload(res, exportFile);
   }));
 
-  router.get('/profitability/customers', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/profitability/customers', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getCustomerProfitabilityReport({
       actor: req.user,
       pagination: req.pagination,
@@ -321,7 +322,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }));
   }));
 
-  router.get('/profitability/loans', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/profitability/loans', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getLoanProfitabilityReport({
       actor: req.user,
       pagination: req.pagination,
@@ -329,34 +330,34 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }));
   }));
 
-  router.get('/recovery/export', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/recovery/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'csv').toLowerCase();
     const exportFile = await useCases.exportRecoveryReport({ actor: req.user, format });
     sendBufferDownload(res, exportFile);
   }));
 
-  router.get('/credit-history/loan/:loanId', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/credit-history/loan/:loanId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const history = await useCases.getCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId });
     res.json({ success: true, data: { history } });
   }));
 
-  router.get('/credit-history/loan/:loanId/export', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/credit-history/loan/:loanId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
     const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId, format });
     sendBufferDownload(res, exportFile);
   }));
 
-  router.get('/associates/profitability/:associateId', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/associates/profitability/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId: req.params.associateId });
     res.json({ success: true, data: { report } });
   }));
 
-  router.get('/associates/profitability', authMiddleware(['socio']), asyncHandler(async (req, res) => {
+  router.get('/associates/profitability', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const report = await useCases.getAssociateProfitabilityReport({ actor: req.user });
     res.json({ success: true, data: { report } });
   }));
 
-  router.get('/associates/:associateId/export', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/associates/:associateId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
     const exportFile = await useCases.exportAssociateProfitabilityReport({
       actor: req.user,
@@ -368,45 +369,45 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   // === Financial Analytics Routes ===
 
-  router.get('/credit-earnings', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/credit-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCreditEarnings({ actor: req.user }));
   }));
 
-  router.get('/interest-earnings', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/interest-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getInterestEarnings({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/monthly-earnings', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/monthly-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getMonthlyEarnings({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/monthly-interest', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/monthly-interest', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getMonthlyInterest({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/performance-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/performance-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getPerformanceAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/executive-dashboard', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/executive-dashboard', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getExecutiveDashboard({ actor: req.user }));
   }));
 
-  router.get('/comprehensive-analytics', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/comprehensive-analytics', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getComprehensiveAnalytics({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/comparative-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/comparative-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.post('/comparative-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/comparative-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const requestedYear = req.body?.year;
     const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
     res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear }));
   }));
 
-  router.post('/earnings-report', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.post('/earnings-report', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const requestedYear = req.body?.year;
     const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
     const earnings = await useCases.getMonthlyEarnings({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear });
@@ -423,16 +424,16 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/forecast-analysis', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/forecast-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getForecastAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
   }));
 
-  router.get('/next-month-projection', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/next-month-projection', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getNextMonthProjection({ actor: req.user }));
   }));
 
   // Credits Excel Export and Summary
-  router.get('/credits/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/credits/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters: buildCreditExportFilters(req.query) });
     const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
       ? exportData.data.sheets
@@ -445,7 +446,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/payouts/excel', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/payouts/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportPayoutsExcel({ actor: req.user, filters: buildPayoutExportFilters(req.query) });
     const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
       ? exportData.data.sheets
@@ -465,11 +466,11 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/credits/summary', authMiddleware(['admin']), asyncHandler(async (req, res) => {
+  router.get('/credits/summary', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCreditsSummary({ actor: req.user }));
   }));
 
-  router.get('/associates/excel', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/associates/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportAssociatesExcel({ actor: req.user });
     const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
       ? exportData.data.sheets
@@ -489,7 +490,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.get('/partner-report/:associateId', authMiddleware(['admin', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/partner-report/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
     const exportFile = await useCases.exportAssociateProfitabilityReport({
       actor: req.user,
@@ -502,7 +503,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   // === Enhanced Reports: Payouts and Payment Schedule ===
 
   // GET /reports/payouts - List all payouts across credits (admin only)
-  router.get('/payouts', authMiddleware(['admin']), attachPagination(), asyncHandler(async (req, res) => {
+  router.get('/payouts', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getPayoutsReport({
       actor: req.user,
       pagination: req.pagination,
@@ -516,7 +517,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   // GET /reports/payment-schedule/:loanId - Get amortization schedule for a specific loan
-  router.get('/payment-schedule/:loanId', authMiddleware(['admin', 'customer', 'socio']), asyncHandler(async (req, res) => {
+  router.get('/payment-schedule/:loanId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getPaymentSchedule({
       actor: req.user,
       loanId: parseInt(req.params.loanId, 10),

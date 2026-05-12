@@ -1003,12 +1003,12 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
 
 const createGetAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId = null }) => {
   const resolveAssociate = async () => {
-    if (actor.role === 'admin') {
+    if (actor.role === 'admin' || actor.role === 'employee') {
       return associateRepository.findById(associateId);
     }
 
     if (actor.role !== 'socio') {
-      throw new AuthorizationError('Only admins and socios can access profitability reports');
+      throw new AuthorizationError('Only authorized backoffice users can access profitability reports');
     }
 
     return actor.associateId

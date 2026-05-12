@@ -2,14 +2,16 @@ const { AuthorizationError } = require('@/utils/errorHandler');
 
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
-const ensureAdmin = (actor, message = 'Only admins can access reports') => {
-  if (actor?.role !== 'admin') {
+const isBackofficeActor = (actor) => actor?.role === 'admin' || actor?.role === 'employee';
+
+const ensureAdmin = (actor, message = 'Only authorized backoffice users can access reports') => {
+  if (!isBackofficeActor(actor)) {
     throw new AuthorizationError(message);
   }
 };
 
-const ensureAdminOrSocio = (actor, message = 'Only admins and socios can access reports') => {
-  if (actor?.role !== 'admin' && actor?.role !== 'socio') {
+const ensureAdminOrSocio = (actor, message = 'Only authorized backoffice users can access reports') => {
+  if (!isBackofficeActor(actor)) {
     throw new AuthorizationError(message);
   }
 };

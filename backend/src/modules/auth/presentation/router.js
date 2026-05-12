@@ -85,8 +85,8 @@ const createAuthRouter = ({ authValidation, authMiddleware, useCases }) => {
     res.json({ success: true, message: 'Password changed successfully' });
   }));
 
-  // Register with permissions - requires admin + PERMISSIONS_ASSIGN permission
-  router.post('/register-with-permissions', authMiddleware({ permissions: ['PERMISSIONS_ASSIGN'] }), asyncHandler(async (req, res) => {
+  // Register with permissions - admin only; employees cannot create accounts or assign access.
+  router.post('/register-with-permissions', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.registerWithPermissions({
       actor: req.user,
       payload: req.body,

@@ -420,7 +420,7 @@ const createDeleteAssociate = ({ associateRepository, auditService }) => {
 };
 
 const ensureAssociatePortalAccess = async ({ actor, associateRepository, associateId = null }) => {
-  if (actor.role === 'admin') {
+  if (actor.role === 'admin' || actor.role === 'employee') {
     if (!associateId) {
       throw new ValidationError('Associate ID is required');
     }
@@ -434,7 +434,7 @@ const ensureAssociatePortalAccess = async ({ actor, associateRepository, associa
   }
 
   if (actor.role !== 'socio') {
-    throw new AuthorizationError('Only admins and socios can access associate portal data');
+    throw new AuthorizationError('Only authorized backoffice users can access associate portal data');
   }
 
   const associate = actor.associateId
@@ -481,8 +481,8 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
 
 const createCreateAssociateContribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can create associate contributions');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can create associate contributions');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -512,8 +512,8 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
 
 const createCreateProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can create profit distributions');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can create profit distributions');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -545,8 +545,8 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
 
 const createCreateAssociateReinvestment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can create associate reinvestments');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can create associate reinvestments');
     }
 
     const associate = await associateRepository.findById(associateId);
@@ -610,8 +610,8 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
 
 const createCreateProportionalProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, idempotencyKey, payload }) => {
-    if (actor.role !== 'admin') {
-      throw new AuthorizationError('Only admins can create proportional profit distributions');
+    if (!['admin', 'employee'].includes(actor.role)) {
+      throw new AuthorizationError('Only authorized backoffice users can create proportional profit distributions');
     }
 
     const amountCents = parseCurrencyToCents(payload.amount);

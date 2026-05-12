@@ -10,7 +10,7 @@ const { ROLES } = require('@/modules/shared/roles');
 const PAYMENT_METHOD_TYPES = new Set(['bank_transfer', 'cash', 'card', 'other']);
 
 const ADMIN_CATALOGS = {
-  roles: ['admin', 'customer', 'socio'],
+  roles: ['admin', 'employee'],
   customerStatuses: ['active', 'inactive'],
   associateStatuses: ['active', 'inactive'],
   paymentVisibilities: ['customer', 'internal'],

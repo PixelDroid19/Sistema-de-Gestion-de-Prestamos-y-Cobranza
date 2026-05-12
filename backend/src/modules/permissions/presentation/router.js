@@ -4,8 +4,6 @@ const { asyncHandler } = require('@/utils/errorHandler');
 const createPermissionsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
 
-  router.use(authMiddleware());
-
   const extractTargetUserId = (body = {}) => body.targetUserId ?? body.userId;
   const extractPermissionReference = (body = {}) => ({
     permissionId: body.permissionId,
@@ -17,27 +15,27 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
   // - Listing endpoints always include: permissions (flat), permissionsByModule, total.
   // - User permission endpoints include flat permissions plus role/direct breakdown.
 
-  router.get('/', asyncHandler(async (_req, res) => {
+  router.get('/', authMiddleware({ permissions: ['PERMISSIONS_VIEW_ALL'] }), asyncHandler(async (_req, res) => {
     const result = await useCases.listPermissions();
     res.json({ success: true, data: result });
   }));
 
-  router.get('/by-module/:module', asyncHandler(async (req, res) => {
+  router.get('/by-module/:module', authMiddleware({ permissions: ['PERMISSIONS_VIEW_ALL'] }), asyncHandler(async (req, res) => {
     const result = await useCases.getPermissionsByModule({ module: req.params.module });
     res.json({ success: true, data: result });
   }));
 
-  router.get('/user/:userId', asyncHandler(async (req, res) => {
+  router.get('/user/:userId', authMiddleware({ permissions: ['PERMISSIONS_VIEW_ALL'] }), asyncHandler(async (req, res) => {
     const result = await useCases.getUserPermissions({ actor: req.user, targetUserId: req.params.userId });
     res.json({ success: true, data: result });
   }));
 
-  router.get('/me', asyncHandler(async (req, res) => {
+  router.get('/me', authMiddleware(), asyncHandler(async (req, res) => {
     const result = await useCases.getMyPermissions({ actor: req.user });
     res.json({ success: true, data: result });
   }));
 
-  router.get('/me/summary', asyncHandler(async (req, res) => {
+  router.get('/me/summary', authMiddleware(), asyncHandler(async (req, res) => {
     const result = await useCases.getMyPermissions({ actor: req.user });
     const permissions = result.permissions || [];
 
@@ -63,7 +61,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
-  router.post('/grant', asyncHandler(async (req, res) => {
+  router.post('/grant', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const { permissionId, permission } = extractPermissionReference(req.body);
     const result = await useCases.grantPermission({
       actor: req.user,
@@ -74,7 +72,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.status(201).json({ success: true, message: 'Permission granted successfully', data: result });
   }));
 
-  router.post('/grant/batch', asyncHandler(async (req, res) => {
+  router.post('/grant/batch', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const result = await useCases.grantBatchPermissions({
       actor: req.user,
       targetUserId: extractTargetUserId(req.body),
@@ -84,7 +82,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.status(201).json({ success: true, message: 'Batch permissions granted', data: result });
   }));
 
-  router.post('/revoke', asyncHandler(async (req, res) => {
+  router.post('/revoke', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const { permissionId, permission } = extractPermissionReference(req.body);
     const result = await useCases.revokePermission({
       actor: req.user,
@@ -95,7 +93,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, message: 'Permission revoked successfully', data: result });
   }));
 
-  router.delete('/direct', asyncHandler(async (req, res) => {
+  router.delete('/direct', authMiddleware(['admin']), asyncHandler(async (req, res) => {
     const payload = req.body || {};
     const { permissionId, permission } = extractPermissionReference(payload);
     const result = await useCases.revokePermission({
@@ -107,7 +105,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, message: 'Direct permission revoked successfully', data: result });
   }));
 
-  router.post('/check', asyncHandler(async (req, res) => {
+  router.post('/check', authMiddleware(), asyncHandler(async (req, res) => {
     const result = await useCases.checkPermission({
       actor: req.user,
       permissionName: req.body.permissionName ?? req.body.permission,
@@ -115,7 +113,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
     res.json({ success: true, data: result });
   }));
 
-  router.post('/check-multiple', asyncHandler(async (req, res) => {
+  router.post('/check-multiple', authMiddleware(), asyncHandler(async (req, res) => {
     const result = await useCases.checkMultiplePermissions({
       actor: req.user,
       permissionNames: req.body.permissionNames,

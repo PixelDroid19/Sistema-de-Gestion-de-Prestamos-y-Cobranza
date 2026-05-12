@@ -90,6 +90,12 @@ const ensureAdmin = (actor) => {
   }
 };
 
+const ensureAssignableUser = (user) => {
+  if (user?.role !== 'employee') {
+    throw new AuthorizationError('Permissions can only be assigned to employee accounts');
+  }
+};
+
 const createListPermissions = ({ permissionRepository }) => async () => {
   const rawPermissions = await permissionRepository.findAll();
   const permissions = rawPermissions.map(sanitizePermission).filter(Boolean);
@@ -136,6 +142,7 @@ const createGetUserPermissions = ({ userPermissionRepository, rolePermissionRepo
   if (!user) {
     throw new NotFoundError('User');
   }
+  ensureAssignableUser(user);
 
   const [directAssignments, roleAssignments] = await Promise.all([
     userPermissionRepository.findByUser(normalizedTargetUserId),
@@ -200,6 +207,7 @@ const createGrantPermission = ({ permissionRepository, userPermissionRepository,
   if (!user) {
     throw new NotFoundError('User');
   }
+  ensureAssignableUser(user);
 
   const resolvedPermission = await resolvePermission({
     permissionRepository,
@@ -240,6 +248,7 @@ const createGrantBatchPermissions = ({ permissionRepository, userPermissionRepos
   if (!user) {
     throw new NotFoundError('User');
   }
+  ensureAssignableUser(user);
 
   let requests = [];
 

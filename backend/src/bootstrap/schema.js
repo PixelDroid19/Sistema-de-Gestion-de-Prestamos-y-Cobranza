@@ -26,6 +26,7 @@ const {
 } = require('@/models');
 const { AUDIT_ACTIONS, AUDIT_MODULES } = require('@/models/AuditLog');
 const { permissionsCatalog } = require('@/db/seeds/permissions_catalog');
+const { APPLICATION_ROLES } = require('@/modules/shared/roles');
 
 // The required schema models are ordered to respect foreign-key dependencies
 // (e.g. Customers must exist before Loans which reference them).
@@ -468,6 +469,19 @@ const ensureAuditLogEnums = async ({ database }) => {
   });
 };
 
+const ensureApplicationRoleEnums = async ({ database }) => {
+  await ensureEnumValues({
+    database,
+    enumTypeName: 'enum_Users_role',
+    values: APPLICATION_ROLES,
+  });
+  await ensureEnumValues({
+    database,
+    enumTypeName: 'enum_RolePermissions_role',
+    values: APPLICATION_ROLES,
+  });
+};
+
 const FINANCIAL_PRODUCT_SEEDS = [
   {
     name: 'Personal Loan 12%',
@@ -494,6 +508,7 @@ const FINANCIAL_PRODUCT_SEEDS = [
 
 const DEFAULT_ROLE_PERMISSION_NAMES = Object.freeze({
   admin: permissionsCatalog.map((permission) => permission.name),
+  employee: [],
   customer: [],
   socio: [],
 });
@@ -614,6 +629,7 @@ module.exports = {
   resetDatabaseSchema,
   syncDatabaseSchema,
   ensureAuditLogEnums,
+  ensureApplicationRoleEnums,
   seedPermissionCatalogAndRoleDefaults,
   seedFinancialProductsAndPermissions,
   seedCalculationProfileVersions,
