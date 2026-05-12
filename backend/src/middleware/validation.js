@@ -335,7 +335,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, interestRate, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource } = req.body;
+    const { customerId, associateId, amount, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -350,8 +350,8 @@ const loanValidation = {
       errors.push({ field: 'amount', message: 'Amount must be a positive number' });
     }
 
-    if (!usesPolicySource(rateSource) && !validateInterestRate(interestRate)) {
-      errors.push({ field: 'interestRate', message: 'Interest rate must be between 0 and 100' });
+    if (!usesPolicySource(rateSource)) {
+      errors.push({ field: 'rateSource', message: 'Credit creation must use a configured rate policy' });
     }
 
     if (!validateTermMonths(termMonths)) {

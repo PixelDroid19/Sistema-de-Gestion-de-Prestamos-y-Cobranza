@@ -55,6 +55,11 @@ type CreditSimulationWorkspaceProps = {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyScheduleDescription?: string;
+  rateControl?: {
+    readOnly?: boolean;
+    helper?: string;
+    badge?: string;
+  };
 };
 
 const lateFeeModeOptions: Array<{ value: NonNullable<CreditCalculationInput['lateFeeMode']>; label: string; helper: string }> = [
@@ -169,6 +174,7 @@ export default function CreditSimulationWorkspace({
   emptyTitle = 'Sin resultados todavía',
   emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
   emptyScheduleDescription = 'Tras calcular, aquí verás cada cuota con vencimiento, pago e intereses.',
+  rateControl,
 }: CreditSimulationWorkspaceProps) {
   const instanceId = useId();
   const titleId = `${instanceId}-credit-simulation-title`;
@@ -412,9 +418,14 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
-                        Tasa nominal anual
+                        {rateControl?.readOnly ? 'Tasa configurada' : 'Tasa nominal anual'}
                       </label>
-                      <FieldHint id={rateHelpId} text={fieldHelp.rate} />
+                      <FieldHint id={rateHelpId} text={rateControl?.helper || fieldHelp.rate} />
+                      {rateControl?.badge && (
+                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200">
+                          {rateControl.badge}
+                        </span>
+                      )}
                     </div>
                     <div className="relative mt-2">
                       <input
@@ -427,11 +438,14 @@ export default function CreditSimulationWorkspace({
                         onChange={handleFieldChange('interestRate')}
                         aria-describedby={fieldErrors.interestRate ? `${rateInputId}-error` : undefined}
                         aria-invalid={!!fieldErrors.interestRate}
-                        disabled={disabled}
+                        disabled={disabled || rateControl?.readOnly}
                         className={`w-full rounded-xl border bg-bg-base px-4 py-2.5 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-secondary">%</span>
                     </div>
+                    {rateControl?.helper && (
+                      <p className="mt-1.5 text-xs text-text-secondary">{rateControl.helper}</p>
+                    )}
                     {fieldErrors.interestRate && (
                       <p id={`${rateInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
                         {fieldErrors.interestRate}

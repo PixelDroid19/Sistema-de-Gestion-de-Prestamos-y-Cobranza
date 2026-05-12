@@ -38,10 +38,32 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
       associateId: 2,
       amount: 12000,
       interestRate: 12,
+      rateSource: 'policy',
       termMonths: 12,
       lateFeeMode: 'none',
     },
   }));
+});
+
+test('loanValidation.create rejects manual interest rate source for real credit creation', async () => {
+  const error = await captureMiddlewareError(loanValidation.create, {
+    body: {
+      customerId: 1,
+      amount: 12000,
+      interestRate: 12,
+      rateSource: 'manual',
+      termMonths: 12,
+      lateFeeMode: 'none',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [
+    {
+      field: 'rateSource',
+      message: 'Credit creation must use a configured rate policy',
+    },
+  ]);
 });
 
 test('loanValidation.create allows policy-driven rate without a manual interestRate', async () => {

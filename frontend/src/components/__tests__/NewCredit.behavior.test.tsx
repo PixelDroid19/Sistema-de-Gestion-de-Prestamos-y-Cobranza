@@ -6,6 +6,7 @@ const mockCreateLoan = vi.fn();
 const mockSetInput = vi.fn();
 const mockSimulate = vi.fn();
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 const mockUseActiveCreditSimulation = vi.fn();
 const mockConfigState = {
   ratePolicies: [] as any[],
@@ -64,6 +65,7 @@ vi.mock('../../services/configService', () => ({
   useConfig: () => ({
     ratePolicies: mockConfigState.ratePolicies,
     lateFeePolicies: mockConfigState.lateFeePolicies,
+    isLoading: false,
   }),
 }));
 
@@ -80,7 +82,7 @@ vi.mock('../hooks/useActiveCreditSimulation', () => ({
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
-    error: vi.fn(),
+    error: (...args: unknown[]) => mockToastError(...args),
     warning: vi.fn(),
     validationErrors: vi.fn(),
     apiErrorSafe: vi.fn(),
@@ -94,7 +96,17 @@ vi.mock('../../services/apiErrors', () => ({
 describe('NewCredit behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockConfigState.ratePolicies = [];
+    mockConfigState.ratePolicies = [
+      {
+        id: 1,
+        label: 'Tasa mayor a 1M',
+        annualEffectiveRate: 40,
+        minAmount: 1000000.01,
+        maxAmount: null,
+        isActive: true,
+        priority: 1,
+      },
+    ];
     mockConfigState.lateFeePolicies = [];
 
     mockUseActiveCreditSimulation.mockReturnValue({
@@ -137,10 +149,14 @@ describe('NewCredit behavior', () => {
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
     expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
-      initialInput: routeState.calculationInput,
+      initialInput: {
+        ...routeState.calculationInput,
+        rateSource: 'policy',
+      },
       autoRun: true,
     });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tasa configurada')).toBeDisabled();
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('sticky');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('fixed');
 
@@ -153,12 +169,12 @@ describe('NewCredit behavior', () => {
         customerId: 10,
         associateId: 3,
         amount: 2300000,
-        interestRate: 42,
+        interestRate: 40,
         termMonths: 16,
         startDate: '2026-05-01',
         lateFeeMode: 'COMPOUND',
         annualLateFeeRate: 0,
-        rateSource: 'manual',
+        rateSource: 'policy',
         lateFeeSource: 'manual',
       });
       expect(mockNavigate).toHaveBeenCalledWith('/credits/55');
@@ -180,7 +196,7 @@ describe('NewCredit behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
-  it('falls back to manual rate source when no active rate policy matches the current amount', async () => {
+  it('blocks real credit creation when no active rate policy matches the current amount', async () => {
     mockConfigState.ratePolicies = [
       {
         id: 1,
@@ -209,18 +225,10 @@ describe('NewCredit behavior', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
-      expect(mockCreateLoan).toHaveBeenCalledWith({
-        customerId: 10,
-        associateId: undefined,
-        amount: 2300000,
-        interestRate: 42,
-        termMonths: 16,
-        startDate: '2026-05-01',
-        lateFeeMode: 'COMPOUND',
-        annualLateFeeRate: 24,
-        rateSource: 'manual',
-        lateFeeSource: 'manual',
-      });
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Falta política de tasa',
+      }));
     });
+    expect(mockCreateLoan).not.toHaveBeenCalled();
   });
 });

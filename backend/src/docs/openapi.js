@@ -64,10 +64,15 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
       },
       CreditCalculationInput: {
         type: 'object',
-        required: ['amount', 'interestRate', 'termMonths'],
+        required: ['amount', 'termMonths'],
         properties: {
           amount: { type: 'number', minimum: 0.01 },
-          interestRate: { type: 'number', minimum: 0, maximum: 100 },
+          interestRate: {
+            type: 'number',
+            minimum: 0,
+            maximum: 100,
+            description: 'Opcional para simulaciones manuales. La creación real de créditos debe usar rateSource=policy y la tasa se resuelve desde /config/rate-policies.',
+          },
           termMonths: { type: 'integer', minimum: 1, maximum: 360 },
           startDate: {
             type: 'string',
@@ -77,7 +82,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           calculationMethod: { type: 'string', enum: ['FRENCH', 'SIMPLE', 'COMPOUND'], description: 'Método de cálculo operativo. Si se omite, el backend usa FRENCH.' },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
-          rateSource: { type: 'string', enum: ['policy', 'manual'] },
+          rateSource: { type: 'string', enum: ['policy', 'manual'], description: 'Para POST /loans debe ser policy; no se aceptan tasas manuales en créditos reales.' },
           lateFeeSource: { type: 'string', enum: ['policy', 'manual'] },
         },
       },

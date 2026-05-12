@@ -26,6 +26,10 @@ const resolveCreditCalculationExecution = async ({ input, calculationService, po
 };
 
 const resolvePolicyContext = async ({ input, policyResolver }) => {
+  if (String(input?.rateSource || '').trim().toLowerCase() !== 'policy') {
+    throw new ValidationError('Credit creation must use a configured rate policy');
+  }
+
   if (!policyResolver || typeof policyResolver.resolve !== 'function') {
     return {
       calculationInput: { ...input },
@@ -84,8 +88,10 @@ const resolveLoanStartDate = (value) => {
  * The `calculationProfileVersionId` persisted on the loan comes directly from
  * the calculation execution result, guaranteeing it is the exact profile that
  * produced the numbers.
+ * Real credit creation also requires `rateSource=policy`, so the annual rate is
+ * resolved from the configured amount ranges and cannot be hand-edited per loan.
  *
- * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate: number, termMonths: number, lateFeeMode?: string }} input
+ * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeMode?: string }} input
  * @returns {Promise<object>}
  */
 const createLoanFromCanonicalDataFactory = ({

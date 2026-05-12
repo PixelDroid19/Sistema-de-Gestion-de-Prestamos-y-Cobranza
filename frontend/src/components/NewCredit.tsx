@@ -52,7 +52,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const { createLoan } = useLoans();
   const { data: customersData } = useCustomers({ pageSize: 100 });
   const { data: associatesData } = useAssociates({ pageSize: 100 });
-  const { ratePolicies, lateFeePolicies } = useConfig();
+  const { ratePolicies, lateFeePolicies, isLoading: isConfigLoading } = useConfig();
 
   const customers = Array.isArray(customersData?.data?.customers)
     ? customersData.data.customers
@@ -71,11 +71,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     customerId: '',
     associateId: '',
   });
-  const [rateWasEdited, setRateWasEdited] = useState(Boolean(routeState?.calculationInput?.interestRate));
   const [lateFeeWasEdited, setLateFeeWasEdited] = useState(Boolean(routeState?.calculationInput?.lateFeeMode));
   const initialCalculationInput = useMemo<CreditCalculationInput>(() => ({
     ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
     ...routeState?.calculationInput,
+    rateSource: 'policy',
     startDate: routeState?.calculationInput?.startDate || nextMonthAsIsoDate(),
   }), [routeState?.calculationInput]);
 
@@ -115,7 +115,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const nextInput: Partial<CreditCalculationInput> = {};
 
-    if (!rateWasEdited && resolvedRatePolicy?.annualEffectiveRate != null) {
+    if (resolvedRatePolicy?.annualEffectiveRate != null) {
       nextInput.interestRate = Number(resolvedRatePolicy.annualEffectiveRate);
       nextInput.rateSource = 'policy';
     }
@@ -129,21 +129,24 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     if (Object.keys(nextInput).length > 0) {
       setInput(nextInput);
     }
-  }, [lateFeeWasEdited, rateWasEdited, resolvedLateFeePolicy, resolvedRatePolicy, setInput]);
+  }, [lateFeeWasEdited, resolvedLateFeePolicy, resolvedRatePolicy, setInput]);
 
-  const resolvedRateSource = rateWasEdited || !resolvedRatePolicy ? 'manual' : 'policy';
+  const resolvedRateSource = 'policy';
   const resolvedLateFeeSource = lateFeeWasEdited || !resolvedLateFeePolicy ? 'manual' : 'policy';
+  const isRatePolicyReady = Boolean(resolvedRatePolicy);
   const annualLateFeeRate = Number(
     input.annualLateFeeRate
     ?? resolvedLateFeePolicy?.annualEffectiveRate
     ?? 0,
   );
-  const rateSourceLabel = resolvedRateSource === 'policy' ? 'Configuración' : 'Manual';
+  const rateSourceLabel = isRatePolicyReady ? 'Configuración' : 'Sin política';
   const lateFeeSourceLabel = resolvedLateFeeSource === 'policy' ? 'Configuración' : 'Manual';
-  const rateSummaryValue = `${Number(input.interestRate ?? resolvedRatePolicy?.annualEffectiveRate ?? 0)}% EA`;
-  const rateSummaryDetail = resolvedRateSource === 'policy' && resolvedRatePolicy
+  const rateSummaryValue = isRatePolicyReady
+    ? `${Number(resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate ?? 0)}% EA`
+    : 'Sin política';
+  const rateSummaryDetail = isRatePolicyReady
     ? resolvedRatePolicy.label
-    : 'Editada en este crédito';
+    : 'Crea o ajusta una política de tasa para este rango de monto.';
   const lateFeeModeLabel = getCalculationValueLabel(
     input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE',
     'lateFeeMode',
@@ -153,7 +156,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     : 'Editada en este crédito';
   const lateFeeSummaryValue = `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
   const hasValidatedResult = Boolean(result) && !isResultStale;
-  const canRegister = Boolean(borrower.customerId) && hasValidatedResult && !isSubmitting && !isSimulating;
+  const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
   const isRegistrationReady = isBorrowerReady && hasValidatedResult;
   const calculationRuleLabel = result?.calculationProfileVersionId != null
@@ -161,6 +164,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     : 'Regla activa';
   const nextActionMessage = !isBorrowerReady
     ? 'Selecciona el cliente que recibirá el crédito.'
+    : !isRatePolicyReady
+      ? 'No hay una política de tasa activa para este monto.'
     : !result
       ? 'Valida el cálculo antes de registrar.'
       : isResultStale
@@ -198,8 +203,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
   const handleCalculationInputChange = (partialInput: Partial<CreditCalculationInput>) => {
     if (Object.prototype.hasOwnProperty.call(partialInput, 'interestRate')) {
-      setRateWasEdited(true);
-      partialInput.rateSource = 'manual';
+      delete partialInput.interestRate;
+      partialInput.rateSource = 'policy';
     }
     if (Object.prototype.hasOwnProperty.call(partialInput, 'lateFeeMode')) {
       setLateFeeWasEdited(true);
@@ -209,12 +214,24 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   };
 
   const resetCalculation = () => {
-    setRateWasEdited(false);
     setLateFeeWasEdited(false);
     setInput({
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
+      rateSource: 'policy',
       startDate: nextMonthAsIsoDate(),
     });
+  };
+
+  const handleValidateCredit = () => {
+    if (!isRatePolicyReady) {
+      toast.error({
+        title: 'Falta política de tasa',
+        description: 'Configura una política activa que cubra este monto antes de validar o registrar el crédito.',
+      });
+      return;
+    }
+
+    void simulate();
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -237,18 +254,26 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       return;
     }
 
+    if (!isRatePolicyReady) {
+      toast.error({
+        title: 'Falta política de tasa',
+        description: 'No se puede registrar un crédito real sin una política de tasa activa para el monto.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await createLoan.mutateAsync({
         customerId: Number(borrower.customerId),
         associateId: borrower.associateId ? Number(borrower.associateId) : undefined,
         amount: Number(input.amount),
-        interestRate: Number(input.interestRate),
+        interestRate: Number(resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate),
         termMonths: Number(input.termMonths),
         startDate: input.startDate,
         lateFeeMode: input.lateFeeMode || 'SIMPLE',
         annualLateFeeRate,
-        rateSource: resolvedRateSource,
+        rateSource: 'policy',
         lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
@@ -302,11 +327,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           </ActionButton>
           <ActionButton
             data-tour="new-credit-validate"
-            onClick={simulate}
-            disabled={isSimulating}
+            onClick={handleValidateCredit}
+            disabled={isSimulating || isConfigLoading}
             isLoading={isSimulating}
             aria-label="Validar crédito"
-            title="Calcula la cuota, intereses y cronograma antes de crear el credito real."
+            title={isRatePolicyReady ? 'Calcula la cuota, intereses y cronograma con la política de tasa activa.' : 'Primero crea una política de tasa que cubra este monto.'}
             icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
             fullWidth
           >
@@ -509,6 +534,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           emptyTitle="Valida antes de registrar"
           emptyDescription="Completa los datos del crédito y ejecuta la validación para revisar cuota, intereses y cronograma."
           emptyScheduleDescription="Las cuotas calculadas aparecerán aquí después de validar."
+          rateControl={{
+            readOnly: true,
+            badge: 'Configuración',
+            helper: isRatePolicyReady
+              ? `La tasa se toma de "${resolvedRatePolicy.label}" según el monto. No se edita manualmente en créditos reales.`
+              : 'No hay política de tasa activa para este monto; crea un rango en Configuración > Tasas de crédito.',
+          }}
         />
       </section>
 

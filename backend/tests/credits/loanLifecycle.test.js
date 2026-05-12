@@ -66,6 +66,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     associateId: 3,
     amount: 12000,
     interestRate: 12,
+    rateSource: 'policy',
     termMonths: 12,
     lateFeeMode: 'none',
     startDate: '2026-04-24',
@@ -143,6 +144,7 @@ test('createLoanFromCanonicalData stores the selected payment date without timez
     customerId: 1,
     amount: 1000,
     interestRate: 12,
+    rateSource: 'policy',
     termMonths: 1,
     lateFeeMode: 'none',
     startDate: '2026-04-29T23:30:00-05:00',
@@ -191,6 +193,7 @@ test('createLoanFromCanonicalDataFactory persists profile-selected results with 
     customerId: 1,
     amount: 90,
     interestRate: 12,
+    rateSource: 'policy',
     termMonths: 1,
   });
 
@@ -321,6 +324,7 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence without fal
     customerId: 1,
     amount: 100,
     interestRate: 12,
+    rateSource: 'policy',
     termMonths: 1,
   });
 
@@ -347,6 +351,7 @@ test('createLoanFromCanonicalDataFactory rejects new credits when no calculation
       customerId: 1,
       amount: 90,
       interestRate: 12,
+      rateSource: 'policy',
       termMonths: 1,
     }),
     (error) => {
