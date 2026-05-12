@@ -64,6 +64,85 @@
   - `frontend/src/components/__tests__/ProtectedRoute.behavior.test.tsx` verifies employee redirect from `/settings` and customer/socio redirect away from admin routes.
   - `frontend/src/components/__tests__/Sidebar.terminology.test.tsx` verifies employee navigation is permission-scoped.
 
+## Completed Financial Product Contracts
+Treat these as implemented product contracts, not open goals. If a future change touches one of these areas, preserve the behavior unless the user explicitly asks to change the contract and add/adjust tests in the same patch.
+
+### 1. Roles And Permissions
+- The only administrative platform roles are `admin` and `employee`.
+- `admin` is the owner/administrator role and has full access by default through seeded role permissions.
+- `employee` is an internal operator role with no default permissions; admins grant explicit module permissions.
+- `customer` and `socio` must be rejected from the administrative platform by backend auth and redirected away from admin routes in frontend.
+- Employees cannot modify rates, late-fee policies, payment methods, business settings, users, or permission assignments.
+- Backend source files: `backend/src/modules/shared/auth.js`, `backend/src/modules/shared/roles.js`, `backend/src/modules/permissions/`, `backend/src/modules/config/presentation/router.js`.
+- Frontend source files: `frontend/src/App.tsx`, `frontend/src/components/ProtectedRoute.tsx`, `frontend/src/components/Sidebar.tsx`, `frontend/src/constants/appAccess.ts`.
+- Guard tests: `backend/tests/permissionsAuthMiddleware.test.js`, `backend/tests/configRouter.test.js`, `backend/tests/permissionsRouter.test.js`, `frontend/src/components/__tests__/ProtectedRoute.behavior.test.tsx`, `frontend/src/components/__tests__/Sidebar.terminology.test.tsx`.
+
+### 2. Amount-Based Rate Parameterization
+- Credit rates are operational configuration, not free-form per-credit edits.
+- Rate policies are configured by amount ranges under `/api/config/rate-policies`.
+- Active rate policies with the same priority cannot overlap; both frontend and backend validate duplicate labels, invalid ranges, invalid percentages, and ambiguous overlaps.
+- Credit creation resolves the applicable policy automatically and freezes the resulting rate/policy snapshot in the created loan.
+- Existing loans must not be recalculated when future rate policies change.
+- Do not reintroduce manual rate mutation for an already-created loan. Admin-only late-fee rate changes are separate operational actions and must remain guarded.
+- Backend source files: `backend/src/modules/config/application/useCases.js`, `backend/src/modules/config/presentation/router.js`, `backend/src/modules/credits/application/creditPolicyResolver.js`, `backend/src/modules/credits/infrastructure/loanCreation.js`.
+- Frontend source files: `frontend/src/components/Settings.tsx`, `frontend/src/components/NewCredit.tsx`, `frontend/src/services/configService.ts`.
+- Guard tests: `backend/tests/configModule.test.js`, `backend/tests/configRouter.test.js`, `backend/tests/credits/loanLifecycle.test.js`, `frontend/src/components/__tests__/Settings.behavior.test.tsx`, `frontend/src/components/__tests__/NewCredit.behavior.test.tsx`.
+
+### 3. Capital Prepayment Rules
+- "Abono a capital" means reducing outstanding principal and rebuilding the future schedule. It must not mark future installments as paid or partial by itself.
+- Capital prepayment is blocked until at least the first installment has been paid.
+- Capital prepayment is also blocked when there are overdue installments, payable interest, partial operative installments, closed loans, financial locks, or no remaining principal.
+- Supported strategies are `reduce_term` and `reduce_payment`; both must be real backend behavior, not UI-only labels.
+- Invalid attempts should return clear operational errors and remain auditable where the calling flow records audit context.
+- Backend source files: `backend/src/modules/credits/application/paymentApplicationService.js`, `backend/src/modules/credits/presentation/router.js`, `backend/src/modules/payouts/presentation/router.js`.
+- Frontend source files: `frontend/src/components/CreditDetails.tsx`, `frontend/src/components/shared/CreditSimulationWorkspace.tsx`, `frontend/src/services/paymentService.ts`, `frontend/src/services/loanService.ts`.
+- Guard tests: `backend/tests/paymentApplicationService.test.js`, `backend/tests/creditsModule.test.js`, `backend/tests/creditsRouter.test.js`, `frontend/src/components/__tests__/CreditDetails.behavior.test.tsx`.
+
+### 4. Investor Associates
+- Socios are investor records, not administrative login users.
+- The associates module tracks contributed capital, monthly or annual interest terms, interest payment dates, movements, installment obligations, distributions, reinvestments, and debt status.
+- Socio portal-style data can exist as domain reporting, but socios must not enter the administrative frontend or execute backoffice credit/payment operations.
+- Backend source files: `backend/src/modules/associates/`, `backend/src/modules/reports/`.
+- Frontend source files: `frontend/src/components/Associates.tsx`, `frontend/src/components/AssociateDetails.tsx`, `frontend/src/components/NewAssociate.tsx`.
+- Guard tests: `backend/tests/associatesModule.test.js`, `backend/tests/associatesRouter.test.js`, `backend/tests/reportsExcelExport.test.js`, `frontend/src/components/__tests__/Associates.behavior.test.tsx`, `frontend/src/components/__tests__/AssociateDetails.behavior.test.tsx`.
+
+### 5. Monthly Cash Flow And Financial Control
+- Monthly cash flow reconciles incoming installment/payment money against outgoing originated loan capital.
+- Reports must expose monthly income, loan disbursements, available cash, loss/profit indicators, monthly history, and exportable evidence.
+- Report totals must be derived from canonical loan/payment data, not duplicated frontend calculations.
+- Backend source files: `backend/src/modules/reports/`, especially monthly cash-flow use cases and report helpers.
+- Frontend source files: `frontend/src/components/Reports.tsx`, `frontend/src/services/reportService.ts`.
+- Guard tests: `backend/tests/monthlyCashFlowReport.test.js`, `backend/tests/reportsExcelExport.test.js`, `backend/tests/reports/financialAnalyticsRouter.test.js`, `frontend/src/components/__tests__/Reports.behavior.test.tsx`.
+
+### 6. Credit History Exports
+- Credit history exports are operational audit artifacts, not technical dumps.
+- Exports must include user-facing Spanish headers, formatted money/dates/percentages, created credits, installments received, interest collected/generated, recovered principal, overdue/defaulted credits, losses, profits, and available cash where the selected report supports them.
+- Main credit Excel exports should follow the previous backend workbook style: `Resumen General`, `Detalle de Créditos`, and per-credit sheets with amortization and payment history.
+- Do not expose internal fields such as DAG versions, raw policy ids, JavaScript object keys, or implementation labels in user-facing Excel headers.
+- Backend source files: `backend/src/modules/reports/application/`, `backend/src/modules/reports/presentation/router.js`.
+- Frontend source files: `frontend/src/components/Reports.tsx`, `frontend/src/services/reportService.ts`, download helpers.
+- Guard tests: `backend/tests/reportsExcelExport.test.js`, `backend/tests/monthlyCashFlowReport.test.js`.
+
+### 7. Financial Action UI Structure
+- In credit detail screens, critical money actions must be grouped together: `Registrar pago`, `Abono a capital`, and `Pago total`.
+- Informational/navigation actions must stay separate: `Excel`, `Plan de pagos`, `Estado`, and `Guía rápida`.
+- Avoid putting operational actions into tabs. Tabs are for sections such as calendar, alerts, promises, payment history, payoff information, and operational history.
+- Preserve responsive behavior and accessible tooltips/labels when adjusting the UI.
+- Frontend source files: `frontend/src/components/CreditDetails.tsx`, `frontend/src/components/shared/Surfaces.tsx`, `frontend/src/components/shared/HelpSupport.tsx`.
+- Guard tests: `frontend/src/components/__tests__/CreditDetails.behavior.test.tsx`.
+
+### Master Modernization Contract
+- The current product modernization includes roles/permissions, amount-based rate policies, capital-prepayment restrictions, investor associates, monthly financial control, report exports, and financial UI action hierarchy.
+- Preserve compatibility with existing production data. Add migrations safely and never reset production data as a shortcut.
+- Do not reintroduce DAG runtime behavior. The current credit calculation engine is versioned calculation profiles plus frozen policy snapshots.
+- Do not reintroduce legacy physical deletion for financial operations. Prefer status changes, annulment/correction, audit logs, and traceable history.
+- Before claiming completion after touching these flows, run relevant focused tests plus:
+  - `cd backend && npm run lint`
+  - `cd backend && NODE_ENV=test node --require module-alias/register --test`
+  - `cd frontend && npm run lint`
+  - `cd frontend && npm test -- --run`
+  - `cd frontend && npm run build`
+
 ## Stale Docs And Naming
 - `frontend/README.md` is leftover AI Studio/Gemini boilerplate and is not the current source of truth.
 - `setup.md` is stale for frontend port and `VITE_API_URL`; prefer `frontend/package.json` and `frontend/vite.config.ts`.
