@@ -229,6 +229,43 @@ describe('createLoginUser with progressive delays and lockout', () => {
     assert.equal(updatedFields.failedLoginAttempts, 0);
     assert.equal(updatedFields.lockedUntil, null);
   });
+
+  test('expired lockout starts a fresh failed-attempt window instead of relocking immediately', async () => {
+    const pastLockout = new Date(Date.now() - 5 * 60 * 1000);
+    let updatedFields = null;
+    const loginUser = createLoginUser({
+      userRepository: {
+        async findByEmail() {
+          return {
+            id: 1,
+            email: 'test@test.com',
+            password: 'hashed',
+            role: 'employee',
+            failedLoginAttempts: 5,
+            lockedUntil: pastLockout,
+          };
+        },
+        async update(userId, fields) {
+          updatedFields = fields;
+          return { id: userId, ...fields };
+        },
+      },
+      passwordHasher: {
+        async compare() { return false; },
+      },
+      tokenService: {
+        sign() { return 'token'; },
+      },
+    });
+
+    await assert.rejects(
+      async () => loginUser({ email: 'test@test.com', password: 'wrong' }),
+      /Please enter correct email\/password/
+    );
+
+    assert.equal(updatedFields.failedLoginAttempts, 1);
+    assert.equal(updatedFields.lockedUntil, null);
+  });
 });
 
 describe('createUnlockUser', () => {

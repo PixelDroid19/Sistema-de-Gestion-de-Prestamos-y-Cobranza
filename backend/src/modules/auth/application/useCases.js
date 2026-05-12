@@ -284,9 +284,14 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
     throw new AuthenticationError('Please enter correct email/password');
   }
 
+  const now = new Date();
+  const lockedUntil = user.lockedUntil ? new Date(user.lockedUntil) : null;
+  const isCurrentlyLocked = lockedUntil && lockedUntil > now;
+  const isExpiredLockout = lockedUntil && lockedUntil <= now;
+
   // Check if account is currently locked
-  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-    const remainingMinutes = Math.ceil((new Date(user.lockedUntil) - new Date()) / 60000);
+  if (isCurrentlyLocked) {
+    const remainingMinutes = Math.ceil((lockedUntil - now) / 60000);
     logSecurity('auth.login.account_locked', {
       userId: user.id,
       email: user.email,
@@ -302,8 +307,12 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
   const isPasswordValid = await passwordHasher.compare(password, user.password);
   if (!isPasswordValid) {
     // Increment failed login attempts
-    const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
-    const updates = { failedLoginAttempts: newFailedAttempts };
+    const previousFailedAttempts = isExpiredLockout ? 0 : (user.failedLoginAttempts || 0);
+    const newFailedAttempts = previousFailedAttempts + 1;
+    const updates = {
+      failedLoginAttempts: newFailedAttempts,
+      ...(isExpiredLockout ? { lockedUntil: null } : {}),
+    };
 
     // Lock the account if threshold reached
     if (newFailedAttempts >= LOCKOUT_THRESHOLD) {

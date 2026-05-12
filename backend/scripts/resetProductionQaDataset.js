@@ -1,7 +1,9 @@
 require('module-alias/register');
 require('dotenv').config();
 
-const { sequelize, User, Customer, Associate } = require('@/models');
+const { sequelize, User, Customer } = require('@/models');
+const { createCreateAssociate } = require('@/modules/associates/application/useCases');
+const { associateRepository } = require('@/modules/associates/infrastructure/repositories');
 const {
   resetDatabaseSchema,
   ensureAuditLogEnums,
@@ -39,6 +41,14 @@ const buildSeedConfig = () => {
         name: process.env.QA_SOCIO_NAME || 'QA Socio',
         email: process.env.QA_SOCIO_EMAIL || 'qa.socio.20260427@test.local',
         phone: process.env.QA_SOCIO_PHONE || '+573001110002',
+        initialCapital: process.env.QA_SOCIO_INITIAL_CAPITAL || '5000000',
+        interestType: process.env.QA_SOCIO_INTEREST_TYPE || 'monthly',
+        interestRate: process.env.QA_SOCIO_INTEREST_RATE || '2',
+        interestPaymentDay: process.env.QA_SOCIO_INTEREST_PAYMENT_DAY || '15',
+      },
+      employee: {
+        name: process.env.QA_EMPLOYEE_NAME || 'QA Employee',
+        email: process.env.QA_EMPLOYEE_EMAIL || 'qa.employee.20260427@test.local',
       },
     },
   };
@@ -72,15 +82,13 @@ const seedQaUsers = async ({ users, password }) => {
     role: 'admin',
   });
 
-  const customerUser = await createUser({
-    name: users.customer.name,
-    email: users.customer.email,
+  const employee = await createUser({
+    ...users.employee,
     password,
-    role: 'customer',
+    role: 'employee',
   });
 
   const customer = await Customer.create({
-    id: customerUser.id,
     name: users.customer.name,
     email: users.customer.email,
     phone: users.customer.phone,
@@ -92,30 +100,29 @@ const seedQaUsers = async ({ users, password }) => {
     address: 'QA seeded customer address',
   });
 
-  const associate = await Associate.create({
-    name: users.socio.name,
-    email: users.socio.email,
-    phone: users.socio.phone,
-    address: 'QA seeded associate address',
-    status: 'active',
-    participationPercentage: 100,
-    notes: 'Seeded after Railway QA reset',
-  });
-
-  const socio = await createUser({
-    name: users.socio.name,
-    email: users.socio.email,
-    password,
-    role: 'socio',
-    associateId: associate.id,
+  const createAssociate = createCreateAssociate({ associateRepository });
+  const associate = await createAssociate({
+    actor: { id: admin.id, role: 'admin' },
+    payload: {
+      name: users.socio.name,
+      email: users.socio.email,
+      phone: users.socio.phone,
+      address: 'QA seeded associate address',
+      status: 'active',
+      participationPercentage: 100,
+      interestType: users.socio.interestType,
+      interestRate: users.socio.interestRate,
+      interestPaymentDay: users.socio.interestPaymentDay,
+      initialCapital: users.socio.initialCapital,
+      notes: 'Seeded as investor associate with capital trace and scheduled interest',
+    },
   });
 
   return {
     admin,
-    customerUser,
+    employee,
     customer,
     associate,
-    socio,
   };
 };
 
@@ -142,17 +149,16 @@ const main = async () => {
     },
     users: {
       admin: { id: seeded.admin.id, email: seeded.admin.email, role: seeded.admin.role },
+      employee: { id: seeded.employee.id, email: seeded.employee.email, role: seeded.employee.role },
       customer: {
-        id: seeded.customerUser.id,
-        email: seeded.customerUser.email,
-        role: seeded.customerUser.role,
-        customerId: seeded.customer.id,
+        id: seeded.customer.id,
+        email: seeded.customer.email,
+        type: 'domain-record',
       },
       socio: {
-        id: seeded.socio.id,
-        email: seeded.socio.email,
-        role: seeded.socio.role,
-        associateId: seeded.associate.id,
+        id: seeded.associate.id,
+        email: seeded.associate.email,
+        type: 'investor-associate',
       },
     },
   };

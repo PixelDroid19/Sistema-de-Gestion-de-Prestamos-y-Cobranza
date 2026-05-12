@@ -98,6 +98,21 @@ const login = async ({ email, password, label }) => {
   return token;
 };
 
+const expectLoginRejected = async ({ email, password, label }) => {
+  if (!email || !password) {
+    return 'skipped';
+  }
+
+  const response = await expectStatus(`${label} login rejected`, {
+    method: 'POST',
+    path: '/api/auth/login',
+    body: { email, password },
+  }, 401);
+
+  assert(!response.body?.data?.accessToken, `${label} unexpectedly received an access token`, response.body);
+  return 'rejected';
+};
+
 const runPublicSmoke = async (summary) => {
   const health = await expectStatus('health', { path: '/health' });
   assert(health.body?.status === 'success', 'health response did not report success', health.body);
@@ -168,59 +183,41 @@ const runAdminSmoke = async (summary) => {
   summary.admin = 'authenticated core modules passed';
 };
 
-const runCustomerSmoke = async (summary) => {
+const runEmployeeSmoke = async (summary) => {
   const token = await login({
-    label: 'customer',
-    email: process.env.SMOKE_CUSTOMER_EMAIL,
-    password: process.env.SMOKE_CUSTOMER_PASSWORD,
+    label: 'employee',
+    email: process.env.SMOKE_EMPLOYEE_EMAIL,
+    password: process.env.SMOKE_EMPLOYEE_PASSWORD,
   });
 
   if (!token) {
-    summary.customer = 'skipped: set SMOKE_CUSTOMER_EMAIL and SMOKE_CUSTOMER_PASSWORD';
+    summary.employee = 'skipped: set SMOKE_EMPLOYEE_EMAIL and SMOKE_EMPLOYEE_PASSWORD';
     return;
   }
 
-  const profile = await expectStatus('customer profile', { path: '/api/auth/profile', token });
-  assert(profile.body?.data?.user?.role === 'customer', 'customer credentials did not resolve to customer role', profile.body);
+  const profile = await expectStatus('employee profile', { path: '/api/auth/profile', token });
+  assert(profile.body?.data?.user?.role === 'employee', 'employee credentials did not resolve to employee role', profile.body);
+  await expectStatus('employee permissions', { path: '/api/permissions/me', token });
 
-  await expectStatus('customer loans', { path: '/api/loans?page=1&pageSize=5', token });
-
-  if (process.env.SMOKE_CUSTOMER_LOAN_ID) {
-    const loanId = process.env.SMOKE_CUSTOMER_LOAN_ID;
-    await expectStatus('customer loan detail', { path: `/api/loans/${loanId}`, token });
-    await expectStatus('customer loan calendar', { path: `/api/loans/${loanId}/calendar`, token });
-    await expectStatus('customer payoff quote', { path: `/api/loans/${loanId}/payoff-quote?asOfDate=2026-06-01`, token });
-  }
-
-  if (process.env.SMOKE_FORBIDDEN_LOAN_ID) {
-    await expectStatus('customer forbidden loan detail', {
-      path: `/api/loans/${process.env.SMOKE_FORBIDDEN_LOAN_ID}`,
-      token,
-    }, 403);
-  }
-
-  summary.customer = 'authenticated customer read flow passed';
+  summary.employee = 'authenticated limited backoffice flow passed';
 };
 
-const runSocioSmoke = async (summary) => {
-  const token = await login({
-    label: 'socio',
+const runRetiredLoginSmoke = async (summary) => {
+  const customer = await expectLoginRejected({
+    label: 'customer domain record',
+    email: process.env.SMOKE_CUSTOMER_EMAIL,
+    password: process.env.SMOKE_CUSTOMER_PASSWORD,
+  });
+  const socio = await expectLoginRejected({
+    label: 'socio investor record',
     email: process.env.SMOKE_SOCIO_EMAIL,
     password: process.env.SMOKE_SOCIO_PASSWORD,
   });
 
-  if (!token) {
-    summary.socio = 'skipped: set SMOKE_SOCIO_EMAIL and SMOKE_SOCIO_PASSWORD';
-    return;
-  }
-
-  const profile = await expectStatus('socio profile', { path: '/api/auth/profile', token });
-  assert(profile.body?.data?.user?.role === 'socio', 'socio credentials did not resolve to socio role', profile.body);
-
-  await expectStatus('socio portal', { path: '/api/associates/portal/me', token });
-  await expectStatus('socio cannot list payments', { path: '/api/payments?page=1&pageSize=5', token }, 403);
-
-  summary.socio = 'authenticated socio read/guard flow passed';
+  summary.retiredLogins = {
+    customer: customer === 'skipped' ? 'skipped: set SMOKE_CUSTOMER_EMAIL and SMOKE_CUSTOMER_PASSWORD' : 'rejected as domain-only record',
+    socio: socio === 'skipped' ? 'skipped: set SMOKE_SOCIO_EMAIL and SMOKE_SOCIO_PASSWORD' : 'rejected as domain-only record',
+  };
 };
 
 const main = async () => {
@@ -236,8 +233,8 @@ const main = async () => {
 
   await runPublicSmoke(summary);
   await runAdminSmoke(summary);
-  await runCustomerSmoke(summary);
-  await runSocioSmoke(summary);
+  await runEmployeeSmoke(summary);
+  await runRetiredLoginSmoke(summary);
 
   console.log(JSON.stringify(summary, null, 2));
 };

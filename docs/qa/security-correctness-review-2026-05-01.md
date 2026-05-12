@@ -5,10 +5,12 @@
 - Repositorio local en rama `master`.
 - Backend Railway: `https://backend-production-4d24.up.railway.app`.
 - Frontend Railway: `https://frontend-production-3058.up.railway.app`.
-- Roles QA usados:
+- Cuentas QA de acceso administrativo usadas:
   - `admin`: `qa.admin.20260427@test.local`
-  - `customer`: `qa.customer.20260427@test.local`
-  - `socio`: `qa.socio.20260427@test.local`
+  - `employee`: `qa.employee.20260427@test.local`
+- Registros QA de dominio, sin acceso al backoffice:
+  - cliente: `qa.customer.20260427@test.local`
+  - socio inversionista: `qa.socio.20260427@test.local`
 - En Railway se verificó que `ALLOWED_ORIGINS` está definido para el frontend productivo y localhost de QA. Los secretos se revisaron sin documentar valores.
 
 ## Resultado ejecutivo
@@ -59,8 +61,9 @@ No se confirmaron hallazgos `P0` ni `P1` durante esta pasada. Se confirmó y cor
 ### Permisos por rol
 
 - `admin` conserva operación completa.
-- `customer` solo ve créditos propios y no puede acceder a configuración, reportes administrativos, permisos, abonos a capital ni pagos parciales internos.
-- `socio` accede al portal asociado y reportes permitidos, pero no puede ejecutar cobranza ni pagos de cliente.
+- `employee` conserva operación operativa limitada por permisos y no puede modificar configuración financiera sensible cuando el backend niega esa capacidad.
+- `customer` existe como registro financiero de cliente, pero no entra al backoffice administrativo.
+- `socio` existe como socio inversionista con capital, intereses e historial financiero, pero no entra al backoffice administrativo.
 - `loanAccessPolicy` es el punto compartido usado por créditos, pagos, documentos y reportes contextuales.
 
 ### Créditos, pagos y cálculo financiero
@@ -82,15 +85,16 @@ No se confirmaron hallazgos `P0` ni `P1` durante esta pasada. Se confirmó y cor
 
 ### API viva
 
-- Login `admin/customer/socio`: `200`.
+- Login `admin/employee`: `200`.
+- Login histórico `customer/socio`: `401`; esos correos se conservan como registros de dominio, no como usuarios de acceso administrativo.
 - `GET /api/config/roles` sin token: `200`.
 - `GET /api/config/payment-methods` sin token: `401`.
 - `GET /api/permissions/me` sin token: `401`.
-- `GET /api/config/payment-methods` como customer: `403`.
-- `GET /api/reports/credits/excel` como customer: `403`.
-- `POST /api/permissions/grant` como customer: `403`.
-- `POST /api/payments/partial` como customer/socio: `403`.
-- `POST /api/payments/capital` como customer/socio: `403`.
+- `GET /api/config/payment-methods` como rol no administrativo simulado: `403`.
+- `GET /api/reports/credits/excel` como rol no administrativo simulado: `403`.
+- `POST /api/permissions/grant` como rol no administrativo simulado: `403`.
+- `POST /api/payments/partial` como rol no administrativo simulado: `403`.
+- `POST /api/payments/capital` como rol no administrativo simulado: `403`.
 - `GET /api/config/payment-methods` como admin: `200`.
 - `GET /api/reports/credits/excel` como admin: `200`.
 - `GET /api/reports/payouts/excel` como admin: `200`.
@@ -99,8 +103,8 @@ No se confirmaron hallazgos `P0` ni `P1` durante esta pasada. Se confirmó y cor
 ### Browser QA con agent-browser
 
 - Admin: login Railway y carga de `/dashboard` con navegación administrativa visible.
-- Customer: login Railway redirige a `/credits`; solo aparecen módulos de cliente (`Créditos`, `Notificaciones`, `Perfil`) y créditos propios. Acciones de créditos cerrados aparecen deshabilitadas con razón visible.
-- Socio: login Railway redirige a `/associates/1`; portal muestra créditos participados y no muestra módulos administrativos completos ni acciones de cobranza.
+- Employee: login Railway redirige al backoffice permitido y respeta restricciones de permisos.
+- Customer/Socio: no tienen login administrativo. Sus datos se validan desde registros de dominio y pruebas de autorización backend.
 - Capturas locales de evidencia:
   - `artifacts/security-audit/admin-dashboard.png`
   - `artifacts/security-audit/customer-home.png`

@@ -1,7 +1,26 @@
 const http = require('node:http');
 
-const listen = (app) => new Promise((resolve) => {
-  const server = app.listen(0, '127.0.0.1', () => resolve(server));
+const listen = (app) => new Promise((resolve, reject) => {
+  const server = http.createServer(app);
+
+  const cleanup = () => {
+    server.off('error', handleError);
+    server.off('listening', handleListening);
+  };
+
+  const handleError = (error) => {
+    cleanup();
+    reject(error);
+  };
+
+  const handleListening = () => {
+    cleanup();
+    resolve(server);
+  };
+
+  server.once('error', handleError);
+  server.once('listening', handleListening);
+  server.listen(0, '127.0.0.1');
 });
 
 const closeServer = (server) => new Promise((resolve, reject) => {

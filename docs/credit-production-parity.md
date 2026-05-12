@@ -16,7 +16,7 @@ are intentionally not ported.
 | Installment payment | `POST /api/loans/payments/process` | Supported. Uses canonical waterfall, transaction, row lock and idempotency key. |
 | Partial payment | `POST /api/payments/partial` | Supported. Uses canonical service, row lock and idempotency key. |
 | Capital payment | `POST /api/payments/capital` | Supported. Guarded by mora/status/financial block; configurable payment method keys allowed. |
-| Payoff / total debt | `POST /api/loans/:id/payoff-executions`, `POST /api/payments/pay-total-debt` | Supported for admin and customer. Stale quotes are rejected before closing the loan. |
+| Payoff / total debt | `POST /api/loans/:id/payoff-executions`, `POST /api/payments/pay-total-debt` | Supported for authorized backoffice users. Stale quotes are rejected before closing the loan. |
 | Annul installment/payment correction | `POST /api/loans/:loanId/installments/:number/annul`, `POST /api/payments/annul/:loanId` | Supported as audited correction. |
 | Physical payment delete | None | Rejected. Production uses annulment/correction with audit trail. |
 | Edit payment method/reference | `PATCH /api/loans/:loanId/payments/:paymentId`, `PATCH /api/payments/:paymentId/metadata` | Supported for admin when payment is not locked/reconciled. |
@@ -26,7 +26,7 @@ are intentionally not ported.
 | Payout Excel | `GET /api/reports/payouts/excel` | Supported from backend. Frontend CSV generation is no longer the source of truth. |
 | Configuration payment methods | `GET /api/config/payment-methods` | Supported. Payment UIs consume configured method keys with safe fallback values. |
 | Customers CRUD and documents | `GET/POST/PATCH/DELETE /api/customers`, `/api/customers/:id/documents` | Supported for admin; customer document reads are scoped by authorization. |
-| Associates and portal | `GET/POST/PATCH/DELETE /api/associates`, `/api/associates/:id/portal`, `/api/associates/portal/me` | Supported. Socio users are scoped to their linked associate. |
+| Associates and investor tracking | `GET/POST/PATCH/DELETE /api/associates`, `/api/associates/:id/*` | Supported for the backoffice. Socios are investor records with capital, interest schedule and payment history; they are not administrative login users. |
 | Associate contributions/distributions | `/api/associates/:id/contributions`, `/api/associates/:id/distributions`, `/api/associates/distributions/proportional` | Supported. Proportional distributions use idempotency and validate 100% participation pools. |
 | Rate and late-fee policy configuration | `/api/config/rate-policies`, `/api/config/late-fee-policies` | Supported. Credit calculation may resolve policy-backed rates/mora without legacy formula graphs. |
 | Users and permissions | `/api/users`, `/api/auth/users`, `/api/permissions/*` | Supported. Admin-only provisioning and permission grants are tested. |
@@ -51,5 +51,5 @@ are intentionally not ported.
 
 - `backend/scripts/localSmokeTest.js` validates public health/OpenAPI and refuses non-local URLs unless `SMOKE_ALLOW_REMOTE=true`.
 - With `SMOKE_ADMIN_EMAIL` and `SMOKE_ADMIN_PASSWORD`, it validates admin login, calculation contract, loans, customers, associates, config, permissions, audit stats, reports, and payments list without writing data.
-- With `SMOKE_CUSTOMER_EMAIL` and `SMOKE_CUSTOMER_PASSWORD`, it validates customer login and scoped read flows. Optional `SMOKE_CUSTOMER_LOAN_ID` checks detail/calendar/payoff quote; optional `SMOKE_FORBIDDEN_LOAN_ID` verifies access denial.
-- With `SMOKE_SOCIO_EMAIL` and `SMOKE_SOCIO_PASSWORD`, it validates socio portal access and admin-only payment list denial.
+- With `SMOKE_EMPLOYEE_EMAIL` and `SMOKE_EMPLOYEE_PASSWORD`, it validates employee login and permissions lookup.
+- With `SMOKE_CUSTOMER_EMAIL`/`SMOKE_CUSTOMER_PASSWORD` and `SMOKE_SOCIO_EMAIL`/`SMOKE_SOCIO_PASSWORD`, it validates those historical login accounts are rejected because customer and socio are domain records, not backoffice users.
