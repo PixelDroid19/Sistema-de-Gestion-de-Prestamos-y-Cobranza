@@ -37,10 +37,10 @@ export default function Sidebar({
   const isAssociatesView = currentView.startsWith('associate');
   const { user, logout: clearSession } = useSessionStore();
   const { logout: requestLogout } = useAuth();
-  const { permissions: myPermissions } = useMyPermissions();
   const resolvedRole = user?.role;
   const isAdmin = resolvedRole === 'admin';
   const isEmployee = resolvedRole === 'employee';
+  const { permissions: myPermissions } = useMyPermissions({ enabled: isEmployee });
   const permissionSet = new Set(
     (myPermissions || [])
       .map((permission: any) => permission?.permission ?? permission?.name ?? permission)

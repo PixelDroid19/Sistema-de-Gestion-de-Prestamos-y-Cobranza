@@ -78,6 +78,7 @@ type ActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   fullWidth?: boolean;
   isLoading?: boolean;
   loadingLabel?: React.ReactNode;
+  disabledReason?: string;
 };
 
 type ClickableSurfaceProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -345,20 +346,50 @@ export function ActionButton({
   fullWidth = false,
   isLoading = false,
   loadingLabel = 'Procesando...',
+  disabledReason,
   className = '',
   disabled,
   ...rest
 }: ActionButtonProps) {
-  return (
+  const isDisabled = Boolean(disabled || isLoading);
+  const [showDisabledReason, setShowDisabledReason] = React.useState(false);
+  const button = (
     <button
       className={`action-button ${actionButtonClassNames[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
-      disabled={disabled || isLoading}
+      disabled={isDisabled}
       type="button"
       {...rest}
+      title={isDisabled && disabledReason ? disabledReason : rest.title}
     >
       {icon && <span className="action-button-icon" aria-hidden="true">{icon}</span>}
       <span>{isLoading ? loadingLabel : children}</span>
     </button>
+  );
+
+  if (!isDisabled || !disabledReason) {
+    return button;
+  }
+
+  return (
+    <span
+      className={`relative inline-flex min-w-0 ${fullWidth ? 'w-full' : ''}`}
+      tabIndex={0}
+      aria-label={disabledReason}
+      onMouseEnter={() => setShowDisabledReason(true)}
+      onMouseLeave={() => setShowDisabledReason(false)}
+      onFocus={() => setShowDisabledReason(true)}
+      onBlur={() => setShowDisabledReason(false)}
+    >
+      {button}
+      {showDisabledReason && (
+        <span
+          role="tooltip"
+          className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2 text-left text-xs font-normal leading-5 text-text-primary shadow-lg"
+        >
+          {disabledReason}
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -37,7 +37,7 @@ function SummaryMetricItem({
       tooltip={tooltip}
       icon={<Icon />}
       accent={accent as 'slate' | 'emerald' | 'amber' | 'rose' | 'blue'}
-      className="min-h-[6.25rem]"
+      className="min-h-[5.5rem]"
     />
   );
 }
@@ -80,17 +80,16 @@ export function CreditSummaryMetrics({
       />
       <SummaryMetricItem
         icon={CheckCircle}
-        label="Capital pagado"
-        tooltip="Parte del crédito original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
-        tone="brand"
+      label="Capital pagado"
+      tooltip="Parte del crédito original que ya fue amortizada. Solo mide abonos al principal, no incluye intereses ni mora."
+      tone="success"
         value={<span title={formatCurrency(paymentSnapshot?.totalPaidPrincipal)}>{formatMetricCurrency(paymentSnapshot?.totalPaidPrincipal)}</span>}
       />
       <SummaryMetricItem
-        icon={DollarSign}
-        label="Interés pagado"
-        tooltip="Intereses que ya fueron cobrados y aplicados al crédito. Debe crecer a medida que se registran cuotas o pagos parciales."
-        tone="warning"
-        value={<span title={formatCurrency(paymentSnapshot?.totalPaidInterest)}>{formatMetricCurrency(paymentSnapshot?.totalPaidInterest)}</span>}
+      icon={DollarSign}
+      label="Interés pagado"
+      tooltip="Intereses que ya fueron cobrados y aplicados al crédito. Debe crecer a medida que se registran cuotas o pagos parciales."
+      value={<span title={formatCurrency(paymentSnapshot?.totalPaidInterest)}>{formatMetricCurrency(paymentSnapshot?.totalPaidInterest)}</span>}
       />
       <SummaryMetricItem
         icon={ShieldAlert}

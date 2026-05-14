@@ -444,7 +444,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByText(/REMINDER|actor:3|status:active/)).not.toBeInTheDocument();
   });
 
-  it('hides stale payoff data and disables financial actions once the credit is completed', () => {
+  it('hides stale payoff data and disables financial actions once the credit is completed', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockLoan = {
       ...buildMockLoan(),
@@ -475,10 +475,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pago total' }));
+    fireEvent.focus(screen.getByLabelText(/Pago total no disponible/i));
 
-    expect(screen.getByText('El pago total no está disponible')).toBeInTheDocument();
-    expect(screen.getByText('Este crédito ya no tiene saldo pendiente para liquidar.')).toBeInTheDocument();
+    expect(await screen.findByText('Pago total no disponible. Este crédito ya no tiene saldo pendiente para liquidar.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Abono a capital' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Tasa de mora' })).toBeDisabled();
@@ -509,7 +508,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
   });
 
-  it('shows a specific payoff denial reason when an active credit still has balance', () => {
+  it('shows a specific payoff denial reason when an active credit still has balance', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockLoan = {
       ...buildMockLoan(),
@@ -538,9 +537,9 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     renderCreditDetails();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pago total' }));
+    fireEvent.focus(screen.getByLabelText(/Pago total no disponible/i));
 
-    expect(screen.getByText('El pago total solo puede ejecutarse desde la fecha de inicio del crédito.')).toBeInTheDocument();
+    expect(await screen.findByText('Pago total no disponible. El pago total solo puede ejecutarse desde la fecha de inicio del crédito.')).toBeInTheDocument();
     expect(screen.queryByText('Este crédito ya no tiene saldo pendiente para liquidar.')).not.toBeInTheDocument();
   });
 

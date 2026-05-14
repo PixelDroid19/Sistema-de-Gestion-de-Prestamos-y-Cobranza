@@ -219,6 +219,27 @@ describe('NewCredit behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
+  it('shows a loading rate state instead of a false missing-policy warning while config loads', () => {
+    const originalLateFeeMode = routeState.calculationInput.lateFeeMode;
+    (routeState.calculationInput as any).lateFeeMode = undefined;
+    mockUseConfig.mockImplementation(() => ({
+      ratePolicies: [],
+      lateFeePolicies: [],
+      isLoading: true,
+    }));
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(screen.getAllByText('Cargando tasas').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Cargando mora').length).toBeGreaterThan(0);
+    expect(screen.getByText('Cargando las tasas configuradas antes de permitir la validación del crédito.')).toBeInTheDocument();
+    expect(screen.getByText('Cargando la política de mora vigente. Esta configuración solo se usa si una cuota se atrasa.')).toBeInTheDocument();
+    expect(screen.queryByText('Sin tasa configurada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mora simple · 0% EA')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Validar crédito' })).toBeDisabled();
+    routeState.calculationInput.lateFeeMode = originalLateFeeMode;
+  });
+
   it('blocks real credit creation when no active rate policy matches the current amount', async () => {
     mockConfigState.ratePolicies = [
       {

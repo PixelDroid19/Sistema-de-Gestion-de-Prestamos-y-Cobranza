@@ -84,26 +84,26 @@ export function CreditDetailHeader({
   onOpenSchedule,
 }: CreditDetailHeaderProps) {
   return (
-    <section className="border-b border-border-subtle pb-4" data-tour="credit-detail-header">
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+    <section className="border-b border-border-subtle pb-3" data-tour="credit-detail-header">
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <IconActionButton
               onClick={onBack}
               label="Volver a créditos"
               icon={<ArrowLeft size={20} />}
               className="shrink-0"
             />
-            <h1 className="min-w-0 text-3xl font-bold leading-tight tracking-tight text-text-primary md:text-[2.1rem]">Crédito #{loanId}</h1>
+            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-text-primary md:text-3xl">Crédito #{loanId}</h1>
             <StatusChip size="sm" className={`uppercase tracking-[0.12em] ${statusInfo.className}`}>
               {statusInfo.label}
             </StatusChip>
           </div>
-          <p className="mt-1.5 max-w-3xl text-sm leading-5 text-text-secondary">
+          <p className="mt-1 max-w-2xl text-sm leading-5 text-text-secondary">
             {subtitle}
           </p>
 
-          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1.5">
             <InlineMetaLine icon={FileText} label="Cliente" value={customerLabel} />
             <InlineMetaLine icon={GitBranch} label="Perfil" value={calculationProfileSummary} />
           </div>
@@ -157,18 +157,19 @@ export function CreditDetailHeader({
       </div>
 
       <div
-        className="mt-4 flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-surface px-3 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between"
+        className="mt-3 border-y border-border-subtle py-3"
         data-tour="credit-detail-secondary-actions"
       >
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
-            Acciones de pago
-          </p>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">
-            Opera recaudos, abonos y liquidación sin mezclar opciones informativas.
-          </p>
-        </div>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,0.75fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-primary/60">
+              Acciones de pago
+            </p>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              Recaudos y liquidación del crédito.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:flex lg:flex-nowrap lg:justify-end">
           {installmentPaymentGuard.visible && (
             <ActionButton
               onClick={onRegisterPayment}
@@ -196,20 +197,16 @@ export function CreditDetailHeader({
             <ActionButton
               onClick={onPayoff}
               disabled={!payoffPaymentGuard.executable}
-              title={payoffPaymentGuard.executable ? 'Liquidar el saldo completo del crédito' : payoffPaymentGuard.reason}
+              disabledReason={!payoffPaymentGuard.executable && payoffPaymentGuard.reason ? `Pago total no disponible. ${payoffPaymentGuard.reason}` : undefined}
+              title="Liquidar el saldo completo del crédito"
               icon={<CreditCard size={16} />}
               className="w-full lg:w-auto"
             >
               Pago total
             </ActionButton>
           )}
+          </div>
         </div>
-        {payoffPaymentGuard.visible && !payoffPaymentGuard.executable && payoffPaymentGuard.reason && (
-          <p className="text-xs leading-5 text-text-secondary lg:basis-full lg:text-right">
-            <span className="font-semibold text-text-primary">El pago total no está disponible</span>{' '}
-            {payoffPaymentGuard.reason}
-          </p>
-        )}
       </div>
     </section>
   );

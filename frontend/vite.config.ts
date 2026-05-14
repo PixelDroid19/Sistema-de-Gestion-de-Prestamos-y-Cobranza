@@ -5,6 +5,8 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const apiTarget = env.VITE_API_URL || 'http://localhost:5000';
+
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -19,9 +21,20 @@ export default defineConfig(({mode}) => {
       port: 3000,
       proxy: {
         '/api': {
-          target: env.VITE_API_URL || 'http://localhost:5000',
+          target: apiTarget,
           changeOrigin: true,
           secure: false,
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyReq) => {
+              // Local QA often runs the frontend on an alternate port while the
+              // API is Railway-hosted. The browser Origin is then a local dev
+              // URL that production CORS correctly rejects. The dev proxy is
+              // same-origin from the browser perspective, so remove Origin
+              // before forwarding to keep local browser QA usable without
+              // weakening production CORS.
+              proxyReq.removeHeader('origin');
+            });
+          },
         },
       },
     },

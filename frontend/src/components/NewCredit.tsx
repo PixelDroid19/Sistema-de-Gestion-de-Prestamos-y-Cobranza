@@ -228,11 +228,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const calculationAppliedLateFeeMode = String(calculationPolicySnapshot?.appliedLateFeeMode || result?.inputs?.lateFeeMode || input.lateFeeMode || 'SIMPLE') as CreditCalculationInput['lateFeeMode'];
   const hasPolicyBackedCalculation = Boolean(result && !isResultStale && calculationRateSource === 'policy');
   const resolvedRateSource = 'policy';
+  const isRatePolicyResolving = canReadFinancialConfig && isConfigLoading;
+  const isLateFeePolicyResolving = canReadFinancialConfig && isConfigLoading && !lateFeeWasEdited;
   const resolvedLateFeeSource = canReadFinancialConfig
     ? (lateFeeWasEdited || !resolvedLateFeePolicy ? 'manual' : 'policy')
     : (calculationLateFeeSource === 'policy' ? 'policy' : 'manual');
-  const canValidateWithCurrentPolicy = canReadFinancialConfig ? Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : true;
-  const isRatePolicyReady = canReadFinancialConfig ? Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : hasPolicyBackedCalculation;
+  const canValidateWithCurrentPolicy = canReadFinancialConfig ? !isRatePolicyResolving && Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : true;
+  const isRatePolicyReady = canReadFinancialConfig ? !isRatePolicyResolving && Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : hasPolicyBackedCalculation;
   const annualLateFeeRate = Number(
     result?.inputs?.annualLateFeeRate
     ?? input.annualLateFeeRate
@@ -240,13 +242,17 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? 0,
   );
   const visibleRatePolicyLabel = canReadFinancialConfig
-    ? resolvedRatePolicy?.label || 'Sin política para este monto'
+    ? isRatePolicyResolving
+      ? 'Cargando tasas'
+      : resolvedRatePolicy?.label || 'Sin política para este monto'
     : calculationRatePolicyLabel || 'Política aplicada al validar';
   const visibleRatePolicyRange = canReadFinancialConfig && resolvedRatePolicy
     ? formatPolicyRange(resolvedRatePolicy.minAmount, resolvedRatePolicy.maxAmount)
     : null;
   const visibleRatePolicyExplanation = canReadFinancialConfig
-    ? hasAmbiguousRatePolicy
+    ? isRatePolicyResolving
+      ? 'Cargando las tasas configuradas antes de permitir la validación del crédito.'
+      : hasAmbiguousRatePolicy
       ? `Hay varias tasas activas para ${formatMoney(Number(input.amount || 0))}: ${ambiguousRatePolicyMatches.map((policy) => policy.label).join(' y ')}. Edita o desactiva una en Configuración antes de validar.`
       : resolvedRatePolicy
       ? `Para ${formatMoney(Number(input.amount || 0))}, aplica "${resolvedRatePolicy.label}" porque cubre ${visibleRatePolicyRange}. Al registrar, esta tasa queda congelada en el crédito.`
@@ -254,17 +260,19 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     : hasPolicyBackedCalculation
       ? `El backend aplicó "${visibleRatePolicyLabel}" al validar. Esa tasa queda guardada al registrar.`
       : 'Valida el crédito para que el backend aplique la tasa vigente por rango.';
-  const rateSourceLabel = hasAmbiguousRatePolicy ? 'Conflicto' : isRatePolicyReady ? 'Configuración' : canReadFinancialConfig ? 'Sin política' : 'Automática';
+  const rateSourceLabel = isRatePolicyResolving ? 'Cargando' : hasAmbiguousRatePolicy ? 'Conflicto' : isRatePolicyReady ? 'Configuración' : canReadFinancialConfig ? 'Sin política' : 'Automática';
   const lateFeeSourceLabel = resolvedLateFeeSource === 'policy' ? 'Configuración' : 'Manual';
   const rateSummaryValue = canReadFinancialConfig && isRatePolicyReady
     ? formatPolicyRate(resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate ?? 0)
     : hasPolicyBackedCalculation
       ? formatPolicyRate(Number.isFinite(calculationAppliedInterestRate) ? calculationAppliedInterestRate : 0)
-      : hasAmbiguousRatePolicy ? 'Conflicto' : canReadFinancialConfig ? 'Sin política' : 'Pendiente de validar';
+      : isRatePolicyResolving ? 'Cargando' : hasAmbiguousRatePolicy ? 'Conflicto' : canReadFinancialConfig ? 'Sin política' : 'Pendiente de validar';
   const rateSummaryDetail = canReadFinancialConfig && isRatePolicyReady
     ? `${resolvedRatePolicy.label} · ${visibleRatePolicyRange}`
     : hasPolicyBackedCalculation
       ? calculationRatePolicyLabel || 'Política aplicada por el backend'
+      : isRatePolicyResolving
+        ? 'Leyendo la configuración financiera vigente.'
       : hasAmbiguousRatePolicy
         ? `${ambiguousRatePolicyMatches.length} reglas cubren este monto con el mismo orden.`
         : canReadFinancialConfig
@@ -276,13 +284,22 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const selectedLateFeeMode = String(input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE').toUpperCase();
   const lateFeeModeDescription = lateFeeModeDescriptions[selectedLateFeeMode] || lateFeeModeDescriptions.SIMPLE;
-  const lateFeeSummaryDetail = resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
+  const lateFeeSummaryDetail = isLateFeePolicyResolving
+    ? 'Leyendo la política de mora vigente.'
+    : resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
     ? `${resolvedLateFeePolicy.label} · solo si hay atraso`
     : 'Ajustada en este crédito · solo si hay atraso';
-  const lateFeeSummaryValue = `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
-  const lateFeePolicyLabel = resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
+  const lateFeeSummaryValue = isLateFeePolicyResolving ? 'Cargando mora' : `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
+  const lateFeePolicyLabel = isLateFeePolicyResolving
+    ? 'Cargando política de mora'
+    : resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
     ? resolvedLateFeePolicy.label
     : 'Definida en este crédito';
+  const lateFeeFieldHelper = isLateFeePolicyResolving
+    ? 'Cargando la política de mora vigente. Esta configuración solo se usa si una cuota se atrasa.'
+    : resolvedLateFeePolicy
+      ? `Configuración: ${resolvedLateFeePolicy.label} · ${formatPolicyRate(resolvedLateFeePolicy.annualEffectiveRate)}. Se guarda al registrar, pero solo cobra si hay atraso.`
+      : 'Puedes validar sin política de mora si el crédito no requiere recargo por atraso.';
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
@@ -667,8 +684,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               >
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <StatusChip tone={hasAmbiguousRatePolicy ? 'danger' : isRatePolicyReady ? 'info' : 'warning'} size="sm">
-                      {hasAmbiguousRatePolicy ? 'Conflicto de tasas' : isRatePolicyReady ? `Configuración: ${visibleRatePolicyLabel}` : 'Sin tasa configurada'}
+                    <StatusChip tone={isRatePolicyResolving ? 'neutral' : hasAmbiguousRatePolicy ? 'danger' : isRatePolicyReady ? 'info' : 'warning'} size="sm">
+                      {isRatePolicyResolving ? 'Cargando tasas' : hasAmbiguousRatePolicy ? 'Conflicto de tasas' : isRatePolicyReady ? `Configuración: ${visibleRatePolicyLabel}` : 'Sin tasa configurada'}
                     </StatusChip>
                     {visibleRatePolicyRange && (
                       <StatusChip tone="neutral" size="sm">
@@ -722,7 +739,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               <FormField
                 label="Cálculo de mora"
                 tooltip="La mora solo se cobra cuando una cuota queda vencida. Mora simple aplica tasa diaria sobre lo vencido; compuesta acumula recargo sobre recargo; sin recargo no cobra mora."
-                helper={resolvedLateFeePolicy ? `Configuración: ${resolvedLateFeePolicy.label} · ${formatPolicyRate(resolvedLateFeePolicy.annualEffectiveRate)}. Se guarda al registrar, pero solo cobra si hay atraso.` : 'Puedes validar sin política de mora si el crédito no requiere recargo por atraso.'}
+                helper={lateFeeFieldHelper}
               >
                 <SelectInput
                   data-tour="new-credit-late-fee-mode"
@@ -739,8 +756,12 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
               <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusChip tone="warning" size="sm">{lateFeeModeLabel}</StatusChip>
-                  <StatusChip tone="neutral" size="sm">{formatPolicyRate(annualLateFeeRate)}</StatusChip>
+                  <StatusChip tone={isLateFeePolicyResolving ? 'neutral' : 'warning'} size="sm">
+                    {isLateFeePolicyResolving ? 'Cargando mora' : lateFeeModeLabel}
+                  </StatusChip>
+                  {!isLateFeePolicyResolving && (
+                    <StatusChip tone="neutral" size="sm">{formatPolicyRate(annualLateFeeRate)}</StatusChip>
+                  )}
                 </div>
                 <p className="mt-2 font-semibold text-text-primary dark:text-amber-50">
                   La mora no se suma al desembolso ni a la cuota normal al crear el crédito.

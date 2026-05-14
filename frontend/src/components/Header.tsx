@@ -19,7 +19,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { user } = useSessionStore();
   const { unreadCount } = useUnreadNotificationsCount();
-  const { permissions: myPermissions } = useMyPermissions();
+  const { permissions: myPermissions } = useMyPermissions({ enabled: user?.role === 'employee' });
   const searchRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

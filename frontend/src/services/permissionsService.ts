@@ -180,13 +180,14 @@ export const usePermissionsByModule = (module: string) => {
   };
 };
 
-export const useMyPermissions = () => {
+export const useMyPermissions = (options?: { enabled?: boolean }) => {
   const getMyPermissions = useQuery({
     queryKey: ['permissions.myPermissions'],
     queryFn: async () => {
       const { data } = await apiClient.get('/permissions/me');
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 
   return {

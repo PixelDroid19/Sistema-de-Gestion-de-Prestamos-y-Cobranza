@@ -41,7 +41,7 @@ import {
   EmptyState,
   FormField,
   IconActionButton,
-  MetricCard,
+  InsightStrip,
   ModalShell,
   PageHeader,
   PageShell,
@@ -717,7 +717,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               onClick={handleExportCreditsExcel}
               disabled={isExporting}
               data-tour="credits-export"
-              variant="primary"
               icon={<Download size={16} />}
             >
               {isExporting ? 'Exportando…' : tTerm('credits.cta.exportExcel')}
@@ -770,12 +769,43 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* Statistics Widget */}
           {creditsList.length > 0 && (
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={displayedStatistics.helper}>
-                <MetricCard label="Capital" value={formatCurrency(displayedStatistics.totalAmount)} helper={displayedStatistics.helper} icon={<DollarSign size={18} />} accent="blue" />
-                <MetricCard label="Cobrado" value={formatCurrency(displayedStatistics.totalCollected)} helper={displayedStatistics.helper} icon={<TrendingUp size={18} />} accent="slate" />
-                <MetricCard label="Mora" value={formatCurrency(displayedStatistics.totalOverdue)} helper={displayedStatistics.helper} icon={<AlertTriangle size={18} />} accent="amber" />
-                <MetricCard label="Créditos activos" value={`${displayedStatistics.activeCredits} / ${displayedStatistics.totalCredits}`} helper={displayedStatistics.helper} icon={<Users size={18} />} accent="blue" />
-            </section>
+            <InsightStrip
+              aria-label={displayedStatistics.helper}
+              items={[
+                {
+                  id: 'capital-total',
+                  label: 'Capital total',
+                  value: formatCurrency(displayedStatistics.totalAmount),
+                  helper: 'Monto originado visible',
+                  icon: <DollarSign size={18} />,
+                  accent: 'blue',
+                },
+                {
+                  id: 'total-cobrado',
+                  label: 'Total cobrado',
+                  value: formatCurrency(displayedStatistics.totalCollected),
+                  helper: 'Recaudo aplicado',
+                  icon: <TrendingUp size={18} />,
+                  accent: 'emerald',
+                },
+                {
+                  id: 'mora-pendiente',
+                  label: 'Mora pendiente',
+                  value: formatCurrency(displayedStatistics.totalOverdue),
+                  helper: 'Atrasos acumulados',
+                  icon: <AlertTriangle size={18} />,
+                  accent: displayedStatistics.totalOverdue > 0 ? 'amber' : 'slate',
+                },
+                {
+                  id: 'creditos-activos',
+                  label: 'Créditos activos',
+                  value: `${displayedStatistics.activeCredits} / ${displayedStatistics.totalCredits}`,
+                  helper: 'Abiertos / visibles',
+                  icon: <Users size={18} />,
+                  accent: 'slate',
+                },
+              ]}
+            />
           )}
 
           <ToolbarSurface>
