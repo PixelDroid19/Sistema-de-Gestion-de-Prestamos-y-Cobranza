@@ -1,4 +1,4 @@
-const { Loan, Customer, Associate, FinancialProduct } = require('@/models');
+const { Loan, Customer, FinancialProduct } = require('@/models');
 const { NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const {
   buildFinancialSnapshot,
@@ -83,7 +83,7 @@ const resolveLoanStartDate = (value) => {
 };
 
 /**
- * Create a loan record from canonical credit calculation data after validating linked records.
+ * Create a loan record from canonical credit calculation data after validating the borrower.
  *
  * The `calculationProfileVersionId` persisted on the loan comes directly from
  * the calculation execution result, guaranteeing it is the exact profile that
@@ -91,27 +91,23 @@ const resolveLoanStartDate = (value) => {
  * Real credit creation also requires `rateSource=policy`, so the annual rate is
  * resolved from the configured amount ranges and cannot be hand-edited per loan.
  *
- * @param {{ customerId: number, associateId?: number|null, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeMode?: string }} input
+ * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeMode?: string }} input
  * @returns {Promise<object>}
  */
 const createLoanFromCanonicalDataFactory = ({
   calculationService,
   policyResolver,
   customerModel = Customer,
-  associateModel = Associate,
   loanModel = Loan,
   financialProductModel = FinancialProduct,
 } = {}) => async (input) => {
+  if (input.associateId !== undefined && input.associateId !== null && input.associateId !== '') {
+    throw new ValidationError('Socios are managed as investors and cannot be assigned to new credits');
+  }
+
   const customer = await customerModel.findByPk(input.customerId);
   if (!customer) {
     throw new NotFoundError('Customer');
-  }
-
-  if (input.associateId) {
-    const associate = await associateModel.findByPk(input.associateId);
-    if (!associate) {
-      throw new NotFoundError('Associate');
-    }
   }
 
   const policyContext = await resolvePolicyContext({ input, policyResolver });
@@ -144,7 +140,7 @@ const createLoanFromCanonicalDataFactory = ({
 
   return loanModel.create({
     customerId: calculationInput.customerId,
-    associateId: calculationInput.associateId || null,
+    associateId: null,
     financialProductId,
     amount: calculationInput.amount,
     interestRate: calculationInput.interestRate,

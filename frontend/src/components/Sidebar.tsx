@@ -51,7 +51,7 @@ export default function Sidebar({
   const canViewCustomers = canAccess('CLIENTS_VIEW_ALL');
   const canCreateCustomers = canAccess('CLIENTS_CREATE');
   const canViewCredits = canAccess('CREDITS_VIEW_ALL');
-  const canCreateCredits = canAccess('CREDITS_CREATE');
+  const canCreateCredits = canAccess('CREDITS_CREATE') && canAccess('CREDITS_VIEW_ALL');
   const canViewReports = canAccess('REPORTS_VIEW_ALL');
   const canViewAssociates = canAccess('SOCIOS_VIEW_ALL');
   const canViewPayouts = canAccess('PAYMENTS_VIEW_ALL');

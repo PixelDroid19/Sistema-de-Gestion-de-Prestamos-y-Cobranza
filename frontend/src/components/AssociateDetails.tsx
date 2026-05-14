@@ -55,35 +55,6 @@ const getInstallmentStatusPresentation = (installment: any) => {
   };
 };
 
-const getLoanStatusPresentation = (status: unknown) => {
-  const normalizedStatus = String(status || '').toLowerCase();
-
-  switch (normalizedStatus) {
-    case 'active':
-    case 'approved':
-      return {
-        label: 'Activo',
-        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-      };
-    case 'pending':
-      return {
-        label: 'Pendiente',
-        className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-      };
-    case 'completed':
-    case 'closed':
-      return {
-        label: 'Completado',
-        className: 'bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200',
-      };
-    default:
-      return {
-        label: normalizedStatus ? normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1) : 'Sin estado',
-        className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200',
-      };
-  }
-};
-
 export default function AssociateDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -137,8 +108,6 @@ export default function AssociateDetails() {
   const interestDebt = portalSummary?.interestDebt ?? 0;
   const nextInterestPaymentDate = portalSummary?.nextInterestPaymentDate ?? null;
   const debtStatus = portalSummary?.debtStatus === 'pending' ? 'Con intereses pendientes' : 'Al día';
-  const activeLoansCount = portalSummary?.activeLoanCount ?? portal?.activeLoansCount ?? 0;
-  const participatedLoans = Array.isArray(portal?.loans) ? portal.loans : [];
   const paymentHistory = Array.isArray(portal?.paymentHistory) ? portal.paymentHistory : [];
   const interestTypeLabel = associate?.interestType === 'annual' ? 'Anual' : 'Mensual';
   const interestRateLabel = `${Number(associate?.interestRate || 0).toLocaleString('es-CO', { maximumFractionDigits: 4 })}% ${interestTypeLabel.toLowerCase()}`;
@@ -234,49 +203,6 @@ export default function AssociateDetails() {
 
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">Créditos participados ({activeLoansCount} activos)</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            Créditos donde este socio quedó asociado para trazabilidad de aportes o participación.
-          </p>
-        </div>
-        <TableShell
-          isLoading={false}
-          isError={false}
-          hasData={participatedLoans.length > 0}
-          loadingContent={null}
-          errorContent={null}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No participa en ningún crédito activo.</div>}
-          recordsLabel="créditos"
-        >
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary border-b border-border-subtle">
-              <tr>
-                <th className="font-medium">ID crédito</th>
-                <th className="font-medium">Monto original</th>
-                <th className="font-medium">Interés total</th>
-                <th className="font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {participatedLoans.map((loan: any) => (
-                <tr key={loan.id} className="hover:bg-hover-bg transition-colors">
-                  <td className="font-mono">{loan.id}</td>
-                  <td className="font-medium">{formatCurrency(loan?.amount)}</td>
-                  <td className="text-emerald-600">{formatCurrency(loan?.totalInterest)}</td>
-                  <td>
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${getLoanStatusPresentation(loan?.status).className}`}>
-                      {getLoanStatusPresentation(loan?.status).label}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableShell>
-      </DataTableSurface>
-
-      <DataTableSurface>
-        <div className="px-5 pt-5 sm:px-6">
           <h3 className="text-lg font-semibold text-text-primary">Historial de intereses pagados</h3>
           <p className="mt-1 text-sm text-text-secondary">
             Pagos de intereses reconocidos al socio. La deuda pendiente se calcula con cuotas programadas no pagadas.
@@ -347,7 +273,7 @@ export default function AssociateDetails() {
         <div className="px-5 pt-5 sm:px-6">
           <h3 className="text-lg font-semibold text-text-primary">Cuotas del socio</h3>
           <p className="mt-1 text-sm text-text-secondary">
-            Cuotas vinculadas a créditos donde participa este socio.
+            Cuotas de intereses programadas para el socio según su capital aportado y la periodicidad pactada.
           </p>
         </div>
         <TableShell
@@ -490,7 +416,7 @@ export default function AssociateDetails() {
     <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
         title="Portal del socio"
-        subtitle={`${associateName} · ${debtStatus} · Interés ${interestRateLabel}. Consulta aportes, cuotas y pagos sin mezclarlo con la originación de créditos.`}
+        subtitle={`${associateName} · ${debtStatus} · Interés ${interestRateLabel}. Consulta aportes, cuotas, pagos e historial del inversionista.`}
         guideKey="associate-details"
         tourId="associate-details-header"
         actions={(
@@ -509,7 +435,7 @@ export default function AssociateDetails() {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text-primary">Acciones del socio</p>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
-            Consulta historial y cuotas, o registra movimientos de capital. Estas acciones no cambian tasa, mora ni cronograma de créditos existentes.
+            Consulta historial y cuotas, o registra movimientos de capital. Estas acciones pertenecen al módulo de socios inversionistas.
           </p>
         </div>
         <div className="grid gap-2 lg:min-w-[23rem]">

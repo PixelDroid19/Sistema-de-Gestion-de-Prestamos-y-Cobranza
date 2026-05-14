@@ -6,6 +6,10 @@ const updateCustomerMutateAsync = vi.fn();
 const deleteCustomerMutateAsync = vi.fn();
 const useCustomersSpy = vi.fn();
 const confirmDanger = vi.fn();
+let mockSessionUser: {
+  role: 'admin' | 'employee' | 'customer' | 'socio';
+  permissions?: string[];
+} | null = { role: 'admin', permissions: ['*'] };
 
 vi.mock('../../services/customerService', () => ({
   useCustomers: (params: unknown) => useCustomersSpy(params),
@@ -17,6 +21,12 @@ vi.mock('../../store/paginationStore', () => ({
     pageSize: 25,
     setPage: vi.fn(),
     setPageSize: vi.fn(),
+  }),
+}));
+
+vi.mock('../../store/sessionStore', () => ({
+  useSessionStore: () => ({
+    user: mockSessionUser,
   }),
 }));
 
@@ -56,6 +66,7 @@ const buildCustomersResponse = (customers: any[]) => ({
 describe('Customers behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionUser = { role: 'admin', permissions: ['*'] };
     confirmDanger.mockResolvedValue(true);
     useCustomersSpy.mockImplementation((params) => buildCustomersResponse([
       {
@@ -111,5 +122,17 @@ describe('Customers behavior', () => {
     fireEvent.click(screen.getByTitle('Editar'));
 
     expect(setCurrentView).toHaveBeenCalledWith('customers/2/edit');
+  });
+
+  it('hides mutation actions for employees with customer read-only permission', () => {
+    mockSessionUser = { role: 'employee', permissions: ['CLIENTS_VIEW_ALL'] };
+
+    render(<Customers setCurrentView={vi.fn()} />);
+
+    expect(screen.getByTitle('Ver detalles')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /nuevo cliente/i })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Editar')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Reactivar')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 });

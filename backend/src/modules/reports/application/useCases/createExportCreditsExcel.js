@@ -1,4 +1,4 @@
-const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { ensureAdmin, formatMoney, buildCsv, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
 const toPlainLoan = (loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan);
@@ -28,11 +28,28 @@ const pickLoanDate = (loan) => (
   || loan?.createdAt
 );
 
+const normalizeStatusFilter = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const list = Array.isArray(value)
+    ? value
+    : String(value).split(',');
+
+  const normalized = list
+    .map((entry) => String(entry || '').trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+
+  return normalized.length > 0 ? normalized : null;
+};
+
 const normalizeCreditExportFilters = (filters = {}) => ({
   customerId: toNumberOrNull(filters.customerId),
   loanId: toNumberOrNull(filters.loanId ?? filters.creditId),
   startDate: parseDateOrNull(filters.startDate ?? filters.fromDate),
   endDate: parseDateOrNull(filters.endDate ?? filters.toDate),
+  status: normalizeStatusFilter(filters.status),
 });
 
 const matchesFilters = (loan, filters) => {
@@ -42,6 +59,14 @@ const matchesFilters = (loan, filters) => {
 
   if (filters.loanId !== null && Number(loan?.id) !== filters.loanId) {
     return false;
+  }
+
+  if (filters.status) {
+    const loanStatus = String(loan?.status || '').trim().toLowerCase();
+    const recoveryStatus = String(loan?.recoveryStatus || '').trim().toLowerCase();
+    if (!filters.status.includes(loanStatus) && !filters.status.includes(recoveryStatus)) {
+      return false;
+    }
   }
 
   const rawLoanDate = pickLoanDate(loan);
@@ -315,13 +340,24 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
  * @param {object} dependencies.loanViewService Canonical loan schedule/snapshot service.
  * @returns {Function} Express use-case handler.
  */
-const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export credits data');
-
+const buildCreditsExportDataset = async ({ reportRepository, paymentRepository, loanViewService, filters }) => {
   const normalizedFilters = normalizeCreditExportFilters(filters);
   const loans = (await reportRepository.listOutstandingLoans())
     .map(toPlainLoan)
     .filter((loan) => matchesFilters(loan, normalizedFilters));
+
+  return { normalizedFilters, loans };
+};
+
+const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor, 'Only admins can export credits data');
+
+  const { loans } = await buildCreditsExportDataset({
+    reportRepository,
+    paymentRepository,
+    loanViewService,
+    filters,
+  });
 
   const creditSheets = [];
   const rows = await Promise.all(
@@ -421,4 +457,165 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
   };
 };
 
-module.exports = { createExportCreditsExcel };
+const buildCreditsRowsForExport = async ({ loans, paymentRepository, loanViewService }) => Promise.all(
+  loans.map(async (loan) => {
+    const payments = await paymentRepository.listByLoan(loan.id);
+    const { schedule, snapshot } = loanViewService.getCanonicalLoanView(loan);
+    const customer = getLoanCustomer(loan);
+    const completedPayments = payments.filter((payment) => payment.status === 'completed');
+    const totalPaid = completedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const totalPrincipal = completedPayments.reduce((sum, payment) => sum + Number(payment.principalApplied || 0), 0);
+    const totalInterest = completedPayments.reduce((sum, payment) => sum + Number(payment.interestApplied || 0), 0);
+    const totalPenalty = completedPayments.reduce((sum, payment) => sum + Number(payment.penaltyApplied || 0), 0);
+    const totalInterestGenerated = Number(snapshot.totalInterest || 0);
+    const totalPayable = Number(snapshot.totalPayable || 0);
+    const termMonths = Number(loan.termMonths || schedule.length || 0);
+
+    return {
+      creditId: loan.id,
+      customerId: loan.customerId,
+      customerName: customer?.name || 'N/A',
+      customerDocument: pickCustomerDocument(customer),
+      loanAmount: roundMoney(loan.amount),
+      totalAmount: roundMoney(totalPayable),
+      remainingAmount: roundMoney(snapshot.outstandingPrincipal),
+      remainingBalance: roundMoney(snapshot.outstandingBalance),
+      tna: Number(loan.interestRate || 0),
+      termMonths,
+      totalQuotas: schedule.length,
+      status: loan.status || 'N/A',
+      recoveryStatus: loan.recoveryStatus || 'N/A',
+      totalPaid: roundMoney(totalPaid),
+      totalCapitalPaid: roundMoney(totalPrincipal),
+      totalInterestPaid: roundMoney(totalInterest),
+      totalInterestGenerated: roundMoney(totalInterestGenerated),
+      totalLatePaymentInterest: roundMoney(totalPenalty),
+      paymentCount: completedPayments.length,
+      loanDate: pickLoanDate(loan),
+    };
+  }),
+);
+
+const CSV_HEADERS = [
+  'ID Crédito',
+  'ID Cliente',
+  'Cliente',
+  'Documento',
+  'Estado',
+  'Estado Recuperación',
+  'Fecha Préstamo',
+  'Monto Prestado',
+  'Total a Cobrar',
+  'Saldo Pendiente',
+  'Saldo con Intereses',
+  'TNA (%)',
+  'Cuotas',
+  'Total Pagado',
+  'Capital Pagado',
+  'Interés Pagado',
+  'Interés Generado',
+  'Mora Acumulada',
+  'Pagos Registrados',
+];
+
+const buildCsvRows = (rows) => rows.map((row) => [
+  row.creditId,
+  row.customerId,
+  row.customerName,
+  row.customerDocument,
+  row.status,
+  row.recoveryStatus,
+  row.loanDate ? new Date(row.loanDate).toISOString().slice(0, 10) : '',
+  row.loanAmount,
+  row.totalAmount,
+  row.remainingAmount,
+  row.remainingBalance,
+  row.tna,
+  row.totalQuotas,
+  row.totalPaid,
+  row.totalCapitalPaid,
+  row.totalInterestPaid,
+  row.totalInterestGenerated,
+  row.totalLatePaymentInterest,
+  row.paymentCount,
+]);
+
+const sumColumn = (rows, key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
+
+const countByStatus = (rows, predicates) => predicates.reduce((acc, [label, predicate]) => {
+  acc[label] = rows.filter(predicate).length;
+  return acc;
+}, {});
+
+const buildPdfSummaryLines = (rows) => {
+  const totalCustomers = new Set(rows.map((row) => row.customerId).filter(Boolean)).size;
+  const counts = countByStatus(rows, [
+    ['Activos', (row) => !['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
+    ['Cerrados', (row) => ['closed', 'completed', 'paid'].includes(String(row.status || '').toLowerCase())],
+    ['Vencidos', (row) => ['defaulted', 'overdue', 'late'].includes(String(row.status || row.recoveryStatus || '').toLowerCase())],
+  ]);
+  const totalLoanAmount = sumColumn(rows, 'loanAmount');
+  const totalPaid = sumColumn(rows, 'totalPaid');
+  const totalCapitalPaid = sumColumn(rows, 'totalCapitalPaid');
+  const totalInterestPaid = sumColumn(rows, 'totalInterestPaid');
+  const totalInterestGenerated = sumColumn(rows, 'totalInterestGenerated');
+  const totalRemaining = sumColumn(rows, 'remainingAmount');
+  const totalLate = sumColumn(rows, 'totalLatePaymentInterest');
+  const availableCash = roundMoney(totalPaid - totalLoanAmount);
+  const profit = roundMoney(totalInterestPaid + totalLate);
+
+  return [
+    `Generado: ${new Date().toISOString()}`,
+    `Total clientes: ${totalCustomers}`,
+    `Total créditos: ${rows.length}`,
+    `Créditos activos: ${counts.Activos}`,
+    `Créditos cerrados: ${counts.Cerrados}`,
+    `Créditos vencidos: ${counts.Vencidos}`,
+    `Total prestado (capital): ${formatMoney(totalLoanAmount)}`,
+    `Cuotas recibidas (total cobrado): ${formatMoney(totalPaid)}`,
+    `Capital recuperado: ${formatMoney(totalCapitalPaid)}`,
+    `Intereses cobrados: ${formatMoney(totalInterestPaid)}`,
+    `Intereses generados: ${formatMoney(totalInterestGenerated)}`,
+    `Mora cobrada: ${formatMoney(totalLate)}`,
+    `Saldo pendiente: ${formatMoney(totalRemaining)}`,
+    `Ganancia (intereses + mora): ${formatMoney(profit)}`,
+    `Caja disponible (cobrado - prestado): ${formatMoney(availableCash)}`,
+  ];
+};
+
+const createExportCreditsCsv = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor, 'Only admins can export credits data');
+  const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
+  const rows = await buildCreditsRowsForExport({ loans, paymentRepository, loanViewService });
+  const csv = buildCsv({ headers: CSV_HEADERS, rows: buildCsvRows(rows) });
+
+  return {
+    fileName: `reporte-creditos-${new Date().toISOString().slice(0, 10)}.csv`,
+    contentType: 'text/csv; charset=utf-8',
+    buffer: Buffer.from(csv, 'utf8'),
+  };
+};
+
+const createExportCreditsPdf = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor, 'Only admins can export credits data');
+  const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
+  const rows = await buildCreditsRowsForExport({ loans, paymentRepository, loanViewService });
+  const buffer = buildPdfBuffer({
+    title: 'Reporte de Créditos',
+    lines: buildPdfSummaryLines(rows),
+  });
+
+  return {
+    fileName: `reporte-creditos-${new Date().toISOString().slice(0, 10)}.pdf`,
+    contentType: 'application/pdf',
+    buffer,
+  };
+};
+
+module.exports = {
+  createExportCreditsExcel,
+  createExportCreditsCsv,
+  createExportCreditsPdf,
+  normalizeCreditExportFilters,
+  matchesFilters,
+};

@@ -5,8 +5,6 @@ const {
   AssociateInstallment,
   ProfitDistribution,
   IdempotencyKey,
-  Loan,
-  Customer,
   User,
 } = require('@/models');
 const { paginateModel } = require('@/modules/shared/pagination');
@@ -56,33 +54,6 @@ const associateRepository = {
       pageSize,
       where: buildAssociateListWhere(filters),
       order: [['name', 'ASC']],
-    });
-  },
-  async attachLoanCounts(associates) {
-    if (!Array.isArray(associates) || associates.length === 0) {
-      return [];
-    }
-
-    const associateIds = [...new Set(associates.map((associate) => Number(associate?.id)).filter(Number.isFinite))];
-    const loans = associateIds.length > 0
-      ? await Loan.findAll({
-        where: { associateId: associateIds },
-        attributes: ['id', 'associateId'],
-      })
-      : [];
-
-    const countsByAssociateId = new Map();
-    loans.forEach((loan) => {
-      const loanAssociateId = Number(loan.associateId);
-      countsByAssociateId.set(loanAssociateId, (countsByAssociateId.get(loanAssociateId) || 0) + 1);
-    });
-
-    return associates.map((associateRecord) => {
-      const associate = typeof associateRecord?.toJSON === 'function' ? associateRecord.toJSON() : associateRecord;
-      return {
-        ...associate,
-        loanCount: countsByAssociateId.get(Number(associate.id)) || 0,
-      };
     });
   },
   findById(id, { transaction } = {}) {
@@ -145,7 +116,6 @@ const associateRepository = {
     return ProfitDistribution.findAll({
       where: { associateId },
       include: [
-        { model: Loan, attributes: ['id', 'amount', 'status'] },
         { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] },
       ],
       order: [['distributionDate', 'DESC'], ['createdAt', 'DESC']],
@@ -193,13 +163,6 @@ const associateRepository = {
   updateProportionalDistributionIdempotency(record, payload, { transaction } = {}) {
     return record.update(payload, { transaction });
   },
-  listLoansByAssociate(associateId) {
-    return Loan.findAll({
-      where: { associateId },
-      include: [{ model: Customer, attributes: ['id', 'name', 'email'] }],
-      order: [['createdAt', 'DESC']],
-    });
-  },
   findByLinkedUser(userId) {
     return Associate.findOne({
       include: [{ model: User, as: 'portalUsers', where: { id: userId }, attributes: [] }],
@@ -244,7 +207,6 @@ const associateRepository = {
         },
         include: [
           { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] },
-          { model: Loan, attributes: ['id', 'amount', 'status'] },
         ],
         order: [['distributionDate', 'ASC']],
       }),
@@ -271,8 +233,6 @@ const associateRepository = {
         date: d.distributionDate,
         notes: d.notes,
         createdBy: d.createdBy,
-        loanId: d.loanId,
-        loan: d.Loan,
       })),
       installments: installments.map((i) => ({
         id: i.id,

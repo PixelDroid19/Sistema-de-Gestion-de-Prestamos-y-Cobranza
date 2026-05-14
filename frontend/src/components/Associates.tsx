@@ -7,13 +7,21 @@ import { exportAssociatesExcel } from '../services/reportService';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
+import { useSessionStore } from '../store/sessionStore';
 import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
+  const { user } = useSessionStore();
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
+  const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
+  const canCreateAssociates = hasPermission('SOCIOS_CREATE');
+  const canUpdateAssociates = hasPermission('SOCIOS_UPDATE');
+  const canDeleteAssociates = hasPermission('SOCIOS_DELETE');
+  const canExportAssociates = hasPermission('REPORTS_VIEW_ALL');
   const { data: associatesData, isLoading, isError, updateAssociate, deleteAssociate, restoreAssociate } = useAssociates({
     page,
     pageSize,
@@ -23,6 +31,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportAssociatesExcel = async () => {
+    if (!canExportAssociates) {
+      toast.error({ description: 'No tiene permiso para exportar reportes de socios.' });
+      return;
+    }
+
     try {
       setIsExporting(true);
       await exportAssociatesExcel();
@@ -72,6 +85,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   const handleDelete = async (associate: any) => {
+    if (!canDeleteAssociates) {
+      toast.apiErrorSafe(new Error('No tiene permiso para eliminar socios.'), { domain: 'associates' });
+      return;
+    }
+
     const associateId = Number(associate?.id);
     if (!Number.isFinite(associateId)) return;
 
@@ -92,6 +110,11 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   const handleToggleStatus = async (associate: any) => {
+    if (!canUpdateAssociates) {
+      toast.apiErrorSafe(new Error('No tiene permiso para cambiar el estado de socios.'), { domain: 'associates' });
+      return;
+    }
+
     const associateId = Number(associate?.id);
     if (!Number.isFinite(associateId)) return;
 
@@ -131,21 +154,25 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
         subtitle={tTerm('associates.module.subtitle')}
         guideKey="associates"
         tourId="associates-header"
-        actions={(
+        actions={(canExportAssociates || canCreateAssociates) ? (
         <>
-          <ActionButton
-            onClick={handleExportAssociatesExcel}
-            disabled={isExporting}
-            isLoading={isExporting}
-            icon={<Download size={16} />}
-          >
-            {tTerm('associates.cta.exportExcel')}
-          </ActionButton>
-          <ActionButton onClick={() => setCurrentView('associates-new')} icon={<Plus size={16} />} variant="primary">
-            {tTerm('associates.cta.new')}
-          </ActionButton>
+          {canExportAssociates && (
+            <ActionButton
+              onClick={handleExportAssociatesExcel}
+              disabled={isExporting}
+              isLoading={isExporting}
+              icon={<Download size={16} />}
+            >
+              {tTerm('associates.cta.exportExcel')}
+            </ActionButton>
+          )}
+          {canCreateAssociates && (
+            <ActionButton onClick={() => setCurrentView('associates-new')} icon={<Plus size={16} />} variant="primary">
+              {tTerm('associates.cta.new')}
+            </ActionButton>
+          )}
         </>
-        )}
+        ) : undefined}
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -205,21 +232,20 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           } : undefined}
           className="data-table-surface"
         >
-          <table className="w-full text-sm text-left">
+          <table className="min-w-[820px] w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
                 <th className="pb-3 font-medium">ID</th>
                 <th className="pb-3 font-medium">Nombre del socio</th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Estado" text="Estado del socio dentro de la plataforma. Define si sigue habilitado para vínculos, reportes y participación operativa." />
+                  <HelpLabel label="Estado" text="Estado del socio dentro de la plataforma. Define si sigue habilitado para aportes, intereses, reportes y movimientos operativos." />
                 </th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Participación" text="Porcentaje o reparto con el que el socio participa en los créditos relacionados." />
+                  <HelpLabel label="Participación" text="Porcentaje pactado para distribuir rentabilidad o movimientos proporcionales entre socios inversionistas." />
                 </th>
                 <th className="pb-3 font-medium">
                   <HelpLabel label="Interés pactado" text="Tasa mensual o anual que se reconoce al socio sobre su capital aportado." />
                 </th>
-                <th className="pb-3 font-medium">Créditos relacionados</th>
                 <th className="pb-3 font-medium">Acciones</th>
               </tr>
             </thead>
@@ -242,7 +268,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     {associate.participationPercentage ? `${associate.participationPercentage}%` : 'Sin definir'}
                   </td>
                   <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
-                  <td className="py-4">{associate.loanCount ?? associate.relatedLoans?.length ?? 0}</td>
                   <td className="py-4">
                     <div className="flex items-center gap-2">
                       <ActionButton
@@ -254,33 +279,39 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                       >
                         <span className="sr-only">Ver detalles</span>
                       </ActionButton>
-                      <ActionButton
-                        onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
-                        icon={<Edit size={16} />}
-                        variant="ghost"
-                        className="h-9 w-9 !min-h-0 !p-0"
-                        title="Editar"
-                      >
-                        <span className="sr-only">Editar</span>
-                      </ActionButton>
-                      <ActionButton
-                        onClick={() => handleToggleStatus(associate)}
-                        icon={<MoreVertical size={16} />}
-                        variant="ghost"
-                        className="h-9 w-9 !min-h-0 !p-0"
-                        title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
-                      >
-                        <span className="sr-only">{associate.status === 'active' ? 'Desactivar' : 'Reactivar'}</span>
-                      </ActionButton>
-                      <ActionButton
-                        onClick={() => handleDelete(associate)}
-                        icon={<Trash2 size={16} />}
-                        variant="danger"
-                        className="h-9 w-9 !min-h-0 !p-0"
-                        title="Eliminar"
-                      >
-                        <span className="sr-only">Eliminar</span>
-                      </ActionButton>
+                      {canUpdateAssociates && (
+                        <>
+                          <ActionButton
+                            onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
+                            icon={<Edit size={16} />}
+                            variant="ghost"
+                            className="h-9 w-9 !min-h-0 !p-0"
+                            title="Editar"
+                          >
+                            <span className="sr-only">Editar</span>
+                          </ActionButton>
+                          <ActionButton
+                            onClick={() => handleToggleStatus(associate)}
+                            icon={<MoreVertical size={16} />}
+                            variant="ghost"
+                            className="h-9 w-9 !min-h-0 !p-0"
+                            title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
+                          >
+                            <span className="sr-only">{associate.status === 'active' ? 'Desactivar' : 'Reactivar'}</span>
+                          </ActionButton>
+                        </>
+                      )}
+                      {canDeleteAssociates && (
+                        <ActionButton
+                          onClick={() => handleDelete(associate)}
+                          icon={<Trash2 size={16} />}
+                          variant="danger"
+                          className="h-9 w-9 !min-h-0 !p-0"
+                          title="Eliminar"
+                        >
+                          <span className="sr-only">Eliminar</span>
+                        </ActionButton>
+                      )}
                     </div>
                   </td>
                 </tr>

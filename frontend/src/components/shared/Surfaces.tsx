@@ -35,6 +35,20 @@ type MetricCardProps = {
   className?: string;
 };
 
+type InsightStripItem = {
+  id: string;
+  label: React.ReactNode;
+  value: React.ReactNode;
+  helper?: React.ReactNode;
+  icon?: React.ReactNode;
+  accent?: 'teal' | 'emerald' | 'blue' | 'amber' | 'rose' | 'slate';
+};
+
+type InsightStripProps = React.HTMLAttributes<HTMLElement> & {
+  items: InsightStripItem[];
+  className?: string;
+};
+
 type StatusChipProps = React.HTMLAttributes<HTMLSpanElement> & {
   children: React.ReactNode;
   icon?: React.ReactNode;
@@ -236,6 +250,31 @@ export function MetricCard({
         </p>
       )}
     </article>
+  );
+}
+
+export function InsightStrip({
+  items,
+  className = '',
+  ...rest
+}: InsightStripProps) {
+  return (
+    <section className={`insight-strip ${className}`} {...rest}>
+      {items.map((item) => (
+        <article key={item.id} className={`insight-strip-item insight-strip-item--${item.accent ?? 'slate'}`}>
+          {item.icon ? (
+            <div className="insight-strip-icon" aria-hidden="true">
+              {item.icon}
+            </div>
+          ) : null}
+          <div className="min-w-0">
+            <p className="insight-strip-label">{item.label}</p>
+            <p className="insight-strip-value">{item.value}</p>
+            {item.helper ? <p className="insight-strip-helper">{item.helper}</p> : null}
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }
 

@@ -98,8 +98,9 @@ export default function CreditDetails() {
   const [activeTab, setActiveTab] = useState<CreditDetailsTab>('calendar');
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
-  const canViewPayoff = user?.role === 'customer' || isAdmin;
-  const { paymentMethods: configuredPaymentMethods } = useConfig();
+  const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
+  const canViewPayoff = isBackofficeUser;
+  const { paymentMethods: configuredPaymentMethods } = useConfig({ enabled: isAdmin });
   const paymentMethodOptions = useMemo(() => {
     const activeConfiguredMethods = configuredPaymentMethods
       .filter((method: any) => method?.isActive !== false)
@@ -156,8 +157,8 @@ export default function CreditDetails() {
     recordCapitalPayment,
     updateLateFeeRate,
   } = useLoanDetails(loanId, {
-    includeAlerts: isAdmin,
-    includePromises: isAdmin,
+    includeAlerts: isBackofficeUser,
+    includePromises: isBackofficeUser,
     includePayoffQuote: shouldFetchPayoffQuote,
   });
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
@@ -325,8 +326,8 @@ export default function CreditDetails() {
     permissions: user?.permissions,
     loanStatus: loan?.status,
   });
-  const showInstallmentActionColumn = isAdmin || installmentPaymentGuard.visible;
-  const creditDetailSubtitle = isAdmin
+  const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
+  const creditDetailSubtitle = isBackofficeUser
     ? 'Opera pagos, mora y seguimientos usando la fórmula congelada al crear este crédito.'
     : 'Consulta tu plan de pagos, historial y opciones de pago disponibles para este crédito.';
 
@@ -449,14 +450,14 @@ export default function CreditDetails() {
   const visibleTabs = useMemo(() => {
     const tabs: Array<typeof activeTab> = ['calendar'];
 
-    if (isAdmin) {
+    if (isBackofficeUser) {
       tabs.push('alerts', 'promises');
     }
 
     tabs.push('payouts', 'history');
 
     return tabs;
-  }, [isAdmin]);
+  }, [isBackofficeUser]);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -1139,6 +1140,18 @@ export default function CreditDetails() {
       loanStatus: loan?.status,
       installmentStatus: row.status,
     });
+    const promiseGuard = resolveOperationalGuard('installment.promise', {
+      role: user?.role,
+      permissions: user?.permissions,
+      loanStatus: loan?.status,
+      installmentStatus: row.status,
+    });
+    const followUpGuard = resolveOperationalGuard('installment.followUp', {
+      role: user?.role,
+      permissions: user?.permissions,
+      loanStatus: loan?.status,
+      installmentStatus: row.status,
+    });
     const installmentReason = isNextPendingInstallment
       ? ''
       : (nextPayableInstallmentNumber
@@ -1158,37 +1171,43 @@ export default function CreditDetails() {
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-            label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isAdmin ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
+            label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isBackofficeUser ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
           >
             <DollarSign size={16} />
           </InstallmentActionButton>
         )}
-        {isAdmin && (
+        {(promiseGuard.visible || followUpGuard.visible || annulGuard.visible) && (
           <>
-            <InstallmentActionButton
-              onClick={() => openPromiseFromInstallment(row)}
-              disabled={!isNextPendingInstallment}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
-              label={isNextPendingInstallment ? `${titlePrefix}Crear compromiso de pago` : installmentReason}
-            >
-              <Clock size={16} />
-            </InstallmentActionButton>
-            <InstallmentActionButton
-              onClick={() => openFollowUpFromInstallment(row)}
-              disabled={!isNextPendingInstallment}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
-              label={isNextPendingInstallment ? `${titlePrefix}Crear seguimiento` : installmentReason}
-            >
-              <Bell size={16} />
-            </InstallmentActionButton>
-            <InstallmentActionButton
-              onClick={() => openAnnulModal(row.installmentNumber)}
-              disabled={!isNextPendingInstallment || !annulGuard.executable}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
-              label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
-            >
-              <ShieldAlert size={16} />
-            </InstallmentActionButton>
+            {promiseGuard.visible && (
+              <InstallmentActionButton
+                onClick={() => openPromiseFromInstallment(row)}
+                disabled={!isNextPendingInstallment || !promiseGuard.executable}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
+                label={isNextPendingInstallment && promiseGuard.executable ? `${titlePrefix}Crear compromiso de pago` : (promiseGuard.reason || installmentReason)}
+              >
+                <Clock size={16} />
+              </InstallmentActionButton>
+            )}
+            {followUpGuard.visible && (
+              <InstallmentActionButton
+                onClick={() => openFollowUpFromInstallment(row)}
+                disabled={!isNextPendingInstallment || !followUpGuard.executable}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
+                label={isNextPendingInstallment && followUpGuard.executable ? `${titlePrefix}Crear seguimiento` : (followUpGuard.reason || installmentReason)}
+              >
+                <Bell size={16} />
+              </InstallmentActionButton>
+            )}
+            {annulGuard.visible && (
+              <InstallmentActionButton
+                onClick={() => openAnnulModal(row.installmentNumber)}
+                disabled={!isNextPendingInstallment || !annulGuard.executable}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
+                label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+              >
+                <ShieldAlert size={16} />
+              </InstallmentActionButton>
+            )}
           </>
         )}
       </div>
@@ -1203,9 +1222,10 @@ export default function CreditDetails() {
         subtitle={creditDetailSubtitle}
         customerLabel={customerLabel}
         calculationProfileSummary={calculationProfileSummary}
-        registerPaymentLabel={isAdmin ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
+        registerPaymentLabel={isBackofficeUser ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
-        isAdmin={isAdmin}
+        canAccessBackofficeActions={isBackofficeUser}
+        canExportCreditExcel={isAdmin}
         isExportingCreditExcel={isExportingCreditExcel}
         installmentPaymentGuard={installmentPaymentGuard}
         capitalPaymentGuard={capitalPaymentGuard}
@@ -1235,7 +1255,7 @@ export default function CreditDetails() {
       <section className="min-w-0">
         <CreditDetailsTabs
           activeTab={activeTab}
-          isAdmin={isAdmin}
+          isAdmin={isBackofficeUser}
           alertCount={alertEntries.length}
           pendingPromiseCount={promiseEntries.filter((promise: any) => promise.status === 'pending').length}
           paymentHistoryCount={paymentHistoryEntries.length}
@@ -1723,7 +1743,7 @@ export default function CreditDetails() {
                                       paymentReconciled: Boolean(event.paymentReconciled),
                                     });
 
-                                    if (!isAdmin || !editGuard.visible) return null;
+                                    if (!isBackofficeUser || !editGuard.visible) return null;
 
                                     return (
                                       <ActionButton

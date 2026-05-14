@@ -280,8 +280,8 @@ export default function CreditSimulationWorkspace({
 
   return (
     <section className={`flex flex-col ${compactChrome ? 'gap-4' : 'gap-6'}`} aria-labelledby={titleId}>
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-        <div className={`border-b border-border-subtle ${compactChrome ? 'px-5 py-3 sm:px-6' : 'px-6 py-6 sm:px-8'}`}>
+      <div className={compactChrome ? 'border-t border-border-subtle pt-5' : 'overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}>
+        <div className={`${compactChrome ? 'pb-4' : 'border-b border-border-subtle px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className={`max-w-3xl ${compactChrome ? 'space-y-1' : 'space-y-3'}`}>
               {!compactChrome && (
@@ -373,9 +373,9 @@ export default function CreditSimulationWorkspace({
           )}
         </div>
 
-        <div className={`grid ${compactChrome ? 'gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(320px,0.58fr)_minmax(0,1.42fr)] 2xl:grid-cols-[minmax(340px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
+        <div className={`grid ${compactChrome ? 'gap-4 xl:grid-cols-[minmax(300px,0.52fr)_minmax(0,1.48fr)] 2xl:grid-cols-[minmax(320px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
           <div className={`${compactChrome ? 'space-y-4 xl:sticky xl:top-4 xl:self-start' : 'space-y-5'}`}>
-            <section className={`${compactChrome ? 'space-y-4 rounded-xl border border-border-subtle bg-bg-base/60 p-4' : 'space-y-5'}`}>
+            <section className={`${compactChrome ? 'space-y-4 border-b border-border-subtle pb-5' : 'space-y-5'}`}>
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
                 Parámetros
@@ -414,9 +414,9 @@ export default function CreditSimulationWorkspace({
                   )}
                 </div>
 
-                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'} sm:grid-cols-2`}>
+                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4 sm:grid-cols-2'}`}>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
                         {rateControl?.readOnly ? 'Tasa configurada' : 'Tasa nominal anual'}
                       </label>
@@ -480,7 +480,7 @@ export default function CreditSimulationWorkspace({
                   </div>
                 </div>
 
-                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'} sm:grid-cols-2`}>
+                <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4 sm:grid-cols-2'}`}>
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
@@ -726,7 +726,7 @@ export default function CreditSimulationWorkspace({
                   ))}
                 </div>
               ) : (
-                 <div className="mt-5 rounded-2xl border border-dashed border-border-subtle bg-bg-base px-6 py-10 text-center">
+                 <div className={`mt-5 text-center ${compactChrome ? 'border-y border-border-subtle px-4 py-10' : 'rounded-2xl border border-dashed border-border-subtle bg-bg-base px-6 py-10'}`}>
                   <Calculator size={40} className="mx-auto text-text-secondary" strokeWidth={1.5} />
                   <h5 className="mt-4 text-lg font-semibold text-text-primary">{emptyTitle}</h5>
                   <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
@@ -762,7 +762,7 @@ export default function CreditSimulationWorkspace({
               </div>
 
                <DataTableSurface>
-                <div className={`${compactChrome ? 'max-h-[460px] pb-24' : 'max-h-[540px]'} overflow-auto`}>
+                <div className={`${compactChrome ? 'max-h-[460px]' : 'max-h-[540px]'} overflow-auto`}>
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
                       <tr>

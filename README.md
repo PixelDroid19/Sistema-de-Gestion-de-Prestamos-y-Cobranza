@@ -1,20 +1,20 @@
 # CrediCobranza
 
-CrediCobranza es un Sistema de Gestion de Prestamos y Cobranza con frontend React/Vite y backend Node.js/Express. El producto actual cubre clientes, prestamos, pagos, socios, agentes, notificaciones, reportes y un workspace por rol para operacion interna y acceso externo.
+CrediCobranza es un Sistema de Gestion de Prestamos y Cobranza con frontend React/Vite y backend Node.js/Express. El producto actual cubre clientes, prestamos, pagos, socios inversionistas, empleados, notificaciones, reportes y operacion interna.
 
 ## Panorama general
 
 - `frontend/`: SPA en React 19 con Vite, Sass, TanStack Query, Zustand e i18n en espanol/ingles.
 - `backend/`: API modular en Express 5 con Sequelize sobre PostgreSQL.
 - Dominios visibles: originacion, seguimiento de cartera, cobranza, pagos, reportes, socios, clientes y notificaciones.
-- Motor financiero: simulacion de prestamos, workbench DAG, reglas de calculo y aplicacion de pagos.
+- Motor financiero: simulacion de prestamos, perfiles versionados de calculo, reglas de tasa/mora y aplicacion de pagos.
 
 ## Funcionalidades actuales
 
 - Autenticacion con JWT y carga de sesion por rol.
-- Workspace segmentado para `admin`, `customer` y `socio`, con roster operativo de agentes administrado por `admin`.
+- Backoffice segmentado para `admin` y `employee`, con permisos administrativos por modulo.
 - Dashboard con resumen de cartera, recuperacion y balances.
-- Gestion de clientes, agentes, socios y usuarios.
+- Gestion de clientes, empleados, socios inversionistas y usuarios administrativos.
 - Solicitud, simulacion, aprobacion, rechazo, asignacion y seguimiento de prestamos.
 - Registro de pagos, pagos parciales, pagos a capital, liquidaciones y anulacion de cuotas.
 - Seguimiento operativo con alertas, promesas de pago, adjuntos y documentos del cliente.
@@ -40,9 +40,9 @@ Tecnologias principales:
 Areas principales del frontend:
 
 - `src/components/`: shell, layout y UI compartida.
-- `src/features/`: workspaces y secciones por dominio.
-- `src/pages/`: entradas principales como Home, App, Dashboard, Loans, Payments y Reports.
-- `src/store/`: estado global de sesion, UI y workbench DAG.
+- `src/features/`: secciones por dominio cuando existan.
+- `src/pages/`: entradas principales cuando el modulo las use; la mayoria de vistas operativas viven en `src/components/`.
+- `src/store/`: estado global de sesion, UI y preferencias.
 - `tests/`: pruebas de interfaz y flujos principales.
 
 ### Backend
@@ -66,7 +66,7 @@ Comportamientos relevantes del backend:
 
 - valida variables de entorno al iniciar
 - autentica la conexion de base de datos
-- sincroniza esquema y ejecuta seeds financieros/grafos
+- sincroniza esquema y ejecuta seeds financieros
 - monta modulos bajo `/api/*`
 - inicia sincronizacion programada de alertas vencidas
 - levanta un worker de outbox para eventos diferidos
@@ -89,8 +89,8 @@ El dominio de prestamos es la parte mas rica del sistema y hoy incluye:
 
 - simulacion de credito
 - ciclo de vida completo del prestamo
-- workbench DAG para grafo, validacion y simulacion
-- pipeline de calculo basado en grafo
+- perfiles versionados de calculo para originacion real
+- pipeline de calculo basado en politicas de tasa, mora y snapshot financiero
 - aplicacion canonica de pagos y liquidaciones
 - alertas de mora, promesas de pago y seguimiento operativo
 - adjuntos del prestamo y documentos del cliente
@@ -98,10 +98,9 @@ El dominio de prestamos es la parte mas rica del sistema y hoy incluye:
 ## Roles disponibles
 
 - `admin`: acceso completo a operacion, reportes, usuarios, socios, prestamos, pagos y dashboard.
-- `customer`: consulta de sus prestamos, pagos, documentos y notificaciones.
-- `socio`: visibilidad de socios, reportes de rentabilidad y notificaciones asociadas.
+- `employee`: operador interno con permisos asignados por modulo.
 
-Los agentes se conservan como roster operativo e historial de asignacion (`Agent`, `Loan.agentId`), pero ya no existen como rol autenticado de la aplicacion.
+`customer` y `socio` son registros del dominio financiero, no usuarios del panel administrativo. Los agentes se conservan como roster operativo e historial de asignacion (`Agent`, `Loan.agentId`), pero ya no existen como rol autenticado de la aplicacion.
 
 ## Estructura del repositorio
 
@@ -149,7 +148,7 @@ DB_NAME=loan_recovery_system
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=5433
 JWT_SECRET=replace_me
 ```
 
@@ -158,7 +157,8 @@ Valores opcionales comunes:
 ```env
 PORT=5000
 NODE_ENV=development
-ALLOWED_ORIGINS=http://localhost:3000
+DB_SCHEMA_MODE=alter
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 DB_RESET_ON_BOOT=false
 LOG_LEVEL=info
 WEB_PUSH_VAPID_PUBLIC_KEY=
@@ -186,44 +186,72 @@ El frontend se ejecuta en el puerto 3000 por defecto (configurable via variable 
 
 Ver `setup.md` para la guia completa con Docker y local.
 
-### Local (requiere PostgreSQL)
+### Desarrollo local recomendado
+
+Este modo levanta Postgres local en Docker y ejecuta backend/frontend desde tu maquina con hot reload.
 
 ```bash
-# Terminal 1 — backend
-cd backend && npm install && npm run dev
-
-# Terminal 2 — frontend
-cd frontend && npm install && npm run dev
+npm install
+npm run install:all
+npm run dev:local
 ```
 
-### Con Docker (solo Postgres) + local
+Servicios:
+
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:5000`
+- Postgres local: `localhost:5433`
+
+El frontend usa `VITE_API_URL=http://localhost:5000`. El backend usa `DB_HOST=localhost`, `DB_PORT=5433` y `DB_SCHEMA_MODE=alter` para crear/ajustar tablas locales sin tocar datos remotos.
+
+Para reiniciar solo la base local de desarrollo:
 
 ```bash
-# 1. Postgres en Docker
-docker run -d --name pg-credicobranza -p 5432:5432 \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=loan_recovery_system postgres:16
-
-# 2. Backend local
-cd backend && npm install && npm run dev
-
-# 3. Frontend local
-cd frontend && npm install && npm run dev
+npm run db:reset-local
 ```
 
-### Con Docker Compose
+Ese comando es destructivo para la base local `loan_recovery_system`.
 
-Si tu Docker tiene el plugin `docker compose`:
+Para crear usuarios locales de prueba:
+
+```bash
+npm run seed:local-users
+```
+
+Credenciales creadas o actualizadas:
+
+- Admin: `qa.admin.20260427@test.local` / `Admin123!`
+- Empleado: `qa.employee.20260427@test.local` / `Admin123!`
+
+El empleado se crea sin permisos amplios por defecto; asignale permisos desde el panel administrativo si queres probar flujos limitados.
+
+### Local manual
+
+```bash
+# Terminal 1 - Postgres en Docker
+npm run docker:db
+
+# Terminal 2 - backend
+cd backend
+DB_HOST=localhost DB_PORT=5433 DB_SCHEMA_MODE=alter npm run dev
+
+# Terminal 3 - frontend
+cd frontend
+VITE_API_URL=http://localhost:5000 npm run dev
+```
+
+### Con Docker Compose completo
 
 ```bash
 cd backend
 docker compose up --build
 ```
 
-El frontend corre aparte:
+En este modo el backend queda publicado en `http://localhost:5001` porque corre dentro de Docker. Para conectar el frontend local a ese backend:
 
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend
+VITE_API_URL=http://localhost:5001 npm run dev
 ```
 
 ## Primer usuario
@@ -244,7 +272,7 @@ curl -X POST http://localhost:5000/api/auth/register \
 cd backend
 npm run dev            # nodemon, recarga en cambios
 npm start              # node directo
-npm test               # node --test
+NODE_ENV=test node --require module-alias/register --test
 npm run lint           # eslint
 npm run lint:fix       # auto-fix eslint
 npm run db:reset-local # resetea esquema (destructivo)
@@ -265,7 +293,7 @@ npm run test:watch  # vitest watch
 ## Validacion
 
 ```bash
-cd backend && npm test
+cd backend && NODE_ENV=test node --require module-alias/register --test
 cd frontend && npm test && npm run build
 ```
 
@@ -273,7 +301,7 @@ cd frontend && npm test && npm run build
 
 - Frontend siempre en puerto `3000` (fijo en `vite.config.ts`).
 - Backend en puerto `5000` (configurable via `PORT`).
-- No hay workspace root; cada lado se gestiona por separado.
-- El backend usa sincronizacion de esquema automatica, no migraciones versionadas.
+- Hay comandos root para desarrollo local (`npm run dev:local`), pero backend y frontend siguen instalando/verificando dependencias por separado.
+- El backend usa sincronizacion de esquema automatica en desarrollo local (`DB_SCHEMA_MODE=alter`).
 - `frontend/dist/` contiene artefactos generados.
 - El shell del frontend ya muestra la marca CrediCobranza.

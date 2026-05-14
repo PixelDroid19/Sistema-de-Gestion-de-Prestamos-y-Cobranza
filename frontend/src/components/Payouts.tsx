@@ -32,7 +32,7 @@ export default function Payouts() {
   const queryClient = useQueryClient();
   const { user } = useSessionStore();
   const { executeGuardedAction } = useOperationalActions(queryClient);
-  const { paymentMethods: configuredPaymentMethods } = useConfig();
+  const { paymentMethods: configuredPaymentMethods } = useConfig({ enabled: user?.role === 'admin' });
   const { page, setPage, pageSize, setPageSize } = usePaginationStore();
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -461,7 +461,7 @@ export default function Payouts() {
           } : undefined}
           className="data-table-surface"
         >
-          <table className="w-full text-sm text-left">
+          <table className="min-w-[820px] w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
                 <th className="pb-3 font-medium w-10">

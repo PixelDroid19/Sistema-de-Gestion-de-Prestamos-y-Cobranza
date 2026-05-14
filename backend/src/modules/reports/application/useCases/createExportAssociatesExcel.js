@@ -82,12 +82,10 @@ const buildAssociateSheets = (rows) => {
   const contributionRows = rows.filter((row) => row.section === 'contribution');
   const distributionRows = rows.filter((row) => row.section === 'distribution');
   const interestRows = rows.filter((row) => row.section === 'interest-payment' || row.section === 'interest-due');
-  const loanRows = rows.filter((row) => row.section === 'loan');
   const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalDistributed = distributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestPaid = interestRows.filter((row) => row.status === 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestDebt = interestRows.filter((row) => row.status !== 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
-  const loanAmount = loanRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const byStatus = Array.from(rows.reduce((map, row) => {
     const status = row.status || 'N/A';
     const current = map.get(status) || { status, count: 0, amount: 0 };
@@ -121,8 +119,6 @@ const buildAssociateSheets = (rows) => {
         { indicator: 'Distribuciones Totales', value: totalDistributed, unit: '$', description: 'Ganancias distribuidas a socios' },
         { indicator: 'Interés Pagado', value: totalInterestPaid, unit: '$', description: 'Intereses pagados a socios' },
         { indicator: 'Deuda con Socios', value: totalInterestDebt, unit: '$', description: 'Intereses programados pendientes de pago' },
-        { indicator: 'Créditos Asociados', value: loanRows.length, unit: 'créditos', description: 'Créditos vinculados a socios' },
-        { indicator: 'Monto en Créditos', value: loanAmount, unit: '$', description: 'Capital de créditos asociados' },
       ],
       autoFilter: false,
     },
@@ -176,7 +172,6 @@ const buildAssociateSheets = (rows) => {
         { section: 'Distribuciones', count: distributionRows.length, amount: totalDistributed },
         { section: 'Intereses pagados', count: interestRows.filter((row) => row.status === 'Pagado').length, amount: totalInterestPaid },
         { section: 'Intereses pendientes', count: interestRows.filter((row) => row.status !== 'Pagado').length, amount: totalInterestDebt },
-        { section: 'Créditos', count: loanRows.length, amount: loanAmount },
       ],
     },
   ];
@@ -184,7 +179,7 @@ const buildAssociateSheets = (rows) => {
 
 /**
  * Create use case: Export Associates to Excel
- * Exports all associates with their contributions, distributions, and loan associations.
+ * Exports all associates with their contributions, distributions, interest installments, reinvestments, and debt status.
  * GET /api/reports/associates/excel
  */
 const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor }) => {
@@ -208,11 +203,10 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
   // Build rows for each associate
   const rows = await Promise.all(
     associateIds.map(async (associateId) => {
-      const [associate, contributions, distributions, loans, installments] = await Promise.all([
+      const [associate, contributions, distributions, installments] = await Promise.all([
         associateRepository.findById(associateId),
         associateRepository.listContributionsByAssociate(associateId),
         associateRepository.listProfitDistributionsByAssociate(associateId),
-        associateRepository.listLoansByAssociate(associateId),
         associateRepository.findInstallmentsByAssociateId(associateId),
       ]);
 
@@ -274,24 +268,6 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         };
       });
 
-      // Loan rows
-      const loanRows = loans.map((l) => ({
-        associateId: associate.id,
-        associateName: associate.name,
-        ...baseFields,
-        section: 'loan',
-        entryId: l.id,
-        reference: l.Customer?.name || `Customer ${l.customerId}`,
-        amount: formatMoney(l.amount),
-        date: formatIsoDate(l.createdAt),
-        status: l.status || 'N/A',
-        participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
-        distributionType: '',
-        declaredProportionalTotal: '',
-        allocatedAmount: '',
-        notes: `Recovery: ${l.recoveryStatus || 'N/A'}`,
-      }));
-
       const interestRows = installments.map((installment) => ({
         associateId: associate.id,
         associateName: associate.name,
@@ -324,10 +300,10 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         distributionType: '',
         declaredProportionalTotal: '',
         allocatedAmount: '',
-        notes: `Contributions: ${contributions.length}, Distributions: ${distributions.length}, Loans: ${loans.length}`,
+        notes: `Contributions: ${contributions.length}, Distributions: ${distributions.length}, Interest installments: ${installments.length}`,
       };
 
-      return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows, ...loanRows];
+      return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows];
     }),
   );
 

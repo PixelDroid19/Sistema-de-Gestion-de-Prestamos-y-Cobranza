@@ -185,25 +185,6 @@ const normalizeAssociateListFilters = (filters = {}) => {
   return normalized;
 };
 
-const enrichAssociatesWithLoanCounts = async ({ associateRepository, result }) => {
-  if (typeof associateRepository.attachLoanCounts !== 'function') {
-    return result;
-  }
-
-  if (Array.isArray(result)) {
-    return associateRepository.attachLoanCounts(result);
-  }
-
-  if (Array.isArray(result?.items)) {
-    return {
-      ...result,
-      items: await associateRepository.attachLoanCounts(result.items),
-    };
-  }
-
-  return result;
-};
-
 const normalizeAssociateRecord = (associate) => {
   const serializedAssociate = typeof associate?.toJSON === 'function' ? associate.toJSON() : associate;
   if (!serializedAssociate) {
@@ -554,20 +535,14 @@ const createListAssociates = ({ associateRepository }) => async ({ pagination, f
   const normalizedFilters = normalizeAssociateListFilters(filters);
 
   if (pagination) {
-    const result = await enrichAssociatesWithLoanCounts({
-      associateRepository,
-      result: await associateRepository.listPage({ ...pagination, filters: normalizedFilters }),
-    });
+    const result = await associateRepository.listPage({ ...pagination, filters: normalizedFilters });
     return {
       items: result.items.map(normalizeAssociateRecord),
       pagination: result.pagination,
     };
   }
 
-  const associates = await enrichAssociatesWithLoanCounts({
-    associateRepository,
-    result: await associateRepository.list(normalizedFilters),
-  });
+  const associates = await associateRepository.list(normalizedFilters);
   return associates.map(normalizeAssociateRecord);
 };
 
@@ -723,10 +698,9 @@ const ensureAssociatePortalAccess = async ({ actor, associateRepository, associa
 
 const createListAssociatePortalSummary = ({ associateRepository }) => async ({ actor, associateId }) => {
   const associate = await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
-  const [contributions, distributions, loans, installments] = await Promise.all([
+  const [contributions, distributions, installments] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
-    associateRepository.listLoansByAssociate(associate.id),
     associateRepository.findInstallmentsByAssociateId(associate.id),
   ]);
 
@@ -754,8 +728,6 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
       paidByUser: installment.paidByUser,
       paymentMethod: installment.paymentMethod || null,
     }));
-  const activeLoans = loans.filter((loan) => ['approved', 'active', 'defaulted'].includes(loan.status));
-
   return {
     associate: normalizeAssociateRecord(associate),
     summary: {
@@ -765,14 +737,11 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
       interestDebt: roundCurrency(interestDebt),
       nextInterestPaymentDate: nextInterestPayment?.dueDate ? new Date(nextInterestPayment.dueDate).toISOString() : null,
       netProfit: roundCurrency(totalDistributed),
-      activeLoanCount: activeLoans.length,
-      portfolioExposure: roundCurrency(activeLoans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0)),
       debtStatus: interestDebt > 0 ? 'pending' : 'up_to_date',
     },
     contributions,
     distributions: distributions.map(normalizeDistributionRecord),
     paymentHistory,
-    loans,
   };
 };
 
@@ -833,7 +802,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
 
     return associateRepository.createProfitDistribution({
       associateId: associate.id,
-      loanId: payload.loanId || null,
+      loanId: null,
       amount,
       distributionDate: payload.distributionDate ? new Date(payload.distributionDate) : new Date(),
       createdByUserId: actor.id,
@@ -873,7 +842,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
       const note = payload.notes ? String(payload.notes).trim() : null;
       const distribution = await associateRepository.createProfitDistribution({
         associateId: associate.id,
-        loanId: payload.loanId || null,
+        loanId: null,
         amount,
         distributionDate: operationDate,
         createdByUserId: actor.id,
@@ -898,7 +867,6 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
         reinvestment: {
           amount: formatCurrency(amount),
           reinvestmentDate: operationDate.toISOString(),
-          loanId: payload.loanId || null,
           notes: note,
         },
         distribution: normalizeDistributionRecord(distribution),

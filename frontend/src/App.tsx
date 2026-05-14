@@ -94,8 +94,8 @@ function MainLayout() {
               <Route path="/customers-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_CREATE']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
               <Route path="/customers/:id/edit" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CLIENTS_UPDATE']}><NewCustomer onBack={() => setCurrentView('customers')} /></ProtectedRoute>} />
               <Route path="/credits" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><Credits setCurrentView={setCurrentView} /></ProtectedRoute>} />
-              <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
-              <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/credits-new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE', 'CREDITS_VIEW_ALL']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
+              <Route path="/credits/new" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE', 'CREDITS_VIEW_ALL']}><NewCredit onBack={() => setCurrentView('credits')} /></ProtectedRoute>} />
               <Route path="/new-credit" element={<Navigate to="/credits-new" replace />} />
               <Route path="/credits/:id" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><CreditDetails /></ProtectedRoute>} />
               <Route path="/credits/:id/schedule" element={<ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_VIEW_ALL']}><PaymentSchedule /></ProtectedRoute>} />

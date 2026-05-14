@@ -8,6 +8,12 @@ const mockSimulate = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockUseActiveCreditSimulation = vi.fn();
+const mockUseConfig = vi.fn();
+let currentUser = { id: 1, role: 'admin', permissions: ['*'] } as {
+  id: number;
+  role: 'admin' | 'employee';
+  permissions: string[];
+};
 const mockConfigState = {
   ratePolicies: [] as any[],
   lateFeePolicies: [] as any[],
@@ -49,24 +55,18 @@ vi.mock('../../services/customerService', () => ({
   }),
 }));
 
-vi.mock('../../services/associateService', () => ({
-  useAssociates: () => ({
-    data: {
-      data: {
-        associates: [
-          { id: 3, name: 'Socio QA' },
-        ],
-      },
-    },
-  }),
+vi.mock('../../services/configService', () => ({
+  useConfig: (...args: unknown[]) => mockUseConfig(...args),
 }));
 
-vi.mock('../../services/configService', () => ({
-  useConfig: () => ({
+vi.mock('../../store/sessionStore', () => ({
+  useSessionStore: () => ({ user: currentUser }),
+}));
+
+mockUseConfig.mockImplementation(() => ({
     ratePolicies: mockConfigState.ratePolicies,
     lateFeePolicies: mockConfigState.lateFeePolicies,
     isLoading: false,
-  }),
 }));
 
 vi.mock('../hooks/useActiveCreditSimulation', () => ({
@@ -108,13 +108,33 @@ describe('NewCredit behavior', () => {
       },
     ];
     mockConfigState.lateFeePolicies = [];
+    currentUser = { id: 1, role: 'admin', permissions: ['*'] };
+    mockUseConfig.mockClear();
+    mockUseConfig.mockImplementation(() => ({
+      ratePolicies: mockConfigState.ratePolicies,
+      lateFeePolicies: mockConfigState.lateFeePolicies,
+      isLoading: false,
+    }));
 
     mockUseActiveCreditSimulation.mockReturnValue({
       input: routeState.calculationInput,
       result: {
+        inputs: {
+          ...routeState.calculationInput,
+          interestRate: 40,
+          annualLateFeeRate: 0,
+        },
         method: 'COMPOUND',
         calculationProfileVersionId: 9,
         lateFeeMode: 'COMPOUND',
+        policySnapshot: {
+          rateSource: 'policy',
+          ratePolicyLabel: 'Tasa mayor a 1M',
+          appliedInterestRate: 40,
+          lateFeeSource: 'manual',
+          appliedLateFeeMode: 'COMPOUND',
+          appliedAnnualLateFeeRate: 0,
+        },
         summary: {
           installmentAmount: 195000,
           totalPrincipal: 2300000,
@@ -155,19 +175,19 @@ describe('NewCredit behavior', () => {
       },
       autoRun: true,
     });
+    expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
     expect(screen.getByLabelText('Tasa configurada')).toBeDisabled();
-    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('sticky');
-    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('fixed');
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('fixed');
+    expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
+    expect(screen.queryByLabelText('Socio asignado')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
-    fireEvent.change(screen.getByLabelText('Socio asignado'), { target: { value: '3' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
 
     await waitFor(() => {
       expect(mockCreateLoan).toHaveBeenCalledWith({
         customerId: 10,
-        associateId: 3,
         amount: 2300000,
         interestRate: 40,
         termMonths: 16,
@@ -187,12 +207,15 @@ describe('NewCredit behavior', () => {
     expect(screen.getByText('Preparación del crédito')).toBeInTheDocument();
     expect(screen.getByLabelText('Estado de preparación del crédito')).toBeInTheDocument();
     expect(screen.getAllByText('Regla v9').length).toBeGreaterThan(0);
-    expect(screen.getByText('Selecciona el cliente que recibirá el crédito.')).toBeInTheDocument();
+    expect(screen.queryByText('Selecciona el cliente que recibirá el crédito.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Acciones del nuevo crédito')).toBeInTheDocument();
+    expect(screen.getByText('La mora no se suma al desembolso ni a la cuota normal al crear el crédito.')).toBeInTheDocument();
+    expect(screen.getByText('Cuándo se cobra')).toBeInTheDocument();
+    expect(screen.getByText('Cómo se calcula')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
 
     expect(screen.getByLabelText('Cliente')).toHaveValue('10');
-    expect(screen.getByText('Listo para registrar el crédito real.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeEnabled();
   });
 
@@ -230,5 +253,65 @@ describe('NewCredit behavior', () => {
       }));
     });
     expect(mockCreateLoan).not.toHaveBeenCalled();
+  });
+
+  it('blocks validation when active rate policies overlap with the same priority', async () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 1,
+        label: 'Crédito estándar',
+        annualEffectiveRate: 36,
+        minAmount: 0,
+        maxAmount: null,
+        isActive: true,
+        priority: 100,
+      },
+      {
+        id: 2,
+        label: 'Tasa estándar',
+        annualEffectiveRate: 60,
+        minAmount: 0,
+        maxAmount: 5000000,
+        isActive: true,
+        priority: 100,
+      },
+    ];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(screen.getAllByText('Conflicto de tasas').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Hay varias tasas activas para/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Conflicto de tasas',
+      }));
+    });
+    expect(mockSimulate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeDisabled();
+  });
+
+  it('lets permissioned employees validate and register through backend-applied rate policies without reading admin config', async () => {
+    currentUser = { id: 2, role: 'employee', permissions: ['CREDITS_CREATE'] };
+    mockConfigState.ratePolicies = [];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(mockUseConfig).toHaveBeenCalledWith({ enabled: false });
+    expect(screen.getByText('Configuración: Tasa mayor a 1M')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);
+
+    await waitFor(() => {
+      expect(mockCreateLoan).toHaveBeenCalledWith(expect.objectContaining({
+        customerId: 10,
+        amount: 2300000,
+        interestRate: 40,
+        rateSource: 'policy',
+      }));
+    });
   });
 });

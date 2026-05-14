@@ -180,7 +180,7 @@ const requireSupportedRole = (role, options) => {
 };
 
 const requireAdministrativeLoginRole = (role) => {
-  const normalizedRole = requireSupportedRole(role, { allowLegacyAliases: false });
+  const normalizedRole = requireSupportedRole(role);
   if (!isAdministrativeLoginRole(normalizedRole)) {
     throw buildAdministrativeRoleValidationError();
   }

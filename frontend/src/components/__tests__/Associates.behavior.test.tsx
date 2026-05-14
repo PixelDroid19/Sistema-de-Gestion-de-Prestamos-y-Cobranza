@@ -7,6 +7,10 @@ const deleteAssociateMutateAsync = vi.fn();
 const restoreAssociateMutateAsync = vi.fn();
 const useAssociatesSpy = vi.fn();
 const confirmDanger = vi.fn();
+let mockSessionUser: {
+  role: 'admin' | 'employee' | 'customer' | 'socio';
+  permissions?: string[];
+} | null = { role: 'admin', permissions: ['*'] };
 
 vi.mock('../../services/associateService', () => ({
   useAssociates: (params: unknown) => useAssociatesSpy(params),
@@ -21,9 +25,16 @@ vi.mock('../../store/paginationStore', () => ({
   }),
 }));
 
+vi.mock('../../store/sessionStore', () => ({
+  useSessionStore: () => ({
+    user: mockSessionUser,
+  }),
+}));
+
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
+    error: vi.fn(),
     apiErrorSafe: vi.fn(),
   },
 }));
@@ -64,6 +75,7 @@ const buildAssociatesResponse = (associates: any[]) => ({
 describe('Associates behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionUser = { role: 'admin', permissions: ['*'] };
     confirmDanger.mockResolvedValue(true);
     useAssociatesSpy.mockImplementation(() => buildAssociatesResponse([
       {
@@ -114,5 +126,18 @@ describe('Associates behavior', () => {
     await waitFor(() => {
       expect(restoreAssociateMutateAsync).toHaveBeenCalledWith(2);
     });
+  });
+
+  it('hides mutation and export actions for employees with associates read-only permission', () => {
+    mockSessionUser = { role: 'employee', permissions: ['SOCIOS_VIEW_ALL'] };
+
+    render(<Associates setCurrentView={vi.fn()} />);
+
+    expect(screen.getByTitle('Ver detalles')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /nuevo socio/i })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Editar')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Reactivar')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 });

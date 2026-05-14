@@ -390,8 +390,8 @@ const loanValidation = {
       errors.push({ field: 'customerId', message: 'Valid customer ID is required' });
     }
 
-    if (associateId !== undefined && associateId !== null && !validateIntegerId(associateId)) {
-      errors.push({ field: 'associateId', message: 'Associate ID must be a positive integer when provided' });
+    if (associateId !== undefined && associateId !== null && associateId !== '') {
+      errors.push({ field: 'associateId', message: 'Socios are managed as investors and cannot be assigned to new credits' });
     }
 
     if (!validateAmount(amount)) {

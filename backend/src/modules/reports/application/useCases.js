@@ -933,7 +933,7 @@ const ASSOCIATE_CONTRIBUTION_COLUMNS = [
 
 const ASSOCIATE_DISTRIBUTION_COLUMNS = [
   { header: 'ID Distribución', key: 'distributionId', width: 16 },
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Referencia', key: 'creditId', width: 18 },
   moneyColumn('Monto', 'amount'),
   dateColumn('Fecha Distribución', 'distributionDate', 20),
   { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
@@ -941,14 +941,6 @@ const ASSOCIATE_DISTRIBUTION_COLUMNS = [
   moneyColumn('Total Proporcional', 'declaredProportionalTotal', 20),
   moneyColumn('Monto Asignado', 'allocatedAmount', 20),
   { header: 'Notas', key: 'notes', width: 34 },
-];
-
-const ASSOCIATE_LOAN_COLUMNS = [
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
-  { header: 'Cliente', key: 'customer', width: 28 },
-  moneyColumn('Monto Préstamo', 'amount'),
-  { header: 'Estado Crédito', key: 'status', width: 16 },
-  { header: 'Estado Recuperación', key: 'recoveryStatus', width: 22 },
 ];
 
 const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, format = 'csv' }) => {
@@ -1025,10 +1017,9 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
     throw new AuthorizationError('Socio users can only access their own profitability data');
   }
 
-  const [contributions, distributions, loans] = await Promise.all([
+  const [contributions, distributions] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
-    associateRepository.listLoansByAssociate(associate.id),
   ]);
 
   const totalContributed = contributions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1042,13 +1033,11 @@ const createGetAssociateProfitabilityReport = ({ associateRepository }) => async
       netProfit: totalDistributed.toFixed(2),
       contributionCount: contributions.length,
       distributionCount: distributions.length,
-      loanCount: loans.length,
       participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
     },
     data: {
       contributions,
       distributions: distributions.map(normalizeDistributionRecord),
-      loans,
     },
   };
 };
@@ -1078,14 +1067,6 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
       notes: entry.notes || '',
     };
   });
-  const loanRows = (dataset.loans || []).map((entry) => ({
-    creditId: entry.id,
-    customer: entry.Customer?.name || '',
-    amount: entry.amount,
-    status: entry.status,
-    recoveryStatus: entry.recoveryStatus || '',
-  }));
-
   if (format === 'csv') {
     const csv = buildCsv({
       headers: ['section', 'id', 'reference', 'amount', 'date', 'status', 'participationPercentage', 'distributionType', 'declaredProportionalTotal', 'allocatedAmount', 'notes'],
@@ -1104,7 +1085,6 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
           row.allocatedAmount || '',
           row.notes,
         ]),
-        ...loanRows.map((row) => ['loan', row.creditId, row.customer, row.amount, '', row.status, normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.recoveryStatus]),
       ],
     });
 
@@ -1133,7 +1113,6 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
           { indicator: 'Ganancia Neta', value: Number(report.summary.netProfit || 0), unit: '$' },
           { indicator: 'Cantidad de Aportes', value: report.summary.contributionCount || 0, unit: 'movimientos' },
           { indicator: 'Cantidad de Distribuciones', value: report.summary.distributionCount || 0, unit: 'movimientos' },
-          { indicator: 'Créditos Asociados', value: report.summary.loanCount || 0, unit: 'créditos' },
           { indicator: 'Participación', value: report.summary.participationPercentage || '0.0000', unit: '%' },
         ],
         autoFilter: false,
@@ -1153,14 +1132,6 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
         headerFill: STYLE_COLORS.headerBlue,
         columns: ASSOCIATE_DISTRIBUTION_COLUMNS,
         rows: distributionRows,
-      },
-      {
-        name: 'Créditos',
-        title: 'CRÉDITOS ASOCIADOS',
-        tabColor: STYLE_COLORS.red,
-        headerFill: STYLE_COLORS.headerBlue,
-        columns: ASSOCIATE_LOAN_COLUMNS,
-        rows: loanRows,
       },
     ]),
   };
@@ -1282,6 +1253,8 @@ module.exports = {
   createGetNextMonthProjection: require('./useCases/createGetNextMonthProjection').createGetNextMonthProjection,
   // Excel export use cases
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
+  createExportCreditsCsv: require('./useCases/createExportCreditsExcel').createExportCreditsCsv,
+  createExportCreditsPdf: require('./useCases/createExportCreditsExcel').createExportCreditsPdf,
   createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
   createExportAssociatesExcel: require('./useCases/createExportAssociatesExcel').createExportAssociatesExcel,
   createExportPayoutsExcel: require('./useCases/createExportPayoutsExcel').createExportPayoutsExcel,

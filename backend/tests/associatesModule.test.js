@@ -352,9 +352,6 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
           { id: 4, amount: 20, dueDate: new Date('2026-05-15'), status: 'pending', paidAt: null },
         ];
       },
-      async listLoansByAssociate() {
-        return [{ id: 3, status: 'active', amount: 4000 }];
-      },
     },
   });
 
@@ -367,9 +364,10 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   assert.equal(report.summary.totalInterestPaid, 20);
   assert.equal(report.summary.interestDebt, 20);
   assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15T00:00:00.000Z');
-  assert.equal(report.summary.activeLoanCount, 1);
+  assert.equal(report.summary.debtStatus, 'pending');
   assert.equal(report.paymentHistory.length, 1);
   assert.equal(report.distributions[0].distributionType, 'proportional');
+  assert.equal(Object.hasOwn(report, 'loans'), false);
 });
 
 test('createCreateAssociateContribution validates positive amounts', async () => {

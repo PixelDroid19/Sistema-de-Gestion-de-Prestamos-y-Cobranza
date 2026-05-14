@@ -26,13 +26,18 @@ const mapPaymentMethod = (pm: any) => ({
   type: normalizePaymentMethodType(pm.type ?? pm.metadata?.type ?? pm.key),
 });
 
-export const useConfig = () => {
+type UseConfigOptions = {
+  enabled?: boolean;
+};
+
+export const useConfig = ({ enabled = true }: UseConfigOptions = {}) => {
   const getPaymentMethods = useQuery({
     queryKey: queryKeys.config.paymentMethods,
     queryFn: async () => {
       const { data } = await apiClient.get('/config/payment-methods');
       return data;
     },
+    enabled,
   });
 
   const getRatePolicies = useQuery({
@@ -41,6 +46,7 @@ export const useConfig = () => {
       const { data } = await apiClient.get('/config/rate-policies');
       return data;
     },
+    enabled,
   });
 
   const getLateFeePolicies = useQuery({
@@ -49,6 +55,7 @@ export const useConfig = () => {
       const { data } = await apiClient.get('/config/late-fee-policies');
       return data;
     },
+    enabled,
   });
 
   const createPaymentMethod = useInvalidatingMutation(async (paymentMethodData: any) => {

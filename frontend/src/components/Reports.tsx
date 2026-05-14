@@ -80,6 +80,8 @@ export default function Reports() {
   const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
   const [reportType, setReportType] = useState<'credits' | 'payouts'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
+  const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
+  const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf' | 'csv'>('xlsx');
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
   const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear);
@@ -205,6 +207,8 @@ export default function Reports() {
         await exportContextualReport(reportType, {
           fromDate: reportRange.fromDate || undefined,
           toDate: reportRange.toDate || undefined,
+          status: reportType === 'credits' && reportStatusFilter ? reportStatusFilter : undefined,
+          format: reportType === 'credits' ? reportFormat : undefined,
         });
       },
       successMessage: reportType === 'credits' ? 'Reporte de créditos exportado' : 'Reporte de pagos exportado',
@@ -302,6 +306,36 @@ export default function Reports() {
             </ActionButton>
           </div>
         </div>
+        {reportType === 'credits' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            <FormField label="Estado">
+              <SelectInput
+                id="report-status"
+                value={reportStatusFilter}
+                onChange={(event) => setReportStatusFilter(event.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="approved">Aprobado</option>
+                <option value="active">Activo</option>
+                <option value="overdue">Vencido</option>
+                <option value="defaulted">En mora</option>
+                <option value="closed">Cerrado</option>
+                <option value="paid">Pagado</option>
+              </SelectInput>
+            </FormField>
+            <FormField label="Formato">
+              <SelectInput
+                id="report-format"
+                value={reportFormat}
+                onChange={(event) => setReportFormat(event.target.value as 'xlsx' | 'pdf' | 'csv')}
+              >
+                <option value="xlsx">Excel (xlsx)</option>
+                <option value="pdf">PDF</option>
+                <option value="csv">CSV</option>
+              </SelectInput>
+            </FormField>
+          </div>
+        )}
         {hasInvalidRange && (
           <p className="mt-2 text-sm text-red-600">La fecha "Desde" no puede ser mayor que "Hasta".</p>
         )}

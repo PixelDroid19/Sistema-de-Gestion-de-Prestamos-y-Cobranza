@@ -22,7 +22,8 @@ type CreditDetailHeaderProps = {
   calculationProfileSummary: string;
   registerPaymentLabel: string;
   capitalContributionLabel: string;
-  isAdmin: boolean;
+  canAccessBackofficeActions: boolean;
+  canExportCreditExcel: boolean;
   isExportingCreditExcel: boolean;
   installmentPaymentGuard: CreditActionGuard;
   capitalPaymentGuard: CreditActionGuard;
@@ -65,7 +66,8 @@ export function CreditDetailHeader({
   calculationProfileSummary,
   registerPaymentLabel,
   capitalContributionLabel,
-  isAdmin,
+  canAccessBackofficeActions,
+  canExportCreditExcel,
   isExportingCreditExcel,
   installmentPaymentGuard,
   capitalPaymentGuard,
@@ -113,7 +115,7 @@ export function CreditDetailHeader({
             guideContext={{ loanId }}
             className="min-h-11 shrink-0"
           />
-          {isAdmin && lateFeeUpdateGuard.visible && (
+          {canAccessBackofficeActions && lateFeeUpdateGuard.visible && (
             <ActionButton
               onClick={onOpenLateFeeRate}
               disabled={!lateFeeUpdateGuard.executable}
@@ -123,7 +125,7 @@ export function CreditDetailHeader({
               Tasa de mora
             </ActionButton>
           )}
-          {isAdmin && creditStatusUpdateGuard.visible && (
+          {canAccessBackofficeActions && creditStatusUpdateGuard.visible && (
             <ActionButton
               onClick={onOpenStatus}
               disabled={!creditStatusUpdateGuard.executable}
@@ -133,7 +135,7 @@ export function CreditDetailHeader({
               Estado
             </ActionButton>
           )}
-          {isAdmin && (
+          {canExportCreditExcel && (
             <ActionButton
               onClick={onExportCreditExcel}
               disabled={isExportingCreditExcel}
@@ -179,7 +181,7 @@ export function CreditDetailHeader({
               {registerPaymentLabel}
             </ActionButton>
           )}
-          {isAdmin && capitalPaymentGuard.visible && (
+          {canAccessBackofficeActions && capitalPaymentGuard.visible && (
             <ActionButton
               onClick={onOpenCapitalPayment}
               disabled={!capitalPaymentGuard.executable}

@@ -367,3 +367,42 @@ test('createApp exposes PATCH and Idempotency-Key in CORS preflight responses', 
     process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
   }
 });
+
+test('createApp allows local development origins on alternate Vite ports', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+
+  process.env.NODE_ENV = 'development';
+  process.env.ALLOWED_ORIGINS = 'http://localhost:3000';
+
+  try {
+    const app = createApp({
+      sharedRuntime: { id: 'runtime-cors-local-dev' },
+      moduleRegistry: [
+        {
+          name: 'auth',
+          basePath: '/api/auth',
+          router: express.Router(),
+        },
+      ],
+    });
+
+    activeServer = await listen(app);
+
+    const response = await requestJson(activeServer, {
+      method: 'OPTIONS',
+      path: '/api/auth/login',
+      headers: {
+        origin: 'http://localhost:3001',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:3001');
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+    process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+  }
+});

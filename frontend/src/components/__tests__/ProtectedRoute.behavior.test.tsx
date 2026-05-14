@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GuestRoute, ProtectedRoute } from '../ProtectedRoute';
 
 const restoreAccessToken = vi.fn();
+const mockApiGet = vi.fn();
 
 const sessionState = {
   accessToken: null as string | null,
@@ -16,6 +17,9 @@ const sessionState = {
 
 vi.mock('../../api/client', () => ({
   restoreAccessToken: () => restoreAccessToken(),
+  apiClient: {
+    get: (...args: unknown[]) => mockApiGet(...args),
+  },
 }));
 
 vi.mock('../../store/sessionStore', () => ({
@@ -47,6 +51,7 @@ describe('ProtectedRoute behavior', () => {
     sessionState.refreshToken = null;
     sessionState.user = null;
     sessionState.hasHydrated = false;
+    mockApiGet.mockResolvedValue({ data: { data: { permissions: [] } } });
   });
 
   it('waits for persisted session hydration before redirecting', () => {
@@ -163,5 +168,36 @@ describe('ProtectedRoute behavior', () => {
       expect(screen.queryByText('Créditos administrativos')).not.toBeInTheDocument();
       unmount();
     }
+  });
+
+  it('requires every declared employee permission before rendering a protected route', async () => {
+    sessionState.hasHydrated = true;
+    sessionState.accessToken = 'access-token';
+    sessionState.user = { id: 2, role: 'employee' };
+    mockApiGet.mockResolvedValue({
+      data: {
+        data: {
+          permissions: [{ permission: 'CREDITS_CREATE' }],
+        },
+      },
+    });
+
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/credits-new"
+          element={(
+            <ProtectedRoute allowedRoles={['admin', 'employee']} requiredPermissions={['CREDITS_CREATE', 'CREDITS_VIEW_ALL']}>
+              <div>Crear crédito</div>
+            </ProtectedRoute>
+          )}
+        />
+        <Route path="/profile" element={<div>Perfil empleado</div>} />
+      </Routes>,
+      ['/credits-new'],
+    );
+
+    expect(await screen.findByText('Perfil empleado')).toBeInTheDocument();
+    expect(screen.queryByText('Crear crédito')).not.toBeInTheDocument();
   });
 });

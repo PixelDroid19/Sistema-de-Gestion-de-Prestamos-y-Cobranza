@@ -324,7 +324,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Associates'],
         summary: 'Consultar portal financiero del socio',
         parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'Resumen de capital, interés pagado, deuda, movimientos y créditos asociados' } },
+        responses: { 200: { description: 'Resumen de capital aportado, interés pagado, deuda, movimientos y cuotas del socio' } },
       },
     },
     '/associates/{associateId}/contributions': {
@@ -377,7 +377,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         tags: ['Reports'],
         summary: 'Exportar créditos a Excel consolidado',
         description: [
-          'Genera el reporte operativo de créditos con la estructura del sistema anterior:',
+          'Genera el reporte operativo de créditos con la estructura aprobada para auditoría financiera:',
           'hoja Resumen General, hoja Detalle de Créditos y una hoja por crédito con amortización e historial de pagos.',
           'Incluye campos financieros clave como capital pagado, interés pagado, interés generado, mora, saldo pendiente y próxima fecha de pago.',
           'No expone campos técnicos internos como ids historicos, ids de politicas o nombres de propiedades.',

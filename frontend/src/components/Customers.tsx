@@ -5,15 +5,22 @@ import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
+import { useSessionStore } from '../store/sessionStore';
 import TableShell from './shared/TableShell';
 import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
+  const { user } = useSessionStore();
   const { page, pageSize, setPage, setPageSize } = usePaginationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
+  const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
+  const canCreateCustomers = hasPermission('CLIENTS_CREATE');
+  const canUpdateCustomers = hasPermission('CLIENTS_UPDATE');
+  const canDeleteCustomers = hasPermission('CLIENTS_DELETE');
 
   const { data, isLoading, isError, updateCustomer, deleteCustomer } = useCustomers({
     page,
@@ -57,6 +64,11 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   const handleDelete = async (customer: any) => {
+    if (!canDeleteCustomers) {
+      toast.apiErrorSafe(new Error('No tiene permiso para eliminar clientes.'), { domain: 'customers' });
+      return;
+    }
+
     const customerId = Number(customer?.id);
     if (!Number.isFinite(customerId)) return;
 
@@ -77,6 +89,11 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   const handleToggleStatus = async (customer: any) => {
+    if (!canUpdateCustomers) {
+      toast.apiErrorSafe(new Error('No tiene permiso para cambiar el estado de clientes.'), { domain: 'customers' });
+      return;
+    }
+
     const customerId = Number(customer?.id);
     if (!Number.isFinite(customerId)) return;
 
@@ -119,7 +136,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
         subtitle={tTerm('customers.module.subtitle')}
         guideKey="customers"
         tourId="customers-header"
-        actions={(
+        actions={canCreateCustomers ? (
           <ActionButton
             onClick={() => setCurrentView && setCurrentView('customers-new')}
             icon={<Plus size={16} />}
@@ -127,7 +144,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           >
             {tTerm('customers.cta.new')}
           </ActionButton>
-        )}
+        ) : undefined}
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -202,7 +219,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
           }}
           className="data-table-surface"
         >
-            <table className="w-full text-sm text-left">
+            <table className="min-w-[760px] w-full text-sm text-left">
               <thead className="text-xs text-text-secondary border-b border-border-subtle">
                 <tr>
                   <th className="pb-3 font-medium">ID</th>
@@ -250,33 +267,39 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                         >
                           <span className="sr-only">Ver detalles</span>
                         </ActionButton>
-                        <ActionButton
-                          onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
-                          icon={<Edit size={16} />}
-                          variant="ghost"
-                          className="h-9 w-9 !min-h-0 !p-0"
-                          title="Editar"
-                        >
-                          <span className="sr-only">Editar</span>
-                        </ActionButton>
-                        <ActionButton
-                          onClick={() => handleToggleStatus(customer)}
-                          icon={<RotateCcw size={16} />}
-                          variant="ghost"
-                          className="h-9 w-9 !min-h-0 !p-0"
-                          title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
-                        >
-                          <span className="sr-only">{customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}</span>
-                        </ActionButton>
-                        <ActionButton
-                          onClick={() => handleDelete(customer)}
-                          icon={<Trash2 size={16} />}
-                          variant="danger"
-                          className="h-9 w-9 !min-h-0 !p-0"
-                          title="Eliminar"
-                        >
-                          <span className="sr-only">Eliminar</span>
-                        </ActionButton>
+                        {canUpdateCustomers && (
+                          <>
+                            <ActionButton
+                              onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
+                              icon={<Edit size={16} />}
+                              variant="ghost"
+                              className="h-9 w-9 !min-h-0 !p-0"
+                              title="Editar"
+                            >
+                              <span className="sr-only">Editar</span>
+                            </ActionButton>
+                            <ActionButton
+                              onClick={() => handleToggleStatus(customer)}
+                              icon={<RotateCcw size={16} />}
+                              variant="ghost"
+                              className="h-9 w-9 !min-h-0 !p-0"
+                              title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
+                            >
+                              <span className="sr-only">{customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}</span>
+                            </ActionButton>
+                          </>
+                        )}
+                        {canDeleteCustomers && (
+                          <ActionButton
+                            onClick={() => handleDelete(customer)}
+                            icon={<Trash2 size={16} />}
+                            variant="danger"
+                            className="h-9 w-9 !min-h-0 !p-0"
+                            title="Eliminar"
+                          >
+                            <span className="sr-only">Eliminar</span>
+                          </ActionButton>
+                        )}
                       </div>
                     </td>
                   </tr>

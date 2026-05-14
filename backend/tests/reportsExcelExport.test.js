@@ -16,7 +16,7 @@ afterEach(async () => {
   activeServer = null;
 });
 
-test('export associates use case builds previous-system sheet structure', async () => {
+test('export associates use case builds approved operational sheet structure', async () => {
   const associate = {
     id: 4,
     name: 'Socio Excel QA',
@@ -75,7 +75,7 @@ test('export associates use case builds previous-system sheet structure', async 
   assert.ok(result.data.rows.some((row) => row.section === 'interest-due'));
 });
 
-test('export credits use case builds previous-system workbook fields with current snapshots', async () => {
+test('export credits use case builds approved workbook fields with current snapshots', async () => {
   const loan = {
     id: 9,
     customerId: 20,
@@ -271,6 +271,7 @@ test('GET /reports/credits/excel returns xlsx file for admin', async () => {
           creditId: undefined,
           startDate: '2026-01-01',
           endDate: '2026-01-31',
+          status: undefined,
         });
         return {
           success: true,
@@ -667,4 +668,94 @@ test('GET /reports/associates/excel rejects customer role', async () => {
   });
 
   assert.equal(response.status, 403);
+});
+
+const buildCreditFixtures = () => {
+  const loans = [
+    {
+      id: 11,
+      customerId: 30,
+      amount: 1000000,
+      interestRate: 30,
+      termMonths: 1,
+      status: 'active',
+      recoveryStatus: 'pending',
+      startDate: '2026-04-01T00:00:00.000Z',
+      calculationMethod: 'FRENCH',
+      policySnapshot: {},
+      Customer: { name: 'Cliente Activo', documentNumber: 'A-1', phone: '1', email: 'a@t.local', status: 'active' },
+      Associate: null,
+      emiSchedule: [],
+    },
+    {
+      id: 12,
+      customerId: 31,
+      amount: 2000000,
+      interestRate: 30,
+      termMonths: 1,
+      status: 'closed',
+      recoveryStatus: 'recovered',
+      startDate: '2026-03-01T00:00:00.000Z',
+      calculationMethod: 'FRENCH',
+      policySnapshot: {},
+      Customer: { name: 'Cliente Cerrado', documentNumber: 'A-2', phone: '2', email: 'b@t.local', status: 'active' },
+      Associate: null,
+      emiSchedule: [],
+    },
+  ];
+  const reportRepository = {
+    async listOutstandingLoans() { return loans; },
+  };
+  const paymentRepository = { async listByLoan() { return []; } };
+  const loanViewService = {
+    getCanonicalLoanView(loan) {
+      return {
+        schedule: [],
+        snapshot: {
+          installmentAmount: loan.amount,
+          totalPayable: loan.amount,
+          totalInterest: 0,
+          outstandingPrincipal: loan.status === 'active' ? loan.amount : 0,
+          outstandingInterest: 0,
+          outstandingBalance: loan.status === 'active' ? loan.amount : 0,
+          nextInstallment: null,
+        },
+      };
+    },
+  };
+  return { reportRepository, paymentRepository, loanViewService };
+};
+
+test('credits export filters by status (active only excludes closed loans)', async () => {
+  const { createExportCreditsExcel: createUseCase } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+  const fixtures = buildCreditFixtures();
+  const useCase = createUseCase(fixtures);
+  const result = await useCase({ actor: { role: 'admin' }, filters: { status: 'active' } });
+  assert.equal(result.success, true);
+  assert.equal(result.data.rows.length, 1);
+  assert.equal(result.data.rows[0].creditId, 11);
+});
+
+test('credits CSV export returns Spanish headers and matches filtered loans', async () => {
+  const { createExportCreditsCsv } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+  const fixtures = buildCreditFixtures();
+  const useCase = createExportCreditsCsv(fixtures);
+  const result = await useCase({ actor: { role: 'admin' }, filters: { status: 'closed' } });
+  assert.ok(result.fileName.endsWith('.csv'));
+  assert.equal(result.contentType, 'text/csv; charset=utf-8');
+  const text = result.buffer.toString('utf8');
+  assert.ok(text.includes('ID Crédito'));
+  assert.ok(text.includes('Cliente Cerrado'));
+  assert.ok(!text.includes('Cliente Activo'));
+});
+
+test('credits PDF export returns a valid PDF buffer with summary headline', async () => {
+  const { createExportCreditsPdf } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
+  const fixtures = buildCreditFixtures();
+  const useCase = createExportCreditsPdf(fixtures);
+  const result = await useCase({ actor: { role: 'admin' }, filters: {} });
+  assert.ok(result.fileName.endsWith('.pdf'));
+  assert.equal(result.contentType, 'application/pdf');
+  const head = result.buffer.subarray(0, 4).toString('utf8');
+  assert.equal(head, '%PDF');
 });

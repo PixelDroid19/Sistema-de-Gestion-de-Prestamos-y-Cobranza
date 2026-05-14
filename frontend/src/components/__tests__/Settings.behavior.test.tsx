@@ -10,42 +10,55 @@ const mockDeleteRatePolicy = vi.fn().mockResolvedValue(undefined);
 const mockCreateLateFeePolicy = vi.fn().mockResolvedValue(undefined);
 const mockUpdateLateFeePolicy = vi.fn().mockResolvedValue(undefined);
 const mockDeleteLateFeePolicy = vi.fn().mockResolvedValue(undefined);
+const mockRegisterWithPermissions = vi.fn().mockResolvedValue(undefined);
+const mockDeactivateUser = vi.fn().mockResolvedValue(undefined);
+const mockReactivateUser = vi.fn().mockResolvedValue(undefined);
 const mockToastError = vi.fn();
+const baseConfigState: {
+  paymentMethods: any[];
+  ratePolicies: any[];
+  lateFeePolicies: any[];
+} = {
+  paymentMethods: [
+    {
+      id: 1,
+      key: 'bank-transfer',
+      name: 'Transferencia bancaria',
+      label: 'Transferencia bancaria',
+      type: 'bank_transfer',
+      isActive: true,
+      requiresReference: true,
+    },
+  ],
+  ratePolicies: [
+    {
+      id: 11,
+      label: 'Crédito estándar',
+      minAmount: 0,
+      maxAmount: 5000000,
+      annualEffectiveRate: 60,
+      priority: 10,
+      isActive: true,
+    },
+  ],
+  lateFeePolicies: [
+    {
+      id: 21,
+      label: 'Mora simple',
+      annualEffectiveRate: 24,
+      lateFeeMode: 'SIMPLE',
+      priority: 10,
+      isActive: true,
+    },
+  ],
+};
+const mockConfigState = structuredClone(baseConfigState);
 
 vi.mock('../../services/configService', () => ({
   useConfig: () => ({
-    paymentMethods: [
-      {
-        id: 1,
-        key: 'bank-transfer',
-        name: 'Transferencia bancaria',
-        label: 'Transferencia bancaria',
-        type: 'bank_transfer',
-        isActive: true,
-        requiresReference: true,
-      },
-    ],
-    ratePolicies: [
-      {
-        id: 11,
-        label: 'Crédito estándar',
-        minAmount: 0,
-        maxAmount: 5000000,
-        annualEffectiveRate: 60,
-        priority: 10,
-        isActive: true,
-      },
-    ],
-    lateFeePolicies: [
-      {
-        id: 21,
-        label: 'Mora simple',
-        annualEffectiveRate: 24,
-        lateFeeMode: 'SIMPLE',
-        priority: 10,
-        isActive: true,
-      },
-    ],
+    paymentMethods: mockConfigState.paymentMethods,
+    ratePolicies: mockConfigState.ratePolicies,
+    lateFeePolicies: mockConfigState.lateFeePolicies,
     isLoading: false,
     createPaymentMethod: { mutateAsync: mockCreatePaymentMethod, isPending: false },
     updatePaymentMethod: { mutateAsync: mockUpdatePaymentMethod, isPending: false },
@@ -61,8 +74,31 @@ vi.mock('../../services/configService', () => ({
 
 vi.mock('../../services/userService', () => ({
   useUsers: () => ({
-    data: { data: { users: [] } },
-    registerWithPermissions: { mutateAsync: vi.fn(), isPending: false },
+    data: {
+      data: {
+        users: [
+          {
+            id: 7,
+            name: 'Empleado Activo',
+            email: 'empleado.activo@test.local',
+            role: 'employee',
+            isActive: true,
+            createdAt: '2026-04-10T00:00:00.000Z',
+          },
+          {
+            id: 8,
+            name: 'Empleado Inactivo',
+            email: 'empleado.inactivo@test.local',
+            role: 'employee',
+            isActive: false,
+            createdAt: '2026-04-11T00:00:00.000Z',
+          },
+        ],
+      },
+    },
+    registerWithPermissions: { mutateAsync: mockRegisterWithPermissions, isPending: false },
+    deactivateUser: { mutateAsync: mockDeactivateUser, isPending: false },
+    reactivateUser: { mutateAsync: mockReactivateUser, isPending: false },
   }),
 }));
 
@@ -96,6 +132,9 @@ vi.mock('../../lib/guidedTours', () => ({
 describe('Settings operational configuration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConfigState.paymentMethods = structuredClone(baseConfigState.paymentMethods);
+    mockConfigState.ratePolicies = structuredClone(baseConfigState.ratePolicies);
+    mockConfigState.lateFeePolicies = structuredClone(baseConfigState.lateFeePolicies);
   });
 
   it('shows only production configuration tabs and hides non-operational placeholders', () => {
@@ -107,6 +146,51 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Empleados y permisos/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ajustes Generales/i })).not.toBeInTheDocument();
+  });
+
+  it('lets admins create employees and manage employee access status from settings', async () => {
+    render(<Settings />);
+
+    expect(screen.getByText('Empleados')).toBeInTheDocument();
+    expect(screen.getByText('Activos')).toBeInTheDocument();
+    expect(screen.getByText('Inactivos')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Empleados administrativos' })).toBeInTheDocument();
+    expect(screen.getByText('Empleado Activo')).toBeInTheDocument();
+    expect(screen.getByText('Empleado Inactivo')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del empleado' }), {
+      target: { value: 'Empleado Nuevo' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Correo de acceso' }), {
+      target: { value: 'empleado.nuevo@test.local' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Mínimo 8 caracteres'), {
+      target: { value: 'Password123!' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear empleado administrativo' }));
+
+    await waitFor(() => {
+      expect(mockRegisterWithPermissions).toHaveBeenCalledWith({
+        name: 'Empleado Nuevo',
+        email: 'empleado.nuevo@test.local',
+        password: 'Password123!',
+        role: 'employee',
+        permissions: [],
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }));
+    await waitFor(() => {
+      expect(mockConfirmDanger).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Desactivar empleado',
+      }));
+      expect(mockDeactivateUser).toHaveBeenCalledWith(7);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reactivar' }));
+    await waitFor(() => {
+      expect(mockReactivateUser).toHaveBeenCalledWith(8);
+    });
   });
 
   it('creates payment methods through the real config mutation', async () => {
@@ -208,9 +292,66 @@ describe('Settings operational configuration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
 
-    expect(screen.getByText('Crédito estándar')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tasas automáticas por monto' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Cobertura y prueba' })).toBeInTheDocument();
+    expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Desde.*1\.000\.001/)).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Monto para probar tasa' })).toHaveValue(2000000);
+    expect(screen.getAllByText('60% EA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Esa tasa será la que vea el operador en Nuevo crédito/)).toBeInTheDocument();
+    expect(screen.getAllByText('Crédito estándar').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();
+  });
+
+  it('explains existing active rate conflicts instead of silently choosing one rule', () => {
+    mockConfigState.ratePolicies = [
+      ...baseConfigState.ratePolicies,
+      {
+        id: 12,
+        label: 'Tasa sin tope',
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 36,
+        priority: 10,
+        isActive: true,
+      },
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+
+    expect(screen.getByText('Hay tasas activas que se cruzan con el mismo orden.')).toBeInTheDocument();
+    expect(screen.getByText(/Crédito estándar y Tasa sin tope cubren montos en común/)).toBeInTheDocument();
+    expect(screen.getAllByText('Conflicto').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Nuevo crédito queda bloqueado/)).toBeInTheDocument();
+  });
+
+  it('edits an existing rate policy without treating the same policy as duplicated', async () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    expect(screen.getByRole('heading', { name: 'Editar tasa por monto' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito estándar');
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+      target: { value: '58' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
+
+    await waitFor(() => {
+      expect(mockUpdateRatePolicy).toHaveBeenCalledWith(expect.objectContaining({
+        id: '11',
+        annualEffectiveRate: 58,
+        minAmount: 0,
+        maxAmount: 5000000,
+      }));
+    });
+    expect(mockCreateRatePolicy).not.toHaveBeenCalled();
   });
 
   it('executes destructive payment-method actions through confirmation', async () => {

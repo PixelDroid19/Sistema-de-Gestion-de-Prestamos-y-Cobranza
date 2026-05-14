@@ -281,6 +281,40 @@ const pickHighestPriorityPolicy = (policies) => policies
     return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
   })[0] || null;
 
+/**
+ * Resolves the single operational rate policy for a loan amount.
+ *
+ * Historical data can contain overlapping policies created before the stricter
+ * writer validation existed. In that case selecting by updatedAt would make the
+ * credit rate unpredictable for operators, so resolution fails until the
+ * configuration is cleaned up.
+ *
+ * @param {Array<object>} policies Active policies that already cover the amount.
+ * @returns {object|null} The unique highest-priority policy, or null.
+ * @throws {ConflictError} When multiple policies share the winning priority.
+ */
+const pickUniqueRatePolicyForAmount = (policies) => {
+  const orderedPolicies = policies
+    .filter((policy) => policy.isActive)
+    .sort((left, right) => {
+      const priorityDelta = Number(left.priority || 100) - Number(right.priority || 100);
+      if (priorityDelta !== 0) return priorityDelta;
+      return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+    });
+
+  const topPolicy = orderedPolicies[0] || null;
+  if (!topPolicy) return null;
+
+  const topPriority = Number(topPolicy.priority || 100);
+  const ambiguousPolicies = orderedPolicies.filter((policy) => Number(policy.priority || 100) === topPriority);
+  if (ambiguousPolicies.length > 1) {
+    const labels = ambiguousPolicies.map((policy) => policy.label).filter(Boolean).join(', ');
+    throw new ConflictError(`Hay políticas de tasa activas ambiguas para este monto: ${labels}`);
+  }
+
+  return topPolicy;
+};
+
 const createListPaymentMethods = ({ configRepository }) => async () => {
   const entries = await configRepository.listByCategory(PAYMENT_METHOD_CATEGORY);
   return entries.map(buildPaymentMethod);
@@ -458,7 +492,7 @@ const createResolveRatePolicy = ({ configRepository }) => async ({ amount } = {}
     return true;
   });
 
-  return pickHighestPriorityPolicy(matchingPolicies);
+  return pickUniqueRatePolicyForAmount(matchingPolicies);
 };
 
 const createListLateFeePolicies = ({ configRepository }) => async () => {

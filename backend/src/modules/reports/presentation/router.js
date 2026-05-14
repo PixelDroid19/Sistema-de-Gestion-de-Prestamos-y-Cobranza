@@ -173,6 +173,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     creditId: query.creditId,
     startDate: query.startDate || query.fromDate,
     endDate: query.endDate || query.toDate,
+    status: query.status,
   });
   const buildPayoutExportFilters = (query = {}) => ({
     customerId: query.customerId,
@@ -462,6 +463,34 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   // Credits Excel Export and Summary
   router.get('/credits/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters: buildCreditExportFilters(req.query) });
+    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
+      ? exportData.data.sheets
+      : [{ name: 'Credits', rows: exportData.data.rows }];
+    const buffer = await buildWorkbookBuffer(workbookSheets);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: `reporte-creditos-${buildExportSuffix(req.query)}.xlsx`,
+      buffer,
+    });
+  }));
+
+  router.get('/credits/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const filters = buildCreditExportFilters(req.query);
+
+    if (format === 'csv') {
+      const exportFile = await useCases.exportCreditsCsv({ actor: req.user, filters });
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    if (format === 'pdf') {
+      const exportFile = await useCases.exportCreditsPdf({ actor: req.user, filters });
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    const exportData = await useCases.exportCreditsExcel({ actor: req.user, filters });
     const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
       ? exportData.data.sheets
       : [{ name: 'Credits', rows: exportData.data.rows }];

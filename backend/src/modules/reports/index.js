@@ -27,6 +27,8 @@ const {
   createGetForecastAnalysis,
   createGetNextMonthProjection,
   createExportCreditsExcel,
+  createExportCreditsCsv,
+  createExportCreditsPdf,
   createGetCreditsSummary,
   createExportAssociatesExcel,
   createExportPayoutsExcel,
@@ -76,6 +78,8 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getNextMonthProjection: createGetNextMonthProjection({ reportRepository }),
     // Credits Excel export and summary
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
+    exportCreditsCsv: createExportCreditsCsv({ reportRepository, paymentRepository, loanViewService }),
+    exportCreditsPdf: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
     getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
     exportAssociatesExcel: createExportAssociatesExcel({ associateRepository, reportRepository }),
     exportPayoutsExcel: createExportPayoutsExcel({ paymentRepository }),

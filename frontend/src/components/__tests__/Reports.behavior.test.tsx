@@ -231,6 +231,28 @@ describe('Reports behavioral parity scenarios', () => {
       expect(mockExportContextualReport).toHaveBeenCalledWith('payouts', {
         fromDate: '2026-01-01',
         toDate: '2026-01-31',
+        status: undefined,
+        format: undefined,
+      });
+    });
+  });
+
+  it('exports credits report with status filter and selected format', async () => {
+    mockExportContextualReport.mockClear();
+    renderReports();
+
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-02-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-02-28' } });
+    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'active' } });
+    fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar créditos' }));
+
+    await waitFor(() => {
+      expect(mockExportContextualReport).toHaveBeenCalledWith('credits', {
+        fromDate: '2026-02-01',
+        toDate: '2026-02-28',
+        status: 'active',
+        format: 'pdf',
       });
     });
   });
@@ -283,11 +305,11 @@ describe('Reports behavioral parity scenarios', () => {
     expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent?.includes('Alcance gráfico: El gráfico refleja únicamente el rango seleccionado. Rango actual del gráfico: Últimos 6 meses.') === true)).toBeInTheDocument();
     expect(screen.getByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).toBeInTheDocument();
 
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'year' } });
+    fireEvent.change(screen.getByLabelText('Rango de gráfica'), { target: { value: 'year' } });
 
     expect(screen.getByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).toBeInTheDocument();
 
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'historical' } });
+    fireEvent.change(screen.getByLabelText('Rango de gráfica'), { target: { value: 'historical' } });
 
     expect(screen.queryByText('No hay actividad en el rango seleccionado, aunque existen totales históricos.')).not.toBeInTheDocument();
   });

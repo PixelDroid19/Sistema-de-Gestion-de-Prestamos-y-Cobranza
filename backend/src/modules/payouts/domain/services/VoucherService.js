@@ -50,7 +50,7 @@ const VoucherService = {
     doc
       .fontSize(10)
       .fillColor('#666666')
-      .text('LendFlow', 50, 50, { continued: true })
+      .text('CrediCobranza', 50, 50, { continued: true })
       .text('Sistema de Préstamos', 50, 62);
 
     doc

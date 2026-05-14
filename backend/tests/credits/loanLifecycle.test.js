@@ -63,7 +63,6 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
 
   const createdLoan = await createLoan({
     customerId: 1,
-    associateId: 3,
     amount: 12000,
     interestRate: 12,
     rateSource: 'policy',
@@ -74,7 +73,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
 
   assert.equal(createdLoan.id, 77);
   assert.equal(persistedPayload.customerId, 1);
-  assert.equal(persistedPayload.associateId, 3);
+  assert.equal(persistedPayload.associateId, null);
   assert.equal(persistedPayload.financialProductId, 'prod-default');
   assert.equal(persistedPayload.status, 'pending');
   assert.equal(persistedPayload.startDate.toISOString(), '2026-04-24T00:00:00.000Z');
@@ -88,6 +87,35 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
   assert.equal(persistedPayload.calculationMethod, 'FRENCH');
   assert.equal(persistedPayload.financialSnapshot.outstandingBalance, 12794.23);
   assert.equal(persistedPayload.financialSnapshot.outstandingInstallments, 12);
+});
+
+test('createLoanFromCanonicalData rejects assigning associates to new credits', async () => {
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    calculationService: {
+      async calculate() {
+        throw new Error('calculation should not run when associateId is provided');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLoan({
+      customerId: 1,
+      associateId: 3,
+      amount: 12000,
+      interestRate: 12,
+      rateSource: 'policy',
+      termMonths: 12,
+      lateFeeMode: 'none',
+      startDate: '2026-04-24',
+    }),
+    (error) => {
+      assert.equal(error.message, 'Socios are managed as investors and cannot be assigned to new credits');
+      return true;
+    },
+  );
 });
 
 test('createLoanFromCanonicalData stores the selected payment date without timezone drift', async () => {

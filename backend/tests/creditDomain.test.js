@@ -35,7 +35,6 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
   await assert.doesNotReject(() => runMiddleware(loanValidation.create, {
     body: {
       customerId: 1,
-      associateId: 2,
       amount: 12000,
       interestRate: 12,
       rateSource: 'policy',
@@ -70,13 +69,33 @@ test('loanValidation.create allows policy-driven rate without a manual interestR
   await assert.doesNotReject(() => runMiddleware(loanValidation.create, {
     body: {
       customerId: 1,
-      associateId: 2,
       amount: 12000,
       rateSource: 'policy',
       termMonths: 12,
       lateFeeSource: 'policy',
     },
   }));
+});
+
+test('loanValidation.create rejects associate assignment for new credits', async () => {
+  const error = await captureMiddlewareError(loanValidation.create, {
+    body: {
+      customerId: 1,
+      associateId: 2,
+      amount: 12000,
+      rateSource: 'policy',
+      termMonths: 12,
+      lateFeeSource: 'policy',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [
+    {
+      field: 'associateId',
+      message: 'Socios are managed as investors and cannot be assigned to new credits',
+    },
+  ]);
 });
 
 test('associateValidation.create accepts a valid associate payload', async () => {

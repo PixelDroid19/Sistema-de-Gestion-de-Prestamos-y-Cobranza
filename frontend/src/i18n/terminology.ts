@@ -130,7 +130,7 @@ const TERMINOLOGY = {
 
   // Associates
   'associates.module.title': 'Socios',
-  'associates.module.subtitle': 'Administrar socios y su relación con los créditos.',
+  'associates.module.subtitle': 'Administrar socios inversionistas, aportes, intereses y deuda.',
   'associates.cta.new': 'Nuevo socio',
   'associates.cta.exportExcel': 'Exportar Excel',
   'associates.toast.export.success': 'Socios exportados correctamente',

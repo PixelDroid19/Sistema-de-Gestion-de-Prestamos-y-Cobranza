@@ -544,21 +544,41 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByText('Este crédito ya no tiene saldo pendiente para liquidar.')).not.toBeInTheDocument();
   });
 
-  it('renders a customer-safe detail view with own payment actions only', () => {
+  it('does not expose backoffice payment actions to customer-role users in this administrative component', () => {
     setSessionUser({ id: 10, name: 'QA Customer', email: 'customer@test.com', role: 'customer', permissions: [] });
 
     renderCreditDetails();
 
     expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pago total' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Pagar cuota' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByRole('button', { name: 'Pago total' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pagar cuota' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
-    expect(screen.getByTitle('Pagar cuota')).toBeInTheDocument();
+    expect(screen.queryByTitle('Pagar cuota')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Anular cuota')).not.toBeInTheDocument();
+  });
+
+  it('allows permissioned employees to register payments and view internal collection tabs', () => {
+    setSessionUser({
+      id: 2,
+      name: 'Employee',
+      email: 'employee@test.com',
+      role: 'employee',
+      permissions: ['PAYMENTS_CREATE', 'CREDITS_VIEW_ALL'],
+    });
+
+    renderCreditDetails();
+
+    expect(screen.getByRole('button', { name: /Alertas/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Compromisos de pago/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeEnabled();
+    expect(screen.getByTitle('Registrar pago de cuota')).toBeInTheDocument();
+    expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tasa de mora' })).not.toBeInTheDocument();
   });
 
   it('renders a socio read-only detail view without admin-only tabs or payoff', () => {

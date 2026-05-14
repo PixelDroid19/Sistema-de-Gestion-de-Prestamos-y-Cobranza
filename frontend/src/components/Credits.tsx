@@ -88,6 +88,14 @@ const getLoanStatusTone = (status?: string): ChipTone => {
 const STATUS_COLUMN_HELP = 'Estado: etapa administrativa del crédito. Define si está vigente, cerrado, rechazado, vencido o bloqueado para operación.';
 const RECOVERY_COLUMN_HELP = 'Situación: lectura de cobranza. Indica si el crédito está al día, en mora, recuperado o en seguimiento operativo.';
 
+type VisiblePortfolioStatistics = {
+  totalAmount: number;
+  totalCollected: number;
+  totalOverdue: number;
+  totalCredits: number;
+  activeCredits: number;
+};
+
 const getLoanStatusDescription = (status?: string) => {
   switch (String(status || '').toLowerCase()) {
     case 'pending':
@@ -253,9 +261,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   });
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
+  const grantedPermissions = useMemo(
+    () => new Set((user?.permissions || []).map((permission: string) => String(permission).toUpperCase())),
+    [user?.permissions],
+  );
+  const canReadPortfolioStatistics = isAdmin
+    || grantedPermissions.has('*')
+    || grantedPermissions.has('DASHBOARD_VIEW_ALL');
   const searchPlaceholder = isAdmin ? 'Buscar por cliente o crédito…' : 'Buscar crédito…';
   // Statistics hook
-  const { data: statisticsData } = useLoanStatistics({ enabled: isAdmin });
+  const { data: statisticsData } = useLoanStatistics({ enabled: canReadPortfolioStatistics });
 
   // Query client for refetching
   const queryClient = useQueryClient();
@@ -647,6 +662,46 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       icon: TrendingUp,
     },
   ];
+  const visiblePortfolioStatistics = useMemo(() => {
+    return (creditsList as any[]).reduce<VisiblePortfolioStatistics>((totals, credit: any) => {
+      const amount = Number(credit?.amount ?? credit?.loanAmount ?? credit?.principal ?? 0);
+      const principalOutstanding = Number(credit?.principalOutstanding ?? credit?.outstandingPrincipal ?? credit?.balance ?? 0);
+      const totalOutstanding = Number(credit?.outstandingBalance ?? credit?.remainingBalance ?? principalOutstanding ?? 0);
+      const overdue = Number(credit?.overdueAmount ?? credit?.lateFeeOutstanding ?? 0);
+      const status = String(credit?.status || '').toLowerCase();
+
+      totals.totalAmount += Number.isFinite(amount) ? amount : 0;
+      totals.totalCollected += Math.max(0, (Number.isFinite(amount) ? amount : 0) - (Number.isFinite(totalOutstanding) ? totalOutstanding : 0));
+      totals.totalOverdue += Number.isFinite(overdue) ? overdue : 0;
+      totals.totalCredits += 1;
+      if (['active', 'approved', 'pending', 'overdue'].includes(status)) {
+        totals.activeCredits += 1;
+      }
+      return totals;
+    }, {
+      totalAmount: 0,
+      totalCollected: 0,
+      totalOverdue: 0,
+      totalCredits: 0,
+      activeCredits: 0,
+    });
+  }, [creditsList]);
+  const statistics = statisticsData?.data?.statistics ?? null;
+  const statisticsAmounts = statistics?.amounts ?? {};
+  const statisticsCounts = statistics?.counts ?? {};
+  const displayedStatistics = canReadPortfolioStatistics && statistics
+    ? {
+      totalAmount: Number(statisticsAmounts.totalLoanAmount ?? statistics.totalDisbursed ?? 0),
+      totalCollected: Number(statisticsAmounts.totalCollected ?? statistics.totalRecovered ?? 0),
+      totalOverdue: Number(statisticsAmounts.totalOverdue ?? statistics.overdueAmount ?? 0),
+      activeCredits: Number(statisticsCounts.activeCredits ?? statistics.totalActiveLoans ?? 0),
+      totalCredits: Number(statisticsCounts.totalCredits ?? statistics.totalLoans ?? 0),
+      helper: 'Totales generales del portafolio',
+    }
+    : {
+      ...visiblePortfolioStatistics,
+      helper: 'Resumen de los créditos visibles',
+    };
 
   return (
     <PageShell data-tour="credits-page" className="h-full">
@@ -714,12 +769,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       {activeTab === 'list' && (
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* Statistics Widget */}
-          {statisticsData?.data?.statistics && (
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Total créditos" value={formatCurrency(statisticsData.data.statistics.amounts.totalLoanAmount)} icon={<DollarSign size={18} />} accent="blue" />
-                <MetricCard label="Cobrado" value={formatCurrency(statisticsData.data.statistics.amounts.totalCollected)} icon={<TrendingUp size={18} />} accent="slate" />
-                <MetricCard label="Mora" value={formatCurrency(statisticsData.data.statistics.amounts.totalOverdue)} icon={<AlertTriangle size={18} />} accent="amber" />
-                <MetricCard label="Créditos activos" value={`${statisticsData.data.statistics.counts.activeCredits} / ${statisticsData.data.statistics.counts.totalCredits}`} icon={<Users size={18} />} accent="blue" />
+          {creditsList.length > 0 && (
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={displayedStatistics.helper}>
+                <MetricCard label="Capital" value={formatCurrency(displayedStatistics.totalAmount)} helper={displayedStatistics.helper} icon={<DollarSign size={18} />} accent="blue" />
+                <MetricCard label="Cobrado" value={formatCurrency(displayedStatistics.totalCollected)} helper={displayedStatistics.helper} icon={<TrendingUp size={18} />} accent="slate" />
+                <MetricCard label="Mora" value={formatCurrency(displayedStatistics.totalOverdue)} helper={displayedStatistics.helper} icon={<AlertTriangle size={18} />} accent="amber" />
+                <MetricCard label="Créditos activos" value={`${displayedStatistics.activeCredits} / ${displayedStatistics.totalCredits}`} helper={displayedStatistics.helper} icon={<Users size={18} />} accent="blue" />
             </section>
           )}
 

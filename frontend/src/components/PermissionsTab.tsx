@@ -13,8 +13,9 @@ import {
   ClickableSurface,
   EmptyState,
   FormField,
+  MetricCard,
   SelectInput,
-  ToolbarSurface,
+  SectionSurface,
   ViewTabs,
 } from './shared/Surfaces';
 
@@ -50,7 +51,7 @@ export default function PermissionsTab() {
   const { grantBatchPermissions } = useGrantBatchPermissions();
   const { revokePermission } = useRevokePermission();
 
-  const [activeView, setActiveView] = useState<'all' | 'user'>('all');
+  const [activeView, setActiveView] = useState<'all' | 'user'>('user');
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [selectedUserId, setSelectedUserId] = useState('');
   const [moduleFilter, setModuleFilter] = useState('all');
@@ -126,6 +127,9 @@ export default function PermissionsTab() {
 
   const selectedUser = employeeUsers.find((user: any) => String(user.id) === selectedUserId);
   const isBusy = grantBatchPermissions.isPending || revokePermission.isPending;
+  const selectedEffectiveCount = selectedUserPermissions.length;
+  const selectedDirectCount = directPermissionSet.size;
+  const selectedInheritedCount = rolePermissionSet.size;
 
   useEffect(() => {
     if (!selectedUserId) return;
@@ -230,21 +234,21 @@ export default function PermissionsTab() {
       />
 
       {activeView === 'all' && (
-        <div className="space-y-3">
+        <div className="settings-permission-grid">
           {groupedPermissions.length === 0 ? (
             <EmptyState title="No hay permisos disponibles" compact />
           ) : (
             groupedPermissions.map((group) => (
-              <div key={group.module} className="border border-border-subtle rounded-xl overflow-hidden">
+              <div key={group.module} className="settings-permission-card">
                 <ClickableSurface
                   variant="list"
                   onClick={() => toggleModule(group.module)}
-                  className="w-full px-4 py-3 flex items-center justify-between bg-bg-base hover:bg-hover-bg transition-colors"
+                  className="w-full px-4 py-4 flex items-center justify-between bg-transparent hover:bg-hover-bg/50 transition-colors"
                 >
                   <div className="flex items-center gap-2 font-medium">
                     <Shield size={16} />
                     <span>{getModuleLabel(group.module)}</span>
-                    <span className="text-xs text-text-secondary bg-bg-surface px-2 py-0.5 rounded-full">
+                    <span className="text-xs text-text-secondary bg-bg-base px-2 py-0.5 rounded-full">
                       {group.permissions.length} permisos
                     </span>
                   </div>
@@ -252,9 +256,9 @@ export default function PermissionsTab() {
                 </ClickableSurface>
 
                 {expandedModules.has(group.module) && (
-                  <div className="divide-y divide-border-subtle">
+                  <div className="divide-y divide-border-subtle border-t border-border-subtle">
                     {group.permissions.map((permission) => (
-                      <div key={`${permission.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between">
+                      <div key={`${permission.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between gap-4">
                         <div>
                           <p className="font-medium text-sm">{permission.permission}</p>
                           <p className="text-xs text-text-secondary">{permission.description || 'Sin descripción'}</p>
@@ -272,43 +276,50 @@ export default function PermissionsTab() {
 
       {activeView === 'user' && (
         <div className="space-y-4">
-          <ToolbarSurface className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FormField label="Usuario">
-              <SelectInput
-                id="permissions-user-select"
-                value={selectedUserId}
-                onChange={(event) => setSelectedUserId(event.target.value)}
-              >
-                <option value="">Seleccione un usuario</option>
-                {employeeUsers.map((user: any) => (
-                  <option key={user.id} value={String(user.id)}>
-                    {user.name || user.email} (empleado)
-                  </option>
-                ))}
-              </SelectInput>
-            </FormField>
-            <FormField label="Módulo">
-              <SelectInput
-                id="permissions-module-filter"
-                value={moduleFilter}
-                onChange={(event) => setModuleFilter(event.target.value)}
-              >
-                <option value="all">Todos los módulos</option>
-                {groupedPermissions.map((group) => (
-                  <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
-                ))}
-              </SelectInput>
-            </FormField>
-            <div className="flex items-end">
-              <ActionButton
-                onClick={() => selectedUserPermissionsQuery.refetch()}
-                disabled={!selectedUserId || selectedUserPermissionsQuery.isLoading}
-                fullWidth
-              >
-                {selectedUserPermissionsQuery.isLoading ? 'Actualizando…' : 'Actualizar permisos'}
-              </ActionButton>
+          <SectionSurface bodyClassName="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <FormField label="Usuario">
+                <SelectInput
+                  id="permissions-user-select"
+                  value={selectedUserId}
+                  onChange={(event) => setSelectedUserId(event.target.value)}
+                >
+                  <option value="">Seleccione un usuario</option>
+                  {employeeUsers.map((user: any) => (
+                    <option key={user.id} value={String(user.id)}>
+                      {user.name || user.email} (empleado)
+                    </option>
+                  ))}
+                </SelectInput>
+              </FormField>
+              <FormField label="Módulo">
+                <SelectInput
+                  id="permissions-module-filter"
+                  value={moduleFilter}
+                  onChange={(event) => setModuleFilter(event.target.value)}
+                >
+                  <option value="all">Todos los módulos</option>
+                  {groupedPermissions.map((group) => (
+                    <option key={group.module} value={group.module}>{getModuleLabel(group.module)}</option>
+                  ))}
+                </SelectInput>
+              </FormField>
+              <div className="flex items-end">
+                <ActionButton
+                  onClick={() => selectedUserPermissionsQuery.refetch()}
+                  disabled={!selectedUserId || selectedUserPermissionsQuery.isLoading}
+                  fullWidth
+                >
+                  {selectedUserPermissionsQuery.isLoading ? 'Actualizando…' : 'Actualizar permisos'}
+                </ActionButton>
+              </div>
             </div>
-          </ToolbarSurface>
+            {selectedUserId ? (
+              <p className="settings-inline-note">
+                Gestionando permisos de <span className="font-medium text-text-primary">{selectedUser?.name || selectedUser?.email}</span>. Los permisos heredados por rol se muestran bloqueados.
+              </p>
+            ) : null}
+          </SectionSurface>
 
           {!selectedUserId ? (
             <EmptyState
@@ -320,8 +331,31 @@ export default function PermissionsTab() {
             />
           ) : (
             <div className="space-y-3">
-              <div className="rounded-lg border border-border-subtle bg-bg-base px-4 py-2 text-sm text-text-secondary">
-                Gestionando permisos de <span className="font-medium text-text-primary">{selectedUser?.name || selectedUser?.email}</span>
+              <div className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de permisos del empleado">
+                <MetricCard
+                  label="Permisos efectivos"
+                  value={selectedEffectiveCount}
+                  helper="Accesos que puede usar"
+                  tooltip="Suma de permisos directos y heredados por rol."
+                  icon={<Shield />}
+                  accent="blue"
+                />
+                <MetricCard
+                  label="Directos"
+                  value={selectedDirectCount}
+                  helper="Asignados manualmente"
+                  tooltip="Estos permisos sí se pueden conceder o revocar desde esta pantalla."
+                  icon={<Check />}
+                  accent="emerald"
+                />
+                <MetricCard
+                  label="Heredados"
+                  value={selectedInheritedCount}
+                  helper="Vienen del rol"
+                  tooltip="Estos permisos no se revocan aquí; se muestran para que el administrador entienda el acceso efectivo."
+                  icon={<Lock />}
+                  accent="slate"
+                />
               </div>
               {visibleGroupedPermissions.map((group) => {
                 const modulePermissions = group.permissions;
@@ -330,8 +364,12 @@ export default function PermissionsTab() {
                 const roleCount = modulePermissions.filter((permission) => rolePermissionSet.has(permission.permission.toLowerCase())).length;
 
                 return (
-                  <div key={`user-${group.module}`} className="border border-border-subtle rounded-xl overflow-hidden">
-                    <div className="w-full px-4 py-3 flex items-center justify-between bg-bg-base">
+                  <SectionSurface
+                    key={`user-${group.module}`}
+                    className="!p-0"
+                    bodyClassName="space-y-0"
+                  >
+                    <div className="w-full px-4 py-3 flex items-center justify-between bg-bg-base border-b border-border-subtle">
                       <div className="flex items-center gap-2 font-medium">
                         <Shield size={16} />
                         <span>{getModuleLabel(group.module)}</span>
@@ -394,7 +432,7 @@ export default function PermissionsTab() {
                         );
                       })}
                     </div>
-                  </div>
+                  </SectionSurface>
                 );
               })}
             </div>

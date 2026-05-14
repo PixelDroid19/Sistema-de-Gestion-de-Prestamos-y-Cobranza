@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import PermissionsTab from '../PermissionsTab';
 
@@ -43,7 +43,9 @@ vi.mock('../../services/userService', () => ({
   useUsers: () => ({
     data: {
       data: {
-        users: [],
+        users: [
+          { id: 1, name: 'Empleada Demo', email: 'demo@example.com', role: 'employee' },
+        ],
       },
     },
     isLoading: false,
@@ -61,6 +63,8 @@ vi.mock('../../lib/toast', () => ({
 describe('PermissionsTab behavior', () => {
   it('renders backend module keys with operator-friendly labels', () => {
     render(<PermissionsTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Catálogo de permisos/i }));
 
     expect(screen.getByRole('button', { name: /Créditos\s*1 permisos/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Auditoría\s*1 permisos/i })).toBeInTheDocument();

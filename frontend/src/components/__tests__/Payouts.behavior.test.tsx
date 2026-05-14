@@ -12,7 +12,7 @@ let currentUser = {
   id: 1,
   name: 'Admin',
   email: 'admin@test.com',
-  role: 'admin' as 'admin' | 'socio' | 'customer',
+  role: 'admin' as 'admin' | 'employee' | 'socio' | 'customer',
   permissions: ['*'],
 };
 
@@ -162,6 +162,34 @@ describe('Payouts behavioral parity scenarios', () => {
           amount: 250000,
         }),
       );
+    });
+  });
+
+  it('allows permissioned employees to register backoffice partial payments', async () => {
+    currentUser = {
+      id: 4,
+      name: 'Employee',
+      email: 'employee@test.com',
+      role: 'employee',
+      permissions: ['PAYMENTS_CREATE'],
+    };
+
+    renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+
+    expect(screen.queryByRole('option', { name: 'Pago regular (cuota)' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Pago parcial' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    await waitFor(() => {
+      expect(mockCreatePartialPayment).toHaveBeenCalledWith(expect.objectContaining({
+        loanId: 100,
+        amount: 250000,
+      }));
     });
   });
 

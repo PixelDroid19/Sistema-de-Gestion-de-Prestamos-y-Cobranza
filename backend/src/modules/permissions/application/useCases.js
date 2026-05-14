@@ -142,7 +142,6 @@ const createGetUserPermissions = ({ userPermissionRepository, rolePermissionRepo
   if (!user) {
     throw new NotFoundError('User');
   }
-  ensureAssignableUser(user);
 
   const [directAssignments, roleAssignments] = await Promise.all([
     userPermissionRepository.findByUser(normalizedTargetUserId),

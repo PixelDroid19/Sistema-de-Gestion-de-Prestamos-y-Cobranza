@@ -174,7 +174,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     }
 
     const grantedPermissions = new Set(extractPermissionNames(permissionQuery.data));
-    const hasRequiredPermission = requiredPermissions.some((permission) => grantedPermissions.has(permission));
+    const hasRequiredPermission = requiredPermissions.every((permission) => grantedPermissions.has(permission));
     if (!hasRequiredPermission) {
       return <Navigate to={getDefaultRouteForUser(user)} replace />;
     }

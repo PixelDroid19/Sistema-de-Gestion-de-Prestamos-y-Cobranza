@@ -174,7 +174,7 @@ const runAdminSmoke = async (summary) => {
   await expectStatus('payment methods', { path: '/api/config/payment-methods', token });
   await expectStatus('rate policies', { path: '/api/config/rate-policies', token });
   await expectStatus('late fee policies', { path: '/api/config/late-fee-policies', token });
-  await expectStatus('permissions', { path: '/api/permissions/me', token });
+  await expectStatus('permissions catalog', { path: '/api/permissions', token });
   await expectStatus('audit stats', { path: '/api/audits/stats', token });
   await expectStatus('reports dashboard', { path: '/api/reports/dashboard', token });
   await expectStatus('reports credits summary', { path: '/api/reports/credits/summary', token });

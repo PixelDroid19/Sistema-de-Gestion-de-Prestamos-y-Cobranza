@@ -6,7 +6,15 @@ import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportRespon
 import { tTerm } from '../i18n/terminology';
 
 type ReportContextualType = 'credits' | 'payouts';
-type ReportContextualFilters = { fromDate?: string; toDate?: string; customerId?: number; loanId?: number };
+type ReportContextualFormat = 'xlsx' | 'pdf' | 'csv';
+type ReportContextualFilters = {
+  fromDate?: string;
+  toDate?: string;
+  customerId?: number;
+  loanId?: number;
+  status?: string;
+  format?: ReportContextualFormat;
+};
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
 
@@ -664,17 +672,27 @@ export const exportContextualReport = async (
   const fromDate = filters.fromDate || undefined;
   const toDate = filters.toDate || undefined;
   const suffix = `${fromDate || 'inicio'}_${toDate || 'hoy'}`;
+  const format: ReportContextualFormat = filters.format || 'xlsx';
 
   if (type === 'credits') {
+    const extension = format === 'pdf' ? 'pdf' : (format === 'csv' ? 'csv' : 'xlsx');
+    const mimeType = format === 'pdf'
+      ? 'application/pdf'
+      : (format === 'csv'
+        ? 'text/csv; charset=utf-8'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
     await downloadBlobWithParams({
-      url: '/reports/credits/excel',
-      fileName: `reporte_creditos_${suffix}.xlsx`,
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      url: '/reports/credits/export',
+      fileName: `reporte_creditos_${suffix}.${extension}`,
+      mimeType,
       params: {
+        format,
         startDate: fromDate,
         endDate: toDate,
         customerId: filters.customerId,
         loanId: filters.loanId,
+        status: filters.status,
       },
     });
     return;
@@ -689,6 +707,7 @@ export const exportContextualReport = async (
       endDate: toDate,
       customerId: filters.customerId,
       loanId: filters.loanId,
+      status: filters.status,
     },
   });
 };

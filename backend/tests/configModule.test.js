@@ -6,6 +6,7 @@ const {
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
   createCreateRatePolicy,
+  createResolveRatePolicy,
   createCreateLateFeePolicy,
   createUpsertSetting,
   createListAdminCatalogs,
@@ -214,6 +215,46 @@ test('config policies reject active duplicates that would make resolution ambigu
       priority: 10,
     }),
     ConflictError,
+  );
+});
+
+test('rate policy resolution rejects historical overlaps with the same priority', async () => {
+  const resolveRatePolicy = createResolveRatePolicy({
+    configRepository: {
+      async listActiveByCategory() {
+        return [
+          {
+            id: 11,
+            key: 'credito-estandar',
+            label: 'Crédito estándar',
+            isActive: true,
+            value: {
+              minAmount: 0,
+              maxAmount: null,
+              annualEffectiveRate: 36,
+              priority: 100,
+            },
+          },
+          {
+            id: 12,
+            key: 'tasa-estandar',
+            label: 'Tasa estándar',
+            isActive: true,
+            value: {
+              minAmount: 0,
+              maxAmount: 5000000,
+              annualEffectiveRate: 60,
+              priority: 100,
+            },
+          },
+        ];
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => resolveRatePolicy({ amount: 3000000 }),
+    /políticas de tasa activas ambiguas/,
   );
 });
 

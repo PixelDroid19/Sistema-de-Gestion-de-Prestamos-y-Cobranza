@@ -56,6 +56,19 @@ const createApp = ({
     }
   }
 
+  const isDevelopmentLocalOrigin = (origin) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return false;
+    }
+
+    try {
+      const { hostname, protocol } = new URL(origin);
+      return ['http:', 'https:'].includes(protocol) && ['localhost', '127.0.0.1', '::1'].includes(hostname);
+    } catch (_error) {
+      return false;
+    }
+  };
+
   const corsOptions = {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl)
@@ -65,6 +78,10 @@ const createApp = ({
       
       // Check if origin is in whitelist
       if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      if (isDevelopmentLocalOrigin(origin)) {
         return callback(null, true);
       }
       

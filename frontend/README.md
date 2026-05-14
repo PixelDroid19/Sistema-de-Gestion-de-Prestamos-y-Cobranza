@@ -1,20 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# CrediCobranza Frontend
 
-# Run and deploy your AI Studio app
+Aplicacion React/Vite para el backoffice financiero de CrediCobranza.
 
-This contains everything you need to run your app locally.
+## Uso local
 
-View your app in AI Studio: https://ai.studio/apps/fb5ae4be-213c-4953-870c-f0e7234ee074
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
+1. Instalar dependencias:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Configurar `VITE_API_URL` con el origen del backend, sin `/api`.
+   Ejemplo: `http://localhost:5000`
+3. Ejecutar el frontend:
    `npm run dev`
+
+## Verificacion
+
+- `npm run lint`
+- `npm test`
+- `npm run build`

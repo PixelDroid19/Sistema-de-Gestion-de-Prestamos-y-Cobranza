@@ -10,12 +10,26 @@ const mockToastError = vi.fn();
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
 const mockApiPost = vi.fn();
 const mockApiGet = vi.fn();
+const mockUseLoanStatistics = vi.fn((_options?: unknown) => ({
+  data: {
+    data: {
+      statistics: {
+        amounts: {
+          totalLoanAmount: 1000000,
+          totalCollected: 250000,
+          totalOverdue: 10000,
+        },
+        counts: { activeCredits: 1, totalCredits: 1 },
+      },
+    },
+  },
+}));
 
 type SessionUser = {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'socio' | 'customer';
+  role: 'admin' | 'employee' | 'socio' | 'customer';
   permissions: string[];
 };
 
@@ -71,20 +85,7 @@ vi.mock('../../lib/toast', () => ({
 }));
 
 vi.mock('../../services/loanService', () => ({
-  useLoanStatistics: () => ({
-    data: {
-      data: {
-        statistics: {
-          amounts: {
-            totalLoanAmount: 1000000,
-            totalCollected: 250000,
-            totalOverdue: 10000,
-          },
-          counts: { activeCredits: 1, totalCredits: 1 },
-        },
-      },
-    },
-  }),
+  useLoanStatistics: (options: unknown) => mockUseLoanStatistics(options),
   useLoans: () => ({
     data: {
       data: {
@@ -136,6 +137,21 @@ describe('Credits behavioral parity scenarios', () => {
     currentUser = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] };
     vi.stubGlobal('confirm', vi.fn(() => true));
     mockConfirmDanger.mockResolvedValue(true);
+    mockUseLoanStatistics.mockClear();
+    mockUseLoanStatistics.mockImplementation(() => ({
+      data: {
+        data: {
+          statistics: {
+            amounts: {
+              totalLoanAmount: 1000000,
+              totalCollected: 250000,
+              totalOverdue: 10000,
+            },
+            counts: { activeCredits: 1, totalCredits: 1 },
+          },
+        },
+      },
+    }));
     mockApiGet.mockResolvedValue({
       data: {
         data: {
@@ -285,6 +301,22 @@ describe('Credits behavioral parity scenarios', () => {
     renderCredits();
 
     expect(screen.queryByRole('button', { name: 'Previsualizar crédito' })).not.toBeInTheDocument();
+  });
+
+  it('does not request dashboard-only portfolio statistics for employees without dashboard permission', () => {
+    currentUser = {
+      id: 2,
+      name: 'Empleado',
+      email: 'employee@test.com',
+      role: 'employee',
+      permissions: ['CREDITS_VIEW_ALL'],
+    };
+
+    renderCredits();
+
+    expect(mockUseLoanStatistics).toHaveBeenCalledWith({ enabled: false });
+    expect(screen.getByLabelText('Resumen de los créditos visibles')).toBeInTheDocument();
+    expect(screen.getAllByText((content) => content.includes('500.000')).length).toBeGreaterThan(0);
   });
 
   it('turns the calendar tab into an operational agenda with actions for the next payable installment', async () => {

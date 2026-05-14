@@ -55,9 +55,7 @@ const buildDetailsResponse = () => ({
       interestDebt: 62500,
       nextInterestPaymentDate: '2026-06-15T00:00:00.000Z',
       debtStatus: 'pending',
-      activeLoanCount: 2,
     },
-    loans: [],
     contributions: [],
     distributions: [],
     paymentHistory: [
@@ -140,7 +138,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.queryByRole('button', { name: /Marcar como pagado/i })).not.toBeInTheDocument();
   });
 
-  it('translates associated loan statuses into operator-friendly labels', () => {
+  it('does not present associates as linked to credit participation', () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 7, role: 'socio', name: 'Socio', email: 'socio@test.com', permissions: [], associateId: 1 },
     });
@@ -158,8 +156,8 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    expect(screen.getByText('Activo')).toBeInTheDocument();
-    expect(screen.getByText('Pendiente')).toBeInTheDocument();
+    expect(screen.queryByText(/Créditos participados/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ID crédito/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^active$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
   });

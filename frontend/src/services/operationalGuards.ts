@@ -1,7 +1,7 @@
 import { CLOSED_OR_BLOCKED_LOAN_STATUSES, NON_EXECUTABLE_INSTALLMENT_STATUSES } from '../constants/operationalStates';
 import { LOAN_STATUS_LABELS, type BackendSupportedLoanStatus } from '../constants/loanStates';
 
-export type OperationalRole = 'admin' | 'socio' | 'customer' | string;
+export type OperationalRole = 'admin' | 'employee' | 'socio' | 'customer' | string;
 
 export type OperationalPermission = string;
 
@@ -81,7 +81,7 @@ const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]
   'installment.followUp': ['followups.create', 'installment.followUp'],
   'installment.annul': ['payments_annul', 'payments.annul', 'installment.annul'],
   'capital.payment': ['payments_create', 'payments.create', 'capital.payment'],
-  'lateFee.update': ['loans_update', 'loans.update', 'lateFee.update'],
+  'lateFee.update': ['credits_update', 'loans_update', 'loans.update', 'lateFee.update'],
   'payout.register': ['payments_create', 'payments.create', 'payout.register'],
   'payout.voucher.download': ['payments_view_all', 'payments.view', 'payout.voucher.download'],
   'payout.credit.view': ['credits_view_all', 'credits.view', 'payout.credit.view'],
@@ -89,15 +89,26 @@ const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]
   'payout.delete': ['payments_delete', 'payments.delete', 'payout.delete'],
 };
 
-const hasRequiredPermission = (permissions: OperationalPermission[] | undefined, action: GuardedAction): boolean => {
+const isAdminRole = (role?: OperationalRole) => role === 'admin';
+const isBackofficeRole = (role?: OperationalRole) => role === 'admin' || role === 'employee';
+
+const hasRequiredPermission = (
+  role: OperationalRole | undefined,
+  permissions: OperationalPermission[] | undefined,
+  action: GuardedAction,
+): boolean => {
   const requiredPermissions = actionPermissionMap[action];
+
+  if (isAdminRole(role)) {
+    return true;
+  }
 
   if (!requiredPermissions || requiredPermissions.length === 0) {
     return true;
   }
 
   if (!permissions || permissions.length === 0) {
-    return true;
+    return false;
   }
 
   const granted = new Set(permissions.map((permission) => permission.toLowerCase()));
@@ -110,7 +121,7 @@ const hasRequiredPermission = (permissions: OperationalPermission[] | undefined,
 };
 
 const canDeleteCredit = (role?: OperationalRole, loanStatus?: string): GuardResult => {
-  if (role !== 'admin') {
+  if (!isAdminRole(role)) {
     return { visible: false, executable: false, reason: 'Solo administradores pueden eliminar créditos.' };
   }
 
@@ -127,8 +138,8 @@ const canOperateInstallment = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
-  if (role !== 'admin') {
-    return { visible: false, executable: false, reason: `Solo administradores pueden gestionar ${actionLabel}.` };
+  if (!isBackofficeRole(role)) {
+    return { visible: false, executable: false, reason: `Solo el equipo autorizado puede gestionar ${actionLabel}.` };
   }
 
   if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
@@ -148,7 +159,7 @@ const canProcessLoanPayments = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
-  if (role !== 'admin' && role !== 'customer') {
+  if (!isBackofficeRole(role) && role !== 'customer') {
     return { visible: false, executable: false, reason: 'Acción no disponible para este tipo de usuario.' };
   }
 
@@ -192,7 +203,7 @@ const canRegisterPayout = (
   }
 
   if (payoutType === 'capital') {
-    if (role === 'admin') {
+    if (isBackofficeRole(role)) {
       return { visible: true, executable: true };
     }
 
@@ -203,7 +214,7 @@ const canRegisterPayout = (
     };
   }
 
-  if (role === 'admin') {
+  if (isBackofficeRole(role)) {
     return { visible: true, executable: true };
   }
 
@@ -223,7 +234,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
   const paymentReconciled = Boolean(input.paymentReconciled) || isReconciledPaymentStatus(paymentStatus);
   const payoutType = input.payoutType;
 
-  if (!hasRequiredPermission(permissions, action)) {
+  if (!hasRequiredPermission(role, permissions, action)) {
     return {
       visible: false,
       executable: false,
@@ -257,8 +268,8 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
-      if (role !== 'admin') {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden editar métodos de pago.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede editar métodos de pago.' };
       }
       if (paymentReconciled) {
         return {
@@ -269,23 +280,23 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'edición de método de pago');
     case 'installment.promise':
-      if (role !== 'admin') {
+      if (!isBackofficeRole(role)) {
         return { visible: false, executable: false, reason: 'Los compromisos de pago son gestión interna del equipo de cobranza.' };
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'promesas de pago');
     case 'installment.followUp':
-      if (role !== 'admin') {
+      if (!isBackofficeRole(role)) {
         return { visible: false, executable: false, reason: 'Los seguimientos son gestión interna del equipo de cobranza.' };
       }
       return canOperateInstallment(role, loanStatus, installmentStatus, 'seguimientos');
     case 'installment.annul':
-      if (role !== 'admin') {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden anular cuotas.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede anular cuotas.' };
       }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'anulación de cuotas');
     case 'capital.payment':
-      if (role !== 'admin') {
-        return { visible: false, executable: false, reason: 'El abono a capital solo está disponible para administradores.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'El abono a capital solo está disponible para el equipo autorizado.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
@@ -295,7 +306,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return { visible: true, executable: true };
     case 'lateFee.update':
-      if (role !== 'admin') {
+      if (!isAdminRole(role)) {
         return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar la tasa de mora.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
@@ -311,16 +322,16 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return { visible: true, executable: true };
     case 'credit.status.update':
-      if (role !== 'admin') {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden actualizar el estado del crédito.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede actualizar el estado del crédito.' };
       }
       if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
         return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
       }
       return { visible: true, executable: true };
     case 'payout.metadata.edit':
-      if (role !== 'admin') {
-        return { visible: false, executable: false, reason: 'Solo administradores pueden editar pagos.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede editar pagos.' };
       }
       if (paymentReconciled) {
         return {
@@ -334,7 +345,7 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       }
       return { visible: true, executable: true };
     case 'payout.delete':
-      if (role !== 'admin') {
+      if (!isAdminRole(role)) {
         return { visible: false, executable: false, reason: 'Solo administradores pueden eliminar pagos.' };
       }
       return {

@@ -39,10 +39,10 @@
 - Current administrative login roles are `admin` and `employee`. `customer` and `socio` exist as financial domain records, but they must not enter the administrative platform. `agent` is roster data now, not a login role.
 
 ## Frontend Gotchas
-- Vite is pinned to port `3000`; `setup.md` and `frontend/README.md` are stale here.
+- Vite is pinned to port `3000`; use `frontend/package.json` and `frontend/vite.config.ts` for current frontend runtime details.
 - Frontend alias `@/` resolves to the `frontend/` package root, not `frontend/src/`.
 - Frontend API calls use relative `/api` in `frontend/src/api/client.ts`; Vite proxies that to `VITE_API_URL`, which should be the backend origin only (for example `http://localhost:5000`), not `.../api`.
-- Auth state lives in `frontend/src/store/sessionStore.ts`: `refreshToken` and `user` persist in `sessionStorage` key `lendflow-session`; `accessToken` stays in memory and `api/client.ts` auto-refreshes once on `401`.
+- Auth state lives in `frontend/src/store/sessionStore.ts`: `refreshToken` and `user` persist in `sessionStorage`; `accessToken` stays in memory and `api/client.ts` auto-refreshes once on `401`.
 - Reuse `frontend/src/services/queryKeys.ts` for TanStack Query cache keys/invalidation instead of inventing ad-hoc string keys.
 - `frontend/src/components/__tests__/bannedApis.test.ts` forbids `window.alert`, `window.confirm`, `window.prompt`, bare `confirm()/prompt()`, and `<dialog>`; use `frontend/src/lib/confirmModal.tsx` instead.
 
@@ -101,7 +101,7 @@ Treat these as implemented product contracts, not open goals. If a future change
 ### 4. Investor Associates
 - Socios are investor records, not administrative login users.
 - The associates module tracks contributed capital, monthly or annual interest terms, interest payment dates, movements, installment obligations, distributions, reinvestments, and debt status.
-- Socio portal-style data can exist as domain reporting, but socios must not enter the administrative frontend or execute backoffice credit/payment operations.
+- Associate reporting can expose capital, interest, installments, distributions, reinvestments, movements, and debt status. Socios must not enter the administrative frontend or execute backoffice credit/payment operations.
 - Backend source files: `backend/src/modules/associates/`, `backend/src/modules/reports/`.
 - Frontend source files: `frontend/src/components/Associates.tsx`, `frontend/src/components/AssociateDetails.tsx`, `frontend/src/components/NewAssociate.tsx`.
 - Guard tests: `backend/tests/associatesModule.test.js`, `backend/tests/associatesRouter.test.js`, `backend/tests/reportsExcelExport.test.js`, `frontend/src/components/__tests__/Associates.behavior.test.tsx`, `frontend/src/components/__tests__/AssociateDetails.behavior.test.tsx`.
@@ -117,7 +117,7 @@ Treat these as implemented product contracts, not open goals. If a future change
 ### 6. Credit History Exports
 - Credit history exports are operational audit artifacts, not technical dumps.
 - Exports must include user-facing Spanish headers, formatted money/dates/percentages, created credits, installments received, interest collected/generated, recovered principal, overdue/defaulted credits, losses, profits, and available cash where the selected report supports them.
-- Main credit Excel exports should follow the previous backend workbook style: `Resumen General`, `Detalle de Créditos`, and per-credit sheets with amortization and payment history.
+- Main credit Excel exports should use the approved operational workbook structure: `Resumen General`, `Detalle de Créditos`, and per-credit sheets with amortization and payment history.
 - Do not expose internal fields such as calculation version ids, raw policy ids, JavaScript object keys, or implementation labels in user-facing Excel headers.
 - Backend source files: `backend/src/modules/reports/application/`, `backend/src/modules/reports/presentation/router.js`.
 - Frontend source files: `frontend/src/components/Reports.tsx`, `frontend/src/services/reportService.ts`, download helpers.
@@ -133,7 +133,7 @@ Treat these as implemented product contracts, not open goals. If a future change
 
 ### Master Modernization Contract
 - The current product modernization includes roles/permissions, amount-based rate policies, capital-prepayment restrictions, investor associates, monthly financial control, report exports, and financial UI action hierarchy.
-- Preserve compatibility with existing production data. Add migrations safely and never reset production data as a shortcut.
+- Preserve existing production data behavior. Add migrations safely and never reset production data as a shortcut.
 - Credit calculation must stay on versioned calculation profiles plus frozen policy snapshots.
 - Do not physically delete financial operations. Prefer status changes, annulment/correction, audit logs, and traceable history.
 - Before claiming completion after touching these flows, run relevant focused tests plus:
@@ -143,10 +143,10 @@ Treat these as implemented product contracts, not open goals. If a future change
   - `cd frontend && npm test -- --run`
   - `cd frontend && npm run build`
 
-## Stale Docs And Naming
-- `frontend/README.md` is leftover AI Studio/Gemini boilerplate and is not the current source of truth.
-- `setup.md` is stale for frontend port and `VITE_API_URL`; prefer `frontend/package.json` and `frontend/vite.config.ts`.
-- Branding is mid-migration: both `CrediCobranza` and `LendFlow` still appear in UI, tests, storage keys, and generated documents. Inspect nearby usage before doing brand-wide replacements.
+## Project Source Of Truth
+- Use this `AGENTS.md`, `backend/package.json`, `frontend/package.json`, `frontend/vite.config.ts`, and the code under `backend/src/modules/*` and `frontend/src/components/*` as the current source of truth.
+- Do not introduce UI flows, calculation flows, route families, or generated-document formats that are not present in the active codebase unless the user explicitly asks for a separate migration task.
+- Keep user-facing naming consistent with the active product language in nearby UI, tests, and generated documents. Do not introduce external brand names or implementation labels into new code.
 
 ## Credit Calculation Engine
 All credit calculation behavior is centralized in a dedicated domain module and persisted via versioned calculation profiles.
