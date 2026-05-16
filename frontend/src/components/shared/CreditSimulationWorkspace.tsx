@@ -17,7 +17,7 @@ import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { HelpTooltip } from './HelpSupport';
-import { ActionButton, DataTableSurface, SectionSurface } from './Surfaces';
+import { ActionButton, DataTableSurface, InsightStrip, SectionSurface } from './Surfaces';
 
 type SavedScenario = {
   id: string;
@@ -208,28 +208,36 @@ export default function CreditSimulationWorkspace({
         label: 'Cuota estimada',
         compactLabel: 'Cuota',
         value: formatCurrency(freshResult.summary.installmentAmount),
-        tone: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300',
+        helper: 'Pago mensual estimado',
+        icon: <DollarSign size={18} />,
+        accent: 'blue' as const,
       },
       {
         id: 'payable',
         label: 'Total a pagar',
         compactLabel: 'Total',
         value: formatCurrency(freshResult.summary.totalPayable),
-        tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+        helper: 'Capital + interés',
+        icon: <Check size={18} />,
+        accent: 'emerald' as const,
       },
       {
         id: 'interest',
         label: 'Interés total',
         compactLabel: 'Interés',
         value: formatCurrency(freshResult.summary.totalInterest),
-        tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+        helper: 'Costo financiero total',
+        icon: <Percent size={18} />,
+        accent: 'amber' as const,
       },
       {
         id: 'averageInterest',
         label: 'Interés promedio por cuota',
         compactLabel: 'Promedio/cuota',
         value: formatCurrency(averageInterestPerInstallment),
-        tone: 'border-border-subtle bg-bg-base text-text-primary',
+        helper: 'Promedio mensual',
+        icon: <Clock3 size={18} />,
+        accent: 'slate' as const,
       },
     ];
   }, [freshResult, input.termMonths]);
@@ -339,38 +347,6 @@ export default function CreditSimulationWorkspace({
             )}
           </div>
 
-          {!compactChrome && (
-            <dl className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-subtle pt-5 md:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                  <DollarSign size={14} />
-                  Monto base
-                </dt>
-                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatCurrency(input.amount)}</dd>
-              </div>
-              <div>
-                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                  <Percent size={14} />
-                  Tasa anual
-                </dt>
-                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.interestRate}%</dd>
-              </div>
-              <div>
-                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                  <Clock3 size={14} />
-                  Plazo
-                </dt>
-                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{input.termMonths} meses</dd>
-              </div>
-              <div>
-                <dt className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-primary/55 dark:text-text-secondary">
-                  <AlertCircle size={14} />
-                  Mora
-                </dt>
-                <dd className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-text-primary">{formatLateFeeModeLabel(input.lateFeeMode)}</dd>
-              </div>
-            </dl>
-          )}
         </div>
 
         <div className={`grid ${compactChrome ? 'gap-4 xl:grid-cols-[minmax(300px,0.52fr)_minmax(0,1.48fr)] 2xl:grid-cols-[minmax(320px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
@@ -715,16 +691,18 @@ export default function CreditSimulationWorkspace({
                   ))}
                 </div>
               ) : freshResult ? (
-                <div className={`${compactChrome ? 'mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4' : 'mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4'}`}>
-                  {summaryCards.map((card) => (
-                     <article key={card.id} className={`rounded-xl border ${compactChrome ? 'px-3 py-2.5' : 'p-4'} ${card.tone}`}>
-                      <p className={`${compactChrome ? 'text-[9px] tracking-[0.1em]' : 'text-[10px] tracking-[0.12em]'} font-semibold uppercase opacity-90`}>
-                        {compactChrome ? card.compactLabel : card.label}
-                      </p>
-                      <p className={`${compactChrome ? 'mt-0.5 text-base' : 'mt-2 text-xl'} font-bold tabular-nums tracking-tight`}>{card.value}</p>
-                    </article>
-                  ))}
-                </div>
+                <InsightStrip
+                  className={compactChrome ? 'credit-simulation-summary-strip credit-simulation-summary-strip--compact' : 'credit-simulation-summary-strip'}
+                  aria-label="Resumen financiero del cálculo"
+                  items={summaryCards.map((card) => ({
+                    id: card.id,
+                    label: compactChrome ? card.compactLabel : card.label,
+                    value: card.value,
+                    helper: card.helper,
+                    icon: card.icon,
+                    accent: card.accent,
+                  }))}
+                />
               ) : (
                  <div className={`mt-5 text-center ${compactChrome ? 'border-y border-border-subtle px-4 py-10' : 'rounded-2xl border border-dashed border-border-subtle bg-bg-base px-6 py-10'}`}>
                   <Calculator size={40} className="mx-auto text-text-secondary" strokeWidth={1.5} />
@@ -762,33 +740,42 @@ export default function CreditSimulationWorkspace({
               </div>
 
                <DataTableSurface>
-                <div className={`${compactChrome ? 'max-h-[460px]' : 'max-h-[540px]'} overflow-auto`}>
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-bg-surface text-left text-xs uppercase tracking-[0.14em] text-text-secondary shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left">
+                    <colgroup>
+                      <col style={{ width: '7%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '13%' }} />
+                      <col style={{ width: '13%' }} />
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '20%' }} />
+                    </colgroup>
+                    <thead>
                       <tr>
-                        <th className="px-4 py-3 font-medium">Cuota</th>
-                        <th className="px-4 py-3 font-medium">Vencimiento</th>
-                        <th className="px-4 py-3 text-right font-medium">Pago</th>
-                        <th className="px-4 py-3 text-right font-medium">Interés</th>
-                        <th className="px-4 py-3 text-right font-medium">Capital</th>
-                        <th className="px-4 py-3 text-right font-medium">Saldo</th>
-                        <th className="px-4 py-3 text-right font-medium">Estado</th>
+                        <th className="text-center">N°</th>
+                        <th>Vencimiento</th>
+                        <th className="text-right">Pago</th>
+                        <th className="text-right">Interés</th>
+                        <th className="text-right">Capital</th>
+                        <th className="text-right">Saldo</th>
+                        <th className="text-center">Estado</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border-subtle bg-bg-base">
+                    <tbody>
                       <tr className="bg-hover-bg/40">
-                        <td className="px-4 py-3 font-medium text-text-primary">0</td>
-                        <td className="px-4 py-3 text-text-secondary">{formatDate(input.startDate || '')}</td>
-                        <td className="px-4 py-3 text-right text-text-secondary">-</td>
-                        <td className="px-4 py-3 text-right text-text-secondary">-</td>
-                        <td className="px-4 py-3 text-right text-text-secondary">-</td>
-                        <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatCurrency(input.amount)}</td>
-                        <td className="px-4 py-3 text-right text-text-secondary">Inicio</td>
+                        <td className="text-center font-medium text-text-secondary">0</td>
+                        <td className="text-text-secondary">{formatDate(input.startDate || '')}</td>
+                        <td className="text-right text-text-secondary">-</td>
+                        <td className="text-right text-text-secondary">-</td>
+                        <td className="text-right text-text-secondary">-</td>
+                        <td className="text-right font-semibold text-text-primary">{formatCurrency(input.amount)}</td>
+                        <td className="text-center text-text-secondary">Inicio</td>
                       </tr>
 
                       {isSimulating ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center">
+                          <td colSpan={7} className="table-empty-state">
                             <div className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary">
                               <Loader2 size={16} className="animate-spin" />
                               Calculando cronograma…
@@ -798,13 +785,13 @@ export default function CreditSimulationWorkspace({
                       ) : freshResult && freshResult.schedule.length > 0 ? (
                         freshResult.schedule.map((row) => (
                           <tr key={row.installmentNumber} className="hover:bg-hover-bg/60">
-                            <td className="px-4 py-3 font-medium text-text-primary">{row.installmentNumber}</td>
-                            <td className="px-4 py-3 text-text-secondary">{formatDate(row.dueDate)}</td>
-                             <td className="px-4 py-3 text-right font-medium text-blue-900 dark:text-blue-200">{formatCurrency(row.scheduledPayment)}</td>
-                             <td className="px-4 py-3 text-right text-amber-900 dark:text-amber-200">{formatCurrency(row.interestComponent)}</td>
-                             <td className="px-4 py-3 text-right text-emerald-900 dark:text-emerald-200">{formatCurrency(row.principalComponent)}</td>
-                             <td className="px-4 py-3 text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
-                             <td className="px-4 py-3 text-right">
+                            <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                            <td className="text-text-secondary">{formatDate(row.dueDate)}</td>
+                             <td className="text-right font-medium text-blue-900 dark:text-blue-200">{formatCurrency(row.scheduledPayment)}</td>
+                             <td className="text-right text-amber-900 dark:text-amber-200">{formatCurrency(row.interestComponent)}</td>
+                             <td className="text-right text-emerald-900 dark:text-emerald-200">{formatCurrency(row.principalComponent)}</td>
+                             <td className="text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
+                             <td className="text-center">
                                <span className="rounded-full border border-border-subtle bg-bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
                                  {formatScheduleStatus(row.status)}
                                </span>
@@ -813,7 +800,7 @@ export default function CreditSimulationWorkspace({
                          ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center text-sm leading-6 text-text-secondary">
+                          <td colSpan={7} className="table-empty-state">
                             {emptyScheduleDescription}
                           </td>
                         </tr>

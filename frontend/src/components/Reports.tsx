@@ -26,7 +26,7 @@ import {
   DataTableSurface,
   EmptyState,
   FormField,
-  MetricCard,
+  InsightStrip,
   PageHeader,
   PageShell,
   SectionSurface,
@@ -358,37 +358,43 @@ export default function Reports() {
 
       {activeTab === 'dashboard' && (
         <>
-          {/* KPI Cards */}
-      <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          label="Total desembolsado"
-          value={formatMoney(metrics.totalDisbursed)}
-          tooltip="Suma de capital entregado en todos los créditos considerados por el reporte."
-          icon={<DollarSign size={18} />}
-          accent="blue"
-        />
-        <MetricCard
-          label="Interés generado"
-          value={formatMoney(metrics.totalInterestGenerated)}
-          tooltip="Intereses programados por los créditos según sus cronogramas. No significa que ya se hayan cobrado."
-          icon={<TrendingUp size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Interés pagado"
-          value={formatMoney(metrics.totalInterestPaid)}
-          tooltip="Intereses efectivamente cobrados y aplicados en pagos registrados."
-          icon={<Wallet size={18} />}
-          accent="rose"
-        />
-        <MetricCard
-          label="Créditos activos"
-          value={metrics.totalActiveLoans}
-          tooltip="Cantidad de créditos abiertos que siguen en cartera."
-          icon={<Users size={18} />}
-          accent="amber"
-        />
-      </section>
+      <InsightStrip
+        aria-label="Resumen general de reportes"
+        items={[
+          {
+            id: 'reports-total-disbursed',
+            label: 'Total desembolsado',
+            value: formatMoney(metrics.totalDisbursed),
+            helper: 'Capital entregado',
+            icon: <DollarSign size={18} />,
+            accent: 'blue',
+          },
+          {
+            id: 'reports-interest-generated',
+            label: 'Interés generado',
+            value: formatMoney(metrics.totalInterestGenerated),
+            helper: 'Programado en cronogramas',
+            icon: <TrendingUp size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'reports-interest-paid',
+            label: 'Interés pagado',
+            value: formatMoney(metrics.totalInterestPaid),
+            helper: 'Cobrado realmente',
+            icon: <Wallet size={18} />,
+            accent: 'rose',
+          },
+          {
+            id: 'reports-active-loans',
+            label: 'Créditos activos',
+            value: metrics.totalActiveLoans,
+            helper: 'Abiertos en cartera',
+            icon: <Users size={18} />,
+            accent: 'amber',
+          },
+        ]}
+      />
       <p className="text-xs text-text-secondary mt-1">
         <span className="font-medium">{tTerm('reports.kpi.scope.label')}:</span> {tTerm('reports.kpi.scope.lifetime')}
       </p>
@@ -544,60 +550,73 @@ export default function Reports() {
             </div>
           </ToolbarSurface>
 
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Entradas por cuotas"
-              value={formatMoney(cashFlowData?.summary?.totalInflows)}
-              tooltip="Pagos completados recibidos durante el año seleccionado."
-              icon={<Wallet size={18} />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Salidas por préstamos"
-              value={formatMoney(cashFlowData?.summary?.totalOutflows)}
-              tooltip="Capital entregado en créditos durante el año seleccionado."
-              icon={<DollarSign size={18} />}
-              accent="blue"
-            />
-            <MetricCard
-              label="Caja disponible"
-              value={formatMoney(cashFlowData?.summary?.availableCash)}
-              tooltip="Entradas por cuotas menos salidas por préstamos. Ejemplo: entran 50M y se prestan 40M, quedan 10M."
-              icon={<TrendingUp size={18} />}
-              accent="slate"
-            />
-            <MetricCard
-              label="Resultado neto"
-              value={formatMoney(cashFlowData?.summary?.netProfitIndicator)}
-              tooltip="Ganancia cobrada por intereses y mora menos capital en riesgo por mora/default."
-              icon={<AlertCircle size={18} />}
-              accent={Number(cashFlowData?.summary?.netProfitIndicator || 0) < 0 ? 'rose' : 'emerald'}
-            />
-          </section>
+          <InsightStrip
+            aria-label="Resumen de flujo de caja"
+            items={[
+              {
+                id: 'cashflow-inflows',
+                label: 'Entradas por cuotas',
+                value: formatMoney(cashFlowData?.summary?.totalInflows),
+                helper: 'Pagos completados',
+                icon: <Wallet size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'cashflow-outflows',
+                label: 'Salidas por préstamos',
+                value: formatMoney(cashFlowData?.summary?.totalOutflows),
+                helper: 'Capital entregado',
+                icon: <DollarSign size={18} />,
+                accent: 'blue',
+              },
+              {
+                id: 'cashflow-available',
+                label: 'Caja disponible',
+                value: formatMoney(cashFlowData?.summary?.availableCash),
+                helper: 'Entradas menos salidas',
+                icon: <TrendingUp size={18} />,
+                accent: 'slate',
+              },
+              {
+                id: 'cashflow-net-result',
+                label: 'Resultado neto',
+                value: formatMoney(cashFlowData?.summary?.netProfitIndicator),
+                helper: 'Ganancia menos riesgo',
+                icon: <AlertCircle size={18} />,
+                accent: Number(cashFlowData?.summary?.netProfitIndicator || 0) < 0 ? 'rose' : 'emerald',
+              },
+            ]}
+          />
 
-          <section className="grid gap-3 md:grid-cols-3">
-            <MetricCard
-              label="Ganancia cobrada"
-              value={formatMoney(cashFlowData?.summary?.totalCollectedProfit)}
-              tooltip="Interés cobrado más mora cobrada. Es dinero realmente recibido, no interés programado."
-              icon={<TrendingUp size={18} />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Pérdidas en riesgo"
-              value={formatMoney(cashFlowData?.summary?.lossesAtRisk)}
-              tooltip="Capital pendiente en créditos vencidos o en default. Sirve para anticipar deterioro de cartera."
-              icon={<AlertCircle size={18} />}
-              accent="rose"
-            />
-            <MetricCard
-              label="Pagos recibidos"
-              value={Number(cashFlowData?.summary?.paymentCount || 0).toLocaleString()}
-              tooltip="Cantidad de pagos completados que alimentan las entradas del flujo de caja."
-              icon={<Users size={18} />}
-              accent="amber"
-            />
-          </section>
+          <InsightStrip
+            aria-label="Detalle financiero del flujo de caja"
+            items={[
+              {
+                id: 'cashflow-profit',
+                label: 'Ganancia cobrada',
+                value: formatMoney(cashFlowData?.summary?.totalCollectedProfit),
+                helper: 'Interés y mora recibidos',
+                icon: <TrendingUp size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'cashflow-loss-risk',
+                label: 'Pérdidas en riesgo',
+                value: formatMoney(cashFlowData?.summary?.lossesAtRisk),
+                helper: 'Capital vencido/default',
+                icon: <AlertCircle size={18} />,
+                accent: 'rose',
+              },
+              {
+                id: 'cashflow-payment-count',
+                label: 'Pagos recibidos',
+                value: Number(cashFlowData?.summary?.paymentCount || 0).toLocaleString(),
+                helper: 'Operaciones completadas',
+                icon: <Users size={18} />,
+                accent: 'amber',
+              },
+            ]}
+          />
 
           <DataTableSurface>
             <div className="px-4 py-4 sm:px-5">
@@ -731,30 +750,35 @@ export default function Reports() {
           </div>
           </DataTableSurface>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <MetricCard
-              label="Eficiencia de cobranza"
-              value={`${advancedMetrics.collectionEfficiency.toFixed(2)}%`}
-              tooltip="Relaciona lo recuperado contra lo esperado para medir que tan efectiva ha sido la cobranza."
-              icon={<TrendingUp size={18} />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Tendencia de mora"
-              value={`${advancedMetrics.delinquencyTrend.toFixed(2)}%`}
-              tooltip="Variacion de la mora en el periodo analizado. Un valor alto indica mas deterioro de cartera."
-              icon={<AlertCircle size={18} />}
-              accent="rose"
-            />
-            <MetricCard
-              label="Cobro proyectado"
-              value={formatMoney(advancedMetrics.projectedCollections)}
-              helper="Próximo mes"
-              tooltip="Estimacion de recaudo esperado para el siguiente mes segun datos actuales."
-              icon={<CalendarClock size={18} />}
-              accent="blue"
-            />
-          </div>
+          <InsightStrip
+            aria-label="Indicadores de rentabilidad de clientes"
+            items={[
+              {
+                id: 'profitability-efficiency',
+                label: 'Eficiencia de cobranza',
+                value: `${advancedMetrics.collectionEfficiency.toFixed(2)}%`,
+                helper: 'Recuperado vs esperado',
+                icon: <TrendingUp size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'profitability-delinquency',
+                label: 'Tendencia de mora',
+                value: `${advancedMetrics.delinquencyTrend.toFixed(2)}%`,
+                helper: 'Deterioro del periodo',
+                icon: <AlertCircle size={18} />,
+                accent: 'rose',
+              },
+              {
+                id: 'profitability-projected',
+                label: 'Cobro proyectado',
+                value: formatMoney(advancedMetrics.projectedCollections),
+                helper: 'Próximo mes',
+                icon: <CalendarClock size={18} />,
+                accent: 'blue',
+              },
+            ]}
+          />
 
           <SectionSurface title="Tendencia avanzada de recuperación y mora">
             {advancedTrendSeries.length > 0 ? (
@@ -787,43 +811,51 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           {/* Summary Cards */}
           {payoutSummary && (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
-              <MetricCard
-                label="Total pagos"
-                value={Number(payoutSummary.totalPayouts || 0).toLocaleString()}
-                tooltip="Cantidad de pagos registrados en el rango o filtro actual."
-                icon={<Wallet size={18} />}
-                accent="blue"
-              />
-              <MetricCard
-                label="Monto total"
-                value={formatMoney(payoutSummary.totalAmount)}
-                tooltip="Valor total recibido en pagos, sumando capital, interés, mora y otros componentes registrados."
-                icon={<DollarSign size={18} />}
-                accent="emerald"
-              />
-              <MetricCard
-                label="Capital"
-                value={formatMoney(payoutSummary.totalPrincipal)}
-                tooltip="Parte de los pagos que redujo el capital vivo de los créditos."
-                icon={<DollarSign size={18} />}
-                accent="slate"
-              />
-              <MetricCard
-                label="Interés"
-                value={formatMoney(payoutSummary.totalInterest)}
-                tooltip="Parte de los pagos aplicada a intereses cobrados."
-                icon={<TrendingUp size={18} />}
-                accent="emerald"
-              />
-              <MetricCard
-                label="Moras"
-                value={formatMoney(payoutSummary.totalPenalties)}
-                tooltip="Valor cobrado por mora o penalidades por atraso."
-                icon={<AlertCircle size={18} />}
-                accent="amber"
-              />
-            </div>
+            <InsightStrip
+              aria-label="Resumen de pagos y desembolsos"
+              items={[
+                {
+                  id: 'payouts-count',
+                  label: 'Total pagos',
+                  value: Number(payoutSummary.totalPayouts || 0).toLocaleString(),
+                  helper: 'Operaciones del filtro',
+                  icon: <Wallet size={18} />,
+                  accent: 'blue',
+                },
+                {
+                  id: 'payouts-amount',
+                  label: 'Monto total',
+                  value: formatMoney(payoutSummary.totalAmount),
+                  helper: 'Total recibido',
+                  icon: <DollarSign size={18} />,
+                  accent: 'emerald',
+                },
+                {
+                  id: 'payouts-principal',
+                  label: 'Capital',
+                  value: formatMoney(payoutSummary.totalPrincipal),
+                  helper: 'Reduce saldo vivo',
+                  icon: <DollarSign size={18} />,
+                  accent: 'slate',
+                },
+                {
+                  id: 'payouts-interest',
+                  label: 'Interés',
+                  value: formatMoney(payoutSummary.totalInterest),
+                  helper: 'Interés cobrado',
+                  icon: <TrendingUp size={18} />,
+                  accent: 'emerald',
+                },
+                {
+                  id: 'payouts-penalties',
+                  label: 'Moras',
+                  value: formatMoney(payoutSummary.totalPenalties),
+                  helper: 'Penalidades cobradas',
+                  icon: <AlertCircle size={18} />,
+                  accent: 'amber',
+                },
+              ]}
+            />
           )}
 
           <DataTableSurface>
@@ -970,61 +1002,74 @@ export default function Reports() {
           {scheduleLoan && scheduleSummary && (
             <>
               {/* Loan Summary */}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                  label="Monto del crédito"
-                  value={formatMoney(scheduleLoan.amount)}
-                  tooltip="Capital original registrado para el crédito consultado."
-                  icon={<DollarSign size={18} />}
-                  accent="blue"
-                />
-                <MetricCard
-                  label="Plazo"
-                  value={`${scheduleLoan.termMonths} meses`}
-                  tooltip="Número de meses pactados para pagar el crédito."
-                  icon={<CalendarClock size={18} />}
-                  accent="emerald"
-                />
-                <MetricCard
-                  label="Tasa de interés"
-                  value={`${scheduleLoan.interestRate}%`}
-                  tooltip="Tasa anual usada para calcular intereses del crédito."
-                  icon={<TrendingUp size={18} />}
-                  accent="amber"
-                />
-                <MetricCard
-                  label="Estado"
-                  value={<span className="capitalize">{scheduleLoan.status}</span>}
-                  tooltip="Situación operativa actual del crédito consultado."
-                  icon={<AlertCircle size={18} />}
-                  accent="slate"
-                />
-              </div>
+              <InsightStrip
+                aria-label="Resumen del crédito consultado"
+                items={[
+                  {
+                    id: 'schedule-loan-amount',
+                    label: 'Monto del crédito',
+                    value: formatMoney(scheduleLoan.amount),
+                    helper: 'Capital original',
+                    icon: <DollarSign size={18} />,
+                    accent: 'blue',
+                  },
+                  {
+                    id: 'schedule-loan-term',
+                    label: 'Plazo',
+                    value: `${scheduleLoan.termMonths} meses`,
+                    helper: 'Tiempo pactado',
+                    icon: <CalendarClock size={18} />,
+                    accent: 'emerald',
+                  },
+                  {
+                    id: 'schedule-loan-rate',
+                    label: 'Tasa de interés',
+                    value: `${scheduleLoan.interestRate}%`,
+                    helper: 'Tasa anual',
+                    icon: <TrendingUp size={18} />,
+                    accent: 'amber',
+                  },
+                  {
+                    id: 'schedule-loan-status',
+                    label: 'Estado',
+                    value: <span className="capitalize">{scheduleLoan.status}</span>,
+                    helper: 'Situación operativa',
+                    icon: <AlertCircle size={18} />,
+                    accent: 'slate',
+                  },
+                ]}
+              />
 
               {/* Schedule Totals */}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <MetricCard
-                  label="Total capital"
-                  value={formatMoney(scheduleSummary.totalPrincipal)}
-                  tooltip="Capital total que debe amortizar el plan de pagos."
-                  icon={<DollarSign size={18} />}
-                  accent="slate"
-                />
-                <MetricCard
-                  label="Total interés"
-                  value={formatMoney(scheduleSummary.totalInterest)}
-                  tooltip="Intereses totales calculados en el cronograma del crédito."
-                  icon={<TrendingUp size={18} />}
-                  accent="emerald"
-                />
-                <MetricCard
-                  label="Total a pagar"
-                  value={formatMoney(scheduleSummary.totalPayment)}
-                  tooltip="Suma de capital e intereses programados en el plan."
-                  icon={<Wallet size={18} />}
-                  accent="blue"
-                />
-              </div>
+              <InsightStrip
+                aria-label="Totales del calendario de pagos"
+                items={[
+                  {
+                    id: 'schedule-total-principal',
+                    label: 'Total capital',
+                    value: formatMoney(scheduleSummary.totalPrincipal),
+                    helper: 'Capital amortizado',
+                    icon: <DollarSign size={18} />,
+                    accent: 'slate',
+                  },
+                  {
+                    id: 'schedule-total-interest',
+                    label: 'Total interés',
+                    value: formatMoney(scheduleSummary.totalInterest),
+                    helper: 'Interés programado',
+                    icon: <TrendingUp size={18} />,
+                    accent: 'emerald',
+                  },
+                  {
+                    id: 'schedule-total-payment',
+                    label: 'Total a pagar',
+                    value: formatMoney(scheduleSummary.totalPayment),
+                    helper: 'Capital + interés',
+                    icon: <Wallet size={18} />,
+                    accent: 'blue',
+                  },
+                ]}
+              />
 
               {/* Installment Progress */}
               <SectionSurface title="Progreso de cuotas">

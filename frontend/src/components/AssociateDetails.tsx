@@ -11,7 +11,7 @@ import {
   DataTableSurface,
   EmptyState,
   FormField,
-  MetricCard,
+  InsightStrip,
   ModalShell,
   PageHeader,
   PageShell,
@@ -24,7 +24,15 @@ import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
-const formatCurrency = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
+const formatCurrency = (value: unknown) => `$${Number(value || 0).toLocaleString('es-CO', {
+  maximumFractionDigits: 0,
+})}`;
+
+const formatSignedCurrency = (value: unknown, type?: string, status?: string) => {
+  const numericValue = Number(value || 0);
+  const prefix = type === 'contribution' ? '+' : type === 'distribution' ? '-' : status === 'paid' ? '✓ ' : '';
+  return `${prefix}${formatCurrency(numericValue)}`;
+};
 
 const dateFormatter = new Intl.DateTimeFormat('es-CO');
 
@@ -161,45 +169,45 @@ export default function AssociateDetails() {
 
   const renderOverviewTab = () => (
     <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <MetricCard
-          label="Capital aportado"
-          value={formatCurrency(totalContributions)}
-          icon={<Wallet size={18} />}
-          accent="blue"
-        />
-        <MetricCard
-          label="Ganancias distribuidas"
-          value={formatCurrency(totalDistributions)}
-          icon={<Download size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Interés pagado"
-          value={formatCurrency(totalInterestPaid)}
-          icon={<CheckCircle size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Deuda con socio"
-          value={formatCurrency(interestDebt)}
-          icon={<AlertCircle size={18} />}
-          accent={interestDebt > 0 ? 'rose' : 'slate'}
-        />
-        <MetricCard
-          label="Interés pactado"
-          value={interestRateLabel}
-          icon={<Clock size={18} />}
-          accent="amber"
-        />
-        <MetricCard
-          label="Próximo pago"
-          value={nextInterestPaymentDate ? formatDate(nextInterestPaymentDate) : 'Sin fecha'}
-          icon={<Calendar size={18} />}
-          accent="slate"
-        />
-      </div>
+      <InsightStrip
+        aria-label="Resumen operativo del socio"
+        items={[
+          {
+            id: 'associate-detail-capital',
+            label: 'Capital aportado',
+            value: formatCurrency(totalContributions),
+            helper: `Interés ${interestRateLabel}`,
+            icon: <Wallet size={18} />,
+            accent: 'blue',
+          },
+          {
+            id: 'associate-detail-interest-paid',
+            label: 'Interés pagado',
+            value: formatCurrency(totalInterestPaid),
+            helper: totalDistributions > 0
+              ? `Distribuido: ${formatCurrency(totalDistributions)}`
+              : 'Reconocido al socio',
+            icon: <CheckCircle size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'associate-detail-debt',
+            label: 'Deuda con socio',
+            value: formatCurrency(interestDebt),
+            helper: interestDebt > 0 ? 'Intereses pendientes' : 'Sin deuda pendiente',
+            icon: <AlertCircle size={18} />,
+            accent: interestDebt > 0 ? 'rose' : 'slate',
+          },
+          {
+            id: 'associate-detail-next-payment',
+            label: 'Próximo pago',
+            value: nextInterestPaymentDate ? formatDate(nextInterestPaymentDate) : 'Sin fecha',
+            helper: 'Cuota programada',
+            icon: <Calendar size={18} />,
+            accent: 'slate',
+          },
+        ]}
+      />
 
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
@@ -246,27 +254,43 @@ export default function AssociateDetails() {
 
   const renderInstallmentsTab = () => (
     <div className="space-y-4">
-      {/* Totals */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard
-          label="Pendiente"
-          value={formatCurrency(installmentsData.totals.totalPending)}
-          icon={<Clock size={18} />}
-          accent="amber"
-        />
-        <MetricCard
-          label="Pagado"
-          value={formatCurrency(installmentsData.totals.totalPaid)}
-          icon={<CheckCircle size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Vencido"
-          value={formatCurrency(installmentsData.totals.totalOverdue)}
-          icon={<AlertCircle size={18} />}
-          accent="rose"
-        />
-      </div>
+      <InsightStrip
+        aria-label="Resumen de cuotas del socio"
+        items={[
+          {
+            id: 'associate-installments-pending',
+            label: 'Pendiente',
+            value: formatCurrency(installmentsData.totals.totalPending),
+            helper: 'Por pagar al socio',
+            icon: <Clock size={18} />,
+            accent: 'amber',
+          },
+          {
+            id: 'associate-installments-paid',
+            label: 'Pagado',
+            value: formatCurrency(installmentsData.totals.totalPaid),
+            helper: 'Intereses reconocidos',
+            icon: <CheckCircle size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'associate-installments-overdue',
+            label: 'Vencido',
+            value: formatCurrency(installmentsData.totals.totalOverdue),
+            helper: 'Intereses atrasados',
+            icon: <AlertCircle size={18} />,
+            accent: Number(installmentsData.totals.totalOverdue || 0) > 0 ? 'rose' : 'slate',
+          },
+          {
+            id: 'associate-installments-count',
+            label: 'Cuotas',
+            value: String(installmentsData.installments.length),
+            helper: 'Programadas',
+            icon: <Calendar size={18} />,
+            accent: 'slate',
+          },
+        ]}
+      />
 
       {/* Installments Table */}
       <DataTableSurface>
@@ -332,33 +356,43 @@ export default function AssociateDetails() {
 
   const renderCalendarTab = () => (
     <div className="space-y-4">
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard
-          label="Aportes"
-          value={calendarData.summary.contributionCount}
-          icon={<Wallet size={18} />}
-          accent="blue"
-        />
-        <MetricCard
-          label="Distribuciones"
-          value={calendarData.summary.distributionCount}
-          icon={<Download size={18} />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Cuotas"
-          value={calendarData.summary.installmentCount}
-          icon={<Calendar size={18} />}
-          accent="slate"
-        />
-        <MetricCard
-          label="Cuotas pendientes"
-          value={calendarData.summary.pendingInstallments}
-          icon={<Clock size={18} />}
-          accent="amber"
-        />
-      </div>
+      <InsightStrip
+        aria-label="Resumen del calendario del socio"
+        items={[
+          {
+            id: 'associate-calendar-contributions',
+            label: 'Aportes',
+            value: calendarData.summary.contributionCount,
+            helper: 'Capital registrado',
+            icon: <Wallet size={18} />,
+            accent: 'blue',
+          },
+          {
+            id: 'associate-calendar-distributions',
+            label: 'Distribuciones',
+            value: calendarData.summary.distributionCount,
+            helper: 'Retiros/repartos',
+            icon: <Download size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'associate-calendar-installments',
+            label: 'Cuotas',
+            value: calendarData.summary.installmentCount,
+            helper: 'Intereses agendados',
+            icon: <Calendar size={18} />,
+            accent: 'slate',
+          },
+          {
+            id: 'associate-calendar-pending',
+            label: 'Cuotas pendientes',
+            value: calendarData.summary.pendingInstallments,
+            helper: 'Por reconocer',
+            icon: <Clock size={18} />,
+            accent: calendarData.summary.pendingInstallments > 0 ? 'amber' : 'slate',
+          },
+        ]}
+      />
 
       {/* Calendar Events */}
       <DataTableSurface>
@@ -401,7 +435,9 @@ export default function AssociateDetails() {
                       {event.displayType}
                     </span>
                   </td>
-                  <td className="font-medium">{event.displayAmount}</td>
+                  <td className="font-medium">
+                    {formatSignedCurrency(event.amount, event.type, event.status)}
+                  </td>
                   <td className="text-text-secondary">{event.notes || '-'}</td>
                 </tr>
               ))}

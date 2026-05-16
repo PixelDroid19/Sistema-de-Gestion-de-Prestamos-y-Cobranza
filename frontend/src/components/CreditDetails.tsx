@@ -628,6 +628,30 @@ export default function CreditDetails() {
     }, []);
   }, [calendarEntries, loan?.amount]);
 
+  const installmentColumnTotals = useMemo(() => {
+    const totals = installmentRows.reduce((acc: any, row: any) => {
+      acc.scheduledPayment += Number(row.scheduledPayment || 0);
+      acc.interestComponent += Number(row.interestComponent || 0);
+      acc.lateFeeDue += Number(row.lateFeeDue || 0);
+      acc.principalComponent += Number(row.principalComponent || 0);
+      return acc;
+    }, {
+      scheduledPayment: 0,
+      interestComponent: 0,
+      lateFeeDue: 0,
+      principalComponent: 0,
+    });
+
+    const lastClosingBalance = installmentRows.length > 0
+      ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0)
+      : Number(loan?.amount || 0);
+
+    return {
+      ...totals,
+      outstandingBalance: Number(calendarSnapshot?.outstandingBalance ?? lastClosingBalance),
+    };
+  }, [calendarSnapshot?.outstandingBalance, installmentRows, loan?.amount]);
+
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
@@ -1341,17 +1365,41 @@ export default function CreditDetails() {
                   </div>
 
                   <div className="data-table-surface hidden overflow-x-auto lg:block">
-                    <table className="min-w-[1080px] w-full text-sm text-left whitespace-nowrap">
+                    <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left whitespace-nowrap">
+                      <colgroup>
+                        {showInstallmentActionColumn ? (
+                          <>
+                            <col style={{ width: '5%' }} />
+                            <col style={{ width: '13%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '15%' }} />
+                            <col style={{ width: '14%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '21%' }} />
+                          </>
+                        ) : (
+                          <>
+                            <col style={{ width: '6%' }} />
+                            <col style={{ width: '16%' }} />
+                            <col style={{ width: '14%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '18%' }} />
+                          </>
+                        )}
+                      </colgroup>
                       <thead>
                         <tr>
-                          <th className="w-16 text-center">N°</th>
-                          <th className="text-right">Cuota a pagar</th>
+                          <th className="text-center">N°</th>
+                          <th className="text-right">Cuota</th>
                           <th className="text-right">Interés</th>
                           <th className="text-right">Mora</th>
                           <th className="text-right">Amortización</th>
                           <th className="text-right">Capital vivo</th>
-                          <th className="w-32 text-center">Estado</th>
-                          {showInstallmentActionColumn && <th className="w-44 min-w-[11rem] text-right">Acciones</th>}
+                          <th className="text-center">Estado</th>
+                          {showInstallmentActionColumn && <th className="text-right">Acciones</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1399,24 +1447,35 @@ export default function CreditDetails() {
                             </span>
                           </td>
                            {showInstallmentActionColumn && (
-                           <td className="w-44 min-w-[11rem] text-right">
+                           <td className="text-right">
                             {renderInstallmentActions(row)}
                             </td>
                           )}
                         </tr>
                       )})}
                     </tbody>
-                    {calendarSnapshot && (
                     <tfoot>
-                        <tr>
-                          <td colSpan={5} className="text-right text-text-secondary">Balance pendiente total:</td>
-                          <td className="text-right font-bold text-brand-primary text-base">
-                            {formatCurrency(calendarSnapshot.outstandingBalance)}
+                        <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
+                          <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Total</td>
+                          <td className="text-right font-bold text-text-primary">
+                            {formatCurrency(installmentColumnTotals.scheduledPayment)}
                           </td>
-                          <td colSpan={showInstallmentActionColumn ? 2 : 1}></td>
+                          <td className="text-right font-bold text-text-secondary">
+                            {formatCurrency(installmentColumnTotals.interestComponent)}
+                          </td>
+                          <td className="text-right font-bold text-red-600 dark:text-red-400">
+                            {installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}
+                          </td>
+                          <td className="text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(installmentColumnTotals.principalComponent)}
+                          </td>
+                          <td className="text-right font-bold text-brand-primary text-base">
+                            {formatCurrency(installmentColumnTotals.outstandingBalance)}
+                          </td>
+                          <td className="text-center text-xs text-text-secondary">—</td>
+                          {showInstallmentActionColumn && <td></td>}
                         </tr>
                       </tfoot>
-                    )}
                   </table>
                   </div>
                 </div>

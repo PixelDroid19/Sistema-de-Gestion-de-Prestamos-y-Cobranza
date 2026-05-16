@@ -4,7 +4,7 @@ import { useAuditLogs, useAuditStats, AuditLog } from '../services/auditService'
 import AuditFilters, { FilterValues } from './AuditFilters';
 import AuditTable from './AuditTable';
 import AuditDetailModal from './AuditDetailModal';
-import { MetricCard, PageHeader, PageShell } from './shared/Surfaces';
+import { InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { getAuditActionLabel, getAuditModuleLabel } from '../lib/auditPresentation';
 
 export default function AuditLogPage() {
@@ -72,36 +72,16 @@ export default function AuditLogPage() {
       />
 
       {!statsLoading && (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4" data-tour="audit-log-stats">
-          <MetricCard
-            label="Eventos registrados"
-            value={totalEvents.toLocaleString()}
-            helper="Histórico auditable"
-            icon={<ShieldCheck size={18} />}
-            accent="blue"
-          />
-          <MetricCard
-            label="IPs en esta página"
-            value={currentPageIps}
-            helper="Origen de eventos visibles"
-            icon={<Network size={18} />}
-            accent="slate"
-          />
-          <MetricCard
-            label="Servicio más activo"
-            value={topModule}
-            helper="Área con más eventos"
-            icon={<Activity size={18} />}
-            accent="emerald"
-          />
-          <MetricCard
-            label="Acción frecuente"
-            value={topAction}
-            helper="Patrón de actividad"
-            icon={<Clock size={18} />}
-            accent="amber"
-          />
-        </section>
+        <InsightStrip
+          data-tour="audit-log-stats"
+          aria-label="Resumen de auditoría"
+          items={[
+            { id: 'audit-total-events', label: 'Eventos registrados', value: totalEvents.toLocaleString(), helper: 'Histórico auditable', icon: <ShieldCheck size={18} />, accent: 'blue' },
+            { id: 'audit-current-ips', label: 'IPs en esta página', value: currentPageIps, helper: 'Origen visible', icon: <Network size={18} />, accent: 'slate' },
+            { id: 'audit-top-module', label: 'Servicio más activo', value: topModule, helper: 'Área con más eventos', icon: <Activity size={18} />, accent: 'emerald' },
+            { id: 'audit-top-action', label: 'Acción frecuente', value: topAction, helper: 'Patrón de actividad', icon: <Clock size={18} />, accent: 'amber' },
+          ]}
+        />
       )}
 
       {filters.ip && (

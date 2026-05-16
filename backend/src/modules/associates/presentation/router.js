@@ -34,7 +34,27 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
 
     const result = await useCases.listAssociates(input);
     if (result?.pagination) {
-      res.json({ success: true, count: result.pagination.totalItems, data: { associates: result.items, pagination: result.pagination } });
+      res.json({
+        success: true,
+        count: result.pagination.totalItems,
+        data: {
+          associates: result.items,
+          pagination: result.pagination,
+          summary: result.summary,
+        },
+      });
+      return;
+    }
+
+    if (result?.items) {
+      res.json({
+        success: true,
+        count: result.items.length,
+        data: {
+          associates: result.items,
+          summary: result.summary,
+        },
+      });
       return;
     }
 

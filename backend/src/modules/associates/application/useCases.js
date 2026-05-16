@@ -533,17 +533,25 @@ const ensureUniqueAssociateContact = async ({ associateRepository, email, phone,
  */
 const createListAssociates = ({ associateRepository }) => async ({ pagination, filters } = {}) => {
   const normalizedFilters = normalizeAssociateListFilters(filters);
+  const summary = typeof associateRepository.summarize === 'function'
+    ? await associateRepository.summarize(normalizedFilters)
+    : undefined;
 
   if (pagination) {
     const result = await associateRepository.listPage({ ...pagination, filters: normalizedFilters });
-    return {
+    const response = {
       items: result.items.map(normalizeAssociateRecord),
       pagination: result.pagination,
     };
+    if (summary) {
+      response.summary = summary;
+    }
+    return response;
   }
 
   const associates = await associateRepository.list(normalizedFilters);
-  return associates.map(normalizeAssociateRecord);
+  const items = associates.map(normalizeAssociateRecord);
+  return summary ? { items, summary } : items;
 };
 
 /**

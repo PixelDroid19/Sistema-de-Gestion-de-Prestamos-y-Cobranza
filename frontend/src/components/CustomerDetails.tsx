@@ -16,7 +16,7 @@ import {
   FormField,
   IconActionButton,
   IconActionLink,
-  MetricCard,
+  InsightStrip,
   PageHeader,
   PageShell,
   SectionSurface,
@@ -399,13 +399,16 @@ export default function CustomerDetails() {
             {/* Loan Statistics */}
             <div className="mb-6">
               <h4 className="text-sm font-medium text-text-secondary mb-4">Resumen de Cartera</h4>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <MetricCard label="Total créditos" value={customerLoans.length} icon={<CreditCard size={18} />} accent="blue" />
-                <MetricCard label="Activos" value={activeLoans.length} icon={<CheckCircle size={18} />} accent="emerald" />
-                <MetricCard label="Completados" value={completedLoans.length} icon={<Clock size={18} />} accent="slate" />
-                <MetricCard label="Vencidos" value={overdueLoans.length} icon={<AlertTriangle size={18} />} accent="rose" />
-                <MetricCard label="Total desembolsado" value={formatCurrency(totalDisbursed)} icon={<DollarSign size={18} />} accent="teal" />
-              </div>
+              <InsightStrip
+                aria-label="Resumen de cartera del cliente"
+                items={[
+                  { id: 'customer-loans-total', label: 'Total créditos', value: customerLoans.length, helper: 'Histórico del cliente', icon: <CreditCard size={18} />, accent: 'blue' },
+                  { id: 'customer-loans-active', label: 'Activos', value: activeLoans.length, helper: 'En operación', icon: <CheckCircle size={18} />, accent: 'emerald' },
+                  { id: 'customer-loans-completed', label: 'Completados', value: completedLoans.length, helper: 'Cerrados correctamente', icon: <Clock size={18} />, accent: 'slate' },
+                  { id: 'customer-loans-overdue', label: 'Vencidos', value: overdueLoans.length, helper: 'Requieren seguimiento', icon: <AlertTriangle size={18} />, accent: 'rose' },
+                  { id: 'customer-loans-disbursed', label: 'Total desembolsado', value: formatCurrency(totalDisbursed), helper: 'Capital prestado', icon: <DollarSign size={18} />, accent: 'teal' },
+                ]}
+              />
             </div>
 
             <h3 className="font-bold mb-4">Detalle de créditos</h3>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Download } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Download, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
 import { useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
@@ -8,8 +8,18 @@ import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
-import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, InsightStrip, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
+
+const formatCurrency = (amount: number) => new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  maximumFractionDigits: 0,
+}).format(Number(amount || 0));
+
+const formatPercent = (value: number) => `${Number(value || 0).toLocaleString('es-CO', {
+  maximumFractionDigits: 2,
+})}%`;
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
@@ -54,6 +64,30 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       ? associatesData.data
       : [];
   const pagination = associatesData?.data?.pagination ?? associatesData?.pagination ?? associatesData?.meta;
+  const summary = associatesData?.data?.summary;
+  const associateStripMetrics = useMemo(() => {
+    const visibleTotal = pagination?.totalItems ?? pagination?.total ?? associates.length;
+    const activeCount = summary?.activeAssociates ?? associates.filter((associate: any) => associate.status === 'active').length;
+    const totalContributed = Number(summary?.totalContributed ?? associates.reduce((total: number, associate: any) => (
+      total + Number(associate.totalContributed || associate.capitalContributed || 0)
+    ), 0));
+    const monthlyInterestEstimate = Number(summary?.monthlyInterestEstimate ?? associates.reduce((total: number, associate: any) => {
+      const capital = Number(associate.totalContributed || associate.capitalContributed || 0);
+      const rate = Number(associate.interestRate || 0) / 100;
+      return total + (associate.interestType === 'annual' ? (capital * rate) / 12 : capital * rate);
+    }, 0));
+    const participationAssigned = Number(summary?.participationAssigned ?? associates.reduce((total: number, associate: any) => (
+      total + Number(associate.participationPercentage || 0)
+    ), 0));
+
+    return {
+      activeCount,
+      totalCount: Number(visibleTotal || 0),
+      totalContributed,
+      monthlyInterestEstimate,
+      participationAssigned,
+    };
+  }, [associates, pagination?.total, pagination?.totalItems, summary]);
 
   const getAssociateName = (associate: any) => {
     if (typeof associate?.name === 'string' && associate.name.trim()) {
@@ -176,6 +210,48 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
+        {(associateStripMetrics.totalCount > 0 || associateStripMetrics.totalContributed > 0) && (
+          <InsightStrip
+            aria-label="Resumen operativo de socios inversionistas"
+            items={[
+              {
+                id: 'associate-capital',
+                label: 'Capital aportado',
+                value: formatCurrency(associateStripMetrics.totalContributed),
+                helper: 'Aportes registrados',
+                icon: <DollarSign size={18} />,
+                accent: 'blue',
+              },
+              {
+                id: 'associate-interest',
+                label: 'Interés estimado',
+                value: formatCurrency(associateStripMetrics.monthlyInterestEstimate),
+                helper: 'Compromiso mensual aprox.',
+                icon: <TrendingUp size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'associate-active',
+                label: 'Socios activos',
+                value: `${associateStripMetrics.activeCount} / ${associateStripMetrics.totalCount}`,
+                helper: 'Habilitados / visibles',
+                icon: <Users size={18} />,
+                accent: 'slate',
+              },
+              {
+                id: 'associate-participation',
+                label: 'Participación',
+                value: formatPercent(associateStripMetrics.participationAssigned),
+                helper: associateStripMetrics.participationAssigned === 100
+                  ? 'Distribución completa'
+                  : 'Porcentaje configurado',
+                icon: <Percent size={18} />,
+                accent: associateStripMetrics.participationAssigned === 100 ? 'emerald' : 'amber',
+              },
+            ]}
+          />
+        )}
+
         <ToolbarSurface data-tour="associates-search">
           <div className="grid gap-3 md:grid-cols-[minmax(18rem,1fr)_14rem]">
             <FormField label="Buscar socio" className="md:max-w-xl">

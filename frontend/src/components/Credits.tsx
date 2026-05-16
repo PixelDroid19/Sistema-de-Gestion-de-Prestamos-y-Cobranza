@@ -211,22 +211,6 @@ interface CalendarOverviewResponse {
   entries: CalendarOverviewEntry[];
 }
 
-function CalendarInstallmentEvent({ event }: { event: InstallmentEvent }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-semibold truncate">{event.title}</span>
-      <span className="truncate opacity-90">
-        ${event.amountToPay.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-      </span>
-      {event.arrears > 0 && (
-        <span className="truncate font-bold text-red-100">
-          + Mora: ${event.arrears.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-        </span>
-      )}
-    </div>
-  );
-}
-
 /**
  * Credits page displays the loan portfolio with filtering, search,
  * calendar view, and simulation capabilities. Provides actions for
@@ -238,6 +222,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const calendarAsOfDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const initialCalendarView = useMemo(() => (
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'agenda' : 'month'
+  ), []);
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -630,36 +617,40 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }
   };
 
-  const calendarSummaryCards = [
+  const calendarSummaryItems = [
     {
+      id: 'actionable',
       label: 'Cobros accionables',
       value: String(calendarOverview.summary.actionableCount),
       helper: calendarOverview.summary.actionableCount === 1 ? '1 crédito listo para gestión' : `${calendarOverview.summary.actionableCount} créditos listos para gestión`,
-      tone: 'border-sky-200 bg-sky-50/70',
-      icon: DollarSign,
+      accent: 'blue' as const,
+      icon: <DollarSign aria-hidden="true" />,
     },
     {
+      id: 'overdue',
       label: 'En mora',
       value: String(calendarOverview.summary.overdueCount),
       helper: calendarOverview.summary.overdueCount === 1 ? '1 cuota con atraso' : `${calendarOverview.summary.overdueCount} cuotas con atraso`,
-      tone: 'border-rose-200 bg-rose-50/70',
-      icon: AlertTriangle,
+      accent: 'rose' as const,
+      icon: <AlertTriangle aria-hidden="true" />,
     },
     {
+      id: 'due-today',
       label: 'Vencen hoy',
       value: String(calendarOverview.summary.dueTodayCount),
       helper: calendarOverview.summary.dueTodayCount === 1 ? '1 cuota vence hoy' : `${calendarOverview.summary.dueTodayCount} cuotas vencen hoy`,
-      tone: 'border-blue-200 bg-blue-50/70',
-      icon: CalendarIcon,
+      accent: 'teal' as const,
+      icon: <CalendarIcon aria-hidden="true" />,
     },
     {
+      id: 'amount',
       label: 'Monto a cobrar',
       value: formatCurrency(calendarOverview.summary.totalPayableAmount),
       helper: calendarOverview.summary.totalLateFeeAmount > 0
         ? `Incluye ${formatCurrency(calendarOverview.summary.totalLateFeeAmount)} de mora`
         : 'Sin mora acumulada en las cuotas visibles',
-      tone: 'border-amber-200 bg-amber-50/70',
-      icon: TrendingUp,
+      accent: 'amber' as const,
+      icon: <TrendingUp aria-hidden="true" />,
     },
   ];
   const visiblePortfolioStatistics = useMemo(() => {
@@ -1254,16 +1245,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       )}
 
       {activeTab === 'calendar' && (
-        <div className="relative flex flex-1 flex-col gap-5 min-w-0">
-          <SectionSurface>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-3xl">
-                <h3 className="text-lg font-semibold text-text-primary">Agenda operativa</h3>
-                <p className="mt-1 text-sm text-text-secondary">
-                  Úsala para ver qué cuotas debes cobrar hoy, qué créditos están en mora y cuál es la siguiente gestión sugerida por crédito.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
+        <div className="relative flex flex-1 flex-col gap-4 min-w-0">
+          <SectionSurface
+            className="min-h-[660px]"
+            title="Calendario operativo"
+            subtitle="Cuotas por fecha de vencimiento. Selecciona una cuota para revisar el detalle o entrar al crédito."
+            actions={(
+              <div className="flex flex-wrap gap-3 text-xs text-text-secondary">
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full bg-slate-400 dark:bg-slate-500" />
                   Pagadas
@@ -1277,160 +1265,171 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   En mora
                 </div>
               </div>
-            </div>
+            )}
+          >
+            {isCalendarLoading ? (
+              <div className="flex h-full min-h-[560px] items-center justify-center text-text-secondary">
+                Cargando calendario de créditos…
+              </div>
+            ) : (
+              <Calendar
+                localizer={localizer}
+                events={calendarEvents}
+                startAccessor="start"
+                endAccessor="end"
+                defaultView={initialCalendarView}
+                style={{ height: 620 }}
+                messages={{
+                  next: 'Sig',
+                  previous: 'Ant',
+                  today: 'Hoy',
+                  month: 'Mes',
+                  week: 'Semana',
+                  day: 'Día',
+                  agenda: 'Agenda',
+                  date: 'Fecha',
+                  time: 'Hora',
+                  event: 'Cuota',
+                }}
+                culture="es"
+                eventPropGetter={eventStyleGetter}
+                components={{
+                  event: ({ event }: { event: InstallmentEvent }) => (
+                    <button
+                      type="button"
+                      className="flex w-full flex-col gap-0.5 text-left focus:outline-none focus:ring-2 focus:ring-white/80"
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        setSelectedEvent(event);
+                      }}
+                    >
+                      <span className="truncate font-semibold">{event.title}</span>
+                      <span className="truncate opacity-90">{formatCurrency(event.amountToPay)}</span>
+                      {event.arrears > 0 && (
+                        <span className="truncate font-bold text-red-100">
+                          + Mora: {formatCurrency(event.arrears)}
+                        </span>
+                      )}
+                    </button>
+                  ),
+                }}
+                onSelectEvent={(event) => setSelectedEvent(event as InstallmentEvent)}
+                className="dark:text-text-primary"
+              />
+            )}
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {calendarSummaryCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <div key={card.label} className={`rounded-2xl border p-4 ${card.tone}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{card.label}</span>
-                      <span className="rounded-xl bg-white/80 p-2 text-text-primary shadow-sm">
-                        <Icon size={16} aria-hidden="true" />
-                      </span>
-                    </div>
-                    <div className="mt-4 text-2xl font-semibold text-text-primary">{card.value}</div>
-                    <p className="mt-1 text-sm text-text-secondary">{card.helper}</p>
-                  </div>
-                );
-              })}
-            </div>
+            {!isCalendarLoading && calendarEvents.length === 0 && (
+              <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
+                No hay cuotas para mostrar con los créditos visibles en esta página.
+              </div>
+            )}
           </SectionSurface>
 
-          <div className="grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
-            <SectionSurface className="min-h-[640px]">
-              {isCalendarLoading ? (
-                <div className="flex h-full min-h-[520px] items-center justify-center text-text-secondary">
-                  Cargando calendario de créditos…
-                </div>
-              ) : (
-                <Calendar
-                  localizer={localizer}
-                  events={calendarEvents}
-                  startAccessor="start"
-                  endAccessor="end"
-                  style={{ height: '100%' }}
-                  messages={{
-                    next: 'Sig',
-                    previous: 'Ant',
-                    today: 'Hoy',
-                    month: 'Mes',
-                    week: 'Semana',
-                    day: 'Día',
-                    agenda: 'Agenda',
-                  }}
-                  culture="es"
-                  eventPropGetter={eventStyleGetter}
-                  components={{
-                    event: CalendarInstallmentEvent,
-                  }}
-                  onSelectEvent={(event) => setSelectedEvent(event as InstallmentEvent)}
-                  className="dark:text-text-primary"
-                />
-              )}
-
-              {!isCalendarLoading && calendarEvents.length === 0 && (
-                <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
-                  No hay cuotas para mostrar con los créditos visibles en esta página.
-                </div>
-              )}
-            </SectionSurface>
-
-            <SectionSurface as="section">
-              <div className="flex items-start justify-between gap-3">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <SectionSurface>
                 <div>
-                  <h4 className="text-base font-semibold text-text-primary">Próximas acciones</h4>
+                  <h4 className="text-base font-semibold text-text-primary">Agenda operativa</h4>
                   <p className="mt-1 text-sm text-text-secondary">
-                    Una fila por crédito. Si está lista para pago, entra directo al detalle operativo.
+                    Qué se debe cobrar y qué requiere atención en los créditos visibles.
                   </p>
                 </div>
-                <span className="rounded-full bg-bg-base px-3 py-1 text-xs font-semibold text-text-secondary">
-                  {calendarOverview.agenda.length} créditos
-                </span>
-              </div>
+                <InsightStrip items={calendarSummaryItems} className="calendar-summary-strip mt-4" />
+              </SectionSurface>
 
-              {calendarOverview.nextAction && (
-                <div className="mt-4 rounded-2xl border border-brand-primary/20 bg-brand-primary/5 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">Siguiente acción sugerida</div>
-                  <div className="mt-2 text-base font-semibold text-text-primary">{calendarOverview.nextAction.customerName}</div>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    Cuota {calendarOverview.nextAction.installmentNumber}
-                    {calendarOverview.nextAction.totalInstallments > 0 ? ` de ${calendarOverview.nextAction.totalInstallments}` : ''}
-                    {' · '}
-                    {format(parseDueDate(calendarOverview.nextAction.dueDate) || new Date(), "d 'de' MMM", { locale: es })}
-                  </p>
+              <SectionSurface as="section">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-semibold text-text-primary">Próximas acciones</h4>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Una fila por crédito. Si está lista para pago, entra directo al detalle operativo.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-bg-base px-3 py-1 text-xs font-semibold text-text-secondary">
+                    {calendarOverview.agenda.length} créditos
+                  </span>
                 </div>
-              )}
 
-              <div className="mt-4 space-y-3">
-                {calendarOverview.agenda.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
-                    No hay cobros accionables con los créditos visibles en esta página.
+                {calendarOverview.nextAction && (
+                  <div className="mt-4 rounded-2xl border border-brand-primary/20 bg-brand-primary/5 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">Siguiente acción sugerida</div>
+                    <div className="mt-2 text-base font-semibold text-text-primary">{calendarOverview.nextAction.customerName}</div>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Cuota {calendarOverview.nextAction.installmentNumber}
+                      {calendarOverview.nextAction.totalInstallments > 0 ? ` de ${calendarOverview.nextAction.totalInstallments}` : ''}
+                      {' · '}
+                      {format(parseDueDate(calendarOverview.nextAction.dueDate) || new Date(), "d 'de' MMM", { locale: es })}
+                    </p>
                   </div>
                 )}
 
-                {calendarOverview.agenda.map((item) => (
-                  <div key={`${item.loanId}-${item.installmentNumber}`} className="rounded-2xl border border-border-subtle bg-bg-base p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-text-primary">{item.customerName}</div>
-                        <div className="mt-1 text-sm text-text-secondary">
-                          Crédito #{item.loanId} · Cuota {item.installmentNumber}
-                          {item.totalInstallments > 0 ? ` de ${item.totalInstallments}` : ''}
+                <div className="mt-4 space-y-3">
+                  {calendarOverview.agenda.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
+                      No hay cobros accionables con los créditos visibles en esta página.
+                    </div>
+                  )}
+
+                  {calendarOverview.agenda.map((item) => (
+                    <div key={`${item.loanId}-${item.installmentNumber}`} className="rounded-2xl border border-border-subtle bg-bg-base p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-text-primary">{item.customerName}</div>
+                          <div className="mt-1 text-sm text-text-secondary">
+                            Crédito #{item.loanId} · Cuota {item.installmentNumber}
+                            {item.totalInstallments > 0 ? ` de ${item.totalInstallments}` : ''}
+                          </div>
+                        </div>
+                        <span className={getChipClassName(getCalendarStatusTone(item.status))}>
+                          {getCalendarStatusLabel(item.status)}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Vencimiento</div>
+                          <div className="mt-1 text-sm font-medium text-text-primary">
+                            {format(parseDueDate(item.dueDate) || new Date(), "d 'de' MMMM", { locale: es })}
+                          </div>
+                          {item.daysOverdue > 0 && (
+                            <div className="mt-1 text-sm font-medium text-rose-600">{item.daysOverdue} días de atraso</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Cobro sugerido</div>
+                          <div className="mt-1 text-sm font-semibold text-text-primary">{formatCurrency(item.payableAmount)}</div>
+                          {item.lateFeeDue > 0 && (
+                            <div className="mt-1 text-sm text-amber-700">Incluye mora por {formatCurrency(item.lateFeeDue)}</div>
+                          )}
                         </div>
                       </div>
-                      <span className={getChipClassName(getCalendarStatusTone(item.status))}>
-                        {getCalendarStatusLabel(item.status)}
-                      </span>
-                    </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Vencimiento</div>
-                        <div className="mt-1 text-sm font-medium text-text-primary">
-                          {format(parseDueDate(item.dueDate) || new Date(), "d 'de' MMMM", { locale: es })}
+                      {item.disabledReason && !item.canPay && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                          {item.disabledReason}
                         </div>
-                        {item.daysOverdue > 0 && (
-                          <div className="mt-1 text-sm font-medium text-rose-600">{item.daysOverdue} días de atraso</div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Cobro sugerido</div>
-                        <div className="mt-1 text-sm font-semibold text-text-primary">{formatCurrency(item.payableAmount)}</div>
-                        {item.lateFeeDue > 0 && (
-                          <div className="mt-1 text-sm text-amber-700">Incluye mora por {formatCurrency(item.lateFeeDue)}</div>
-                        )}
-                      </div>
-                    </div>
+                      )}
 
-                    {item.disabledReason && !item.canPay && (
-                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                        {item.disabledReason}
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <ActionButton
-                        type="button"
-                        onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
-                      >
-                        Ver crédito
-                      </ActionButton>
-                      {item.canPay && (
+                      <div className="mt-4 flex flex-wrap gap-2">
                         <ActionButton
                           type="button"
                           onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
-                          variant="primary"
                         >
-                          Registrar pago
+                          Ver crédito
                         </ActionButton>
-                      )}
+                        {item.canPay && (
+                          <ActionButton
+                            type="button"
+                            onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
+                            variant="primary"
+                          >
+                            Registrar pago
+                          </ActionButton>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </SectionSurface>
+                  ))}
+                </div>
+              </SectionSurface>
           </div>
 
           {/* Modal de Detalles del Evento */}

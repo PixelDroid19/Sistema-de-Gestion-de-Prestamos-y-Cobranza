@@ -13,7 +13,7 @@ import {
   ClickableSurface,
   EmptyState,
   FormField,
-  MetricCard,
+  InsightStrip,
   SelectInput,
   SectionSurface,
   ViewTabs,
@@ -331,32 +331,14 @@ export default function PermissionsTab() {
             />
           ) : (
             <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de permisos del empleado">
-                <MetricCard
-                  label="Permisos efectivos"
-                  value={selectedEffectiveCount}
-                  helper="Accesos que puede usar"
-                  tooltip="Suma de permisos directos y heredados por rol."
-                  icon={<Shield />}
-                  accent="blue"
-                />
-                <MetricCard
-                  label="Directos"
-                  value={selectedDirectCount}
-                  helper="Asignados manualmente"
-                  tooltip="Estos permisos sí se pueden conceder o revocar desde esta pantalla."
-                  icon={<Check />}
-                  accent="emerald"
-                />
-                <MetricCard
-                  label="Heredados"
-                  value={selectedInheritedCount}
-                  helper="Vienen del rol"
-                  tooltip="Estos permisos no se revocan aquí; se muestran para que el administrador entienda el acceso efectivo."
-                  icon={<Lock />}
-                  accent="slate"
-                />
-              </div>
+              <InsightStrip
+                aria-label="Resumen de permisos del empleado"
+                items={[
+                  { id: 'permissions-effective', label: 'Permisos efectivos', value: selectedEffectiveCount, helper: 'Accesos que puede usar', icon: <Shield size={18} />, accent: 'blue' },
+                  { id: 'permissions-direct', label: 'Directos', value: selectedDirectCount, helper: 'Asignados manualmente', icon: <Check size={18} />, accent: 'emerald' },
+                  { id: 'permissions-inherited', label: 'Heredados', value: selectedInheritedCount, helper: 'Vienen del rol', icon: <Lock size={18} />, accent: 'slate' },
+                ]}
+              />
               {visibleGroupedPermissions.map((group) => {
                 const modulePermissions = group.permissions;
                 const totalPermissions = modulePermissions.length;

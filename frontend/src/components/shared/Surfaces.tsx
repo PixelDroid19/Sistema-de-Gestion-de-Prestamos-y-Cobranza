@@ -259,8 +259,10 @@ export function InsightStrip({
   className = '',
   ...rest
 }: InsightStripProps) {
+  const countClassName = `insight-strip--count-${Math.min(items.length, 6)}`;
+
   return (
-    <section className={`insight-strip ${className}`} {...rest}>
+    <section className={`insight-strip ${countClassName} ${className}`} {...rest}>
       {items.map((item) => (
         <article key={item.id} className={`insight-strip-item insight-strip-item--${item.accent ?? 'slate'}`}>
           {item.icon ? (

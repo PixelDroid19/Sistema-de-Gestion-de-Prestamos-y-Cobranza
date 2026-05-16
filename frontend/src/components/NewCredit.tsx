@@ -20,7 +20,6 @@ import {
   FormField,
   IconActionButton,
   InsightStrip,
-  MetricCard,
   PageHeader,
   PageShell,
   SelectInput,
@@ -328,9 +327,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     },
   ];
   const summaryCards = result && !isResultStale ? [
-    { label: 'Cuota', value: formatMoney(result.summary.installmentAmount), accent: 'teal' as const },
-    { label: 'Total', value: formatMoney(result.summary.totalPayable), accent: 'blue' as const },
-    { label: 'Interés', value: formatMoney(result.summary.totalInterest), accent: 'rose' as const },
+    { id: 'new-credit-installment', label: 'Cuota', value: formatMoney(result.summary.installmentAmount), helper: 'Pago mensual', accent: 'teal' as const, icon: <Wallet size={18} /> },
+    { id: 'new-credit-total', label: 'Total', value: formatMoney(result.summary.totalPayable), helper: 'Capital + interés', accent: 'blue' as const, icon: <Calculator size={18} /> },
+    { id: 'new-credit-interest', label: 'Interés', value: formatMoney(result.summary.totalInterest), helper: 'Costo financiero', accent: 'rose' as const, icon: <Clock3 size={18} /> },
   ] : [];
   const scheduleTotals = useMemo(() => {
     if (!result?.schedule?.length || isResultStale) return null;
@@ -799,17 +798,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
               {result && !isResultStale ? (
                 <>
-                  <div className="mt-1 grid gap-3 sm:grid-cols-3">
-                    {summaryCards.map((card) => (
-                      <MetricCard
-                        key={card.label}
-                        label={card.label}
-                        value={card.value}
-                        accent={card.accent}
-                        className="!rounded-[1.15rem] !border-border-subtle/80"
-                      />
-                    ))}
-                  </div>
+                  <InsightStrip
+                    aria-label="Resumen financiero del crédito nuevo"
+                    items={summaryCards}
+                  />
                   <div className="mt-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">

@@ -170,9 +170,10 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.getByText(/Con intereses pendientes/i)).toBeInTheDocument();
+    expect(screen.getByText('Capital aportado')).toBeInTheDocument();
     expect(screen.getByText('Interés pagado')).toBeInTheDocument();
     expect(screen.getByText('Deuda con socio')).toBeInTheDocument();
-    expect(screen.getByText('Interés pactado')).toBeInTheDocument();
+    expect(screen.getByText('Próximo pago')).toBeInTheDocument();
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
     expect(screen.getAllByText(/\$125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('transfer')).toBeInTheDocument();

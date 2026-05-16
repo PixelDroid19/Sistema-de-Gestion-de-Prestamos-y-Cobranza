@@ -57,6 +57,14 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
         return {
           items: associates,
           pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
+          summary: {
+            totalAssociates: 2,
+            activeAssociates: 1,
+            inactiveAssociates: 1,
+            totalContributed: 3000000,
+            monthlyInterestEstimate: 120000,
+            participationAssigned: 100,
+          },
         };
       },
       async createAssociate(input) {
@@ -138,7 +146,18 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.deepEqual(listResponse.body, {
     success: true,
     count: 2,
-    data: { associates, pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 } },
+    data: {
+      associates,
+      pagination: { page: 1, pageSize: 25, totalItems: 2, totalPages: 1 },
+      summary: {
+        totalAssociates: 2,
+        activeAssociates: 1,
+        inactiveAssociates: 1,
+        totalContributed: 3000000,
+        monthlyInterestEstimate: 120000,
+        participationAssigned: 100,
+      },
+    },
   });
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {

@@ -23,7 +23,7 @@ import {
   ActionButton,
   DataTableSurface,
   FormField,
-  MetricCard,
+  InsightStrip,
   PageHeader,
   PageShell,
   SelectInput,
@@ -441,32 +441,35 @@ function EmployeeAccessPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de empleados">
-        <MetricCard
-          label="Empleados"
-          value={employees.length}
-          helper="Usuarios administrativos creados"
-          tooltip="Cuentas tipo empleado que pueden entrar a la plataforma si están activas y tienen permisos."
-          icon={<UserPlus />}
-          accent="slate"
-        />
-        <MetricCard
-          label="Activos"
-          value={activeEmployees.length}
-          helper="Pueden iniciar sesión"
-          tooltip="Empleados con acceso habilitado. Además necesitan permisos por módulo para operar."
-          icon={<UserCheck />}
-          accent="emerald"
-        />
-        <MetricCard
-          label="Inactivos"
-          value={inactiveEmployees.length}
-          helper="Acceso suspendido"
-          tooltip="Empleados conservados para auditoría, pero sin acceso a la plataforma."
-          icon={<UserX />}
-          accent="rose"
-        />
-      </div>
+      <InsightStrip
+        aria-label="Resumen de empleados"
+        items={[
+          {
+            id: 'settings-employees-total',
+            label: 'Empleados',
+            value: employees.length,
+            helper: 'Usuarios administrativos',
+            icon: <UserPlus size={18} />,
+            accent: 'slate',
+          },
+          {
+            id: 'settings-employees-active',
+            label: 'Activos',
+            value: activeEmployees.length,
+            helper: 'Pueden iniciar sesión',
+            icon: <UserCheck size={18} />,
+            accent: 'emerald',
+          },
+          {
+            id: 'settings-employees-inactive',
+            label: 'Inactivos',
+            value: inactiveEmployees.length,
+            helper: 'Acceso suspendido',
+            icon: <UserX size={18} />,
+            accent: 'rose',
+          },
+        ]}
+      />
 
       <SectionSurface
         as="form"

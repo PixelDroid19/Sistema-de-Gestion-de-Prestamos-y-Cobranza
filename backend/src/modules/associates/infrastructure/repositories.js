@@ -56,6 +56,55 @@ const associateRepository = {
       order: [['name', 'ASC']],
     });
   },
+  async summarize(filters = {}) {
+    const where = buildAssociateListWhere(filters);
+    const associates = await Associate.findAll({
+      where,
+      attributes: ['id', 'status', 'participationPercentage', 'interestRate', 'interestType'],
+      raw: true,
+    });
+    const associateIds = associates.map((associate) => associate.id);
+
+    let contributionsByAssociate = new Map();
+    if (associateIds.length > 0) {
+      const contributionRows = await AssociateContribution.findAll({
+        attributes: [
+          'associateId',
+          [AssociateContribution.sequelize.fn('SUM', AssociateContribution.sequelize.col('amount')), 'totalContributed'],
+        ],
+        where: { associateId: { [Op.in]: associateIds } },
+        group: ['associateId'],
+        raw: true,
+      });
+
+      contributionsByAssociate = new Map(
+        contributionRows.map((row) => [Number(row.associateId), Number(row.totalContributed || 0)]),
+      );
+    }
+
+    return associates.reduce((summary, associate) => {
+      const totalContributed = Number(contributionsByAssociate.get(Number(associate.id)) || 0);
+      const interestRate = Number(associate.interestRate || 0);
+      const monthlyInterest = associate.interestType === 'annual'
+        ? (totalContributed * (interestRate / 100)) / 12
+        : totalContributed * (interestRate / 100);
+
+      summary.totalAssociates += 1;
+      summary.activeAssociates += associate.status === 'active' ? 1 : 0;
+      summary.inactiveAssociates += associate.status === 'inactive' ? 1 : 0;
+      summary.totalContributed += totalContributed;
+      summary.monthlyInterestEstimate += monthlyInterest;
+      summary.participationAssigned += Number(associate.participationPercentage || 0);
+      return summary;
+    }, {
+      totalAssociates: 0,
+      activeAssociates: 0,
+      inactiveAssociates: 0,
+      totalContributed: 0,
+      monthlyInterestEstimate: 0,
+      participationAssigned: 0,
+    });
+  },
   findById(id, { transaction } = {}) {
     return Associate.findByPk(id, { transaction });
   },

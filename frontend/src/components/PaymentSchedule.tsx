@@ -4,7 +4,7 @@ import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileS
 import { usePaymentSchedule, exportCreditExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
-import { ActionButton, DataTableSurface, EmptyState, MetricCard, PageHeader, PageShell } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
 
 /**
@@ -134,23 +134,30 @@ export default function PaymentSchedule() {
 
       {/* Loan Summary */}
       {loan && (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4" data-tour="payment-schedule-summary">
-          <MetricCard label="Monto del crédito" value={formatCurrency(loan.amount)} icon={<DollarSign size={18} />} accent="blue" />
-          <MetricCard label="Tasa de interés" value={`${loan.interestRate}%`} icon={<TrendingUp size={18} />} accent="amber" />
-          <MetricCard label="Plazo" value={`${loan.termMonths} meses`} icon={<Calendar size={18} />} accent="emerald" />
-          <MetricCard label="Estado" value={<span className="capitalize">{loan.status}</span>} icon={<BarChart3 size={18} />} accent="slate" />
-        </section>
+        <InsightStrip
+          data-tour="payment-schedule-summary"
+          aria-label="Resumen del crédito"
+          items={[
+            { id: 'payment-schedule-amount', label: 'Monto del crédito', value: formatCurrency(loan.amount), helper: 'Capital original', icon: <DollarSign size={18} />, accent: 'blue' },
+            { id: 'payment-schedule-rate', label: 'Tasa de interés', value: `${loan.interestRate}%`, helper: 'Tasa anual', icon: <TrendingUp size={18} />, accent: 'amber' },
+            { id: 'payment-schedule-term', label: 'Plazo', value: `${loan.termMonths} meses`, helper: 'Tiempo pactado', icon: <Calendar size={18} />, accent: 'emerald' },
+            { id: 'payment-schedule-status', label: 'Estado', value: <span className="capitalize">{loan.status}</span>, helper: 'Situación actual', icon: <BarChart3 size={18} />, accent: 'slate' },
+          ]}
+        />
       )}
 
       {/* Summary Stats */}
       {summary && (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-5">
-          <MetricCard label="Total capital" value={formatCurrency(parseFloat(summary.totalPrincipal))} icon={<DollarSign size={18} />} accent="blue" />
-          <MetricCard label="Total intereses" value={formatCurrency(parseFloat(summary.totalInterest))} icon={<TrendingUp size={18} />} accent="amber" />
-          <MetricCard label="Total a pagar" value={formatCurrency(parseFloat(summary.totalPayment))} icon={<Wallet size={18} />} accent="emerald" />
-          <MetricCard label="Cuotas pagadas" value={summary.paidInstallments} icon={<Calendar size={18} />} accent="slate" />
-          <MetricCard label="Cuotas pendientes" value={summary.pendingInstallments} icon={<Calendar size={18} />} accent="rose" />
-        </section>
+        <InsightStrip
+          aria-label="Totales del plan de pagos"
+          items={[
+            { id: 'payment-schedule-total-principal', label: 'Total capital', value: formatCurrency(parseFloat(summary.totalPrincipal)), helper: 'Capital amortizado', icon: <DollarSign size={18} />, accent: 'blue' },
+            { id: 'payment-schedule-total-interest', label: 'Total intereses', value: formatCurrency(parseFloat(summary.totalInterest)), helper: 'Interés programado', icon: <TrendingUp size={18} />, accent: 'amber' },
+            { id: 'payment-schedule-total-payment', label: 'Total a pagar', value: formatCurrency(parseFloat(summary.totalPayment)), helper: 'Capital + interés', icon: <Wallet size={18} />, accent: 'emerald' },
+            { id: 'payment-schedule-paid-count', label: 'Cuotas pagadas', value: summary.paidInstallments, helper: 'Completadas', icon: <Calendar size={18} />, accent: 'slate' },
+            { id: 'payment-schedule-pending-count', label: 'Cuotas pendientes', value: summary.pendingInstallments, helper: 'Por operar', icon: <Calendar size={18} />, accent: 'rose' },
+          ]}
+        />
       )}
 
       <DataTableSurface data-tour="payment-schedule-table">

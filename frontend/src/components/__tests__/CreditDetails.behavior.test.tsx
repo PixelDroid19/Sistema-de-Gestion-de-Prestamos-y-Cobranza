@@ -275,6 +275,23 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect((toolbar as HTMLElement).querySelectorAll('button')).toHaveLength(4);
   });
 
+  it('renders monetary totals for the installment calendar columns', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockCalendarEntries = [
+      { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+      { installmentNumber: 2, scheduledPayment: 300000, remainingInterest: 40000, status: 'pending' },
+    ];
+
+    const { container } = renderCreditDetails();
+    const renderedText = container.textContent?.replace(/\s+/g, ' ') || '';
+
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    expect(renderedText).toMatch(/\$\s*550\.000/);
+    expect(renderedText).toMatch(/\$\s*90\.000/);
+    expect(renderedText).toMatch(/\$\s*460\.000/);
+    expect(renderedText).toMatch(/\$\s*750\.000/);
+  });
+
   it('routes top-level payment CTA to the next payable installment', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();

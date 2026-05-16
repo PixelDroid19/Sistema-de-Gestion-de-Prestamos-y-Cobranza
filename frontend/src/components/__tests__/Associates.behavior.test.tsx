@@ -57,6 +57,14 @@ const buildAssociatesResponse = (associates: any[]) => ({
         totalItems: associates.length,
         totalPages: 1,
       },
+      summary: {
+        totalAssociates: associates.length,
+        activeAssociates: associates.filter((associate) => associate.status === 'active').length,
+        inactiveAssociates: associates.filter((associate) => associate.status === 'inactive').length,
+        totalContributed: 2500000,
+        monthlyInterestEstimate: 75000,
+        participationAssigned: 25,
+      },
     },
   },
   isLoading: false,
@@ -116,6 +124,16 @@ describe('Associates behavior', () => {
     fireEvent.click(screen.getByTitle('Editar'));
 
     expect(setCurrentView).toHaveBeenCalledWith('associates/2/edit');
+  });
+
+  it('renders the shared financial insight strip for associates', () => {
+    render(<Associates setCurrentView={vi.fn()} />);
+
+    expect(screen.getByText('Capital aportado')).toBeInTheDocument();
+    expect(screen.getByText('Interés estimado')).toBeInTheDocument();
+    expect(screen.getByText('Socios activos')).toBeInTheDocument();
+    expect(screen.getAllByText('Participación').length).toBeGreaterThan(0);
+    expect(screen.getByText('$ 2.500.000')).toBeInTheDocument();
   });
 
   it('reactivates inactive associates through the active status patch flow', async () => {

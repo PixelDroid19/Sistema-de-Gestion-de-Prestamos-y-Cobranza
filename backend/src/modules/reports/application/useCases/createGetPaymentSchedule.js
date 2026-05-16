@@ -1,6 +1,48 @@
 const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { buildAmortizationSchedule } = require('@/modules/credits/application/creditFormulaHelpers');
 
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+/**
+ * Build operator-facing totals for a payment schedule.
+ *
+ * Capital prepayments rebuild the pending schedule, so their principal no longer
+ * appears in future installment rows. The summary still has to include them as
+ * recovered principal, otherwise the plan shows less capital than the original
+ * credit after an "abono a capital".
+ *
+ * @param {Array<object>} schedule Canonical amortization rows.
+ * @param {Array<object>} payments Completed loan payments.
+ * @returns {{ totalPrincipal: number, totalInterest: number, totalPayment: number, capitalPrepayments: number }}
+ */
+const summarizePaymentSchedule = ({ schedule, payments }) => {
+  const schedulePrincipal = schedule.reduce(
+    (sum, entry) => sum + toNumber(entry.principalComponent || entry.principal),
+    0
+  );
+  const totalInterest = schedule.reduce(
+    (sum, entry) => sum + toNumber(entry.interestComponent || entry.interest),
+    0
+  );
+  const scheduledPaymentTotal = schedule.reduce(
+    (sum, entry) => sum + toNumber(entry.scheduledPayment || entry.payment),
+    0
+  );
+  const capitalPrepayments = payments
+    .filter((payment) => payment.paymentType === 'capital')
+    .reduce((sum, payment) => sum + toNumber(payment.principalApplied || payment.amount), 0);
+
+  return {
+    totalPrincipal: schedulePrincipal + capitalPrepayments,
+    totalInterest,
+    totalPayment: scheduledPaymentTotal + capitalPrepayments,
+    capitalPrepayments,
+  };
+};
+
 /**
  * Get the payment schedule (amortization) for a specific credit/loan.
  * @param {object} dependencies
@@ -41,16 +83,14 @@ const createGetPaymentSchedule = ({ loanAccessPolicy }) => async ({ actor, loanI
     startDate: loan.startDate,
   });
 
-  // Calculate summary
-  const totalPrincipal = schedule.reduce((sum, entry) => sum + Number(entry.principalComponent || entry.principal || 0), 0);
-  const totalInterest = schedule.reduce((sum, entry) => sum + Number(entry.interestComponent || entry.interest || 0), 0);
-  const totalPayment = schedule.reduce((sum, entry) => sum + Number(entry.scheduledPayment || entry.payment || 0), 0);
-
   // Get payments made for this loan to determine which installments are paid
   const payments = await Payment.findAll({
     where: { loanId: loan.id, status: 'completed' },
     order: [['paymentDate', 'ASC'], ['createdAt', 'ASC']],
   });
+
+  // Calculate summary after loading payments so capital prepayments are included.
+  const summary = summarizePaymentSchedule({ schedule, payments });
 
   // Mark installments as paid based on payments
   const scheduleWithPaymentStatus = schedule.map((entry, index) => {
@@ -85,9 +125,10 @@ const createGetPaymentSchedule = ({ loanAccessPolicy }) => async ({ actor, loanI
         installmentAmount: loan.installmentAmount,
       },
       summary: {
-        totalPrincipal: totalPrincipal.toFixed(2),
-        totalInterest: totalInterest.toFixed(2),
-        totalPayment: totalPayment.toFixed(2),
+        totalPrincipal: summary.totalPrincipal.toFixed(2),
+        totalInterest: summary.totalInterest.toFixed(2),
+        totalPayment: summary.totalPayment.toFixed(2),
+        capitalPrepayments: summary.capitalPrepayments.toFixed(2),
         paidInstallments: paidCount,
         pendingInstallments: pendingCount,
         totalInstallments: schedule.length,
@@ -99,4 +140,5 @@ const createGetPaymentSchedule = ({ loanAccessPolicy }) => async ({ actor, loanI
 
 module.exports = {
   createGetPaymentSchedule,
+  summarizePaymentSchedule,
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { ActionButton, DataTableSurface, EmptyState, MetricCard, ModalShell } from './shared/Surfaces';
+import { ActionButton, DataTableSurface, EmptyState, InsightStrip, ModalShell } from './shared/Surfaces';
 
 interface Installment {
   id: number;
@@ -54,26 +54,15 @@ export default function InstallmentsModal({
         </ActionButton>
       )}
     >
-          <div className="mb-4 grid gap-3 sm:grid-cols-3">
-            <MetricCard
-              label="Pendiente"
-              value={`$${installmentsData.totals.totalPending.toLocaleString()}`}
-              icon={<Clock size={14} />}
-              accent="amber"
-            />
-            <MetricCard
-              label="Pagado"
-              value={`$${installmentsData.totals.totalPaid.toLocaleString()}`}
-              icon={<CheckCircle size={14} />}
-              accent="emerald"
-            />
-            <MetricCard
-              label="Vencido"
-              value={`$${installmentsData.totals.totalOverdue.toLocaleString()}`}
-              icon={<AlertCircle size={14} />}
-              accent="rose"
-            />
-          </div>
+          <InsightStrip
+            className="mb-4"
+            aria-label="Resumen de cuotas del socio"
+            items={[
+              { id: 'installments-modal-pending', label: 'Pendiente', value: `$${installmentsData.totals.totalPending.toLocaleString()}`, helper: 'Por pagar', icon: <Clock size={18} />, accent: 'amber' },
+              { id: 'installments-modal-paid', label: 'Pagado', value: `$${installmentsData.totals.totalPaid.toLocaleString()}`, helper: 'Reconocido', icon: <CheckCircle size={18} />, accent: 'emerald' },
+              { id: 'installments-modal-overdue', label: 'Vencido', value: `$${installmentsData.totals.totalOverdue.toLocaleString()}`, helper: 'Atrasado', icon: <AlertCircle size={18} />, accent: 'rose' },
+            ]}
+          />
 
           {isLoading ? (
             <DataTableSurface>
