@@ -403,3 +403,107 @@ test('getCanonicalLoanView rebuilds legacy schedules without leaking through roo
   assert.equal(loanView.snapshot.outstandingInstallments, 5);
   assert.ok(loanView.snapshot.totalPayable > 5000);
 });
+
+test('createLoanFromCanonicalData freezes the policySnapshot and rate at creation time', async () => {
+  // Regression contract: once a loan is created with a policy-derived rate, the
+  // persisted `policySnapshot`, `ratePolicyId`, `lateFeePolicyId` and `interestRate`
+  // must mirror the snapshot returned by the calculation service. Future mutations
+  // to live rate policies must NOT alter the stored values (AGENTS.md contract #2).
+  let persistedPayload;
+
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Snapshot' }));
+  mock.method(models.FinancialProduct, 'findOne', async () => ({ id: 'prod-snapshot', name: 'Snapshot Product' }));
+  mock.method(models.Loan, 'create', async (payload) => {
+    persistedPayload = payload;
+    return { id: 91, ...payload };
+  });
+
+  const frozenSnapshot = {
+    ratePolicyId: 100,
+    lateFeePolicyId: 200,
+    rateSource: 'policy',
+    lateFeeSource: 'policy',
+    label: 'Rango 0-15000 @ 12% anual',
+    minAmount: 0,
+    maxAmount: 15000,
+    interestRate: 12,
+    priority: 1,
+    capturedAt: '2026-04-01T00:00:00.000Z',
+  };
+
+  const policyResolver = {
+    async resolve({ input }) {
+      return {
+        calculationInput: { ...input, interestRate: 12, rateSource: 'policy' },
+        policySnapshot: frozenSnapshot,
+      };
+    },
+  };
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    policyResolver,
+    calculationService: {
+      async calculate(input, { policySnapshot } = {}) {
+        return {
+          calculationProfileVersionId: 777,
+          result: {
+            lateFeeMode: 'NONE',
+            method: 'FRENCH',
+            policySnapshot,
+            schedule: [{
+              installmentNumber: 1,
+              dueDate: '2026-05-01T00:00:00.000Z',
+              scheduledPayment: 1000,
+              principalComponent: 988,
+              interestComponent: 12,
+              paidPrincipal: 0,
+              paidInterest: 0,
+              paidTotal: 0,
+              remainingPrincipal: 988,
+              remainingInterest: 12,
+              remainingBalance: 1000,
+              status: 'pending',
+            }],
+            summary: {
+              installmentAmount: 1000,
+              totalPayable: 1000,
+              totalPaid: 0,
+              outstandingPrincipal: input.amount,
+              outstandingInterest: 12,
+              outstandingBalance: 1000,
+              outstandingInstallments: 1,
+              nextInstallment: null,
+            },
+          },
+        };
+      },
+    },
+  });
+
+  await createLoan({
+    customerId: 1,
+    amount: 988,
+    interestRate: 99, // user-supplied rate must be overridden by the policy resolver
+    rateSource: 'policy',
+    termMonths: 1,
+    lateFeeMode: 'none',
+    startDate: '2026-04-01',
+  });
+
+  // Persisted loan reflects the frozen snapshot, not the user-supplied rate.
+  assert.equal(persistedPayload.calculationProfileVersionId, 777);
+  assert.equal(persistedPayload.interestRate, 12, 'persisted interestRate must come from resolved policy, not user input');
+  assert.equal(persistedPayload.ratePolicyId, 100, 'ratePolicyId must be derived from snapshot');
+  assert.equal(persistedPayload.lateFeePolicyId, 200, 'lateFeePolicyId must be derived from snapshot');
+  assert.ok(persistedPayload.policySnapshot, 'policySnapshot must be persisted');
+  assert.equal(persistedPayload.policySnapshot.ratePolicyId, 100);
+  assert.equal(persistedPayload.policySnapshot.interestRate, 12);
+  assert.equal(persistedPayload.policySnapshot.rateSource, 'policy');
+  assert.equal(persistedPayload.policySnapshot.capturedAt, '2026-04-01T00:00:00.000Z');
+
+  // Simulate a later mutation to the live policy registry. The persisted payload
+  // must remain immutable because the loan stores its own snapshot.
+  const livePolicySnapshot = { ...frozenSnapshot, interestRate: 99, capturedAt: '2026-06-01T00:00:00.000Z' };
+  assert.notEqual(persistedPayload.policySnapshot.interestRate, livePolicySnapshot.interestRate);
+  assert.notEqual(persistedPayload.policySnapshot.capturedAt, livePolicySnapshot.capturedAt);
+});
