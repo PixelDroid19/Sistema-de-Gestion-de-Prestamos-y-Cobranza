@@ -1,4 +1,5 @@
 import type { AppUserLike } from './appAccess';
+import { PERMISSION } from './permissionNames';
 
 export const APP_BRAND = {
   name: 'CrediCobranza',
@@ -21,7 +22,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Dashboard',
     description: 'Resumen operativo y métricas principales.',
     roles: ['admin', 'employee'],
-    permission: 'DASHBOARD_VIEW_ALL',
+    permission: PERMISSION.DASHBOARD_VIEW_ALL,
     keywords: ['inicio', 'resumen', 'kpi'],
   },
   {
@@ -29,7 +30,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Clientes',
     description: 'Consulta y actualiza la base de clientes.',
     roles: ['admin', 'employee'],
-    permission: 'CLIENTS_VIEW_ALL',
+    permission: PERMISSION.CLIENTS_VIEW_ALL,
     keywords: ['personas', 'usuarios', 'clientes'],
   },
   {
@@ -37,7 +38,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Nuevo cliente',
     description: 'Registra un cliente nuevo en la cartera.',
     roles: ['admin', 'employee'],
-    permission: 'CLIENTS_CREATE',
+    permission: PERMISSION.CLIENTS_CREATE,
     keywords: ['alta cliente', 'crear cliente'],
   },
   {
@@ -45,7 +46,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Créditos vigentes',
     description: 'Portafolio, calendario y seguimiento de cobro.',
     roles: ['admin', 'employee'],
-    permission: 'CREDITS_VIEW_ALL',
+    permission: PERMISSION.CREDITS_VIEW_ALL,
     keywords: ['prestamos', 'cartera', 'cuotas'],
   },
   {
@@ -53,7 +54,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Nuevo crédito',
     description: 'Simula y registra un crédito real.',
     roles: ['admin', 'employee'],
-    permission: 'CREDITS_CREATE',
+    permission: PERMISSION.CREDITS_CREATE,
     keywords: ['crear credito', 'originacion', 'simular'],
   },
   {
@@ -61,7 +62,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Calcular crédito',
     description: 'Prueba la regla de cálculo activa antes de registrar.',
     roles: ['admin', 'employee'],
-    permission: 'CREDITS_VIEW_ALL',
+    permission: PERMISSION.CREDITS_VIEW_ALL,
     keywords: ['simulador', 'calculadora', 'cuota', 'perfil'],
   },
   {
@@ -69,7 +70,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Reportes',
     description: 'Indicadores de cartera, mora y recaudo.',
     roles: ['admin', 'employee'],
-    permission: 'REPORTS_VIEW_ALL',
+    permission: PERMISSION.REPORTS_VIEW_ALL,
     keywords: ['informes', 'metricas', 'exportes'],
   },
   {
@@ -77,7 +78,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Socios',
     description: 'Gestión administrativa de socios.',
     roles: ['admin', 'employee'],
-    permission: 'SOCIOS_VIEW_ALL',
+    permission: PERMISSION.SOCIOS_VIEW_ALL,
     keywords: ['inversionistas', 'aportantes'],
   },
   {
@@ -85,7 +86,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Pagos y cobranza',
     description: 'Registro de desembolsos, pagos y comprobantes.',
     roles: ['admin', 'employee'],
-    permission: 'PAYMENTS_VIEW_ALL',
+    permission: PERMISSION.PAYMENTS_VIEW_ALL,
     keywords: ['pagos', 'cobranza', 'recibos'],
   },
   {
@@ -100,7 +101,7 @@ const BASE_DESTINATIONS: ShellDestination[] = [
     label: 'Auditoría',
     description: 'Trazabilidad de cambios y operaciones.',
     roles: ['admin', 'employee'],
-    permission: 'AUDIT_VIEW_ALL',
+    permission: PERMISSION.AUDIT_VIEW_ALL,
     keywords: ['historial', 'auditoria', 'cambios'],
   },
   {

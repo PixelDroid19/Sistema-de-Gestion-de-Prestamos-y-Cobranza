@@ -13,6 +13,7 @@ import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
+import { PERMISSION } from '../constants/permissionNames';
 import { ActionButton, FormField, InsightStrip, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
@@ -27,10 +28,10 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const [statusFilter, setStatusFilter] = useState('all');
   const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
-  const canCreateAssociates = hasPermission('SOCIOS_CREATE');
-  const canUpdateAssociates = hasPermission('SOCIOS_UPDATE');
-  const canDeleteAssociates = hasPermission('SOCIOS_DELETE');
-  const canExportAssociates = hasPermission('REPORTS_VIEW_ALL');
+  const canCreateAssociates = hasPermission(PERMISSION.SOCIOS_CREATE);
+  const canUpdateAssociates = hasPermission(PERMISSION.SOCIOS_UPDATE);
+  const canDeleteAssociates = hasPermission(PERMISSION.SOCIOS_DELETE);
+  const canExportAssociates = hasPermission(PERMISSION.REPORTS_VIEW_ALL);
   const { data: associatesData, isLoading, isError, updateAssociate, deleteAssociate, restoreAssociate } = useAssociates({
     page,
     pageSize,

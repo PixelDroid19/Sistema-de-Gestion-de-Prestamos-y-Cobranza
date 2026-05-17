@@ -1,11 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Calendar, Bell, Clock, CreditCard, CheckCircle,
-  Edit2, FileText, DollarSign, ShieldAlert, History,
-  AlertTriangle, AlertCircle, ChevronRight, Activity
-} from 'lucide-react';
-import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
+import { Bell, Clock, DollarSign, ShieldAlert, Activity, AlertCircle, FileText } from 'lucide-react';
+import { useInstallmentQuote, useLoanById, useLoanDetails, useLoans, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type PaymentMethod, type CapitalStrategy } from '../services/loanService';
 import { useConfig } from '../services/configService';
 import { exportCreditExcel, useCreditReports } from '../services/reportService';
 import { useSessionStore } from '../store/sessionStore';
@@ -17,7 +13,6 @@ import { useOperationalModalState } from './hooks/useOperationalModalState';
 import { invalidateAfterPayment, invalidateAfterPromiseOrFollowUp } from '../services/operationalInvalidation';
 import { tTerm } from '../i18n/terminology';
 import { useSafeMutationAction } from './hooks/useSafeMutationAction';
-import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
 import { useTranslation } from '../i18n';
 import {
@@ -27,88 +22,33 @@ import {
 } from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
-import { formatLoanAlertTypeLabel } from '../lib/loanAlertLabels';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
-import { CreditDetailsTabs, TabEmptyState, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
+import { CreditDetailsTabs, type CreditDetailsTab } from './creditDetails/CreditDetailsTabs';
 import { InstallmentActionButton } from './creditDetails/InstallmentActionButton';
-import { ActionButton, EmptyState, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from './shared/Surfaces';
-
-type PayoffDenialReason = string | {
-  code?: string;
-  message?: string;
-};
-
-const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
-  if (!reason) return '';
-  if (typeof reason === 'string') return reason;
-  if (reason.code) {
-    switch (reason.code) {
-      case 'LOAN_ALREADY_PAID':
-      case 'NO_OUTSTANDING_BALANCE':
-        return tTerm('creditDetails.payoff.denial.noOutstandingBalance');
-      case 'LOAN_NOT_PAYABLE_STATUS':
-        return tTerm('creditDetails.payoff.denial.invalidStatus');
-      case 'PAYOFF_BEFORE_LOAN_START':
-        return tTerm('creditDetails.payoff.denial.beforeLoanStart');
-      case 'OVERDUE_UNPAID_INSTALLMENTS':
-        return tTerm('creditDetails.payoff.denial.overdueInstallments');
-      case 'FINANCIAL_BLOCK':
-        return tTerm('creditDetails.payoff.denial.financialBlock');
-      default:
-        break;
-    }
-  }
-  return reason.message || '';
-};
-
-const formatCapitalPaymentDenialReason = (reason: PayoffDenialReason | null) => {
-  if (!reason) return '';
-  if (typeof reason === 'string') return reason;
-  if (reason.code) {
-    switch (reason.code) {
-      case 'FIRST_INSTALLMENT_PAYMENT_REQUIRED':
-        return tTerm('creditDetails.capital.denial.firstInstallmentRequired');
-      case 'NO_OUTSTANDING_BALANCE':
-        return tTerm('creditDetails.capital.denial.noOutstandingBalance');
-      case 'LOAN_NOT_PAYABLE_STATUS':
-        return tTerm('creditDetails.capital.denial.invalidStatus');
-      case 'OVERDUE_UNPAID_INSTALLMENTS':
-        return tTerm('creditDetails.capital.denial.overdueInstallments');
-      case 'FINANCIAL_BLOCK':
-        return tTerm('creditDetails.capital.denial.financialBlock');
-      case 'PARTIAL_INSTALLMENT_PENDING':
-        return tTerm('creditDetails.capital.denial.partialInstallmentPending');
-      case 'DUE_INTEREST_PENDING':
-        return tTerm('creditDetails.capital.denial.dueInterestPending');
-      default:
-        break;
-    }
-  }
-  return reason.message || '';
-};
-
-function stableCreditKey(prefix: string, ...parts: Array<unknown>) {
-  const body = parts
-    .map((part) => String(part ?? '').trim())
-    .filter(Boolean)
-    .join('-');
-
-  return body ? `${prefix}-${body}` : prefix;
-}
-
-function getInstallmentRowKey(row: any) {
-  return stableCreditKey(
-    'installment',
-    row?.id,
-    row?.installmentNumber,
-    row?.dueDate,
-    row?.scheduledPayment,
-    row?.closingBalance,
-  );
-}
+import { ActionButton, EmptyState } from './shared/Surfaces';
+import {
+  formatPayoffDenialReason,
+  formatCapitalPaymentDenialReason,
+  stableCreditKey,
+  formatOperationalStatus,
+  getStatusInfo,
+  formatPromiseStatus,
+  getAlertPresentation,
+  computeCapitalPreview,
+  PAYABLE_STATUSES,
+} from './creditDetails/creditDetailsHelpers';
+import { CalendarTab } from './creditDetails/CalendarTab';
+import { AlertsTab } from './creditDetails/AlertsTab';
+import { PromisesTab } from './creditDetails/PromisesTab';
+import { PayoutsTab } from './creditDetails/PayoutsTab';
+import { HistoryTab } from './creditDetails/HistoryTab';
+import { CreditDetailsModals } from './creditDetails/CreditDetailsModals';
 
 export default function CreditDetails() {
+  // -------------------------------------------------------------------------
+  // Navigation & identity
+  // -------------------------------------------------------------------------
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -119,62 +59,53 @@ export default function CreditDetails() {
   const isAdmin = user?.role === 'admin';
   const isBackofficeUser = user?.role === 'admin' || user?.role === 'employee';
   const canViewPayoff = isBackofficeUser;
+
+  // -------------------------------------------------------------------------
+  // Config & payment method options
+  // -------------------------------------------------------------------------
   const { paymentMethods: configuredPaymentMethods } = useConfig({ enabled: isAdmin });
   const paymentMethodOptions = useMemo(() => {
-    const activeConfiguredMethods = configuredPaymentMethods
-      .filter((method: any) => method?.isActive !== false)
-      .map((method: any) => ({
-        value: String(method?.key ?? method?.type ?? '').trim().toLowerCase(),
-        label: String(method?.label ?? method?.name ?? method?.key ?? method?.type ?? '').trim(),
+    const active = configuredPaymentMethods
+      .filter((m: any) => m?.isActive !== false)
+      .map((m: any) => ({
+        value: String(m?.key ?? m?.type ?? '').trim().toLowerCase(),
+        label: String(m?.label ?? m?.name ?? m?.key ?? m?.type ?? '').trim(),
       }))
-      .filter((method) => method.value && method.label);
-
-    return activeConfiguredMethods.length > 0
-      ? activeConfiguredMethods
-      : [...FALLBACK_PAYMENT_METHODS];
+      .filter((m) => m.value && m.label);
+    return active.length > 0 ? active : [...FALLBACK_PAYMENT_METHODS];
   }, [configuredPaymentMethods]);
   const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
+
+  // -------------------------------------------------------------------------
+  // Operational hooks
+  // -------------------------------------------------------------------------
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const operationalModal = useOperationalModalState();
 
+  // -------------------------------------------------------------------------
+  // Data queries
+  // -------------------------------------------------------------------------
   const { data: loansData, isLoading: isLoadingLoans, updateLoanStatus } = useLoans(undefined, {
     enabled: !Number.isFinite(loanId) || !loanId || isAdmin,
   });
   const { data: loanData, isLoading: isLoadingLoanRecord } = useLoanById(loanId);
   const loans = Array.isArray(loansData?.data?.loans)
     ? loansData.data.loans
-    : Array.isArray(loansData?.data)
-      ? loansData.data
-      : [];
+    : Array.isArray(loansData?.data) ? loansData.data : [];
   const loan = loanData?.data?.loan ?? loans.find((l: any) => Number(l?.id) === loanId);
   const payoffEligibility = loan?.paymentContext?.payoffEligibility;
   const capitalEligibility = loan?.paymentContext?.capitalEligibility;
   const shouldFetchPayoffQuote = canViewPayoff && Boolean(payoffEligibility?.allowed);
-  const primaryPayoffDenialReason = Array.isArray(payoffEligibility?.denialReasons)
-    ? payoffEligibility.denialReasons[0]
-    : null;
-  const primaryCapitalDenialReason = Array.isArray(capitalEligibility?.denialReasons)
-    ? capitalEligibility.denialReasons[0]
-    : null;
+  const primaryPayoffDenialReason = Array.isArray(payoffEligibility?.denialReasons) ? payoffEligibility.denialReasons[0] : null;
+  const primaryCapitalDenialReason = Array.isArray(capitalEligibility?.denialReasons) ? capitalEligibility.denialReasons[0] : null;
 
   const {
-    calendar,
-    calendarSnapshot,
-    alerts,
-    promises,
-    payoffQuote,
+    calendar, calendarSnapshot, alerts, promises, payoffQuote,
     isLoading: isLoadingDetails,
-    createPromise,
-    createFollowUp,
-    executePayoff,
-    recordPayment,
-    annulInstallment,
-    updatePaymentMethod,
-    updateAlertStatus,
-    updatePromiseStatus,
-    downloadPromiseDocument,
-    recordCapitalPayment,
-    updateLateFeeRate,
+    createPromise, createFollowUp, executePayoff, recordPayment,
+    annulInstallment, updatePaymentMethod: updatePaymentMethodMutation,
+    updateAlertStatus, updatePromiseStatus, downloadPromiseDocument,
+    recordCapitalPayment, updateLateFeeRate: updateLateFeeRateMutation,
   } = useLoanDetails(loanId, {
     includeAlerts: isBackofficeUser,
     includePromises: isBackofficeUser,
@@ -182,202 +113,67 @@ export default function CreditDetails() {
   });
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
 
+  // -------------------------------------------------------------------------
+  // Formatters (thin wrappers)
+  // -------------------------------------------------------------------------
   const formatDate = (value: unknown, withTime = false) => {
     if (!value) return tTerm('creditDetails.label.noDate');
     return (withTime
       ? formatDateTimeValue(value, { dateStyle: 'medium', timeStyle: 'short' })
       : formatDateValue(value, { dateStyle: 'medium', timeZone: 'UTC' })) || tTerm('creditDetails.label.noDate');
   };
+  const formatCurrency = (value: unknown) => formatCurrencyValue(value, { maximumFractionDigits: 2 });
+  const formatMetricCurrency = (value: unknown) => formatCurrencyValue(value, { maximumFractionDigits: 0 });
 
-  const formatCurrency = (value: unknown) => {
-    return formatCurrencyValue(value, { maximumFractionDigits: 2 });
-  };
-
-  const formatMetricCurrency = (value: unknown) => {
-    return formatCurrencyValue(value, { maximumFractionDigits: 0 });
-  };
-
-  const cleanAlertDisplayText = (value: unknown) => {
-    if (!value) return '';
-
-    return String(value)
-      .split(/\r?\n/)
-      .map((line) => line
-        .trim()
-        .replace(/^\[[^\]]+\]\s*/, '')
-        .replace(/^(REMINDER|PAYMENT_REMINDER|OVERDUE|FOLLOW_UP|ALERT)\b[:\s-]*/i, '')
-        .replace(/\b(actor|actorId|user|userId|loan|loanId|alert|alertId|status)[:=][^\s]+/gi, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim())
-      .filter(Boolean)
-      .join('\n');
-  };
-
-  const getAlertPresentation = (alert: any) => {
-    const status = String(alert?.status || '').toLowerCase();
-    const isResolved = status === 'resolved';
-    const installmentLabel = alert?.installmentNumber != null
-      ? tTerm('creditDetails.alerts.installmentNumber', { number: alert.installmentNumber })
-      : tTerm('creditDetails.alerts.installmentMissing');
-    const outstandingAmount = Number(alert?.outstandingAmount ?? alert?.amount ?? 0);
-    const balanceLabel = Number.isFinite(outstandingAmount) && Math.abs(outstandingAmount) > 0.005
-      ? `${tTerm('creditDetails.alerts.label.balance')} ${formatCurrency(outstandingAmount)}`
-      : tTerm('creditDetails.alerts.balanceNone');
-    const cleanMessage = cleanAlertDisplayText(alert?.message);
-    const cleanNotes = cleanAlertDisplayText(alert?.notes);
-
-    return {
-      typeLabel: formatLoanAlertTypeLabel(alert?.alertType || alert?.type),
-      statusLabel: formatOperationalStatus(status),
-      statusClassName: isResolved
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
-        : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300',
-      iconClassName: isResolved
-        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300'
-        : 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
-      summary: cleanMessage || `${installmentLabel} · ${balanceLabel}`,
-      installmentLabel,
-      balanceLabel,
-      notes: cleanNotes,
-    };
-  };
-
-  const formatOperationalStatus = (status: unknown) => {
-    const normalizedStatus = String(status || '').toLowerCase();
-    const labels: Record<string, string> = {
-      active: tTerm('creditDetails.status.active'),
-      resolved: tTerm('creditDetails.status.resolved'),
-      pending: tTerm('creditDetails.status.pending'),
-      completed: tTerm('creditDetails.status.completed'),
-      failed: tTerm('creditDetails.status.failed'),
-      kept: tTerm('creditDetails.status.kept'),
-      broken: tTerm('creditDetails.status.broken'),
-      cancelled: tTerm('creditDetails.status.cancelled'),
-    };
-
-    return labels[normalizedStatus] || String(status || '');
-  };
-
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'active':
-        return { label: tTerm('creditDetails.loanStatus.active'), className: 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-100 dark:border-blue-500/30' };
-      case 'approved':
-        return { label: tTerm('creditDetails.loanStatus.approved'), className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
-      case 'overdue':
-        return { label: tTerm('creditDetails.loanStatus.overdue'), className: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' };
-      case 'paid':
-        return { label: tTerm('creditDetails.loanStatus.paid'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
-      case 'completed':
-      case 'closed':
-        return { label: tTerm('creditDetails.loanStatus.completed'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
-      case 'defaulted':
-        return { label: tTerm('creditDetails.loanStatus.defaulted'), className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200 dark:border-red-500/30' };
-      case 'cancelled':
-        return { label: tTerm('creditDetails.loanStatus.cancelled'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
-      case 'pending':
-        return {
-          label: tTerm('creditDetails.loanStatus.pending'),
-          className:
-            'bg-amber-200/95 text-amber-950 border border-amber-500/45 dark:bg-amber-500/20 dark:text-amber-100 dark:border-amber-400/35',
-        };
-      case 'rejected':
-        return { label: tTerm('creditDetails.loanStatus.rejected'), className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
-      default:
-        return { label: status || tTerm('creditDetails.loanStatus.missing'), className: 'bg-gray-100 text-gray-700 border border-gray-200' };
-    }
-  };
-
+  // -------------------------------------------------------------------------
+  // Derived data
+  // -------------------------------------------------------------------------
   const statusInfo = getStatusInfo(loan?.status);
   const promiseDate = (promise: any) => promise?.promisedDate || promise?.promiseDate || promise?.createdAt;
-  const formatPromiseStatus = (status: unknown) => {
-    switch (String(status || '').toLowerCase()) {
-      case 'kept':
-        return 'Cumplida';
-      case 'broken':
-        return 'Incumplida';
-      case 'cancelled':
-        return 'Cancelada';
-      case 'pending':
-        return 'Pendiente';
-      default:
-        return String(status || 'Sin estado');
-    }
-  };
-  const installmentPaymentGuard = resolveOperationalGuard('installment.pay', {
-    role: user?.role,
-    permissions: user?.permissions,
-    loanStatus: loan?.status,
-  });
-  const baseCapitalPaymentGuard = resolveOperationalGuard('capital.payment', {
-    role: user?.role,
-    permissions: user?.permissions,
-    loanStatus: loan?.status,
-  });
-  const capitalUnavailableDescription = formatCapitalPaymentDenialReason(primaryCapitalDenialReason)
-    || tTerm('creditDetails.capital.unavailable.firstInstallment');
+
+  const installmentPaymentGuard = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
+  const baseCapitalPaymentGuard = resolveOperationalGuard('capital.payment', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
+  const capitalUnavailableDescription = formatCapitalPaymentDenialReason(primaryCapitalDenialReason) || tTerm('creditDetails.capital.unavailable.firstInstallment');
   const capitalPaymentGuard = {
     ...baseCapitalPaymentGuard,
     executable: Boolean(baseCapitalPaymentGuard.executable && capitalEligibility?.allowed !== false),
-    reason: baseCapitalPaymentGuard.executable && capitalEligibility?.allowed === false
-      ? capitalUnavailableDescription
-      : baseCapitalPaymentGuard.reason,
+    reason: baseCapitalPaymentGuard.executable && capitalEligibility?.allowed === false ? capitalUnavailableDescription : baseCapitalPaymentGuard.reason,
   };
-  const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', {
-    role: user?.role,
-    permissions: user?.permissions,
-    loanStatus: loan?.status,
-  });
-  const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', {
-    role: user?.role,
-    permissions: user?.permissions,
-    loanStatus: loan?.status,
-  });
+  const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
+  const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
   const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
-  const creditDetailSubtitle = isBackofficeUser
-    ? tTerm('creditDetails.subtitle.backoffice')
-    : tTerm('creditDetails.subtitle.customer');
+  const creditDetailSubtitle = isBackofficeUser ? tTerm('creditDetails.subtitle.backoffice') : tTerm('creditDetails.subtitle.customer');
 
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
     const payments = Array.isArray(source?.payments) ? source.payments : [];
     const payoffHistory = Array.isArray(source?.payoffHistory) ? source.payoffHistory : [];
-
     return [
-      ...payments.map((payment: any) => ({
-        id: payment.id ?? stableCreditKey('payment', payment.paymentDate, payment.createdAt, payment.amount, payment.installmentNumber),
-        paymentId: Number(payment.id),
-        amount: payment.amount,
-        paymentType: payment.paymentType,
-        installmentNumber: payment.installmentNumber,
-        principalApplied: payment.principalApplied,
-        interestApplied: payment.interestApplied,
-        penaltyApplied: payment.penaltyApplied,
-        paymentMethod: payment.paymentMethod,
-        paymentStatus: payment.status,
-        paymentReconciled: Boolean(payment.reconciled || payment.isReconciled || String(payment.status || '').toLowerCase().includes('reconcil')),
-        action: tTerm('creditDetails.history.action.payment', { type: getPaymentTypeLabel(payment.paymentType) }),
-        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(payment.amount) }),
-        date: payment.paymentDate || payment.createdAt,
-        type: 'payment',
+      ...payments.map((p: any) => ({
+        id: p.id ?? stableCreditKey('payment', p.paymentDate, p.createdAt, p.amount, p.installmentNumber),
+        paymentId: Number(p.id), amount: p.amount, paymentType: p.paymentType,
+        installmentNumber: p.installmentNumber, principalApplied: p.principalApplied,
+        interestApplied: p.interestApplied, penaltyApplied: p.penaltyApplied,
+        paymentMethod: p.paymentMethod,
+        paymentStatus: p.status,
+        paymentReconciled: Boolean(p.reconciled || p.isReconciled || String(p.status || '').toLowerCase().includes('reconcil')),
+        action: tTerm('creditDetails.history.action.payment', { type: getPaymentTypeLabel(p.paymentType) }),
+        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(p.amount) }),
+        date: p.paymentDate || p.createdAt, type: 'payment',
       })),
-      ...payoffHistory.map((event: any) => ({
-        id: stableCreditKey('payoff', event.id, event.paymentDate, event.createdAt, event.amount, event.quotedTotal),
+      ...payoffHistory.map((e: any) => ({
+        id: stableCreditKey('payoff', e.id, e.paymentDate, e.createdAt, e.amount, e.quotedTotal),
         action: tTerm('creditDetails.history.action.payoffApplied'),
-        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(event.amount ?? event.quotedTotal) }),
-        date: event.paymentDate || event.createdAt,
-        type: 'payoff',
+        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(e.amount ?? e.quotedTotal) }),
+        date: e.paymentDate || e.createdAt, type: 'payoff',
       })),
-    ].filter((entry) => entry.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    ].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history, locale]);
 
   let customerLabel = loan?.Customer?.name || loan?.customerName || '';
-  if (customerLabel) {
-    customerLabel = customerLabel.replace(/(qa|seed|test|dev|customer|socio|partner|admin|live|user|demo|example|sample)\s*/ig, '').trim();
-  }
-  customerLabel = customerLabel || (loan?.customerId
-    ? tTerm('credits.label.customerFallback', { id: loan.customerId })
-    : tTerm('credits.label.customerMissing'));
+  if (customerLabel) customerLabel = customerLabel.replace(/(qa|seed|test|dev|customer|socio|partner|admin|live|user|demo|example|sample)\s*/ig, '').trim();
+  customerLabel = customerLabel || (loan?.customerId ? tTerm('credits.label.customerFallback', { id: loan.customerId }) : tTerm('credits.label.customerMissing'));
+
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
   const reportHistorySource = history?.data?.history ?? history;
   const reportAlertEntries = Array.isArray(reportHistorySource?.alerts) ? reportHistorySource.alerts : [];
@@ -385,98 +181,46 @@ export default function CreditDetails() {
   const paymentSnapshot = loan?.paymentContext?.snapshot;
   const alertEntries = Array.isArray(alerts) && alerts.length > 0 ? alerts : reportAlertEntries;
   const promiseEntries = Array.isArray(promises) && promises.length > 0 ? promises : reportPromiseEntries;
+
   const hasNoOutstandingPayoffBalance = (
     (loan?.paymentContext?.snapshot?.outstandingBalance ?? 0) <= 0.01
     || ['closed', 'completed', 'paid', 'cancelled'].includes(String(loan?.status || '').toLowerCase())
   );
   const payoffUnavailableDescription = formatPayoffDenialReason(primaryPayoffDenialReason)
-    || (
-      hasNoOutstandingPayoffBalance
-        ? tTerm('creditDetails.payoff.unavailable.noBalance')
-        : tTerm('creditDetails.payoff.unavailable.ineligible')
-    );
+    || (hasNoOutstandingPayoffBalance ? tTerm('creditDetails.payoff.unavailable.noBalance') : tTerm('creditDetails.payoff.unavailable.ineligible'));
   const payoffPaymentGuard = {
     visible: canViewPayoff,
     executable: Boolean(canViewPayoff && payoffEligibility?.allowed && payoffQuote),
-    reason: payoffEligibility?.allowed
-      ? tTerm('creditDetails.payoff.state.preparingQuote')
-      : payoffUnavailableDescription,
+    reason: payoffEligibility?.allowed ? tTerm('creditDetails.payoff.state.preparingQuote') : payoffUnavailableDescription,
   };
+
   const operationalHistoryEntries = useMemo(() => {
     const alertEvents = alertEntries.flatMap((alert: any) => {
-      const alertPresentation = getAlertPresentation(alert);
-      const events = [{
-        id: `alert-created-${alert.id}`,
-        action: alert.status === 'resolved'
-          ? tTerm('creditDetails.history.action.alertResolved')
-          : tTerm('creditDetails.history.action.alertActive'),
-        description: `${alertPresentation.typeLabel} · ${alertPresentation.summary}`,
-        date: alert.resolvedAt || alert.createdAt || alert.dueDate,
-        type: 'alert',
-        status: alert.status,
-      }];
-
-      if (alertPresentation.notes) {
-        events.push({
-          id: `alert-note-${alert.id}`,
-          action: tTerm('creditDetails.history.action.followUpLogged'),
-          description: alertPresentation.notes,
-          date: alert.updatedAt || alert.createdAt || alert.dueDate,
-          type: 'alert',
-          status: alert.status,
-        });
-      }
-
+      const pres = getAlertPresentation(alert, formatCurrency);
+      const events = [{ id: `alert-created-${alert.id}`, action: alert.status === 'resolved' ? tTerm('creditDetails.history.action.alertResolved') : tTerm('creditDetails.history.action.alertActive'), description: `${pres.typeLabel} · ${pres.summary}`, date: alert.resolvedAt || alert.createdAt || alert.dueDate, type: 'alert', status: alert.status }];
+      if (pres.notes) events.push({ id: `alert-note-${alert.id}`, action: tTerm('creditDetails.history.action.followUpLogged'), description: pres.notes, date: alert.updatedAt || alert.createdAt || alert.dueDate, type: 'alert', status: alert.status });
       return events;
     });
-
-    const promiseEvents = promiseEntries.flatMap((promise: any) => {
-      const baseEvents = [{
-        id: `promise-created-${promise.id}`,
-        action: tTerm('creditDetails.history.action.promiseCreated'),
-        description: tTerm('creditDetails.history.description.promiseForDate', {
-          amount: formatCurrency(promise.amount),
-          date: formatDate(promiseDate(promise)),
-        }),
-        date: promise.createdAt || promise.promisedDate,
-        type: 'promise',
-        status: promise.status,
-      }];
-
-      const statusEvents = Array.isArray(promise.statusHistory)
-        ? promise.statusHistory.map((entry: any, index: number) => ({
-          id: `promise-status-${promise.id}-${index}`,
-          action: tTerm('creditDetails.history.action.promiseStatusUpdated'),
-          description: `${formatOperationalStatus(entry.status)}${entry.note ? ` · ${entry.note}` : ''}`,
-          date: entry.changedAt || promise.updatedAt || promise.promisedDate,
-          type: 'promise',
-          status: entry.status,
-        }))
-        : [];
-
-      return [...baseEvents, ...statusEvents];
+    const promiseEvents = promiseEntries.flatMap((p: any) => {
+      const base = [{ id: `promise-created-${p.id}`, action: tTerm('creditDetails.history.action.promiseCreated'), description: tTerm('creditDetails.history.description.promiseForDate', { amount: formatCurrency(p.amount), date: formatDate(promiseDate(p)) }), date: p.createdAt || p.promisedDate, type: 'promise', status: p.status }];
+      const statusEvts = Array.isArray(p.statusHistory) ? p.statusHistory.map((e: any, i: number) => ({ id: `promise-status-${p.id}-${i}`, action: tTerm('creditDetails.history.action.promiseStatusUpdated'), description: `${formatOperationalStatus(e.status)}${e.note ? ` · ${e.note}` : ''}`, date: e.changedAt || p.updatedAt || p.promisedDate, type: 'promise', status: e.status })) : [];
+      return [...base, ...statusEvts];
     });
-
-    return [...paymentHistoryEntries, ...alertEvents, ...promiseEvents]
-      .filter((entry) => entry.date)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...paymentHistoryEntries, ...alertEvents, ...promiseEvents].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [alertEntries, paymentHistoryEntries, promiseEntries, locale]);
+
   const visibleTabs = useMemo(() => {
-    const tabs: Array<typeof activeTab> = ['calendar'];
-
-    if (isBackofficeUser) {
-      tabs.push('alerts', 'promises');
-    }
-
+    const tabs: CreditDetailsTab[] = ['calendar'];
+    if (isBackofficeUser) tabs.push('alerts', 'promises');
     tabs.push('payouts', 'history');
-
     return tabs;
   }, [isBackofficeUser]);
 
+  // -------------------------------------------------------------------------
+  // Modal state
+  // -------------------------------------------------------------------------
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
-
-  // Modals state
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
@@ -485,159 +229,97 @@ export default function CreditDetails() {
   const [promiseDateInput, setPromiseDateInput] = useState(new Date().toISOString().slice(0, 10));
   const [promiseNotes, setPromiseNotes] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
-
   const [showAnnulModal, setShowAnnulModal] = useState(false);
   const [annulInstallmentNumber, setAnnulInstallmentNumber] = useState<number | null>(null);
   const [annulReason, setAnnulReason] = useState('');
-
   const [showEditPaymentMethodModal, setShowEditPaymentMethodModal] = useState(false);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editingPaymentReconciled, setEditingPaymentReconciled] = useState(false);
   const [newPaymentMethod, setNewPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
-
   const [showCapitalModal, setShowCapitalModal] = useState(false);
   const [capitalAmount, setCapitalAmount] = useState('');
   const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
   const [capitalPaymentDate, setCapitalPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
 
+  // -------------------------------------------------------------------------
+  // Safe mutation wrappers
+  // -------------------------------------------------------------------------
   const { run: runPayoff } = useSafeMutationAction<{ asOfDate: string; quotedTotal: number }>({
     action: async (payload) => executePayoff.mutateAsync(payload),
     errorContext: { domain: 'credits', action: 'generic' },
     successMessage: tTerm('creditDetails.toast.payoff.success'),
   });
-
   const { run: runDownloadVoucher } = useSafeMutationAction<number>({
     action: async (paymentId) => downloadVoucher(paymentId),
     errorContext: { domain: 'payments', action: 'generic' },
     successMessage: tTerm('payouts.toast.voucher.success'),
   });
-
   const { run: runExportCreditExcel, isSubmitting: isExportingCreditExcel } = useSafeMutationAction<number>({
     action: async (targetLoanId) => exportCreditExcel(targetLoanId),
     errorContext: { domain: 'reports', action: 'reports.export' },
     successMessage: tTerm('creditDetails.toast.exportExcel'),
   });
 
-  const payableStatuses = new Set(['pending', 'overdue', 'partial']);
-
+  // -------------------------------------------------------------------------
+  // Effects
+  // -------------------------------------------------------------------------
   React.useEffect(() => {
-    const validMethods = new Set(paymentMethodOptions.map((method) => method.value));
-    if (!validMethods.has(paymentMethod)) setPaymentMethod(defaultPaymentMethod);
-    if (!validMethods.has(newPaymentMethod)) setNewPaymentMethod(defaultPaymentMethod);
-    if (!validMethods.has(capitalMethod)) setCapitalMethod(defaultPaymentMethod);
+    const valid = new Set(paymentMethodOptions.map((m) => m.value));
+    if (!valid.has(paymentMethod)) setPaymentMethod(defaultPaymentMethod);
+    if (!valid.has(newPaymentMethod)) setNewPaymentMethod(defaultPaymentMethod);
+    if (!valid.has(capitalMethod)) setCapitalMethod(defaultPaymentMethod);
   }, [capitalMethod, defaultPaymentMethod, newPaymentMethod, paymentMethod, paymentMethodOptions]);
 
   React.useEffect(() => {
-    if (!visibleTabs.includes(activeTab)) {
-      setActiveTab(visibleTabs[0] ?? 'calendar');
-    }
+    if (!visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0] ?? 'calendar');
   }, [activeTab, visibleTabs]);
-  const nextPayableInstallmentNumber = useMemo(() => {
-    const candidate = calendarEntries
-      .filter((entry: any) => payableStatuses.has(String(entry?.status || '').toLowerCase()))
-      .map((entry: any) => Number(entry?.installmentNumber))
-      .filter((value: number) => Number.isFinite(value))
-      .sort((a, b) => a - b)[0];
 
-    return Number.isFinite(candidate) ? candidate : null;
+  // -------------------------------------------------------------------------
+  // Computed installment data
+  // -------------------------------------------------------------------------
+  const nextPayableInstallmentNumber = useMemo(() => {
+    const c = calendarEntries
+      .filter((e: any) => PAYABLE_STATUSES.has(String(e?.status || '').toLowerCase()))
+      .map((e: any) => Number(e?.installmentNumber))
+      .filter((v: number) => Number.isFinite(v))
+      .sort((a, b) => a - b)[0];
+    return Number.isFinite(c) ? c : null;
   }, [calendarEntries]);
 
-  const capitalPreview = useMemo(() => {
-    const amount = Number(capitalAmount || 0);
-    const currentPrincipal = Number(paymentSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
-    const remainingInstallments = Number(paymentSnapshot?.outstandingInstallments ?? 0);
-    const currentInstallment = Number(paymentSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
-    const annualRate = Number(loan?.interestRate ?? 0);
-    const newPrincipal = Math.max(0, currentPrincipal - (Number.isFinite(amount) ? amount : 0));
-    const monthlyRate = annualRate / 100 / 12;
-
-    const estimatePayment = (principal: number, term: number) => {
-      if (principal <= 0 || term <= 0) return 0;
-      if (monthlyRate <= 0) return principal / term;
-      return (principal * monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
-    };
-
-    const estimateTerm = () => {
-      if (newPrincipal <= 0) return 0;
-      if (currentInstallment <= 0 || remainingInstallments <= 0) return remainingInstallments;
-      if (monthlyRate <= 0) return Math.min(remainingInstallments, Math.ceil(newPrincipal / currentInstallment));
-      if (currentInstallment <= newPrincipal * monthlyRate) return remainingInstallments;
-      const rawTerm = Math.ceil(-Math.log(1 - ((newPrincipal * monthlyRate) / currentInstallment)) / Math.log(1 + monthlyRate));
-      return Number.isFinite(rawTerm) ? Math.max(1, Math.min(remainingInstallments, rawTerm)) : remainingInstallments;
-    };
-
-    const estimatedInstallments = capitalStrategy === 'reduce_payment'
-      ? remainingInstallments
-      : estimateTerm();
-    const estimatedPayment = capitalStrategy === 'reduce_payment'
-      ? estimatePayment(newPrincipal, remainingInstallments)
-      : Math.min(currentInstallment, estimatePayment(newPrincipal, estimatedInstallments) || currentInstallment);
-
-    return {
-      amount,
-      currentPrincipal,
-      newPrincipal,
-      currentInstallment,
-      estimatedPayment,
-      remainingInstallments,
-      estimatedInstallments,
-    };
-  }, [capitalAmount, capitalStrategy, loan?.installmentAmount, loan?.interestRate, loan?.principalOutstanding, paymentSnapshot]);
-
-  const extractPaymentId = (eventId: unknown): number | null => {
-    if (typeof eventId === 'number' && Number.isFinite(eventId)) {
-      return eventId;
-    }
-    if (typeof eventId === 'string' && eventId.startsWith('payment-')) {
-      const id = eventId.replace('payment-', '');
-      return Number(id);
-    }
-    return null;
-  };
+  const capitalPreview = useMemo(
+    () => computeCapitalPreview(capitalAmount, capitalStrategy, loan, paymentSnapshot),
+    [capitalAmount, capitalStrategy, loan, paymentSnapshot],
+  );
 
   const isRecordPaymentModalOpen = operationalModal.is('record-payment');
   const isPromiseModalOpen = operationalModal.is('create-promise');
   const isFollowUpModalOpen = operationalModal.is('create-follow-up');
+
   const installmentQuoteQuery = useInstallmentQuote(loanId, selectedInstallmentNumber, paymentDate, {
     enabled: isRecordPaymentModalOpen && Boolean(selectedInstallmentNumber),
   });
   const installmentQuote = installmentQuoteQuery.data?.data?.quote;
+
   const installmentRows = useMemo(() => {
-    const initialAmount = Number(loan?.amount ?? 0);
-
-    return calendarEntries.reduce((rows: any[], installment: any, index: number) => {
-      const scheduledPayment = installment.scheduledPayment ?? 0;
-      const interestComponent = installment.interestComponent ?? installment.remainingInterest ?? 0;
-      const principalComponent = installment.principalComponent ?? Math.max(0, scheduledPayment - interestComponent);
-      const openingBalance = index === 0 ? initialAmount : rows[index - 1].closingBalance;
-      const closingBalance = Number.isFinite(Number(installment.remainingBalance))
-        ? Number(installment.remainingBalance)
-        : Math.max(0, openingBalance - principalComponent);
-
-      const normalizedInstallmentNumber = Number(installment.installmentNumber);
-
+    const initial = Number(loan?.amount ?? 0);
+    return calendarEntries.reduce((rows: any[], inst: any, idx: number) => {
+      const sp = inst.scheduledPayment ?? 0;
+      const ic = inst.interestComponent ?? inst.remainingInterest ?? 0;
+      const pc = inst.principalComponent ?? Math.max(0, sp - ic);
+      const ob = idx === 0 ? initial : rows[idx - 1].closingBalance;
+      const cb = Number.isFinite(Number(inst.remainingBalance)) ? Number(inst.remainingBalance) : Math.max(0, ob - pc);
+      const n = Number(inst.installmentNumber);
       rows.push({
-        installmentNumber: Number.isFinite(normalizedInstallmentNumber)
-          ? normalizedInstallmentNumber
-          : installment.installmentNumber,
-        scheduledPayment,
-        interestComponent,
-        principalComponent,
-        openingBalance,
-        closingBalance,
-        outstandingAmount: installment.outstandingAmount,
-        payableAmount: installment.payableAmount,
-        lateFeeDue: installment.lateFeeDue,
-        daysOverdue: installment.daysOverdue,
-        canPay: installment.canPay,
-        disabledReason: installment.disabledReason,
-        status: installment.status,
+        installmentNumber: Number.isFinite(n) ? n : inst.installmentNumber,
+        scheduledPayment: sp, interestComponent: ic, principalComponent: pc,
+        openingBalance: ob, closingBalance: cb,
+        outstandingAmount: inst.outstandingAmount, payableAmount: inst.payableAmount,
+        lateFeeDue: inst.lateFeeDue, daysOverdue: inst.daysOverdue,
+        canPay: inst.canPay, disabledReason: inst.disabledReason, status: inst.status,
       });
-
       return rows;
     }, []);
   }, [calendarEntries, loan?.amount]);
@@ -649,39 +331,22 @@ export default function CreditDetails() {
       acc.lateFeeDue += Number(row.lateFeeDue || 0);
       acc.principalComponent += Number(row.principalComponent || 0);
       return acc;
-    }, {
-      scheduledPayment: 0,
-      interestComponent: 0,
-      lateFeeDue: 0,
-      principalComponent: 0,
-    });
-
-    const lastClosingBalance = installmentRows.length > 0
-      ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0)
-      : Number(loan?.amount || 0);
-
-    return {
-      ...totals,
-      outstandingBalance: Number(calendarSnapshot?.outstandingBalance ?? lastClosingBalance),
-    };
+    }, { scheduledPayment: 0, interestComponent: 0, lateFeeDue: 0, principalComponent: 0 });
+    const lastCB = installmentRows.length > 0 ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0) : Number(loan?.amount || 0);
+    return { ...totals, outstandingBalance: Number(calendarSnapshot?.outstandingBalance ?? lastCB) };
   }, [calendarSnapshot?.outstandingBalance, installmentRows, loan?.amount]);
 
+  // -------------------------------------------------------------------------
+  // Early returns
+  // -------------------------------------------------------------------------
   if (!Number.isFinite(loanId) || loanId <= 0) {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
-        <EmptyState
-          title={tTerm('creditDetails.empty.invalidId')}
-          icon={<AlertCircle size={18} />}
-          action={(
-            <ActionButton onClick={() => navigate('/credits')}>
-              {tTerm('newCredit.header.back')}
-            </ActionButton>
-          )}
-        />
+        <EmptyState title={tTerm('creditDetails.empty.invalidId')} icon={<AlertCircle size={18} />}
+          action={<ActionButton onClick={() => navigate('/credits')}>{tTerm('newCredit.header.back')}</ActionButton>} />
       </div>
     );
   }
-
   if (isLoadingLoans || isLoadingLoanRecord || isLoadingDetails) {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
@@ -689,37 +354,24 @@ export default function CreditDetails() {
       </div>
     );
   }
-
   if (!loan) {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
-        <EmptyState
-          title={tTerm('creditDetails.empty.notFound')}
-          icon={<FileText size={18} />}
-          action={(
-            <ActionButton onClick={() => navigate('/credits')}>
-              {tTerm('newCredit.header.back')}
-            </ActionButton>
-          )}
-        />
+        <EmptyState title={tTerm('creditDetails.empty.notFound')} icon={<FileText size={18} />}
+          action={<ActionButton onClick={() => navigate('/credits')}>{tTerm('newCredit.header.back')}</ActionButton>} />
       </div>
     );
   }
 
-  // Action Handlers
+  // -------------------------------------------------------------------------
+  // Action handlers
+  // -------------------------------------------------------------------------
   const handlePayoff = async () => {
     if (!payoffQuote) return;
     const quotedTotal = payoffQuote.total ?? payoffQuote.totalPayoffAmount;
-    const confirmed = await confirmDanger({
-      title: tTerm('confirm.payoff.title'),
-      message: tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)),
-      confirmLabel: tTerm('confirm.payoff.confirm'),
-    });
+    const confirmed = await confirmDanger({ title: tTerm('confirm.payoff.title'), message: tTerm('confirm.payoff.message').replace('{amount}', formatCurrency(quotedTotal)), confirmLabel: tTerm('confirm.payoff.confirm') });
     if (!confirmed) return;
-    await runPayoff({
-      asOfDate: payoffQuote.asOfDate,
-      quotedTotal,
-    });
+    await runPayoff({ asOfDate: payoffQuote.asOfDate, quotedTotal });
   };
 
   const handleUpdateStatus = async () => {
@@ -727,84 +379,35 @@ export default function CreditDetails() {
     await executeGuardedAction({
       action: 'credit.status.update',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
-      run: async () => {
-        await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus });
-      },
-      onSuccess: async () => {
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-        setShowStatusModal(false);
-      },
+      run: async () => { await updateLoanStatus.mutateAsync({ id: loanId, status: newStatus }); },
+      onSuccess: async () => { await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); setShowStatusModal(false); },
       successMessage: tTerm('creditDetails.toast.statusUpdated'),
     });
   };
 
-  const handleDownloadVoucher = async (paymentId: number) => {
-    await runDownloadVoucher(paymentId);
-  };
-
   const handleRecordPayment = async () => {
     const amount = parseFloat(paymentAmount);
-    if (!amount || amount <= 0) {
-      toast.error({ title: tTerm('payouts.validation.amount') });
-      return;
-    }
-    const installment = operationalModal.payload?.installment;
-    const installmentNumber = installment?.installmentNumber ?? selectedInstallmentNumber;
-
-    if (!installmentNumber) {
-      toast.error({ title: tTerm('creditDetails.error.installmentSelection') });
-      return;
-    }
-
+    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    const inst = operationalModal.payload?.installment;
+    const instNum = inst?.installmentNumber ?? selectedInstallmentNumber;
+    if (!instNum) { toast.error({ title: tTerm('creditDetails.error.installmentSelection') }); return; }
     await executeGuardedAction({
       action: 'installment.pay',
-      context: {
-        role: user?.role,
-        permissions: user?.permissions,
-        loanStatus: loan?.status,
-        installmentStatus: installment?.status,
-      },
-      confirmationMessage: `¿Confirmar pago de cuota #${installmentNumber} por ${formatCurrency(amount)}?`,
-      run: async () => {
-        await recordPayment.mutateAsync({
-          paymentAmount: amount,
-          paymentDate,
-          paymentMethod,
-          installmentNumber,
-        });
-      },
-      onSuccess: async () => {
-        operationalModal.closeModal();
-        setPaymentAmount('');
-        setSelectedInstallmentNumber(null);
-        await invalidateAfterPayment(queryClient, { loanId });
-      },
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      confirmationMessage: `¿Confirmar pago de cuota #${instNum} por ${formatCurrency(amount)}?`,
+      run: async () => { await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod, installmentNumber: instNum }); },
+      onSuccess: async () => { operationalModal.closeModal(); setPaymentAmount(''); setSelectedInstallmentNumber(null); await invalidateAfterPayment(queryClient, { loanId }); },
       successMessage: tTerm('creditDetails.toast.paymentSuccess'),
     });
   };
 
   const handleAnnulInstallment = async () => {
-    if (!annulInstallmentNumber) {
-      toast.error({ title: tTerm('creditDetails.error.annulSelection') });
-      return;
-    }
+    if (!annulInstallmentNumber) { toast.error({ title: tTerm('creditDetails.error.annulSelection') }); return; }
     await executeGuardedAction({
       action: 'installment.annul',
-      context: {
-        role: user?.role,
-        permissions: user?.permissions,
-        loanStatus: loan?.status,
-        installmentStatus: operationalModal.payload?.installment?.status,
-      },
-      run: async () => {
-        await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined });
-      },
-      onSuccess: async () => {
-        await invalidateAfterPayment(queryClient, { loanId });
-        setShowAnnulModal(false);
-        setAnnulInstallmentNumber(null);
-        setAnnulReason('');
-      },
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status },
+      run: async () => { await annulInstallment.mutateAsync({ installmentNumber: annulInstallmentNumber, reason: annulReason || undefined }); },
+      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowAnnulModal(false); setAnnulInstallmentNumber(null); setAnnulReason(''); },
       successMessage: tTerm('creditDetails.toast.annulSuccess'),
     });
   };
@@ -813,1482 +416,335 @@ export default function CreditDetails() {
     if (!editingPaymentId) return;
     await executeGuardedAction({
       action: 'installment.editPaymentMethod',
-      context: {
-        role: user?.role,
-        permissions: user?.permissions,
-        loanStatus: loan?.status,
-        installmentStatus: operationalModal.payload?.installment?.status,
-        paymentReconciled: editingPaymentReconciled,
-      },
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: operationalModal.payload?.installment?.status, paymentReconciled: editingPaymentReconciled },
       confirmationMessage: tTerm('creditDetails.confirm.editPaymentMethod'),
-      run: async () => {
-        await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
-      },
-      onSuccess: async () => {
-        await invalidateAfterPayment(queryClient, { loanId });
-        setShowEditPaymentMethodModal(false);
-        operationalModal.closeModal();
-        setEditingPaymentId(null);
-        setEditingPaymentReconciled(false);
-      },
+      run: async () => { await updatePaymentMethodMutation.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod }); },
+      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowEditPaymentMethodModal(false); operationalModal.closeModal(); setEditingPaymentId(null); setEditingPaymentReconciled(false); },
       successMessage: tTerm('payouts.toast.edit.success'),
     });
   };
 
   const handleCreatePromise = async () => {
     const amount = parseFloat(promiseAmount);
-    const installment = operationalModal.payload?.installment;
-    const installmentNumber = installment?.installmentNumber;
-
-    if (!installmentNumber) {
-      toast.error({ title: tTerm('creditDetails.error.promiseInstallment') });
-      return;
-    }
-
-    if (!amount || amount <= 0) {
-      toast.error({ title: tTerm('payouts.validation.amount') });
-      return;
-    }
-
+    const inst = operationalModal.payload?.installment;
+    if (!inst?.installmentNumber) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
+    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
     await executeGuardedAction({
       action: 'installment.promise',
-      context: {
-        role: user?.role,
-        permissions: user?.permissions,
-        loanStatus: loan?.status,
-        installmentStatus: installment?.status,
-      },
-      run: async () => {
-        await createPromise.mutateAsync({
-          amount,
-          promisedDate: promiseDateInput,
-          notes: promiseNotes || undefined,
-          installmentNumber,
-        });
-      },
-      onSuccess: async () => {
-        operationalModal.closeModal();
-        setPromiseAmount('');
-        setPromiseNotes('');
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-      },
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      run: async () => { await createPromise.mutateAsync({ amount, promisedDate: promiseDateInput, notes: promiseNotes || undefined, installmentNumber: inst.installmentNumber }); },
+      onSuccess: async () => { operationalModal.closeModal(); setPromiseAmount(''); setPromiseNotes(''); await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); },
       successMessage: tTerm('creditDetails.toast.promiseSuccess'),
     });
   };
 
   const handleCreateFollowUp = async () => {
-    const installment = operationalModal.payload?.installment;
-    const installmentNumber = installment?.installmentNumber;
-
-    if (!installmentNumber) {
-      toast.error({ title: tTerm('creditDetails.error.followUpInstallment') });
-      return;
-    }
-
-    if (!followUpNotes.trim()) {
-      toast.error({ title: tTerm('creditDetails.error.followUpNote') });
-      return;
-    }
-
+    const inst = operationalModal.payload?.installment;
+    if (!inst?.installmentNumber) { toast.error({ title: tTerm('creditDetails.error.followUpInstallment') }); return; }
+    if (!followUpNotes.trim()) { toast.error({ title: tTerm('creditDetails.error.followUpNote') }); return; }
     await executeGuardedAction({
       action: 'installment.followUp',
-      context: {
-        role: user?.role,
-        permissions: user?.permissions,
-        loanStatus: loan?.status,
-        installmentStatus: installment?.status,
-      },
-      run: async () => {
-        await createFollowUp.mutateAsync({
-          notes: followUpNotes,
-          installmentNumber,
-        });
-      },
-      onSuccess: async () => {
-        operationalModal.closeModal();
-        setFollowUpNotes('');
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-      },
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
+      run: async () => { await createFollowUp.mutateAsync({ notes: followUpNotes, installmentNumber: inst.installmentNumber }); },
+      onSuccess: async () => { operationalModal.closeModal(); setFollowUpNotes(''); await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); },
       successMessage: tTerm('creditDetails.toast.followUpSuccess'),
     });
   };
 
   const handleUpdateAlertStatus = async (alert: any, status: 'active' | 'resolved') => {
     const alertId = Number(alert?.id);
-    if (!Number.isFinite(alertId)) {
-      toast.error({ title: tTerm('creditDetails.error.alertId') });
-      return;
-    }
-
+    if (!Number.isFinite(alertId)) { toast.error({ title: tTerm('creditDetails.error.alertId') }); return; }
     const confirmed = await confirmDanger({
       title: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.title') : tTerm('creditDetails.confirm.alert.reactivate.title'),
       message: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.message') : tTerm('creditDetails.confirm.alert.reactivate.message'),
       confirmLabel: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.confirm') : tTerm('creditDetails.confirm.alert.reactivate.confirm'),
     });
-
     if (!confirmed) return;
-
-    await updateAlertStatus.mutateAsync({
-      alertId,
-      status,
-      notes: status === 'resolved' ? 'Resuelta manualmente desde detalle de crédito.' : 'Reactivada manualmente desde detalle de crédito.',
-    });
+    await updateAlertStatus.mutateAsync({ alertId, status, notes: status === 'resolved' ? 'Resuelta manualmente desde detalle de crédito.' : 'Reactivada manualmente desde detalle de crédito.' });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
     toast.success({ title: status === 'resolved' ? tTerm('creditDetails.toast.alertResolved') : tTerm('creditDetails.toast.alertReactivated') });
   };
 
   const handleUpdatePromiseStatus = async (promise: any, status: 'pending' | 'kept' | 'broken' | 'cancelled') => {
     const promiseId = Number(promise?.id);
-    if (!Number.isFinite(promiseId)) {
-      toast.error({ title: tTerm('creditDetails.error.promiseId') });
-      return;
-    }
-
-    const confirmed = await confirmDanger({
-      title: tTerm('creditDetails.confirm.promise.title'),
-      message: tTerm('creditDetails.confirm.promise.message', { status: formatOperationalStatus(status) }),
-      confirmLabel: tTerm('creditDetails.confirm.promise.confirm'),
-    });
-
+    if (!Number.isFinite(promiseId)) { toast.error({ title: tTerm('creditDetails.error.promiseId') }); return; }
+    const confirmed = await confirmDanger({ title: tTerm('creditDetails.confirm.promise.title'), message: tTerm('creditDetails.confirm.promise.message', { status: formatOperationalStatus(status) }), confirmLabel: tTerm('creditDetails.confirm.promise.confirm') });
     if (!confirmed) return;
-
-    await updatePromiseStatus.mutateAsync({
-      promiseId,
-      status,
-      notes: `Actualizado a ${formatPromiseStatus(status)} desde detalle de crédito.`,
-    });
+    await updatePromiseStatus.mutateAsync({ promiseId, status, notes: `Actualizado a ${formatPromiseStatus(status)} desde detalle de crédito.` });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
     toast.success({ title: tTerm('creditDetails.toast.promiseUpdated') });
   };
 
   const handleDownloadPromise = async (promise: any) => {
     const promiseId = Number(promise?.id);
-    if (!Number.isFinite(promiseId)) {
-      toast.error({ title: tTerm('creditDetails.error.promiseId') });
-      return;
-    }
-
+    if (!Number.isFinite(promiseId)) { toast.error({ title: tTerm('creditDetails.error.promiseId') }); return; }
     await downloadPromiseDocument.mutateAsync(promiseId);
     toast.success({ title: tTerm('creditDetails.toast.promiseDocument') });
   };
 
   const handleRecordCapital = async () => {
     const amount = parseFloat(capitalAmount);
-    if (!amount || amount <= 0) {
-      toast.error({ title: tTerm('payouts.validation.amount') });
-      return;
-    }
-    if (!capitalPaymentGuard.executable) {
-      toast.error({
-        title: tTerm('creditDetails.toast.capitalUnavailable'),
-        description: capitalPaymentGuard.reason || capitalUnavailableDescription,
-      });
-      return;
-    }
+    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    if (!capitalPaymentGuard.executable) { toast.error({ title: tTerm('creditDetails.toast.capitalUnavailable'), description: capitalPaymentGuard.reason || capitalUnavailableDescription }); return; }
     await executeGuardedAction({
       action: 'capital.payment',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
-      run: async () => {
-        await recordCapitalPayment.mutateAsync({
-          amount,
-          paymentDate: capitalPaymentDate,
-          paymentMethod: capitalMethod,
-          strategy: capitalStrategy,
-        });
-      },
-      onSuccess: async () => {
-        await invalidateAfterPayment(queryClient, { loanId });
-        setShowCapitalModal(false);
-        setCapitalAmount('');
-        setCapitalPaymentDate(new Date().toISOString().slice(0, 10));
-      },
+      run: async () => { await recordCapitalPayment.mutateAsync({ amount, paymentDate: capitalPaymentDate, paymentMethod: capitalMethod, strategy: capitalStrategy }); },
+      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalPaymentDate(new Date().toISOString().slice(0, 10)); },
       successMessage: tTerm('creditDetails.toast.capitalSuccess'),
     });
   };
 
   const handleUpdateLateFeeRate = async () => {
     const rate = parseFloat(lateFeeRate);
-    if (isNaN(rate) || rate < 0 || rate > 100) {
-      toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') });
-      return;
-    }
+    if (isNaN(rate) || rate < 0 || rate > 100) { toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') }); return; }
     await executeGuardedAction({
       action: 'lateFee.update',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
-      run: async () => {
-        await updateLateFeeRate.mutateAsync(rate);
-      },
-      onSuccess: async () => {
-        await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-        setShowLateFeeModal(false);
-        setLateFeeRate('');
-      },
+      run: async () => { await updateLateFeeRateMutation.mutateAsync(rate); },
+      onSuccess: async () => { await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); setShowLateFeeModal(false); setLateFeeRate(''); },
       successMessage: tTerm('creditDetails.toast.lateFeeSuccess'),
     });
   };
 
-  const openAnnulModal = (installmentNumber: number) => {
-    setAnnulInstallmentNumber(installmentNumber);
-    setShowAnnulModal(true);
-  };
-
-  const openEditPaymentMethodModal = (entry: any) => {
-    const paymentId = Number(entry?.paymentId);
-    if (!Number.isFinite(paymentId)) {
-      toast.error({ title: tTerm('creditDetails.error.paymentId') });
-      return;
-    }
-
-    const normalizedMethod = String(entry?.paymentMethod || defaultPaymentMethod).toLowerCase();
-    const hasMethod = paymentMethodOptions.some((method) => method.value === normalizedMethod);
-
-    setEditingPaymentId(paymentId);
-    setEditingPaymentReconciled(Boolean(entry?.paymentReconciled));
-    setNewPaymentMethod((hasMethod ? normalizedMethod : defaultPaymentMethod) as PaymentMethod);
-    setShowEditPaymentMethodModal(true);
-  };
-
+  // -------------------------------------------------------------------------
+  // Modal openers
+  // -------------------------------------------------------------------------
   const openInstallmentPayment = (row: any) => {
-    const installmentNumber = Number(row?.installmentNumber);
-
-    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: tTerm('creditDetails.error.installmentId') });
-      return;
-    }
-
-    setSelectedInstallmentNumber(installmentNumber);
+    const n = Number(row?.installmentNumber);
+    if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.installmentId') }); return; }
+    setSelectedInstallmentNumber(n);
     setPaymentAmount(String(row.payableAmount ?? row.outstandingAmount ?? row.scheduledPayment ?? ''));
-    operationalModal.openModal('record-payment', {
-      loanId,
-      installment: {
-        installmentId: installmentNumber,
-        installmentNumber,
-        amount: row.payableAmount ?? row.scheduledPayment,
-        status: row.status,
-      },
-    });
+    operationalModal.openModal('record-payment', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.payableAmount ?? row.scheduledPayment, status: row.status } });
   };
 
   const openNextInstallmentPayment = () => {
-    const nextInstallment = calendarEntries.find(
-      (entry: any) => Number(entry?.installmentNumber) === nextPayableInstallmentNumber,
-    );
-
-    if (!nextInstallment) {
-      toast.error({ title: tTerm('creditDetails.error.noPendingInstallments') });
-      return;
-    }
-
-    openInstallmentPayment(nextInstallment);
+    const next = calendarEntries.find((e: any) => Number(e?.installmentNumber) === nextPayableInstallmentNumber);
+    if (!next) { toast.error({ title: tTerm('creditDetails.error.noPendingInstallments') }); return; }
+    openInstallmentPayment(next);
   };
 
   const openPromiseFromInstallment = (row: any) => {
-    const installmentNumber = Number(row?.installmentNumber);
-
-    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: tTerm('creditDetails.error.promiseInstallment') });
-      return;
-    }
-
-    operationalModal.openModal('create-promise', {
-      loanId,
-      installment: {
-        installmentId: installmentNumber,
-        installmentNumber,
-        amount: row.scheduledPayment,
-        status: row.status,
-      },
-    });
+    const n = Number(row?.installmentNumber);
+    if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
+    operationalModal.openModal('create-promise', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.scheduledPayment, status: row.status } });
     setPromiseAmount(String(row.scheduledPayment ?? ''));
   };
 
   const openFollowUpFromInstallment = (row: any) => {
-    const installmentNumber = Number(row?.installmentNumber);
+    const n = Number(row?.installmentNumber);
+    if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.followUpInstallment') }); return; }
+    operationalModal.openModal('create-follow-up', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.scheduledPayment, status: row.status } });
+  };
 
-    if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: tTerm('creditDetails.error.followUpInstallment') });
-      return;
-    }
+  const openAnnulModal = (installmentNumber: number) => { setAnnulInstallmentNumber(installmentNumber); setShowAnnulModal(true); };
 
-    operationalModal.openModal('create-follow-up', {
-      loanId,
-      installment: {
-        installmentId: installmentNumber,
-        installmentNumber,
-        amount: row.scheduledPayment,
-        status: row.status,
-      },
-    });
+  const openEditPaymentMethodModal = (entry: any) => {
+    const pid = Number(entry?.paymentId);
+    if (!Number.isFinite(pid)) { toast.error({ title: tTerm('creditDetails.error.paymentId') }); return; }
+    const norm = String(entry?.paymentMethod || defaultPaymentMethod).toLowerCase();
+    const has = paymentMethodOptions.some((m) => m.value === norm);
+    setEditingPaymentId(pid);
+    setEditingPaymentReconciled(Boolean(entry?.paymentReconciled));
+    setNewPaymentMethod((has ? norm : defaultPaymentMethod) as PaymentMethod);
+    setShowEditPaymentMethodModal(true);
   };
 
   const calculationProfileSummary = loan?.calculationProfile?.name
-    ? tTerm('creditDetails.calculationProfile.namedVersion', {
-      name: loan.calculationProfile.name,
-      version: loan.calculationProfile.version,
-    })
+    ? tTerm('creditDetails.calculationProfile.namedVersion', { name: loan.calculationProfile.name, version: loan.calculationProfile.version })
     : loan?.calculationProfileVersionId
       ? tTerm('creditDetails.calculationProfile.versionedRule', { version: loan.calculationProfileVersionId })
       : tTerm('creditDetails.calculationProfile.frozenSnapshot');
 
-  const getInstallmentStatusInfo = (status: unknown) => {
-    switch (String(status || '').toLowerCase()) {
-      case 'paid':
-        return {
-          label: tTerm('credits.modal.status.paid'),
-          className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
-        };
-      case 'overdue':
-        return {
-          label: tTerm('credits.modal.status.overdue'),
-          className: 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30',
-        };
-      case 'partial':
-        return {
-          label: tTerm('credits.calendar.status.partial'),
-          className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/30',
-        };
-      case 'annulled':
-        return {
-          label: tTerm('creditDetails.installment.status.annulled'),
-          className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
-        };
-      default:
-        return {
-          label: tTerm('credits.modal.status.pending'),
-          className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
-        };
-    }
-  };
-
+  // -------------------------------------------------------------------------
+  // Installment action renderer (passed to CalendarTab)
+  // -------------------------------------------------------------------------
   const renderInstallmentActions = (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => {
-    if (!['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) {
-      return null;
-    }
-
-    const alignClassName = options?.alignClassName ?? 'justify-end';
-    const titlePrefix = options?.titlePrefix ?? '';
-    const isNextPendingInstallment = row.installmentNumber === nextPayableInstallmentNumber;
-    const paymentGuard = resolveOperationalGuard('installment.pay', {
-      role: user?.role,
-      permissions: user?.permissions,
-      loanStatus: loan?.status,
-      installmentStatus: row.status,
-    });
-    const annulGuard = resolveOperationalGuard('installment.annul', {
-      role: user?.role,
-      permissions: user?.permissions,
-      loanStatus: loan?.status,
-      installmentStatus: row.status,
-    });
-    const promiseGuard = resolveOperationalGuard('installment.promise', {
-      role: user?.role,
-      permissions: user?.permissions,
-      loanStatus: loan?.status,
-      installmentStatus: row.status,
-    });
-    const followUpGuard = resolveOperationalGuard('installment.followUp', {
-      role: user?.role,
-      permissions: user?.permissions,
-      loanStatus: loan?.status,
-      installmentStatus: row.status,
-    });
-    const installmentReason = isNextPendingInstallment
-      ? ''
-      : (nextPayableInstallmentNumber
-        ? tTerm('creditDetails.installmentActions.onlyNextPending', { number: nextPayableInstallmentNumber })
-        : tTerm('creditDetails.installmentActions.nonePending'));
-    const paymentActionReason = paymentGuard.executable ? installmentReason : (paymentGuard.reason || installmentReason);
-    const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
+    if (!['pending', 'overdue', 'partial'].includes(String(row?.status || '').toLowerCase())) return null;
+    const align = options?.alignClassName ?? 'justify-end';
+    const prefix = options?.titlePrefix ?? '';
+    const isNext = row.installmentNumber === nextPayableInstallmentNumber;
+    const payG = resolveOperationalGuard('installment.pay', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const annG = resolveOperationalGuard('installment.annul', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const proG = resolveOperationalGuard('installment.promise', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const folG = resolveOperationalGuard('installment.followUp', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: row.status });
+    const instReason = isNext ? '' : (nextPayableInstallmentNumber ? tTerm('creditDetails.installmentActions.onlyNextPending', { number: nextPayableInstallmentNumber }) : tTerm('creditDetails.installmentActions.nonePending'));
+    const payReason = payG.executable ? instReason : (payG.reason || instReason);
+    const annReason = annG.executable ? instReason : (annG.reason || instReason);
 
     return (
-      <div
-        className={`credit-installment-actions inline-flex flex-nowrap items-center gap-1.5 ${alignClassName}`}
-        role="toolbar"
-        aria-label={tTerm('creditDetails.installmentActions.aria', { number: row.installmentNumber })}
-      >
-        {paymentGuard.visible && (
-          <InstallmentActionButton
-            onClick={() => openInstallmentPayment(row)}
-            disabled={!isNextPendingInstallment || !paymentGuard.executable}
+      <div className={`credit-installment-actions inline-flex flex-nowrap items-center gap-1.5 ${align}`} role="toolbar" aria-label={tTerm('creditDetails.installmentActions.aria', { number: row.installmentNumber })}>
+        {payG.visible && (
+          <InstallmentActionButton onClick={() => openInstallmentPayment(row)} disabled={!isNext || !payG.executable}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-            label={isNextPendingInstallment && paymentGuard.executable
-              ? `${titlePrefix}${isBackofficeUser ? tTerm('credits.action.registerPayment') : tTerm('creditDetails.cta.payInstallment')}`
-              : paymentActionReason}
-          >
+            label={isNext && payG.executable ? `${prefix}${isBackofficeUser ? tTerm('credits.action.registerPayment') : tTerm('creditDetails.cta.payInstallment')}` : payReason}>
             <DollarSign size={16} />
           </InstallmentActionButton>
         )}
-        {(promiseGuard.visible || followUpGuard.visible || annulGuard.visible) && (
-          <>
-            {promiseGuard.visible && (
-              <InstallmentActionButton
-                onClick={() => openPromiseFromInstallment(row)}
-                disabled={!isNextPendingInstallment || !promiseGuard.executable}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
-                label={isNextPendingInstallment && promiseGuard.executable ? `${titlePrefix}${tTerm('credits.action.createPromise')}` : (promiseGuard.reason || installmentReason)}
-              >
-                <Clock size={16} />
-              </InstallmentActionButton>
-            )}
-            {followUpGuard.visible && (
-              <InstallmentActionButton
-                onClick={() => openFollowUpFromInstallment(row)}
-                disabled={!isNextPendingInstallment || !followUpGuard.executable}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
-                label={isNextPendingInstallment && followUpGuard.executable ? `${titlePrefix}${tTerm('credits.action.createFollowUp')}` : (followUpGuard.reason || installmentReason)}
-              >
-                <Bell size={16} />
-              </InstallmentActionButton>
-            )}
-            {annulGuard.visible && (
-              <InstallmentActionButton
-                onClick={() => openAnnulModal(row.installmentNumber)}
-                disabled={!isNextPendingInstallment || !annulGuard.executable}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
-                label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}${tTerm('credits.action.annulInstallment')}` : annulActionReason}
-              >
-                <ShieldAlert size={16} />
-              </InstallmentActionButton>
-            )}
-          </>
-        )}
+        {(proG.visible || folG.visible || annG.visible) && (<>
+          {proG.visible && (
+            <InstallmentActionButton onClick={() => openPromiseFromInstallment(row)} disabled={!isNext || !proG.executable}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
+              label={isNext && proG.executable ? `${prefix}${tTerm('credits.action.createPromise')}` : (proG.reason || instReason)}>
+              <Clock size={16} />
+            </InstallmentActionButton>
+          )}
+          {folG.visible && (
+            <InstallmentActionButton onClick={() => openFollowUpFromInstallment(row)} disabled={!isNext || !folG.executable}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
+              label={isNext && folG.executable ? `${prefix}${tTerm('credits.action.createFollowUp')}` : (folG.reason || instReason)}>
+              <Bell size={16} />
+            </InstallmentActionButton>
+          )}
+          {annG.visible && (
+            <InstallmentActionButton onClick={() => openAnnulModal(row.installmentNumber)} disabled={!isNext || !annG.executable}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
+              label={isNext && annG.executable ? `${prefix}${tTerm('credits.action.annulInstallment')}` : annReason}>
+              <ShieldAlert size={16} />
+            </InstallmentActionButton>
+          )}
+        </>)}
       </div>
     );
   };
 
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
   return (
     <div className="mx-auto w-full max-w-[88rem] min-w-0 space-y-5 overflow-x-hidden px-4 pb-12 pt-2 animate-in fade-in duration-300 lg:px-6" data-tour="credit-detail-page">
       <CreditDetailHeader
-        loanId={loan.id}
-        statusInfo={statusInfo}
-        subtitle={creditDetailSubtitle}
-        customerLabel={customerLabel}
-        calculationProfileSummary={calculationProfileSummary}
+        loanId={loan.id} statusInfo={statusInfo} subtitle={creditDetailSubtitle}
+        customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
         registerPaymentLabel={isBackofficeUser ? tTerm('creditDetails.cta.recordPayment') : tTerm('creditDetails.cta.payInstallment')}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
-        canAccessBackofficeActions={isBackofficeUser}
-        canExportCreditExcel={isAdmin}
+        canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={isAdmin}
         isExportingCreditExcel={isExportingCreditExcel}
-        installmentPaymentGuard={installmentPaymentGuard}
-        capitalPaymentGuard={capitalPaymentGuard}
-        payoffPaymentGuard={payoffPaymentGuard}
-        lateFeeUpdateGuard={lateFeeUpdateGuard}
+        installmentPaymentGuard={installmentPaymentGuard} capitalPaymentGuard={capitalPaymentGuard}
+        payoffPaymentGuard={payoffPaymentGuard} lateFeeUpdateGuard={lateFeeUpdateGuard}
         creditStatusUpdateGuard={creditStatusUpdateGuard}
-        onBack={() => navigate('/credits')}
-        onRegisterPayment={openNextInstallmentPayment}
+        onBack={() => navigate('/credits')} onRegisterPayment={openNextInstallmentPayment}
         onOpenCapitalPayment={() => setShowCapitalModal(true)}
         onPayoff={handlePayoff}
-        onOpenLateFeeRate={() => {
-          setLateFeeRate(String(loan.annualLateFeeRate || ''));
-          setShowLateFeeModal(true);
-        }}
+        onOpenLateFeeRate={() => { setLateFeeRate(String(loan.annualLateFeeRate || '')); setShowLateFeeModal(true); }}
         onOpenStatus={() => setShowStatusModal(true)}
         onExportCreditExcel={() => runExportCreditExcel(loanId)}
         onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
       />
 
-      <CreditSummaryMetrics
-        loan={loan}
-        paymentSnapshot={paymentSnapshot}
-        formatCurrency={formatCurrency}
-        formatMetricCurrency={formatMetricCurrency}
-      />
+      <CreditSummaryMetrics loan={loan} paymentSnapshot={paymentSnapshot} formatCurrency={formatCurrency} formatMetricCurrency={formatMetricCurrency} />
 
       <section className="min-w-0">
         <CreditDetailsTabs
-          activeTab={activeTab}
-          isAdmin={isBackofficeUser}
+          activeTab={activeTab} isAdmin={isBackofficeUser}
           alertCount={alertEntries.length}
-          pendingPromiseCount={promiseEntries.filter((promise: any) => promise.status === 'pending').length}
+          pendingPromiseCount={promiseEntries.filter((p: any) => p.status === 'pending').length}
           paymentHistoryCount={paymentHistoryEntries.length}
-          labels={{
-            calendar: tTerm('creditDetails.tab.calendar'),
-            alerts: tTerm('creditDetails.tab.alerts'),
-            promises: tTerm('creditDetails.tab.promises'),
-            history: tTerm('creditDetails.tab.history'),
-          }}
+          labels={{ calendar: tTerm('creditDetails.tab.calendar'), alerts: tTerm('creditDetails.tab.alerts'), promises: tTerm('creditDetails.tab.promises'), history: tTerm('creditDetails.tab.history') }}
           onSelect={setActiveTab}
         />
 
         <div className="py-4 sm:py-5 lg:py-6">
-          {/* TAB: CALENDAR */}
           {activeTab === 'calendar' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" data-tour="credit-detail-calendar">
-              {calendarEntries.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="border-b border-border-subtle pb-4">
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-base font-semibold text-text-primary">{tTerm('creditDetails.calendar.title')}</p>
-                        <p className="mt-1 text-sm leading-6 text-text-secondary">
-                          Opera primero la próxima cuota pendiente. El sistema bloquea pagos y anulaciones fuera de secuencia para no romper la cartera.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs font-medium">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-                          Próxima cuota operable: {nextPayableInstallmentNumber ?? 'Sin pendientes'}
-                        </span>
-                        {calendarSnapshot && (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-                            Balance pendiente: {formatCurrency(calendarSnapshot.outstandingBalance)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 lg:hidden">
-                    {installmentRows.map((row: any) => {
-                      const installmentStatusInfo = getInstallmentStatusInfo(row.status);
-
-                      return (
-                        <div key={getInstallmentRowKey(row)} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{tTerm('creditDetails.calendar.installment', { number: row.installmentNumber })}</p>
-                              <p className="mt-2 text-xl font-bold text-text-primary">{formatCurrency(row.scheduledPayment)}</p>
-                            </div>
-                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
-                              {installmentStatusInfo.label}
-                            </span>
-                          </div>
-
-                          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.interest')}</dt>
-                              <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.interestComponent)}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.lateFee')}</dt>
-                              <dd className="mt-1 text-sm font-medium text-rose-600 dark:text-rose-300">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Amortización</dt>
-                              <dd className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.remainingPrincipal')}</dt>
-                              <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.closingBalance)}</dd>
-                            </div>
-                          </dl>
-
-                          {showInstallmentActionColumn && (
-                            <div className="mt-4 border-t border-border-subtle pt-3">
-                              {renderInstallmentActions(row, { alignClassName: 'justify-start', titlePrefix: 'Tarjeta · ' })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="data-table-surface hidden overflow-x-auto lg:block">
-                    <table className="credit-installment-calendar-table min-w-0 w-full table-fixed text-sm text-left whitespace-nowrap">
-                      <colgroup>
-                        {showInstallmentActionColumn ? (
-                          <>
-                            <col style={{ width: '5%' }} />
-                            <col style={{ width: '13%' }} />
-                            <col style={{ width: '12%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '15%' }} />
-                            <col style={{ width: '14%' }} />
-                            <col style={{ width: '12%' }} />
-                            <col style={{ width: '21%' }} />
-                          </>
-                        ) : (
-                          <>
-                            <col style={{ width: '6%' }} />
-                            <col style={{ width: '16%' }} />
-                            <col style={{ width: '14%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '18%' }} />
-                          </>
-                        )}
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          <th className="text-center">N°</th>
-                          <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
-                          <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
-                          <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
-                          <th className="text-right">Amortización</th>
-                          <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
-                          <th className="text-center">Estado</th>
-                          {showInstallmentActionColumn && <th className="text-right">Acciones</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Initial balance row */}
-                        <tr>
-                          <td className="text-center text-text-secondary font-medium">0</td>
-                          <td className="text-right text-text-secondary">—</td>
-                          <td className="text-right text-text-secondary">—</td>
-                          <td className="text-right text-text-secondary">—</td>
-                          <td className="text-right text-text-secondary">—</td>
-                          <td className="text-right font-bold text-text-primary">
-                            {formatCurrency(loan.amount)}
-                          </td>
-                          <td></td>
-                          {showInstallmentActionColumn && <td></td>}
-                        </tr>
-                      {installmentRows.map((row: any, idx: number) => {
-                        const installmentStatusInfo = getInstallmentStatusInfo(row.status);
-
-                        return (
-                        <tr
-                          key={getInstallmentRowKey(row)}
-                          data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined}
-                          className="group"
-                        >
-                          <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
-                          <td className="text-right font-medium text-text-primary">
-                            {formatCurrency(row.scheduledPayment)}
-                          </td>
-                          <td className="text-right text-text-secondary">
-                            {formatCurrency(row.interestComponent)}
-                          </td>
-                          <td className="text-right text-red-600 dark:text-red-400">
-                            {row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}
-                          </td>
-                          <td className="text-right text-emerald-600 dark:text-emerald-400 font-medium">
-                            {formatCurrency(row.principalComponent)}
-                          </td>
-                          <td className="text-right font-medium text-text-primary">
-                            {formatCurrency(row.closingBalance)}
-                          </td>
-                          <td className="text-center">
-                            <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
-                              {installmentStatusInfo.label}
-                            </span>
-                          </td>
-                           {showInstallmentActionColumn && (
-                           <td className="text-right">
-                            {renderInstallmentActions(row)}
-                            </td>
-                          )}
-                        </tr>
-                      )})}
-                    </tbody>
-                    <tfoot>
-                        <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
-                          <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Total</td>
-                          <td className="text-right font-bold text-text-primary">
-                            {formatCurrency(installmentColumnTotals.scheduledPayment)}
-                          </td>
-                          <td className="text-right font-bold text-text-secondary">
-                            {formatCurrency(installmentColumnTotals.interestComponent)}
-                          </td>
-                          <td className="text-right font-bold text-red-600 dark:text-red-400">
-                            {installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}
-                          </td>
-                          <td className="text-right font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatCurrency(installmentColumnTotals.principalComponent)}
-                          </td>
-                          <td className="text-right font-bold text-brand-primary text-base">
-                            {formatCurrency(installmentColumnTotals.outstandingBalance)}
-                          </td>
-                          <td className="text-center text-xs text-text-secondary">—</td>
-                          {showInstallmentActionColumn && <td></td>}
-                        </tr>
-                      </tfoot>
-                  </table>
-                  </div>
-                </div>
-              ) : (
-                <TabEmptyState
-                  icon={Calendar}
-                  title={tTerm('creditDetails.calendar.empty.title')}
-                  description={tTerm('creditDetails.calendar.empty.description')}
-                />
-              )}
+              <CalendarTab
+                installmentRows={installmentRows} installmentColumnTotals={installmentColumnTotals}
+                loanAmount={Number(loan.amount)} showInstallmentActionColumn={showInstallmentActionColumn}
+                nextPayableInstallmentNumber={nextPayableInstallmentNumber}
+                calendarSnapshot={calendarSnapshot} formatCurrency={formatCurrency}
+                renderInstallmentActions={renderInstallmentActions}
+              />
             </div>
           )}
 
-          {/* TAB: ALERTS */}
           {activeTab === 'alerts' && (
             <div className="animate-in fade-in duration-300 max-w-5xl">
-              {alertEntries.length > 0 ? (
-                <div className="space-y-4">
-                  {alertEntries.map((alert: any) => {
-                    const alertPresentation = getAlertPresentation(alert);
-
-                    return (
-                    <div key={stableCreditKey('alert', alert.id, alert.type, alert.installmentNumber, alert.dueDate, alert.createdAt)} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex gap-4">
-                          <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${alertPresentation.iconClassName}`}>
-                            <AlertCircle size={20} />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-text-primary">{alertPresentation.typeLabel}</p>
-                              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${alertPresentation.statusClassName}`}>
-                                {alertPresentation.statusLabel}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm leading-6 text-text-secondary">{alertPresentation.summary}</p>
-                            <dl className="mt-3 grid gap-3 text-xs text-text-secondary sm:grid-cols-3">
-                              <div>
-                                <dt className="font-semibold uppercase tracking-[0.12em]">{tTerm('creditDetails.alerts.label.installment')}</dt>
-                                <dd className="mt-1 text-text-primary">{alertPresentation.installmentLabel}</dd>
-                              </div>
-                              <div>
-                                <dt className="font-semibold uppercase tracking-[0.12em]">{tTerm('creditDetails.alerts.label.balance')}</dt>
-                                <dd className="mt-1 text-text-primary">{alertPresentation.balanceLabel}</dd>
-                              </div>
-                              <div>
-                                <dt className="font-semibold uppercase tracking-[0.12em]">Vence</dt>
-                                <dd className="mt-1 text-text-primary">{formatDate(alert.dueDate)}</dd>
-                              </div>
-                            </dl>
-                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
-                              <span>Creada: {formatDate(alert.createdAt, true)}</span>
-                              {alert.resolvedAt && <span>Resuelta: {formatDate(alert.resolvedAt, true)}</span>}
-                            </div>
-                            {alertPresentation.notes && (
-                              <p className="mt-3 rounded-lg bg-bg-base p-3 text-sm leading-6 text-text-secondary whitespace-pre-wrap">{alertPresentation.notes}</p>
-                            )}
-                          </div>
-                        </div>
-                        <ActionButton
-                          type="button"
-                          onClick={() => handleUpdateAlertStatus(alert, alert.status === 'resolved' ? 'active' : 'resolved')}
-                          disabled={updateAlertStatus.isPending}
-                          icon={alert.status === 'resolved' ? <Bell size={16} /> : <CheckCircle size={16} />}
-                        >
-                          {alert.status === 'resolved'
-                            ? tTerm('creditDetails.confirm.alert.reactivate.confirm')
-                            : tTerm('creditDetails.confirm.alert.resolve.confirm')}
-                        </ActionButton>
-                      </div>
-                    </div>
-                  )})}
-                </div>
-              ) : (
-                <TabEmptyState
-                  icon={CheckCircle}
-                  title={tTerm('creditDetails.alerts.empty.title')}
-                  description={tTerm('creditDetails.alerts.empty.description')}
-                />
-              )}
+              <AlertsTab
+                alertEntries={alertEntries}
+                getAlertPresentation={(alert) => getAlertPresentation(alert, formatCurrency)}
+                formatDate={formatDate} isUpdating={updateAlertStatus.isPending}
+                onUpdateAlertStatus={handleUpdateAlertStatus}
+              />
             </div>
           )}
 
-          {/* TAB: PROMISES */}
           {activeTab === 'promises' && (
             <div className="animate-in fade-in duration-300">
-              {promiseEntries.length > 0 ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {promiseEntries.map((promise: any) => {
-                    const isKept = promise.status === 'kept';
-                    const isBroken = promise.status === 'broken';
-                    const isPending = promise.status === 'pending';
-
-                    return (
-                      <div key={stableCreditKey('promise', promise.id, promiseDate(promise), promise.createdAt, promise.amount)} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <p className="text-sm text-text-secondary mb-1">{tTerm('creditDetails.promises.amountLabel')}</p>
-                            <p className="text-xl font-medium text-text-primary">{formatCurrency(promise.amount)}</p>
-                          </div>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            isKept ? 'bg-emerald-100 text-emerald-700' :
-                            isBroken ? 'bg-red-100 text-red-700' :
-                            isPending ? 'bg-amber-100 text-amber-700' :
-                            'bg-slate-100 text-slate-700'
-                          }`}>
-                            {formatOperationalStatus(promise.status)}
-                          </span>
-                        </div>
-                        
-                        <p className="text-sm text-text-secondary flex items-center gap-2 mb-4">
-                          <Calendar size={16} />
-                          <span>{tTerm('creditDetails.promises.forDate', { date: formatDate(promiseDate(promise)) })}</span>
-                        </p>
-
-                        {promise.notes && (
-                          <div className="text-sm text-text-secondary bg-bg-base p-3 rounded-lg mb-4">
-                            {promise.notes}
-                          </div>
-                        )}
-
-                        {promise.statusHistory && promise.statusHistory.length > 0 && (
-                          <details className="group">
-                            <summary className="text-sm text-brand-primary cursor-pointer hover:underline list-none flex items-center gap-1">
-                              <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> {tTerm('creditDetails.tab.history')}
-                            </summary>
-                            <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
-                              {promise.statusHistory.slice().reverse().map((entry: any) => (
-                                <div key={stableCreditKey('promise-history', promise.id, entry.id, entry.status, entry.changedAt)} className="text-sm">
-                                  <span className="text-text-primary">{formatOperationalStatus(entry.status)}</span>
-                                  <span className="text-text-secondary ml-2">{formatDate(entry.changedAt, true)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                        <div className="mt-5 flex flex-wrap gap-2">
-                          {isPending ? (
-                            <>
-                              <ActionButton
-                                type="button"
-                                onClick={() => handleUpdatePromiseStatus(promise, 'kept')}
-                                disabled={updatePromiseStatus.isPending}
-                                variant="primary"
-                                icon={<CheckCircle size={16} />}
-                              >
-                                Cumplida
-                              </ActionButton>
-                              <ActionButton
-                                type="button"
-                                onClick={() => handleUpdatePromiseStatus(promise, 'broken')}
-                                disabled={updatePromiseStatus.isPending}
-                                variant="danger"
-                                icon={<AlertTriangle size={16} />}
-                              >
-                                Incumplida
-                              </ActionButton>
-                              <ActionButton
-                                type="button"
-                                onClick={() => handleUpdatePromiseStatus(promise, 'cancelled')}
-                                disabled={updatePromiseStatus.isPending}
-                                variant="ghost"
-                              >
-                                Cancelar
-                              </ActionButton>
-                            </>
-                          ) : (
-                            <ActionButton
-                              type="button"
-                              onClick={() => handleUpdatePromiseStatus(promise, 'pending')}
-                              disabled={updatePromiseStatus.isPending}
-                              icon={<Clock size={16} />}
-                            >
-                              Reabrir
-                            </ActionButton>
-                          )}
-                          <ActionButton
-                            type="button"
-                            onClick={() => handleDownloadPromise(promise)}
-                            disabled={downloadPromiseDocument.isPending}
-                            icon={<FileText size={16} />}
-                          >
-                            Descargar
-                          </ActionButton>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <TabEmptyState
-                  icon={Clock}
-                  title={tTerm('creditDetails.promises.empty.title')}
-                  description={tTerm('creditDetails.promises.empty.description')}
-                />
-              )}
+              <PromisesTab
+                promiseEntries={promiseEntries} formatCurrency={formatCurrency}
+                formatDate={formatDate} promiseDate={promiseDate}
+                isUpdating={updatePromiseStatus.isPending}
+                isDownloading={downloadPromiseDocument.isPending}
+                onUpdatePromiseStatus={handleUpdatePromiseStatus}
+                onDownloadPromise={handleDownloadPromise}
+              />
             </div>
           )}
 
-          {/* TAB: HISTORIAL DE PAGOS */}
           {activeTab === 'payouts' && (
             <div className="animate-in fade-in duration-300">
-              {paymentHistoryEntries.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-bg-base border-b border-border-subtle">
-                      <tr>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentId')}</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Tipo</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.installment')}</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Monto</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Capital</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.interest')}</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.lateFee')}</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Método</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentDate')}</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paymentHistoryEntries.map((entry: any) => (
-                        <tr key={stableCreditKey('payment-row', entry.id, entry.date, entry.amount, entry.installmentNumber)} className="border-b border-border-subtle hover:bg-hover-bg">
-                          <td className="py-3 px-4 text-text-secondary">{entry.paymentId ? `#${entry.paymentId}` : entry.id ? `#${entry.id}` : '—'}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              entry.type === 'payoff' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' :
-                              entry.paymentType === 'capital' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' :
-                              entry.paymentType === 'partial' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' :
-                              'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-                            }`}>
-                              {entry.type === 'payoff' ? 'Pago total' :
-                               getPaymentTypeLabel(entry.paymentType)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-text-secondary">{entry.installmentNumber || '—'}</td>
-                          <td className="py-3 px-4 text-right font-medium text-text-primary">{formatCurrency(entry.amount)}</td>
-                          <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400">{entry.principalApplied ? formatCurrency(entry.principalApplied) : '—'}</td>
-                          <td className="py-3 px-4 text-right text-amber-600 dark:text-amber-400">{entry.interestApplied ? formatCurrency(entry.interestApplied) : '—'}</td>
-                          <td className="py-3 px-4 text-right text-red-600 dark:text-red-400">{entry.penaltyApplied ? formatCurrency(entry.penaltyApplied) : '—'}</td>
-                          <td className="py-3 px-4 text-text-secondary capitalize">{entry.paymentMethod || '—'}</td>
-                          <td className="py-3 px-4 text-text-secondary">{formatDate(entry.date || entry.paymentDate)}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              entry.status === 'completed' || entry.paymentStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                              entry.status === 'failed' || entry.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {formatOperationalStatus(entry.status || entry.paymentStatus || 'pending')}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <TabEmptyState
-                  icon={DollarSign}
-                  title={tTerm('creditDetails.payouts.empty.title')}
-                  description={tTerm('creditDetails.payouts.empty.description')}
-                />
-              )}
+              <PayoutsTab paymentHistoryEntries={paymentHistoryEntries} formatCurrency={formatCurrency} formatDate={formatDate} />
             </div>
           )}
 
-          {/* TAB: HISTORY */}
           {activeTab === 'history' && (
             <div className="animate-in fade-in duration-300 max-w-5xl" data-tour="credit-detail-history">
-              {isLoadingHistory ? (
-                <p className="text-text-secondary">{tTerm('creditDetails.history.loading')}</p>
-              ) : operationalHistoryEntries.length > 0 ? (
-                <div className="space-y-3">
-                  {operationalHistoryEntries.map((event: any) => {
-                    const paymentId = extractPaymentId(event.id);
-                    const isPayment = event.type === 'payment';
-                    const isAlert = event.type === 'alert';
-                    const isPromise = event.type === 'promise';
-                    return (
-                      <div key={stableCreditKey('history', event.id, event.type, event.date, event.createdAt, event.action)} className="rounded-xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
-                        <div className="flex gap-4">
-                          <span className={`mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full ${
-                            isPayment ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300' :
-                            isAlert ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300' :
-                            isPromise ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300' :
-                            'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300'
-                        }`}>
-                            {isPayment ? <DollarSign size={16} /> : isAlert ? <Bell size={16} /> : isPromise ? <Clock size={16} /> : <CreditCard size={16} />}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="font-semibold text-text-primary">{event.action}</p>
-                                  {event.status && (
-                                    <span className="inline-flex rounded-full bg-hover-bg px-2.5 py-1 text-xs font-semibold text-text-secondary">
-                                      {formatOperationalStatus(event.status)}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-1 text-sm leading-6 text-text-secondary whitespace-pre-wrap">{event.description}</p>
-                                <p className="mt-2 flex items-center gap-1 text-xs text-text-secondary">
-                                  <Clock size={12} /> {formatDate(event.date, true)}
-                                </p>
-                              </div>
-                              {paymentId && (
-                                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                  <ActionButton
-                                    onClick={() => handleDownloadVoucher(paymentId)}
-                                    className="!min-h-0 !px-3 !py-1.5"
-                                    icon={<FileText size={16} />}
-                                  >
-                                    Recibo
-                                  </ActionButton>
-                                  {(() => {
-                                    const editGuard = resolveOperationalGuard('installment.editPaymentMethod', {
-                                      role: user?.role,
-                                      permissions: user?.permissions,
-                                      loanStatus: loan?.status,
-                                      paymentStatus: event.paymentStatus,
-                                      paymentReconciled: Boolean(event.paymentReconciled),
-                                    });
-
-                                    if (!isBackofficeUser || !editGuard.visible) return null;
-
-                                    return (
-                                      <ActionButton
-                                        onClick={() => openEditPaymentMethodModal(event)}
-                                        disabled={!editGuard.executable}
-                                        className="!min-h-0 !px-3 !py-1.5"
-                                        icon={<Edit2 size={16} />}
-                                        title={editGuard.executable ? tTerm('payouts.action.editPaymentMethod') : (editGuard.reason || tTerm('credits.action.unavailable'))}
-                                      >
-                                        Método
-                                      </ActionButton>
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <TabEmptyState
-                  icon={Activity}
-                  title={tTerm('creditDetails.history.empty.title')}
-                  description={tTerm('creditDetails.history.empty.description')}
-                />
-              )}
+              <HistoryTab
+                operationalHistoryEntries={operationalHistoryEntries} isLoadingHistory={isLoadingHistory}
+                isBackofficeUser={isBackofficeUser} loanStatus={loan?.status}
+                userRole={user?.role} userPermissions={user?.permissions}
+                formatDate={formatDate}
+                onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
+                onOpenEditPaymentMethod={openEditPaymentMethodModal}
+              />
             </div>
           )}
         </div>
       </section>
 
-      {/* --- MODALS --- */}
-      {/* ... keeping modals logic as is, but ensuring their classes are correct */}
-      
-      {/* Modal: Change Status */}
-      {showStatusModal && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.status.title')}
-          footer={(
-            <>
-              <ActionButton onClick={() => setShowStatusModal(false)} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton onClick={handleUpdateStatus} disabled={!newStatus} variant="primary" fullWidth>
-                {tTerm('creditDetails.modal.status.save')}
-              </ActionButton>
-            </>
-          )}
-        >
-          <FormField label={tTerm('creditDetails.modal.status.field')}>
-            <SelectInput
-              id="credit-status-select"
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-            >
-              <option value="">{tTerm('creditDetails.modal.status.placeholder')}</option>
-              {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {LOAN_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </SelectInput>
-          </FormField>
-        </ModalShell>
-      )}
-
-      {/* Modal: Record Payment */}
-      {isRecordPaymentModalOpen && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.payment.title')}
-          footer={(
-            <>
-              <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton
-                onClick={handleRecordPayment}
-                disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || Boolean(installmentQuote && !installmentQuote.canPay)}
-                variant="primary"
-                fullWidth
-              >
-                {tTerm('creditDetails.modal.payment.submit')}
-              </ActionButton>
-            </>
-          )}
-        >
-            <div className="space-y-4">
-              {selectedInstallmentNumber && (
-                <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">{tTerm('creditDetails.paymentQuote.installmentQuoteTitle', { number: selectedInstallmentNumber })}</span>
-                    {installmentQuoteQuery.isFetching && <span className="text-xs">{tTerm('creditDetails.paymentQuote.calculating')}</span>}
-                  </div>
-                  {installmentQuote ? (
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.outstandingBase')}</span>
-                        <span className="font-semibold text-text-primary">{formatCurrency(installmentQuote.outstandingAmount)}</span>
-                      </div>
-                      <div>
-                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.label.lateFee')}</span>
-                        <span className="font-semibold text-red-700 dark:text-red-300">{formatCurrency(installmentQuote.lateFeeDue)}</span>
-                      </div>
-                      <div>
-                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.daysOverdue')}</span>
-                        <span className="font-semibold text-text-primary">{installmentQuote.daysOverdue || 0}</span>
-                      </div>
-                      <div>
-                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.suggestedTotal')}</span>
-                        <ActionButton
-                          type="button"
-                          onClick={() => setPaymentAmount(String(installmentQuote.totalDue ?? ''))}
-                          variant="ghost"
-                          className="!min-h-0 !border-0 !bg-transparent !p-0 !font-semibold !text-brand-primary hover:!bg-transparent"
-                        >
-                          {formatCurrency(installmentQuote.totalDue)}
-                        </ActionButton>
-                      </div>
-                      {!installmentQuote.canPay && installmentQuote.disabledReason && (
-                        <div className="col-span-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
-                          {installmentQuote.disabledReason}
-                        </div>
-                      )}
-                    </div>
-                  ) : installmentQuoteQuery.isError ? (
-                    <p className="text-xs text-red-700 dark:text-red-300">No se pudo calcular la cotización. Revisa la cuota y la fecha.</p>
-                  ) : (
-                    <p className="text-xs text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.ruleApplied')}</p>
-                  )}
-                </div>
-              )}
-              <FormField label={tTerm('creditDetails.modal.payment.amount')}>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                  <TextInput
-                    id="credit-payment-amount"
-                    type="number"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="pl-8"
-                    placeholder="0.00" min="0" step="0.01"
-                  />
-                </div>
-              </FormField>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={tTerm('creditDetails.modal.payment.date')}>
-                  <TextInput
-                    id="credit-payment-date"
-                    type="date"
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                  />
-                </FormField>
-                <FormField label={tTerm('creditDetails.modal.payment.method')}>
-                  <SelectInput
-                    id="credit-payment-method"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  >
-                    {paymentMethodOptions.map((method) => (
-                      <option key={method.value} value={method.value}>{method.label}</option>
-                    ))}
-                  </SelectInput>
-                </FormField>
-              </div>
-            </div>
-          </ModalShell>
-      )}
-
-      {/* Modal: Promise from installment */}
-      {isPromiseModalOpen && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.promise.title')}
-          footer={(
-            <>
-              <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton onClick={handleCreatePromise} variant="primary" fullWidth>
-                {tTerm('creditDetails.modal.promise.save')}
-              </ActionButton>
-            </>
-          )}
-        >
-            <div className="space-y-4">
-              <FormField label={tTerm('creditDetails.modal.promise.amount')}>
-                <TextInput
-                  id="credit-promise-amount"
-                  type="number"
-                  value={promiseAmount}
-                  onChange={(e) => setPromiseAmount(e.target.value)}
-                />
-              </FormField>
-              <FormField label={tTerm('creditDetails.modal.promise.date')}>
-                <TextInput
-                  id="credit-promise-date"
-                  type="date"
-                  value={promiseDateInput}
-                  onChange={(e) => setPromiseDateInput(e.target.value)}
-                />
-              </FormField>
-              <FormField label={tTerm('creditDetails.modal.promise.notes')}>
-                <TextAreaInput
-                  id="credit-promise-notes"
-                  value={promiseNotes}
-                  onChange={(e) => setPromiseNotes(e.target.value)}
-                  rows={3}
-                />
-              </FormField>
-            </div>
-          </ModalShell>
-      )}
-
-      {/* Modal: Follow-up from installment */}
-      {isFollowUpModalOpen && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.followUp.title')}
-          footer={(
-            <>
-              <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton onClick={handleCreateFollowUp} variant="primary" fullWidth>
-                {tTerm('creditDetails.modal.followUp.save')}
-              </ActionButton>
-            </>
-          )}
-        >
-            <div className="space-y-4">
-              <FormField label={tTerm('creditDetails.modal.followUp.detail')}>
-                <TextAreaInput
-                  id="credit-follow-up-notes"
-                  value={followUpNotes}
-                  onChange={(e) => setFollowUpNotes(e.target.value)}
-                  rows={4}
-                />
-              </FormField>
-            </div>
-          </ModalShell>
-      )}
-
-      {/* Modal: Annul Installment */}
-      {showAnnulModal && (
-        <ModalShell
-          title={<span className="text-red-600 dark:text-red-400">{tTerm('creditDetails.modal.annul.title', { number: annulInstallmentNumber ?? '' })}</span>}
-          subtitle={tTerm('creditDetails.modal.annul.subtitle')}
-          footer={(
-            <>
-              <ActionButton
-                onClick={() => {
-                  setShowAnnulModal(false);
-                  setAnnulInstallmentNumber(null);
-                }}
-                fullWidth
-              >
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton onClick={handleAnnulInstallment} variant="danger" fullWidth>
-                {tTerm('creditDetails.modal.annul.confirm')}
-              </ActionButton>
-            </>
-          )}
-        >
-          <FormField label={tTerm('creditDetails.modal.annul.reason')}>
-            <TextAreaInput
-              id="credit-annul-reason"
-              value={annulReason}
-              onChange={(e) => setAnnulReason(e.target.value)}
-              rows={3}
-            />
-          </FormField>
-        </ModalShell>
-      )}
-
-      {/* Modal: Capital Contribution */}
-      {showCapitalModal && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.capital.title')}
-          subtitle={tTerm('creditDetails.modal.capital.subtitle')}
-          maxWidthClassName="max-w-2xl"
-          footer={(
-            <>
-              <ActionButton onClick={() => setShowCapitalModal(false)} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton
-                onClick={handleRecordCapital}
-                disabled={!capitalPaymentGuard.executable || !capitalAmount || parseFloat(capitalAmount) <= 0}
-                title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
-                variant="primary"
-                fullWidth
-              >
-                {tTerm('creditDetails.modal.capital.submit')}
-              </ActionButton>
-            </>
-          )}
-        >
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField label={tTerm('creditDetails.modal.capital.amount')}>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                    <TextInput
-                      id="credit-capital-amount"
-                      type="number"
-                      value={capitalAmount}
-                      onChange={(e) => setCapitalAmount(e.target.value)}
-                      className="pl-8"
-                      placeholder="0.00" min="0" step="0.01"
-                    />
-                  </div>
-                </FormField>
-                <FormField label={tTerm('creditDetails.modal.capital.date')}>
-                  <TextInput
-                    id="credit-capital-date"
-                    type="date"
-                    value={capitalPaymentDate}
-                    onChange={(e) => setCapitalPaymentDate(e.target.value)}
-                  />
-                </FormField>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={tTerm('creditDetails.modal.capital.method')}>
-                  <SelectInput
-                    id="credit-capital-method"
-                    value={capitalMethod}
-                    onChange={(e) => setCapitalMethod(e.target.value as PaymentMethod)}
-                  >
-                    {paymentMethodOptions.map((method) => (
-                      <option key={method.value} value={method.value}>{method.label}</option>
-                    ))}
-                  </SelectInput>
-                </FormField>
-                <FormField label={tTerm('creditDetails.modal.capital.strategy')}>
-                  <SelectInput
-                    id="credit-capital-strategy"
-                    value={capitalStrategy}
-                    onChange={(e) => setCapitalStrategy(e.target.value as CapitalStrategy)}
-                  >
-                    {CAPITAL_STRATEGIES.map((strategy) => (
-                      <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
-                    ))}
-                  </SelectInput>
-                </FormField>
-              </div>
-              <div className="rounded-xl border border-border-subtle bg-bg-base/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.capitalPreview.title')}</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.currentPrincipal')}</p>
-                    <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.currentPrincipal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.newPrincipal')}</p>
-                    <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.newPrincipal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-secondary">
-                      {capitalStrategy === 'reduce_payment'
-                        ? tTerm('creditDetails.capitalPreview.estimatedPayment')
-                        : tTerm('creditDetails.capitalPreview.remainingInstallments')}
-                    </p>
-                    <p className="mt-1 font-semibold text-text-primary">
-                      {capitalStrategy === 'reduce_payment'
-                        ? formatCurrency(capitalPreview.estimatedPayment)
-                        : `${capitalPreview.estimatedInstallments} de ${capitalPreview.remainingInstallments}`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.expectedEffect')}</p>
-                    <p className="mt-1 font-semibold text-text-primary">
-                      {capitalStrategy === 'reduce_payment'
-                        ? tTerm('creditDetails.capitalPreview.effect.reducePayment')
-                        : tTerm('creditDetails.capitalPreview.effect.reduceTerm')}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-3 text-xs leading-5 text-text-secondary">
-                  {tTerm('creditDetails.capitalPreview.note')}
-                </p>
-                {!capitalPaymentGuard.executable && (
-                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
-                    {capitalPaymentGuard.reason || capitalUnavailableDescription}
-                  </p>
-                )}
-              </div>
-            </div>
-          </ModalShell>
-      )}
-
-      {showEditPaymentMethodModal && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.editMethod.title')}
-          footer={(
-            <>
-              <ActionButton
-                onClick={() => {
-                  setShowEditPaymentMethodModal(false);
-                  setEditingPaymentId(null);
-                  setEditingPaymentReconciled(false);
-                }}
-                fullWidth
-              >
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton
-                onClick={handleUpdatePaymentMethod}
-                disabled={editingPaymentReconciled}
-                variant="primary"
-                fullWidth
-              >
-                {tTerm('creditDetails.modal.editMethod.save')}
-              </ActionButton>
-            </>
-          )}
-        >
-            <div className="space-y-4">
-              {editingPaymentReconciled && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                  {tTerm('creditDetails.modal.editMethod.warning')}
-                </div>
-              )}
-              <FormField label={tTerm('creditDetails.modal.editMethod.field')}>
-                <SelectInput
-                  id="credit-payment-method-select"
-                  value={newPaymentMethod}
-                  onChange={(event) => setNewPaymentMethod(event.target.value as PaymentMethod)}
-                  disabled={editingPaymentReconciled}
-                >
-                  {paymentMethodOptions.map((method) => (
-                    <option key={method.value} value={method.value}>{method.label}</option>
-                  ))}
-                </SelectInput>
-              </FormField>
-            </div>
-          </ModalShell>
-      )}
-
-      {/* Modal: Late Fee Rate */}
-      {showLateFeeModal && (
-        <ModalShell
-          title={tTerm('creditDetails.modal.lateFee.title')}
-          footer={(
-            <>
-              <ActionButton onClick={() => setShowLateFeeModal(false)} fullWidth>
-                {tTerm('common.cta.cancel')}
-              </ActionButton>
-              <ActionButton onClick={handleUpdateLateFeeRate} variant="primary" fullWidth>
-                {tTerm('creditDetails.modal.lateFee.save')}
-              </ActionButton>
-            </>
-          )}
-        >
-          <FormField label={tTerm('creditDetails.modal.lateFee.field')}>
-            <div className="relative">
-              <TextInput
-                id="credit-late-fee-rate"
-                type="number"
-                value={lateFeeRate}
-                onChange={(e) => setLateFeeRate(e.target.value)}
-                className="pr-8"
-                placeholder="0.00" min="0" max="100" step="0.01"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
-            </div>
-          </FormField>
-        </ModalShell>
-      )}
-
+      <CreditDetailsModals
+        formatCurrency={formatCurrency} paymentMethodOptions={paymentMethodOptions}
+        showStatusModal={showStatusModal} newStatus={newStatus}
+        onNewStatusChange={setNewStatus} onUpdateStatus={handleUpdateStatus}
+        onCloseStatusModal={() => setShowStatusModal(false)}
+        isRecordPaymentModalOpen={isRecordPaymentModalOpen}
+        selectedInstallmentNumber={selectedInstallmentNumber}
+        paymentAmount={paymentAmount} paymentDate={paymentDate} paymentMethod={paymentMethod}
+        installmentQuote={installmentQuote}
+        installmentQuoteFetching={installmentQuoteQuery.isFetching}
+        installmentQuoteError={installmentQuoteQuery.isError}
+        onPaymentAmountChange={setPaymentAmount} onPaymentDateChange={setPaymentDate}
+        onPaymentMethodChange={setPaymentMethod}
+        onRecordPayment={handleRecordPayment} onClosePaymentModal={operationalModal.closeModal}
+        isPromiseModalOpen={isPromiseModalOpen}
+        promiseAmount={promiseAmount} promiseDateInput={promiseDateInput} promiseNotes={promiseNotes}
+        onPromiseAmountChange={setPromiseAmount} onPromiseDateChange={setPromiseDateInput}
+        onPromiseNotesChange={setPromiseNotes}
+        onCreatePromise={handleCreatePromise} onClosePromiseModal={operationalModal.closeModal}
+        isFollowUpModalOpen={isFollowUpModalOpen}
+        followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes}
+        onCreateFollowUp={handleCreateFollowUp} onCloseFollowUpModal={operationalModal.closeModal}
+        showAnnulModal={showAnnulModal} annulInstallmentNumber={annulInstallmentNumber}
+        annulReason={annulReason} onAnnulReasonChange={setAnnulReason}
+        onAnnulInstallment={handleAnnulInstallment}
+        onCloseAnnulModal={() => { setShowAnnulModal(false); setAnnulInstallmentNumber(null); }}
+        showCapitalModal={showCapitalModal} capitalAmount={capitalAmount}
+        capitalPaymentDate={capitalPaymentDate} capitalMethod={capitalMethod}
+        capitalStrategy={capitalStrategy} capitalPreview={capitalPreview}
+        capitalPaymentGuard={capitalPaymentGuard} capitalUnavailableDescription={capitalUnavailableDescription}
+        onCapitalAmountChange={setCapitalAmount} onCapitalDateChange={setCapitalPaymentDate}
+        onCapitalMethodChange={setCapitalMethod} onCapitalStrategyChange={setCapitalStrategy}
+        onRecordCapital={handleRecordCapital} onCloseCapitalModal={() => setShowCapitalModal(false)}
+        showEditPaymentMethodModal={showEditPaymentMethodModal}
+        editingPaymentReconciled={editingPaymentReconciled}
+        newPaymentMethod={newPaymentMethod} onNewPaymentMethodChange={setNewPaymentMethod}
+        onUpdatePaymentMethod={handleUpdatePaymentMethod}
+        onCloseEditPaymentMethodModal={() => { setShowEditPaymentMethodModal(false); setEditingPaymentId(null); setEditingPaymentReconciled(false); }}
+        showLateFeeModal={showLateFeeModal} lateFeeRate={lateFeeRate}
+        onLateFeeRateChange={setLateFeeRate}
+        onUpdateLateFeeRate={handleUpdateLateFeeRate}
+        onCloseLateFeeModal={() => setShowLateFeeModal(false)}
+      />
     </div>
   );
 }

@@ -212,6 +212,9 @@ const isDatabaseAvailable = () => {
 
 // Use database-backed limiter if available, otherwise fall back to in-memory
 const createRateLimiter = (options) => {
+  if (process.env.NODE_ENV === 'test') {
+    return (_req, _res, next) => next();
+  }
   if (isDatabaseAvailable()) {
     return createSqlRateLimiter(options);
   }

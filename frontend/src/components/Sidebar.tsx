@@ -7,6 +7,7 @@ import { getDefaultRouteForUser } from '../constants/appAccess';
 import { APP_BRAND } from '../constants/appShell';
 import { useAuth } from '../services/authService';
 import { useMyPermissions } from '../services/permissionsService';
+import { PERMISSION } from '../constants/permissionNames';
 import { ClickableSurface, IconActionButton } from './shared/Surfaces';
 
 export default function Sidebar({ 
@@ -47,15 +48,15 @@ export default function Sidebar({
       .filter((permission): permission is string => typeof permission === 'string'),
   );
   const canAccess = (permission: string) => isAdmin || (isEmployee && permissionSet.has(permission));
-  const canViewDashboard = canAccess('DASHBOARD_VIEW_ALL');
-  const canViewCustomers = canAccess('CLIENTS_VIEW_ALL');
-  const canCreateCustomers = canAccess('CLIENTS_CREATE');
-  const canViewCredits = canAccess('CREDITS_VIEW_ALL');
-  const canCreateCredits = canAccess('CREDITS_CREATE') && canAccess('CREDITS_VIEW_ALL');
-  const canViewReports = canAccess('REPORTS_VIEW_ALL');
-  const canViewAssociates = canAccess('SOCIOS_VIEW_ALL');
-  const canViewPayouts = canAccess('PAYMENTS_VIEW_ALL');
-  const canViewAudit = canAccess('AUDIT_VIEW_ALL');
+  const canViewDashboard = canAccess(PERMISSION.DASHBOARD_VIEW_ALL);
+  const canViewCustomers = canAccess(PERMISSION.CLIENTS_VIEW_ALL);
+  const canCreateCustomers = canAccess(PERMISSION.CLIENTS_CREATE);
+  const canViewCredits = canAccess(PERMISSION.CREDITS_VIEW_ALL);
+  const canCreateCredits = canAccess(PERMISSION.CREDITS_CREATE) && canAccess(PERMISSION.CREDITS_VIEW_ALL);
+  const canViewReports = canAccess(PERMISSION.REPORTS_VIEW_ALL);
+  const canViewAssociates = canAccess(PERMISSION.SOCIOS_VIEW_ALL);
+  const canViewPayouts = canAccess(PERMISSION.PAYMENTS_VIEW_ALL);
+  const canViewAudit = canAccess(PERMISSION.AUDIT_VIEW_ALL);
   const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
   
   // Ocultar submenús al colapsar el sidebar en escritorio

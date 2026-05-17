@@ -7,6 +7,7 @@ import { toast } from '../lib/toast';
 import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
+import { PERMISSION } from '../constants/permissionNames';
 import TableShell from './shared/TableShell';
 import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
@@ -19,9 +20,9 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   const [dateFilter, setDateFilter] = useState('all');
   const permissionSet = new Set((user?.permissions || []).map((permission) => permission.toUpperCase()));
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
-  const canCreateCustomers = hasPermission('CLIENTS_CREATE');
-  const canUpdateCustomers = hasPermission('CLIENTS_UPDATE');
-  const canDeleteCustomers = hasPermission('CLIENTS_DELETE');
+  const canCreateCustomers = hasPermission(PERMISSION.CLIENTS_CREATE);
+  const canUpdateCustomers = hasPermission(PERMISSION.CLIENTS_UPDATE);
+  const canDeleteCustomers = hasPermission(PERMISSION.CLIENTS_DELETE);
 
   const { data, isLoading, isError, updateCustomer, deleteCustomer } = useCustomers({
     page,

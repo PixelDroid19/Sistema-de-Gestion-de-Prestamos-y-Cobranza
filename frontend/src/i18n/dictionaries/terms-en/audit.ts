@@ -1,0 +1,18 @@
+export const auditEn = {
+'audit.module.eyebrow': 'Observability',
+'audit.module.title': 'Operational audit',
+'audit.module.subtitle': 'Review who performed each action, from which IP, and which system service received the operation.',
+'audit.module.diagnostic': 'View for technical diagnostics and incident review',
+'audit.summary.aria': 'Audit summary',
+'audit.stats.totalEvents.label': 'Recorded events',
+'audit.stats.totalEvents.helper': 'Auditable history',
+'audit.stats.currentIps.label': 'IPs on this page',
+'audit.stats.currentIps.helper': 'Visible origin',
+'audit.stats.topModule.label': 'Most active service',
+'audit.stats.topModule.helper': 'Area with the most events',
+'audit.stats.topAction.label': 'Frequent action',
+'audit.stats.topAction.helper': 'Activity pattern',
+'audit.stats.empty': 'No activity',
+'audit.ipFilter.title': 'Investigating activity by IP: {ip}',
+'audit.ipFilter.description': 'The table shows actions that partially or fully match that address.',
+} as const;

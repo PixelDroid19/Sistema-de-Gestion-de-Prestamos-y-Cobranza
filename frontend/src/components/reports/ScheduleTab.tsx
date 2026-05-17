@@ -1,0 +1,204 @@
+import React from 'react';
+import { AlertCircle, CalendarClock, DollarSign, TrendingUp, Wallet } from 'lucide-react';
+import {
+  formatCurrency as formatCurrencyValue,
+  formatDate as formatDateValue,
+} from '../../i18n/format';
+import { tTerm } from '../../i18n/terminology';
+import { getChipClassName } from '../../constants/uiChips';
+import {
+  ActionButton,
+  DataTableSurface,
+  EmptyState,
+  InsightStrip,
+  SectionSurface,
+  TextInput,
+  ToolbarSurface,
+} from '../shared/Surfaces';
+
+const formatMoney = (value: unknown) => formatCurrencyValue(value);
+
+type ScheduleTabProps = {
+  selectedLoanId: number | null;
+  onLoanIdChange: (id: number | null) => void;
+  schedule: any[];
+  scheduleSummary: any;
+  scheduleLoan: any;
+  isScheduleLoading: boolean;
+  onRefetch: () => void;
+};
+
+export default function ScheduleTab({
+  selectedLoanId,
+  onLoanIdChange,
+  schedule,
+  scheduleSummary,
+  scheduleLoan,
+  isScheduleLoading,
+  onRefetch,
+}: ScheduleTabProps) {
+  return (
+    <div className="flex flex-col gap-6">
+      <ToolbarSurface className="items-stretch lg:items-end">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium">{tTerm('reports.schedule.selectTitle')}</h3>
+          <p className="mt-1 text-sm text-text-secondary">{tTerm('reports.schedule.selectSubtitle')}</p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <TextInput
+            type="number"
+            placeholder={tTerm('reports.schedule.inputPlaceholder')}
+            value={selectedLoanId || ''}
+            onChange={(e) => onLoanIdChange(e.target.value ? parseInt(e.target.value, 10) : null)}
+            className="sm:w-64"
+          />
+          <ActionButton
+            variant="primary"
+            onClick={onRefetch}
+            disabled={!selectedLoanId || isScheduleLoading}
+          >
+            {isScheduleLoading ? tTerm('reports.schedule.cta.loading') : tTerm('reports.schedule.cta.view')}
+          </ActionButton>
+        </div>
+      </ToolbarSurface>
+
+      {scheduleLoan && scheduleSummary && (
+        <>
+          <InsightStrip
+            aria-label={tTerm('reports.schedule.summary.aria')}
+            items={[
+              {
+                id: 'schedule-loan-amount',
+                label: tTerm('schedule.summary.loanAmount'),
+                value: formatMoney(scheduleLoan.amount),
+                helper: tTerm('schedule.summary.loanAmountHelper'),
+                icon: <DollarSign size={18} />,
+                accent: 'blue',
+              },
+              {
+                id: 'schedule-loan-term',
+                label: tTerm('schedule.summary.term'),
+                value: tTerm('schedule.summary.termValue', { months: scheduleLoan.termMonths }),
+                helper: tTerm('schedule.summary.termHelper'),
+                icon: <CalendarClock size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'schedule-loan-rate',
+                label: tTerm('schedule.summary.interestRate'),
+                value: `${scheduleLoan.interestRate}%`,
+                helper: tTerm('schedule.summary.interestRateHelper'),
+                icon: <TrendingUp size={18} />,
+                accent: 'amber',
+              },
+              {
+                id: 'schedule-loan-status',
+                label: tTerm('schedule.summary.status'),
+                value: <span className="capitalize">{scheduleLoan.status}</span>,
+                helper: tTerm('schedule.summary.statusHelper'),
+                icon: <AlertCircle size={18} />,
+                accent: 'slate',
+              },
+            ]}
+          />
+
+          <InsightStrip
+            aria-label={tTerm('reports.schedule.totals.aria')}
+            items={[
+              {
+                id: 'schedule-total-principal',
+                label: tTerm('schedule.stats.totalPrincipal'),
+                value: formatMoney(scheduleSummary.totalPrincipal),
+                helper: tTerm('schedule.stats.totalPrincipalHelper'),
+                icon: <DollarSign size={18} />,
+                accent: 'slate',
+              },
+              {
+                id: 'schedule-total-interest',
+                label: tTerm('schedule.stats.totalInterest'),
+                value: formatMoney(scheduleSummary.totalInterest),
+                helper: tTerm('schedule.stats.totalInterestHelper'),
+                icon: <TrendingUp size={18} />,
+                accent: 'emerald',
+              },
+              {
+                id: 'schedule-total-payment',
+                label: tTerm('schedule.stats.totalPayment'),
+                value: formatMoney(scheduleSummary.totalPayment),
+                helper: tTerm('schedule.stats.totalPaymentHelper'),
+                icon: <Wallet size={18} />,
+                accent: 'blue',
+              },
+            ]}
+          />
+
+          <SectionSurface title={tTerm('reports.schedule.progress.title')}>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="h-4 bg-bg-base rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all"
+                    style={{ width: `${(Number(scheduleSummary.paidInstallments) / Number(scheduleSummary.totalInstallments)) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <span className="text-sm text-text-secondary">
+                {tTerm('reports.schedule.progress.summary', { paid: scheduleSummary.paidInstallments, total: scheduleSummary.totalInstallments })}
+              </span>
+            </div>
+          </SectionSurface>
+
+          <DataTableSurface>
+            <div className="px-4 py-4 sm:px-5">
+              <h3 className="font-medium">{tTerm('reports.schedule.table.title')}</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr>
+                    <th>{tTerm('schedule.table.header.period')}</th>
+                    <th>{tTerm('schedule.table.header.dueDate')}</th>
+                    <th>{tTerm('schedule.table.header.openingBalance')}</th>
+                    <th>{tTerm('schedule.table.header.scheduledPayment')}</th>
+                    <th>{tTerm('schedule.table.header.principal')}</th>
+                    <th>{tTerm('schedule.table.header.interest')}</th>
+                    <th>{tTerm('schedule.table.header.remaining')}</th>
+                    <th>{tTerm('schedule.table.header.status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {schedule.map((entry: any, i: number) => (
+                    <tr key={i}>
+                      <td className="font-medium">{entry.installmentNumber || i + 1}</td>
+                      <td>{formatDateValue(entry.dueDate) || tTerm('common.notAvailable')}</td>
+                      <td>{formatMoney(entry.openingBalance)}</td>
+                      <td className="font-medium">{formatMoney(entry.scheduledPayment)}</td>
+                      <td className="text-text-secondary">{formatMoney(entry.principalComponent)}</td>
+                      <td className="text-emerald-600">{formatMoney(entry.interestComponent)}</td>
+                      <td>{formatMoney(entry.remainingBalance)}</td>
+                      <td>
+                        <span className={`px-2 py-1 rounded text-xs ${entry.status === 'paid' ? getChipClassName('success') : getChipClassName('warning')}`}>
+                          {entry.status === 'paid' ? tTerm('schedule.status.paid') : tTerm('schedule.status.pending')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </DataTableSurface>
+        </>
+      )}
+
+      {!scheduleLoan && !isScheduleLoading && (
+        <DataTableSurface>
+          <EmptyState
+            icon={<CalendarClock size={22} />}
+            title={tTerm('reports.schedule.empty.title')}
+            description={tTerm('reports.schedule.empty.description')}
+          />
+        </DataTableSurface>
+      )}
+    </div>
+  );
+}
