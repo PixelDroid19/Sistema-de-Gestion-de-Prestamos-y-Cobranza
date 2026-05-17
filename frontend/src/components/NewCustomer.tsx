@@ -228,7 +228,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
               <FormField label={tTerm('newCustomer.field.email')}>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-email" type="email" name="email" value={formData.email} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.email')} />
+                  <TextInput id="new-customer-email" type="text" inputMode="email" name="email" value={formData.email} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.email')} />
                 </div>
               </FormField>
               <FormField label={tTerm('newCustomer.field.address')} className="md:col-span-2">

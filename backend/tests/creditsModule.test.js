@@ -1031,6 +1031,30 @@ test('createCreatePromiseToPay records a pending promise with status history', a
   assert.equal(notifications[0].payload.promiseId, 4);
 });
 
+test('createCreatePromiseToPay rejects malformed promised dates', async () => {
+  const createPromiseToPay = createCreatePromiseToPay({
+    loanAccessPolicy: {
+      async findAuthorizedMutationLoan() {
+        return { id: 22, customerId: 7 };
+      },
+    },
+    promiseRepository: {
+      async create() {
+        throw new Error('Promise should not be created with an invalid date');
+      },
+    },
+    notificationPort: {
+      async sendPromiseCreated() {},
+    },
+  });
+
+  await assert.rejects(() => createPromiseToPay({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    payload: { promisedDate: '60620-02-02', amount: 300 },
+  }), ValidationError);
+});
+
 test('createListPromisesToPay expires broken pending promises before returning history', async () => {
   const listPromisesToPay = createListPromisesToPay({
     loanAccessPolicy: {

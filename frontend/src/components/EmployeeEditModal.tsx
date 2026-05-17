@@ -163,7 +163,7 @@ function ProfileTab({ employee }: { employee: Employee }) {
         <TextInput value={name} onChange={(event) => setName(event.target.value)} required />
       </FormField>
       <FormField label={t('settings.employees.modal.profile.emailLabel')}>
-        <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        <TextInput type="text" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
       </FormField>
       <div className="flex justify-end">
         <ActionButton

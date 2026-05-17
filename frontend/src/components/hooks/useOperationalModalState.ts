@@ -12,6 +12,8 @@ export type InstallmentContext = {
   installmentId?: number;
   installmentNumber?: number;
   amount?: number;
+  outstandingAmount?: number;
+  dueDate?: string;
   status?: string;
 };
 

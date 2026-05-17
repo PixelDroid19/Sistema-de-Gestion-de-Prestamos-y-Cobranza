@@ -500,6 +500,33 @@ const applyCapitalAdjustmentToSnapshot = ({ snapshot, previousSnapshot = {}, pri
   };
 };
 
+const preserveCapitalAdjustmentsInSnapshot = ({ snapshot, previousSnapshot = {}, originalPrincipal = null }) => {
+  const previousCapitalAdjustments = roundCurrency(previousSnapshot.capitalAdjustmentsApplied || 0);
+  const inferredCapitalAdjustments = Number.isFinite(Number(originalPrincipal))
+    ? roundCurrency(Math.max(0, Number(originalPrincipal) - Number(snapshot.totalPrincipal || 0)))
+    : 0;
+  const capitalAdjustmentsApplied = previousCapitalAdjustments > 0
+    ? previousCapitalAdjustments
+    : inferredCapitalAdjustments;
+  if (capitalAdjustmentsApplied <= 0) {
+    return snapshot;
+  }
+
+  const totalPaidPrincipal = roundCurrency((snapshot.totalPaidPrincipal || 0) + capitalAdjustmentsApplied);
+  const totalPaidInterest = roundCurrency(snapshot.totalPaidInterest || 0);
+  const totalPaid = roundCurrency(totalPaidPrincipal + totalPaidInterest);
+
+  return {
+    ...snapshot,
+    capitalAdjustmentsApplied,
+    totalPrincipal: roundCurrency((snapshot.totalPrincipal || 0) + capitalAdjustmentsApplied),
+    totalPaidPrincipal,
+    totalPaidInterest,
+    totalPaid,
+    totalPayable: roundCurrency(totalPaid + (snapshot.outstandingBalance || 0)),
+  };
+};
+
 const sendOptionalNotification = async (sendFn) => {
   try {
     await sendFn();
@@ -714,7 +741,11 @@ const createPaymentApplicationService = ({
         }
       }
 
-      const snapshot = buildSnapshot(schedule);
+      const snapshot = preserveCapitalAdjustmentsInSnapshot({
+        snapshot: buildSnapshot(schedule),
+        previousSnapshot: loan.financialSnapshot,
+        originalPrincipal: loan.amount,
+      });
       const unappliedOverpaymentAmount = roundCurrency(remainingOverpayment);
 
       persistLoanSnapshot({
@@ -904,12 +935,17 @@ const createPaymentApplicationService = ({
           row.paidTotal = roundCurrency((row.paidTotal || 0) + interestToApply + principalToApply);
           updateRowStatus(row, now);
 
+          remainingPayment = roundCurrency(remainingPayment - cappedAmount);
           totalInterestApplied = roundCurrency(totalInterestApplied + interestToApply);
           totalPrincipalApplied = roundCurrency(totalPrincipalApplied + principalToApply);
         }
       }
 
-      const snapshot = buildSnapshot(schedule);
+      const snapshot = preserveCapitalAdjustmentsInSnapshot({
+        snapshot: buildSnapshot(schedule),
+        previousSnapshot: loan.financialSnapshot,
+        originalPrincipal: loan.amount,
+      });
 
       persistLoanSnapshot({
         loan,
@@ -1279,7 +1315,11 @@ const createPaymentApplicationService = ({
       cancellableRow.paidTotal = 0;
       // Keep remaining amounts as-is (the debt is cancelled, not redistributed)
 
-      const snapshot = buildSnapshot(schedule);
+      const snapshot = preserveCapitalAdjustmentsInSnapshot({
+        snapshot: buildSnapshot(schedule),
+        previousSnapshot: loan.financialSnapshot,
+        originalPrincipal: loan.amount,
+      });
 
       // Check if this was the last active installment
       const hasActiveRemaining = schedule.some((row) => {

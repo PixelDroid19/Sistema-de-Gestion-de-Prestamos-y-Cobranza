@@ -33,6 +33,7 @@ export const associatesEs = {
 'newAssociate.validation.contactRequired': 'El correo y el teléfono son requeridos',
 'newAssociate.validation.rateRange': 'La tasa del socio debe estar entre 0% y 100%.',
 'newAssociate.validation.dayRange': 'El día de pago debe estar entre 1 y 28.',
+'newAssociate.validation.startDate': 'La fecha inicial debe ser una fecha válida.',
 'newAssociate.field.name': 'Nombre completo *',
 'newAssociate.field.email': 'Correo electrónico',
 'newAssociate.field.phone': 'Teléfono',

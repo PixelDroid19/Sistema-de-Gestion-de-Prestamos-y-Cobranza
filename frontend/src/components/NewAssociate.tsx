@@ -63,6 +63,19 @@ const MONTH_TERM_KEYS = [
   'common.month.12',
 ] as const;
 
+const isValidDateOnly = (value: string) => {
+  if (!value.trim()) return true;
+  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value.trim());
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+};
+
 export default function NewAssociate({ onBack }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
   const associateId = Number(id);
@@ -137,6 +150,11 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       return;
     }
 
+    if (!isValidDateOnly(formData.interestStartDate)) {
+      toast.error({ title: tTerm('newAssociate.validation.startDate') });
+      return;
+    }
+
     await run(formData);
   };
 
@@ -194,7 +212,8 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           <FormField label={tTerm('newAssociate.field.email')}>
             <TextInput
               id="new-associate-email"
-              type="email"
+              type="text"
+              inputMode="email"
               required
               value={formData.email}
               onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}

@@ -121,12 +121,25 @@ const normalizeOptionalDateOnly = (value, fieldName) => {
     return null;
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    throw new ValidationError(`${fieldName} must be a valid date`);
+  const normalizedValue = String(value).trim();
+  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(normalizedValue);
+  if (!match) {
+    throw new ValidationError(`${fieldName} must be a valid YYYY-MM-DD date`);
   }
 
-  return date.toISOString().slice(0, 10);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    throw new ValidationError(`${fieldName} must be a valid YYYY-MM-DD date`);
+  }
+
+  return normalizedValue;
 };
 
 const normalizeAssociatePayload = (payload) => {

@@ -168,6 +168,10 @@ export default function AssociateDetails() {
   };
 
   const handlePayInstallment = async (installmentNumber: number) => {
+    if (payInstallment.isPending) {
+      return;
+    }
+
     try {
       await payInstallment.mutateAsync(installmentNumber);
       toast.success({ title: tTerm('associateDetails.toast.installmentPaid') });
@@ -248,7 +252,7 @@ export default function AssociateDetails() {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {paymentHistory.map((entry: any) => (
-                <tr key={entry.id} className="hover:bg-hover-bg transition-colors">
+                <tr key={`associate-payment-history-${entry.id}-${entry.installmentNumber}`} className="hover:bg-hover-bg transition-colors">
                   <td className="font-medium">{entry.installmentNumber}</td>
                   <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
                   <td>{formatAssociateDate(entry.dueDate)}</td>
@@ -335,7 +339,7 @@ export default function AssociateDetails() {
                 const status = getInstallmentStatusPresentation(inst);
 
                 return (
-                <tr key={inst.id} className="hover:bg-hover-bg transition-colors">
+                <tr key={`associate-installment-${inst.id}-${inst.installmentNumber}`} className="hover:bg-hover-bg transition-colors">
                   <td className="font-medium">{inst.installmentNumber}</td>
                   <td className="font-medium">{formatAssociateCurrency(inst.amount)}</td>
                   <td>{formatAssociateDate(inst.dueDate)}</td>
@@ -348,6 +352,8 @@ export default function AssociateDetails() {
                     {isAdmin && inst.status === 'pending' && (
                       <ActionButton
                         onClick={() => handlePayInstallment(inst.installmentNumber)}
+                        disabled={payInstallment.isPending}
+                        isLoading={payInstallment.isPending}
                         icon={<CheckCircle size={14} />}
                         className="min-h-8 px-2.5 py-1.5 text-xs"
                       >
@@ -433,7 +439,7 @@ export default function AssociateDetails() {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {calendarData.events.map((event: any) => (
-                <tr key={event.id ?? `${event.type}-${event.date}-${event.displayAmount}-${event.notes ?? ''}`} className="hover:bg-hover-bg transition-colors">
+                <tr key={`${event.type}-${event.id ?? 'no-id'}-${event.date}-${event.displayAmount ?? event.amount}-${event.notes ?? ''}`} className="hover:bg-hover-bg transition-colors">
                   <td>{formatAssociateDate(event.date)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${

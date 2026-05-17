@@ -151,7 +151,19 @@ const associateRepository = {
   createContribution(payload, { transaction } = {}) {
     return AssociateContribution.create(payload, { transaction });
   },
-  createInstallment(payload, { transaction } = {}) {
+  async createInstallment(payload, { transaction } = {}) {
+    const existingInstallment = await AssociateInstallment.findOne({
+      where: {
+        associateId: payload.associateId,
+        installmentNumber: payload.installmentNumber,
+      },
+      transaction,
+    });
+
+    if (existingInstallment) {
+      return existingInstallment;
+    }
+
     return AssociateInstallment.create(payload, { transaction });
   },
   listActiveAssociatesWithParticipation({ transaction } = {}) {

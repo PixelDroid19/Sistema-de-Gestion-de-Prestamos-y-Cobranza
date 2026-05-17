@@ -174,6 +174,69 @@ test('applyPayment prioritizes overdue debt before current installments and send
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 220);
 });
 
+test('applyPartialPayment allocates the submitted amount only once across open installments', async () => {
+  let savedLoan;
+  let savedPayment;
+
+  const loan = {
+    id: 2201,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 2,
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-06-15T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 120,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-07-15T00:00:00.000Z',
+        remainingPrincipal: 120,
+        remainingInterest: 12,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        scheduledPayment: 132,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-partial-once' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 778, ...payload };
+  });
+
+  const result = await createPaymentApplicationService({ loanViewService }).applyPartialPayment({
+    loanId: 2201,
+    amount: 50,
+    paymentDate: '2026-05-17T00:00:00.000Z',
+    paymentMethod: 'cash',
+  });
+
+  assert.equal(result.allocation.interestApplied, 20);
+  assert.equal(result.allocation.principalApplied, 30);
+  assert.equal(savedPayment.amount, 50);
+  assert.equal(savedPayment.interestApplied + savedPayment.principalApplied, 50);
+  assert.equal(savedLoan.emiSchedule[0].paidTotal, 50);
+  assert.equal(savedLoan.emiSchedule[1].paidTotal, 0);
+});
+
 test('applyCapitalPayment reduce_term rebuilds the open schedule without marking future installments as paid', async () => {
   let savedLoan;
   let savedPayment;
@@ -242,6 +305,100 @@ test('applyCapitalPayment reduce_term rebuilds the open schedule without marking
   assert.equal(savedPayment.paymentMetadata.strategyApplied, 'reduce_term');
   assert.equal(savedPayment.paymentMetadata.before.outstandingPrincipal, startingSnapshot.outstandingPrincipal);
   assert.equal(savedPayment.paymentMetadata.after.outstandingPrincipal, savedLoan.financialSnapshot.outstandingPrincipal);
+});
+
+test('loan view snapshot keeps completed capital payments in collected totals after later payments', async () => {
+  let savedLoan;
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+
+  const loan = {
+    id: 3301,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      savedLoan = this;
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-read-model' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 890, ...payload }));
+
+  const service = createPaymentApplicationService({ loanViewService });
+
+  await service.applyCapitalPayment({
+    loanId: 3301,
+    amount: 300,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_term',
+  });
+
+  const { snapshot } = loanViewService.getCanonicalLoanView(savedLoan);
+  assert.equal(snapshot.capitalAdjustmentsApplied, 300);
+  assert.equal(snapshot.totalPrincipal, 1000);
+  assert.equal(snapshot.totalPaidPrincipal, roundCurrency(schedule[0].principalComponent + 300));
+  assert.equal(snapshot.totalPaid, roundCurrency(schedule[0].scheduledPayment + 300));
+
+  const staleSnapshotLoan = {
+    ...savedLoan,
+    financialSnapshot: summarizeSchedule(savedLoan.emiSchedule),
+  };
+  const { snapshot: inferredSnapshot } = loanViewService.getCanonicalLoanView(staleSnapshotLoan);
+  assert.equal(inferredSnapshot.capitalAdjustmentsApplied, 300);
+  assert.equal(inferredSnapshot.totalPaid, roundCurrency(schedule[0].scheduledPayment + 300));
+
+  const nextOpenInstallment = savedLoan.emiSchedule.find((row) => row.status === 'pending');
+  await service.applyPayment({
+    loanId: 3301,
+    amount: nextOpenInstallment.scheduledPayment,
+    paymentDate: '2026-06-15T00:00:00.000Z',
+    paymentMethod: 'cash',
+  });
+
+  const { snapshot: snapshotAfterPayment } = loanViewService.getCanonicalLoanView(savedLoan);
+  assert.equal(snapshotAfterPayment.capitalAdjustmentsApplied, 300);
+  assert.equal(snapshotAfterPayment.totalPaid, roundCurrency(schedule[0].scheduledPayment + nextOpenInstallment.scheduledPayment + 300));
+
+  const nextCancellableInstallment = savedLoan.emiSchedule.find((row) => row.status === 'pending');
+  await service.annulInstallment({
+    loanId: 3301,
+    actor: { id: 1, role: 'admin' },
+    installmentNumber: nextCancellableInstallment.installmentNumber,
+    paymentDate: '2026-07-15T00:00:00.000Z',
+  });
+
+  const { snapshot: snapshotAfterAnnulment } = loanViewService.getCanonicalLoanView(savedLoan);
+  assert.equal(snapshotAfterAnnulment.capitalAdjustmentsApplied, 300);
+  assert.equal(
+    snapshotAfterAnnulment.totalPaid,
+    roundCurrency(schedule[0].scheduledPayment + nextOpenInstallment.scheduledPayment + 300),
+  );
+  assert.ok(snapshotAfterAnnulment.totalPrincipal <= loan.amount);
 });
 
 test('applyCapitalPayment reduce_payment preserves pending installment count and lowers the next payment', async () => {

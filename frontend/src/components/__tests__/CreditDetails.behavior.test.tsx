@@ -21,8 +21,10 @@ let mockCalendarEntries: Array<{
   scheduledPayment: number;
   remainingInterest: number;
   status: string;
+  dueDate?: string;
+  outstandingAmount?: number;
 }> = [
-  { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+  { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
 ];
 let mockAlerts: any[] = [];
 let mockPromises: any[] = [];
@@ -198,7 +200,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
     mockLoan = buildMockLoan();
     mockPayoffQuote = null;
     mockCalendarEntries = [
-      { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending' },
+      { installmentNumber: 1, scheduledPayment: 250000, remainingInterest: 50000, status: 'pending', dueDate: '2026-03-25', outstandingAmount: 250000 },
     ];
     mockAlerts = [];
     mockPromises = [];
@@ -335,10 +337,27 @@ describe('CreditDetails behavioral parity scenarios', () => {
         expect.objectContaining({
           installmentNumber: 1,
           notes: 'Llamar y confirmar nuevo compromiso',
+          dueDate: '2026-03-25',
+          scheduledAmount: 250000,
+          outstandingAmount: 250000,
         }),
       );
       expect(mockInvalidateAfterPromiseOrFollowUp).toHaveBeenCalled();
     });
+  });
+
+  it('blocks malformed promise dates before creating the promise', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByTitle('Crear compromiso de pago'));
+    fireEvent.change(screen.getByLabelText('Fecha comprometida'), { target: { value: '60620-02-02' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar compromiso' }));
+
+    expect(mockCreatePromise).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Ingrese una fecha comprometida válida.' }),
+    );
   });
 
   it('hides backend business-rule details when annulling installment fails', async () => {

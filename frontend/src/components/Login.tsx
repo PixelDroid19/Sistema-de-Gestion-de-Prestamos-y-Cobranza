@@ -39,7 +39,6 @@ export default function Login() {
       const nextRoute = from || (authenticatedUser ? getDefaultRouteForUser(authenticatedUser) : '/dashboard');
       navigate(nextRoute, { replace: true });
     } catch (err: any) {
-      console.error('[auth] login failed', err);
       setError(getSafeErrorText(err, { domain: 'auth', action: 'login' }));
       if (extractStatusCode(err) !== 401) {
         toast.apiErrorSafe(err, { domain: 'auth', action: 'login' });
@@ -129,7 +128,8 @@ export default function Login() {
                 <TextInput
                   id="email"
                   name="email"
-                  type="email"
+                  type="text"
+                  inputMode="email"
                   autoComplete="email"
                   required
                   disabled={isLoading}

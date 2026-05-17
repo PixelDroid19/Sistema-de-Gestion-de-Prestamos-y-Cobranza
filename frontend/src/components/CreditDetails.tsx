@@ -318,6 +318,7 @@ export default function CreditDetails() {
         openingBalance: ob, closingBalance: cb,
         outstandingAmount: inst.outstandingAmount, payableAmount: inst.payableAmount,
         lateFeeDue: inst.lateFeeDue, daysOverdue: inst.daysOverdue,
+        dueDate: inst.dueDate,
         canPay: inst.canPay, disabledReason: inst.disabledReason, status: inst.status,
       });
       return rows;
@@ -429,6 +430,12 @@ export default function CreditDetails() {
     const inst = operationalModal.payload?.installment;
     if (!inst?.installmentNumber) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
     if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(promiseDateInput)) { toast.error({ title: tTerm('creditDetails.error.promiseDate') }); return; }
+    const parsedPromiseDate = new Date(`${promiseDateInput}T00:00:00.000Z`);
+    if (Number.isNaN(parsedPromiseDate.getTime()) || parsedPromiseDate.toISOString().slice(0, 10) !== promiseDateInput) {
+      toast.error({ title: tTerm('creditDetails.error.promiseDate') });
+      return;
+    }
     await executeGuardedAction({
       action: 'installment.promise',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
@@ -445,7 +452,15 @@ export default function CreditDetails() {
     await executeGuardedAction({
       action: 'installment.followUp',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
-      run: async () => { await createFollowUp.mutateAsync({ notes: followUpNotes, installmentNumber: inst.installmentNumber }); },
+      run: async () => {
+        await createFollowUp.mutateAsync({
+          notes: followUpNotes,
+          installmentNumber: inst.installmentNumber,
+          dueDate: inst.dueDate,
+          scheduledAmount: inst.amount,
+          outstandingAmount: inst.outstandingAmount ?? inst.amount,
+        });
+      },
       onSuccess: async () => { operationalModal.closeModal(); setFollowUpNotes(''); await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); },
       successMessage: tTerm('creditDetails.toast.followUpSuccess'),
     });
@@ -470,7 +485,7 @@ export default function CreditDetails() {
     if (!Number.isFinite(promiseId)) { toast.error({ title: tTerm('creditDetails.error.promiseId') }); return; }
     const confirmed = await confirmDanger({ title: tTerm('creditDetails.confirm.promise.title'), message: tTerm('creditDetails.confirm.promise.message', { status: formatOperationalStatus(status) }), confirmLabel: tTerm('creditDetails.confirm.promise.confirm') });
     if (!confirmed) return;
-    await updatePromiseStatus.mutateAsync({ promiseId, status, notes: `Actualizado a ${formatPromiseStatus(status)} desde detalle de crédito.` });
+    await updatePromiseStatus.mutateAsync({ promiseId, status });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
     toast.success({ title: tTerm('creditDetails.toast.promiseUpdated') });
   };
@@ -534,7 +549,17 @@ export default function CreditDetails() {
   const openFollowUpFromInstallment = (row: any) => {
     const n = Number(row?.installmentNumber);
     if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.followUpInstallment') }); return; }
-    operationalModal.openModal('create-follow-up', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.scheduledPayment, status: row.status } });
+    operationalModal.openModal('create-follow-up', {
+      loanId,
+      installment: {
+        installmentId: n,
+        installmentNumber: n,
+        amount: row.scheduledPayment,
+        outstandingAmount: row.payableAmount ?? row.outstandingAmount ?? row.scheduledPayment,
+        dueDate: row.dueDate,
+        status: row.status,
+      },
+    });
   };
 
   const openAnnulModal = (installmentNumber: number) => { setAnnulInstallmentNumber(installmentNumber); setShowAnnulModal(true); };
@@ -632,7 +657,7 @@ export default function CreditDetails() {
         onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
       />
 
-      <CreditSummaryMetrics loan={loan} paymentSnapshot={paymentSnapshot} formatCurrency={formatCurrency} formatMetricCurrency={formatMetricCurrency} />
+      <CreditSummaryMetrics loan={loan} paymentSnapshot={calendarSnapshot ?? paymentSnapshot} formatCurrency={formatCurrency} formatMetricCurrency={formatMetricCurrency} />
 
       <section className="min-w-0">
         <CreditDetailsTabs

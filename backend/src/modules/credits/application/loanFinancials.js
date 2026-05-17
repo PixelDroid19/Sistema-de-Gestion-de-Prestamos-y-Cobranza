@@ -176,12 +176,30 @@ const getCanonicalLoanView = (loan) => {
       startDate: resolveLoanStartDateValue(loan) || new Date(),
     });
 
-  const snapshot = loan.financialSnapshot && Object.keys(loan.financialSnapshot).length > 0
-    ? {
-      ...loan.financialSnapshot,
-      ...buildFinancialSnapshot(existingSchedule),
-    }
-    : buildFinancialSnapshot(existingSchedule);
+  const rebuiltSnapshot = buildFinancialSnapshot(existingSchedule);
+  const existingSnapshot = loan.financialSnapshot && Object.keys(loan.financialSnapshot).length > 0
+    ? loan.financialSnapshot
+    : {};
+  const inferredCapitalAdjustments = roundCurrency(Math.max(
+    0,
+    Number(loan.amount || 0) - Number(rebuiltSnapshot.totalPrincipal || 0)
+  ));
+  const existingCapitalAdjustments = roundCurrency(existingSnapshot.capitalAdjustmentsApplied || 0);
+  const capitalAdjustmentsApplied = existingCapitalAdjustments > 0
+    ? existingCapitalAdjustments
+    : inferredCapitalAdjustments;
+  const snapshot = {
+    ...existingSnapshot,
+    ...rebuiltSnapshot,
+  };
+
+  if (capitalAdjustmentsApplied > 0) {
+    snapshot.capitalAdjustmentsApplied = capitalAdjustmentsApplied;
+    snapshot.totalPrincipal = roundCurrency((rebuiltSnapshot.totalPrincipal || 0) + capitalAdjustmentsApplied);
+    snapshot.totalPaidPrincipal = roundCurrency((rebuiltSnapshot.totalPaidPrincipal || 0) + capitalAdjustmentsApplied);
+    snapshot.totalPaid = roundCurrency((snapshot.totalPaidPrincipal || 0) + (snapshot.totalPaidInterest || 0));
+    snapshot.totalPayable = roundCurrency((snapshot.totalPaid || 0) + (snapshot.outstandingBalance || 0));
+  }
 
   return {
     schedule: existingSchedule,

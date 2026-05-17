@@ -1249,11 +1249,16 @@ const createCreatePromiseToPay = ({ promiseRepository, loanAccessPolicy, notific
     }
 
     const loan = await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId });
+    const promisedDateInput = typeof payload.promisedDate === 'string' ? payload.promisedDate.trim() : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(promisedDateInput)) {
+      throw new ValidationError('Promised date must be a valid YYYY-MM-DD date');
+    }
+
     let promisedDate;
     try {
-      promisedDate = normalizeUtcDateOnly(payload.promisedDate, 'Promised date');
+      promisedDate = normalizeUtcDateOnly(promisedDateInput, 'Promised date');
     } catch {
-      throw new ValidationError('Promised date is required');
+      throw new ValidationError('Promised date must be a valid YYYY-MM-DD date');
     }
 
     const amount = Number(payload.amount);

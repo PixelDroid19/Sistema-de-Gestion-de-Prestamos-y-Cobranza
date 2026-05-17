@@ -115,7 +115,8 @@ export default function Profile() {
             <FormField label="Correo electrónico">
               <TextInput
                 id="profile-email"
-                type="email"
+                type="text"
+                inputMode="email"
                 required
                 value={formData.email}
                 onChange={e => setFormData((prev) => ({ ...prev, email: e.target.value }))}

@@ -174,8 +174,8 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
                     dataKey="count"
                     nameKey="status"
                   >
-                    {statusData.map((_entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {statusData.map((entry: any, index: number) => (
+                      <Cell key={`portfolio-cell-${entry.status ?? 'unknown'}-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -188,7 +188,7 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
           </div>
           <div className="flex flex-col gap-3 mt-4">
             {statusData.map((item: any, index: number) => (
-              <div key={index} className="flex items-center justify-between text-sm">
+              <div key={`portfolio-status-${item.status ?? 'unknown'}-${index}`} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                   <span className="text-text-secondary capitalize">{item.status}</span>

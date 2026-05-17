@@ -4,6 +4,17 @@ import { ActionButton } from '../shared/Surfaces';
 import { TabEmptyState } from './CreditDetailsTabs';
 import { formatOperationalStatus, stableCreditKey } from './creditDetailsHelpers';
 
+/** Retorna solo las líneas de texto ingresadas por el usuario, filtrando las de auditoría interna. */
+const extractUserNotes = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+  const cleaned = raw
+    .split('\n')
+    .filter(line => !/^\[\d{4}-\d{2}-\d{2}T/.test(line.trim()))
+    .join('\n')
+    .trim();
+  return cleaned || null;
+};
+
 type PromisesTabProps = {
   promiseEntries: any[];
   formatCurrency: (value: unknown) => string;
@@ -41,6 +52,7 @@ export function PromisesTab({
         const isKept = promise.status === 'kept';
         const isBroken = promise.status === 'broken';
         const isPending = promise.status === 'pending';
+        const userNotes = extractUserNotes(promise.notes);
 
         return (
           <div key={stableCreditKey('promise', promise.id, promiseDate(promise), promise.createdAt, promise.amount)} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
@@ -64,9 +76,9 @@ export function PromisesTab({
               <span>{tTerm('creditDetails.promises.forDate', { date: formatDate(promiseDate(promise)) })}</span>
             </p>
 
-            {promise.notes && (
-              <div className="text-sm text-text-secondary bg-bg-base p-3 rounded-lg mb-4">
-                {promise.notes}
+            {userNotes && (
+              <div className="text-sm text-text-secondary bg-bg-base p-3 rounded-lg mb-4 whitespace-pre-wrap">
+                {userNotes}
               </div>
             )}
 

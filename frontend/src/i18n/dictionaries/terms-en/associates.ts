@@ -31,6 +31,7 @@ export const associatesEn = {
 'newAssociate.validation.contactRequired': 'Email and phone are required',
 'newAssociate.validation.rateRange': 'The associate rate must be between 0% and 100%.',
 'newAssociate.validation.dayRange': 'The payment day must be between 1 and 28.',
+'newAssociate.validation.startDate': 'The initial date must be valid.',
 'newAssociate.field.name': 'Full name *',
 'newAssociate.field.email': 'Email address',
 'newAssociate.field.phone': 'Phone',

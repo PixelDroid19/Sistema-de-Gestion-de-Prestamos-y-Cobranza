@@ -279,6 +279,7 @@ export const creditsEn = {
 'creditDetails.error.installmentSelection': 'The selected installment could not be resolved. Retry from the corresponding row.',
 'creditDetails.error.annulSelection': 'Select an installment to void',
 'creditDetails.error.promiseInstallment': 'The installment for the promise could not be resolved.',
+'creditDetails.error.promiseDate': 'Enter a valid promised date.',
 'creditDetails.error.followUpInstallment': 'The installment for the follow-up could not be resolved.',
 'creditDetails.error.followUpNote': 'Enter a follow-up note.',
 'creditDetails.error.alertId': 'The alert could not be identified.',

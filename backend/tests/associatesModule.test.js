@@ -303,6 +303,22 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     assert.equal(error.message, 'interestType must be monthly or annual');
     return true;
   });
+
+  await assert.rejects(() => createAssociate({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Bad Date',
+      email: 'bad.date@example.com',
+      phone: '+573001112247',
+      interestType: 'monthly',
+      interestRate: 2,
+      interestStartDate: '60517-02-14',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'interestStartDate must be a valid YYYY-MM-DD date');
+    return true;
+  });
 });
 
 test('createCreateAssociate rejects duplicate contact details through the repository port', async () => {

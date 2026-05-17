@@ -167,7 +167,8 @@ export default function EmployeesTab() {
             <TextInput
               aria-label={t('settings.employees.create.emailLabel')}
               required
-              type="email"
+              type="text"
+              inputMode="email"
               value={employeeDraft.email}
               onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
               placeholder={t('settings.employees.create.emailPlaceholder')}

@@ -341,7 +341,7 @@ export default function Reports() {
               </thead>
               <tbody>
                 {overdueLoans.map((item: any, i: number) => (
-                  <tr key={i}>
+                  <tr key={`overdue-${item.loanId ?? item.customerId ?? 'row'}-${item.daysOverdue ?? 'days'}-${i}`}>
                     <td className="font-medium">{item.customerName || tTerm('credits.label.customerFallback', { id: item.customerId })}</td>
                     <td className="font-medium text-amber-600">{tTerm('credits.agenda.daysOverdue', { count: item.daysOverdue })}</td>
                     <td className="font-bold text-amber-600">{formatMoney(item.overdueAmount)}</td>

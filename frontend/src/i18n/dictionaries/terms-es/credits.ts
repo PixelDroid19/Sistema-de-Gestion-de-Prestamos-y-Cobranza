@@ -281,6 +281,7 @@ export const creditsEs = {
 'creditDetails.error.installmentSelection': 'No se pudo resolver la cuota seleccionada. Reintente desde la fila correspondiente.',
 'creditDetails.error.annulSelection': 'Seleccione una cuota para anular',
 'creditDetails.error.promiseInstallment': 'No se pudo resolver la cuota para la promesa.',
+'creditDetails.error.promiseDate': 'Ingrese una fecha comprometida válida.',
 'creditDetails.error.followUpInstallment': 'No se pudo resolver la cuota para seguimiento.',
 'creditDetails.error.followUpNote': 'Ingrese una nota de seguimiento.',
 'creditDetails.error.alertId': 'No se pudo identificar la alerta.',

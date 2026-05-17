@@ -156,7 +156,7 @@ export default function PayoutsTab({
                 </tr>
               ) : (
                 payouts.map((payout: any, i: number) => (
-                  <tr key={i}>
+                  <tr key={`report-payout-${payout.id ?? 'no-id'}-${payout.loanId ?? 'loan'}-${payout.paymentDate ?? i}`}>
                     <td className="font-mono text-text-secondary">#{payout.id}</td>
                     <td className="font-mono text-blue-600 dark:text-blue-400">#{payout.loanId}</td>
                     <td>{formatDateValue(payout.paymentDate) || tTerm('common.notAvailable')}</td>
