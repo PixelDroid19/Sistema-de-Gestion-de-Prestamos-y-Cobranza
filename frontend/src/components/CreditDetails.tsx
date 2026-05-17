@@ -39,30 +39,25 @@ type PayoffDenialReason = string | {
   message?: string;
 };
 
-const PAYOFF_DENIAL_MESSAGES: Record<string, string> = {
-  LOAN_ALREADY_PAID: 'Este crédito ya no tiene saldo pendiente para liquidar.',
-  NO_OUTSTANDING_BALANCE: 'Este crédito ya no tiene saldo pendiente para liquidar.',
-  LOAN_NOT_PAYABLE_STATUS: 'El estado actual del crédito no permite pago total.',
-  PAYOFF_BEFORE_LOAN_START: 'El pago total solo puede ejecutarse desde la fecha de inicio del crédito.',
-  OVERDUE_UNPAID_INSTALLMENTS: 'Regulariza las cuotas vencidas antes de ejecutar el pago total.',
-  FINANCIAL_BLOCK: 'Este crédito tiene un bloqueo financiero activo.',
-};
-
-const CAPITAL_PAYMENT_DENIAL_MESSAGES: Record<string, string> = {
-  FIRST_INSTALLMENT_PAYMENT_REQUIRED: 'Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.',
-  NO_OUTSTANDING_BALANCE: 'Este crédito no tiene capital vivo disponible para abonar.',
-  LOAN_NOT_PAYABLE_STATUS: 'El estado actual del crédito no permite abonos a capital.',
-  OVERDUE_UNPAID_INSTALLMENTS: 'Regulariza las cuotas vencidas antes de abonar a capital.',
-  FINANCIAL_BLOCK: 'Este crédito tiene un bloqueo financiero activo.',
-  PARTIAL_INSTALLMENT_PENDING: 'Completa la cuota parcial pendiente antes de abonar a capital.',
-  DUE_INTEREST_PENDING: 'Primero paga el interés exigible de la cuota pendiente.',
-};
-
 const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
   if (!reason) return '';
   if (typeof reason === 'string') return reason;
-  if (reason.code && PAYOFF_DENIAL_MESSAGES[reason.code]) {
-    return PAYOFF_DENIAL_MESSAGES[reason.code];
+  if (reason.code) {
+    switch (reason.code) {
+      case 'LOAN_ALREADY_PAID':
+      case 'NO_OUTSTANDING_BALANCE':
+        return tTerm('creditDetails.payoff.denial.noOutstandingBalance');
+      case 'LOAN_NOT_PAYABLE_STATUS':
+        return tTerm('creditDetails.payoff.denial.invalidStatus');
+      case 'PAYOFF_BEFORE_LOAN_START':
+        return tTerm('creditDetails.payoff.denial.beforeLoanStart');
+      case 'OVERDUE_UNPAID_INSTALLMENTS':
+        return tTerm('creditDetails.payoff.denial.overdueInstallments');
+      case 'FINANCIAL_BLOCK':
+        return tTerm('creditDetails.payoff.denial.financialBlock');
+      default:
+        break;
+    }
   }
   return reason.message || '';
 };
@@ -70,8 +65,25 @@ const formatPayoffDenialReason = (reason: PayoffDenialReason | null) => {
 const formatCapitalPaymentDenialReason = (reason: PayoffDenialReason | null) => {
   if (!reason) return '';
   if (typeof reason === 'string') return reason;
-  if (reason.code && CAPITAL_PAYMENT_DENIAL_MESSAGES[reason.code]) {
-    return CAPITAL_PAYMENT_DENIAL_MESSAGES[reason.code];
+  if (reason.code) {
+    switch (reason.code) {
+      case 'FIRST_INSTALLMENT_PAYMENT_REQUIRED':
+        return tTerm('creditDetails.capital.denial.firstInstallmentRequired');
+      case 'NO_OUTSTANDING_BALANCE':
+        return tTerm('creditDetails.capital.denial.noOutstandingBalance');
+      case 'LOAN_NOT_PAYABLE_STATUS':
+        return tTerm('creditDetails.capital.denial.invalidStatus');
+      case 'OVERDUE_UNPAID_INSTALLMENTS':
+        return tTerm('creditDetails.capital.denial.overdueInstallments');
+      case 'FINANCIAL_BLOCK':
+        return tTerm('creditDetails.capital.denial.financialBlock');
+      case 'PARTIAL_INSTALLMENT_PENDING':
+        return tTerm('creditDetails.capital.denial.partialInstallmentPending');
+      case 'DUE_INTEREST_PENDING':
+        return tTerm('creditDetails.capital.denial.dueInterestPending');
+      default:
+        break;
+    }
   }
   return reason.message || '';
 };
@@ -171,10 +183,10 @@ export default function CreditDetails() {
   const { history, isLoading: isLoadingHistory } = useCreditReports(loanId);
 
   const formatDate = (value: unknown, withTime = false) => {
-    if (!value) return 'Sin fecha';
+    if (!value) return tTerm('creditDetails.label.noDate');
     return (withTime
       ? formatDateTimeValue(value, { dateStyle: 'medium', timeStyle: 'short' })
-      : formatDateValue(value, { dateStyle: 'medium', timeZone: 'UTC' })) || 'Sin fecha';
+      : formatDateValue(value, { dateStyle: 'medium', timeZone: 'UTC' })) || tTerm('creditDetails.label.noDate');
   };
 
   const formatCurrency = (value: unknown) => {
@@ -205,18 +217,18 @@ export default function CreditDetails() {
     const status = String(alert?.status || '').toLowerCase();
     const isResolved = status === 'resolved';
     const installmentLabel = alert?.installmentNumber != null
-      ? `Cuota n.º ${alert.installmentNumber}`
-      : 'Cuota sin número';
+      ? tTerm('creditDetails.alerts.installmentNumber', { number: alert.installmentNumber })
+      : tTerm('creditDetails.alerts.installmentMissing');
     const outstandingAmount = Number(alert?.outstandingAmount ?? alert?.amount ?? 0);
     const balanceLabel = Number.isFinite(outstandingAmount) && Math.abs(outstandingAmount) > 0.005
-      ? `Saldo ${formatCurrency(outstandingAmount)}`
-      : 'Sin saldo pendiente';
+      ? `${tTerm('creditDetails.alerts.label.balance')} ${formatCurrency(outstandingAmount)}`
+      : tTerm('creditDetails.alerts.balanceNone');
     const cleanMessage = cleanAlertDisplayText(alert?.message);
     const cleanNotes = cleanAlertDisplayText(alert?.notes);
 
     return {
       typeLabel: formatLoanAlertTypeLabel(alert?.alertType || alert?.type),
-      statusLabel: isResolved ? 'Resuelta' : 'Activa',
+      statusLabel: formatOperationalStatus(status),
       statusClassName: isResolved
         ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
         : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300',
@@ -233,14 +245,14 @@ export default function CreditDetails() {
   const formatOperationalStatus = (status: unknown) => {
     const normalizedStatus = String(status || '').toLowerCase();
     const labels: Record<string, string> = {
-      active: 'Activa',
-      resolved: 'Resuelta',
-      pending: 'Pendiente',
-      completed: 'Completado',
-      failed: 'Fallido',
-      kept: 'Cumplida',
-      broken: 'Incumplida',
-      cancelled: 'Cancelada',
+      active: tTerm('creditDetails.status.active'),
+      resolved: tTerm('creditDetails.status.resolved'),
+      pending: tTerm('creditDetails.status.pending'),
+      completed: tTerm('creditDetails.status.completed'),
+      failed: tTerm('creditDetails.status.failed'),
+      kept: tTerm('creditDetails.status.kept'),
+      broken: tTerm('creditDetails.status.broken'),
+      cancelled: tTerm('creditDetails.status.cancelled'),
     };
 
     return labels[normalizedStatus] || String(status || '');
@@ -249,30 +261,30 @@ export default function CreditDetails() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'active':
-        return { label: 'Activo', className: 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-100 dark:border-blue-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.active'), className: 'bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-100 dark:border-blue-500/30' };
       case 'approved':
-        return { label: 'Aprobado', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.approved'), className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' };
       case 'overdue':
-        return { label: 'Vencido', className: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.overdue'), className: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30' };
       case 'paid':
-        return { label: 'Pagado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.paid'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'completed':
       case 'closed':
-        return { label: 'Completado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.completed'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'defaulted':
-        return { label: 'En mora', className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200 dark:border-red-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.defaulted'), className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200 dark:border-red-500/30' };
       case 'cancelled':
-        return { label: 'Cancelado', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.cancelled'), className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30' };
       case 'pending':
         return {
-          label: 'Pendiente',
+          label: tTerm('creditDetails.loanStatus.pending'),
           className:
             'bg-amber-200/95 text-amber-950 border border-amber-500/45 dark:bg-amber-500/20 dark:text-amber-100 dark:border-amber-400/35',
         };
       case 'rejected':
-        return { label: 'Rechazado', className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
+        return { label: tTerm('creditDetails.loanStatus.rejected'), className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
       default:
-        return { label: status || 'Sin estado', className: 'bg-gray-100 text-gray-700 border border-gray-200' };
+        return { label: status || tTerm('creditDetails.loanStatus.missing'), className: 'bg-gray-100 text-gray-700 border border-gray-200' };
     }
   };
 
@@ -303,7 +315,7 @@ export default function CreditDetails() {
     loanStatus: loan?.status,
   });
   const capitalUnavailableDescription = formatCapitalPaymentDenialReason(primaryCapitalDenialReason)
-    || 'Primero debe existir al menos la primera cuota pagada para abonar a capital.';
+    || tTerm('creditDetails.capital.unavailable.firstInstallment');
   const capitalPaymentGuard = {
     ...baseCapitalPaymentGuard,
     executable: Boolean(baseCapitalPaymentGuard.executable && capitalEligibility?.allowed !== false),
@@ -323,8 +335,8 @@ export default function CreditDetails() {
   });
   const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
   const creditDetailSubtitle = isBackofficeUser
-    ? 'Opera pagos, mora y seguimientos usando la fórmula congelada al crear este crédito.'
-    : 'Consulta tu plan de pagos, historial y opciones de pago disponibles para este crédito.';
+    ? tTerm('creditDetails.subtitle.backoffice')
+    : tTerm('creditDetails.subtitle.customer');
 
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
@@ -344,15 +356,15 @@ export default function CreditDetails() {
         paymentMethod: payment.paymentMethod,
         paymentStatus: payment.status,
         paymentReconciled: Boolean(payment.reconciled || payment.isReconciled || String(payment.status || '').toLowerCase().includes('reconcil')),
-        action: `Pago ${getPaymentTypeLabel(payment.paymentType)}`,
-        description: `Monto: ${formatCurrency(payment.amount)}`,
+        action: tTerm('creditDetails.history.action.payment', { type: getPaymentTypeLabel(payment.paymentType) }),
+        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(payment.amount) }),
         date: payment.paymentDate || payment.createdAt,
         type: 'payment',
       })),
       ...payoffHistory.map((event: any) => ({
         id: stableCreditKey('payoff', event.id, event.paymentDate, event.createdAt, event.amount, event.quotedTotal),
-        action: 'Pago total aplicado',
-        description: `Monto: ${formatCurrency(event.amount ?? event.quotedTotal)}`,
+        action: tTerm('creditDetails.history.action.payoffApplied'),
+        description: tTerm('creditDetails.history.description.amount', { amount: formatCurrency(event.amount ?? event.quotedTotal) }),
         date: event.paymentDate || event.createdAt,
         type: 'payoff',
       })),
@@ -380,14 +392,14 @@ export default function CreditDetails() {
   const payoffUnavailableDescription = formatPayoffDenialReason(primaryPayoffDenialReason)
     || (
       hasNoOutstandingPayoffBalance
-        ? 'Este crédito ya no tiene saldo pendiente para liquidar.'
-        : 'Verifica el estado del crédito y la elegibilidad de la cartera antes de continuar con esta operación.'
+        ? tTerm('creditDetails.payoff.unavailable.noBalance')
+        : tTerm('creditDetails.payoff.unavailable.ineligible')
     );
   const payoffPaymentGuard = {
     visible: canViewPayoff,
     executable: Boolean(canViewPayoff && payoffEligibility?.allowed && payoffQuote),
     reason: payoffEligibility?.allowed
-      ? 'Estamos preparando la cotización de liquidación. Intenta de nuevo en unos segundos.'
+      ? tTerm('creditDetails.payoff.state.preparingQuote')
       : payoffUnavailableDescription,
   };
   const operationalHistoryEntries = useMemo(() => {
@@ -395,7 +407,9 @@ export default function CreditDetails() {
       const alertPresentation = getAlertPresentation(alert);
       const events = [{
         id: `alert-created-${alert.id}`,
-        action: alert.status === 'resolved' ? 'Alerta resuelta' : 'Alerta activa',
+        action: alert.status === 'resolved'
+          ? tTerm('creditDetails.history.action.alertResolved')
+          : tTerm('creditDetails.history.action.alertActive'),
         description: `${alertPresentation.typeLabel} · ${alertPresentation.summary}`,
         date: alert.resolvedAt || alert.createdAt || alert.dueDate,
         type: 'alert',
@@ -405,7 +419,7 @@ export default function CreditDetails() {
       if (alertPresentation.notes) {
         events.push({
           id: `alert-note-${alert.id}`,
-          action: 'Seguimiento registrado',
+          action: tTerm('creditDetails.history.action.followUpLogged'),
           description: alertPresentation.notes,
           date: alert.updatedAt || alert.createdAt || alert.dueDate,
           type: 'alert',
@@ -419,8 +433,11 @@ export default function CreditDetails() {
     const promiseEvents = promiseEntries.flatMap((promise: any) => {
       const baseEvents = [{
         id: `promise-created-${promise.id}`,
-        action: 'Compromiso de pago creado',
-        description: `${formatCurrency(promise.amount)} para el ${formatDate(promiseDate(promise))}`,
+        action: tTerm('creditDetails.history.action.promiseCreated'),
+        description: tTerm('creditDetails.history.description.promiseForDate', {
+          amount: formatCurrency(promise.amount),
+          date: formatDate(promiseDate(promise)),
+        }),
         date: promise.createdAt || promise.promisedDate,
         type: 'promise',
         status: promise.status,
@@ -429,8 +446,8 @@ export default function CreditDetails() {
       const statusEvents = Array.isArray(promise.statusHistory)
         ? promise.statusHistory.map((entry: any, index: number) => ({
           id: `promise-status-${promise.id}-${index}`,
-          action: 'Estado de compromiso actualizado',
-          description: `${formatPromiseStatus(entry.status)}${entry.note ? ` · ${entry.note}` : ''}`,
+          action: tTerm('creditDetails.history.action.promiseStatusUpdated'),
+          description: `${formatOperationalStatus(entry.status)}${entry.note ? ` · ${entry.note}` : ''}`,
           date: entry.changedAt || promise.updatedAt || promise.promisedDate,
           type: 'promise',
           status: entry.status,
@@ -929,7 +946,7 @@ export default function CreditDetails() {
 
     const confirmed = await confirmDanger({
       title: tTerm('creditDetails.confirm.promise.title'),
-      message: tTerm('creditDetails.confirm.promise.message', { status: formatPromiseStatus(status) }),
+      message: tTerm('creditDetails.confirm.promise.message', { status: formatOperationalStatus(status) }),
       confirmLabel: tTerm('creditDetails.confirm.promise.confirm'),
     });
 
@@ -1069,7 +1086,7 @@ export default function CreditDetails() {
     const installmentNumber = Number(row?.installmentNumber);
 
     if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: 'No se pudo identificar la cuota para promesa.' });
+      toast.error({ title: tTerm('creditDetails.error.promiseInstallment') });
       return;
     }
 
@@ -1089,7 +1106,7 @@ export default function CreditDetails() {
     const installmentNumber = Number(row?.installmentNumber);
 
     if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: 'No se pudo identificar la cuota para seguimiento.' });
+      toast.error({ title: tTerm('creditDetails.error.followUpInstallment') });
       return;
     }
 
@@ -1105,36 +1122,39 @@ export default function CreditDetails() {
   };
 
   const calculationProfileSummary = loan?.calculationProfile?.name
-    ? `${loan.calculationProfile.name} (v${loan.calculationProfile.version})`
+    ? tTerm('creditDetails.calculationProfile.namedVersion', {
+      name: loan.calculationProfile.name,
+      version: loan.calculationProfile.version,
+    })
     : loan?.calculationProfileVersionId
-      ? `Regla de cálculo v${loan.calculationProfileVersionId}`
-      : 'Snapshot financiero congelado';
+      ? tTerm('creditDetails.calculationProfile.versionedRule', { version: loan.calculationProfileVersionId })
+      : tTerm('creditDetails.calculationProfile.frozenSnapshot');
 
   const getInstallmentStatusInfo = (status: unknown) => {
     switch (String(status || '').toLowerCase()) {
       case 'paid':
         return {
-          label: 'Pagada',
+          label: tTerm('credits.modal.status.paid'),
           className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
         };
       case 'overdue':
         return {
-          label: 'Vencida',
+          label: tTerm('credits.modal.status.overdue'),
           className: 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30',
         };
       case 'partial':
         return {
-          label: 'Parcial',
+          label: tTerm('credits.calendar.status.partial'),
           className: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/30',
         };
       case 'annulled':
         return {
-          label: 'Anulada',
+          label: tTerm('creditDetails.installment.status.annulled'),
           className: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:ring-slate-500/30',
         };
       default:
         return {
-          label: 'Pendiente',
+          label: tTerm('credits.modal.status.pending'),
           className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
         };
     }
@@ -1175,8 +1195,8 @@ export default function CreditDetails() {
     const installmentReason = isNextPendingInstallment
       ? ''
       : (nextPayableInstallmentNumber
-        ? `Solo puede operar la próxima cuota pendiente (#${nextPayableInstallmentNumber}).`
-        : 'No hay cuotas pendientes para operar.');
+        ? tTerm('creditDetails.installmentActions.onlyNextPending', { number: nextPayableInstallmentNumber })
+        : tTerm('creditDetails.installmentActions.nonePending'));
     const paymentActionReason = paymentGuard.executable ? installmentReason : (paymentGuard.reason || installmentReason);
     const annulActionReason = annulGuard.executable ? installmentReason : (annulGuard.reason || installmentReason);
 
@@ -1184,14 +1204,16 @@ export default function CreditDetails() {
       <div
         className={`credit-installment-actions inline-flex flex-nowrap items-center gap-1.5 ${alignClassName}`}
         role="toolbar"
-        aria-label={`Acciones de la cuota ${row.installmentNumber}`}
+        aria-label={tTerm('creditDetails.installmentActions.aria', { number: row.installmentNumber })}
       >
         {paymentGuard.visible && (
           <InstallmentActionButton
             onClick={() => openInstallmentPayment(row)}
             disabled={!isNextPendingInstallment || !paymentGuard.executable}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-            label={isNextPendingInstallment && paymentGuard.executable ? `${titlePrefix}${isBackofficeUser ? 'Registrar pago de cuota' : 'Pagar cuota'}` : paymentActionReason}
+            label={isNextPendingInstallment && paymentGuard.executable
+              ? `${titlePrefix}${isBackofficeUser ? tTerm('credits.action.registerPayment') : tTerm('creditDetails.cta.payInstallment')}`
+              : paymentActionReason}
           >
             <DollarSign size={16} />
           </InstallmentActionButton>
@@ -1203,7 +1225,7 @@ export default function CreditDetails() {
                 onClick={() => openPromiseFromInstallment(row)}
                 disabled={!isNextPendingInstallment || !promiseGuard.executable}
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-amber-500/30 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
-                label={isNextPendingInstallment && promiseGuard.executable ? `${titlePrefix}Crear compromiso de pago` : (promiseGuard.reason || installmentReason)}
+                label={isNextPendingInstallment && promiseGuard.executable ? `${titlePrefix}${tTerm('credits.action.createPromise')}` : (promiseGuard.reason || installmentReason)}
               >
                 <Clock size={16} />
               </InstallmentActionButton>
@@ -1213,7 +1235,7 @@ export default function CreditDetails() {
                 onClick={() => openFollowUpFromInstallment(row)}
                 disabled={!isNextPendingInstallment || !followUpGuard.executable}
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-slate-500/30 dark:hover:bg-slate-500/10 dark:hover:text-slate-200"
-                label={isNextPendingInstallment && followUpGuard.executable ? `${titlePrefix}Crear seguimiento` : (followUpGuard.reason || installmentReason)}
+                label={isNextPendingInstallment && followUpGuard.executable ? `${titlePrefix}${tTerm('credits.action.createFollowUp')}` : (followUpGuard.reason || installmentReason)}
               >
                 <Bell size={16} />
               </InstallmentActionButton>
@@ -1223,7 +1245,7 @@ export default function CreditDetails() {
                 onClick={() => openAnnulModal(row.installmentNumber)}
                 disabled={!isNextPendingInstallment || !annulGuard.executable}
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
-                label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}Anular cuota` : annulActionReason}
+                label={isNextPendingInstallment && annulGuard.executable ? `${titlePrefix}${tTerm('credits.action.annulInstallment')}` : annulActionReason}
               >
                 <ShieldAlert size={16} />
               </InstallmentActionButton>
@@ -1537,7 +1559,9 @@ export default function CreditDetails() {
                           disabled={updateAlertStatus.isPending}
                           icon={alert.status === 'resolved' ? <Bell size={16} /> : <CheckCircle size={16} />}
                         >
-                          {alert.status === 'resolved' ? 'Reactivar' : 'Resolver'}
+                          {alert.status === 'resolved'
+                            ? tTerm('creditDetails.confirm.alert.reactivate.confirm')
+                            : tTerm('creditDetails.confirm.alert.resolve.confirm')}
                         </ActionButton>
                       </div>
                     </div>
@@ -1576,13 +1600,13 @@ export default function CreditDetails() {
                             isPending ? 'bg-amber-100 text-amber-700' :
                             'bg-slate-100 text-slate-700'
                           }`}>
-                            {isKept ? 'Cumplida' : isBroken ? 'Incumplida' : isPending ? 'Pendiente' : 'Cancelada'}
+                            {formatOperationalStatus(promise.status)}
                           </span>
                         </div>
                         
                         <p className="text-sm text-text-secondary flex items-center gap-2 mb-4">
                           <Calendar size={16} />
-                          <span>Para el {formatDate(promiseDate(promise))}</span>
+                          <span>{tTerm('creditDetails.promises.forDate', { date: formatDate(promiseDate(promise)) })}</span>
                         </p>
 
                         {promise.notes && (
@@ -1599,12 +1623,7 @@ export default function CreditDetails() {
                             <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
                               {promise.statusHistory.slice().reverse().map((entry: any) => (
                                 <div key={stableCreditKey('promise-history', promise.id, entry.id, entry.status, entry.changedAt)} className="text-sm">
-                                  <span className="text-text-primary">{
-                                    entry.status === 'kept' ? 'Cumplida' :
-                                    entry.status === 'broken' ? 'Incumplida' :
-                                    entry.status === 'cancelled' ? 'Cancelada' :
-                                    entry.status === 'pending' ? 'Pendiente' : entry.status
-                                  }</span>
+                                  <span className="text-text-primary">{formatOperationalStatus(entry.status)}</span>
                                   <span className="text-text-secondary ml-2">{formatDate(entry.changedAt, true)}</span>
                                 </div>
                               ))}
@@ -1722,8 +1741,7 @@ export default function CreditDetails() {
                               entry.status === 'failed' || entry.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' :
                               'bg-amber-100 text-amber-700'
                             }`}>
-                              {entry.status === 'completed' || entry.paymentStatus === 'completed' ? 'Completado' :
-                               entry.status === 'failed' || entry.paymentStatus === 'failed' ? 'Fallido' : 'Pendiente'}
+                              {formatOperationalStatus(entry.status || entry.paymentStatus || 'pending')}
                             </span>
                           </td>
                         </tr>
@@ -1892,13 +1910,13 @@ export default function CreditDetails() {
               {selectedInstallmentNumber && (
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">Cotización cuota #{selectedInstallmentNumber}</span>
-                    {installmentQuoteQuery.isFetching && <span className="text-xs">Calculando…</span>}
+                    <span className="font-semibold">{tTerm('creditDetails.paymentQuote.installmentQuoteTitle', { number: selectedInstallmentNumber })}</span>
+                    {installmentQuoteQuery.isFetching && <span className="text-xs">{tTerm('creditDetails.paymentQuote.calculating')}</span>}
                   </div>
                   {installmentQuote ? (
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="block text-blue-700 dark:text-blue-300">Base pendiente</span>
+                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.outstandingBase')}</span>
                         <span className="font-semibold text-text-primary">{formatCurrency(installmentQuote.outstandingAmount)}</span>
                       </div>
                       <div>
@@ -1906,11 +1924,11 @@ export default function CreditDetails() {
                         <span className="font-semibold text-red-700 dark:text-red-300">{formatCurrency(installmentQuote.lateFeeDue)}</span>
                       </div>
                       <div>
-                        <span className="block text-blue-700 dark:text-blue-300">Días vencidos</span>
+                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.daysOverdue')}</span>
                         <span className="font-semibold text-text-primary">{installmentQuote.daysOverdue || 0}</span>
                       </div>
                       <div>
-                        <span className="block text-blue-700 dark:text-blue-300">Total sugerido</span>
+                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.suggestedTotal')}</span>
                         <ActionButton
                           type="button"
                           onClick={() => setPaymentAmount(String(installmentQuote.totalDue ?? ''))}
@@ -2046,7 +2064,7 @@ export default function CreditDetails() {
       {/* Modal: Annul Installment */}
       {showAnnulModal && (
         <ModalShell
-          title={<span className="text-red-600 dark:text-red-400">{tTerm('creditDetails.modal.annul.title', { number: annulInstallmentNumber })}</span>}
+          title={<span className="text-red-600 dark:text-red-400">{tTerm('creditDetails.modal.annul.title', { number: annulInstallmentNumber ?? '' })}</span>}
           subtitle={tTerm('creditDetails.modal.annul.subtitle')}
           footer={(
             <>
@@ -2148,7 +2166,7 @@ export default function CreditDetails() {
                 </FormField>
               </div>
               <div className="rounded-xl border border-border-subtle bg-bg-base/70 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">Previsualización</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.capitalPreview.title')}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.currentPrincipal')}</p>
@@ -2160,7 +2178,9 @@ export default function CreditDetails() {
                   </div>
                   <div>
                     <p className="text-xs text-text-secondary">
-                      {capitalStrategy === 'reduce_payment' ? 'Cuota estimada' : 'Cuotas restantes'}
+                      {capitalStrategy === 'reduce_payment'
+                        ? tTerm('creditDetails.capitalPreview.estimatedPayment')
+                        : tTerm('creditDetails.capitalPreview.remainingInstallments')}
                     </p>
                     <p className="mt-1 font-semibold text-text-primary">
                       {capitalStrategy === 'reduce_payment'
@@ -2169,14 +2189,16 @@ export default function CreditDetails() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-text-secondary">Efecto esperado</p>
+                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.expectedEffect')}</p>
                     <p className="mt-1 font-semibold text-text-primary">
-                      {capitalStrategy === 'reduce_payment' ? 'Baja la cuota' : 'Reduce el plazo'}
+                      {capitalStrategy === 'reduce_payment'
+                        ? tTerm('creditDetails.capitalPreview.effect.reducePayment')
+                        : tTerm('creditDetails.capitalPreview.effect.reduceTerm')}
                     </p>
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-text-secondary">
-                  Para abonar a capital, la primera cuota debe estar pagada. Si hay cuotas vencidas, intereses exigibles o una cuota parcial, primero se debe regularizar esa cuota.
+                  {tTerm('creditDetails.capitalPreview.note')}
                 </p>
                 {!capitalPaymentGuard.executable && (
                   <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
