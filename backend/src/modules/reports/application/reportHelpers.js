@@ -1,4 +1,5 @@
 const { AuthorizationError } = require('@/utils/errorHandler');
+const { formatCurrency } = require('@/modules/shared/money');
 
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
@@ -16,7 +17,8 @@ const ensureAdminOrSocio = (actor, message = 'Only authorized backoffice users c
   }
 };
 
-const formatMoney = (value) => Number(value || 0).toFixed(2);
+/** @deprecated Use formatCurrency from @/modules/shared/money directly. */
+const formatMoney = formatCurrency;
 
 const parseDateRange = ({ fromDate, toDate } = {}) => {
   const parsedFromDate = fromDate ? new Date(fromDate) : null;

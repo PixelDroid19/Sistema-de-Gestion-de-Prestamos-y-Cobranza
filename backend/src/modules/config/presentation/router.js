@@ -1,11 +1,12 @@
 const express = require('express');
 const { asyncHandler } = require('@/utils/errorHandler');
+const { logger } = require('@/utils/logger');
 
 const runOptionalSideEffect = async (label, sideEffect) => {
   try {
     await sideEffect();
   } catch (error) {
-    console.error(`${label} failed:`, error?.message || error);
+    logger.warn(`Optional side-effect failed: ${label}`, { error: error?.message || String(error) });
   }
 };
 

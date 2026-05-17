@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const { startServer } = require('../src/server');
 const { resetDatabaseSchema } = require('../src/bootstrap/schema');
 const { sequelize, User, Customer, Associate, Loan } = require('../src/models');
-const { buildAmortizationSchedule, summarizeSchedule, roundCurrency } = require('../src/services/creditFormulaHelpers');
+const { buildAmortizationSchedule, summarizeSchedule, roundCurrency } = require('../src/modules/credits/application/creditFormulaHelpers');
 const { createLoanViewService } = require('../src/modules/credits/application/loanFinancials');
 
 const loanViewService = createLoanViewService();

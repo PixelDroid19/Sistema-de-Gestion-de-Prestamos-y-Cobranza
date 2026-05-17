@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { assertAllocationIntegrity } = require('@/modules/credits/domain/paymentInvariants');
 
 const Payment = sequelize.define('Payment', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
@@ -46,21 +47,7 @@ const Payment = sequelize.define('Payment', {
   validate: {
     /** Ensure allocation fields sum approximately to the payment amount (within rounding tolerance). */
     allocationIntegrity() {
-      const { amount, principalApplied, interestApplied, penaltyApplied, overpaymentAmount } = this;
-      if (amount == null || amount <= 0) return; // Skip if amount is invalid
-
-      const allocatedTotal = Number(principalApplied || 0)
-        + Number(interestApplied || 0)
-        + Number(penaltyApplied || 0)
-        + Number(overpaymentAmount || 0);
-
-      // Allow 0.02 rounding tolerance for floating-point precision
-      if (Math.abs(allocatedTotal - amount) > 0.02) {
-        throw new Error(
-          `Allocation breakdown (${allocatedTotal.toFixed(2)}) does not match payment amount (${amount.toFixed(2)}). `
-          + `principalApplied=${principalApplied}, interestApplied=${interestApplied}, penaltyApplied=${penaltyApplied}, overpaymentAmount=${overpaymentAmount}`
-        );
-      }
+      assertAllocationIntegrity(this);
     },
   },
 });

@@ -1,3 +1,5 @@
+const { logger } = require('@/utils/logger');
+
 /**
  * Create an audit decorator that wraps a use case with audit logging.
  * @param {{ auditService: object, action: string, module: string, getEntityId?: Function, getEntityType?: Function }} config
@@ -56,7 +58,7 @@ const withAudit = ({ auditService, action, module, getEntityId, getEntityType })
           });
         } catch (auditError) {
           // Log audit failure but don't fail the main operation
-          console.error('Audit logging failed:', auditError.message);
+          logger.error('Audit logging failed', { error: auditError.message, action, module });
         }
       }
 

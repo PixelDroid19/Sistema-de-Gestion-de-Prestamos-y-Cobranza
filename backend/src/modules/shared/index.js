@@ -12,6 +12,14 @@ const {
   buildPaginatedResult,
   paginateModel,
 } = require('./pagination');
+const {
+  roundCurrency,
+  formatCurrency,
+  hasDecimalPrecision,
+  validateCurrencyPrecision,
+  normalizeTolerance,
+  compareWithinTolerance,
+} = require('./money');
 
 /**
  * Re-export shared module helpers used by feature entrypoints and routers.
@@ -34,4 +42,10 @@ module.exports = {
   buildPaginationMeta,
   buildPaginatedResult,
   paginateModel,
+  roundCurrency,
+  formatCurrency,
+  hasDecimalPrecision,
+  validateCurrencyPrecision,
+  normalizeTolerance,
+  compareWithinTolerance,
 };

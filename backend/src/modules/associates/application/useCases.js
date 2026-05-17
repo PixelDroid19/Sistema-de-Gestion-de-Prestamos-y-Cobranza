@@ -7,9 +7,8 @@ const {
   ConflictError,
 } = require('@/utils/errorHandler');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
+const { roundCurrency, formatCurrency } = require('@/modules/shared/money');
 
-const roundCurrency = (value) => Number.parseFloat((Number(value) || 0).toFixed(2));
-const formatCurrency = (value) => roundCurrency(value).toFixed(2);
 const PERCENTAGE_SCALE = 10000;
 const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
 const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);

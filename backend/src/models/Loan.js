@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
+const { assertEndDateNotBeforeStartDate, assertConsistentClosureState } = require('@/modules/credits/domain/loanInvariants');
 
 const Loan = sequelize.define('Loan', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
@@ -47,25 +48,11 @@ const Loan = sequelize.define('Loan', {
   validate: {
     /** Ensure endDate is not before startDate when both are set. */
     endDateNotBeforeStartDate() {
-      if (this.startDate && this.endDate) {
-        if (new Date(this.endDate) < new Date(this.startDate)) {
-          throw new Error('endDate must be on or after startDate');
-        }
-      }
+      assertEndDateNotBeforeStartDate(this);
     },
     /** Prevent semantically conflicting status/closureReason combinations. */
     consistentClosureState() {
-      const { status, closureReason, closedAt } = this;
-      const closedStatuses = new Set(['closed', 'cancelled', 'paid']);
-      const closureReasons = new Set(['payoff', 'schedule_completion', 'annulled', 'cancelled']);
-
-      if (closureReasons.has(closureReason) && !closedStatuses.has(status)) {
-        throw new Error(`Loan with closureReason '${closureReason}' must have a closed status (closed, cancelled, or paid)`);
-      }
-
-      if (closedStatuses.has(status) && !closedAt) {
-        throw new Error(`Loan with status '${status}' must have a closedAt date`);
-      }
+      assertConsistentClosureState(this);
     },
   },
 });

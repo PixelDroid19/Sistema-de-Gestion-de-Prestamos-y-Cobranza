@@ -1,6 +1,6 @@
 const { Notification, User } = require('@/models');
-const { createPushProviderRegistry } = require('@/services/push/providerRegistry');
-const { createResendEmailProvider } = require('@/services/email/providers/resendEmailProvider');
+const { createPushProviderRegistry } = require('../infrastructure/push/providerRegistry');
+const { createResendEmailProvider } = require('../infrastructure/email/providers/resendEmailProvider');
 
 /**
  * Contract for notification providers used by backend infrastructure seams.

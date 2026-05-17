@@ -25,19 +25,28 @@ const startServer = async ({
   const outboxWorker = createWorker();
   outboxWorker.start(5000);
 
-  const shutdown = async () => {
-    console.log('Received shutdown signal, stopping worker...');
-    outboxWorker.stop();
-    process.exit(0);
-  };
-
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
-
   return new Promise((resolve, reject) => {
     let server;
     server = app.listen(port, () => {
       console.log(`Backend server running on http://localhost:${port}`);
+
+      const shutdown = async (signal) => {
+        console.log(`Received ${signal}, shutting down gracefully...`);
+        outboxWorker.stop();
+        server.close(() => {
+          console.log('HTTP server closed');
+          process.exit(0);
+        });
+        // Force exit after 10s if connections linger
+        setTimeout(() => {
+          console.error('Graceful shutdown timed out, forcing exit');
+          process.exit(1);
+        }, 10_000).unref();
+      };
+
+      process.on('SIGTERM', () => shutdown('SIGTERM'));
+      process.on('SIGINT', () => shutdown('SIGINT'));
+
       resolve({ app, server, bootstrap: bootstrapResult, outboxWorker });
     });
 

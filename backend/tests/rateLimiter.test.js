@@ -82,7 +82,8 @@ test('createSqlRateLimiter uses canonical keyPrefix column names and reads selec
 
 test('createSqlRateLimiter falls back to in-memory limiting when SQL becomes unavailable', async () => {
   const originalTransaction = sequelize.transaction;
-  const originalConsoleError = console.error;
+  const { logger } = require('@/utils/logger');
+  const originalLoggerError = logger.error;
   let failSql = true;
   const capturedLogs = [];
 
@@ -92,8 +93,8 @@ test('createSqlRateLimiter falls back to in-memory limiting when SQL becomes una
     }
     return { allowed: true, remaining: 0 };
   };
-  console.error = (...args) => {
-    capturedLogs.push(args.join(' '));
+  logger.error = (...args) => {
+    capturedLogs.push(args.map(String).join(' '));
   };
 
   try {
@@ -140,11 +141,11 @@ test('createSqlRateLimiter falls back to in-memory limiting when SQL becomes una
     assert.equal(secondNextCalled, false);
     assert.equal(blockedRes.statusCode, 429);
     assert.equal(blockedRes.payload?.code, 'TOO_MANY_REQUESTS');
-    assert.equal(capturedLogs.some((log) => log.includes('falling back to in-memory limiter')), true);
+    assert.equal(capturedLogs.some((log) => log.includes('falling back to in-memory')), true);
   } finally {
     failSql = false;
     sequelize.transaction = originalTransaction;
-    console.error = originalConsoleError;
+    logger.error = originalLoggerError;
   }
 });
 

@@ -4,6 +4,7 @@ const {
   NotFoundError,
   ValidationError,
 } = require('@/utils/errorHandler');
+const { logger } = require('@/utils/logger');
 const {
   evaluateCapitalPaymentEligibility,
   evaluatePayoffEligibility,
@@ -264,7 +265,7 @@ const auditRejectedCapitalPayment = async ({
       req,
     });
   } catch (auditError) {
-    console.error('Capital payment rejection audit failed:', auditError?.message || auditError);
+    logger.error('Capital payment rejection audit failed', { error: auditError?.message || String(auditError) });
   }
 };
 

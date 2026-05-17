@@ -43,7 +43,7 @@ test('documentation stays selective for non-obvious helpers only', () => {
     ['src/modules/credits/application/loanFinancials.js', 'createLoanViewService'],
     ['src/modules/credits/application/creditPolicyResolver.js', 'createCreditPolicyResolver'],
     ['src/modules/credits/application/recoveryStatusGuard.js', 'createRecoveryStatusGuard'],
-    ['src/modules/reports/application/useCases.js', 'buildLoanReportRecord'],
+    ['src/modules/reports/application/reportInternals.js', 'buildLoanReportRecord'],
     ['src/docs/openapi.js', 'buildOpenApiDocument'],
   ];
 

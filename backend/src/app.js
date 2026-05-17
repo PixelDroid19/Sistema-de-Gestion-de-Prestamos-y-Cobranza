@@ -1,16 +1,11 @@
 const express = require('express');
 const cors = require('cors');
-let helmet;
-try {
-  helmet = require('helmet');
-} catch (e) {
-  // helmet not installed
-}
+const helmet = require('helmet');
 require('dotenv').config();
 
 const { createSharedRuntime } = require('./bootstrap/sharedRuntime');
 const { globalErrorHandler, notFoundHandler } = require('./utils/errorHandler');
-const { logRequest } = require('./utils/logger');
+const { logger, logRequest } = require('./utils/logger');
 const { buildModuleRegistry } = require('./modules');
 const { runWithRequestContext } = require('./modules/shared/requestContext');
 const { buildOpenApiDocument } = require('./docs/openapi');
@@ -38,21 +33,20 @@ const createApp = ({
     shouldBypassGlobalRateLimit = () => false,
   } = effectiveRateLimiters;
 
-  if (helmet) {
-    app.use(helmet());
-  }
+  app.use(helmet());
 
   // CORS configuration - use explicit whitelist only, never allow wildcard '*'
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').filter(Boolean) || [];
-  
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
   if (allowedOrigins.length === 0) {
-    // In development without ALLOWED_ORIGINS, only allow localhost
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('ALLOWED_ORIGINS not configured — CORS will reject all cross-origin requests in production');
+    } else {
       allowedOrigins.push('http://localhost:3000');
       allowedOrigins.push('http://127.0.0.1:3000');
-    } else {
-      // In production, require explicit ALLOWED_ORIGINS configuration
-      console.warn('WARNING: CORS is configured with no allowed origins. Set ALLOWED_ORIGINS environment variable.');
     }
   }
 
@@ -71,12 +65,14 @@ const createApp = ({
 
   const corsOptions = {
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
+      // Requests with no origin: allow in dev (curl, Postman), reject in production
       if (!origin) {
+        if (process.env.NODE_ENV === 'production') {
+          return callback(new Error('Origin header is required'));
+        }
         return callback(null, true);
       }
-      
-      // Check if origin is in whitelist
+
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }

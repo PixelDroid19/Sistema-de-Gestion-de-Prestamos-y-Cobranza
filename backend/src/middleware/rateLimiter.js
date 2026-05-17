@@ -5,6 +5,7 @@
  */
 
 const { sequelize } = require('@/models');
+const { logger } = require('@/utils/logger');
 
 const resolveClientIp = (req) => {
   if (!req) {
@@ -161,7 +162,7 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
     } catch (err) {
       // Fail closed into in-memory protection instead of bypassing throttling entirely.
       sqlUnavailable = true;
-      console.error('Rate limiter SQL unavailable, falling back to in-memory limiter:', err.message);
+      logger.error('Rate limiter SQL unavailable, falling back to in-memory', { error: err.message });
       return inMemoryFallback(req, res, next);
     }
   };
@@ -173,6 +174,18 @@ const createSqlRateLimiter = ({ windowMs, max, keyPrefix = 'rl', message }) => {
  */
 const createInMemoryRateLimiter = ({ windowMs, max, keyPrefix, message }) => {
   const requests = new Map(); // In-memory storage (IP -> { count, resetTime })
+
+  // Evict expired entries periodically to prevent unbounded growth
+  const CLEANUP_INTERVAL_MS = Math.max(windowMs * 2, 60_000);
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of requests) {
+      if (now > entry.resetTime) {
+        requests.delete(key);
+      }
+    }
+  }, CLEANUP_INTERVAL_MS);
+  cleanupTimer.unref(); // Don't block process exit
 
   return (req, res, next) => {
     const identifier = buildRateLimitIdentifier(req, keyPrefix);
@@ -218,39 +231,39 @@ const createRateLimiter = (options) => {
   if (isDatabaseAvailable()) {
     return createSqlRateLimiter(options);
   }
-  console.warn('Rate limiter: Database not available, using in-memory rate limiter (not suitable for clusters)');
+  logger.warn('Rate limiter: Database not available, using in-memory rate limiter (not suitable for clusters)');
   return createInMemoryRateLimiter(options);
 };
 
-// Global limiter: 100 requests per 1 minute per IP
+/** Rate limiting presets — adjust per environment via env vars if needed. */
+const RATE_LIMITS = {
+  /** General API abuse prevention per IP */
+  GLOBAL:  { windowMs: 60 * 1000, max: 100, keyPrefix: 'global' },
+  /** Navigation/data-fetch traffic per IP */
+  READ:    { windowMs: 60 * 1000, max: 600, keyPrefix: 'read' },
+  /** Brute-force login prevention per IP+email */
+  AUTH:    { windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'auth' },
+  /** Payment mutation rate per IP */
+  PAYMENT: { windowMs: 60 * 1000, max: 3, keyPrefix: 'payment' },
+};
+
 const globalLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  max: 100,
-  keyPrefix: 'global',
+  ...RATE_LIMITS.GLOBAL,
   message: 'Demasiadas peticiones desde esta IP. Intente de nuevo en un minuto.',
 });
 
-// Read limiter: 600 navigation/data requests per minute per IP
 const readLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  max: 600,
-  keyPrefix: 'read',
+  ...RATE_LIMITS.READ,
   message: 'Demasiadas consultas desde esta IP. Intente de nuevo en un minuto.',
 });
 
-// Auth limiter: 10 attempts per 15 minutes
 const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  keyPrefix: 'auth',
+  ...RATE_LIMITS.AUTH,
   message: 'Demasiados intentos de acceso. Por favor, espere 15 minutos.',
 });
 
-// Payments limiter: 3 payments per minute
 const paymentLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  max: 3,
-  keyPrefix: 'payment',
+  ...RATE_LIMITS.PAYMENT,
   message: 'Operación de pago en curso o demasiados intentos. Por favor, espere.',
 });
 

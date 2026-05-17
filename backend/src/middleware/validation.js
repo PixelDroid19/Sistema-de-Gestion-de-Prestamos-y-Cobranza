@@ -2,6 +2,20 @@ const { ValidationError } = require('@/utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
 const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { validateCurrencyPrecision } = require('@/modules/shared/money');
+const {
+  validateEmail,
+  validatePhone,
+  validateAmount,
+  validateInterestRate,
+  validateTermMonths,
+  validateIntegerId,
+  validateOptionalDateInput,
+  validateIdempotencyKey,
+  validateIntegerRange,
+  validateParticipationPercentage,
+  validateAssociateInterestRate,
+} = require('@/modules/shared/validators');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);
@@ -33,93 +47,8 @@ const validate = (schema) => {
   };
 };
 
-/**
- * Validate a basic email address shape.
- * @param {string} email
- * @returns {boolean}
- */
-const validateEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-/**
- * Validate an E.164-like phone number payload.
- * @param {string} phone
- * @returns {boolean}
- */
-const validatePhone = (phone) => {
-  const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
-  return phoneRegex.test(phone);
-};
-
-/**
- * Validate positive monetary amounts.
- * @param {number} amount
- * @returns {boolean}
- */
-const validateAmount = (amount) => {
-  return typeof amount === 'number' && amount > 0;
-};
-
-/**
- * Validate percentage rates accepted by the credit domain.
- * @param {number} rate
- * @returns {boolean}
- */
-const validateInterestRate = (rate) => {
-  return typeof rate === 'number' && rate >= 0 && rate <= 100;
-};
-
 const usesPolicySource = (value) => String(value || '').trim().toLowerCase() === 'policy';
 
-/**
- * Validate supported loan terms in months.
- * @param {number} term
- * @returns {boolean}
- */
-const validateTermMonths = (term) => {
-  return Number.isInteger(term) && term > 0 && term <= 360;
-};
-
-/**
- * Validate positive integer identifiers received in route params or bodies.
- * @param {string|number} value
- * @returns {boolean}
- */
-const validateIntegerId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
-
-const hasDecimalPrecision = (value, maxDecimals) => {
-  const stringValue = typeof value === 'string' ? value.trim() : String(value);
-  return /^\d+(\.\d+)?$/.test(stringValue)
-    && ((stringValue.split('.')[1] || '').length <= maxDecimals);
-};
-
-const validateCurrencyPrecision = (value) => {
-  if (typeof value !== 'number' && typeof value !== 'string') {
-    return false;
-  }
-
-  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
-  if (!/^\d+(\.\d+)?$/.test(normalizedValue)) {
-    return false;
-  }
-
-  return (normalizedValue.split('.')[1] || '').length <= 2;
-};
-
-const validateParticipationPercentage = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-
-  const numericValue = Number(value);
-
-  return Number.isFinite(numericValue)
-    && numericValue >= 0
-    && numericValue <= 100
-    && hasDecimalPrecision(value, 4);
-};
 
 const pushParticipationPercentageError = (errors, field = 'participationPercentage') => {
   errors.push({
@@ -181,27 +110,6 @@ const pushParticipationValidation = ({ req, errors, participationPercentage }) =
   }
 };
 
-const validateAssociateInterestRate = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue)
-    && numericValue >= 0
-    && numericValue <= 100
-    && hasDecimalPrecision(value, 4);
-};
-
-const validateIntegerRange = (value, min, max) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-
-  const numericValue = Number(value);
-  return Number.isInteger(numericValue) && numericValue >= min && numericValue <= max;
-};
-
 const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestRate, interestPaymentDay, interestPaymentMonth, initialCapital, interestStartDate, interestStartsAt }) => {
   if (interestType !== undefined && !['monthly', 'annual'].includes(String(interestType).trim().toLowerCase())) {
     errors.push({ field: 'interestType', message: 'interestType must be monthly or annual' });
@@ -227,24 +135,6 @@ const pushAssociateFinancialTermsValidation = ({ errors, interestType, interestR
   if (!validateOptionalDateInput(effectiveStartDate)) {
     errors.push({ field: 'interestStartDate', message: 'interestStartDate must be a valid date' });
   }
-};
-
-const validateOptionalDateInput = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-
-  return !Number.isNaN(new Date(value).getTime());
-};
-
-const validateIdempotencyKey = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-
-  return typeof value === 'string'
-    && value.trim().length >= 8
-    && value.trim().length <= 160;
 };
 
 const attachPagination = ({ defaultPage, defaultPageSize, maxPageSize } = {}) => (req, _res, next) => {

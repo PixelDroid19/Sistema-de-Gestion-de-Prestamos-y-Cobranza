@@ -174,11 +174,15 @@ const createOutboxRelayWorker = ({
     isRunning = true;
     logger.log(`[OutboxRelay] Starting worker with poll interval ${interval}ms`);
 
-    processEventsInternal();
+    processEventsInternal().catch(err => {
+      logger.error?.('[OutboxRelay] Initial sync failed', { error: err?.message || String(err) });
+    });
 
     intervalHandle = setIntervalFn(() => {
       if (isRunning) {
-        processEventsInternal();
+        processEventsInternal().catch(err => {
+          logger.error?.('[OutboxRelay] Background sync failed', { error: err?.message || String(err) });
+        });
       }
     }, interval);
   };

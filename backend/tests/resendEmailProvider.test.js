@@ -6,7 +6,7 @@ const {
   buildNotificationHtml,
   buildNotificationSubject,
   isEmailEligibleNotification,
-} = require('@/services/email/providers/resendEmailProvider');
+} = require('@/modules/notifications/infrastructure/email/providers/resendEmailProvider');
 
 test('createResendEmailProvider stays disabled until explicitly configured', async () => {
   let fetchCalled = false;
