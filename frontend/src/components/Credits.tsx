@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from '../i18n';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatPercent } from '../i18n/format';
 import { useLoans, useLoanStatistics, useSearchLoans } from '../services/loanService';
 import { usePaginationStore } from '../store/paginationStore';
 import { apiClient } from '../api/client';
@@ -31,7 +33,6 @@ import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { invalidateAfterDelete, invalidateAfterReport } from '../services/operationalInvalidation';
 import { tTerm } from '../i18n/terminology';
-import { LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getChipClassName, type ChipTone } from '../constants/uiChips';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import {
@@ -54,7 +55,8 @@ import {
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
 
 const locales = {
-  'es': es,
+  es,
+  en: enUS,
 };
 
 const localizer = dateFnsLocalizer({
@@ -85,8 +87,8 @@ const getLoanStatusTone = (status?: string): ChipTone => {
   }
 };
 
-const STATUS_COLUMN_HELP = 'Estado: etapa administrativa del crédito. Define si está vigente, cerrado, rechazado, vencido o bloqueado para operación.';
-const RECOVERY_COLUMN_HELP = 'Situación: lectura de cobranza. Indica si el crédito está al día, en mora, recuperado o en seguimiento operativo.';
+const getStatusColumnHelp = () => tTerm('credits.help.statusColumn');
+const getRecoveryColumnHelp = () => tTerm('credits.help.recoveryColumn');
 
 type VisiblePortfolioStatistics = {
   totalAmount: number;
@@ -99,25 +101,25 @@ type VisiblePortfolioStatistics = {
 const getLoanStatusDescription = (status?: string) => {
   switch (String(status || '').toLowerCase()) {
     case 'pending':
-      return 'Pendiente: crédito creado o solicitado, aún sin quedar plenamente operativo.';
+      return tTerm('credits.status.description.pending');
     case 'approved':
-      return 'Aprobado: crédito autorizado, pendiente de quedar activo o desembolsado.';
+      return tTerm('credits.status.description.approved');
     case 'active':
-      return 'Activo: crédito vigente, con plan de pagos y acciones operativas disponibles según permisos.';
+      return tTerm('credits.status.description.active');
     case 'overdue':
-      return 'Vencido: crédito con atraso detectado por calendario de cuotas.';
+      return tTerm('credits.status.description.overdue');
     case 'defaulted':
-      return 'En mora: crédito con incumplimiento relevante o estado de cobranza crítica.';
+      return tTerm('credits.status.description.defaulted');
     case 'paid':
-      return 'Pagado: crédito saldado por pago, pendiente o listo para cierre administrativo.';
+      return tTerm('credits.status.description.paid');
     case 'closed':
-      return 'Cerrado: crédito finalizado administrativamente; no debería recibir operación ordinaria.';
+      return tTerm('credits.status.description.closed');
     case 'cancelled':
-      return 'Cancelado: crédito anulado o detenido antes de completar su ciclo normal.';
+      return tTerm('credits.status.description.cancelled');
     case 'rejected':
-      return 'Rechazado: crédito no aprobado para originación u operación.';
+      return tTerm('credits.status.description.rejected');
     default:
-      return status ? `${status}: estado administrativo registrado por el sistema.` : 'Sin estado administrativo registrado.';
+      return status ? tTerm('credits.status.description.default', { status }) : tTerm('credits.status.description.missing');
   }
 };
 
@@ -126,21 +128,21 @@ const getRecoveryStatusDescription = (credit: any) => {
   const normalizedLoanStatus = String(credit?.status || '').toLowerCase();
 
   if (normalizedRecoveryStatus === 'overdue' || normalizedLoanStatus === 'defaulted') {
-    return 'En mora: hay atraso, cuota vencida o condición que requiere gestión de cobranza.';
+    return tTerm('credits.recovery.description.overdue');
   }
   if (normalizedRecoveryStatus === 'pending') {
-    return 'En curso: crédito todavía tiene seguimiento operativo o cuotas pendientes de gestión.';
+    return tTerm('credits.recovery.description.pending');
   }
   if (normalizedRecoveryStatus === 'recovered') {
-    return 'Recuperado: la cartera asociada fue cobrada o cerrada sin saldo pendiente relevante.';
+    return tTerm('credits.recovery.description.recovered');
   }
   if (normalizedRecoveryStatus === 'active') {
-    return 'Activo: cartera vigente en seguimiento normal.';
+    return tTerm('credits.recovery.description.active');
   }
   if (normalizedLoanStatus === 'closed' || normalizedLoanStatus === 'paid') {
-    return 'Recuperado: crédito cerrado o saldado desde la operación de cartera.';
+    return tTerm('credits.recovery.description.closed');
   }
-  return 'Al día: no hay mora ni alerta de cobranza activa en este crédito.';
+  return tTerm('credits.recovery.description.current');
 };
 
 interface InstallmentEvent {
@@ -218,6 +220,7 @@ interface CalendarOverviewResponse {
  * via operational guards delegated to the backend credit domain.
  */
 export default function Credits({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
+  const { locale } = useTranslation();
   const [activeTab, setActiveTab] = useState('list');
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -255,7 +258,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const canReadPortfolioStatistics = isAdmin
     || grantedPermissions.has('*')
     || grantedPermissions.has('DASHBOARD_VIEW_ALL');
-  const searchPlaceholder = isAdmin ? 'Buscar por cliente o crédito…' : 'Buscar crédito…';
+  const searchPlaceholder = isAdmin ? tTerm('credits.search.placeholder.admin') : tTerm('credits.search.placeholder.employee');
   // Statistics hook
   const { data: statisticsData } = useLoanStatistics({ enabled: canReadPortfolioStatistics });
 
@@ -512,7 +515,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         return {
           id: `${entry.loanId}-${entry.installmentNumber ?? index}`,
           loanId: entry.loanId,
-          title: `Cuota ${entry.installmentNumber}${entry.totalInstallments > 0 ? `/${entry.totalInstallments}` : ''} - ${entry.customerName}`,
+          title: entry.totalInstallments > 0
+            ? tTerm('credits.calendar.event.titleOf', {
+              number: entry.installmentNumber,
+              total: entry.totalInstallments,
+              customer: entry.customerName,
+            })
+            : tTerm('credits.calendar.event.title', {
+              number: entry.installmentNumber,
+              customer: entry.customerName,
+            }),
           start: dueDate,
           end: new Date(dueDate.getTime() + 60 * 60 * 1000),
           type: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
@@ -543,20 +555,30 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     if (name) {
       name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
     }
-    return name || (credit?.customerId ? `Cliente #${credit.customerId}` : 'Sin cliente');
+    return name || (credit?.customerId ? tTerm('credits.label.customerFallback', { id: credit.customerId }) : tTerm('credits.label.customerMissing'));
   };
 
   const getLoanStatusLabel = (status: string) => {
-    return LOAN_STATUS_LABELS[status as keyof typeof LOAN_STATUS_LABELS] || status;
+    const normalizedStatus = String(status || '').toLowerCase();
+    if (normalizedStatus === 'active') return tTerm('common.status.active');
+    if (normalizedStatus === 'pending') return tTerm('schedule.status.pending');
+    if (normalizedStatus === 'approved') return tTerm('credits.status.approved');
+    if (normalizedStatus === 'overdue') return tTerm('schedule.status.overdue');
+    if (normalizedStatus === 'defaulted') return tTerm('credits.status.defaulted');
+    if (normalizedStatus === 'paid') return tTerm('schedule.status.paid');
+    if (normalizedStatus === 'closed') return tTerm('common.status.closed');
+    if (normalizedStatus === 'cancelled') return tTerm('credits.status.cancelled');
+    if (normalizedStatus === 'rejected') return tTerm('credits.status.rejected');
+    return status;
   };
 
   const getRecoveryStatusLabel = (credit: any) => {
-    if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return 'En mora';
-    if (credit?.recoveryStatus === 'pending') return 'En Curso';
-    if (credit?.recoveryStatus === 'recovered') return 'Recuperado';
-    if (credit?.recoveryStatus === 'active') return 'Activo';
+    if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return tTerm('credits.recovery.overdue');
+    if (credit?.recoveryStatus === 'pending') return tTerm('credits.recovery.pending');
+    if (credit?.recoveryStatus === 'recovered') return tTerm('credits.recovery.recovered');
+    if (credit?.recoveryStatus === 'active') return tTerm('credits.recovery.active');
     if (credit?.recoveryStatus) return credit.recoveryStatus;
-    return 'Al Día';
+    return tTerm('credits.recovery.current');
   };
 
   const eventStyleGetter = (event: InstallmentEvent) => {
@@ -580,25 +602,21 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(value);
+    return formatCurrencyValue(value);
   };
 
   const getCalendarStatusLabel = (status: string) => {
     switch (String(status || '').toLowerCase()) {
       case 'paid':
-        return 'Pagada';
+        return tTerm('credits.modal.status.paid');
       case 'overdue':
-        return 'En mora';
+        return tTerm('credits.modal.status.overdue');
       case 'partial':
-        return 'Parcial';
+        return tTerm('credits.calendar.status.partial');
       case 'annulled':
-        return 'Anulada';
+        return tTerm('schedule.status.annulled');
       default:
-        return 'Pendiente';
+        return tTerm('schedule.status.pending');
     }
   };
 
@@ -617,42 +635,55 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }
   };
 
-  const calendarSummaryItems = [
+  const calendarSummaryItems = useMemo(() => [
     {
       id: 'actionable',
-      label: 'Cobros accionables',
+      label: tTerm('credits.stats.calendar.actionable.label'),
       value: String(calendarOverview.summary.actionableCount),
-      helper: calendarOverview.summary.actionableCount === 1 ? '1 crédito listo para gestión' : `${calendarOverview.summary.actionableCount} créditos listos para gestión`,
+      helper: calendarOverview.summary.actionableCount === 1
+        ? tTerm('credits.stats.calendar.actionable.helper.one')
+        : tTerm('credits.stats.calendar.actionable.helper.other', { count: calendarOverview.summary.actionableCount }),
       accent: 'blue' as const,
       icon: <DollarSign aria-hidden="true" />,
     },
     {
       id: 'overdue',
-      label: 'En mora',
+      label: tTerm('credits.stats.calendar.overdue.label'),
       value: String(calendarOverview.summary.overdueCount),
-      helper: calendarOverview.summary.overdueCount === 1 ? '1 cuota con atraso' : `${calendarOverview.summary.overdueCount} cuotas con atraso`,
+      helper: calendarOverview.summary.overdueCount === 1
+        ? tTerm('credits.stats.calendar.overdue.helper.one')
+        : tTerm('credits.stats.calendar.overdue.helper.other', { count: calendarOverview.summary.overdueCount }),
       accent: 'rose' as const,
       icon: <AlertTriangle aria-hidden="true" />,
     },
     {
       id: 'due-today',
-      label: 'Vencen hoy',
+      label: tTerm('credits.stats.calendar.dueToday.label'),
       value: String(calendarOverview.summary.dueTodayCount),
-      helper: calendarOverview.summary.dueTodayCount === 1 ? '1 cuota vence hoy' : `${calendarOverview.summary.dueTodayCount} cuotas vencen hoy`,
+      helper: calendarOverview.summary.dueTodayCount === 1
+        ? tTerm('credits.stats.calendar.dueToday.helper.one')
+        : tTerm('credits.stats.calendar.dueToday.helper.other', { count: calendarOverview.summary.dueTodayCount }),
       accent: 'teal' as const,
       icon: <CalendarIcon aria-hidden="true" />,
     },
     {
       id: 'amount',
-      label: 'Monto a cobrar',
+      label: tTerm('credits.stats.calendar.amount.label'),
       value: formatCurrency(calendarOverview.summary.totalPayableAmount),
       helper: calendarOverview.summary.totalLateFeeAmount > 0
-        ? `Incluye ${formatCurrency(calendarOverview.summary.totalLateFeeAmount)} de mora`
-        : 'Sin mora acumulada en las cuotas visibles',
+        ? tTerm('credits.stats.calendar.amount.helper.withLateFee', { amount: formatCurrency(calendarOverview.summary.totalLateFeeAmount) })
+        : tTerm('credits.stats.calendar.amount.helper.withoutLateFee'),
       accent: 'amber' as const,
       icon: <TrendingUp aria-hidden="true" />,
     },
-  ];
+  ], [
+    calendarOverview.summary.actionableCount,
+    calendarOverview.summary.dueTodayCount,
+    calendarOverview.summary.overdueCount,
+    calendarOverview.summary.totalLateFeeAmount,
+    calendarOverview.summary.totalPayableAmount,
+    locale,
+  ]);
   const visiblePortfolioStatistics = useMemo(() => {
     return (creditsList as any[]).reduce<VisiblePortfolioStatistics>((totals, credit: any) => {
       const amount = Number(credit?.amount ?? credit?.loanAmount ?? credit?.principal ?? 0);
@@ -687,12 +718,24 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
       totalOverdue: Number(statisticsAmounts.totalOverdue ?? statistics.overdueAmount ?? 0),
       activeCredits: Number(statisticsCounts.activeCredits ?? statistics.totalActiveLoans ?? 0),
       totalCredits: Number(statisticsCounts.totalCredits ?? statistics.totalLoans ?? 0),
-      helper: 'Totales generales del portafolio',
+      helper: tTerm('credits.stats.portfolio.globalHelper'),
     }
     : {
       ...visiblePortfolioStatistics,
-      helper: 'Resumen de los créditos visibles',
+      helper: tTerm('credits.stats.portfolio.visibleHelper'),
     };
+  const calendarMessages = useMemo(() => ({
+    next: tTerm('credits.calendar.nav.next'),
+    previous: tTerm('credits.calendar.nav.previous'),
+    today: tTerm('credits.calendar.nav.today'),
+    month: tTerm('credits.calendar.nav.month'),
+    week: tTerm('credits.calendar.nav.week'),
+    day: tTerm('credits.calendar.nav.day'),
+    agenda: tTerm('credits.calendar.nav.agenda'),
+    date: tTerm('credits.calendar.nav.date'),
+    time: tTerm('credits.calendar.nav.time'),
+    event: tTerm('credits.calendar.nav.event'),
+  }), [locale]);
 
   return (
     <PageShell data-tour="credits-page" className="h-full">
@@ -710,7 +753,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               data-tour="credits-export"
               icon={<Download size={16} />}
             >
-              {isExporting ? 'Exportando…' : tTerm('credits.cta.exportExcel')}
+              {isExporting ? tTerm('credits.cta.exporting') : tTerm('credits.cta.exportExcel')}
             </ActionButton>
           )}
           {isAdmin && (
@@ -719,7 +762,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               data-tour="credits-preview"
               icon={<Calculator size={16} />}
             >
-              Previsualizar crédito
+              {tTerm('credits.cta.preview')}
             </ActionButton>
           )}
           {isAdmin && (
@@ -743,14 +786,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         tabs={[
           {
             id: 'list',
-            label: 'Créditos vigentes',
-            title: 'Créditos con saldo o cuotas pendientes',
+            label: tTerm('credits.tab.list.label'),
+            title: tTerm('credits.tab.list.title'),
             icon: CreditCard,
           },
           {
             id: 'calendar',
-            label: 'Calendario',
-            title: 'Calendario de cuotas pagadas, pendientes y vencidas',
+            label: tTerm('credits.tab.calendar.label'),
+            title: tTerm('credits.tab.calendar.title'),
             icon: CalendarIcon,
           },
         ]}
@@ -765,33 +808,33 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               items={[
                 {
                   id: 'capital-total',
-                  label: 'Capital total',
+                  label: tTerm('credits.stats.portfolio.totalCapital.label'),
                   value: formatCurrency(displayedStatistics.totalAmount),
-                  helper: 'Monto originado visible',
+                  helper: tTerm('credits.stats.portfolio.totalCapital.helper'),
                   icon: <DollarSign size={18} />,
                   accent: 'blue',
                 },
                 {
                   id: 'total-cobrado',
-                  label: 'Total cobrado',
+                  label: tTerm('credits.stats.portfolio.totalCollected.label'),
                   value: formatCurrency(displayedStatistics.totalCollected),
-                  helper: 'Recaudo aplicado',
+                  helper: tTerm('credits.stats.portfolio.totalCollected.helper'),
                   icon: <TrendingUp size={18} />,
                   accent: 'emerald',
                 },
                 {
                   id: 'mora-pendiente',
-                  label: 'Mora pendiente',
+                  label: tTerm('credits.stats.portfolio.totalOverdue.label'),
                   value: formatCurrency(displayedStatistics.totalOverdue),
-                  helper: 'Atrasos acumulados',
+                  helper: tTerm('credits.stats.portfolio.totalOverdue.helper'),
                   icon: <AlertTriangle size={18} />,
                   accent: displayedStatistics.totalOverdue > 0 ? 'amber' : 'slate',
                 },
                 {
                   id: 'creditos-activos',
-                  label: 'Créditos activos',
+                  label: tTerm('credits.stats.portfolio.activeCredits.label'),
                   value: `${displayedStatistics.activeCredits} / ${displayedStatistics.totalCredits}`,
-                  helper: 'Abiertos / visibles',
+                  helper: tTerm('credits.stats.portfolio.activeCredits.helper'),
                   icon: <Users size={18} />,
                   accent: 'slate',
                 },
@@ -824,29 +867,33 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 variant={showFilters ? 'primary' : 'secondary'}
                 icon={<Filter size={16} />}
               >
-                Filtrar
+                {tTerm('credits.filter.toggle')}
               </ActionButton>
             </div>
             <div className="text-sm font-medium text-text-secondary">
-              Total: {pagination?.totalItems ?? creditsList.length} créditos
+              {tTerm('credits.summary.total', { count: pagination?.totalItems ?? creditsList.length })}
             </div>
           </ToolbarSurface>
 
           {selectedCreditIds.length > 0 && (
             <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-text-secondary">{selectedCreditIds.length} crédito(s) seleccionado(s)</span>
+              <span className="text-text-secondary">
+                {selectedCreditIds.length === 1
+                  ? tTerm('credits.bulk.selected.one', { count: selectedCreditIds.length })
+                  : tTerm('credits.bulk.selected.other', { count: selectedCreditIds.length })}
+              </span>
               <div className="flex flex-wrap items-center gap-2">
                 <ActionButton
                   onClick={handleDownloadSelectedReports}
                   className="!min-h-0 !px-3 !py-1.5"
                 >
-                  Descargar reportes
+                  {tTerm('credits.bulk.downloadReports')}
                 </ActionButton>
                 <ActionButton
                   onClick={() => setSelectedCreditIds([])}
                   className="!min-h-0 !px-3 !py-1.5"
                 >
-                  Limpiar selección
+                  {tTerm('credits.bulk.clearSelection')}
                 </ActionButton>
               </div>
             </div>
@@ -856,24 +903,24 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {showFilters && (
             <SectionSurface bodyClassName="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-                <FormField label="Estado">
+                <FormField label={tTerm('credits.filter.status')}>
                   <SelectInput
                     id="credits-filter-status"
                     value={filters.status}
                     onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
                   >
-                    <option value="">Todos</option>
-                    <option value="active">Activo</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="approved">Aprobado</option>
-                    <option value="overdue">Vencido</option>
-                    <option value="defaulted">En mora</option>
-                    <option value="paid">Pagado</option>
-                    <option value="closed">Cerrado</option>
-                    <option value="cancelled">Cancelado</option>
+                    <option value="">{tTerm('credits.filter.all')}</option>
+                    <option value="active">{tTerm('common.status.active')}</option>
+                    <option value="pending">{tTerm('schedule.status.pending')}</option>
+                    <option value="approved">{tTerm('credits.status.approved')}</option>
+                    <option value="overdue">{tTerm('schedule.status.overdue')}</option>
+                    <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
+                    <option value="paid">{tTerm('schedule.status.paid')}</option>
+                    <option value="closed">{tTerm('common.status.closed')}</option>
+                    <option value="cancelled">{tTerm('credits.status.cancelled')}</option>
                   </SelectInput>
                 </FormField>
-                <FormField label="Monto mínimo">
+                <FormField label={tTerm('credits.filter.minAmount')}>
                   <TextInput
                     id="credits-filter-min-amount"
                     type="number"
@@ -882,16 +929,16 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     placeholder="0"
                   />
                 </FormField>
-                <FormField label="Monto máximo">
+                <FormField label={tTerm('credits.filter.maxAmount')}>
                   <TextInput
                     id="credits-filter-max-amount"
                     type="number"
                     value={filters.maxAmount}
                     onChange={(e) => setFilters((prev) => ({ ...prev, maxAmount: e.target.value }))}
-                    placeholder="Sin límite"
+                    placeholder={tTerm('credits.filter.noLimit')}
                   />
                 </FormField>
-                <FormField label="Fecha inicio">
+                <FormField label={tTerm('credits.filter.startDate')}>
                   <TextInput
                     id="credits-filter-start-date"
                     type="date"
@@ -899,7 +946,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
                   />
                 </FormField>
-                <FormField label="Fecha fin">
+                <FormField label={tTerm('credits.filter.endDate')}>
                   <TextInput
                     id="credits-filter-end-date"
                     type="date"
@@ -918,13 +965,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   }}
                   variant="ghost"
                 >
-                  Limpiar
+                  {tTerm('credits.filter.clear')}
                 </ActionButton>
                 <ActionButton
                   onClick={applyFilters}
                   variant="primary"
                 >
-                  Aplicar
+                  {tTerm('credits.filter.apply')}
                 </ActionButton>
               </div>
             </SectionSurface>
@@ -932,11 +979,11 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
           <div className="space-y-3 md:hidden">
             {isLoading ? (
-              <EmptyState title="Cargando créditos…" compact />
+              <EmptyState title={tTerm('credits.empty.loading')} compact />
             ) : isError ? (
-              <EmptyState title="Error al cargar créditos" compact />
+              <EmptyState title={tTerm('credits.empty.error')} compact />
             ) : creditsList.length === 0 ? (
-              <EmptyState title="No hay créditos registrados" compact />
+              <EmptyState title={tTerm('credits.empty.none')} compact />
             ) : (
               creditsList.map((credit: any) => {
                 const principalOutstanding = Number(credit.principalOutstanding) || 0;
@@ -949,7 +996,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold text-text-primary">{getCreditLabel(credit)}</p>
-                        <p className="mt-1 text-xs text-text-secondary">Crédito #{credit.id}</p>
+                        <p className="mt-1 text-xs text-text-secondary">{tTerm('credits.card.number', { id: credit.id })}</p>
                       </div>
                       <ExplainedChip
                         label={getLoanStatusLabel(credit.status)}
@@ -960,20 +1007,20 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
                     <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Capital</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('credits.card.capital')}</p>
                         <p className="mt-1 font-semibold text-text-primary">{formatCurrency(credit.amount)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Cuota</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('credits.card.installment')}</p>
                         <p className="mt-1 font-semibold text-text-primary">{credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Saldo</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('credits.card.balance')}</p>
                         <p className="mt-1 font-semibold text-text-primary">{outstandingAmount > 0 ? formatCurrency(outstandingAmount) : '-'}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                          <HelpLabel label="Situación" text={RECOVERY_COLUMN_HELP} />
+                          <HelpLabel label={tTerm('credits.table.recovery')} text={getRecoveryColumnHelp()} />
                         </p>
                         <div className="mt-1">
                           <ExplainedChip
@@ -995,9 +1042,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         className="mt-4"
                         fullWidth
                         icon={<Eye size={16} />}
-                        title={viewGuard.executable ? 'Abrir crédito' : (viewGuard.reason || 'Acción no disponible')}
+                        title={viewGuard.executable ? tTerm('credits.card.open') : (viewGuard.reason || tTerm('credits.action.unavailable'))}
                       >
-                        Ver detalle
+                        {tTerm('credits.card.viewDetail')}
                       </ActionButton>
                     )}
                   </article>
@@ -1013,35 +1060,35 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <th className="w-10 px-3 py-3 font-semibold">
                     <CheckboxInput
                       type="checkbox"
-                      aria-label="Seleccionar todos los créditos visibles"
+                      aria-label={tTerm('credits.table.selectAllVisible')}
                       checked={creditsList.length > 0 && creditsList.every((credit: any) => selectedCreditIds.includes(Number(credit?.id)))}
                       onChange={handleToggleSelectAllVisible}
                     />
                   </th>
-                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">ID</th>
-                  <th className="min-w-[150px] px-3 py-3 font-semibold">Cliente</th>
-                  <th className="px-3 py-3 text-right font-semibold">Capital</th>
-                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Tasa</th>
-                  <th className="px-3 py-3 text-right font-semibold">Cuota</th>
-                  <th className="px-3 py-3 text-right font-semibold">Saldo</th>
-                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">Mora</th>
+                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">{tTerm('credits.table.id')}</th>
+                  <th className="min-w-[150px] px-3 py-3 font-semibold">{tTerm('credits.table.customer')}</th>
+                  <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.capital')}</th>
+                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.rate')}</th>
+                  <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.installment')}</th>
+                  <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.balance')}</th>
+                  <th className="hidden px-3 py-3 text-right font-semibold 2xl:table-cell">{tTerm('credits.table.delinquency')}</th>
                   <th className="px-3 py-3 font-semibold">
-                    <HelpLabel label="Estado" text={STATUS_COLUMN_HELP} />
+                    <HelpLabel label={tTerm('credits.filter.status')} text={getStatusColumnHelp()} />
                   </th>
                   <th className="px-3 py-3 font-semibold">
-                    <HelpLabel label="Situación" text={RECOVERY_COLUMN_HELP} />
+                    <HelpLabel label={tTerm('credits.table.recovery')} text={getRecoveryColumnHelp()} />
                   </th>
-                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">Inicio</th>
-                  <th className="px-3 py-3 text-right font-semibold">Acciones</th>
+                  <th className="hidden px-3 py-3 font-semibold 2xl:table-cell">{tTerm('credits.table.start')}</th>
+                  <th className="px-3 py-3 text-right font-semibold">{tTerm('credits.table.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {isLoading ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">Cargando créditos…</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.loading')}</td></tr>
                 ) : isError ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-red-600">Error al cargar créditos.</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-red-600">{tTerm('credits.table.error')}</td></tr>
                 ) : creditsList.length === 0 ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">No hay créditos registrados.</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-text-secondary">{tTerm('credits.table.none')}</td></tr>
                 ) : (
                   creditsList.map((credit: any, index: number) => {
                     // Calculate outstanding amount (principalOutstanding + interestOutstanding)
@@ -1058,7 +1105,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
                     // Format creation date
                     const creationDate = credit.createdAt
-                      ? format(new Date(credit.createdAt), "dd/MM/yyyy", { locale: es })
+                      ? formatLocaleDate(credit.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric' })
                       : '-';
 
                     return (
@@ -1066,7 +1113,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <td className="px-3 py-4" {...(index === 0 ? { 'data-tour': 'credits-row-actions' } : {})}>
                           <CheckboxInput
                             type="checkbox"
-                            aria-label={`Seleccionar crédito ${credit.id}`}
+                            aria-label={tTerm('credits.table.selectOne', { id: credit.id })}
                             checked={selectedCreditIds.includes(Number(credit.id))}
                             onChange={() => toggleSelectedCredit(Number(credit.id))}
                           />
@@ -1079,7 +1126,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-right font-medium text-text-primary">{formatCurrency(credit.amount)}</td>
                         <td className="hidden whitespace-nowrap px-3 py-4 text-right text-text-secondary 2xl:table-cell">
-                          {credit.interestRate ? `${Number(credit.interestRate).toFixed(2)}%` : '-'}
+                          {credit.interestRate ? formatPercent(credit.interestRate, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-right text-text-secondary">
                           {credit.installmentAmount ? formatCurrency(credit.installmentAmount) : '-'}
@@ -1102,10 +1149,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                                   ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
                                   : 'border border-yellow-200 bg-yellow-100 text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/20 dark:text-yellow-200'
                             }`}>
-                              {delinquencyPercentage.toFixed(1)}%
+                              {formatPercent(delinquencyPercentage, { minimumFractionDigits: delinquencyPercentage > 0 ? 1 : 0, maximumFractionDigits: 1 })}
                             </span>
                           ) : (
-                            <span className="text-text-secondary">0%</span>
+                            <span className="text-text-secondary">{formatPercent(0)}</span>
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4">
@@ -1206,9 +1253,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {loansData && (
             <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-3 text-sm text-text-secondary shadow-sm ring-1 ring-border-subtle dark:bg-bg-surface lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0)} de {pagination?.totalItems ?? pagination?.total ?? 0} créditos
+                {tTerm('credits.pagination.summary', {
+                  from: ((page - 1) * pageSize) + 1,
+                  to: Math.min(page * pageSize, pagination?.totalItems ?? pagination?.total ?? 0),
+                  total: pagination?.totalItems ?? pagination?.total ?? 0,
+                })}
                 <label className="flex items-center gap-2">
-                  <span>Filas por página</span>
+                  <span>{tTerm('credits.pagination.rowsPerPage')}</span>
                   <SelectInput
                     value={pageSize}
                     onChange={(event) => {
@@ -1229,14 +1280,14 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   onClick={() => setPage(page - 1)}
                   className="!min-h-0 !px-3 !py-1"
                 >
-                  Anterior
+                  {tTerm('credits.pagination.previous')}
                 </ActionButton>
                 <ActionButton
                   disabled={page === (pagination?.totalPages || 1)}
                   onClick={() => setPage(page + 1)}
                   className="!min-h-0 !px-3 !py-1"
                 >
-                  Siguiente
+                  {tTerm('credits.pagination.next')}
                 </ActionButton>
               </div>
             </div>
@@ -1248,28 +1299,28 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
         <div className="relative flex flex-1 flex-col gap-4 min-w-0">
           <SectionSurface
             className="min-h-[660px]"
-            title="Calendario operativo"
-            subtitle="Cuotas por fecha de vencimiento. Selecciona una cuota para revisar el detalle o entrar al crédito."
+            title={tTerm('credits.calendar.title')}
+            subtitle={tTerm('credits.calendar.subtitle')}
             actions={(
               <div className="flex flex-wrap gap-3 text-xs text-text-secondary">
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full bg-slate-400 dark:bg-slate-500" />
-                  Pagadas
+                  {tTerm('credits.calendar.legend.paid')}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full bg-blue-500" />
-                  Pendientes
+                  {tTerm('credits.calendar.legend.pending')}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full bg-red-500" />
-                  En mora
+                  {tTerm('credits.calendar.legend.overdue')}
                 </div>
               </div>
             )}
           >
             {isCalendarLoading ? (
               <div className="flex h-full min-h-[560px] items-center justify-center text-text-secondary">
-                Cargando calendario de créditos…
+                {tTerm('credits.calendar.loading')}
               </div>
             ) : (
               <Calendar
@@ -1279,19 +1330,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 endAccessor="end"
                 defaultView={initialCalendarView}
                 style={{ height: 620 }}
-                messages={{
-                  next: 'Sig',
-                  previous: 'Ant',
-                  today: 'Hoy',
-                  month: 'Mes',
-                  week: 'Semana',
-                  day: 'Día',
-                  agenda: 'Agenda',
-                  date: 'Fecha',
-                  time: 'Hora',
-                  event: 'Cuota',
-                }}
-                culture="es"
+                messages={calendarMessages}
+                culture={locale}
                 eventPropGetter={eventStyleGetter}
                 components={{
                   event: ({ event }: { event: InstallmentEvent }) => (
@@ -1307,7 +1347,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       <span className="truncate opacity-90">{formatCurrency(event.amountToPay)}</span>
                       {event.arrears > 0 && (
                         <span className="truncate font-bold text-red-100">
-                          + Mora: {formatCurrency(event.arrears)}
+                          {tTerm('credits.calendar.event.lateFee', { amount: formatCurrency(event.arrears) })}
                         </span>
                       )}
                     </button>
@@ -1320,7 +1360,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
             {!isCalendarLoading && calendarEvents.length === 0 && (
               <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
-                No hay cuotas para mostrar con los créditos visibles en esta página.
+                {tTerm('credits.calendar.empty')}
               </div>
             )}
           </SectionSurface>
@@ -1328,9 +1368,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <SectionSurface>
                 <div>
-                  <h4 className="text-base font-semibold text-text-primary">Agenda operativa</h4>
+                  <h4 className="text-base font-semibold text-text-primary">{tTerm('credits.agenda.title')}</h4>
                   <p className="mt-1 text-sm text-text-secondary">
-                    Qué se debe cobrar y qué requiere atención en los créditos visibles.
+                    {tTerm('credits.agenda.subtitle')}
                   </p>
                 </div>
                 <InsightStrip items={calendarSummaryItems} className="calendar-summary-strip mt-4" />
@@ -1339,25 +1379,29 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
               <SectionSurface as="section">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-text-primary">Próximas acciones</h4>
+                    <h4 className="text-base font-semibold text-text-primary">{tTerm('credits.agenda.nextAction')}</h4>
                     <p className="mt-1 text-sm text-text-secondary">
-                      Una fila por crédito. Si está lista para pago, entra directo al detalle operativo.
+                      {tTerm('credits.agenda.subtitle')}
                     </p>
                   </div>
                   <span className="rounded-full bg-bg-base px-3 py-1 text-xs font-semibold text-text-secondary">
-                    {calendarOverview.agenda.length} créditos
+                    {tTerm('credits.agenda.count', { count: calendarOverview.agenda.length })}
                   </span>
                 </div>
 
                 {calendarOverview.nextAction && (
                   <div className="mt-4 rounded-2xl border border-brand-primary/20 bg-brand-primary/5 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">Siguiente acción sugerida</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">{tTerm('credits.agenda.nextAction')}</div>
                     <div className="mt-2 text-base font-semibold text-text-primary">{calendarOverview.nextAction.customerName}</div>
                     <p className="mt-1 text-sm text-text-secondary">
-                      Cuota {calendarOverview.nextAction.installmentNumber}
-                      {calendarOverview.nextAction.totalInstallments > 0 ? ` de ${calendarOverview.nextAction.totalInstallments}` : ''}
+                      {calendarOverview.nextAction.totalInstallments > 0
+                        ? tTerm('credits.agenda.installmentOf', {
+                          number: calendarOverview.nextAction.installmentNumber,
+                          total: calendarOverview.nextAction.totalInstallments,
+                        })
+                        : tTerm('credits.agenda.installment', { number: calendarOverview.nextAction.installmentNumber })}
                       {' · '}
-                      {format(parseDueDate(calendarOverview.nextAction.dueDate) || new Date(), "d 'de' MMM", { locale: es })}
+                      {formatLocaleDate(parseDueDate(calendarOverview.nextAction.dueDate) || new Date(), { day: 'numeric', month: 'short', timeZone: 'UTC' })}
                     </p>
                   </div>
                 )}
@@ -1365,7 +1409,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                 <div className="mt-4 space-y-3">
                   {calendarOverview.agenda.length === 0 && (
                     <div className="rounded-2xl border border-dashed border-border-subtle bg-bg-base p-4 text-sm text-text-secondary">
-                      No hay cobros accionables con los créditos visibles en esta página.
+                      {tTerm('credits.agenda.empty')}
                     </div>
                   )}
 
@@ -1375,8 +1419,13 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                         <div className="min-w-0">
                           <div className="font-semibold text-text-primary">{item.customerName}</div>
                           <div className="mt-1 text-sm text-text-secondary">
-                            Crédito #{item.loanId} · Cuota {item.installmentNumber}
-                            {item.totalInstallments > 0 ? ` de ${item.totalInstallments}` : ''}
+                            {item.totalInstallments > 0
+                              ? tTerm('credits.agenda.loanInstallmentOf', {
+                                loanId: item.loanId,
+                                number: item.installmentNumber,
+                                total: item.totalInstallments,
+                              })
+                              : tTerm('credits.agenda.loanInstallment', { loanId: item.loanId, number: item.installmentNumber })}
                           </div>
                         </div>
                         <span className={getChipClassName(getCalendarStatusTone(item.status))}>
@@ -1386,19 +1435,19 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Vencimiento</div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{tTerm('credits.agenda.dueDate')}</div>
                           <div className="mt-1 text-sm font-medium text-text-primary">
-                            {format(parseDueDate(item.dueDate) || new Date(), "d 'de' MMMM", { locale: es })}
+                            {formatLocaleDate(parseDueDate(item.dueDate) || new Date(), { day: 'numeric', month: 'long', timeZone: 'UTC' })}
                           </div>
                           {item.daysOverdue > 0 && (
-                            <div className="mt-1 text-sm font-medium text-rose-600">{item.daysOverdue} días de atraso</div>
+                            <div className="mt-1 text-sm font-medium text-rose-600">{tTerm('credits.agenda.daysOverdue', { count: item.daysOverdue })}</div>
                           )}
                         </div>
                         <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Cobro sugerido</div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{tTerm('credits.agenda.suggestedCollection')}</div>
                           <div className="mt-1 text-sm font-semibold text-text-primary">{formatCurrency(item.payableAmount)}</div>
                           {item.lateFeeDue > 0 && (
-                            <div className="mt-1 text-sm text-amber-700">Incluye mora por {formatCurrency(item.lateFeeDue)}</div>
+                            <div className="mt-1 text-sm text-amber-700">{tTerm('credits.agenda.includesLateFee', { amount: formatCurrency(item.lateFeeDue) })}</div>
                           )}
                         </div>
                       </div>
@@ -1414,7 +1463,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                           type="button"
                           onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
                         >
-                          Ver crédito
+                          {tTerm('credits.action.viewLoan')}
                         </ActionButton>
                         {item.canPay && (
                           <ActionButton
@@ -1422,7 +1471,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                             onClick={() => setCurrentView?.(`credits/${item.loanId}`)}
                             variant="primary"
                           >
-                            Registrar pago
+                            {tTerm('creditDetails.cta.recordPayment')}
                           </ActionButton>
                         )}
                       </div>
@@ -1435,12 +1484,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           {/* Modal de Detalles del Evento */}
           {selectedEvent && (
             <ModalShell
-              title="Detalle de cuota"
+              title={tTerm('credits.modal.title')}
               subtitle={selectedEvent.clientName}
               footer={(
                 <>
                   <ActionButton onClick={() => setSelectedEvent(null)} fullWidth>
-                    Cerrar
+                    {tTerm('credits.modal.close')}
                   </ActionButton>
                   {selectedEvent.type !== 'paid' && selectedEvent.canPay && (
                     <ActionButton
@@ -1451,7 +1500,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                       variant="primary"
                       fullWidth
                     >
-                      Registrar pago
+                      {tTerm('creditDetails.cta.recordPayment')}
                     </ActionButton>
                   )}
                 </>
@@ -1469,10 +1518,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                        <Clock size={24} />}
                     </div>
                     <div>
-                      <div className="text-sm text-text-secondary">Estado</div>
+                      <div className="text-sm text-text-secondary">{tTerm('credits.modal.status')}</div>
                       <div className="font-semibold text-lg">
-                        {selectedEvent.type === 'paid' ? 'Pagada' :
-                         selectedEvent.type === 'overdue' ? 'En mora' : 'Pendiente'}
+                        {selectedEvent.type === 'paid' ? tTerm('credits.modal.status.paid') :
+                         selectedEvent.type === 'overdue' ? tTerm('credits.modal.status.overdue') : tTerm('credits.modal.status.pending')}
                       </div>
                     </div>
                   </div>
@@ -1480,32 +1529,32 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-bg-base p-3 rounded-xl border border-border-subtle">
-                        <div className="text-xs text-text-secondary mb-1">Número de Cuota</div>
-                        <div className="font-semibold">{selectedEvent.installmentNumber} de {selectedEvent.totalInstallments}</div>
+                        <div className="text-xs text-text-secondary mb-1">{tTerm('credits.modal.installmentNumber')}</div>
+                        <div className="font-semibold">{tTerm('credits.modal.installmentOf', { number: selectedEvent.installmentNumber, total: selectedEvent.totalInstallments })}</div>
                       </div>
                       <div className="bg-bg-base p-3 rounded-xl border border-border-subtle">
-                        <div className="text-xs text-text-secondary mb-1">Fecha de Vencimiento</div>
-                        <div className="font-semibold">{format(selectedEvent.start, "d 'de' MMMM, yyyy", { locale: es })}</div>
+                        <div className="text-xs text-text-secondary mb-1">{tTerm('credits.modal.dueDate')}</div>
+                        <div className="font-semibold">{formatLocaleDate(selectedEvent.start, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}</div>
                       </div>
                     </div>
 
                     <div className="bg-bg-base rounded-xl border border-border-subtle overflow-hidden">
                       <div className="p-3 border-b border-border-subtle flex justify-between items-center bg-hover-bg/50">
-                        <span className="text-sm font-medium">Cobro sugerido</span>
+                        <span className="text-sm font-medium">{tTerm('credits.modal.suggestedCollection')}</span>
                         <span className="font-bold text-lg">{formatCurrency(selectedEvent.payableAmount || selectedEvent.amountToPay)}</span>
                       </div>
                       <div className="p-3 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-text-secondary">Interés</span>
+                          <span className="text-text-secondary">{tTerm('credits.modal.interest')}</span>
                           <span>{formatCurrency(selectedEvent.interest)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-text-secondary">Capital Amortizado</span>
+                          <span className="text-text-secondary">{tTerm('credits.modal.amortizedPrincipal')}</span>
                           <span>{formatCurrency(selectedEvent.amortizedCapital)}</span>
                         </div>
                         {selectedEvent.arrears > 0 && (
                           <div className="flex justify-between text-red-600 dark:text-red-400 font-medium pt-2 border-t border-border-subtle mt-2">
-                            <span>Mora Acumulada</span>
+                            <span>{tTerm('credits.modal.accumulatedLateFee')}</span>
                             <span>{formatCurrency(selectedEvent.arrears)}</span>
                           </div>
                         )}
@@ -1513,7 +1562,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
                     </div>
 
                     <div className="bg-bg-base p-3 rounded-xl border border-border-subtle flex justify-between items-center">
-                      <span className="text-sm font-medium text-text-secondary">Capital Vivo (Restante)</span>
+                      <span className="text-sm font-medium text-text-secondary">{tTerm('credits.modal.remainingPrincipal')}</span>
                       <span className="font-semibold">{formatCurrency(selectedEvent.remainingCapital)}</span>
                     </div>
 

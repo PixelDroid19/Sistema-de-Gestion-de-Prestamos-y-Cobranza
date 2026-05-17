@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { tTerm } from '../i18n/terminology';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
@@ -47,6 +48,21 @@ const EMPTY_FORM: AssociateFormData = {
   interestStartDate: '',
 };
 
+const MONTH_TERM_KEYS = [
+  'common.month.1',
+  'common.month.2',
+  'common.month.3',
+  'common.month.4',
+  'common.month.5',
+  'common.month.6',
+  'common.month.7',
+  'common.month.8',
+  'common.month.9',
+  'common.month.10',
+  'common.month.11',
+  'common.month.12',
+] as const;
+
 export default function NewAssociate({ onBack }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
   const associateId = Number(id);
@@ -56,6 +72,10 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
   const { data: associateResponse, isLoading: isLoadingAssociate, isError: isAssociateLoadError } = useAssociateById(associateId);
   const existingAssociate = associateResponse?.data?.associate || associateResponse?.data || null;
   const [formData, setFormData] = useState<AssociateFormData>(EMPTY_FORM);
+  const monthOptions = MONTH_TERM_KEYS.map((key, index) => ({
+    value: String(index + 1),
+    label: tTerm(key),
+  }));
 
   useEffect(() => {
     if (!isEditing || !existingAssociate) {
@@ -87,37 +107,33 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
     },
     errorContext: { domain: 'associates', action: isEditing ? 'associate.update' : 'associate.create' },
     onSuccess: onBack,
-    successMessage: isEditing ? 'Socio actualizado exitosamente' : 'Socio creado exitosamente',
+    successMessage: isEditing ? tTerm('newAssociate.success.edit') : tTerm('newAssociate.success.create'),
   });
 
-  const title = useMemo(() => (isEditing ? 'Editar socio' : 'Nuevo socio'), [isEditing]);
-  const subtitle = useMemo(() => (
-    isEditing
-      ? 'Actualiza la información operativa del socio sin afectar su historial financiero.'
-      : 'Crea el socio y define, si aplica, su porcentaje de participación en utilidades.'
-  ), [isEditing]);
+  const title = isEditing ? tTerm('newAssociate.title.edit') : tTerm('newAssociate.title.create');
+  const subtitle = isEditing ? tTerm('newAssociate.subtitle.edit') : tTerm('newAssociate.subtitle.create');
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!formData.name.trim()) {
-      toast.error({ title: 'El nombre es requerido' });
+      toast.error({ title: tTerm('newAssociate.validation.nameRequired') });
       return;
     }
 
     if (!formData.email.trim() || !formData.phone.trim()) {
-      toast.error({ title: 'El correo y el teléfono son requeridos' });
+      toast.error({ title: tTerm('newAssociate.validation.contactRequired') });
       return;
     }
 
     const interestRate = Number(formData.interestRate);
     if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 100) {
-      toast.error({ title: 'La tasa del socio debe estar entre 0% y 100%.' });
+      toast.error({ title: tTerm('newAssociate.validation.rateRange') });
       return;
     }
 
     const paymentDay = Number(formData.interestPaymentDay);
     if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 28) {
-      toast.error({ title: 'El día de pago debe estar entre 1 y 28.' });
+      toast.error({ title: tTerm('newAssociate.validation.dayRange') });
       return;
     }
 
@@ -128,7 +144,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
     return (
       <PageShell>
         <SectionSurface>
-          <EmptyState compact title="Cargando datos del socio…" icon={<Loader2 size={16} className="animate-spin" />} />
+          <EmptyState compact title={tTerm('newAssociate.loading')} icon={<Loader2 size={16} className="animate-spin" />} />
         </SectionSurface>
       </PageShell>
     );
@@ -139,9 +155,9 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       <PageShell>
         <SectionSurface>
           <EmptyState
-            title="No fue posible cargar el socio"
-            description="Vuelve a la lista e inténtalo de nuevo."
-            action={<ActionButton onClick={onBack}>Volver a socios</ActionButton>}
+            title={tTerm('newAssociate.loadError.title')}
+            description={tTerm('newAssociate.loadError.description')}
+            action={<ActionButton onClick={onBack}>{tTerm('newAssociate.actions.back')}</ActionButton>}
           />
         </SectionSurface>
       </PageShell>
@@ -157,60 +173,60 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
         tourId="new-associate-header"
         actions={(
           <ActionButton onClick={onBack} icon={<ArrowLeft size={16} />}>
-            Volver
+            {tTerm('newAssociate.actions.back')}
           </ActionButton>
         )}
       />
 
       <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form">
         <div className="space-y-4">
-          <FormField label="Nombre completo *">
+          <FormField label={tTerm('newAssociate.field.name')}>
             <TextInput
               id="new-associate-name"
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder="Nombre del socio"
+              placeholder={tTerm('newAssociate.placeholder.name')}
             />
           </FormField>
 
-          <FormField label="Correo electrónico">
+          <FormField label={tTerm('newAssociate.field.email')}>
             <TextInput
               id="new-associate-email"
               type="email"
               required
               value={formData.email}
               onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-              placeholder="correo@ejemplo.com"
+              placeholder={tTerm('newAssociate.placeholder.email')}
             />
           </FormField>
 
-          <FormField label="Teléfono">
+          <FormField label={tTerm('newAssociate.field.phone')}>
             <TextInput
               id="new-associate-phone"
               type="tel"
               required
               value={formData.phone}
               onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-              placeholder="Número de teléfono"
+              placeholder={tTerm('newAssociate.placeholder.phone')}
             />
           </FormField>
 
-          <FormField label="Estado">
+          <FormField label={tTerm('newAssociate.field.status')}>
             <SelectInput
               id="new-associate-status"
               value={formData.status}
               onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
             >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
+              <option value="active">{tTerm('common.status.active')}</option>
+              <option value="inactive">{tTerm('common.status.inactive')}</option>
             </SelectInput>
           </FormField>
 
           <FormField
-            label="Participación sobre utilidades (%)"
-            helper="Úsalo cuando el socio participe en distribuciones proporcionales. La suma de socios activos debe cerrar en 100%."
+            label={tTerm('newAssociate.field.participation')}
+            helper={tTerm('newAssociate.helper.participation')}
           >
             <TextInput
               id="new-associate-participation"
@@ -220,15 +236,15 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               step="0.0001"
               value={formData.participationPercentage}
               onChange={(e) => setFormData((prev) => ({ ...prev, participationPercentage: e.target.value }))}
-              placeholder="Opcional. Ejemplo: 25"
+              placeholder={tTerm('newAssociate.placeholder.participation')}
             />
           </FormField>
 
           <div className="grid gap-4 border-t border-border-subtle pt-4 sm:grid-cols-2">
             {!isEditing && (
               <FormField
-                label="Capital inicial aportado"
-                helper="Opcional. Si lo registras aquí, el sistema crea el primer movimiento de capital y agenda el primer pago de interés."
+                label={tTerm('newAssociate.field.initialCapital')}
+                helper={tTerm('newAssociate.helper.initialCapital')}
               >
                 <TextInput
                   id="new-associate-initial-capital"
@@ -237,28 +253,28 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
                   step="0.01"
                   value={formData.initialCapital}
                   onChange={(e) => setFormData((prev) => ({ ...prev, initialCapital: e.target.value }))}
-                  placeholder="Ejemplo: 2000000"
+                  placeholder={tTerm('newAssociate.placeholder.initialCapital')}
                 />
               </FormField>
             )}
 
             <FormField
-              label="Tipo de interés"
-              helper="Mensual cobra la tasa cada mes. Anual cobra una vez al año sobre el capital aportado."
+              label={tTerm('newAssociate.field.interestType')}
+              helper={tTerm('newAssociate.helper.interestType')}
             >
               <SelectInput
                 id="new-associate-interest-type"
                 value={formData.interestType}
                 onChange={(e) => setFormData((prev) => ({ ...prev, interestType: e.target.value }))}
               >
-                <option value="monthly">Mensual</option>
-                <option value="annual">Anual</option>
+                <option value="monthly">{tTerm('common.interestType.monthly')}</option>
+                <option value="annual">{tTerm('common.interestType.annual')}</option>
               </SelectInput>
             </FormField>
 
             <FormField
-              label={formData.interestType === 'annual' ? 'Tasa anual (%)' : 'Tasa mensual (%)'}
-              helper="Porcentaje que se reconoce al socio sobre su capital aportado para cada periodo de pago."
+              label={formData.interestType === 'annual' ? tTerm('newAssociate.field.interestRate.annual') : tTerm('newAssociate.field.interestRate.monthly')}
+              helper={tTerm('newAssociate.helper.interestRate')}
             >
               <TextInput
                 id="new-associate-interest-rate"
@@ -268,34 +284,25 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
                 step="0.0001"
                 value={formData.interestRate}
                 onChange={(e) => setFormData((prev) => ({ ...prev, interestRate: e.target.value }))}
-                placeholder="Ejemplo: 2.5"
+                placeholder={tTerm('newAssociate.placeholder.interestRate')}
               />
             </FormField>
 
             {formData.interestType === 'annual' && (
-              <FormField label="Mes de pago anual" helper="Mes en el que se paga el interés anual al socio.">
+              <FormField label={tTerm('newAssociate.field.interestMonth')} helper={tTerm('newAssociate.helper.interestMonth')}>
                 <SelectInput
                   id="new-associate-interest-month"
                   value={formData.interestPaymentMonth}
                   onChange={(e) => setFormData((prev) => ({ ...prev, interestPaymentMonth: e.target.value }))}
                 >
-                  <option value="1">Enero</option>
-                  <option value="2">Febrero</option>
-                  <option value="3">Marzo</option>
-                  <option value="4">Abril</option>
-                  <option value="5">Mayo</option>
-                  <option value="6">Junio</option>
-                  <option value="7">Julio</option>
-                  <option value="8">Agosto</option>
-                  <option value="9">Septiembre</option>
-                  <option value="10">Octubre</option>
-                  <option value="11">Noviembre</option>
-                  <option value="12">Diciembre</option>
+                  {monthOptions.map((month) => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
                 </SelectInput>
               </FormField>
             )}
 
-            <FormField label="Día de pago de intereses" helper="Usamos días 1 a 28 para evitar errores por meses cortos.">
+            <FormField label={tTerm('newAssociate.field.interestDay')} helper={tTerm('newAssociate.helper.interestDay')}>
               <TextInput
                 id="new-associate-interest-day"
                 type="number"
@@ -307,7 +314,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               />
             </FormField>
 
-            <FormField label="Fecha inicial de cálculo" helper="Opcional. Define desde cuándo se agenda el primer pago de interés.">
+            <FormField label={tTerm('newAssociate.field.interestStartDate')} helper={tTerm('newAssociate.helper.interestStartDate')}>
               <TextInput
                 id="new-associate-interest-start-date"
                 type="date"
@@ -319,7 +326,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
 
           <div className="flex gap-3 pt-4">
             <ActionButton type="button" onClick={onBack} fullWidth>
-              Cancelar
+              {tTerm('newAssociate.actions.cancel')}
             </ActionButton>
             <ActionButton
               type="submit"
@@ -328,7 +335,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
               variant="primary"
               fullWidth
             >
-              {isEditing ? 'Guardar cambios' : 'Crear socio'}
+              {isEditing ? tTerm('newAssociate.actions.save') : tTerm('newAssociate.actions.create')}
             </ActionButton>
           </div>
         </div>

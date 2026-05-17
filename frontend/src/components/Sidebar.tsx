@@ -104,7 +104,7 @@ export default function Sidebar({
       {isMobileOpen && (
         <button
           type="button"
-          aria-label="Cerrar menú lateral"
+          aria-label={tTerm('sidebar.closeMobileMenu')}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
           onClick={() => setIsMobileOpen(false)}
         />
@@ -124,7 +124,7 @@ export default function Sidebar({
             variant="list"
             className="flex items-center gap-3 cursor-pointer group text-left"
             onClick={() => setCurrentView(homeView)}
-            aria-label={`Ir a ${APP_BRAND.name}`}
+            aria-label={tTerm('sidebar.goHome', { brand: APP_BRAND.name })}
           >
             <div className="size-10 rounded-xl flex items-center justify-center bg-brand-primary text-white font-bold text-xl shrink-0 shadow-[0_10px_24px_-14px_rgba(20,95,116,0.7)] transition-transform group-hover:scale-105">
               {APP_BRAND.monogram}
@@ -135,7 +135,7 @@ export default function Sidebar({
           {/* Botón cerrar (Solo Móvil) */}
           <IconActionButton
             className="md:hidden"
-            label="Cerrar menú"
+            label={tTerm('sidebar.closeMenu')}
             icon={<X size={20} />}
             onClick={() => setIsMobileOpen(false)}
           />
@@ -172,7 +172,7 @@ export default function Sidebar({
                     active={currentView === 'customers'}
                     onClick={() => setCurrentView('customers')}
                     title={tTerm('sidebar.customers.directory')}
-                    tooltip="Consulta y busca clientes registrados"
+                    tooltip={tTerm('sidebar.tooltip.customers.list')}
                   />
                 )}
                 {canCreateCustomers && (
@@ -180,7 +180,7 @@ export default function Sidebar({
                     active={currentView === 'customers-new'}
                     onClick={() => setCurrentView('customers-new')}
                     title={tTerm('sidebar.customers.new')}
-                    tooltip="Registra un cliente por primera vez"
+                    tooltip={tTerm('sidebar.tooltip.customers.new')}
                   />
                 )}
               </div>
@@ -207,7 +207,7 @@ export default function Sidebar({
                     active={currentView === 'credits'}
                     onClick={() => setCurrentView('credits')}
                     title={tTerm('sidebar.credits.portfolio')}
-                    tooltip="Créditos en curso con saldo o cuotas pendientes"
+                    tooltip={tTerm('sidebar.tooltip.credits.portfolio')}
                   />
                 )}
                 {canCreateCredits && (
@@ -215,7 +215,7 @@ export default function Sidebar({
                       active={currentView === 'credits-new' || currentView === 'credits/new'}
                       onClick={() => setCurrentView('credits-new')}
                       title={tTerm('sidebar.credits.origination')}
-                      tooltip="Crear y registrar un credito nuevo"
+                      tooltip={tTerm('sidebar.tooltip.credits.new')}
                     />
                 )}
                 {canViewReports && (
@@ -223,15 +223,15 @@ export default function Sidebar({
                       active={currentView === 'reports'}
                       onClick={() => setCurrentView('reports')}
                       title={tTerm('sidebar.credits.reports')}
-                      tooltip="Indicadores de cartera, mora y recaudo"
+                      tooltip={tTerm('sidebar.tooltip.credits.reports')}
                     />
                 )}
                 {canViewCredits && (
                   <SubNavItem
                     active={currentView === 'credit-calculator' || currentView === 'simulator'}
                     onClick={() => setCurrentView('credit-calculator')}
-                    title="Cálculo de Crédito"
-                    tooltip="Calcula cuotas con la regla activa del crédito"
+                    title={tTerm('sidebar.credits.simulator')}
+                    tooltip={tTerm('sidebar.tooltip.credits.simulator')}
                   />
                 )}
 
@@ -271,7 +271,7 @@ export default function Sidebar({
                 active={currentView === 'payouts'}
                 onClick={() => setCurrentView('payouts')}
                 title={tTerm('sidebar.payouts')}
-                tooltip="Registra pagos, consulta recibos y seguimiento de cobranza"
+                tooltip={tTerm('sidebar.tooltip.payouts')}
                 isCollapsed={isCollapsed}
               />
             </div>
@@ -282,7 +282,7 @@ export default function Sidebar({
               icon={<CreditCard size={20} />} 
               active={currentView === 'notifications'} 
               onClick={() => setCurrentView('notifications')} 
-              title="Notificaciones" 
+              title={tTerm('sidebar.notifications')} 
               isCollapsed={isCollapsed}
             />
           </div>
@@ -293,11 +293,11 @@ export default function Sidebar({
         <div className="flex shrink-0 flex-col gap-1 w-full px-3 mt-4 pt-4 border-t border-border-subtle">
           {canViewAudit && <NavItem icon={<ClipboardList size={20} />} active={currentView === 'audit-log'} onClick={() => setCurrentView('audit-log')} title={tTerm('sidebar.audit')} isCollapsed={isCollapsed} />}
           {isAdmin && <NavItem icon={<Settings size={20} />} active={currentView === 'settings'} onClick={() => setCurrentView('settings')} title={tTerm('sidebar.settings')} isCollapsed={isCollapsed} />}
-          <NavItem icon={<UserRound size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title="Perfil" isCollapsed={isCollapsed} />
+          <NavItem icon={<UserRound size={20} />} active={currentView === 'profile'} onClick={() => setCurrentView('profile')} title={tTerm('sidebar.profile')} isCollapsed={isCollapsed} />
           <NavItem
             icon={<LogOut size={20} />}
             onClick={handleLogout}
-            title={isLoggingOut ? 'Cerrando sesión…' : tTerm('sidebar.logout')}
+            title={isLoggingOut ? tTerm('sidebar.loggingOut') : tTerm('sidebar.logout')}
             isCollapsed={isCollapsed}
             className="text-text-secondary hover:text-text-primary hover:bg-hover-bg"
           />
@@ -306,7 +306,7 @@ export default function Sidebar({
           <IconActionButton
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="mt-4 hidden w-full md:flex"
-            label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+            label={isCollapsed ? tTerm('sidebar.expandMenu') : tTerm('sidebar.collapseMenu')}
             icon={isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
           />
         </div>

@@ -1,5 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Download, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
+import {
+  formatCurrency as formatCurrencyValue,
+  formatNumber as formatNumberValue,
+  formatPercent as formatPercentValue,
+} from '../i18n/format';
 import { useAssociates } from '../services/associateService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
@@ -11,15 +16,9 @@ import { useSessionStore } from '../store/sessionStore';
 import { ActionButton, FormField, InsightStrip, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-}).format(Number(amount || 0));
+const formatCurrency = (amount: number) => formatCurrencyValue(amount);
 
-const formatPercent = (value: number) => `${Number(value || 0).toLocaleString('es-CO', {
-  maximumFractionDigits: 2,
-})}%`;
+const formatPercent = (value: number) => formatPercentValue(value, { maximumFractionDigits: 2 });
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
@@ -106,7 +105,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       .join('');
   };
 
-  const getStatusLabel = (status: string) => (status === 'active' ? 'Activo' : 'Inactivo');
+  const getStatusLabel = (status: string) => (status === 'active'
+    ? tTerm('common.status.active')
+    : tTerm('common.status.inactive'));
 
   const getStatusClasses = (status: string) => (status === 'active'
     ? 'bg-blue-50 text-blue-700'
@@ -114,8 +115,10 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
   const getInterestLabel = (associate: any) => {
     const rate = Number(associate?.interestRate || 0);
-    const type = associate?.interestType === 'annual' ? 'anual' : 'mensual';
-    return `${rate.toLocaleString('es-CO', { maximumFractionDigits: 4 })}% ${type}`;
+    const type = associate?.interestType === 'annual'
+      ? tTerm('common.interestType.annual')
+      : tTerm('common.interestType.monthly');
+    return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}% ${type.toLowerCase()}`;
   };
 
   const handleDelete = async (associate: any) => {
@@ -278,8 +281,8 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 }}
               >
                 <option value="all">Todos los estados</option>
-                <option value="active">Activos</option>
-                <option value="inactive">Inactivos</option>
+                <option value="active">{tTerm('common.status.active')}</option>
+                <option value="inactive">{tTerm('common.status.inactive')}</option>
               </SelectInput>
             </FormField>
           </div>
@@ -341,7 +344,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                     </span>
                   </td>
                   <td className="py-4 text-text-secondary">
-                    {associate.participationPercentage ? `${associate.participationPercentage}%` : 'Sin definir'}
+                    {associate.participationPercentage ? formatPercent(associate.participationPercentage) : 'Sin definir'}
                   </td>
                   <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
                   <td className="py-4">

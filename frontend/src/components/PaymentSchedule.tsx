@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, DollarSign, TrendingUp, BarChart3, Download, FileSpreadsheet, Loader2, Wallet } from 'lucide-react';
 import { usePaymentSchedule, exportCreditExcel } from '../services/reportService';
 import { toast } from '../lib/toast';
+import { formatCurrency, formatDate } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { ActionButton, DataTableSurface, EmptyState, InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { QuickGuideButton } from './shared/HelpSupport';
@@ -18,30 +19,12 @@ export default function PaymentSchedule() {
   const { data, loan, summary, schedule, isLoading, isError, error } = usePaymentSchedule(loanId);
   const [isExporting, setIsExporting] = useState(false);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('es-CO', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-    });
-  };
-
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      'paid': { label: 'Pagado', className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
-      'pending': { label: 'Pendiente', className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-      'overdue': { label: 'Vencido', className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
-      'annulled': { label: 'Anulado', className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
+      paid: { label: tTerm('schedule.status.paid'), className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+      pending: { label: tTerm('schedule.status.pending'), className: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+      overdue: { label: tTerm('schedule.status.overdue'), className: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400' },
+      annulled: { label: tTerm('schedule.status.annulled'), className: 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400' },
     };
 
     const config = statusMap[status.toLowerCase()] || {
@@ -61,9 +44,12 @@ export default function PaymentSchedule() {
     setIsExporting(true);
     try {
       await exportCreditExcel(loanId);
-      toast.success({ title: 'Exportación exitosa', description: `Se exportó el Excel del crédito #${loanId}.` });
+      toast.success({
+        title: tTerm('schedule.export.successTitle'),
+        description: tTerm('schedule.export.successDescription', { loanId }),
+      });
     } catch (_err: unknown) {
-      toast.error({ title: 'Error de exportación', description: 'No se pudo exportar el reporte' });
+      toast.error({ title: tTerm('schedule.export.errorTitle'), description: tTerm('schedule.toast.export.error') });
     } finally {
       setIsExporting(false);
     }
@@ -73,9 +59,9 @@ export default function PaymentSchedule() {
     return (
       <PageShell>
         <EmptyState
-          title="Selecciona un crédito"
-          description="El plan de pagos necesita un crédito válido para mostrar amortización y estados."
-          action={<ActionButton onClick={() => navigate('/credits')}>Volver a créditos</ActionButton>}
+          title={tTerm('schedule.empty.selectTitle')}
+          description={tTerm('schedule.empty.selectDescription')}
+          action={<ActionButton onClick={() => navigate('/credits')}>{tTerm('schedule.button.back')}</ActionButton>}
         />
       </PageShell>
     );
@@ -85,8 +71,8 @@ export default function PaymentSchedule() {
     return (
       <PageShell>
         <EmptyState
-          title="Cargando plan de pagos"
-          description="Estamos preparando la amortización del crédito."
+          title={tTerm('schedule.empty.loadingTitle')}
+          description={tTerm('schedule.empty.loadingDescription')}
           icon={<Loader2 size={24} className="animate-spin" />}
           compact
         />
@@ -98,10 +84,10 @@ export default function PaymentSchedule() {
     return (
       <PageShell>
         <EmptyState
-          title="No se pudo cargar el plan"
-          description={error ? (error as any).message || 'Error al cargar el plan de pagos' : 'Error al cargar el plan de pagos'}
+          title={tTerm('schedule.empty.errorTitle')}
+          description={error ? (error as any).message || tTerm('schedule.empty.errorDescription') : tTerm('schedule.empty.errorDescription')}
           icon={<FileSpreadsheet size={24} />}
-          action={<ActionButton onClick={() => navigate('/credits')}>Volver a créditos</ActionButton>}
+          action={<ActionButton onClick={() => navigate('/credits')}>{tTerm('schedule.button.back')}</ActionButton>}
         />
       </PageShell>
     );
@@ -111,14 +97,14 @@ export default function PaymentSchedule() {
     <PageShell data-tour="payment-schedule-page">
       {/* Header */}
       <PageHeader
-        title="Plan de pagos"
-        subtitle={loan?.customerName ? `Cliente: ${loan.customerName}` : 'Tabla de amortización'}
+        title={tTerm('schedule.module.title')}
+        subtitle={loan?.customerName ? tTerm('schedule.subtitle.customer', { name: loan.customerName }) : tTerm('schedule.module.subtitle')}
         tourId="payment-schedule-header"
         actions={(
           <>
             <QuickGuideButton guideKey="payment-schedule" />
             <ActionButton onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
-              Volver
+              {tTerm('schedule.button.back')}
             </ActionButton>
             <ActionButton
               onClick={handleExport}
@@ -126,7 +112,7 @@ export default function PaymentSchedule() {
               isLoading={isExporting}
               icon={isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
             >
-              Exportar
+              {tTerm('schedule.button.export')}
             </ActionButton>
           </>
         )}
@@ -136,12 +122,12 @@ export default function PaymentSchedule() {
       {loan && (
         <InsightStrip
           data-tour="payment-schedule-summary"
-          aria-label="Resumen del crédito"
+          aria-label={tTerm('schedule.module.title')}
           items={[
-            { id: 'payment-schedule-amount', label: 'Monto del crédito', value: formatCurrency(loan.amount), helper: 'Capital original', icon: <DollarSign size={18} />, accent: 'blue' },
-            { id: 'payment-schedule-rate', label: 'Tasa de interés', value: `${loan.interestRate}%`, helper: 'Tasa anual', icon: <TrendingUp size={18} />, accent: 'amber' },
-            { id: 'payment-schedule-term', label: 'Plazo', value: `${loan.termMonths} meses`, helper: 'Tiempo pactado', icon: <Calendar size={18} />, accent: 'emerald' },
-            { id: 'payment-schedule-status', label: 'Estado', value: <span className="capitalize">{loan.status}</span>, helper: 'Situación actual', icon: <BarChart3 size={18} />, accent: 'slate' },
+            { id: 'payment-schedule-amount', label: tTerm('schedule.summary.loanAmount'), value: formatCurrency(loan.amount), helper: tTerm('schedule.summary.loanAmountHelper'), icon: <DollarSign size={18} />, accent: 'blue' },
+            { id: 'payment-schedule-rate', label: tTerm('schedule.summary.interestRate'), value: `${loan.interestRate}%`, helper: tTerm('schedule.summary.interestRateHelper'), icon: <TrendingUp size={18} />, accent: 'amber' },
+            { id: 'payment-schedule-term', label: tTerm('schedule.summary.term'), value: tTerm('schedule.summary.termValue', { months: loan.termMonths }), helper: tTerm('schedule.summary.termHelper'), icon: <Calendar size={18} />, accent: 'emerald' },
+            { id: 'payment-schedule-status', label: tTerm('schedule.summary.status'), value: <span className="capitalize">{loan.status}</span>, helper: tTerm('schedule.summary.statusHelper'), icon: <BarChart3 size={18} />, accent: 'slate' },
           ]}
         />
       )}
@@ -149,13 +135,13 @@ export default function PaymentSchedule() {
       {/* Summary Stats */}
       {summary && (
         <InsightStrip
-          aria-label="Totales del plan de pagos"
+          aria-label={tTerm('schedule.table.title')}
           items={[
-            { id: 'payment-schedule-total-principal', label: 'Total capital', value: formatCurrency(parseFloat(summary.totalPrincipal)), helper: 'Capital amortizado', icon: <DollarSign size={18} />, accent: 'blue' },
-            { id: 'payment-schedule-total-interest', label: 'Total intereses', value: formatCurrency(parseFloat(summary.totalInterest)), helper: 'Interés programado', icon: <TrendingUp size={18} />, accent: 'amber' },
-            { id: 'payment-schedule-total-payment', label: 'Total a pagar', value: formatCurrency(parseFloat(summary.totalPayment)), helper: 'Capital + interés', icon: <Wallet size={18} />, accent: 'emerald' },
-            { id: 'payment-schedule-paid-count', label: 'Cuotas pagadas', value: summary.paidInstallments, helper: 'Completadas', icon: <Calendar size={18} />, accent: 'slate' },
-            { id: 'payment-schedule-pending-count', label: 'Cuotas pendientes', value: summary.pendingInstallments, helper: 'Por operar', icon: <Calendar size={18} />, accent: 'rose' },
+            { id: 'payment-schedule-total-principal', label: tTerm('schedule.stats.totalPrincipal'), value: formatCurrency(parseFloat(summary.totalPrincipal)), helper: tTerm('schedule.stats.totalPrincipalHelper'), icon: <DollarSign size={18} />, accent: 'blue' },
+            { id: 'payment-schedule-total-interest', label: tTerm('schedule.stats.totalInterest'), value: formatCurrency(parseFloat(summary.totalInterest)), helper: tTerm('schedule.stats.totalInterestHelper'), icon: <TrendingUp size={18} />, accent: 'amber' },
+            { id: 'payment-schedule-total-payment', label: tTerm('schedule.stats.totalPayment'), value: formatCurrency(parseFloat(summary.totalPayment)), helper: tTerm('schedule.stats.totalPaymentHelper'), icon: <Wallet size={18} />, accent: 'emerald' },
+            { id: 'payment-schedule-paid-count', label: tTerm('schedule.stats.paidInstallments'), value: summary.paidInstallments, helper: tTerm('schedule.stats.paidInstallmentsHelper'), icon: <Calendar size={18} />, accent: 'slate' },
+            { id: 'payment-schedule-pending-count', label: tTerm('schedule.stats.pendingInstallments'), value: summary.pendingInstallments, helper: tTerm('schedule.stats.pendingInstallmentsHelper'), icon: <Calendar size={18} />, accent: 'rose' },
           ]}
         />
       )}
@@ -165,15 +151,15 @@ export default function PaymentSchedule() {
           <table className="min-w-[980px] w-full text-sm">
             <thead>
               <tr>
-                <th className="text-left"># Cuota</th>
-                <th className="text-left">Fecha vencimiento</th>
-                <th className="text-right">Saldo inicial</th>
-                <th className="text-right">Cuota programada</th>
-                <th className="text-right">Capital</th>
-                <th className="text-right">Interés</th>
-                <th className="text-right">Pagado</th>
-                <th className="text-right">Saldo restante</th>
-                <th className="text-center">Estado</th>
+                <th className="text-left">{tTerm('schedule.table.header.period')}</th>
+                <th className="text-left">{tTerm('schedule.table.header.dueDate')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.openingBalance')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.scheduledPayment')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.principal')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.interest')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.paid')}</th>
+                <th className="text-right">{tTerm('schedule.table.header.remaining')}</th>
+                <th className="text-center">{tTerm('schedule.table.header.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -186,7 +172,7 @@ export default function PaymentSchedule() {
                     {entry.installmentNumber}
                   </td>
                   <td className="whitespace-nowrap text-text-secondary">
-                    {formatDate(entry.dueDate)}
+                    {formatDate(entry.dueDate, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) || '-'}
                   </td>
                   <td className="whitespace-nowrap text-right text-text-primary">
                     {formatCurrency(entry.openingBalance)}

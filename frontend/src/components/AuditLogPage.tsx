@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Clock, Network, ShieldCheck } from 'lucide-react';
+import { useTranslation } from '../i18n';
+import { formatNumber } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { useAuditLogs, useAuditStats, AuditLog } from '../services/auditService';
 import AuditFilters, { FilterValues } from './AuditFilters';
 import AuditTable from './AuditTable';
@@ -8,6 +11,7 @@ import { InsightStrip, PageHeader, PageShell } from './shared/Surfaces';
 import { getAuditActionLabel, getAuditModuleLabel } from '../lib/auditPresentation';
 
 export default function AuditLogPage() {
+  const { locale } = useTranslation();
   const [filters, setFilters] = useState<FilterValues>({});
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -27,8 +31,8 @@ export default function AuditLogPage() {
 
   const topModule = useMemo(() => {
     const first = [...auditStats].sort((a, b) => Number(b.totalCount || 0) - Number(a.totalCount || 0))[0];
-    return first ? `${getAuditModuleLabel(first.module)} (${first.totalCount})` : 'Sin actividad';
-  }, [auditStats]);
+    return first ? `${getAuditModuleLabel(first.module)} (${first.totalCount})` : tTerm('audit.stats.empty');
+  }, [auditStats, locale]);
 
   const topAction = useMemo(() => {
     const actionCounts = auditStats.reduce<Record<string, number>>((acc, stat) => {
@@ -38,8 +42,8 @@ export default function AuditLogPage() {
       return acc;
     }, {});
     const [action, count] = Object.entries(actionCounts).sort((a, b) => b[1] - a[1])[0] || [];
-    return action ? `${getAuditActionLabel(action)} (${count})` : 'Sin actividad';
-  }, [auditStats]);
+    return action ? `${getAuditActionLabel(action)} (${count})` : tTerm('audit.stats.empty');
+  }, [auditStats, locale]);
 
   const handleFilter = (newFilters: FilterValues) => {
     setFilters(newFilters);
@@ -59,14 +63,14 @@ export default function AuditLogPage() {
   return (
     <PageShell data-tour="audit-log-page">
       <PageHeader
-        eyebrow="Observabilidad"
-        title="Auditoría operativa"
-        subtitle="Revisa quién hizo cada acción, desde qué IP y qué servicio del sistema recibió la operación."
+        eyebrow={tTerm('audit.module.eyebrow')}
+        title={tTerm('audit.module.title')}
+        subtitle={tTerm('audit.module.subtitle')}
         guideKey="audit-log"
         tourId="audit-log-header"
         actions={(
           <div className="rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-xs text-text-secondary">
-            Vista para diagnóstico técnico y revisión de incidentes
+            {tTerm('audit.module.diagnostic')}
           </div>
         )}
       />
@@ -74,12 +78,12 @@ export default function AuditLogPage() {
       {!statsLoading && (
         <InsightStrip
           data-tour="audit-log-stats"
-          aria-label="Resumen de auditoría"
+          aria-label={tTerm('audit.summary.aria')}
           items={[
-            { id: 'audit-total-events', label: 'Eventos registrados', value: totalEvents.toLocaleString(), helper: 'Histórico auditable', icon: <ShieldCheck size={18} />, accent: 'blue' },
-            { id: 'audit-current-ips', label: 'IPs en esta página', value: currentPageIps, helper: 'Origen visible', icon: <Network size={18} />, accent: 'slate' },
-            { id: 'audit-top-module', label: 'Servicio más activo', value: topModule, helper: 'Área con más eventos', icon: <Activity size={18} />, accent: 'emerald' },
-            { id: 'audit-top-action', label: 'Acción frecuente', value: topAction, helper: 'Patrón de actividad', icon: <Clock size={18} />, accent: 'amber' },
+            { id: 'audit-total-events', label: tTerm('audit.stats.totalEvents.label'), value: formatNumber(totalEvents), helper: tTerm('audit.stats.totalEvents.helper'), icon: <ShieldCheck size={18} />, accent: 'blue' },
+            { id: 'audit-current-ips', label: tTerm('audit.stats.currentIps.label'), value: currentPageIps, helper: tTerm('audit.stats.currentIps.helper'), icon: <Network size={18} />, accent: 'slate' },
+            { id: 'audit-top-module', label: tTerm('audit.stats.topModule.label'), value: topModule, helper: tTerm('audit.stats.topModule.helper'), icon: <Activity size={18} />, accent: 'emerald' },
+            { id: 'audit-top-action', label: tTerm('audit.stats.topAction.label'), value: topAction, helper: tTerm('audit.stats.topAction.helper'), icon: <Clock size={18} />, accent: 'amber' },
           ]}
         />
       )}
@@ -88,8 +92,8 @@ export default function AuditLogPage() {
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div>
-            <p className="font-semibold">Investigando actividad por IP: <span className="font-mono">{filters.ip}</span></p>
-            <p className="mt-1 text-xs opacity-80">La tabla muestra acciones que coinciden parcial o totalmente con esa dirección.</p>
+            <p className="font-semibold">{tTerm('audit.ipFilter.title', { ip: filters.ip })}</p>
+            <p className="mt-1 text-xs opacity-80">{tTerm('audit.ipFilter.description')}</p>
           </div>
         </div>
       )}

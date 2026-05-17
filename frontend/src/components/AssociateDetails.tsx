@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
+import { useTranslation } from '../i18n';
+import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { useAssociateDetails } from '../services/associateService';
 import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
@@ -24,27 +27,20 @@ import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
 
-const formatCurrency = (value: unknown) => `$${Number(value || 0).toLocaleString('es-CO', {
-  maximumFractionDigits: 0,
-})}`;
+const formatAssociateCurrency = (value: unknown) => formatLocaleCurrency(value);
 
 const formatSignedCurrency = (value: unknown, type?: string, status?: string) => {
   const numericValue = Number(value || 0);
   const prefix = type === 'contribution' ? '+' : type === 'distribution' ? '-' : status === 'paid' ? '✓ ' : '';
-  return `${prefix}${formatCurrency(numericValue)}`;
+  return `${prefix}${formatAssociateCurrency(numericValue)}`;
 };
 
-const dateFormatter = new Intl.DateTimeFormat('es-CO');
-
-const formatDate = (value: unknown) => {
-  const timestamp = Date.parse(String(value || ''));
-  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
-};
+const formatAssociateDate = (value: unknown) => formatLocaleDate(value) || '-';
 
 const getInstallmentStatusPresentation = (installment: any) => {
   if (installment?.status === 'paid') {
     return {
-      label: 'Pagado',
+      label: tTerm('schedule.status.paid'),
       className: 'bg-emerald-100 text-emerald-700',
     };
   }
@@ -52,18 +48,26 @@ const getInstallmentStatusPresentation = (installment: any) => {
   const dueTimestamp = Date.parse(String(installment?.dueDate || ''));
   if (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now()) {
     return {
-      label: 'Vencido',
+      label: tTerm('schedule.status.overdue'),
       className: 'bg-red-100 text-red-700',
     };
   }
 
   return {
-    label: 'Pendiente',
+    label: tTerm('schedule.status.pending'),
     className: 'bg-amber-100 text-amber-700',
   };
 };
 
+const getCalendarEventTypeLabel = (event: any) => {
+  if (event?.type === 'contribution') return tTerm('associateDetails.calendar.eventType.contribution');
+  if (event?.type === 'distribution') return tTerm('associateDetails.calendar.eventType.distribution');
+  if (event?.type === 'installment') return tTerm('associateDetails.calendar.eventType.installment');
+  return event?.displayType || tTerm('common.notAvailable');
+};
+
 export default function AssociateDetails() {
+  useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const associateId = Number(id);
@@ -85,7 +89,7 @@ export default function AssociateDetails() {
     return (
       <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionSurface>
-          <EmptyState title="Cargando portal del socio" description="Estamos preparando aportes, cuotas y calendario." compact />
+          <EmptyState title={tTerm('associateDetails.loading.title')} description={tTerm('associateDetails.loading.description')} compact />
         </SectionSurface>
       </PageShell>
     );
@@ -96,9 +100,9 @@ export default function AssociateDetails() {
       <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionSurface>
           <EmptyState
-            title="Socio no encontrado"
-            description="No pudimos cargar este portal. Revisa el listado de socios o intenta nuevamente."
-            action={<ActionButton onClick={() => navigate('/associates')}>Volver a socios</ActionButton>}
+            title={tTerm('associateDetails.error.title')}
+            description={tTerm('associateDetails.error.description')}
+            action={<ActionButton onClick={() => navigate('/associates')}>{tTerm('associateDetails.cta.backToAssociates')}</ActionButton>}
           />
         </SectionSurface>
       </PageShell>
@@ -107,7 +111,7 @@ export default function AssociateDetails() {
 
   const associateName = (typeof associate?.name === 'string' && associate.name.trim())
     ? associate.name.trim()
-    : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || 'Socio sin nombre';
+    : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associateDetails.fallback.name');
 
   const portalSummary = portal?.summary;
   const totalContributions = portalSummary?.totalContributed ?? portal?.totalContributions ?? 0;
@@ -115,10 +119,15 @@ export default function AssociateDetails() {
   const totalInterestPaid = portalSummary?.totalInterestPaid ?? 0;
   const interestDebt = portalSummary?.interestDebt ?? 0;
   const nextInterestPaymentDate = portalSummary?.nextInterestPaymentDate ?? null;
-  const debtStatus = portalSummary?.debtStatus === 'pending' ? 'Con intereses pendientes' : 'Al día';
+  const debtStatus = portalSummary?.debtStatus === 'pending'
+    ? tTerm('associateDetails.debtStatus.pending')
+    : tTerm('associateDetails.debtStatus.current');
   const paymentHistory = Array.isArray(portal?.paymentHistory) ? portal.paymentHistory : [];
-  const interestTypeLabel = associate?.interestType === 'annual' ? 'Anual' : 'Mensual';
-  const interestRateLabel = `${Number(associate?.interestRate || 0).toLocaleString('es-CO', { maximumFractionDigits: 4 })}% ${interestTypeLabel.toLowerCase()}`;
+  const interestTypeLabel = tTerm(associate?.interestType === 'annual' ? 'common.interestType.annual' : 'common.interestType.monthly').toLowerCase();
+  const interestRateLabel = tTerm('associateDetails.interestRateLabel', {
+    rate: formatNumber(associate?.interestRate || 0, { maximumFractionDigits: 4 }),
+    interestType: interestTypeLabel,
+  });
 
   const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 } };
   const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
@@ -150,7 +159,7 @@ export default function AssociateDetails() {
       
       setShowModal(null);
       setAmount('');
-      toast.success({ title: 'Operación registrada exitosamente' });
+      toast.success({ title: tTerm('associateDetails.toast.action.success') });
     } catch (error) {
       toast.apiErrorSafe(error, { domain: 'associates' });
     } finally {
@@ -161,7 +170,7 @@ export default function AssociateDetails() {
   const handlePayInstallment = async (installmentNumber: number) => {
     try {
       await payInstallment.mutateAsync(installmentNumber);
-      toast.success({ title: 'Cuota marcada como pagada' });
+      toast.success({ title: tTerm('associateDetails.toast.installmentPaid') });
     } catch (error) {
       toast.apiErrorSafe(error, { domain: 'associates' });
     }
@@ -170,39 +179,41 @@ export default function AssociateDetails() {
   const renderOverviewTab = () => (
     <div className="space-y-6">
       <InsightStrip
-        aria-label="Resumen operativo del socio"
+        aria-label={tTerm('associateDetails.overview.ariaLabel')}
         items={[
           {
             id: 'associate-detail-capital',
-            label: 'Capital aportado',
-            value: formatCurrency(totalContributions),
-            helper: `Interés ${interestRateLabel}`,
+            label: tTerm('associateDetails.overview.metric.capital'),
+            value: formatAssociateCurrency(totalContributions),
+            helper: tTerm('associateDetails.overview.metric.capitalHelper', { interestRate: interestRateLabel }),
             icon: <Wallet size={18} />,
             accent: 'blue',
           },
           {
             id: 'associate-detail-interest-paid',
-            label: 'Interés pagado',
-            value: formatCurrency(totalInterestPaid),
+            label: tTerm('associateDetails.overview.metric.interestPaid'),
+            value: formatAssociateCurrency(totalInterestPaid),
             helper: totalDistributions > 0
-              ? `Distribuido: ${formatCurrency(totalDistributions)}`
-              : 'Reconocido al socio',
+              ? tTerm('associateDetails.overview.metric.interestPaidHelper.distributed', { amount: formatAssociateCurrency(totalDistributions) })
+              : tTerm('associateDetails.overview.metric.interestPaidHelper.recognized'),
             icon: <CheckCircle size={18} />,
             accent: 'emerald',
           },
           {
             id: 'associate-detail-debt',
-            label: 'Deuda con socio',
-            value: formatCurrency(interestDebt),
-            helper: interestDebt > 0 ? 'Intereses pendientes' : 'Sin deuda pendiente',
+            label: tTerm('associateDetails.overview.metric.debt'),
+            value: formatAssociateCurrency(interestDebt),
+            helper: interestDebt > 0
+              ? tTerm('associateDetails.overview.metric.debtHelper.pending')
+              : tTerm('associateDetails.overview.metric.debtHelper.none'),
             icon: <AlertCircle size={18} />,
             accent: interestDebt > 0 ? 'rose' : 'slate',
           },
           {
             id: 'associate-detail-next-payment',
-            label: 'Próximo pago',
-            value: nextInterestPaymentDate ? formatDate(nextInterestPaymentDate) : 'Sin fecha',
-            helper: 'Cuota programada',
+            label: tTerm('associateDetails.overview.metric.nextPayment'),
+            value: nextInterestPaymentDate ? formatAssociateDate(nextInterestPaymentDate) : tTerm('associateDetails.overview.metric.nextPayment.none'),
+            helper: tTerm('associateDetails.overview.metric.nextPaymentHelper'),
             icon: <Calendar size={18} />,
             accent: 'slate',
           },
@@ -211,9 +222,9 @@ export default function AssociateDetails() {
 
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">Historial de intereses pagados</h3>
+          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.paymentHistory.title')}</h3>
           <p className="mt-1 text-sm text-text-secondary">
-            Pagos de intereses reconocidos al socio. La deuda pendiente se calcula con cuotas programadas no pagadas.
+            {tTerm('associateDetails.paymentHistory.description')}
           </p>
         </div>
         <TableShell
@@ -222,27 +233,27 @@ export default function AssociateDetails() {
           hasData={paymentHistory.length > 0}
           loadingContent={null}
           errorContent={null}
-          emptyContent={<div className="py-4 text-center text-text-secondary">Todavía no hay pagos de intereses registrados.</div>}
-          recordsLabel="pagos"
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.paymentHistory.empty')}</div>}
+          recordsLabel={tTerm('associateDetails.paymentHistory.recordsLabel')}
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="font-medium">Cuota</th>
-                <th className="font-medium">Monto pagado</th>
-                <th className="font-medium">Vencimiento</th>
-                <th className="font-medium">Fecha de pago</th>
-                <th className="font-medium">Método</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.installment')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.amount')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.dueDate')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.paidAt')}</th>
+                <th className="font-medium">{tTerm('associateDetails.paymentHistory.header.method')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {paymentHistory.map((entry: any) => (
                 <tr key={entry.id} className="hover:bg-hover-bg transition-colors">
                   <td className="font-medium">{entry.installmentNumber}</td>
-                  <td className="font-medium text-emerald-600">{formatCurrency(entry.amount)}</td>
-                  <td>{formatDate(entry.dueDate)}</td>
-                  <td>{formatDate(entry.paidAt)}</td>
-                  <td className="text-text-secondary">{entry.paymentMethod || 'No especificado'}</td>
+                  <td className="font-medium text-emerald-600">{formatAssociateCurrency(entry.amount)}</td>
+                  <td>{formatAssociateDate(entry.dueDate)}</td>
+                  <td>{formatAssociateDate(entry.paidAt)}</td>
+                  <td className="text-text-secondary">{entry.paymentMethod || tTerm('common.notSpecified')}</td>
                 </tr>
               ))}
             </tbody>
@@ -255,37 +266,37 @@ export default function AssociateDetails() {
   const renderInstallmentsTab = () => (
     <div className="space-y-4">
       <InsightStrip
-        aria-label="Resumen de cuotas del socio"
+        aria-label={tTerm('associateDetails.installments.ariaLabel')}
         items={[
           {
             id: 'associate-installments-pending',
-            label: 'Pendiente',
-            value: formatCurrency(installmentsData.totals.totalPending),
-            helper: 'Por pagar al socio',
+            label: tTerm('associateDetails.installments.metric.pending'),
+            value: formatAssociateCurrency(installmentsData.totals.totalPending),
+            helper: tTerm('associateDetails.installments.metric.pendingHelper'),
             icon: <Clock size={18} />,
             accent: 'amber',
           },
           {
             id: 'associate-installments-paid',
-            label: 'Pagado',
-            value: formatCurrency(installmentsData.totals.totalPaid),
-            helper: 'Intereses reconocidos',
+            label: tTerm('associateDetails.installments.metric.paid'),
+            value: formatAssociateCurrency(installmentsData.totals.totalPaid),
+            helper: tTerm('associateDetails.installments.metric.paidHelper'),
             icon: <CheckCircle size={18} />,
             accent: 'emerald',
           },
           {
             id: 'associate-installments-overdue',
-            label: 'Vencido',
-            value: formatCurrency(installmentsData.totals.totalOverdue),
-            helper: 'Intereses atrasados',
+            label: tTerm('associateDetails.installments.metric.overdue'),
+            value: formatAssociateCurrency(installmentsData.totals.totalOverdue),
+            helper: tTerm('associateDetails.installments.metric.overdueHelper'),
             icon: <AlertCircle size={18} />,
             accent: Number(installmentsData.totals.totalOverdue || 0) > 0 ? 'rose' : 'slate',
           },
           {
             id: 'associate-installments-count',
-            label: 'Cuotas',
-            value: String(installmentsData.installments.length),
-            helper: 'Programadas',
+            label: tTerm('associateDetails.installments.metric.count'),
+            value: formatNumber(installmentsData.installments.length),
+            helper: tTerm('associateDetails.installments.metric.countHelper'),
             icon: <Calendar size={18} />,
             accent: 'slate',
           },
@@ -295,9 +306,9 @@ export default function AssociateDetails() {
       {/* Installments Table */}
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">Cuotas del socio</h3>
+          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.installments.title')}</h3>
           <p className="mt-1 text-sm text-text-secondary">
-            Cuotas de intereses programadas para el socio según su capital aportado y la periodicidad pactada.
+            {tTerm('associateDetails.installments.description')}
           </p>
         </div>
         <TableShell
@@ -306,17 +317,17 @@ export default function AssociateDetails() {
           hasData={installmentsData.installments.length > 0}
           loadingContent={null}
           errorContent={null}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No hay cuotas registradas.</div>}
-          recordsLabel="cuotas"
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.installments.empty')}</div>}
+          recordsLabel={tTerm('associateDetails.installments.recordsLabel')}
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="font-medium">#</th>
-                <th className="font-medium">Monto</th>
-                <th className="font-medium">Fecha vencimiento</th>
-                <th className="font-medium">Estado</th>
-                <th className="font-medium">Acciones</th>
+                <th className="font-medium">{tTerm('associateDetails.installments.header.number')}</th>
+                <th className="font-medium">{tTerm('associateDetails.installments.header.amount')}</th>
+                <th className="font-medium">{tTerm('associateDetails.installments.header.dueDate')}</th>
+                <th className="font-medium">{tTerm('associateDetails.installments.header.status')}</th>
+                <th className="font-medium">{tTerm('associateDetails.installments.header.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -326,8 +337,8 @@ export default function AssociateDetails() {
                 return (
                 <tr key={inst.id} className="hover:bg-hover-bg transition-colors">
                   <td className="font-medium">{inst.installmentNumber}</td>
-                  <td className="font-medium">${Number(inst.amount).toLocaleString()}</td>
-                  <td>{formatDate(inst.dueDate)}</td>
+                  <td className="font-medium">{formatAssociateCurrency(inst.amount)}</td>
+                  <td>{formatAssociateDate(inst.dueDate)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${status.className}`}>
                       {status.label}
@@ -340,7 +351,7 @@ export default function AssociateDetails() {
                         icon={<CheckCircle size={14} />}
                         className="min-h-8 px-2.5 py-1.5 text-xs"
                       >
-                        Marcar como pagado
+                        {tTerm('associateDetails.installments.cta.markAsPaid')}
                       </ActionButton>
                     )}
                   </td>
@@ -357,37 +368,37 @@ export default function AssociateDetails() {
   const renderCalendarTab = () => (
     <div className="space-y-4">
       <InsightStrip
-        aria-label="Resumen del calendario del socio"
+        aria-label={tTerm('associateDetails.calendar.ariaLabel')}
         items={[
           {
             id: 'associate-calendar-contributions',
-            label: 'Aportes',
-            value: calendarData.summary.contributionCount,
-            helper: 'Capital registrado',
+            label: tTerm('associateDetails.calendar.metric.contributions'),
+            value: formatNumber(calendarData.summary.contributionCount),
+            helper: tTerm('associateDetails.calendar.metric.contributionsHelper'),
             icon: <Wallet size={18} />,
             accent: 'blue',
           },
           {
             id: 'associate-calendar-distributions',
-            label: 'Distribuciones',
-            value: calendarData.summary.distributionCount,
-            helper: 'Retiros/repartos',
+            label: tTerm('associateDetails.calendar.metric.distributions'),
+            value: formatNumber(calendarData.summary.distributionCount),
+            helper: tTerm('associateDetails.calendar.metric.distributionsHelper'),
             icon: <Download size={18} />,
             accent: 'emerald',
           },
           {
             id: 'associate-calendar-installments',
-            label: 'Cuotas',
-            value: calendarData.summary.installmentCount,
-            helper: 'Intereses agendados',
+            label: tTerm('associateDetails.calendar.metric.installments'),
+            value: formatNumber(calendarData.summary.installmentCount),
+            helper: tTerm('associateDetails.calendar.metric.installmentsHelper'),
             icon: <Calendar size={18} />,
             accent: 'slate',
           },
           {
             id: 'associate-calendar-pending',
-            label: 'Cuotas pendientes',
-            value: calendarData.summary.pendingInstallments,
-            helper: 'Por reconocer',
+            label: tTerm('associateDetails.calendar.metric.pending'),
+            value: formatNumber(calendarData.summary.pendingInstallments),
+            helper: tTerm('associateDetails.calendar.metric.pendingHelper'),
             icon: <Clock size={18} />,
             accent: calendarData.summary.pendingInstallments > 0 ? 'amber' : 'slate',
           },
@@ -397,9 +408,9 @@ export default function AssociateDetails() {
       {/* Calendar Events */}
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
-          <h3 className="text-lg font-semibold text-text-primary">Eventos del calendario</h3>
+          <h3 className="text-lg font-semibold text-text-primary">{tTerm('associateDetails.calendar.title')}</h3>
           <p className="mt-1 text-sm text-text-secondary">
-            Fechas de aportes, distribuciones y cuotas relacionadas con el socio.
+            {tTerm('associateDetails.calendar.description')}
           </p>
         </div>
         <TableShell
@@ -408,22 +419,22 @@ export default function AssociateDetails() {
           hasData={calendarData.events.length > 0}
           loadingContent={null}
           errorContent={null}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No hay eventos en el calendario.</div>}
-          recordsLabel="eventos"
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('associateDetails.calendar.empty')}</div>}
+          recordsLabel={tTerm('associateDetails.calendar.recordsLabel')}
         >
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary border-b border-border-subtle">
               <tr>
-                <th className="font-medium">Fecha</th>
-                <th className="font-medium">Tipo</th>
-                <th className="font-medium">Monto</th>
-                <th className="font-medium">Notas</th>
+                <th className="font-medium">{tTerm('associateDetails.calendar.header.date')}</th>
+                <th className="font-medium">{tTerm('associateDetails.calendar.header.type')}</th>
+                <th className="font-medium">{tTerm('associateDetails.calendar.header.amount')}</th>
+                <th className="font-medium">{tTerm('associateDetails.calendar.header.notes')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {calendarData.events.map((event: any) => (
                 <tr key={event.id ?? `${event.type}-${event.date}-${event.displayAmount}-${event.notes ?? ''}`} className="hover:bg-hover-bg transition-colors">
-                  <td>{formatDate(event.date)}</td>
+                  <td>{formatAssociateDate(event.date)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       event.type === 'contribution' 
@@ -432,7 +443,7 @@ export default function AssociateDetails() {
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {event.displayType}
+                      {getCalendarEventTypeLabel(event)}
                     </span>
                   </td>
                   <td className="font-medium">
@@ -451,48 +462,52 @@ export default function AssociateDetails() {
   return (
     <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" data-tour="associate-details-page">
       <PageHeader
-        title="Portal del socio"
-        subtitle={`${associateName} · ${debtStatus} · Interés ${interestRateLabel}. Consulta aportes, cuotas, pagos e historial del inversionista.`}
+        title={tTerm('associateDetails.header.title')}
+        subtitle={tTerm('associateDetails.header.subtitle', {
+          name: associateName,
+          debtStatus,
+          interestRate: interestRateLabel,
+        })}
         guideKey="associate-details"
         tourId="associate-details-header"
         actions={(
           <ActionButton
             onClick={() => navigate('/associates')}
-            aria-label="Volver a socios"
-            title="Volver a socios"
+            aria-label={tTerm('associateDetails.cta.backToAssociates')}
+            title={tTerm('associateDetails.cta.backToAssociates')}
             icon={<ArrowLeft size={16} />}
           >
-            Volver
+            {tTerm('newAssociate.actions.back')}
           </ActionButton>
         )}
       />
 
       <ToolbarSurface className="items-stretch gap-4 lg:items-center" data-tour="associate-details-actions">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-primary">Acciones del socio</p>
+          <p className="text-sm font-semibold text-text-primary">{tTerm('associateDetails.toolbar.title')}</p>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
-            Consulta historial y cuotas, o registra movimientos de capital. Estas acciones pertenecen al módulo de socios inversionistas.
+            {tTerm('associateDetails.toolbar.description')}
           </p>
         </div>
         <div className="grid gap-2 lg:min-w-[23rem]">
           <div className="grid gap-2 sm:grid-cols-2">
             <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
-              Ver historial
+              {tTerm('associateDetails.cta.viewHistory')}
             </ActionButton>
             <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
-              Ver cuotas
+              {tTerm('associateDetails.cta.viewInstallments')}
             </ActionButton>
           </div>
           {isAdmin && (
             <div className="grid gap-2 sm:grid-cols-2">
               <ActionButton onClick={() => setShowModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
-                Registrar aporte
+                {tTerm('associateDetails.cta.registerContribution')}
               </ActionButton>
               <ActionButton onClick={() => setShowModal('distribution')} icon={<Download size={16} />} variant="secondary" fullWidth>
-                Registrar retiro
+                {tTerm('associateDetails.cta.registerDistribution')}
               </ActionButton>
               <ActionButton onClick={() => setShowModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth className="sm:col-span-2">
-                Registrar reinversión
+                {tTerm('associateDetails.cta.registerReinvestment')}
               </ActionButton>
             </div>
           )}
@@ -502,7 +517,7 @@ export default function AssociateDetails() {
       {isSocio && (
         <SectionSurface className="py-4">
           <p className="text-sm leading-6 text-text-secondary">
-          Este portal te permite revisar tus aportes, distribuciones, cuotas y calendario. Los movimientos financieros se registran desde la mesa operativa.
+          {tTerm('associateDetails.readOnlyNotice')}
           </p>
         </SectionSurface>
       )}
@@ -510,13 +525,13 @@ export default function AssociateDetails() {
       {/* Tabs */}
       <ViewTabs
         data-tour="associate-details-tabs"
-        ariaLabel="Secciones del socio"
+        ariaLabel={tTerm('associateDetails.tabs.ariaLabel')}
         activeTab={activeTab}
         onChange={(tabId) => setActiveTab(tabId as TabType)}
         tabs={[
-          { id: 'overview', label: 'Resumen' },
-          { id: 'installments', label: 'Cuotas', icon: Wallet },
-          { id: 'calendar', label: 'Calendario', icon: Calendar },
+          { id: 'overview', label: tTerm('associateDetails.tab.overview') },
+          { id: 'installments', label: tTerm('associateDetails.tab.installments'), icon: Wallet },
+          { id: 'calendar', label: tTerm('associateDetails.tab.calendar'), icon: Calendar },
         ]}
       />
 
@@ -529,12 +544,14 @@ export default function AssociateDetails() {
 
       {showModal && (
         <ModalShell
-          title={showModal === 'contribution' ? 'Registrar aporte de capital' :
-            showModal === 'distribution' ? 'Distribuir ganancias' :
-              'Reinvertir ganancias'}
+          title={showModal === 'contribution'
+            ? tTerm('associateDetails.modal.title.contribution')
+            : showModal === 'distribution'
+              ? tTerm('associateDetails.modal.title.distribution')
+              : tTerm('associateDetails.modal.title.reinvestment')}
         >
             <form onSubmit={handleAction} className="space-y-4">
-              <FormField label="Monto" htmlFor="associate-action-amount">
+              <FormField label={tTerm('associateDetails.modal.field.amount')} htmlFor="associate-action-amount">
                 <TextInput
                   id="associate-action-amount"
                   type="number"
@@ -543,7 +560,7 @@ export default function AssociateDetails() {
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
+                  placeholder={tTerm('associateDetails.modal.placeholder.amount')}
                 />
               </FormField>
               <div className="flex gap-3 pt-4">
@@ -552,7 +569,7 @@ export default function AssociateDetails() {
                   onClick={() => setShowModal(null)}
                   fullWidth
                 >
-                  Cancelar
+                  {tTerm('common.cta.cancel')}
                 </ActionButton>
                 <ActionButton
                   type="submit"
@@ -560,7 +577,7 @@ export default function AssociateDetails() {
                   variant="primary"
                   fullWidth
                 >
-                  {isSubmitting ? 'Procesando...' : 'Confirmar'}
+                  {isSubmitting ? tTerm('associateDetails.modal.submit.pending') : tTerm('common.cta.confirm')}
                 </ActionButton>
               </div>
             </form>

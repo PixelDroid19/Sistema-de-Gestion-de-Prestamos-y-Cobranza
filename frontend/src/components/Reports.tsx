@@ -12,6 +12,12 @@ import {
   exportMonthlyCashFlowExcel,
   exportMonthlyCashFlowPdf,
 } from '../services/reportService';
+import { useTranslation } from '../i18n';
+import {
+  formatCurrency as formatCurrencyValue,
+  formatDate as formatDateValue,
+  formatNumber as formatNumberValue,
+} from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
@@ -39,11 +45,12 @@ import { HelpTooltip } from './shared/HelpSupport';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
-const formatMoney = (value: unknown) => `$${Number(value || 0).toLocaleString()}`;
+const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
 export default function Reports() {
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
+  const { locale } = useTranslation();
   const { user } = useSessionStore();
   const { 
     dashboardData, 
@@ -118,7 +125,7 @@ export default function Reports() {
     }
 
     return tTerm('reports.chart.disbursementRecovery.range.historical');
-  }, [chartRange]);
+  }, [chartRange, locale]);
   const hasKpiTotals = useMemo(
     () => Number(metrics.totalDisbursed || 0) > 0 || Number(metrics.totalRecovered || 0) > 0,
     [metrics.totalDisbursed, metrics.totalRecovered],
@@ -211,7 +218,7 @@ export default function Reports() {
           format: reportType === 'credits' ? reportFormat : undefined,
         });
       },
-      successMessage: reportType === 'credits' ? 'Reporte de créditos exportado' : 'Reporte de pagos exportado',
+      successMessage: reportType === 'credits' ? tTerm('reports.toast.contextual.credits') : tTerm('reports.toast.contextual.payouts'),
     });
     setIsExporting(false);
   };
@@ -228,13 +235,13 @@ export default function Reports() {
         }
         await exportMonthlyCashFlowPdf(cashFlowYear);
       },
-      successMessage: format === 'excel' ? 'Flujo de caja exportado en Excel' : 'Flujo de caja exportado en PDF',
+      successMessage: format === 'excel' ? tTerm('reports.toast.cashflow.excel') : tTerm('reports.toast.cashflow.pdf'),
     });
     setIsCashFlowExporting(null);
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-text-secondary">Cargando reportes…</div>;
+    return <div className="p-8 text-center text-text-secondary">{tTerm('reports.state.loading')}</div>;
   }
 
   if (isError) {
@@ -256,28 +263,28 @@ export default function Reports() {
           <ActionButton
             onClick={handleExportReport}
             disabled={isExporting || !reportExportGuard.executable}
-            title={reportExportGuard.executable ? 'Exportar dashboard general' : (reportExportGuard.reason || 'Acción no disponible')}
+            title={reportExportGuard.executable ? tTerm('reports.cta.exportDashboard') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
             icon={<Download size={16} />}
           >
-            {isExporting ? 'Exportando...' : tTerm('reports.cta.export')}
+            {isExporting ? tTerm('credits.cta.exporting') : tTerm('reports.cta.export')}
           </ActionButton>
         ) : null}
       />
 
       {reportExportGuard.visible && (
-      <ToolbarSurface as="form" className="settings-config-form" aria-label="Exportar reportes por rango">
+      <ToolbarSurface as="form" className="settings-config-form" aria-label={tTerm('reports.export.aria')}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <FormField label="Tipo de reporte">
+          <FormField label={tTerm('reports.export.type')}>
             <SelectInput
               id="report-type"
               value={reportType}
               onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts')}
             >
-              <option value="credits">Créditos por rango</option>
-              <option value="payouts">Pagos por rango</option>
+              <option value="credits">{tTerm('reports.export.type.credits')}</option>
+              <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
             </SelectInput>
           </FormField>
-          <FormField label="Desde">
+          <FormField label={tTerm('reports.export.from')}>
             <TextInput
               id="report-from"
               type="date"
@@ -285,7 +292,7 @@ export default function Reports() {
               onChange={(event) => setReportRange((prev) => ({ ...prev, fromDate: event.target.value }))}
             />
           </FormField>
-          <FormField label="Hasta">
+          <FormField label={tTerm('reports.export.to')}>
             <TextInput
               id="report-to"
               type="date"
@@ -299,31 +306,31 @@ export default function Reports() {
               fullWidth
               onClick={handleExportContextualReport}
               disabled={isExporting || hasInvalidRange || !reportExportGuard.executable}
-              title={hasInvalidRange ? 'El rango de fechas es inválido.' : (reportExportGuard.executable ? 'Exportar reporte contextual' : (reportExportGuard.reason || 'Acción no disponible'))}
+              title={hasInvalidRange ? tTerm('reports.export.invalidRange') : (reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable')))}
               icon={<Download size={16} />}
             >
-              {isExporting ? 'Exportando...' : (reportType === 'credits' ? 'Exportar créditos' : 'Exportar pagos')}
+              {isExporting ? tTerm('credits.cta.exporting') : (reportType === 'credits' ? tTerm('reports.cta.exportCredits') : tTerm('reports.cta.exportPayouts'))}
             </ActionButton>
           </div>
         </div>
         {reportType === 'credits' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-            <FormField label="Estado">
+            <FormField label={tTerm('reports.export.status')}>
               <SelectInput
                 id="report-status"
                 value={reportStatusFilter}
                 onChange={(event) => setReportStatusFilter(event.target.value)}
               >
-                <option value="">Todos</option>
-                <option value="approved">Aprobado</option>
-                <option value="active">Activo</option>
-                <option value="overdue">Vencido</option>
-                <option value="defaulted">En mora</option>
-                <option value="closed">Cerrado</option>
-                <option value="paid">Pagado</option>
+                <option value="">{tTerm('credits.filter.all')}</option>
+                <option value="approved">{tTerm('credits.status.approved')}</option>
+                <option value="active">{tTerm('common.status.active')}</option>
+                <option value="overdue">{tTerm('schedule.status.overdue')}</option>
+                <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
+                <option value="closed">{tTerm('common.status.closed')}</option>
+                <option value="paid">{tTerm('schedule.status.paid')}</option>
               </SelectInput>
             </FormField>
-            <FormField label="Formato">
+            <FormField label={tTerm('reports.export.format')}>
               <SelectInput
                 id="report-format"
                 value={reportFormat}
@@ -337,7 +344,7 @@ export default function Reports() {
           </div>
         )}
         {hasInvalidRange && (
-          <p className="mt-2 text-sm text-red-600">La fecha "Desde" no puede ser mayor que "Hasta".</p>
+          <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidRange')}</p>
         )}
       </ToolbarSurface>
       )}
@@ -347,49 +354,49 @@ export default function Reports() {
         activeTab={activeTab}
         onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
         tabs={[
-          { id: 'dashboard', label: 'Dashboard General' },
-          { id: 'cashflow', label: 'Flujo de caja', title: 'Control mensual de entradas, salidas y caja disponible' },
-          { id: 'outstanding', label: 'Créditos en mora', title: 'Clientes y créditos con cuotas vencidas' },
-          { id: 'profitability', label: 'Rentabilidad de clientes' },
-          { id: 'payouts', label: 'Pagos y desembolsos', title: 'Resumen y detalle de pagos aplicados' },
-          { id: 'schedule', label: 'Calendario de pagos', title: 'Cronograma de cuotas por crédito' },
+          { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
+          { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
+          { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+          { id: 'profitability', label: tTerm('reports.tab.profitability') },
+          { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
+          { id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') },
         ]}
       />
 
       {activeTab === 'dashboard' && (
         <>
       <InsightStrip
-        aria-label="Resumen general de reportes"
+        aria-label={tTerm('reports.summary.aria')}
         items={[
           {
             id: 'reports-total-disbursed',
-            label: 'Total desembolsado',
+            label: tTerm('reports.kpi.totalDisbursed.label'),
             value: formatMoney(metrics.totalDisbursed),
-            helper: 'Capital entregado',
+            helper: tTerm('reports.kpi.totalDisbursed.helper'),
             icon: <DollarSign size={18} />,
             accent: 'blue',
           },
           {
             id: 'reports-interest-generated',
-            label: 'Interés generado',
+            label: tTerm('reports.kpi.interestGenerated.label'),
             value: formatMoney(metrics.totalInterestGenerated),
-            helper: 'Programado en cronogramas',
+            helper: tTerm('reports.kpi.interestGenerated.helper'),
             icon: <TrendingUp size={18} />,
             accent: 'emerald',
           },
           {
             id: 'reports-interest-paid',
-            label: 'Interés pagado',
+            label: tTerm('reports.kpi.interestPaid.label'),
             value: formatMoney(metrics.totalInterestPaid),
-            helper: 'Cobrado realmente',
+            helper: tTerm('reports.kpi.interestPaid.helper'),
             icon: <Wallet size={18} />,
             accent: 'rose',
           },
           {
             id: 'reports-active-loans',
-            label: 'Créditos activos',
+            label: tTerm('reports.kpi.activeLoans.label'),
             value: metrics.totalActiveLoans,
-            helper: 'Abiertos en cartera',
+            helper: tTerm('reports.kpi.activeLoans.helper'),
             icon: <Users size={18} />,
             accent: 'amber',
           },
@@ -410,7 +417,7 @@ export default function Reports() {
             </div>
             <div className="min-w-44">
               <SelectInput
-                aria-label="Rango de gráfica"
+                aria-label={tTerm('reports.chart.range.aria')}
                 value={chartRange}
                 onChange={(event) => setChartRange(event.target.value as 'last6' | 'year' | 'historical')}
               >
@@ -468,7 +475,7 @@ export default function Reports() {
 
         {/* Pie Chart */}
         <SectionSurface>
-          <h3 className="font-medium mb-6">Estado de la Cartera</h3>
+          <h3 className="font-medium mb-6">{tTerm('reports.chart.portfolio.title')}</h3>
           <div className="h-64 w-full min-w-0">
             <MeasuredChart className="h-full w-full min-w-0" minHeight={256}>
               {({ width, height }) => (
@@ -489,7 +496,7 @@ export default function Reports() {
                 </Pie>
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
-                  formatter={(value) => [`${value}`, 'Cantidad']}
+                  formatter={(value) => [`${value}`, tTerm('reports.chart.portfolio.quantity')]}
                 />
               </PieChart>
               )}
@@ -515,13 +522,13 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           <ToolbarSurface className="items-stretch lg:items-end">
             <div className="min-w-0 flex-1">
-              <h3 className="font-medium text-text-primary">Control financiero mensual</h3>
+              <h3 className="font-medium text-text-primary">{tTerm('reports.cashflow.title')}</h3>
               <p className="mt-1 text-sm text-text-secondary">
-                Compara el dinero recibido por cuotas contra el capital entregado en préstamos. La caja disponible se calcula como entradas menos salidas acumuladas.
+                {tTerm('reports.cashflow.subtitle')}
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <FormField label="Año">
+              <FormField label={tTerm('reports.cashflow.year')}>
                 <TextInput
                   type="number"
                   value={cashFlowYear}
@@ -534,54 +541,54 @@ export default function Reports() {
               <ActionButton
                 onClick={() => handleExportCashFlow('excel')}
                 disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
-                title={reportExportGuard.executable ? 'Exportar flujo de caja mensual en Excel' : (reportExportGuard.reason || 'Acción no disponible')}
+                title={reportExportGuard.executable ? tTerm('reports.cashflow.cta.exportExcel') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
                 icon={<Download size={16} />}
               >
-                {isCashFlowExporting === 'excel' ? 'Exportando...' : 'Excel'}
+                {isCashFlowExporting === 'excel' ? tTerm('credits.cta.exporting') : tTerm('reports.cashflow.cta.excel')}
               </ActionButton>
               <ActionButton
                 onClick={() => handleExportCashFlow('pdf')}
                 disabled={Boolean(isCashFlowExporting) || !reportExportGuard.executable}
-                title={reportExportGuard.executable ? 'Exportar flujo de caja mensual en PDF' : (reportExportGuard.reason || 'Acción no disponible')}
+                title={reportExportGuard.executable ? tTerm('reports.cashflow.cta.exportPdf') : (reportExportGuard.reason || tTerm('credits.action.unavailable'))}
                 icon={<Download size={16} />}
               >
-                {isCashFlowExporting === 'pdf' ? 'Exportando...' : 'PDF'}
+                {isCashFlowExporting === 'pdf' ? tTerm('credits.cta.exporting') : tTerm('reports.cashflow.cta.pdf')}
               </ActionButton>
             </div>
           </ToolbarSurface>
 
           <InsightStrip
-            aria-label="Resumen de flujo de caja"
+            aria-label={tTerm('reports.cashflow.summary.aria')}
             items={[
               {
                 id: 'cashflow-inflows',
-                label: 'Entradas por cuotas',
+                label: tTerm('reports.cashflow.summary.inflows.label'),
                 value: formatMoney(cashFlowData?.summary?.totalInflows),
-                helper: 'Pagos completados',
+                helper: tTerm('reports.cashflow.summary.inflows.helper'),
                 icon: <Wallet size={18} />,
                 accent: 'emerald',
               },
               {
                 id: 'cashflow-outflows',
-                label: 'Salidas por préstamos',
+                label: tTerm('reports.cashflow.summary.outflows.label'),
                 value: formatMoney(cashFlowData?.summary?.totalOutflows),
-                helper: 'Capital entregado',
+                helper: tTerm('reports.cashflow.summary.outflows.helper'),
                 icon: <DollarSign size={18} />,
                 accent: 'blue',
               },
               {
                 id: 'cashflow-available',
-                label: 'Caja disponible',
+                label: tTerm('reports.cashflow.summary.available.label'),
                 value: formatMoney(cashFlowData?.summary?.availableCash),
-                helper: 'Entradas menos salidas',
+                helper: tTerm('reports.cashflow.summary.available.helper'),
                 icon: <TrendingUp size={18} />,
                 accent: 'slate',
               },
               {
                 id: 'cashflow-net-result',
-                label: 'Resultado neto',
+                label: tTerm('reports.cashflow.summary.netResult.label'),
                 value: formatMoney(cashFlowData?.summary?.netProfitIndicator),
-                helper: 'Ganancia menos riesgo',
+                helper: tTerm('reports.cashflow.summary.netResult.helper'),
                 icon: <AlertCircle size={18} />,
                 accent: Number(cashFlowData?.summary?.netProfitIndicator || 0) < 0 ? 'rose' : 'emerald',
               },
@@ -589,29 +596,29 @@ export default function Reports() {
           />
 
           <InsightStrip
-            aria-label="Detalle financiero del flujo de caja"
+            aria-label={tTerm('reports.cashflow.detail.aria')}
             items={[
               {
                 id: 'cashflow-profit',
-                label: 'Ganancia cobrada',
+                label: tTerm('reports.cashflow.detail.profit.label'),
                 value: formatMoney(cashFlowData?.summary?.totalCollectedProfit),
-                helper: 'Interés y mora recibidos',
+                helper: tTerm('reports.cashflow.detail.profit.helper'),
                 icon: <TrendingUp size={18} />,
                 accent: 'emerald',
               },
               {
                 id: 'cashflow-loss-risk',
-                label: 'Pérdidas en riesgo',
+                label: tTerm('reports.cashflow.detail.lossRisk.label'),
                 value: formatMoney(cashFlowData?.summary?.lossesAtRisk),
-                helper: 'Capital vencido/default',
+                helper: tTerm('reports.cashflow.detail.lossRisk.helper'),
                 icon: <AlertCircle size={18} />,
                 accent: 'rose',
               },
               {
                 id: 'cashflow-payment-count',
-                label: 'Pagos recibidos',
-                value: Number(cashFlowData?.summary?.paymentCount || 0).toLocaleString(),
-                helper: 'Operaciones completadas',
+                label: tTerm('reports.cashflow.detail.paymentCount.label'),
+                value: formatNumberValue(cashFlowData?.summary?.paymentCount || 0),
+                helper: tTerm('reports.cashflow.detail.paymentCount.helper'),
                 icon: <Users size={18} />,
                 accent: 'amber',
               },
@@ -620,32 +627,32 @@ export default function Reports() {
 
           <DataTableSurface>
             <div className="px-4 py-4 sm:px-5">
-              <h3 className="font-medium">Historial mensual</h3>
+              <h3 className="font-medium">{tTerm('reports.cashflow.table.title')}</h3>
               <p className="mt-1 text-sm text-text-secondary">
-                Cada fila muestra el cuadre del mes y la caja acumulada disponible al cierre.
+                {tTerm('reports.cashflow.table.subtitle')}
               </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
                   <tr>
-                    <th>Mes</th>
-                    <th>Entradas por cuotas</th>
-                    <th>Salidas por préstamos</th>
-                    <th>Flujo neto</th>
-                    <th>Caja disponible</th>
-                    <th>Ganancia cobrada</th>
-                    <th>Pérdidas en riesgo</th>
+                    <th>{tTerm('reports.cashflow.table.month')}</th>
+                    <th>{tTerm('reports.cashflow.table.inflows')}</th>
+                    <th>{tTerm('reports.cashflow.table.outflows')}</th>
+                    <th>{tTerm('reports.cashflow.table.netFlow')}</th>
+                    <th>{tTerm('reports.cashflow.table.available')}</th>
+                    <th>{tTerm('reports.cashflow.table.profit')}</th>
+                    <th>{tTerm('reports.cashflow.table.lossRisk')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isCashFlowLoading ? (
                     <tr>
-                      <td colSpan={7} className="table-empty-state">Cargando flujo de caja...</td>
+                      <td colSpan={7} className="table-empty-state">{tTerm('reports.cashflow.table.loading')}</td>
                     </tr>
                   ) : (cashFlowData?.months || []).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="table-empty-state">No hay movimientos para el año seleccionado.</td>
+                      <td colSpan={7} className="table-empty-state">{tTerm('reports.cashflow.table.empty')}</td>
                     </tr>
                   ) : (
                     (cashFlowData?.months || []).map((month: any) => (
@@ -674,30 +681,30 @@ export default function Reports() {
       {activeTab === 'outstanding' && (
         <DataTableSurface>
           <div className="px-4 py-4 sm:px-5">
-            <h3 className="font-medium">Detalle de créditos en mora</h3>
+            <h3 className="font-medium">{tTerm('reports.outstanding.title')}</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th>Días de Atraso</th>
-                  <th>Monto en mora</th>
-                  <th>Capital Restante</th>
+                  <th>{tTerm('reports.outstanding.customer')}</th>
+                  <th>{tTerm('reports.outstanding.daysOverdue')}</th>
+                  <th>{tTerm('reports.outstanding.amount')}</th>
+                  <th>{tTerm('reports.outstanding.remainingCapital')}</th>
                 </tr>
               </thead>
               <tbody>
                 {overdueLoans.map((item: any, i: number) => (
                   <tr key={i}>
-                    <td className="font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
-                    <td className="font-medium text-amber-600">{item.daysOverdue} días</td>
-                    <td className="font-bold text-amber-600">${item.overdueAmount?.toLocaleString()}</td>
-                    <td>${item.remainingCapital?.toLocaleString()}</td>
+                    <td className="font-medium">{item.customerName || tTerm('credits.label.customerFallback', { id: item.customerId })}</td>
+                    <td className="font-medium text-amber-600">{tTerm('credits.agenda.daysOverdue', { count: item.daysOverdue })}</td>
+                    <td className="font-bold text-amber-600">{formatMoney(item.overdueAmount)}</td>
+                    <td>{formatMoney(item.remainingCapital)}</td>
                   </tr>
                 ))}
                 {overdueLoans.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="table-empty-state">No hay créditos en mora.</td>
+                    <td colSpan={4} className="table-empty-state">{tTerm('reports.outstanding.empty')}</td>
                   </tr>
                 )}
               </tbody>
@@ -710,8 +717,8 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           <DataTableSurface>
             <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
-              <h3 className="font-medium">Rentabilidad por Cliente</h3>
-              <FormField label="Año analítico" className="md:w-36">
+              <h3 className="font-medium">{tTerm('reports.profitability.title')}</h3>
+              <FormField label={tTerm('reports.profitability.year')} className="md:w-36">
                 <TextInput
                   type="number"
                   value={analyticsYear}
@@ -723,26 +730,26 @@ export default function Reports() {
             <table className="w-full text-sm text-left">
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th>Créditos totales</th>
-                  <th>Interés Cobrado</th>
-                  <th>Mora cobrada</th>
-                  <th>Rentabilidad Total</th>
+                  <th>{tTerm('reports.profitability.customer')}</th>
+                  <th>{tTerm('reports.profitability.totalLoans')}</th>
+                  <th>{tTerm('reports.profitability.interestCollected')}</th>
+                  <th>{tTerm('reports.profitability.lateFeesCollected')}</th>
+                  <th>{tTerm('reports.profitability.totalProfit')}</th>
                 </tr>
               </thead>
               <tbody>
                 {profitabilityData.map((item: any, i: number) => (
                   <tr key={i}>
-                    <td className="font-medium">{item.customerName || `Cliente #${item.customerId}`}</td>
+                    <td className="font-medium">{item.customerName || tTerm('credits.label.customerFallback', { id: item.customerId })}</td>
                     <td>{item.totalLoans}</td>
-                    <td className="text-emerald-600">${item.interestCollected?.toLocaleString()}</td>
-                    <td className="text-amber-600">${item.lateFeesCollected?.toLocaleString()}</td>
-                    <td className="font-bold text-brand-primary">${item.totalProfit?.toLocaleString()}</td>
+                    <td className="text-emerald-600">{formatMoney(item.interestCollected)}</td>
+                    <td className="text-amber-600">{formatMoney(item.lateFeesCollected)}</td>
+                    <td className="font-bold text-brand-primary">{formatMoney(item.totalProfit)}</td>
                   </tr>
                 ))}
                 {profitabilityData.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="table-empty-state">No hay datos de rentabilidad disponibles.</td>
+                    <td colSpan={5} className="table-empty-state">{tTerm('reports.profitability.empty')}</td>
                   </tr>
                 )}
               </tbody>
@@ -751,36 +758,36 @@ export default function Reports() {
           </DataTableSurface>
 
           <InsightStrip
-            aria-label="Indicadores de rentabilidad de clientes"
+            aria-label={tTerm('reports.profitability.summary.aria')}
             items={[
               {
                 id: 'profitability-efficiency',
-                label: 'Eficiencia de cobranza',
+                label: tTerm('reports.profitability.summary.collectionEfficiency.label'),
                 value: `${advancedMetrics.collectionEfficiency.toFixed(2)}%`,
-                helper: 'Recuperado vs esperado',
+                helper: tTerm('reports.profitability.summary.collectionEfficiency.helper'),
                 icon: <TrendingUp size={18} />,
                 accent: 'emerald',
               },
               {
                 id: 'profitability-delinquency',
-                label: 'Tendencia de mora',
+                label: tTerm('reports.profitability.summary.delinquencyTrend.label'),
                 value: `${advancedMetrics.delinquencyTrend.toFixed(2)}%`,
-                helper: 'Deterioro del periodo',
+                helper: tTerm('reports.profitability.summary.delinquencyTrend.helper'),
                 icon: <AlertCircle size={18} />,
                 accent: 'rose',
               },
               {
                 id: 'profitability-projected',
-                label: 'Cobro proyectado',
+                label: tTerm('reports.profitability.summary.projectedCollections.label'),
                 value: formatMoney(advancedMetrics.projectedCollections),
-                helper: 'Próximo mes',
+                helper: tTerm('reports.profitability.summary.projectedCollections.helper'),
                 icon: <CalendarClock size={18} />,
                 accent: 'blue',
               },
             ]}
           />
 
-          <SectionSurface title="Tendencia avanzada de recuperación y mora">
+          <SectionSurface title={tTerm('reports.profitability.trend.title')}>
             {advancedTrendSeries.length > 0 ? (
               <div className="h-72 min-w-0">
                 <MeasuredChart className="h-full min-w-0" minHeight={288}>
@@ -794,14 +801,14 @@ export default function Reports() {
                       itemStyle={{ color: '#fff' }}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="recovered" stroke="#10b981" strokeWidth={2} dot={false} name="Recuperado" />
-                    <Line type="monotone" dataKey="arrears" stroke="#ef4444" strokeWidth={2} dot={false} name="Mora" />
+                    <Line type="monotone" dataKey="recovered" stroke="#10b981" strokeWidth={2} dot={false} name={tTerm('reports.profitability.trend.recovered')} />
+                    <Line type="monotone" dataKey="arrears" stroke="#ef4444" strokeWidth={2} dot={false} name={tTerm('reports.profitability.trend.arrears')} />
                   </LineChart>
                   )}
                 </MeasuredChart>
               </div>
             ) : (
-              <EmptyState compact title="No hay series avanzadas para el año seleccionado." />
+              <EmptyState compact title={tTerm('reports.profitability.trend.empty')} />
             )}
           </SectionSurface>
         </div>
@@ -812,45 +819,45 @@ export default function Reports() {
           {/* Summary Cards */}
           {payoutSummary && (
             <InsightStrip
-              aria-label="Resumen de pagos y desembolsos"
+              aria-label={tTerm('reports.payouts.summary.aria')}
               items={[
                 {
                   id: 'payouts-count',
-                  label: 'Total pagos',
-                  value: Number(payoutSummary.totalPayouts || 0).toLocaleString(),
-                  helper: 'Operaciones del filtro',
+                  label: tTerm('reports.payouts.summary.count.label'),
+                  value: formatNumberValue(payoutSummary.totalPayouts || 0),
+                  helper: tTerm('reports.payouts.summary.count.helper'),
                   icon: <Wallet size={18} />,
                   accent: 'blue',
                 },
                 {
                   id: 'payouts-amount',
-                  label: 'Monto total',
+                  label: tTerm('reports.payouts.summary.amount.label'),
                   value: formatMoney(payoutSummary.totalAmount),
-                  helper: 'Total recibido',
+                  helper: tTerm('reports.payouts.summary.amount.helper'),
                   icon: <DollarSign size={18} />,
                   accent: 'emerald',
                 },
                 {
                   id: 'payouts-principal',
-                  label: 'Capital',
+                  label: tTerm('reports.payouts.summary.principal.label'),
                   value: formatMoney(payoutSummary.totalPrincipal),
-                  helper: 'Reduce saldo vivo',
+                  helper: tTerm('reports.payouts.summary.principal.helper'),
                   icon: <DollarSign size={18} />,
                   accent: 'slate',
                 },
                 {
                   id: 'payouts-interest',
-                  label: 'Interés',
+                  label: tTerm('reports.payouts.summary.interest.label'),
                   value: formatMoney(payoutSummary.totalInterest),
-                  helper: 'Interés cobrado',
+                  helper: tTerm('reports.payouts.summary.interest.helper'),
                   icon: <TrendingUp size={18} />,
                   accent: 'emerald',
                 },
                 {
                   id: 'payouts-penalties',
-                  label: 'Moras',
+                  label: tTerm('reports.payouts.summary.penalties.label'),
                   value: formatMoney(payoutSummary.totalPenalties),
-                  helper: 'Penalidades cobradas',
+                  helper: tTerm('reports.payouts.summary.penalties.helper'),
                   icon: <AlertCircle size={18} />,
                   accent: 'amber',
                 },
@@ -860,10 +867,10 @@ export default function Reports() {
 
           <DataTableSurface>
             <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
-              <h3 className="font-medium">Detalle de pagos</h3>
+              <h3 className="font-medium">{tTerm('reports.payouts.table.title')}</h3>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
-                  <FormField label="Desde">
+                  <FormField label={tTerm('reports.export.from')}>
                     <TextInput
                     type="date"
                     value={payoutFilters.fromDate || ''}
@@ -871,7 +878,7 @@ export default function Reports() {
                     />
                   </FormField>
                   <span className="pb-2.5 text-sm text-text-secondary">a</span>
-                  <FormField label="Hasta">
+                  <FormField label={tTerm('reports.export.to')}>
                     <TextInput
                     type="date"
                     value={payoutFilters.toDate || ''}
@@ -879,7 +886,7 @@ export default function Reports() {
                     />
                   </FormField>
                 </div>
-                <FormField label="Filas" className="w-24">
+                <FormField label={tTerm('reports.payouts.table.rows')} className="w-24">
                   <SelectInput
                     value={payoutPageSize}
                     onChange={(event) => {
@@ -898,36 +905,36 @@ export default function Reports() {
               <table className="w-full text-sm text-left">
                 <thead>
                   <tr>
-                    <th>ID Pago</th>
-                    <th>ID crédito</th>
-                    <th>Fecha</th>
-                    <th>Monto</th>
-                    <th>Capital</th>
-                    <th>Interés</th>
-                    <th>Mora</th>
-                    <th>Tipo</th>
-                    <th>Método</th>
+                    <th>{tTerm('reports.payouts.table.paymentId')}</th>
+                    <th>{tTerm('payouts.table.loanId')}</th>
+                    <th>{tTerm('payouts.table.date')}</th>
+                    <th>{tTerm('payouts.table.amount')}</th>
+                    <th>{tTerm('reports.payouts.summary.principal.label')}</th>
+                    <th>{tTerm('reports.payouts.summary.interest.label')}</th>
+                    <th>{tTerm('reports.payouts.summary.penalties.label')}</th>
+                    <th>{tTerm('payouts.form.paymentType')}</th>
+                    <th>{tTerm('payouts.table.method')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isPayoutsLoading ? (
                     <tr>
-                      <td colSpan={9} className="table-empty-state">Cargando pagos...</td>
+                      <td colSpan={9} className="table-empty-state">{tTerm('reports.payouts.table.loading')}</td>
                     </tr>
                   ) : payouts.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="table-empty-state">No hay pagos registrados.</td>
+                      <td colSpan={9} className="table-empty-state">{tTerm('reports.payouts.table.empty')}</td>
                     </tr>
                   ) : (
                     payouts.map((payout: any, i: number) => (
                       <tr key={i}>
                         <td className="font-mono text-text-secondary">#{payout.id}</td>
                         <td className="font-mono text-blue-600 dark:text-blue-400">#{payout.loanId}</td>
-                        <td>{payout.paymentDate ? new Date(payout.paymentDate).toLocaleDateString() : 'N/A'}</td>
-                        <td className="font-medium">${Number(payout.amount || 0).toLocaleString()}</td>
-                        <td className="text-text-secondary">${Number(payout.principalApplied || 0).toLocaleString()}</td>
-                        <td className="text-emerald-600">${Number(payout.interestApplied || 0).toLocaleString()}</td>
-                        <td className="text-amber-600">${Number(payout.penaltyApplied || 0).toLocaleString()}</td>
+                        <td>{formatDateValue(payout.paymentDate) || tTerm('common.notAvailable')}</td>
+                        <td className="font-medium">{formatMoney(payout.amount)}</td>
+                        <td className="text-text-secondary">{formatMoney(payout.principalApplied)}</td>
+                        <td className="text-emerald-600">{formatMoney(payout.interestApplied)}</td>
+                        <td className="text-amber-600">{formatMoney(payout.penaltyApplied)}</td>
                         <td>
                           <span className={`px-2 py-1 rounded text-xs ${getChipClassName('info')}`}>
                             {getPaymentTypeLabel(payout.paymentType)}
@@ -945,7 +952,11 @@ export default function Reports() {
             {payoutPagination && payoutPagination.totalPages > 1 && (
               <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  Mostrando {(payoutPage - 1) * payoutPageSize + 1} a {Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems)} de {payoutPagination.totalItems} pagos
+                  {tTerm('reports.payouts.pagination.summary', {
+                    from: (payoutPage - 1) * payoutPageSize + 1,
+                    to: Math.min(payoutPage * payoutPageSize, payoutPagination.totalItems),
+                    total: payoutPagination.totalItems,
+                  })}
                 </div>
                 <div className="flex gap-2">
                   <ActionButton
@@ -975,13 +986,13 @@ export default function Reports() {
         <div className="flex flex-col gap-6">
           <ToolbarSurface className="items-stretch lg:items-end">
             <div className="min-w-0 flex-1">
-              <h3 className="font-medium">Seleccionar crédito</h3>
-              <p className="mt-1 text-sm text-text-secondary">Consulta el calendario operativo de un crédito específico.</p>
+              <h3 className="font-medium">{tTerm('reports.schedule.selectTitle')}</h3>
+              <p className="mt-1 text-sm text-text-secondary">{tTerm('reports.schedule.selectSubtitle')}</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <TextInput
                 type="number"
-                placeholder="Ingrese ID del crédito"
+                placeholder={tTerm('reports.schedule.inputPlaceholder')}
                 value={selectedLoanId || ''}
                 onChange={(e) => setSelectedLoanId(e.target.value ? parseInt(e.target.value, 10) : null)}
                 className="sm:w-64"
@@ -993,7 +1004,7 @@ export default function Reports() {
                 }}
                 disabled={!selectedLoanId || isScheduleLoading}
               >
-                {isScheduleLoading ? 'Cargando...' : 'Ver calendario'}
+                {isScheduleLoading ? tTerm('reports.schedule.cta.loading') : tTerm('reports.schedule.cta.view')}
               </ActionButton>
             </div>
           </ToolbarSurface>
@@ -1003,37 +1014,37 @@ export default function Reports() {
             <>
               {/* Loan Summary */}
               <InsightStrip
-                aria-label="Resumen del crédito consultado"
+                aria-label={tTerm('reports.schedule.summary.aria')}
                 items={[
                   {
                     id: 'schedule-loan-amount',
-                    label: 'Monto del crédito',
+                    label: tTerm('schedule.summary.loanAmount'),
                     value: formatMoney(scheduleLoan.amount),
-                    helper: 'Capital original',
+                    helper: tTerm('schedule.summary.loanAmountHelper'),
                     icon: <DollarSign size={18} />,
                     accent: 'blue',
                   },
                   {
                     id: 'schedule-loan-term',
-                    label: 'Plazo',
-                    value: `${scheduleLoan.termMonths} meses`,
-                    helper: 'Tiempo pactado',
+                    label: tTerm('schedule.summary.term'),
+                    value: tTerm('schedule.summary.termValue', { months: scheduleLoan.termMonths }),
+                    helper: tTerm('schedule.summary.termHelper'),
                     icon: <CalendarClock size={18} />,
                     accent: 'emerald',
                   },
                   {
                     id: 'schedule-loan-rate',
-                    label: 'Tasa de interés',
+                    label: tTerm('schedule.summary.interestRate'),
                     value: `${scheduleLoan.interestRate}%`,
-                    helper: 'Tasa anual',
+                    helper: tTerm('schedule.summary.interestRateHelper'),
                     icon: <TrendingUp size={18} />,
                     accent: 'amber',
                   },
                   {
                     id: 'schedule-loan-status',
-                    label: 'Estado',
+                    label: tTerm('schedule.summary.status'),
                     value: <span className="capitalize">{scheduleLoan.status}</span>,
-                    helper: 'Situación operativa',
+                    helper: tTerm('schedule.summary.statusHelper'),
                     icon: <AlertCircle size={18} />,
                     accent: 'slate',
                   },
@@ -1042,29 +1053,29 @@ export default function Reports() {
 
               {/* Schedule Totals */}
               <InsightStrip
-                aria-label="Totales del calendario de pagos"
+                aria-label={tTerm('reports.schedule.totals.aria')}
                 items={[
                   {
                     id: 'schedule-total-principal',
-                    label: 'Total capital',
+                    label: tTerm('schedule.stats.totalPrincipal'),
                     value: formatMoney(scheduleSummary.totalPrincipal),
-                    helper: 'Capital amortizado',
+                    helper: tTerm('schedule.stats.totalPrincipalHelper'),
                     icon: <DollarSign size={18} />,
                     accent: 'slate',
                   },
                   {
                     id: 'schedule-total-interest',
-                    label: 'Total interés',
+                    label: tTerm('schedule.stats.totalInterest'),
                     value: formatMoney(scheduleSummary.totalInterest),
-                    helper: 'Interés programado',
+                    helper: tTerm('schedule.stats.totalInterestHelper'),
                     icon: <TrendingUp size={18} />,
                     accent: 'emerald',
                   },
                   {
                     id: 'schedule-total-payment',
-                    label: 'Total a pagar',
+                    label: tTerm('schedule.stats.totalPayment'),
                     value: formatMoney(scheduleSummary.totalPayment),
-                    helper: 'Capital + interés',
+                    helper: tTerm('schedule.stats.totalPaymentHelper'),
                     icon: <Wallet size={18} />,
                     accent: 'blue',
                   },
@@ -1072,7 +1083,7 @@ export default function Reports() {
               />
 
               {/* Installment Progress */}
-              <SectionSurface title="Progreso de cuotas">
+              <SectionSurface title={tTerm('reports.schedule.progress.title')}>
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="h-4 bg-bg-base rounded-full overflow-hidden">
@@ -1083,42 +1094,42 @@ export default function Reports() {
                     </div>
                   </div>
                   <span className="text-sm text-text-secondary">
-                    {scheduleSummary.paidInstallments} de {scheduleSummary.totalInstallments} cuotas pagadas
+                    {tTerm('reports.schedule.progress.summary', { paid: scheduleSummary.paidInstallments, total: scheduleSummary.totalInstallments })}
                   </span>
                 </div>
               </SectionSurface>
 
               <DataTableSurface>
                 <div className="px-4 py-4 sm:px-5">
-                  <h3 className="font-medium">Calendario de amortización</h3>
+                  <h3 className="font-medium">{tTerm('reports.schedule.table.title')}</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead>
                       <tr>
-                        <th>#</th>
-                        <th>Fecha vencimiento</th>
-                        <th>Saldo inicial</th>
-                        <th>Cuota</th>
-                        <th>Capital</th>
-                        <th>Interés</th>
-                        <th>Saldo final</th>
-                        <th>Estado</th>
+                        <th>{tTerm('schedule.table.header.period')}</th>
+                        <th>{tTerm('schedule.table.header.dueDate')}</th>
+                        <th>{tTerm('schedule.table.header.openingBalance')}</th>
+                        <th>{tTerm('schedule.table.header.scheduledPayment')}</th>
+                        <th>{tTerm('schedule.table.header.principal')}</th>
+                        <th>{tTerm('schedule.table.header.interest')}</th>
+                        <th>{tTerm('schedule.table.header.remaining')}</th>
+                        <th>{tTerm('schedule.table.header.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {schedule.map((entry: any, i: number) => (
                         <tr key={i}>
                           <td className="font-medium">{entry.installmentNumber || i + 1}</td>
-                          <td>{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : 'N/A'}</td>
-                          <td>${Number(entry.openingBalance || 0).toLocaleString()}</td>
-                          <td className="font-medium">${Number(entry.scheduledPayment || 0).toLocaleString()}</td>
-                          <td className="text-text-secondary">${Number(entry.principalComponent || 0).toLocaleString()}</td>
-                          <td className="text-emerald-600">${Number(entry.interestComponent || 0).toLocaleString()}</td>
-                          <td>${Number(entry.remainingBalance || 0).toLocaleString()}</td>
+                          <td>{formatDateValue(entry.dueDate) || tTerm('common.notAvailable')}</td>
+                          <td>{formatMoney(entry.openingBalance)}</td>
+                          <td className="font-medium">{formatMoney(entry.scheduledPayment)}</td>
+                          <td className="text-text-secondary">{formatMoney(entry.principalComponent)}</td>
+                          <td className="text-emerald-600">{formatMoney(entry.interestComponent)}</td>
+                          <td>{formatMoney(entry.remainingBalance)}</td>
                           <td>
                             <span className={`px-2 py-1 rounded text-xs ${entry.status === 'paid' ? getChipClassName('success') : getChipClassName('warning')}`}>
-                              {entry.status === 'paid' ? 'Pagado' : 'Pendiente'}
+                              {entry.status === 'paid' ? tTerm('schedule.status.paid') : tTerm('schedule.status.pending')}
                             </span>
                           </td>
                         </tr>
@@ -1134,8 +1145,8 @@ export default function Reports() {
             <DataTableSurface>
               <EmptyState
                 icon={<CalendarClock size={22} />}
-                title="Sin datos del calendario"
-                description='Ingrese un ID de crédito y haga clic en "Ver calendario" para ver el calendario de pagos.'
+                title={tTerm('reports.schedule.empty.title')}
+                description={tTerm('reports.schedule.empty.description')}
               />
             </DataTableSurface>
           )}

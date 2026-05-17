@@ -8,6 +8,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency as formatCurrencyValue, formatDateTime as formatDateTimeValue } from '../i18n/format';
+import { useTranslation } from '../i18n';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
@@ -28,6 +30,7 @@ import {
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Payouts() {
+  const { locale } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useSessionStore();
@@ -78,9 +81,21 @@ export default function Payouts() {
 
   const payoutTypeOptions = useMemo(() => {
     const options = [
-      { value: 'regular' as const, label: 'Pago regular (cuota)', description: 'Pago de cuota para clientes autenticados.' },
-      { value: 'partial' as const, label: 'Pago parcial', description: 'Abono administrativo que regulariza saldos pendientes.' },
-      { value: 'capital' as const, label: 'Abono a capital', description: 'Reduce capital vivo y recalcula el cronograma.' },
+      {
+        value: 'regular' as const,
+        label: tTerm('payouts.type.regular.label'),
+        description: tTerm('payouts.type.regular.description'),
+      },
+      {
+        value: 'partial' as const,
+        label: tTerm('payouts.type.partial.label'),
+        description: tTerm('payouts.type.partial.description'),
+      },
+      {
+        value: 'capital' as const,
+        label: tTerm('payouts.type.capital.label'),
+        description: tTerm('payouts.type.capital.description'),
+      },
     ];
 
     return options
@@ -89,7 +104,7 @@ export default function Payouts() {
         guard: resolveOperationalGuard('payout.register', { role, permissions, payoutType: option.value }),
       }))
       .filter((option) => option.guard.visible);
-  }, [permissions, role]);
+  }, [locale, permissions, role]);
 
   const selectedPayoutTypeGuard = useMemo(
     () => resolveOperationalGuard('payout.register', { role, permissions, payoutType: paymentType }),
@@ -155,13 +170,7 @@ export default function Payouts() {
 
   const formatPaymentDate = (payment: any) => {
     const rawDate = payment?.paymentDate ?? payment?.date ?? payment?.createdAt;
-    const parsedDate = rawDate ? new Date(rawDate) : null;
-
-    if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
-      return 'Sin fecha';
-    }
-
-    return parsedDate.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+    return formatDateTimeValue(rawDate) || tTerm('common.dateUnavailable');
   };
 
   const formatPaymentMethod = (payment: any) => {
@@ -171,7 +180,7 @@ export default function Payouts() {
     ).trim().toLowerCase();
 
     if (!rawMethod) {
-      return 'Sin método';
+      return tTerm('common.notSpecified');
     }
 
     const matchingMethod = paymentMethodOptions.find((method) => method.value === rawMethod);
@@ -182,18 +191,18 @@ export default function Payouts() {
     const normalizedStatus = String(payment?.status || '').toLowerCase();
 
     if (normalizedStatus === 'applied' || normalizedStatus === 'completed') {
-      return { label: 'Aplicado', tone: 'success' as const };
+      return { label: tTerm('payouts.status.applied'), tone: 'success' as const };
     }
 
     if (normalizedStatus === 'annulled') {
-      return { label: 'Anulado', tone: 'neutral' as const };
+      return { label: tTerm('payouts.status.annulled'), tone: 'neutral' as const };
     }
 
     if (normalizedStatus === 'failed') {
-      return { label: 'Fallido', tone: 'danger' as const };
+      return { label: tTerm('payouts.status.failed'), tone: 'danger' as const };
     }
 
-    return { label: 'Pendiente', tone: 'warning' as const };
+    return { label: tTerm('payouts.status.pending'), tone: 'warning' as const };
   };
 
   const handleDownloadVoucher = async (paymentId: number) => {
@@ -231,7 +240,7 @@ export default function Payouts() {
     });
 
     if (!editGuard.executable) {
-      toast.error({ title: editGuard.reason || 'Acción no disponible' });
+      toast.error({ title: editGuard.reason || tTerm('credits.action.unavailable') });
       return;
     }
 
@@ -254,7 +263,7 @@ export default function Payouts() {
         paymentStatus: editingPayment?.status,
         paymentReconciled: Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled),
       },
-      confirmationMessage: '¿Confirmar cambio de método de pago?',
+      confirmationMessage: tTerm('payouts.confirm.editMethod'),
       run: async () => {
         await updatePaymentMetadata.mutateAsync({
           paymentId: Number(editingPayment.id),
@@ -272,7 +281,7 @@ export default function Payouts() {
         setShowEditMethodModal(false);
         setEditingPayment(null);
       },
-      successMessage: 'Método de pago actualizado',
+      successMessage: tTerm('payouts.toast.edit.success'),
     });
   };
 
@@ -297,7 +306,7 @@ export default function Payouts() {
 
   const handleBulkDownloadVouchers = async () => {
     if (selectedPayments.length === 0) {
-      toast.error({ title: 'Seleccione al menos un pago para descargar comprobantes.' });
+      toast.error({ title: tTerm('payouts.bulk.empty') });
       return;
     }
 
@@ -309,7 +318,7 @@ export default function Payouts() {
           selectedPayments.map((payment: any) => downloadVoucher(Number(payment.id))),
         );
       },
-      successMessage: `${selectedPayments.length} comprobante(s) descargado(s)`,
+      successMessage: tTerm('payouts.bulk.downloadSuccess', { count: selectedPayments.length }),
     });
   };
 
@@ -320,12 +329,12 @@ export default function Payouts() {
     const amount = parseFloat(formData.amount);
 
     if (!Number.isInteger(loanId) || loanId <= 0) {
-      toast.error({ title: 'Ingrese un ID de crédito válido.' });
+      toast.error({ title: tTerm('payouts.validation.loanId') });
       return;
     }
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error({ title: 'Ingrese un monto válido.' });
+      toast.error({ title: tTerm('payouts.validation.amount') });
       return;
     }
 
@@ -368,7 +377,7 @@ export default function Payouts() {
 
   const openPaymentModal = () => {
     if (!firstExecutablePayoutType) {
-      toast.error({ title: selectedPayoutTypeGuard.reason || 'Acción no disponible para este usuario.' });
+      toast.error({ title: selectedPayoutTypeGuard.reason || tTerm('payouts.toast.actionUnavailableUser') });
       return;
     }
 
@@ -391,7 +400,7 @@ export default function Payouts() {
         <ActionButton
           onClick={openPaymentModal}
           disabled={!canOpenPaymentModal}
-          title={canOpenPaymentModal ? 'Registrar pago' : (selectedPayoutTypeGuard.reason || 'Acción no disponible')}
+          title={canOpenPaymentModal ? tTerm('payouts.cta.recordPayment') : (selectedPayoutTypeGuard.reason || tTerm('credits.action.unavailable'))}
           variant="primary"
           icon={<Plus size={16} />}
         >
@@ -404,7 +413,7 @@ export default function Payouts() {
         {selectedPayments.length > 0 && (
           <ToolbarSurface>
             <p className="text-sm text-text-secondary">
-              {selectedPayments.length} pago(s) seleccionado(s)
+              {tTerm('payouts.bulk.selected', { count: selectedPayments.length })}
             </p>
             <div className="flex items-center gap-2">
               <ActionButton
@@ -412,14 +421,14 @@ export default function Payouts() {
                 onClick={handleBulkDownloadVouchers}
                 variant="primary"
               >
-                Descargar comprobantes
+                {tTerm('payouts.bulk.download')}
               </ActionButton>
               <ActionButton
                 type="button"
                 onClick={() => setSelectedPaymentIds([])}
                 variant="ghost"
               >
-                Limpiar selección
+                {tTerm('payouts.bulk.clear')}
               </ActionButton>
             </div>
           </ToolbarSurface>
@@ -432,7 +441,7 @@ export default function Payouts() {
               type="text" 
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Buscar por ID de crédito o cliente…"
+              placeholder={tTerm('payouts.search.placeholder')}
               className="pl-10"
             />
           </div>
@@ -443,10 +452,10 @@ export default function Payouts() {
           isLoading={isLoading}
           isError={isError}
           hasData={payments.length > 0}
-          loadingContent={<div className="py-4 text-center text-text-secondary">Cargando pagos…</div>}
-          errorContent={<div className="py-4 text-center text-red-500">Error al cargar pagos.</div>}
-          emptyContent={<div className="py-4 text-center text-text-secondary">No hay pagos registrados.</div>}
-          recordsLabel="pagos"
+          loadingContent={<div className="py-4 text-center text-text-secondary">{tTerm('payouts.state.loading')}</div>}
+          errorContent={<div className="py-4 text-center text-red-500">{tTerm('payouts.state.error')}</div>}
+          emptyContent={<div className="py-4 text-center text-text-secondary">{tTerm('payouts.state.empty')}</div>}
+          recordsLabel={tTerm('payouts.recordsLabel')}
           pagination={pagination ? {
             page,
             pageSize,
@@ -466,22 +475,22 @@ export default function Payouts() {
               <tr>
                 <th className="pb-3 font-medium w-10">
                   <CheckboxInput
-                    aria-label="Seleccionar todos los pagos"
+                    aria-label={tTerm('payouts.table.selectAll')}
                     checked={allVisibleSelected}
                     onChange={(event) => handleToggleSelectAll(event.target.checked)}
                   />
                 </th>
-                <th className="pb-3 font-medium">Recibo ID</th>
-                <th className="pb-3 font-medium">Crédito ID</th>
-                <th className="pb-3 font-medium">Fecha</th>
-                <th className="pb-3 font-medium">Monto</th>
+                <th className="pb-3 font-medium">{tTerm('payouts.table.receiptId')}</th>
+                <th className="pb-3 font-medium">{tTerm('payouts.table.loanId')}</th>
+                <th className="pb-3 font-medium">{tTerm('payouts.table.date')}</th>
+                <th className="pb-3 font-medium">{tTerm('payouts.table.amount')}</th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Método" text="Forma con la que se registró el pago: efectivo, transferencia u otro método disponible." />
+                  <HelpLabel label={tTerm('payouts.table.method')} text={tTerm('payouts.table.methodHelp')} />
                 </th>
                 <th className="pb-3 font-medium">
-                  <HelpLabel label="Estado" text="Estado operativo del pago. Confirma si ya fue aplicado, sigue pendiente o fue anulado." />
+                  <HelpLabel label={tTerm('payouts.table.status')} text={tTerm('payouts.table.statusHelp')} />
                 </th>
-                <th className="pb-3 font-medium">Acciones</th>
+                <th className="pb-3 font-medium">{tTerm('payouts.table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -489,7 +498,7 @@ export default function Payouts() {
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4">
                     <CheckboxInput
-                      aria-label={`Seleccionar pago ${payment.id}`}
+                      aria-label={tTerm('payouts.table.selectOne', { id: payment.id })}
                       checked={selectedPaymentIds.includes(Number(payment.id))}
                       onChange={(event) => handleToggleSelection(Number(payment.id), event.target.checked)}
                     />
@@ -497,7 +506,7 @@ export default function Payouts() {
                   <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
                   <td className="cursor-pointer py-4 font-mono text-brand-primary hover:underline">{payment.loanId}</td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
-                  <td className="py-4 font-medium">${Number(payment.amount ?? 0).toLocaleString()}</td>
+                  <td className="py-4 font-medium">{formatCurrencyValue(payment.amount)}</td>
                   <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
                   <td className="py-4">
                     {(() => {
@@ -512,8 +521,8 @@ export default function Payouts() {
                   <td className="py-4">
                     <div className="flex items-center gap-2">
                       <IconActionButton
-                        label="Descargar comprobante"
-                        title="Descargar comprobante"
+                        label={tTerm('payouts.action.downloadVoucher')}
+                        title={tTerm('payouts.action.downloadVoucher')}
                         onClick={() => handleDownloadVoucher(payment.id)}
                         icon={<FileText size={16} />}
                       />
@@ -535,8 +544,8 @@ export default function Payouts() {
                           <>
                             {viewGuard.visible && (
                               <IconActionButton
-                                label="Ver crédito"
-                                title={viewGuard.executable ? 'Ver crédito' : (viewGuard.reason || 'Acción no disponible')}
+                                label={tTerm('payouts.action.viewCredit')}
+                                title={viewGuard.executable ? tTerm('payouts.action.viewCredit') : (viewGuard.reason || tTerm('credits.action.unavailable'))}
                                 onClick={() => handleViewCredit(Number(payment.loanId))}
                                 disabled={!viewGuard.executable}
                                 icon={<Eye size={16} />}
@@ -544,8 +553,8 @@ export default function Payouts() {
                             )}
                             {editGuard.visible && (
                               <IconActionButton
-                                label="Editar método de pago"
-                                title={editGuard.executable ? 'Editar método de pago real' : (editGuard.reason || 'Acción no disponible')}
+                                label={tTerm('payouts.action.editPaymentMethod')}
+                                title={editGuard.executable ? tTerm('payouts.action.editPaymentMethodTitle') : (editGuard.reason || tTerm('credits.action.unavailable'))}
                                 onClick={() => handleEditPayment(payment)}
                                 disabled={!editGuard.executable}
                                 icon={<Edit size={16} />}
@@ -553,10 +562,10 @@ export default function Payouts() {
                             )}
                             {deleteGuard.visible && (
                               <IconActionButton
-                                label="Eliminar pago"
+                                label={tTerm('payouts.action.delete')}
                                 variant="danger"
-                                title={deleteGuard.reason || 'Eliminar'}
-                                onClick={() => toast.error({ title: deleteGuard.reason || 'Acción no disponible' })}
+                                title={deleteGuard.reason || tTerm('payouts.action.deleteTitle')}
+                                onClick={() => toast.error({ title: deleteGuard.reason || tTerm('credits.action.unavailable') })}
                                 disabled={!deleteGuard.executable}
                                 icon={<Trash2 size={16} />}
                               />
@@ -577,8 +586,8 @@ export default function Payouts() {
         <ModalShell title={tTerm('payouts.cta.recordPayment')}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <FormField
-                label="Tipo de pago"
-                tooltip="Regular: cuota completa; Parcial: abono incompleto; Capital: reduce saldo principal."
+                label={tTerm('payouts.form.paymentType')}
+                tooltip={tTerm('payouts.form.paymentTypeTooltip')}
                 helper={payoutTypeOptions.find((option) => option.value === paymentType)?.description || selectedPayoutTypeGuard.reason}
               >
                 <SelectInput
@@ -594,18 +603,18 @@ export default function Payouts() {
                 </SelectInput>
               </FormField>
 
-              <FormField label="ID del crédito">
+              <FormField label={tTerm('payouts.form.loanId')}>
                 <TextInput
                   id="payout-loan-id"
                   type="number"
                   required
                   value={formData.loanId}
                   onChange={(e) => setFormData((prev) => ({ ...prev, loanId: e.target.value }))}
-                  placeholder="Ej: 1"
+                  placeholder={tTerm('payouts.form.loanIdPlaceholder')}
                 />
               </FormField>
 
-              <FormField label="Monto a pagar">
+              <FormField label={tTerm('payouts.form.amount')}>
                 <TextInput
                   id="payout-amount"
                   type="number"
@@ -618,7 +627,7 @@ export default function Payouts() {
                 />
               </FormField>
 
-              <FormField label="Fecha de pago">
+              <FormField label={tTerm('payouts.form.date')}>
                 <TextInput
                   id="payout-date"
                   type="date"
@@ -628,7 +637,7 @@ export default function Payouts() {
                 />
               </FormField>
 
-              <FormField label="Método de pago">
+              <FormField label={tTerm('payouts.form.paymentMethod')}>
                 <SelectInput
                   id="payout-method"
                   value={formData.paymentMethod}
@@ -641,7 +650,7 @@ export default function Payouts() {
               </FormField>
 
               {paymentType === 'capital' && (
-                <FormField label="Estrategia de abono">
+                <FormField label={tTerm('payouts.form.capitalStrategy')}>
                   <SelectInput
                     id="payout-capital-strategy"
                     value={capitalStrategy}
@@ -661,7 +670,7 @@ export default function Payouts() {
                   variant="secondary"
                   fullWidth
                 >
-                  Cancelar
+                  {tTerm('common.cta.cancel')}
                 </ActionButton>
                 <ActionButton
                   type="submit"
@@ -669,7 +678,7 @@ export default function Payouts() {
                   variant="primary"
                   fullWidth
                 >
-                  {isSubmitting ? 'Procesando...' : 'Confirmar Pago'}
+                  {isSubmitting ? tTerm('payouts.form.submitting') : tTerm('payouts.form.submit')}
                 </ActionButton>
               </div>
             </form>
@@ -677,14 +686,14 @@ export default function Payouts() {
       )}
 
       {showEditMethodModal && editingPayment && (
-        <ModalShell title="Editar método de pago" subtitle={`Pago #${editingPayment.id}`}>
+        <ModalShell title={tTerm('payouts.edit.title')} subtitle={tTerm('payouts.edit.subtitle', { id: editingPayment.id })}>
             {Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled) && (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                El pago está conciliado y no puede modificarse.
+                {tTerm('payouts.edit.locked')}
               </div>
             )}
             <div className="space-y-4">
-              <FormField label="Método de pago">
+              <FormField label={tTerm('payouts.edit.method')}>
                 <SelectInput
                   id="edit-payment-method"
                   value={editedMethod}
@@ -696,12 +705,12 @@ export default function Payouts() {
                   ))}
                 </SelectInput>
               </FormField>
-              <FormField label="Referencia de conciliación (opcional)">
+              <FormField label={tTerm('payouts.edit.reference')}>
                 <TextInput
                   id="edit-payment-reference"
                   value={editedReference}
                   onChange={(event) => setEditedReference(event.target.value)}
-                  placeholder="Ej: REF-123"
+                  placeholder={tTerm('payouts.edit.referencePlaceholder')}
                   disabled={Boolean(editingPayment?.reconciled || editingPayment?.isReconciled || editingPayment?.paymentMetadata?.reconciled)}
                 />
               </FormField>
@@ -716,7 +725,7 @@ export default function Payouts() {
                 variant="secondary"
                 fullWidth
               >
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton
                 type="button"
@@ -725,7 +734,7 @@ export default function Payouts() {
                 variant="primary"
                 fullWidth
               >
-                Guardar cambios
+                {tTerm('payouts.edit.save')}
               </ActionButton>
             </div>
         </ModalShell>

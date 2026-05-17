@@ -175,7 +175,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Deuda con socio')).toBeInTheDocument();
     expect(screen.getByText('Próximo pago')).toBeInTheDocument();
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
-    expect(screen.getAllByText(/\$125[,.]000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('transfer')).toBeInTheDocument();
   });
 });

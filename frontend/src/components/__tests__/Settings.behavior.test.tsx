@@ -167,7 +167,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByPlaceholderText('Mínimo 8 caracteres'), {
       target: { value: 'Password123!' },
     });
-    fireEvent.submit(screen.getByRole('form', { name: 'Crear empleado administrativo' }));
+    fireEvent.submit(screen.getByRole('form', { name: 'Alta de empleado' }));
 
     await waitFor(() => {
       expect(mockRegisterWithPermissions).toHaveBeenCalledWith({

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Search, Eye, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { formatDate as formatDateValue } from '../i18n/format';
 import { useCustomers } from '../services/customerService';
 import { usePaginationStore } from '../store/paginationStore';
 import { toast } from '../lib/toast';
@@ -47,8 +48,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   const formatCreatedAt = (value: unknown) => {
     if (!value) return 'N/A';
 
-    const parsedDate = new Date(value as string | number | Date);
-    return Number.isNaN(parsedDate.getTime()) ? 'N/A' : parsedDate.toLocaleDateString('es-CO', { dateStyle: 'medium' });
+    return formatDateValue(value) || 'N/A';
   };
 
   const getCustomerName = (customer: any) => {
@@ -60,7 +60,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
     if (name) {
       name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
     }
-    return name || `Cliente #${customer?.id || 'N/A'}`;
+    return name || tTerm('credits.label.customerFallback', { id: customer?.id || 'N/A' });
   };
 
   const handleDelete = async (customer: any) => {
@@ -168,9 +168,9 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               >
                 <option value="all">Todos los estados</option>
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
-                <option value="blacklisted">Bloqueado</option>
+                <option value="active">{tTerm('common.status.active')}</option>
+                <option value="inactive">{tTerm('common.status.inactive')}</option>
+                <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
               </SelectInput>
             </FormField>
             <FormField label="Registro" tooltip="Acota clientes por fecha de alta en la plataforma.">
@@ -252,7 +252,11 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                             ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
                             : 'bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-300'
                       }`}>
-                        {customer.status === 'active' ? 'Activo' : customer.status === 'blacklisted' ? 'Bloqueado' : 'Inactivo'}
+                        {customer.status === 'active'
+                          ? tTerm('common.status.active')
+                          : customer.status === 'blacklisted'
+                            ? tTerm('common.status.blacklisted')
+                            : tTerm('common.status.inactive')}
                       </span>
                     </td>
                     <td className="py-4 text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>

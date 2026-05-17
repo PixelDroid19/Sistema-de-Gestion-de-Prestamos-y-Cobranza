@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Save, User, Phone, MapPin, Mail, CreditCard, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useCustomers, useCustomerById } from '../services/customerService';
+import { tTerm } from '../i18n/terminology';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 import {
   ActionButton,
@@ -96,7 +97,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     };
   };
 
-  const submitConfig = useMemo(() => ({
+  const submitConfig = {
     mutate: (payload: CustomerFormData) => {
       const normalizedPayload = buildCustomerPayload(payload);
       if (isEditing) {
@@ -107,8 +108,8 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     },
     errorContext: { domain: 'customers', action: isEditing ? 'customer.update' : 'customer.create' } as const,
     onSuccess: onBack,
-    successMessage: isEditing ? 'Cliente actualizado correctamente' : 'Cliente creado correctamente',
-  }), [createCustomer, customerId, isEditing, onBack, updateCustomer]);
+    successMessage: isEditing ? tTerm('newCustomer.success.edit') : tTerm('newCustomer.success.create'),
+  };
 
   const { isSubmitting, run } = useCreateEntitySubmit(submitConfig);
 
@@ -122,17 +123,17 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
     await run(formData);
   };
 
-  const title = isEditing ? 'Editar cliente' : 'Nuevo Cliente';
+  const title = isEditing ? tTerm('newCustomer.title.edit') : tTerm('newCustomer.title.create');
   const subtitle = isEditing
-    ? 'Actualiza la información operativa del cliente sin perder su historial.'
-    : 'Registrar un nuevo perfil de prestatario en el sistema.';
-  const submitLabel = isEditing ? 'Guardar cambios' : 'Guardar Cliente';
+    ? tTerm('newCustomer.subtitle.edit')
+    : tTerm('newCustomer.subtitle.create');
+  const submitLabel = isEditing ? tTerm('newCustomer.submit.edit') : tTerm('newCustomer.submit.create');
 
   if (isEditing && isLoadingCustomer) {
     return (
       <PageShell>
         <SectionSurface>
-          <EmptyState compact title="Cargando datos del cliente…" icon={<Loader2 size={16} className="animate-spin" />} />
+          <EmptyState compact title={tTerm('newCustomer.loading')} icon={<Loader2 size={16} className="animate-spin" />} />
         </SectionSurface>
       </PageShell>
     );
@@ -143,9 +144,9 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
       <PageShell>
         <SectionSurface>
           <EmptyState
-            title="No fue posible cargar el cliente"
-            description="Revisa la conexión o vuelve a la lista para intentarlo de nuevo."
-            action={<ActionButton onClick={onBack}>Volver a clientes</ActionButton>}
+            title={tTerm('newCustomer.loadError.title')}
+            description={tTerm('newCustomer.loadError.description')}
+            action={<ActionButton onClick={onBack}>{tTerm('newCustomer.actions.back')}</ActionButton>}
           />
         </SectionSurface>
       </PageShell>
@@ -162,7 +163,7 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
         actions={(
           <>
             <ActionButton type="button" onClick={onBack} icon={<ArrowLeft size={16} />}>
-              Cancelar
+              {tTerm('newCustomer.actions.cancel')}
             </ActionButton>
             <ActionButton
               type="button"
@@ -182,32 +183,32 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
         <form onSubmit={handleSubmit} className="grid w-full gap-6 xl:grid-cols-2">
           <SectionSurface
             data-tour="new-customer-personal"
-            title={<span className="flex items-center gap-2"><User size={20} className="text-blue-500" /> Información personal</span>}
+            title={<span className="flex items-center gap-2"><User size={20} className="text-blue-500" /> {tTerm('newCustomer.section.personal')}</span>}
           >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <FormField label="Nombres">
+              <FormField label={tTerm('newCustomer.field.firstName')}>
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-first-name" type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className="pl-10" placeholder="Ej. Juan" />
+                  <TextInput id="new-customer-first-name" type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.firstName')} />
                 </div>
               </FormField>
-              <FormField label="Apellidos">
+              <FormField label={tTerm('newCustomer.field.lastName')}>
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-last-name" type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className="pl-10" placeholder="Ej. Pérez" />
+                  <TextInput id="new-customer-last-name" type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.lastName')} />
                 </div>
               </FormField>
-              <FormField label="DNI / Identificación">
+              <FormField label={tTerm('newCustomer.field.documentId')}>
                 <div className="relative">
                   <CreditCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-document-id" type="text" name="documentId" value={formData.documentId} onChange={handleChange} required className="pl-10" placeholder="Ej. 12345678" />
+                  <TextInput id="new-customer-document-id" type="text" name="documentId" value={formData.documentId} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.documentId')} />
                 </div>
               </FormField>
-              <FormField label="Estado">
+              <FormField label={tTerm('newCustomer.field.status')}>
                 <SelectInput id="new-customer-status" name="status" value={formData.status} onChange={handleChange}>
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                  <option value="blacklisted">Bloqueado</option>
+                  <option value="active">{tTerm('common.status.active')}</option>
+                  <option value="inactive">{tTerm('common.status.inactive')}</option>
+                  <option value="blacklisted">{tTerm('common.status.blacklisted')}</option>
                 </SelectInput>
               </FormField>
             </div>
@@ -215,25 +216,25 @@ export default function NewCustomer({ onBack }: { onBack: () => void }) {
 
           <SectionSurface
             data-tour="new-customer-contact"
-            title={<span className="flex items-center gap-2"><MapPin size={20} className="text-emerald-500" /> Contacto y dirección</span>}
+            title={<span className="flex items-center gap-2"><MapPin size={20} className="text-emerald-500" /> {tTerm('newCustomer.section.contact')}</span>}
           >
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <FormField label="Teléfono">
+              <FormField label={tTerm('newCustomer.field.phone')}>
                 <div className="relative">
                   <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-phone" type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="pl-10" placeholder="+1 234 567 890" />
+                  <TextInput id="new-customer-phone" type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.phone')} />
                 </div>
               </FormField>
-              <FormField label="Correo electrónico">
+              <FormField label={tTerm('newCustomer.field.email')}>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <TextInput id="new-customer-email" type="email" name="email" value={formData.email} onChange={handleChange} required className="pl-10" placeholder="correo@ejemplo.com" />
+                  <TextInput id="new-customer-email" type="email" name="email" value={formData.email} onChange={handleChange} required className="pl-10" placeholder={tTerm('newCustomer.placeholder.email')} />
                 </div>
               </FormField>
-              <FormField label="Dirección completa" className="md:col-span-2">
+              <FormField label={tTerm('newCustomer.field.address')} className="md:col-span-2">
                 <div className="relative">
                   <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
-                  <TextAreaInput id="new-customer-address" name="address" value={formData.address} onChange={handleChange} rows={3} className="pl-10" placeholder="Calle Principal 123, Ciudad, Provincia, Código Postal" />
+                  <TextAreaInput id="new-customer-address" name="address" value={formData.address} onChange={handleChange} rows={3} className="pl-10" placeholder={tTerm('newCustomer.placeholder.address')} />
                 </div>
               </FormField>
             </div>

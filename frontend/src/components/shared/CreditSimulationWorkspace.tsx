@@ -13,6 +13,8 @@ import {
   Table2,
   Trash2,
 } from 'lucide-react';
+import { useTranslation } from '../../i18n';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatDateTime as formatLocaleDateTime, formatNumber } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
@@ -62,35 +64,41 @@ type CreditSimulationWorkspaceProps = {
   };
 };
 
-const lateFeeModeOptions: Array<{ value: NonNullable<CreditCalculationInput['lateFeeMode']>; label: string; helper: string }> = [
-  { value: 'NONE', label: 'Sin recargo', helper: 'No aplica mora.' },
-  { value: 'SIMPLE', label: 'Mora simple', helper: 'Recargo claro sobre cuota vencida.' },
-  { value: 'COMPOUND', label: 'Mora compuesta', helper: 'Capitaliza recargos.' },
-  { value: 'FLAT', label: 'Cargo fijo por mora', helper: 'Valor fijo por atraso.' },
-  { value: 'TIERED', label: 'Mora por tramos', helper: 'Tramos por días vencidos.' },
-];
+const lateFeeModeOptions: Array<NonNullable<CreditCalculationInput['lateFeeMode']>> = ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'];
+
+const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.mode.none' | 'simulator.lateFee.mode.simple' | 'simulator.lateFee.mode.compound' | 'simulator.lateFee.mode.flat' | 'simulator.lateFee.mode.tiered'> = {
+  NONE: 'simulator.lateFee.mode.none',
+  SIMPLE: 'simulator.lateFee.mode.simple',
+  COMPOUND: 'simulator.lateFee.mode.compound',
+  FLAT: 'simulator.lateFee.mode.flat',
+  TIERED: 'simulator.lateFee.mode.tiered',
+};
+
+const lateFeeModeHelperKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.helper.none' | 'simulator.lateFee.helper.simple' | 'simulator.lateFee.helper.compound' | 'simulator.lateFee.helper.flat' | 'simulator.lateFee.helper.tiered'> = {
+  NONE: 'simulator.lateFee.helper.none',
+  SIMPLE: 'simulator.lateFee.helper.simple',
+  COMPOUND: 'simulator.lateFee.helper.compound',
+  FLAT: 'simulator.lateFee.helper.flat',
+  TIERED: 'simulator.lateFee.helper.tiered',
+};
+
+const lateFeeModeDescriptionKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.description.none' | 'simulator.lateFee.description.simple' | 'simulator.lateFee.description.compound' | 'simulator.lateFee.description.flat' | 'simulator.lateFee.description.tiered'> = {
+  NONE: 'simulator.lateFee.description.none',
+  SIMPLE: 'simulator.lateFee.description.simple',
+  COMPOUND: 'simulator.lateFee.description.compound',
+  FLAT: 'simulator.lateFee.description.flat',
+  TIERED: 'simulator.lateFee.description.tiered',
+};
 
 const formatLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) => {
-  const selectedOption = lateFeeModeOptions.find((option) => option.value === (value || 'SIMPLE'));
-  return selectedOption?.label || 'Mora simple';
+  const normalizedValue = value || 'SIMPLE';
+  return tTerm(lateFeeModeLabelKeys[normalizedValue]);
 };
 
-const lateFeeModeDescriptions: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, string> = {
-  NONE: 'No cobra recargo por atraso.',
-  SIMPLE: 'Cobra sobre la cuota vencida, sin cobrar mora sobre mora.',
-  COMPOUND: 'Capitaliza recargos vencidos; úsalo solo con política aprobada.',
-  FLAT: 'Aplica un valor fijo por atraso.',
-  TIERED: 'Usa tramos por días vencidos o severidad.',
-};
-
-const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-}).format(value);
+const formatCurrency = (value: number) => formatCurrencyValue(value);
 
 const formatAmountInputDisplay = (value: number) =>
-  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number.isFinite(value) ? value : 0);
+  formatNumber(Number.isFinite(value) ? value : 0, { maximumFractionDigits: 0 });
 
 const parseDigitsToAmount = (raw: string) => {
   const digits = raw.replace(/\D/g, '');
@@ -109,20 +117,20 @@ const formatDate = (value: string) => {
     return '-';
   }
 
-  return new Intl.DateTimeFormat('es-CO', {
+  return formatLocaleDate(parsed, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(parsed);
+  }) || '-';
 };
 
 const formatScheduleStatus = (status?: string) => {
   const normalizedStatus = String(status || '').toLowerCase();
-  if (normalizedStatus === 'pending') return 'Pendiente';
-  if (normalizedStatus === 'paid' || normalizedStatus === 'settled') return 'Pagada';
-  if (normalizedStatus === 'overdue' || normalizedStatus === 'defaulted') return 'En mora';
-  if (normalizedStatus === 'cancelled' || normalizedStatus === 'annulled') return 'Anulada';
+  if (normalizedStatus === 'pending') return tTerm('schedule.status.pending');
+  if (normalizedStatus === 'paid' || normalizedStatus === 'settled') return tTerm('credits.modal.status.paid');
+  if (normalizedStatus === 'overdue' || normalizedStatus === 'defaulted') return tTerm('credits.modal.status.overdue');
+  if (normalizedStatus === 'cancelled' || normalizedStatus === 'annulled') return tTerm('schedule.status.annulled');
   return status || '-';
 };
 
@@ -130,16 +138,7 @@ const formatCalculationMethod = (value?: CreditCalculationResult['method']) => (
   getCalculationValueLabel(value || 'FRENCH', 'method')
 );
 
-const getDefaultScenarioName = (savedScenariosCount: number) => `Escenario ${savedScenariosCount + 1}`;
-
-const fieldHelp = {
-  amount: 'Capital a desembolsar antes de intereses y recargos.',
-  rate: 'Porcentaje anual usado para construir la cuota mensual equivalente.',
-  term: 'Número total de cuotas mensuales del cronograma.',
-  startDate: 'Fecha exacta de vencimiento de la primera cuota. Las siguientes cuotas se calculan mes a mes desde esta fecha.',
-  lateFee: 'Define el método matemático de la mora. La política activa de Configuración aporta la tasa y el valor queda guardado con el crédito.',
-  scenarios: 'Guarda resultados para comparar cuota e interés sin registrar un crédito.',
-};
+const getDefaultScenarioName = (savedScenariosCount: number) => tTerm('simulator.scenario.defaultName', { count: savedScenariosCount + 1 });
 
 function FieldHint({ id, text }: { id: string; text: string }) {
   return (
@@ -167,15 +166,16 @@ export default function CreditSimulationWorkspace({
   helperText,
   resultBadge,
   validationStatus,
-  actionLabel = tTerm('simulator.form.simulate'),
+  actionLabel,
   simulateButtonDataTour,
   hideHeaderActions = false,
   compactChrome = false,
-  emptyTitle = 'Sin resultados todavía',
-  emptyDescription = 'Ajusta los parámetros y ejecuta el cálculo para revisar la cuota, el costo financiero y el cronograma.',
-  emptyScheduleDescription = 'Tras calcular, aquí verás cada cuota con vencimiento, pago e intereses.',
+  emptyTitle,
+  emptyDescription,
+  emptyScheduleDescription,
   rateControl,
 }: CreditSimulationWorkspaceProps) {
+  const { locale } = useTranslation();
   const instanceId = useId();
   const titleId = `${instanceId}-credit-simulation-title`;
   const amountInputId = `${instanceId}-credit-simulation-amount`;
@@ -193,6 +193,18 @@ export default function CreditSimulationWorkspace({
   const [scenarioName, setScenarioName] = useState('');
   const [isComparisonVisible, setIsComparisonVisible] = useState(false);
   const freshResult = isResultStale ? null : result;
+  const resolvedActionLabel = actionLabel || tTerm('simulator.form.simulate');
+  const resolvedEmptyTitle = emptyTitle || tTerm('simulator.empty.pendingTitle');
+  const resolvedEmptyDescription = emptyDescription || tTerm('simulator.empty.pendingDescription');
+  const resolvedEmptyScheduleDescription = emptyScheduleDescription || tTerm('simulator.empty.pendingScheduleDescription');
+  const fieldHelp = {
+    amount: tTerm('simulator.help.amount'),
+    rate: tTerm('simulator.help.rate'),
+    term: tTerm('simulator.help.term'),
+    startDate: tTerm('simulator.help.startDate'),
+    lateFee: tTerm('simulator.help.lateFee'),
+    scenarios: tTerm('simulator.help.scenarios'),
+  };
 
   const summaryCards = useMemo(() => {
     if (!freshResult) {
@@ -205,42 +217,42 @@ export default function CreditSimulationWorkspace({
     return [
       {
         id: 'installment',
-        label: 'Cuota estimada',
-        compactLabel: 'Cuota',
+        label: tTerm('simulator.summary.card.installmentEstimated'),
+        compactLabel: tTerm('simulator.schedule.header.payment'),
         value: formatCurrency(freshResult.summary.installmentAmount),
-        helper: 'Pago mensual estimado',
+        helper: tTerm('simulator.summary.card.helper.monthlyEstimated'),
         icon: <DollarSign size={18} />,
         accent: 'blue' as const,
       },
       {
         id: 'payable',
-        label: 'Total a pagar',
-        compactLabel: 'Total',
+        label: tTerm('simulator.summary.totalPayment'),
+        compactLabel: tTerm('simulator.summary.totalPayment.short'),
         value: formatCurrency(freshResult.summary.totalPayable),
-        helper: 'Capital + interés',
+        helper: tTerm('simulator.summary.card.helper.capitalInterest'),
         icon: <Check size={18} />,
         accent: 'emerald' as const,
       },
       {
         id: 'interest',
-        label: 'Interés total',
-        compactLabel: 'Interés',
+        label: tTerm('simulator.summary.card.totalInterestLabel'),
+        compactLabel: tTerm('simulator.summary.totalInterest.short'),
         value: formatCurrency(freshResult.summary.totalInterest),
-        helper: 'Costo financiero total',
+        helper: tTerm('simulator.summary.card.helper.financialCost'),
         icon: <Percent size={18} />,
         accent: 'amber' as const,
       },
       {
         id: 'averageInterest',
-        label: 'Interés promedio por cuota',
-        compactLabel: 'Promedio/cuota',
+        label: tTerm('simulator.summary.averageInterest'),
+        compactLabel: tTerm('simulator.summary.averageInterest.short'),
         value: formatCurrency(averageInterestPerInstallment),
-        helper: 'Promedio mensual',
+        helper: tTerm('simulator.summary.card.helper.monthlyAverage'),
         icon: <Clock3 size={18} />,
         accent: 'slate' as const,
       },
     ];
-  }, [freshResult, input.termMonths]);
+  }, [freshResult, input.termMonths, locale]);
 
   const handleSaveScenario = () => {
     if (!showScenarioTools || !freshResult) {
@@ -332,7 +344,7 @@ export default function CreditSimulationWorkspace({
                   variant="primary"
                   className="py-3"
                 >
-                  {actionLabel}
+                  {resolvedActionLabel}
                 </ActionButton>
                 {onReset && (
                   <ActionButton
@@ -340,7 +352,7 @@ export default function CreditSimulationWorkspace({
                     disabled={disabled || isSimulating}
                     className="py-3"
                   >
-                    Restablecer parámetros
+                    {tTerm('simulator.action.resetParameters')}
                   </ActionButton>
                 )}
               </div>
@@ -354,17 +366,17 @@ export default function CreditSimulationWorkspace({
             <section className={`${compactChrome ? 'space-y-4 border-b border-border-subtle pb-5' : 'space-y-5'}`}>
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
-                Parámetros
+                {tTerm('simulator.section.parameters')}
               </div>
               <p className={`${compactChrome ? 'text-xs' : 'text-sm'} text-text-secondary`}>
-                Ajusta datos y ejecuta el cálculo.
+                {tTerm('simulator.section.parameters.subtitle')}
               </p>
 
               <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'}`}>
                 <div>
                   <div className="flex items-center gap-2">
                     <label htmlFor={amountInputId} className="text-sm font-medium text-text-primary">
-                      Monto del crédito
+                      {tTerm('simulator.form.amount')}
                     </label>
                     <FieldHint id={amountHelpId} text={fieldHelp.amount} />
                   </div>
@@ -394,7 +406,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
-                        {rateControl?.readOnly ? 'Tasa configurada' : 'Tasa nominal anual'}
+                        {rateControl?.readOnly ? tTerm('simulator.field.rate.configured') : tTerm('simulator.field.rate.nominal')}
                       </label>
                       <FieldHint id={rateHelpId} text={rateControl?.helper || fieldHelp.rate} />
                       {rateControl?.badge && (
@@ -432,7 +444,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={termInputId} className="text-sm font-medium text-text-primary">
-                        Plazo en meses
+                        {tTerm('simulator.field.termMonths')}
                       </label>
                       <FieldHint id={termHelpId} text={fieldHelp.term} />
                     </div>
@@ -460,7 +472,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
-                        Fecha del primer pago
+                        {tTerm('simulator.form.firstPaymentDate')}
                       </label>
                       <FieldHint id={startDateHelpId} text={fieldHelp.startDate} />
                     </div>
@@ -477,7 +489,7 @@ export default function CreditSimulationWorkspace({
                   <div>
                     <div className="flex items-center gap-2">
                       <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
-                        Cálculo de mora
+                        {tTerm('simulator.form.lateFeeCalculation')}
                       </label>
                       <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
                     </div>
@@ -490,8 +502,8 @@ export default function CreditSimulationWorkspace({
                         className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {lateFeeModeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                          <option key={option} value={option}>
+                            {tTerm(lateFeeModeLabelKeys[option])}
                           </option>
                         ))}
                       </select>
@@ -499,7 +511,7 @@ export default function CreditSimulationWorkspace({
                         <span className="font-semibold text-text-primary">
                           {formatLateFeeModeLabel(input.lateFeeMode)}:
                         </span>{' '}
-                        {lateFeeModeDescriptions[input.lateFeeMode || 'SIMPLE']}
+                        {tTerm(lateFeeModeDescriptionKeys[input.lateFeeMode || 'SIMPLE'])}
                       </p>
                     </div>
                   </div>
@@ -528,11 +540,11 @@ export default function CreditSimulationWorkspace({
                 <div className="mt-5 border-t border-border-subtle pt-5">
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                     <GitCompareArrows size={16} />
-                    Escenarios guardados
+                    {tTerm('simulator.section.scenarios.title')}
                     <FieldHint id={scenariosHelpId} text={fieldHelp.scenarios} />
                   </div>
                   <p className="mt-2 text-sm text-text-secondary">
-                    Compara hasta 3 resultados.
+                    {tTerm('simulator.section.scenarios.subtitle')}
                   </p>
 
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -540,7 +552,7 @@ export default function CreditSimulationWorkspace({
                       type="text"
                       value={scenarioName}
                       onChange={(event) => setScenarioName(event.target.value)}
-                      placeholder="Nombre del escenario"
+                      placeholder={tTerm('simulator.placeholder.scenarioName')}
                       disabled={disabled}
                        className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
@@ -550,13 +562,15 @@ export default function CreditSimulationWorkspace({
                       icon={<Save size={16} />}
                       className="py-3"
                     >
-                      Guardar escenario
+                      {tTerm('simulator.action.saveScenario')}
                     </ActionButton>
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-text-secondary">
-                      {savedScenarios.length} escenario{savedScenarios.length === 1 ? '' : 's'} guardado{savedScenarios.length === 1 ? '' : 's'}.
+                      {savedScenarios.length === 1
+                        ? tTerm('simulator.scenario.count.one', { count: savedScenarios.length })
+                        : tTerm('simulator.scenario.count.other', { count: savedScenarios.length })}
                     </p>
                     {savedScenarios.length > 0 && (
                       <ActionButton
@@ -566,7 +580,7 @@ export default function CreditSimulationWorkspace({
                         className="min-h-8 px-3 py-1.5 text-xs"
                         aria-expanded={isComparisonVisible}
                       >
-                        {isComparisonVisible ? 'Ocultar comparación' : 'Comparar escenarios'}
+                        {isComparisonVisible ? tTerm('simulator.action.hideComparison') : tTerm('simulator.action.compareScenarios')}
                       </ActionButton>
                     )}
                   </div>
@@ -576,11 +590,11 @@ export default function CreditSimulationWorkspace({
 
             {showScenarioTools && isComparisonVisible && savedScenarios.length > 0 && (
               <SectionSurface
-                aria-label="Comparación de escenarios guardados"
+                aria-label={tTerm('simulator.comparison.aria')}
                 title={(
                   <span className="flex items-center gap-2">
                     <GitCompareArrows size={16} />
-                    Comparación de escenarios
+                    {tTerm('simulator.comparison.title')}
                   </span>
                 )}
                 bodyClassName="space-y-3"
@@ -589,22 +603,22 @@ export default function CreditSimulationWorkspace({
                     <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-text-primary">Cálculo actual</h4>
+                          <h4 className="text-sm font-semibold text-text-primary">{tTerm('simulator.comparison.current')}</h4>
                           <p className="mt-1 text-xs leading-5 text-text-secondary">
-                            {formatCurrency(input.amount)} · {input.interestRate}% · {input.termMonths} meses
+                            {formatCurrency(input.amount)} · {input.interestRate}% · {tTerm('schedule.summary.termValue', { months: input.termMonths })}
                           </p>
                         </div>
                         <span className="rounded-full border border-blue-200 bg-bg-surface px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-900 dark:border-blue-500/30 dark:bg-bg-base dark:text-blue-200">
-                          Activa
+                          {tTerm('simulator.comparison.active')}
                         </span>
                       </div>
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
-                          <dt className="text-text-secondary">Cuota</dt>
+                          <dt className="text-text-secondary">{tTerm('simulator.schedule.header.payment')}</dt>
                           <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(freshResult.summary.installmentAmount)}</dd>
                         </div>
                         <div>
-                          <dt className="text-text-secondary">Interés total</dt>
+                          <dt className="text-text-secondary">{tTerm('simulator.summary.card.totalInterestLabel')}</dt>
                           <dd className="font-semibold text-text-primary">{formatCurrency(freshResult.summary.totalInterest)}</dd>
                         </div>
                       </dl>
@@ -617,28 +631,28 @@ export default function CreditSimulationWorkspace({
                         <div>
                           <h4 className="text-sm font-semibold text-text-primary">{scenario.name}</h4>
                           <p className="mt-1 text-xs leading-5 text-text-secondary">
-                            {formatCurrency(scenario.input.amount)} · {scenario.input.interestRate}% · {scenario.input.termMonths} meses
+                            {formatCurrency(scenario.input.amount)} · {scenario.input.interestRate}% · {tTerm('schedule.summary.termValue', { months: scenario.input.termMonths })}
                           </p>
                           <p className="mt-1 text-xs text-text-secondary">
-                            Guardado {scenario.createdAt.toLocaleString('es-CO')}
+                            {tTerm('simulator.comparison.savedAt', { datetime: formatLocaleDateTime(scenario.createdAt) })}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleDeleteScenario(scenario.id)}
                           className="rounded-full p-2 text-text-secondary transition hover:bg-hover-bg hover:text-red-600"
-                          aria-label={`Eliminar ${scenario.name}`}
+                          aria-label={tTerm('simulator.action.deleteScenario', { name: scenario.name })}
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div>
-                          <dt className="text-text-secondary">Cuota</dt>
+                          <dt className="text-text-secondary">{tTerm('simulator.schedule.header.payment')}</dt>
                           <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(scenario.result.summary.installmentAmount)}</dd>
                         </div>
                         <div>
-                          <dt className="text-text-secondary">Interés total</dt>
+                          <dt className="text-text-secondary">{tTerm('simulator.summary.card.totalInterestLabel')}</dt>
                           <dd className="font-semibold text-text-primary">{formatCurrency(scenario.result.summary.totalInterest)}</dd>
                         </div>
                       </dl>
@@ -657,25 +671,25 @@ export default function CreditSimulationWorkspace({
 
              {isResultStale && !isSimulating && result && (
                <div className="rounded-xl border border-amber-200 bg-amber-100 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200" role="status">
-                 Cambiaste parámetros después del último cálculo. Ejecuta nuevamente para actualizar los resultados.
+                 {tTerm('simulator.warning.stale')}
                </div>
              )}
 
-            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label="Resumen del cálculo">
+            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label={tTerm('simulator.summary.aria')}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Resumen financiero</h4>
+                  <h4 className="text-sm font-semibold text-text-primary">{tTerm('simulator.section.summary.title')}</h4>
                   <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
-                    Resultado consolidado de la fórmula.
+                    {tTerm('simulator.section.summary.subtitle')}
                   </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
-                      Método: {formatCalculationMethod(freshResult.method)}
+                      {tTerm('simulator.summary.methodLabel', { method: formatCalculationMethod(freshResult.method) })}
                     </div>
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
-                      Próximo vencimiento: {formatDate(freshResult.summary.nextInstallment?.dueDate || '')}
+                      {tTerm('simulator.summary.nextDue', { date: formatDate(freshResult.summary.nextInstallment?.dueDate || '') })}
                     </div>
                   </div>
                 )}
@@ -693,7 +707,7 @@ export default function CreditSimulationWorkspace({
               ) : freshResult ? (
                 <InsightStrip
                   className={compactChrome ? 'credit-simulation-summary-strip credit-simulation-summary-strip--compact' : 'credit-simulation-summary-strip'}
-                  aria-label="Resumen financiero del cálculo"
+                  aria-label={tTerm('simulator.summary.aria')}
                   items={summaryCards.map((card) => ({
                     id: card.id,
                     label: compactChrome ? card.compactLabel : card.label,
@@ -706,33 +720,35 @@ export default function CreditSimulationWorkspace({
               ) : (
                  <div className={`mt-5 text-center ${compactChrome ? 'border-y border-border-subtle px-4 py-10' : 'rounded-2xl border border-dashed border-border-subtle bg-bg-base px-6 py-10'}`}>
                   <Calculator size={40} className="mx-auto text-text-secondary" strokeWidth={1.5} />
-                  <h5 className="mt-4 text-lg font-semibold text-text-primary">{emptyTitle}</h5>
+                  <h5 className="mt-4 text-lg font-semibold text-text-primary">{resolvedEmptyTitle}</h5>
                   <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-secondary">
-                    {emptyDescription}
+                    {resolvedEmptyDescription}
                   </p>
                 </div>
               )}
             </section>
 
-            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label="Tabla de amortización">
+            <section className={`${compactChrome ? 'space-y-3' : 'space-y-5'}`} aria-label={tTerm('simulator.schedule.title')}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                     <Table2 size={16} />
-                    Cronograma de amortización
+                    {tTerm('simulator.schedule.title')}
                   </div>
                   <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
-                    Desglose mensual de pago, interés, capital y saldo restante.
+                    {tTerm('simulator.schedule.subtitle')}
                   </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
-                      Regla: {freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : 'Activa sin versión visible'}
+                      {tTerm('simulator.schedule.ruleLabel', {
+                        rule: freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : tTerm('simulator.schedule.rule.unversioned'),
+                      })}
                     </div>
                     {!compactChrome && (
                       <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
-                        Método: {formatCalculationMethod(freshResult.method)}
+                        {tTerm('simulator.summary.methodLabel', { method: formatCalculationMethod(freshResult.method) })}
                       </div>
                     )}
                   </div>
@@ -753,13 +769,13 @@ export default function CreditSimulationWorkspace({
                     </colgroup>
                     <thead>
                       <tr>
-                        <th className="text-center">N°</th>
-                        <th>Vencimiento</th>
-                        <th className="text-right">Pago</th>
-                        <th className="text-right">Interés</th>
-                        <th className="text-right">Capital</th>
-                        <th className="text-right">Saldo</th>
-                        <th className="text-center">Estado</th>
+                        <th className="text-center">{tTerm('simulator.schedule.header.number')}</th>
+                        <th>{tTerm('schedule.table.header.dueDate')}</th>
+                        <th className="text-right">{tTerm('simulator.schedule.header.payment')}</th>
+                        <th className="text-right">{tTerm('simulator.schedule.header.interest')}</th>
+                        <th className="text-right">{tTerm('simulator.schedule.header.principal')}</th>
+                        <th className="text-right">{tTerm('simulator.schedule.header.balance')}</th>
+                        <th className="text-center">{tTerm('schedule.table.header.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -770,7 +786,7 @@ export default function CreditSimulationWorkspace({
                         <td className="text-right text-text-secondary">-</td>
                         <td className="text-right text-text-secondary">-</td>
                         <td className="text-right font-semibold text-text-primary">{formatCurrency(input.amount)}</td>
-                        <td className="text-center text-text-secondary">Inicio</td>
+                        <td className="text-center text-text-secondary">{tTerm('simulator.schedule.row.start')}</td>
                       </tr>
 
                       {isSimulating ? (
@@ -778,7 +794,7 @@ export default function CreditSimulationWorkspace({
                           <td colSpan={7} className="table-empty-state">
                             <div className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary">
                               <Loader2 size={16} className="animate-spin" />
-                              Calculando cronograma…
+                              {tTerm('simulator.schedule.loading')}
                             </div>
                           </td>
                         </tr>
@@ -801,7 +817,7 @@ export default function CreditSimulationWorkspace({
                       ) : (
                         <tr>
                           <td colSpan={7} className="table-empty-state">
-                            {emptyScheduleDescription}
+                            {resolvedEmptyScheduleDescription}
                           </td>
                         </tr>
                       )}

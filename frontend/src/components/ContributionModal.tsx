@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { toast } from '../lib/toast';
 import { ActionButton, EmptyState, FormField, ModalShell, SectionSurface, TextInput } from './shared/Surfaces';
 
@@ -19,12 +21,7 @@ interface ContributionModalProps {
   canAddContribution?: boolean;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('es-CO');
-
-const formatDate = (value: unknown) => {
-  const timestamp = Date.parse(String(value || ''));
-  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
-};
+const formatContributionDate = (value: unknown) => formatDateValue(value) || '-';
 
 export default function ContributionModal({
   contributions,
@@ -49,9 +46,9 @@ export default function ContributionModal({
       });
       setAmount('');
       setShowAddForm(false);
-      toast.success({ title: 'Aporte registrado correctamente' });
+      toast.success({ title: tTerm('contributionModal.toast.success') });
     } catch (error) {
-      toast.error({ title: 'No se pudo registrar el aporte' });
+      toast.error({ title: tTerm('contributionModal.toast.error') });
     } finally {
       setIsSubmitting(false);
     }
@@ -59,12 +56,12 @@ export default function ContributionModal({
 
   return (
     <ModalShell
-      title="Historial de aportes"
-      subtitle="Consulta y registra aportes asociados al socio."
+      title={tTerm('contributionModal.title')}
+      subtitle={tTerm('contributionModal.subtitle')}
       maxWidthClassName="max-w-lg"
       footer={(
         <ActionButton onClick={onClose} fullWidth>
-          Cerrar
+          {tTerm('contributionModal.action.close')}
         </ActionButton>
       )}
     >
@@ -76,7 +73,7 @@ export default function ContributionModal({
           icon={<Plus size={16} />}
           className="mb-4"
         >
-          Nuevo aporte
+          {tTerm('contributionModal.action.new')}
         </ActionButton>
       )}
 
@@ -85,10 +82,14 @@ export default function ContributionModal({
           as="form"
           onSubmit={handleSubmit}
           className="mb-4"
-          title="Registrar nuevo aporte"
+          title={tTerm('contributionModal.form.title')}
           bodyClassName="space-y-3"
         >
-          <FormField label="Monto" htmlFor="new-contribution-amount" tooltip="Valor que el socio aporta al fondo o relación operativa.">
+          <FormField
+            label={tTerm('contributionModal.form.amount')}
+            htmlFor="new-contribution-amount"
+            tooltip={tTerm('contributionModal.form.amountTooltip')}
+          >
             <TextInput
               id="new-contribution-amount"
               type="number"
@@ -109,7 +110,7 @@ export default function ContributionModal({
               }}
               fullWidth
             >
-              Cancelar
+              {tTerm('contributionModal.form.cancel')}
             </ActionButton>
             <ActionButton
               type="submit"
@@ -117,14 +118,14 @@ export default function ContributionModal({
               variant="primary"
               fullWidth
             >
-              {isSubmitting ? 'Guardando...' : 'Confirmar'}
+              {isSubmitting ? tTerm('contributionModal.form.submitting') : tTerm('contributionModal.form.submit')}
             </ActionButton>
           </div>
         </SectionSurface>
       )}
 
       {isLoading ? (
-        <EmptyState compact title="Cargando historial..." />
+        <EmptyState compact title={tTerm('contributionModal.state.loading')} />
       ) : contributions && contributions.length > 0 ? (
         <div className="space-y-2">
           {contributions.map((contribution) => (
@@ -135,23 +136,23 @@ export default function ContributionModal({
             >
               <div>
                 <p className="font-medium text-text-primary">
-                  {contribution.displayAmount || `$${contribution.amount.toLocaleString()}`}
+                  {contribution.displayAmount || formatCurrencyValue(contribution.amount)}
                 </p>
                 <p className="text-xs text-text-secondary">
-                  {formatDate(contribution.date)}
+                  {formatContributionDate(contribution.date)}
                 </p>
                 {contribution.notes && (
                   <p className="text-xs text-text-secondary mt-1">{contribution.notes}</p>
                 )}
               </div>
               <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                Completado
+                {tTerm('contributionModal.state.completed')}
               </span>
             </SectionSurface>
           ))}
         </div>
       ) : (
-        <EmptyState title="No hay aportes registrados." />
+        <EmptyState title={tTerm('contributionModal.state.empty')} />
       )}
     </ModalShell>
   );

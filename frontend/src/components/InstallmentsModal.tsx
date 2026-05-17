@@ -1,5 +1,7 @@
 import React from 'react';
 import { Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { ActionButton, DataTableSurface, EmptyState, InsightStrip, ModalShell } from './shared/Surfaces';
 
 interface Installment {
@@ -16,24 +18,19 @@ interface InstallmentsModalProps {
   onClose: () => void;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('es-CO');
-
-const formatDate = (value: unknown) => {
-  const timestamp = Date.parse(String(value || ''));
-  return Number.isNaN(timestamp) ? '-' : dateFormatter.format(timestamp);
-};
+const formatInstallmentDate = (value: unknown) => formatDateValue(value) || '-';
 
 const getInstallmentStatusPresentation = (installment: Installment) => {
   if (installment.status === 'paid') {
-    return { label: 'Pagado', className: 'bg-emerald-100 text-emerald-700' };
+    return { label: tTerm('associateDetails.installments.metric.paid'), className: 'bg-emerald-100 text-emerald-700' };
   }
 
   const dueTimestamp = Date.parse(String(installment.dueDate || ''));
   if (installment.status === 'overdue' || (Number.isFinite(dueTimestamp) && dueTimestamp < Date.now())) {
-    return { label: 'Vencido', className: 'bg-red-100 text-red-700' };
+    return { label: tTerm('associateDetails.installments.metric.overdue'), className: 'bg-red-100 text-red-700' };
   }
 
-  return { label: 'Pendiente', className: 'bg-amber-100 text-amber-700' };
+  return { label: tTerm('associateDetails.installments.metric.pending'), className: 'bg-amber-100 text-amber-700' };
 };
 
 export default function InstallmentsModal({
@@ -45,8 +42,8 @@ export default function InstallmentsModal({
 
   return (
     <ModalShell
-      title="Cuotas del socio"
-      subtitle="Resumen y calendario de cuotas asociadas al socio."
+      title={tTerm('associateDetails.installments.title')}
+      subtitle={tTerm('associateDetails.installments.description')}
       maxWidthClassName="max-w-2xl"
       footer={(
         <ActionButton onClick={onClose} fullWidth>
@@ -56,11 +53,11 @@ export default function InstallmentsModal({
     >
           <InsightStrip
             className="mb-4"
-            aria-label="Resumen de cuotas del socio"
+            aria-label={tTerm('associateDetails.installments.ariaLabel')}
             items={[
-              { id: 'installments-modal-pending', label: 'Pendiente', value: `$${installmentsData.totals.totalPending.toLocaleString()}`, helper: 'Por pagar', icon: <Clock size={18} />, accent: 'amber' },
-              { id: 'installments-modal-paid', label: 'Pagado', value: `$${installmentsData.totals.totalPaid.toLocaleString()}`, helper: 'Reconocido', icon: <CheckCircle size={18} />, accent: 'emerald' },
-              { id: 'installments-modal-overdue', label: 'Vencido', value: `$${installmentsData.totals.totalOverdue.toLocaleString()}`, helper: 'Atrasado', icon: <AlertCircle size={18} />, accent: 'rose' },
+              { id: 'installments-modal-pending', label: tTerm('associateDetails.installments.metric.pending'), value: formatCurrencyValue(installmentsData.totals.totalPending), helper: tTerm('associateDetails.installments.metric.pendingHelper'), icon: <Clock size={18} />, accent: 'amber' },
+              { id: 'installments-modal-paid', label: tTerm('associateDetails.installments.metric.paid'), value: formatCurrencyValue(installmentsData.totals.totalPaid), helper: tTerm('associateDetails.installments.metric.paidHelper'), icon: <CheckCircle size={18} />, accent: 'emerald' },
+              { id: 'installments-modal-overdue', label: tTerm('associateDetails.installments.metric.overdue'), value: formatCurrencyValue(installmentsData.totals.totalOverdue), helper: tTerm('associateDetails.installments.metric.overdueHelper'), icon: <AlertCircle size={18} />, accent: 'rose' },
             ]}
           />
 
@@ -74,10 +71,10 @@ export default function InstallmentsModal({
               <table className="w-full text-sm text-left">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Monto</th>
-                    <th>Fecha vencimiento</th>
-                    <th>Estado</th>
+                    <th>{tTerm('associateDetails.installments.header.number')}</th>
+                    <th>{tTerm('associateDetails.installments.header.amount')}</th>
+                    <th>{tTerm('associateDetails.installments.header.dueDate')}</th>
+                    <th>{tTerm('associateDetails.installments.header.status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -87,8 +84,8 @@ export default function InstallmentsModal({
                     return (
                     <tr key={inst.id}>
                       <td className="font-medium">{inst.installmentNumber}</td>
-                      <td className="font-medium">${Number(inst.amount).toLocaleString()}</td>
-                      <td>{formatDate(inst.dueDate)}</td>
+                      <td className="font-medium">{formatCurrencyValue(inst.amount)}</td>
+                      <td>{formatInstallmentDate(inst.dueDate)}</td>
                       <td>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.className}`}>
                           {status.label}
@@ -103,7 +100,7 @@ export default function InstallmentsModal({
             </DataTableSurface>
           ) : (
             <DataTableSurface>
-              <EmptyState title="No hay cuotas registradas." />
+              <EmptyState title={tTerm('associateDetails.installments.empty')} />
             </DataTableSurface>
           )}
     </ModalShell>

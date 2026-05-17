@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, ChevronDown, Clock3, Loader2, RotateCcw, Save, ShieldCheck, User, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from '../i18n';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatNumber, formatPercent } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { toast } from '../lib/toast';
@@ -13,7 +16,6 @@ import {
 } from './hooks/useActiveCreditSimulation';
 import type { CreditCalculationInput } from '../types/creditCalculation';
 import { QuickGuideButton } from './shared/HelpSupport';
-import { getCalculationValueLabel } from '../lib/creditCalculationLabels';
 import {
   ActionButton,
   DataTableSurface,
@@ -27,14 +29,14 @@ import {
 } from './shared/Surfaces';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
-const formatMoney = (value: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number.isFinite(value) ? value : 0);
-const formatPolicyRate = (value: unknown) => `${Number(value ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })}% EA`;
+const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
+const formatPolicyRate = (value: unknown) => `${formatPercent(value, { maximumFractionDigits: 2 })} EA`;
 const formatPolicyRange = (minAmount: unknown, maxAmount: unknown) => {
   const hasMin = minAmount !== null && minAmount !== undefined && minAmount !== '';
   const hasMax = maxAmount !== null && maxAmount !== undefined && maxAmount !== '';
 
-  if (!hasMin && !hasMax) return 'todos los montos';
-  return `${hasMin ? formatMoney(Number(minAmount)) : '$0'} - ${hasMax ? formatMoney(Number(maxAmount)) : 'sin tope'}`;
+  if (!hasMin && !hasMax) return tTerm('newCredit.range.allAmounts');
+  return `${hasMin ? formatMoney(Number(minAmount)) : formatMoney(0)} - ${hasMax ? formatMoney(Number(maxAmount)) : tTerm('newCredit.range.noCap')}`;
 };
 const getRangeBoundary = (value: unknown, fallback: number) => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -62,7 +64,7 @@ const getWinningPriorityConflicts = (matches: any[]) => {
   if (winningPriority === null) return [];
   return orderedMatches.filter((policy) => Number(policy?.priority || 100) === winningPriority);
 };
-const formatAmountInputDisplay = (value: number) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number.isFinite(value) ? value : 0);
+const formatAmountInputDisplay = (value: number) => formatNumber(Number.isFinite(value) ? value : 0, { maximumFractionDigits: 0 });
 const parseDigitsToAmount = (raw: string) => {
   const digits = raw.replace(/\D/g, '');
   if (!digits) return 0;
@@ -73,42 +75,52 @@ const formatDueDate = (value?: string) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return formatLocaleDate(date, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) || '-';
 };
 const formatScheduleStatus = (status?: string) => {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'pending') return 'Pendiente';
-  if (normalized === 'paid' || normalized === 'settled') return 'Pagada';
-  if (normalized === 'overdue' || normalized === 'defaulted') return 'En mora';
-  if (normalized === 'cancelled' || normalized === 'annulled') return 'Anulada';
+  if (normalized === 'pending') return tTerm('schedule.status.pending');
+  if (normalized === 'paid' || normalized === 'settled') return tTerm('credits.modal.status.paid');
+  if (normalized === 'overdue' || normalized === 'defaulted') return tTerm('credits.modal.status.overdue');
+  if (normalized === 'cancelled' || normalized === 'annulled') return tTerm('schedule.status.annulled');
   return status || '-';
 };
 
+const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.mode.none' | 'simulator.lateFee.mode.simple' | 'simulator.lateFee.mode.compound' | 'simulator.lateFee.mode.flat' | 'simulator.lateFee.mode.tiered'> = {
+  NONE: 'simulator.lateFee.mode.none',
+  SIMPLE: 'simulator.lateFee.mode.simple',
+  COMPOUND: 'simulator.lateFee.mode.compound',
+  FLAT: 'simulator.lateFee.mode.flat',
+  TIERED: 'simulator.lateFee.mode.tiered',
+};
+
+const getLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) => tTerm(lateFeeModeLabelKeys[value || 'SIMPLE']);
+
 const lateFeeModeDescriptions: Record<string, { trigger: string; formula: string; effect: string }> = {
   NONE: {
-    trigger: 'No se cobra recargo aunque una cuota se atrase.',
-    formula: 'Mora = $0.',
-    effect: 'El crédito queda sin recargo de mora para vencimientos futuros.',
+    trigger: tTerm('newCredit.lateFee.description.none.trigger'),
+    formula: tTerm('newCredit.lateFee.description.none.formula'),
+    effect: tTerm('newCredit.lateFee.description.none.effect'),
   },
   SIMPLE: {
-    trigger: 'Se activa solo cuando una cuota queda vencida.',
-    formula: 'Mora = saldo vencido x tasa diaria x días de atraso.',
-    effect: 'No aumenta la cuota normal al crear el crédito; se calcula después si hay atraso.',
+    trigger: tTerm('newCredit.lateFee.description.simple.trigger'),
+    formula: tTerm('newCredit.lateFee.description.simple.formula'),
+    effect: tTerm('newCredit.lateFee.description.simple.effect'),
   },
   COMPOUND: {
-    trigger: 'Se activa solo cuando una cuota queda vencida y acumula recargo por días de atraso.',
-    formula: 'Mora = saldo vencido x tasa diaria compuesta por días vencidos.',
-    effect: 'No se cobra desde el día uno; se calcula sobre deuda vencida si el cliente se atrasa.',
+    trigger: tTerm('newCredit.lateFee.description.compound.trigger'),
+    formula: tTerm('newCredit.lateFee.description.compound.formula'),
+    effect: tTerm('newCredit.lateFee.description.compound.effect'),
   },
   FLAT: {
-    trigger: 'Se activa cuando una cuota queda vencida.',
-    formula: 'Mora = cargo fijo definido por política.',
-    effect: 'El cargo fijo se suma después del vencimiento, no al registrar el crédito.',
+    trigger: tTerm('newCredit.lateFee.description.flat.trigger'),
+    formula: tTerm('newCredit.lateFee.description.flat.formula'),
+    effect: tTerm('newCredit.lateFee.description.flat.effect'),
   },
   TIERED: {
-    trigger: 'Se activa cuando una cuota queda vencida y cambia según los tramos configurados.',
-    formula: 'Mora = recargo del tramo correspondiente a los días de atraso.',
-    effect: 'El sistema aplica el tramo cuando exista atraso real.',
+    trigger: tTerm('newCredit.lateFee.description.tiered.trigger'),
+    formula: tTerm('newCredit.lateFee.description.tiered.formula'),
+    effect: tTerm('newCredit.lateFee.description.tiered.effect'),
   },
 };
 
@@ -139,6 +151,7 @@ const getDisplayName = (entity: any) => {
 };
 
 export default function NewCredit({ onBack }: { onBack: () => void }) {
+  const { locale } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = (location.state || null) as NewCreditLocationState | null;
@@ -242,95 +255,69 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   );
   const visibleRatePolicyLabel = canReadFinancialConfig
     ? isRatePolicyResolving
-      ? 'Cargando tasas'
-      : resolvedRatePolicy?.label || 'Sin política para este monto'
-    : calculationRatePolicyLabel || 'Política aplicada al validar';
+      ? tTerm('newCredit.badge.rate.loading')
+      : resolvedRatePolicy?.label || tTerm('newCredit.badge.rate.missing')
+    : calculationRatePolicyLabel || tTerm('newCredit.rate.appliedOnValidation');
   const visibleRatePolicyRange = canReadFinancialConfig && resolvedRatePolicy
     ? formatPolicyRange(resolvedRatePolicy.minAmount, resolvedRatePolicy.maxAmount)
     : null;
   const visibleRatePolicyExplanation = canReadFinancialConfig
     ? isRatePolicyResolving
-      ? 'Cargando las tasas configuradas antes de permitir la validación del crédito.'
+      ? tTerm('newCredit.rate.explanation.loading')
       : hasAmbiguousRatePolicy
-      ? `Hay varias tasas activas para ${formatMoney(Number(input.amount || 0))}: ${ambiguousRatePolicyMatches.map((policy) => policy.label).join(' y ')}. Edita o desactiva una en Configuración antes de validar.`
+      ? tTerm('newCredit.rate.explanation.conflict', {
+        amount: formatMoney(Number(input.amount || 0)),
+        labels: ambiguousRatePolicyMatches.map((policy) => policy.label).join(' y '),
+      })
       : resolvedRatePolicy
-      ? `Para ${formatMoney(Number(input.amount || 0))}, aplica "${resolvedRatePolicy.label}" porque cubre ${visibleRatePolicyRange}. Al registrar, esta tasa queda congelada en el crédito.`
-      : `No hay una tasa activa que cubra ${formatMoney(Number(input.amount || 0))}. Configura un rango antes de registrar.`
+      ? tTerm('newCredit.rate.explanation.resolved', {
+        amount: formatMoney(Number(input.amount || 0)),
+        label: resolvedRatePolicy.label,
+        range: visibleRatePolicyRange || '',
+      })
+      : tTerm('newCredit.rate.explanation.none', { amount: formatMoney(Number(input.amount || 0)) })
     : hasPolicyBackedCalculation
-      ? `El backend aplicó "${visibleRatePolicyLabel}" al validar. Esa tasa queda guardada al registrar.`
-      : 'Valida el crédito para que el backend aplique la tasa vigente por rango.';
-  const rateSourceLabel = isRatePolicyResolving ? 'Cargando' : hasAmbiguousRatePolicy ? 'Conflicto' : isRatePolicyReady ? 'Configuración' : canReadFinancialConfig ? 'Sin política' : 'Automática';
-  const lateFeeSourceLabel = resolvedLateFeeSource === 'policy' ? 'Configuración' : 'Manual';
+      ? tTerm('newCredit.rate.explanation.backendApplied', { label: visibleRatePolicyLabel })
+      : tTerm('newCredit.rate.explanation.validate');
   const rateSummaryValue = canReadFinancialConfig && isRatePolicyReady
     ? formatPolicyRate(resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate ?? 0)
     : hasPolicyBackedCalculation
       ? formatPolicyRate(Number.isFinite(calculationAppliedInterestRate) ? calculationAppliedInterestRate : 0)
-      : isRatePolicyResolving ? 'Cargando' : hasAmbiguousRatePolicy ? 'Conflicto' : canReadFinancialConfig ? 'Sin política' : 'Pendiente de validar';
-  const rateSummaryDetail = canReadFinancialConfig && isRatePolicyReady
-    ? `${resolvedRatePolicy.label} · ${visibleRatePolicyRange}`
-    : hasPolicyBackedCalculation
-      ? calculationRatePolicyLabel || 'Política aplicada por el backend'
-      : isRatePolicyResolving
-        ? 'Leyendo la configuración financiera vigente.'
-      : hasAmbiguousRatePolicy
-        ? `${ambiguousRatePolicyMatches.length} reglas cubren este monto con el mismo orden.`
-        : canReadFinancialConfig
-        ? 'Crea o ajusta una política de tasa para este rango de monto.'
-        : 'El backend aplicará la política activa por rango al validar.';
-  const lateFeeModeLabel = getCalculationValueLabel(
-    input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE',
-    'lateFeeMode',
-  );
+      : isRatePolicyResolving ? tTerm('newCredit.badge.loading') : hasAmbiguousRatePolicy ? tTerm('newCredit.badge.conflict') : canReadFinancialConfig ? tTerm('newCredit.badge.noPolicy') : tTerm('newCredit.badge.pendingValidation');
+  const lateFeeModeLabel = getLateFeeModeLabel(input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE');
   const selectedLateFeeMode = String(input.lateFeeMode || resolvedLateFeePolicy?.lateFeeMode || 'SIMPLE').toUpperCase();
   const lateFeeModeDescription = lateFeeModeDescriptions[selectedLateFeeMode] || lateFeeModeDescriptions.SIMPLE;
   const lateFeeSummaryDetail = isLateFeePolicyResolving
-    ? 'Leyendo la política de mora vigente.'
+    ? tTerm('newCredit.lateFee.summary.loading')
     : resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
-    ? `${resolvedLateFeePolicy.label} · solo si hay atraso`
-    : 'Ajustada en este crédito · solo si hay atraso';
-  const lateFeeSummaryValue = isLateFeePolicyResolving ? 'Cargando mora' : `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
+    ? tTerm('newCredit.lateFee.summary.policy', { label: resolvedLateFeePolicy.label })
+    : tTerm('newCredit.lateFee.summary.manual');
+  const lateFeeSummaryValue = isLateFeePolicyResolving ? tTerm('newCredit.lateFee.value.loading') : `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`;
   const lateFeePolicyLabel = isLateFeePolicyResolving
-    ? 'Cargando política de mora'
+    ? tTerm('newCredit.lateFee.policy.loading')
     : resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
     ? resolvedLateFeePolicy.label
-    : 'Definida en este crédito';
+    : tTerm('newCredit.lateFee.policy.manual');
   const lateFeeFieldHelper = isLateFeePolicyResolving
-    ? 'Cargando la política de mora vigente. Esta configuración solo se usa si una cuota se atrasa.'
+    ? tTerm('newCredit.lateFee.helper.loading')
     : resolvedLateFeePolicy
-      ? `Configuración: ${resolvedLateFeePolicy.label} · ${formatPolicyRate(resolvedLateFeePolicy.annualEffectiveRate)}. Se guarda al registrar, pero solo cobra si hay atraso.`
-      : 'Puedes validar sin política de mora si el crédito no requiere recargo por atraso.';
+      ? tTerm('newCredit.lateFee.helper.policy', {
+        label: resolvedLateFeePolicy.label,
+        rate: formatPolicyRate(resolvedLateFeePolicy.annualEffectiveRate),
+      })
+      : tTerm('newCredit.lateFee.helper.none');
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
   const isRegistrationReady = isBorrowerReady && hasValidatedResult;
   const calculationRuleLabel = result?.calculationProfileVersionId != null
-    ? `Regla v${result.calculationProfileVersionId}`
-    : 'Regla activa';
-  const readinessSummary = [
-    {
-      label: 'Cliente',
-      status: isBorrowerReady ? 'Listo' : 'Pendiente',
-      icon: User,
-      tone: isBorrowerReady ? 'success' : 'neutral',
-    },
-    {
-      label: 'Validación',
-      status: hasValidatedResult ? 'Vigente' : result && isResultStale ? 'Revalidar' : 'Pendiente',
-      icon: Calculator,
-      tone: hasValidatedResult ? 'info' : result && isResultStale ? 'warning' : 'neutral',
-    },
-    {
-      label: 'Registro',
-      status: isRegistrationReady ? 'Disponible' : 'Bloqueado',
-      icon: Save,
-      tone: isRegistrationReady ? 'dark' : 'neutral',
-    },
-  ];
-  const summaryCards = result && !isResultStale ? [
-    { id: 'new-credit-installment', label: 'Cuota', value: formatMoney(result.summary.installmentAmount), helper: 'Pago mensual', accent: 'teal' as const, icon: <Wallet size={18} /> },
-    { id: 'new-credit-total', label: 'Total', value: formatMoney(result.summary.totalPayable), helper: 'Capital + interés', accent: 'blue' as const, icon: <Calculator size={18} /> },
-    { id: 'new-credit-interest', label: 'Interés', value: formatMoney(result.summary.totalInterest), helper: 'Costo financiero', accent: 'rose' as const, icon: <Clock3 size={18} /> },
-  ] : [];
+    ? tTerm('newCredit.summary.ruleVersion', { version: result.calculationProfileVersionId })
+    : tTerm('newCredit.summary.activeRule');
+  const summaryCards = useMemo(() => (result && !isResultStale ? [
+    { id: 'new-credit-installment', label: tTerm('simulator.schedule.header.payment'), value: formatMoney(result.summary.installmentAmount), helper: tTerm('newCredit.summary.card.installmentHelper'), accent: 'teal' as const, icon: <Wallet size={18} /> },
+    { id: 'new-credit-total', label: tTerm('simulator.summary.totalPayment.short'), value: formatMoney(result.summary.totalPayable), helper: tTerm('simulator.summary.card.helper.capitalInterest'), accent: 'blue' as const, icon: <Calculator size={18} /> },
+    { id: 'new-credit-interest', label: tTerm('simulator.summary.totalInterest.short'), value: formatMoney(result.summary.totalInterest), helper: tTerm('newCredit.summary.card.interestHelper'), accent: 'rose' as const, icon: <Clock3 size={18} /> },
+  ] : []), [result, isResultStale, locale]);
   const scheduleTotals = useMemo(() => {
     if (!result?.schedule?.length || isResultStale) return null;
 
@@ -356,25 +343,25 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const insightItems = [
     {
       id: 'customer',
-      label: 'Cliente',
-      value: isBorrowerReady ? 'Listo' : 'Pendiente',
-      helper: 'Selecciona el cliente',
+      label: tTerm('newCredit.insight.customer.label'),
+      value: isBorrowerReady ? tTerm('newCredit.status.ready') : tTerm('newCredit.status.pending'),
+      helper: tTerm('newCredit.insight.customer.helper'),
       icon: <User size={16} />,
       accent: 'slate' as const,
     },
     {
       id: 'rate',
-      label: 'Tasa',
+      label: tTerm('newCredit.insight.rate.label'),
       value: rateSummaryValue,
       helper: hasAmbiguousRatePolicy
-        ? `${ambiguousRatePolicyMatches.length} reglas activas se pisan`
-        : canReadFinancialConfig ? (resolvedRatePolicy?.label || 'Crédito estándar') : (calculationRatePolicyLabel || 'Crédito estándar'),
+        ? tTerm('newCredit.insight.rate.conflictHelper', { count: ambiguousRatePolicyMatches.length })
+        : canReadFinancialConfig ? (resolvedRatePolicy?.label || tTerm('newCredit.insight.rate.default')) : (calculationRatePolicyLabel || tTerm('newCredit.insight.rate.default')),
       icon: <Wallet size={16} />,
       accent: hasAmbiguousRatePolicy ? 'rose' as const : 'blue' as const,
     },
     {
       id: 'late-fee',
-      label: 'Mora',
+      label: tTerm('newCredit.insight.lateFee.label'),
       value: lateFeeSummaryValue,
       helper: lateFeeSummaryDetail,
       icon: <Clock3 size={16} />,
@@ -382,9 +369,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     },
     {
       id: 'validation',
-      label: 'Validación',
-      value: hasValidatedResult ? calculationRuleLabel : 'Pendiente',
-      helper: 'Regla congelada al registrar',
+      label: tTerm('newCredit.insight.validation.label'),
+      value: hasValidatedResult ? calculationRuleLabel : tTerm('newCredit.status.pending'),
+      helper: tTerm('newCredit.insight.validation.helper'),
       icon: <ShieldCheck size={16} />,
       accent: 'emerald' as const,
     },
@@ -442,15 +429,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     if (!canValidateWithCurrentPolicy) {
       if (hasAmbiguousRatePolicy) {
         toast.error({
-          title: 'Conflicto de tasas',
-          description: 'Hay más de una política activa para este monto con el mismo orden. Corrige Configuración antes de validar.',
+          title: tTerm('newCredit.toast.conflict.title'),
+          description: tTerm('newCredit.toast.conflict.validate'),
         });
         return;
       }
 
       toast.error({
-        title: 'Falta política de tasa',
-        description: 'Configura una política activa que cubra este monto antes de validar o registrar el crédito.',
+        title: tTerm('newCredit.toast.policyMissing.title'),
+        description: tTerm('newCredit.toast.policyMissing.validate'),
       });
       return;
     }
@@ -462,18 +449,18 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     event.preventDefault();
 
     if (!borrower.customerId) {
-      setBorrowerErrors({ customerId: 'Selecciona el cliente que recibirá el crédito.' });
+      setBorrowerErrors({ customerId: tTerm('newCredit.error.customerRequired') });
       toast.error({
-        title: 'Falta el cliente',
-        description: 'Selecciona un cliente antes de registrar el crédito.',
+        title: tTerm('newCredit.toast.customerMissing.title'),
+        description: tTerm('newCredit.toast.customerMissing.description'),
       });
       return;
     }
 
     if (!hasValidatedResult) {
       toast.warning({
-        title: 'Valida el crédito',
-        description: 'Ejecuta la validación con la regla de cálculo activa antes de registrar el crédito real.',
+        title: tTerm('newCredit.toast.validationRequired.title'),
+        description: tTerm('newCredit.toast.validationRequired.description'),
       });
       return;
     }
@@ -481,15 +468,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     if (!isRatePolicyReady) {
       if (hasAmbiguousRatePolicy) {
         toast.error({
-          title: 'Conflicto de tasas',
-          description: 'No se puede registrar un crédito real mientras dos tasas activas cubran el mismo monto con el mismo orden.',
+          title: tTerm('newCredit.toast.conflict.title'),
+          description: tTerm('newCredit.toast.conflict.register'),
         });
         return;
       }
 
       toast.error({
-        title: 'Falta política de tasa',
-        description: 'No se puede registrar un crédito real sin una política de tasa activa para el monto.',
+        title: tTerm('newCredit.toast.policyMissing.title'),
+        description: tTerm('newCredit.toast.policyMissing.register'),
       });
       return;
     }
@@ -508,8 +495,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
-      const versionLabel = result?.calculationProfileVersionId != null ? ` regla de cálculo v${result.calculationProfileVersionId}` : ' regla de cálculo activa';
-      toast.success({ description: `Crédito registrado con${versionLabel}.` });
+      const versionLabel = result?.calculationProfileVersionId != null
+        ? tTerm('newCredit.toast.success.versionLabel', { version: result.calculationProfileVersionId })
+        : tTerm('newCredit.toast.success.activeRuleLabel');
+      toast.success({ description: tTerm('newCredit.toast.success', { versionLabel }) });
 
       if (Number.isFinite(createdLoanId) && createdLoanId > 0) {
         navigate(`/credits/${createdLoanId}`);
@@ -538,13 +527,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     <div
       className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-2xl border border-border-strong bg-bg-surface/95 p-2 shadow-xl backdrop-blur sm:left-auto sm:right-6 sm:w-[31rem]"
       data-tour="new-credit-action-dock"
-      aria-label="Acciones del nuevo crédito"
+      aria-label={tTerm('newCredit.aria.actionDock')}
     >
       <IconActionButton
         onClick={resetCalculation}
         disabled={isSimulating}
-        label="Restablecer parámetros"
-        title="Restablecer parámetros"
+        label={tTerm('newCredit.action.reset')}
+        title={tTerm('newCredit.action.reset')}
         icon={<RotateCcw size={16} />}
         className="h-10 w-10 rounded-full"
       />
@@ -553,32 +542,32 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         onClick={handleValidateCredit}
         disabled={isSimulating || isConfigLoading}
         isLoading={isSimulating}
-        aria-label="Validar crédito"
+        aria-label={tTerm('newCredit.action.validate')}
         title={canValidateWithCurrentPolicy
-          ? 'Calcula la cuota, intereses y cronograma con la política de tasa activa.'
+          ? tTerm('newCredit.action.validate.title.ready')
           : hasAmbiguousRatePolicy
-            ? 'Corrige el conflicto de tasas en Configuración antes de validar.'
-            : 'Primero crea una política de tasa que cubra este monto.'}
+            ? tTerm('newCredit.action.validate.title.conflict')
+            : tTerm('newCredit.action.validate.title.missing')}
         icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
         fullWidth
         className="h-10 min-w-0 rounded-full px-3"
       >
-        Validar
+        {tTerm('newCredit.action.validate')}
       </ActionButton>
       <ActionButton
         type="submit"
         disabled={!canRegister}
         data-tour="new-credit-submit"
         isLoading={isSubmitting}
-        aria-label="Registrar crédito"
-        title={canRegister ? 'Crea el crédito real con la regla validada.' : 'Primero valida el crédito y corrige cualquier campo pendiente.'}
+        aria-label={tTerm('newCredit.action.register')}
+        title={canRegister ? tTerm('newCredit.action.register.title.ready') : tTerm('newCredit.action.register.title.blocked')}
         icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         variant="primary"
         fullWidth
         className="h-10 min-w-0 rounded-full px-3"
       >
-        <span className="hidden sm:inline">Registrar crédito</span>
-        <span className="sm:hidden">Registrar</span>
+        <span className="hidden sm:inline">{tTerm('newCredit.action.register')}</span>
+        <span className="sm:hidden">{tTerm('newCredit.action.register.short')}</span>
       </ActionButton>
     </div>
   );
@@ -592,23 +581,23 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       <PageShell className="mx-auto max-w-[1280px] gap-5">
         <PageHeader
           tourId="new-credit-header"
-          eyebrow="Originación"
+          eyebrow={tTerm('newCredit.header.eyebrow')}
           title={(
             <span className="flex min-w-0 items-center gap-3">
               <IconActionButton
                 onClick={onBack}
-                label="Volver a créditos"
+                label={tTerm('newCredit.header.back')}
                 icon={<ArrowLeft size={20} />}
                 className="shrink-0"
               />
-              <span className="min-w-0 truncate">Nuevo crédito</span>
+              <span className="min-w-0 truncate">{tTerm('newCredit.header.title')}</span>
             </span>
           )}
-          subtitle="Crea créditos con la tasa operativa vigente y una validación congelada antes del registro."
+          subtitle={tTerm('newCredit.header.subtitle')}
           actions={(
             <>
               <QuickGuideButton guideKey="new-credit" />
-              <ActionButton onClick={onBack}>Cancelar</ActionButton>
+              <ActionButton onClick={onBack}>{tTerm('newCredit.action.cancel')}</ActionButton>
             </>
           )}
         />
@@ -617,22 +606,22 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           className="space-y-3"
           data-tour="new-credit-customer"
         >
-          <h3 className="sr-only">Preparación del crédito</h3>
+          <h3 className="sr-only">{tTerm('newCredit.section.preparation')}</h3>
           <InsightStrip
             items={insightItems}
-            aria-label="Estado de preparación del crédito"
+            aria-label={tTerm('newCredit.section.preparation.aria')}
             data-tour="new-credit-policy-summary"
           />
           {routeState?.source === 'credit-calculator' && (
             <div className="mt-3">
               <StatusChip tone="success" size="sm" icon={<CheckCircle2 size={13} />}>
-                Escenario precargado
+                {tTerm('newCredit.badge.preloaded')}
               </StatusChip>
             </div>
           )}
         </section>
 
-        <div aria-label="Acciones flotantes del nuevo crédito">
+        <div aria-label={tTerm('newCredit.aria.floatingActions')}>
           {actionDock}
         </div>
 
@@ -640,21 +629,21 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           <div className="grid gap-8 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.45fr)]">
             <div className="min-w-0 space-y-5 rounded-[1.6rem] border border-border-subtle bg-bg-surface px-5 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:px-6" data-tour="new-credit-borrower">
               <div className="pb-1">
-                <h3 className="text-[1.05rem] font-bold text-text-primary">Datos del crédito</h3>
+                <h3 className="text-[1.05rem] font-bold text-text-primary">{tTerm('newCredit.section.creditData')}</h3>
               </div>
 
-              <FormField label="Cliente" error={borrowerErrors.customerId}>
+              <FormField label={tTerm('newCredit.field.customer')} error={borrowerErrors.customerId}>
                 <SelectInput
                   id="customerId"
                   name="customerId"
-                  aria-label="Cliente"
+                  aria-label={tTerm('newCredit.field.customer')}
                   data-tour="new-credit-customer-select"
                   value={borrower.customerId}
                   onChange={handleBorrowerChange}
                   className={borrowerErrors.customerId ? 'border-red-400 focus:ring-red-500' : ''}
                   aria-invalid={!!borrowerErrors.customerId}
                 >
-                  <option value="">Seleccionar cliente…</option>
+                  <option value="">{tTerm('newCredit.placeholder.customer')}</option>
                   {customers.map((customer: any) => (
                     <option key={customer.id} value={customer.id}>
                       {getDisplayName(customer)} · CUS-{String(customer.id).padStart(4, '0')}
@@ -663,7 +652,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                 </SelectInput>
               </FormField>
 
-              <FormField label="Monto del crédito">
+              <FormField label={tTerm('simulator.form.amount')}>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
                   <input
@@ -677,24 +666,30 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </FormField>
 
               <FormField
-                label="Tasa configurada"
-                tooltip="La tasa no se escribe a mano: se toma de Configuración según el monto del crédito. Al registrar, queda guardada y no cambia si después editas las reglas."
+                label={tTerm('simulator.field.rate.configured')}
+                tooltip={tTerm('newCredit.field.configuredRate.tooltip')}
                 helper={visibleRatePolicyExplanation}
               >
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusChip tone={isRatePolicyResolving ? 'neutral' : hasAmbiguousRatePolicy ? 'danger' : isRatePolicyReady ? 'info' : 'warning'} size="sm">
-                      {isRatePolicyResolving ? 'Cargando tasas' : hasAmbiguousRatePolicy ? 'Conflicto de tasas' : isRatePolicyReady ? `Configuración: ${visibleRatePolicyLabel}` : 'Sin tasa configurada'}
+                      {isRatePolicyResolving
+                        ? tTerm('newCredit.badge.rate.loading')
+                        : hasAmbiguousRatePolicy
+                          ? tTerm('newCredit.badge.rate.conflict')
+                          : isRatePolicyReady
+                            ? tTerm('newCredit.badge.rate.configured', { label: visibleRatePolicyLabel })
+                            : tTerm('newCredit.badge.rate.missing')}
                     </StatusChip>
                     {visibleRatePolicyRange && (
                       <StatusChip tone="neutral" size="sm">
-                        Rango: {visibleRatePolicyRange}
+                        {tTerm('newCredit.badge.rate.range', { range: visibleRatePolicyRange })}
                       </StatusChip>
                     )}
                   </div>
                   <div className="relative">
                     <input
-                      aria-label="Tasa configurada"
+                      aria-label={tTerm('simulator.field.rate.configured')}
                       type="number"
                       value={Number.isFinite(Number(input.interestRate)) ? Number(input.interestRate) : 0}
                       onChange={handleNumberFieldChange('interestRate')}
@@ -707,8 +702,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </FormField>
 
               <FormField
-                label="Plazo en meses"
-                tooltip="Cantidad de cuotas mensuales del crédito. Cambiarlo recalcula cuota, total a pagar e intereses antes de registrar."
+                label={tTerm('simulator.field.termMonths')}
+                tooltip={tTerm('newCredit.field.term.tooltip')}
               >
                 <input
                   type="number"
@@ -716,13 +711,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   value={input.termMonths}
                   onChange={handleNumberFieldChange('termMonths')}
                   className="form-control"
-                  placeholder="Ingrese el plazo en meses"
+                  placeholder={tTerm('newCredit.placeholder.term')}
                 />
               </FormField>
 
               <FormField
-                label="Fecha del primer pago"
-                tooltip="Primera fecha de vencimiento. Desde esa fecha se construye el calendario mensual del plan de pagos."
+                label={tTerm('simulator.form.firstPaymentDate')}
+                tooltip={tTerm('newCredit.field.firstPaymentDate.tooltip')}
               >
                 <div className="relative">
                   <input
@@ -736,8 +731,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               </FormField>
 
               <FormField
-                label="Cálculo de mora"
-                tooltip="La mora solo se cobra cuando una cuota queda vencida. Mora simple aplica tasa diaria sobre lo vencido; compuesta acumula recargo sobre recargo; sin recargo no cobra mora."
+                label={tTerm('simulator.form.lateFeeCalculation')}
+                tooltip={tTerm('newCredit.field.lateFee.tooltip')}
                 helper={lateFeeFieldHelper}
               >
                 <SelectInput
@@ -745,37 +740,37 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                   value={input.lateFeeMode || 'SIMPLE'}
                   onChange={handleLateFeeModeChange}
                 >
-                  <option value="NONE">Sin recargo</option>
-                  <option value="SIMPLE">Mora simple</option>
-                  <option value="COMPOUND">Mora compuesta</option>
-                  <option value="FLAT">Cargo fijo por mora</option>
-                  <option value="TIERED">Mora por tramos</option>
+                  <option value="NONE">{tTerm('simulator.lateFee.mode.none')}</option>
+                  <option value="SIMPLE">{tTerm('simulator.lateFee.mode.simple')}</option>
+                  <option value="COMPOUND">{tTerm('simulator.lateFee.mode.compound')}</option>
+                  <option value="FLAT">{tTerm('simulator.lateFee.mode.flat')}</option>
+                  <option value="TIERED">{tTerm('simulator.lateFee.mode.tiered')}</option>
                 </SelectInput>
               </FormField>
 
               <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusChip tone={isLateFeePolicyResolving ? 'neutral' : 'warning'} size="sm">
-                    {isLateFeePolicyResolving ? 'Cargando mora' : lateFeeModeLabel}
+                    {isLateFeePolicyResolving ? tTerm('newCredit.lateFee.value.loading') : lateFeeModeLabel}
                   </StatusChip>
                   {!isLateFeePolicyResolving && (
                     <StatusChip tone="neutral" size="sm">{formatPolicyRate(annualLateFeeRate)}</StatusChip>
                   )}
                 </div>
                 <p className="mt-2 font-semibold text-text-primary dark:text-amber-50">
-                  La mora no se suma al desembolso ni a la cuota normal al crear el crédito.
+                  {tTerm('newCredit.lateFee.note')}
                 </p>
                 <dl className="mt-3 grid gap-3">
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">Cuándo se cobra</dt>
+                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">{tTerm('newCredit.lateFee.when')}</dt>
                     <dd className="mt-1 text-text-secondary dark:text-amber-100/85">{lateFeeModeDescription.trigger}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">Cómo se calcula</dt>
+                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">{tTerm('newCredit.lateFee.how')}</dt>
                     <dd className="mt-1 text-text-secondary dark:text-amber-100/85">{lateFeeModeDescription.formula}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">Qué queda guardado</dt>
+                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200">{tTerm('newCredit.lateFee.saved')}</dt>
                     <dd className="mt-1 text-text-secondary dark:text-amber-100/85">
                       {lateFeePolicyLabel}. {lateFeeModeDescription.effect}
                     </dd>
@@ -786,8 +781,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
 
             <div className="min-w-0 space-y-4 rounded-[1.6rem] border border-border-subtle bg-bg-surface px-5 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:px-6">
               <div>
-                <h3 className="text-[1.05rem] font-bold text-text-primary">Resumen financiero</h3>
-                <p className="mt-1 text-sm text-text-secondary">Resultado consolidado de la fórmula.</p>
+                <h3 className="text-[1.05rem] font-bold text-text-primary">{tTerm('simulator.section.summary.title')}</h3>
+                <p className="mt-1 text-sm text-text-secondary">{tTerm('simulator.section.summary.subtitle')}</p>
               </div>
 
               {calculationError && (
@@ -799,7 +794,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
               {result && !isResultStale ? (
                 <>
                   <InsightStrip
-                    aria-label="Resumen financiero del crédito nuevo"
+                    aria-label={tTerm('newCredit.summary.aria')}
                     items={summaryCards}
                   />
                   <div className="mt-2">
@@ -807,8 +802,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       <div className="flex items-center gap-2">
                         <CalendarDays size={16} className="text-text-secondary" />
                         <div>
-                          <h4 className="text-sm font-bold text-text-primary">Cronograma de amortización</h4>
-                          <p className="mt-1 text-xs text-text-secondary">Desglose mensual de pago, interés, capital y saldo restante.</p>
+                          <h4 className="text-sm font-bold text-text-primary">{tTerm('simulator.schedule.title')}</h4>
+                          <p className="mt-1 text-xs text-text-secondary">{tTerm('simulator.schedule.subtitle')}</p>
                         </div>
                       </div>
                       <StatusChip tone="neutral" size="sm">{calculationRuleLabel}</StatusChip>
@@ -817,13 +812,13 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                         <table className="min-w-[920px] w-full text-left text-sm whitespace-nowrap">
                           <thead className="bg-bg-base text-left text-[11px] uppercase tracking-[0.14em] text-text-secondary">
                             <tr>
-                              <th className="w-16 px-4 py-3 text-center font-medium">Cuota</th>
-                              <th className="px-4 py-3 font-medium">Vencimiento</th>
-                              <th className="px-4 py-3 text-right font-medium">Pago</th>
-                              <th className="px-4 py-3 text-right font-medium">Interés</th>
-                              <th className="px-4 py-3 text-right font-medium">Capital</th>
-                              <th className="px-4 py-3 text-right font-medium">Saldo</th>
-                              <th className="w-32 px-4 py-3 text-center font-medium">Estado</th>
+                              <th className="w-16 px-4 py-3 text-center font-medium">{tTerm('simulator.schedule.header.payment')}</th>
+                              <th className="px-4 py-3 font-medium">{tTerm('schedule.table.header.dueDate')}</th>
+                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.payment')}</th>
+                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.interest')}</th>
+                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.principal')}</th>
+                              <th className="px-4 py-3 text-right font-medium">{tTerm('simulator.schedule.header.balance')}</th>
+                              <th className="w-32 px-4 py-3 text-center font-medium">{tTerm('schedule.table.header.status')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-subtle bg-bg-surface">
@@ -840,7 +835,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                             )) : (
                               <tr>
                                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-text-secondary">
-                                  Las cuotas calculadas aparecerán aquí después de validar.
+                                  {tTerm('newCredit.schedule.empty')}
                                 </td>
                               </tr>
                             )}
@@ -849,12 +844,12 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                             <tfoot>
                               <tr>
                                 <td className="px-4 py-3 text-center font-semibold text-text-primary">{scheduleTotals.installmentCount}</td>
-                                <td className="px-4 py-3 font-semibold text-text-primary">Totales</td>
+                                <td className="px-4 py-3 font-semibold text-text-primary">{tTerm('newCredit.schedule.totals')}</td>
                                 <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalScheduledPayment)}</td>
                                 <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalInterest)}</td>
                                 <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.totalPrincipal)}</td>
                                 <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(scheduleTotals.finalBalance)}</td>
-                                <td className="px-4 py-3 text-center font-semibold text-text-primary">{scheduleTotals.pendingCount} pendientes</td>
+                                <td className="px-4 py-3 text-center font-semibold text-text-primary">{tTerm('newCredit.schedule.pendingCount', { count: scheduleTotals.pendingCount })}</td>
                               </tr>
                             </tfoot>
                           )}
@@ -869,9 +864,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary shadow-[0_8px_20px_rgba(37,99,235,0.12)]">
                         <Calculator size={24} />
                       </span>
-                      <h4 className="mt-5 text-[1.7rem] font-bold text-text-primary">Valida el crédito</h4>
+                      <h4 className="mt-5 text-[1.7rem] font-bold text-text-primary">{tTerm('newCredit.empty.title')}</h4>
                       <p className="mt-3 max-w-xl text-sm leading-7 text-text-secondary">
-                        El resumen financiero y el cronograma aparecerán después de validar.
+                        {tTerm('newCredit.empty.subtitle')}
                       </p>
                     </div>
                   </div>
@@ -881,8 +876,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                       <div className="flex items-center gap-2">
                         <CalendarDays size={16} className="text-text-secondary" />
                         <div>
-                          <h4 className="text-sm font-bold text-text-primary">Cronograma de amortización</h4>
-                          <p className="mt-1 text-xs text-text-secondary">Desglose mensual de pago, interés, capital y saldo restante.</p>
+                          <h4 className="text-sm font-bold text-text-primary">{tTerm('simulator.schedule.title')}</h4>
+                          <p className="mt-1 text-xs text-text-secondary">{tTerm('simulator.schedule.subtitle')}</p>
                         </div>
                       </div>
                       <ChevronDown size={16} className="text-text-secondary" />

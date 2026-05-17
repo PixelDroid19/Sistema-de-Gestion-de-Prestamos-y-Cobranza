@@ -1,6 +1,9 @@
 import React from 'react';
 import { Bell, CheckCircle2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from '../i18n';
+import { formatDateTime, formatNumber } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { useNotifications, resolveNotificationDestinationForUser } from '../services/notificationService';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { toast } from '../lib/toast';
@@ -9,17 +12,11 @@ import { useSessionStore } from '../store/sessionStore';
 import { ActionButton, ClickableSurface, DataTableSurface, EmptyState, PageHeader, PageShell } from './shared/Surfaces';
 
 const formatNotificationDate = (value: unknown) => {
-  if (!value) {
-    return 'Fecha no disponible';
-  }
-
-  const date = new Date(value as string | number | Date);
-  return Number.isNaN(date.getTime())
-    ? 'Fecha no disponible'
-    : date.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+  return formatDateTime(value) || tTerm('common.dateUnavailable');
 };
 
 export default function Notifications() {
+  useTranslation();
   const navigate = useNavigate();
   const { user } = useSessionStore();
   const { notifications, isLoading, isError, error, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
@@ -29,7 +26,7 @@ export default function Notifications() {
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead.mutateAsync(undefined);
-      toast.success({ description: 'Notificaciones marcadas como leídas.' });
+      toast.success({ description: tTerm('notifications.toast.markAllRead.success') });
     } catch (markError) {
       toast.apiErrorSafe(markError, { domain: 'notifications', action: 'notifications.load' });
     }
@@ -37,9 +34,9 @@ export default function Notifications() {
 
   const handleClearNotifications = async () => {
     const confirmed = await confirmModal({
-      title: 'Limpiar notificaciones',
-      message: 'Se eliminarán todas tus notificaciones actuales. Esta acción no cambia los créditos ni los cobros.',
-      confirmLabel: 'Limpiar',
+      title: tTerm('notifications.confirm.clear.title'),
+      message: tTerm('notifications.confirm.clear.message'),
+      confirmLabel: tTerm('notifications.confirm.clear.confirm'),
       confirmVariant: 'danger',
     });
 
@@ -47,7 +44,7 @@ export default function Notifications() {
 
     try {
       await clearNotifications.mutateAsync(undefined);
-      toast.success({ description: 'Notificaciones eliminadas.' });
+      toast.success({ description: tTerm('notifications.toast.clear.success') });
     } catch (clearError) {
       toast.apiErrorSafe(clearError, { domain: 'notifications', action: 'notifications.load' });
     }
@@ -77,15 +74,15 @@ export default function Notifications() {
         title={(
           <span className="inline-flex flex-wrap items-center gap-2">
             <Bell size={24} className="shrink-0 text-brand-primary" aria-hidden />
-            Notificaciones
+            {tTerm('notifications.header.title')}
             {unreadCount > 0 ? (
               <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-                {unreadCount} no leídas
+                {tTerm('notifications.header.unreadCount', { count: formatNumber(unreadCount) })}
               </span>
             ) : null}
           </span>
         )}
-        subtitle="Alertas operativas, cobros y novedades del sistema."
+        subtitle={tTerm('notifications.header.subtitle')}
         guideKey="notifications"
         tourId="notifications-header"
         actions={(
@@ -95,7 +92,7 @@ export default function Notifications() {
             disabled={unreadCount === 0 || markAllAsRead.isPending}
             icon={<CheckCircle2 size={16} />}
           >
-            {markAllAsRead.isPending ? 'Marcando...' : 'Marcar leídas'}
+            {markAllAsRead.isPending ? tTerm('notifications.action.markingAllRead') : tTerm('notifications.action.markAllRead')}
           </ActionButton>
           <ActionButton
             type="button"
@@ -104,7 +101,7 @@ export default function Notifications() {
             variant="danger"
             icon={<Trash2 size={16} />}
           >
-            {clearNotifications.isPending ? 'Limpiando...' : 'Limpiar'}
+            {clearNotifications.isPending ? tTerm('notifications.action.clearing') : tTerm('notifications.action.clear')}
           </ActionButton>
           </div>
         )}
@@ -112,11 +109,11 @@ export default function Notifications() {
 
       <DataTableSurface className="flex flex-1 flex-col divide-y divide-border-subtle" data-tour="notifications-list">
         {isLoading ? (
-          <EmptyState compact title="Cargando notificaciones..." />
+          <EmptyState compact title={tTerm('notifications.state.loading')} />
         ) : isError ? (
           <EmptyState compact title={getSafeErrorText(error, { domain: 'notifications', action: 'notifications.load' })} />
         ) : notifications.length === 0 ? (
-          <EmptyState title="No tienes notificaciones." description="Cuando existan cobros, vencimientos o novedades, aparecerán aquí." />
+          <EmptyState title={tTerm('notifications.state.emptyTitle')} description={tTerm('notifications.state.emptyDescription')} />
         ) : (
           notifications.map((notification: any) => {
             const destination = resolveNotificationDestinationForUser(notification, user);
@@ -137,13 +134,13 @@ export default function Notifications() {
                         {notification.title}
                       </h4>
                       <p className="mt-1.5 text-sm leading-relaxed text-text-primary/85 dark:text-text-primary/80">
-                        {notification.message || 'Sin contenido'}
+                        {notification.message || tTerm('notifications.item.emptyMessage')}
                       </p>
                     </div>
                     <div className="flex w-[4.75rem] shrink-0 justify-end pt-0.5">
                       {canOpen ? (
                         <span className="rounded-full border border-border-strong bg-bg-base px-2.5 py-1 text-xs font-medium text-text-primary">
-                          Abrir
+                          {tTerm('common.cta.open')}
                         </span>
                       ) : (
                         <span className="inline-block min-h-[1.75rem] w-full" aria-hidden />
@@ -164,7 +161,7 @@ export default function Notifications() {
                   variant="list"
                   className={containerClassName}
                   onClick={() => handleOpenNotification({ ...notification, destination })}
-                  title="Abrir origen de la notificación"
+                  title={tTerm('notifications.item.openOrigin')}
                 >
                   <div className="flex items-start gap-4">
                     {content}

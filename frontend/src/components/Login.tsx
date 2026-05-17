@@ -13,6 +13,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
+import { tTerm } from '../i18n/terminology';
 import { ActionButton, FormField, IconActionButton, TextInput } from './shared/Surfaces';
 
 export default function Login() {
@@ -81,7 +82,7 @@ export default function Login() {
             {APP_BRAND.name}
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed">
-            Plataforma integral para la gestión de préstamos, cobranzas y seguimiento financiero.
+            {tTerm('login.brandSubtitle')}
           </p>
         </div>
       </div>
@@ -100,10 +101,10 @@ export default function Login() {
           {/* Form header */}
           <div className="mb-8">
             <h2 className="text-[28px] font-bold text-text-primary tracking-tight mb-2">
-              Iniciar sesión
+              {tTerm('login.title')}
             </h2>
             <p className="text-[15px] text-text-secondary leading-relaxed">
-              Ingresa tus credenciales para continuar
+              {tTerm('login.subtitle')}
             </p>
           </div>
 
@@ -120,7 +121,7 @@ export default function Login() {
             )}
 
             {/* Email */}
-            <FormField label="Correo electrónico">
+            <FormField label={tTerm('login.emailLabel')}>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Mail className="size-[18px] text-text-secondary/40" />
@@ -132,7 +133,7 @@ export default function Login() {
                   autoComplete="email"
                   required
                   disabled={isLoading}
-                  placeholder="nombre@empresa.com"
+                  placeholder={tTerm('login.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="rounded-xl py-2.5 pl-10 pr-4 text-[15px]"
@@ -141,7 +142,7 @@ export default function Login() {
             </FormField>
 
             {/* Password */}
-            <FormField label="Contraseña">
+            <FormField label={tTerm('login.passwordLabel')}>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="size-[18px] text-text-secondary/40" />
@@ -153,7 +154,7 @@ export default function Login() {
                   autoComplete="current-password"
                   required
                   disabled={isLoading}
-                  placeholder="Ingresa tu contraseña"
+                  placeholder={tTerm('login.passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="rounded-xl py-2.5 pl-10 pr-11 text-[15px]"
@@ -163,7 +164,7 @@ export default function Login() {
                   disabled={isLoading}
                   className="absolute right-1 top-1/2 -translate-y-1/2 !border-0 !bg-transparent"
                   tabIndex={-1}
-                  label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  label={showPassword ? tTerm('login.password.hide') : tTerm('login.password.show')}
                   icon={showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
                 />
               </div>
@@ -177,10 +178,10 @@ export default function Login() {
               fullWidth
               variant="primary"
               isLoading={isLoading}
-              loadingLabel="Iniciando sesión…"
+              loadingLabel={tTerm('login.loading')}
               icon={!isLoading ? <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform duration-200" /> : undefined}
             >
-              Iniciar sesión
+              {tTerm('login.submit')}
             </ActionButton>
           </form>
         </div>

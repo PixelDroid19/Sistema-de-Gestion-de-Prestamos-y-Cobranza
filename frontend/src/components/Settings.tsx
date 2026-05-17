@@ -33,7 +33,14 @@ import {
   ViewTabs,
 } from './shared/Surfaces';
 import { ExplainedChip, HelpLabel } from './shared/HelpSupport';
-import PermissionsTab from './PermissionsTab';
+import EmployeeEditModal from './EmployeeEditModal';
+import { useTranslation } from '../i18n';
+import { tTerm } from '../i18n/terminology';
+import {
+  formatCurrency as formatCurrencyValue,
+  formatDate as formatDateValue,
+  formatPercent as formatPercentValue,
+} from '../i18n/format';
 
 type SettingsTab = 'employees' | 'payment-methods' | 'rate-policies' | 'late-fee-policies';
 
@@ -66,17 +73,23 @@ type EmployeeDraft = {
   password: string;
 };
 
-const paymentMethodTypeLabels: Record<string, string> = {
-  bank_transfer: 'Transferencia',
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  other: 'Otro',
+const getPaymentMethodTypeLabel = (type: unknown) => {
+  const normalizedType = String(type || 'other').trim().toLowerCase();
+
+  if (normalizedType === 'bank_transfer') return tTerm('settings.paymentMethods.type.bankTransfer');
+  if (normalizedType === 'cash') return tTerm('settings.paymentMethods.type.cash');
+  if (normalizedType === 'card') return tTerm('settings.paymentMethods.type.card');
+
+  return tTerm('settings.paymentMethods.type.other');
 };
 
-const lateFeeModeLabels: Record<string, string> = {
-  NONE: 'Sin mora',
-  SIMPLE: 'Mora simple',
-  COMPOUND: 'Mora compuesta',
+const getLateFeeModeLabel = (mode: unknown) => {
+  const normalizedMode = String(mode || 'SIMPLE').toUpperCase();
+
+  if (normalizedMode === 'NONE') return tTerm('settings.lateFee.type.none');
+  if (normalizedMode === 'COMPOUND') return tTerm('settings.lateFee.type.compound');
+
+  return tTerm('settings.lateFee.type.simple');
 };
 
 const normalizeComparable = (value: unknown) => String(value || '')
@@ -85,23 +98,17 @@ const normalizeComparable = (value: unknown) => String(value || '')
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
 
-const formatCurrency = (value: unknown) => new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-}).format(Number(value ?? 0));
+const formatCurrency = (value: unknown) => formatCurrencyValue(value);
 
 const formatRange = (minAmount: unknown, maxAmount: unknown) => {
   const hasMin = minAmount !== null && minAmount !== undefined && minAmount !== '';
   const hasMax = maxAmount !== null && maxAmount !== undefined && maxAmount !== '';
 
-  if (!hasMin && !hasMax) return 'Todos los montos';
-  return `${hasMin ? formatCurrency(minAmount) : '$0'} - ${hasMax ? formatCurrency(maxAmount) : 'Sin tope'}`;
+  if (!hasMin && !hasMax) return tTerm('settings.range.allAmounts');
+  return `${hasMin ? formatCurrency(minAmount) : formatCurrencyValue(0)} - ${hasMax ? formatCurrency(maxAmount) : tTerm('settings.range.noCap')}`;
 };
 
-const formatRate = (value: unknown) => `${Number(value ?? 0).toLocaleString('es-CO', {
-  maximumFractionDigits: 2,
-})}% EA`;
+const formatRate = (value: unknown) => `${formatPercentValue(value, { maximumFractionDigits: 2 })} EA`;
 
 const DEFAULT_LOW_AMOUNT_LIMIT = 1000000;
 const DEFAULT_HIGH_AMOUNT_START = 1000001;
@@ -115,11 +122,10 @@ const EMPTY_RATE_POLICY: RatePolicyDraft = {
   description: '',
 };
 
-const getMethodName = (method: any) => method?.name || method?.label || method?.key || 'Método sin nombre';
+const getMethodName = (method: any) => method?.name || method?.label || method?.key || tTerm('settings.paymentMethods.methodUnnamed');
 
 const getMethodTypeLabel = (type: unknown) => {
-  const normalizedType = String(type || 'other').trim().toLowerCase();
-  return paymentMethodTypeLabels[normalizedType] || 'Otro';
+  return getPaymentMethodTypeLabel(type);
 };
 
 const toOptionalDraftNumber = (value: string, fallback: number | null = null) => {
@@ -201,17 +207,17 @@ const buildRateCoverageCheck = (label: string, amount: number, matches: any[]) =
     conflicts,
     hasConflict,
     status: hasConflict
-      ? 'Conflicto'
+      ? tTerm('settings.coverage.status.conflict')
       : policy
-        ? `${formatRate(policy.annualEffectiveRate)} · ${policy.label}`
-        : 'Sin regla activa',
+        ? tTerm('settings.coverage.status.rule', { rate: formatRate(policy.annualEffectiveRate), label: policy.label })
+        : tTerm('settings.coverage.status.noRuleActive'),
   };
 };
 
 const validatePercent = (value: string, label: string) => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
-    return `${label} debe estar entre 0 y 100.`;
+    return tTerm('settings.validation.percentRange', { label });
   }
   return null;
 };
@@ -219,7 +225,7 @@ const validatePercent = (value: string, label: string) => {
 const validatePriority = (value: string) => {
   const numericValue = Number(value || 100);
   if (!Number.isInteger(numericValue) || numericValue < 0) {
-    return 'La prioridad debe ser un número entero mayor o igual a 0.';
+    return tTerm('settings.validation.priority');
   }
   return null;
 };
@@ -235,7 +241,7 @@ const buildRatePayload = (policy: RatePolicyDraft) => ({
 
 const validatePaymentMethodDraft = (draft: PaymentMethodDraft, paymentMethods: any[]) => {
   const name = draft.name.trim();
-  if (!name) return 'Indica el nombre del método de pago.';
+  if (!name) return tTerm('settings.validation.paymentMethod.nameRequired');
 
   const normalizedName = normalizeComparable(name);
   const duplicate = paymentMethods.some((method) => (
@@ -244,7 +250,7 @@ const validatePaymentMethodDraft = (draft: PaymentMethodDraft, paymentMethods: a
   ));
 
   if (duplicate) {
-    return 'Ya existe un método de pago con ese nombre.';
+    return tTerm('settings.validation.paymentMethod.duplicate');
   }
 
   return null;
@@ -252,9 +258,9 @@ const validatePaymentMethodDraft = (draft: PaymentMethodDraft, paymentMethods: a
 
 const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: any[], currentId: unknown = null) => {
   const label = draft.label.trim();
-  if (!label) return 'Indica el nombre de la política de tasa.';
+  if (!label) return tTerm('settings.validation.rate.labelRequired');
 
-  const percentError = validatePercent(draft.annualEffectiveRate, 'La tasa efectiva anual');
+  const percentError = validatePercent(draft.annualEffectiveRate, tTerm('settings.rate.field.annualRate'));
   if (percentError) return percentError;
 
   const priorityError = validatePriority(draft.priority);
@@ -263,15 +269,15 @@ const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: any[], cu
   const minAmount = toOptionalDraftNumber(draft.minAmount, 0);
   const maxAmount = toOptionalDraftNumber(draft.maxAmount, null);
   if (!Number.isFinite(minAmount) || (maxAmount !== null && !Number.isFinite(maxAmount))) {
-    return 'Los montos de la política deben ser numéricos.';
+    return tTerm('settings.validation.rate.amountNumeric');
   }
   const normalizedMinAmount = Number(minAmount);
   const normalizedMaxAmount = maxAmount === null ? null : Number(maxAmount);
   if (normalizedMinAmount < 0 || (normalizedMaxAmount !== null && normalizedMaxAmount < 0)) {
-    return 'Los montos de la política no pueden ser negativos.';
+    return tTerm('settings.validation.rate.amountNegative');
   }
   if (normalizedMaxAmount !== null && normalizedMinAmount > normalizedMaxAmount) {
-    return 'El monto mínimo no puede ser mayor que el monto máximo.';
+    return tTerm('settings.validation.rate.minGreater');
   }
 
   const normalizedLabel = normalizeComparable(label);
@@ -280,7 +286,7 @@ const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: any[], cu
     && normalizeComparable(policy?.label) === normalizedLabel
   ));
   if (duplicateLabel) {
-    return 'Ya existe una política de tasa con ese nombre.';
+    return tTerm('settings.validation.rate.duplicateLabel');
   }
 
   const priority = Number(draft.priority || 100);
@@ -291,7 +297,7 @@ const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: any[], cu
     && rangesOverlap({ minAmount: normalizedMinAmount, maxAmount: normalizedMaxAmount }, policy)
   ));
   if (overlap) {
-    return 'Ya existe una política activa con el mismo rango y prioridad. Ajusta el rango o la prioridad para evitar cálculos ambiguos.';
+    return tTerm('settings.validation.rate.overlap');
   }
 
   return null;
@@ -299,9 +305,9 @@ const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: any[], cu
 
 const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePolicies: any[]) => {
   const label = draft.label.trim();
-  if (!label) return 'Indica el nombre de la política de mora.';
+  if (!label) return tTerm('settings.validation.lateFee.labelRequired');
 
-  const percentError = validatePercent(draft.annualEffectiveRate, 'La tasa de mora');
+  const percentError = validatePercent(draft.annualEffectiveRate, tTerm('settings.lateFee.field.rate'));
   if (percentError) return percentError;
 
   const priorityError = validatePriority(draft.priority);
@@ -310,7 +316,7 @@ const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePolicies: 
   const normalizedLabel = normalizeComparable(label);
   const duplicateLabel = lateFeePolicies.some((policy) => normalizeComparable(policy?.label) === normalizedLabel);
   if (duplicateLabel) {
-    return 'Ya existe una política de mora con ese nombre.';
+    return tTerm('settings.validation.lateFee.duplicateLabel');
   }
 
   const priority = Number(draft.priority || 100);
@@ -319,7 +325,7 @@ const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePolicies: 
     && Number(policy?.priority || 100) === priority
   ));
   if (duplicatePriority) {
-    return 'Ya existe una política de mora activa con esa prioridad. Usa una prioridad distinta para que el sistema sepa cuál aplicar.';
+    return tTerm('settings.validation.lateFee.duplicatePriority');
   }
 
   return null;
@@ -333,10 +339,10 @@ const buildLateFeePayload = (policy: LateFeePolicyDraft) => ({
 });
 
 function StatusBadge({ active }: { active: boolean }) {
-  const label = active ? 'Activo' : 'Inactivo';
+  const label = active ? tTerm('common.status.active') : tTerm('common.status.inactive');
   const description = active
-    ? 'Disponible para usarse en créditos, pagos o cálculos nuevos.'
-    : 'No se ofrece en operaciones nuevas, pero se conserva para trazabilidad histórica.';
+    ? tTerm('settings.status.active.description')
+    : tTerm('settings.status.inactive.description');
 
   return (
     <ExplainedChip
@@ -352,12 +358,14 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 function EmployeeAccessPanel() {
+  const { t } = useTranslation();
   const { data: usersData, registerWithPermissions, deactivateUser, reactivateUser } = useUsers({ page: 1, pageSize: 100, role: 'employee' });
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>({
     name: '',
     email: '',
     password: '',
   });
+  const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
 
   const users = Array.isArray(usersData?.data?.users)
     ? usersData.data.users
@@ -374,9 +382,9 @@ function EmployeeAccessPanel() {
 
     if (isActive) {
       const confirmed = await confirmDanger({
-        title: 'Desactivar empleado',
-        message: `Se bloqueará el acceso administrativo de "${employeeLabel}". Sus permisos se conservan para trazabilidad, pero no podrá iniciar sesión hasta reactivarlo.`,
-        confirmLabel: 'Desactivar',
+        title: t('errors.deactivateConfirmTitle'),
+        message: t('errors.deactivateConfirmBody', { name: employeeLabel }),
+        confirmLabel: t('errors.deactivateConfirmAction'),
       });
       if (!confirmed) return;
     }
@@ -384,12 +392,12 @@ function EmployeeAccessPanel() {
     try {
       if (isActive) {
         await deactivateUser.mutateAsync(Number(employee.id));
-        toast.success({ description: 'Empleado desactivado. Ya no podrá ingresar a la plataforma.' });
+        toast.success({ description: t('errors.employeeDeactivated') });
         return;
       }
 
       await reactivateUser.mutateAsync(Number(employee.id));
-      toast.success({ description: 'Empleado reactivado. Puede volver a iniciar sesión.' });
+      toast.success({ description: t('errors.employeeReactivated') });
     } catch (error) {
       console.error('[settings] toggle employee status failed', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
@@ -403,23 +411,23 @@ function EmployeeAccessPanel() {
     const password = employeeDraft.password;
 
     if (!name) {
-      toast.error({ title: 'Revisa el empleado', description: 'El nombre del empleado es obligatorio.' });
+      toast.error({ description: t('errors.employeeNameRequired') });
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
-      toast.error({ title: 'Revisa el empleado', description: 'Ingresa un correo válido.' });
+      toast.error({ description: t('errors.employeeEmailInvalid') });
       return;
     }
 
     if (password.length < 8) {
-      toast.error({ title: 'Revisa el empleado', description: 'La contraseña debe tener mínimo 8 caracteres.' });
+      toast.error({ description: t('errors.employeePasswordShort') });
       return;
     }
 
     const duplicateEmail = employees.some((employee: any) => String(employee?.email || '').toLowerCase() === email);
     if (duplicateEmail) {
-      toast.error({ title: 'Revisa el empleado', description: 'Ya existe un empleado con ese correo.' });
+      toast.error({ description: t('errors.employeeEmailDuplicate') });
       return;
     }
 
@@ -432,7 +440,7 @@ function EmployeeAccessPanel() {
         permissions: [],
       });
       setEmployeeDraft({ name: '', email: '', password: '' });
-      toast.success({ description: 'Empleado creado. Ahora puede asignarle permisos por módulo.' });
+      toast.success({ description: t('errors.employeeCreated') });
     } catch (error) {
       console.error('[settings] create employee failed', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
@@ -442,29 +450,29 @@ function EmployeeAccessPanel() {
   return (
     <div className="space-y-5">
       <InsightStrip
-        aria-label="Resumen de empleados"
+        aria-label={t('settings.employees.summary.total')}
         items={[
           {
             id: 'settings-employees-total',
-            label: 'Empleados',
+            label: t('settings.employees.summary.total'),
             value: employees.length,
-            helper: 'Usuarios administrativos',
+            helper: t('settings.employees.summary.totalHelper'),
             icon: <UserPlus size={18} />,
             accent: 'slate',
           },
           {
             id: 'settings-employees-active',
-            label: 'Activos',
+            label: t('settings.employees.summary.active'),
             value: activeEmployees.length,
-            helper: 'Pueden iniciar sesión',
+            helper: t('settings.employees.summary.activeHelper'),
             icon: <UserCheck size={18} />,
             accent: 'emerald',
           },
           {
             id: 'settings-employees-inactive',
-            label: 'Inactivos',
+            label: t('settings.employees.summary.inactive'),
             value: inactiveEmployees.length,
-            helper: 'Acceso suspendido',
+            helper: t('settings.employees.summary.inactiveHelper'),
             icon: <UserX size={18} />,
             accent: 'rose',
           },
@@ -474,51 +482,51 @@ function EmployeeAccessPanel() {
       <SectionSurface
         as="form"
         onSubmit={handleCreateEmployee}
-        aria-label="Crear empleado administrativo"
-        title="Alta de empleado"
-        subtitle="Este acceso solo sirve para la plataforma administrativa. No crea clientes ni socios."
+        aria-label={t('settings.employees.create.title')}
+        title={t('settings.employees.create.title')}
+        subtitle={t('settings.employees.create.subtitle')}
         bodyClassName="space-y-4"
       >
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)]">
           <FormField
-            label="Nombre del empleado"
-            tooltip="Nombre visible en auditoría y operación. No crea cliente ni socio."
+            label={t('settings.employees.create.nameLabel')}
+            tooltip={t('settings.employees.create.nameTooltip')}
           >
             <TextInput
-              aria-label="Nombre del empleado"
+              aria-label={t('settings.employees.create.nameLabel')}
               required
               value={employeeDraft.name}
               onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, name: event.target.value }))}
-              placeholder="Ej: Ana Operaciones"
+              placeholder={t('settings.employees.create.namePlaceholder')}
             />
           </FormField>
           <FormField
-            label="Correo de acceso"
-            tooltip="Correo que usará el empleado para iniciar sesión en la plataforma administrativa."
+            label={t('settings.employees.create.emailLabel')}
+            tooltip={t('settings.employees.create.emailTooltip')}
           >
             <TextInput
-              aria-label="Correo de acceso"
+              aria-label={t('settings.employees.create.emailLabel')}
               required
               type="email"
               value={employeeDraft.email}
               onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
-              placeholder="empleado@empresa.com"
+              placeholder={t('settings.employees.create.emailPlaceholder')}
             />
           </FormField>
         </div>
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,0.55fr)_auto]">
           <FormField
-            label="Contraseña inicial"
-            tooltip="Debe tener mínimo 8 caracteres. El empleado podrá cambiarla desde su perfil si el flujo está habilitado."
+            label={t('settings.employees.create.passwordLabel')}
+            tooltip={t('settings.employees.create.passwordTooltip')}
           >
             <TextInput
-              aria-label="Contraseña inicial"
+              aria-label={t('settings.employees.create.passwordLabel')}
               required
               type="password"
               minLength={8}
               value={employeeDraft.password}
               onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, password: event.target.value }))}
-              placeholder="Mínimo 8 caracteres"
+              placeholder={t('settings.employees.create.passwordPlaceholder')}
             />
           </FormField>
           <div className="settings-form-actions">
@@ -528,43 +536,53 @@ function EmployeeAccessPanel() {
               variant="primary"
               icon={<UserPlus size={16} />}
             >
-              Crear empleado
+              {t('settings.employees.create.submit')}
             </ActionButton>
           </div>
         </div>
         <p className="settings-inline-note">
-          Los empleados solo entran a módulos concedidos explícitamente. Tasas, mora, métodos de pago y permisos sensibles siguen reservados para administración.
+          {t('settings.employees.create.note')}
         </p>
       </SectionSurface>
 
-      <DataTableSurface aria-label="Empleados administrativos">
+      <DataTableSurface aria-label={t('settings.employees.table.title')}>
         <div className="overflow-x-auto">
-          <table className="min-w-[760px]" aria-label="Empleados administrativos">
+          <table className="min-w-[760px]" aria-label={t('settings.employees.table.title')}>
             <thead>
               <tr>
-                <th>Empleado</th>
-                <th>Correo</th>
-                <th>Estado</th>
-                <th>Alta</th>
-                <th className="text-right">Acciones</th>
+                <th>{t('settings.employees.table.empleadoCol')}</th>
+                <th>{t('settings.employees.table.emailCol')}</th>
+                <th>{t('settings.employees.table.statusCol')}</th>
+                <th>{t('settings.employees.table.createdAtCol')}</th>
+                <th className="text-right">{t('settings.employees.table.actionsCol')}</th>
               </tr>
             </thead>
             <tbody>
               {employees.map((employee: any) => (
                 <tr key={employee.id}>
                   <td>
-                    <p className="font-semibold text-text-primary">{employee.name || 'Empleado sin nombre'}</p>
-                    <p className="mt-1 text-xs text-text-secondary">Rol administrativo: empleado</p>
+                    <p className="font-semibold text-text-primary">{employee.name || t('settings.employees.table.nameMissing')}</p>
+                    <p className="mt-1 text-xs text-text-secondary">{t('settings.employees.table.roleHint')}</p>
                   </td>
                   <td className="text-text-secondary">{employee.email}</td>
                   <td><StatusBadge active={employee.isActive !== false} /></td>
                   <td className="text-text-secondary">
                     {employee.createdAt
-                      ? new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(employee.createdAt))
+                      ? formatDateValue(employee.createdAt, { day: '2-digit', month: 'short', year: 'numeric' }) || '—'
                       : '—'}
                   </td>
                   <td>
                     <div className="flex justify-end gap-2">
+                      <ActionButton
+                        type="button"
+                        onClick={() => setEditingEmployee(employee)}
+                        variant="secondary"
+                        icon={<PencilLine size={14} />}
+                        className="min-h-8 px-3 py-1.5 text-xs"
+                        title={t('settings.employees.actions.editTitle')}
+                      >
+                        {t('settings.employees.actions.edit')}
+                      </ActionButton>
                       <ActionButton
                         type="button"
                         onClick={() => handleToggleEmployeeStatus(employee)}
@@ -573,10 +591,10 @@ function EmployeeAccessPanel() {
                         icon={employee.isActive === false ? <UserCheck size={14} /> : <UserX size={14} />}
                         className="min-h-8 px-3 py-1.5 text-xs"
                         title={employee.isActive === false
-                          ? 'Reactiva el acceso administrativo del empleado.'
-                          : 'Desactiva el acceso administrativo sin borrar auditoría ni permisos históricos.'}
+                          ? t('settings.employees.actions.reactivateTitle')
+                          : t('settings.employees.actions.deactivateTitle')}
                       >
-                        {employee.isActive === false ? 'Reactivar' : 'Desactivar'}
+                        {employee.isActive === false ? t('common.activate') : t('common.deactivate')}
                       </ActionButton>
                     </div>
                   </td>
@@ -584,7 +602,7 @@ function EmployeeAccessPanel() {
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="table-empty-state">No hay empleados administrativos creados.</td>
+                  <td colSpan={5} className="table-empty-state">{t('settings.employees.table.empty')}</td>
                 </tr>
               )}
             </tbody>
@@ -592,12 +610,18 @@ function EmployeeAccessPanel() {
         </div>
       </DataTableSurface>
 
-      <PermissionsTab />
+      {editingEmployee && (
+        <EmployeeEditModal
+          employee={editingEmployee}
+          onClose={() => setEditingEmployee(null)}
+        />
+      )}
     </div>
   );
 }
 
 export default function Settings() {
+  const { locale } = useTranslation();
   const {
     paymentMethods: rawPaymentMethods,
     ratePolicies: rawRatePolicies,
@@ -660,16 +684,16 @@ export default function Settings() {
   );
   const rateCoverageChecks = useMemo(() => [
     buildRateCoverageCheck(
-      `$0 - ${formatCurrency(DEFAULT_LOW_AMOUNT_LIMIT)}`,
+      tTerm('settings.coverage.bucket.low', { amount: formatCurrency(DEFAULT_LOW_AMOUNT_LIMIT) }),
       DEFAULT_LOW_AMOUNT_LIMIT,
       findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_LOW_AMOUNT_LIMIT)),
     ),
     buildRateCoverageCheck(
-      `Desde ${formatCurrency(DEFAULT_HIGH_AMOUNT_START)}`,
+      tTerm('settings.coverage.bucket.high', { amount: formatCurrency(DEFAULT_HIGH_AMOUNT_START) }),
       DEFAULT_HIGH_AMOUNT_START,
       findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_HIGH_AMOUNT_START)),
     ),
-  ], [activeRatePolicies]);
+  ], [activeRatePolicies, locale]);
   const hasMissingStandardRateCoverage = rateCoverageChecks.some((check) => !check.policy || check.hasConflict);
   const previewAmountNumber = Number(ratePreviewAmount);
   const hasValidPreviewAmount = Number.isFinite(previewAmountNumber) && previewAmountNumber >= 0;
@@ -695,7 +719,7 @@ export default function Settings() {
     event.preventDefault();
     const validationError = validatePaymentMethodDraft(newPaymentMethod, paymentMethods);
     if (validationError) {
-      toast.error({ title: 'Revisa la configuración', description: validationError });
+      toast.error({ title: tTerm('settings.validation.reviewConfig'), description: validationError });
       return;
     }
 
@@ -705,7 +729,7 @@ export default function Settings() {
         isActive: true,
       });
       setNewPaymentMethod({ name: '', description: '', type: 'bank_transfer' });
-      toast.success({ description: 'Método de pago creado' });
+      toast.success({ description: tTerm('settings.paymentMethods.toast.created') });
     } catch (error) {
       console.error('[settings] createPaymentMethod failed', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -716,17 +740,17 @@ export default function Settings() {
     event.preventDefault();
     const validationError = validateRatePolicyDraft(newRatePolicy, ratePolicies, editingRatePolicyId);
     if (validationError) {
-      toast.error({ title: 'Revisa la política de tasa', description: validationError });
+      toast.error({ title: tTerm('settings.rate.toast.review'), description: validationError });
       return;
     }
 
     try {
       if (editingRatePolicyId) {
         await updateRatePolicy.mutateAsync({ id: editingRatePolicyId, ...buildRatePayload(newRatePolicy) });
-        toast.success({ description: 'Política de tasa actualizada para créditos nuevos' });
+        toast.success({ description: tTerm('settings.rate.toast.updated') });
       } else {
         await createRatePolicy.mutateAsync(buildRatePayload(newRatePolicy));
-        toast.success({ description: 'Política de tasa creada' });
+        toast.success({ description: tTerm('settings.rate.toast.created') });
       }
       resetRatePolicyDraft();
     } catch (error) {
@@ -739,14 +763,14 @@ export default function Settings() {
     event.preventDefault();
     const validationError = validateLateFeePolicyDraft(newLateFeePolicy, lateFeePolicies);
     if (validationError) {
-      toast.error({ title: 'Revisa la política de mora', description: validationError });
+      toast.error({ title: tTerm('settings.lateFee.toast.review'), description: validationError });
       return;
     }
 
     try {
       await createLateFeePolicy.mutateAsync(buildLateFeePayload(newLateFeePolicy));
       setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: '100', description: '' });
-      toast.success({ description: 'Política de mora creada' });
+      toast.success({ description: tTerm('settings.lateFee.toast.created') });
     } catch (error) {
       console.error('[settings] createLateFeePolicy failed', error);
       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -764,7 +788,7 @@ export default function Settings() {
     action: () => Promise<unknown>;
     successMessage: string;
   }) => {
-    const confirmed = await confirmDanger({ title, message, confirmLabel: 'Eliminar' });
+    const confirmed = await confirmDanger({ title, message, confirmLabel: tTerm('settings.validation.deleteConfirm') });
     if (!confirmed) return;
 
     try {
@@ -780,12 +804,12 @@ export default function Settings() {
     return (
       <PageShell data-tour="settings-page">
         <PageHeader
-          title="Configuración operativa"
-          subtitle="Cargando políticas y métodos usados por créditos reales."
+          title={tTerm('settings.module.title')}
+          subtitle={tTerm('settings.module.loadingSubtitle')}
           guideKey="settings"
           tourId="settings-header"
         />
-        <div className="table-empty-state">Cargando configuración…</div>
+        <div className="table-empty-state">{tTerm('settings.state.loading')}</div>
       </PageShell>
     );
   }
@@ -793,22 +817,22 @@ export default function Settings() {
   return (
     <PageShell data-tour="settings-page" className="settings-page">
       <PageHeader
-        title="Configuración operativa"
-        subtitle="Administra solo parámetros que se usan en pagos, mora y originación de créditos nuevos."
+        title={tTerm('settings.module.title')}
+        subtitle={tTerm('settings.module.subtitle')}
         guideKey="settings"
         tourId="settings-header"
       />
 
       <ViewTabs
         data-tour="settings-tabs"
-        ariaLabel="Secciones de configuración"
+        ariaLabel={tTerm('settings.tabs.aria')}
         activeTab={activeTab}
         onChange={(tabId) => setActiveTab(tabId as SettingsTab)}
         tabs={[
-          { id: 'payment-methods', label: 'Métodos de pago', count: paymentMethods.length, icon: CreditCard },
-          { id: 'rate-policies', label: 'Tasas de crédito', count: ratePolicies.length, icon: Percent },
-          { id: 'late-fee-policies', label: 'Políticas de mora', count: lateFeePolicies.length, icon: AlertTriangle },
-          { id: 'employees', label: 'Empleados y permisos', icon: ShieldCheck },
+          { id: 'payment-methods', label: tTerm('settings.tabs.paymentMethods'), count: paymentMethods.length, icon: CreditCard },
+          { id: 'rate-policies', label: tTerm('settings.tabs.ratePolicies'), count: ratePolicies.length, icon: Percent },
+          { id: 'late-fee-policies', label: tTerm('settings.tabs.lateFeePolicies'), count: lateFeePolicies.length, icon: AlertTriangle },
+          { id: 'employees', label: tTerm('settings.tabs.employees'), icon: ShieldCheck },
         ]}
       />
 
@@ -820,47 +844,47 @@ export default function Settings() {
             <SectionSurface
               as="form"
               onSubmit={handleCreatePaymentMethod}
-              aria-label="Crear método de pago"
-              title="Alta de método"
-              subtitle="Usa nombres que caja reconozca al instante y deja la descripción solo para reglas operativas."
+              aria-label={tTerm('settings.paymentMethods.section.aria')}
+              title={tTerm('settings.paymentMethods.section.title')}
+              subtitle={tTerm('settings.paymentMethods.section.subtitle')}
               bodyClassName="space-y-4"
             >
               <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(220px,1fr)_180px]">
                 <FormField
-                  label="Nombre del método"
-                  tooltip="Nombre visible al registrar pagos. Debe ser claro para caja y cartera."
+                  label={tTerm('settings.paymentMethods.field.name')}
+                  tooltip={tTerm('settings.paymentMethods.field.nameTooltip')}
                 >
                   <TextInput
-                    aria-label="Nombre del método"
+                    aria-label={tTerm('settings.paymentMethods.field.name')}
                     required
                     value={newPaymentMethod.name}
                     onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
-                    placeholder="Ej: Transferencia Bancolombia"
+                    placeholder={tTerm('settings.paymentMethods.field.namePlaceholder')}
                   />
                 </FormField>
 
                 <FormField
-                  label="Tipo de método"
-                  tooltip="Clasifica el pago. Transferencias y tarjetas pueden exigir referencia o comprobante."
+                  label={tTerm('settings.paymentMethods.field.type')}
+                  tooltip={tTerm('settings.paymentMethods.field.typeTooltip')}
                 >
                   <SelectInput
-                    aria-label="Tipo de método"
+                    aria-label={tTerm('settings.paymentMethods.field.type')}
                     value={newPaymentMethod.type}
                     onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
                   >
-                    <option value="bank_transfer">Transferencia</option>
-                    <option value="cash">Efectivo</option>
-                    <option value="card">Tarjeta</option>
-                    <option value="other">Otro</option>
+                    <option value="bank_transfer">{tTerm('settings.paymentMethods.type.bankTransfer')}</option>
+                    <option value="cash">{tTerm('settings.paymentMethods.type.cash')}</option>
+                    <option value="card">{tTerm('settings.paymentMethods.type.card')}</option>
+                    <option value="other">{tTerm('settings.paymentMethods.type.other')}</option>
                   </SelectInput>
                 </FormField>
               </div>
-              <FormField label="Descripción opcional">
+              <FormField label={tTerm('settings.paymentMethods.field.description')}>
                 <TextInput
-                  aria-label="Descripción del método"
+                  aria-label={tTerm('settings.paymentMethods.field.description')}
                   value={newPaymentMethod.description}
                   onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="Ej: requiere referencia bancaria"
+                  placeholder={tTerm('settings.paymentMethods.field.descriptionPlaceholder')}
                 />
               </FormField>
               <div className="settings-form-actions">
@@ -870,24 +894,24 @@ export default function Settings() {
                   variant="primary"
                   icon={<Plus size={16} />}
                 >
-                  Crear método
+                  {tTerm('settings.paymentMethods.cta.create')}
                 </ActionButton>
                 <p className="settings-inline-helper">
-                  Conserva un método por canal real y desactívalo antes de eliminarlo si ya tuvo uso.
+                  {tTerm('settings.paymentMethods.note')}
                 </p>
               </div>
             </SectionSurface>
 
             <DataTableSurface>
               <div className="overflow-x-auto">
-                <table className="min-w-[760px]" aria-label="Métodos de pago">
+                <table className="min-w-[760px]" aria-label={tTerm('settings.paymentMethods.table.aria')}>
                   <thead>
                     <tr>
-                      <th>Método</th>
-                      <th>Tipo</th>
-                      <th>Referencia</th>
-                      <th>Estado</th>
-                      <th className="text-right">Acciones</th>
+                      <th>{tTerm('settings.paymentMethods.table.method')}</th>
+                      <th>{tTerm('settings.paymentMethods.table.type')}</th>
+                      <th>{tTerm('settings.paymentMethods.table.reference')}</th>
+                      <th>{tTerm('settings.paymentMethods.table.state')}</th>
+                      <th className="text-right">{tTerm('settings.paymentMethods.table.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -898,7 +922,7 @@ export default function Settings() {
                           {method.description ? <p className="mt-1 text-xs text-text-secondary">{method.description}</p> : null}
                         </td>
                         <td className="text-text-secondary">{getMethodTypeLabel(method.type)}</td>
-                        <td className="text-text-secondary">{method.requiresReference ? 'Requiere soporte' : 'No obligatoria'}</td>
+                        <td className="text-text-secondary">{method.requiresReference ? tTerm('settings.paymentMethods.table.referenceRequired') : tTerm('settings.paymentMethods.table.referenceOptional')}</td>
                         <td><StatusBadge active={method.isActive !== false} /></td>
                         <td>
                           <div className="flex justify-end gap-2">
@@ -907,7 +931,7 @@ export default function Settings() {
                               onClick={async () => {
                                 try {
                                   await updatePaymentMethod.mutateAsync({ id: method.id, isActive: method.isActive === false, type: method.type });
-                                  toast.success({ description: method.isActive === false ? 'Método activado' : 'Método desactivado' });
+                                  toast.success({ description: method.isActive === false ? tTerm('settings.paymentMethods.toast.activated') : tTerm('settings.paymentMethods.toast.deactivated') });
                                 } catch (error) {
                                   console.error('[settings] updatePaymentMethod failed', error);
                                   toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -918,22 +942,22 @@ export default function Settings() {
                               icon={method.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                               className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              {method.isActive === false ? 'Activar' : 'Desactivar'}
+                              {method.isActive === false ? tTerm('settings.paymentMethods.cta.activate') : tTerm('settings.paymentMethods.cta.deactivate')}
                             </ActionButton>
                             <ActionButton
                               type="button"
                               onClick={() => handleDelete({
-                                title: 'Eliminar método de pago',
-                                message: `Se eliminará "${getMethodName(method)}". Si ya fue usado, lo correcto suele ser desactivarlo para conservar trazabilidad.`,
+                                title: tTerm('settings.paymentMethods.delete.title'),
+                                message: tTerm('settings.paymentMethods.delete.message', { name: getMethodName(method) }),
                                 action: () => deletePaymentMethod.mutateAsync(method.id),
-                                successMessage: 'Método eliminado',
+                                successMessage: tTerm('settings.paymentMethods.toast.deleted'),
                               })}
                               disabled={deletePaymentMethod.isPending}
                               variant="danger"
                               icon={<Trash2 size={14} />}
                               className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              Eliminar
+                              {tTerm('settings.paymentMethods.cta.delete')}
                             </ActionButton>
                           </div>
                         </td>
@@ -941,7 +965,7 @@ export default function Settings() {
                     ))}
                     {paymentMethods.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="table-empty-state">No hay métodos de pago configurados.</td>
+                        <td colSpan={5} className="table-empty-state">{tTerm('settings.paymentMethods.table.empty')}</td>
                       </tr>
                     )}
                   </tbody>
@@ -958,31 +982,31 @@ export default function Settings() {
                 <SectionSurface
                   as="form"
                   onSubmit={handleCreateRatePolicy}
-                  aria-label="Crear política de tasa"
-                  title={isEditingRatePolicy ? 'Editar tasa por monto' : 'Tasas automáticas por monto'}
+                  aria-label={tTerm('settings.rate.section.aria')}
+                  title={isEditingRatePolicy ? tTerm('settings.rate.section.titleEdit') : tTerm('settings.rate.section.titleCreate')}
                   subtitle={isEditingRatePolicy
-                    ? 'Los cambios aplican a créditos nuevos. Los créditos existentes conservan la tasa que ya quedó guardada.'
-                    : 'Configura los rangos que usa Nuevo crédito. La tasa se elige por monto y queda guardada en el crédito al registrarlo.'}
+                    ? tTerm('settings.rate.section.subtitleEdit')
+                    : tTerm('settings.rate.section.subtitleCreate')}
                   bodyClassName="space-y-4"
                 >
                   <div className="grid min-w-0 gap-3 md:grid-cols-2">
                     <FormField
-                      label="Nombre de la regla"
+                      label={tTerm('settings.rate.field.name')}
                     >
                       <TextInput
-                        aria-label="Nombre de política de tasa"
+                        aria-label={tTerm('settings.rate.field.name')}
                         required
                         value={newRatePolicy.label}
                         onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
-                        placeholder="Crédito estándar"
+                        placeholder={tTerm('settings.rate.field.namePlaceholderDefault')}
                       />
                     </FormField>
                     <FormField
-                      label="Desde este monto"
-                      tooltip="Los límites son inclusivos: si escribes 1.000.000, ese monto también entra en la regla."
+                      label={tTerm('settings.rate.field.min')}
+                      tooltip={tTerm('settings.rate.field.minTooltip')}
                     >
                       <TextInput
-                        aria-label="Monto mínimo de tasa"
+                        aria-label={tTerm('settings.rate.field.min')}
                         type="number"
                         min="0"
                         value={newRatePolicy.minAmount}
@@ -991,24 +1015,24 @@ export default function Settings() {
                       />
                     </FormField>
                     <FormField
-                      label="Hasta este monto"
-                      tooltip="Ejemplo recomendado: primera regla hasta 1.000.000; segunda regla desde 1.000.001 y sin tope."
+                      label={tTerm('settings.rate.field.max')}
+                      tooltip={tTerm('settings.rate.field.maxTooltip')}
                     >
                       <TextInput
-                        aria-label="Monto máximo de tasa"
+                        aria-label={tTerm('settings.rate.field.max')}
                         type="number"
                         min="0"
                         value={newRatePolicy.maxAmount}
                         onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
-                        placeholder="Sin tope"
+                        placeholder={tTerm('settings.range.noCap')}
                       />
                     </FormField>
                     <FormField
-                      label="Tasa anual del crédito"
-                      tooltip="No edites manualmente la tasa en un crédito creado. Cada crédito conserva la tasa resuelta al momento de registro."
+                      label={tTerm('settings.rate.field.annualRate')}
+                      tooltip={tTerm('settings.rate.field.annualRateTooltip')}
                     >
                       <TextInput
-                        aria-label="Tasa efectiva anual"
+                        aria-label={tTerm('settings.rate.field.annualRate')}
                         required
                         type="number"
                         min="0"
@@ -1020,11 +1044,11 @@ export default function Settings() {
                       />
                     </FormField>
                     <FormField
-                      label="Orden de aplicación"
-                      tooltip="Si varias reglas activas cubren el mismo monto, gana la de menor orden. El backend bloquea rangos ambiguos con el mismo orden."
+                      label={tTerm('settings.rate.field.priority')}
+                      tooltip={tTerm('settings.rate.field.priorityTooltip')}
                     >
                       <TextInput
-                        aria-label="Prioridad de tasa"
+                        aria-label={tTerm('settings.rate.field.priority')}
                         type="number"
                         min="0"
                         value={newRatePolicy.priority}
@@ -1034,7 +1058,7 @@ export default function Settings() {
                   </div>
                   <div className="settings-form-footer">
                     <p className="settings-inline-helper">
-                      Cada crédito nuevo congela esta regla al registrarse. Evita solapes y mantén un orden claro.
+                      {tTerm('settings.rate.note')}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       {isEditingRatePolicy && (
@@ -1043,7 +1067,7 @@ export default function Settings() {
                           onClick={resetRatePolicyDraft}
                           disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
                         >
-                          Cancelar
+                          {tTerm('common.cta.cancel')}
                         </ActionButton>
                       )}
                       <ActionButton
@@ -1052,7 +1076,7 @@ export default function Settings() {
                         variant="primary"
                         icon={<Save size={16} />}
                       >
-                        {isEditingRatePolicy ? 'Guardar cambios' : 'Guardar regla'}
+                        {isEditingRatePolicy ? tTerm('settings.rate.cta.saveChanges') : tTerm('settings.rate.cta.saveRule')}
                       </ActionButton>
                     </div>
                   </div>
@@ -1060,15 +1084,15 @@ export default function Settings() {
 
                 <DataTableSurface>
                   <div className="overflow-x-auto">
-                    <table className="min-w-[860px]" aria-label="Políticas de tasa">
+                    <table className="min-w-[860px]" aria-label={tTerm('settings.rate.table.aria')}>
                       <thead>
                         <tr>
-                          <th><HelpLabel label="Regla" text="Nombre operativo de la tasa. Debe indicar para qué tipo de crédito o rango se usa." /></th>
-                          <th><HelpLabel label="Aplica a montos" text="Rango de capital donde esta tasa puede aplicarse. Los límites son inclusivos." /></th>
-                          <th><HelpLabel label="Tasa anual" text="Tasa efectiva anual que se copia al crédito nuevo cuando el monto cae en este rango." /></th>
-                          <th><HelpLabel label="Uso" text="Orden de aplicación. Menor número gana si existe una excepción válida." /></th>
-                          <th>Estado</th>
-                          <th className="text-right">Acciones</th>
+                          <th><HelpLabel label={tTerm('settings.rate.table.rule')} text={tTerm('settings.rate.table.ruleTooltip')} /></th>
+                          <th><HelpLabel label={tTerm('settings.rate.table.range')} text={tTerm('settings.rate.table.rangeTooltip')} /></th>
+                          <th><HelpLabel label={tTerm('settings.rate.table.annualRate')} text={tTerm('settings.rate.table.annualRateTooltip')} /></th>
+                          <th><HelpLabel label={tTerm('settings.rate.table.use')} text={tTerm('settings.rate.table.useTooltip')} /></th>
+                          <th>{tTerm('settings.rate.table.state')}</th>
+                          <th className="text-right">{tTerm('settings.rate.table.actions')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1079,8 +1103,8 @@ export default function Settings() {
                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                   <p className="truncate font-semibold">{policy.label}</p>
                                   {conflictedRatePolicyIds.has(String(policy.id)) && (
-                                    <StatusChip tone="danger" size="sm" title="Esta regla se cruza con otra regla activa del mismo orden.">
-                                      Conflicto
+                                    <StatusChip tone="danger" size="sm" title={tTerm('settings.rate.table.conflictTitle')}>
+                                      {tTerm('settings.rate.table.conflict')}
                                     </StatusChip>
                                   )}
                                 </div>
@@ -1089,14 +1113,14 @@ export default function Settings() {
                                 )}
                                 {conflictedRatePolicyIds.has(String(policy.id)) && (
                                   <p className="mt-1 max-w-[24rem] text-xs text-rose-700 dark:text-rose-200">
-                                    Edita el rango, cambia el orden o desactiva una regla para que solo una tasa aplique por monto.
+                                    {tTerm('settings.rate.table.conflictHelp')}
                                   </p>
                                 )}
                               </div>
                             </td>
                             <td className="text-text-secondary">{formatRange(policy.minAmount, policy.maxAmount)}</td>
                             <td className="font-semibold">{formatRate(policy.annualEffectiveRate)}</td>
-                            <td className="text-text-secondary">Orden {Number(policy.priority || 100)}</td>
+                            <td className="text-text-secondary">{tTerm('settings.rate.table.order', { priority: Number(policy.priority || 100) })}</td>
                             <td><StatusBadge active={policy.isActive !== false} /></td>
                             <td>
                               <div className="flex justify-end gap-2">
@@ -1107,16 +1131,16 @@ export default function Settings() {
                                   variant="ghost"
                                   icon={<PencilLine size={14} />}
                                   className="min-h-8 px-3 py-1.5 text-xs"
-                                  title="Edita la regla para créditos nuevos. No recalcula créditos existentes."
+                                  title={tTerm('settings.rate.table.editTitle')}
                                 >
-                                  Editar
+                                  {tTerm('settings.rate.table.edit')}
                                 </ActionButton>
                                 <ActionButton
                                   type="button"
                                   onClick={async () => {
                                     try {
                                       await updateRatePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
-                                      toast.success({ description: policy.isActive === false ? 'Política activada' : 'Política desactivada' });
+                                      toast.success({ description: policy.isActive === false ? tTerm('settings.rate.toast.activated') : tTerm('settings.rate.toast.deactivated') });
                                     } catch (error) {
                                       console.error('[settings] updateRatePolicy failed', error);
                                       toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -1127,22 +1151,22 @@ export default function Settings() {
                                   icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                                   className="min-h-8 px-3 py-1.5 text-xs"
                                 >
-                                  {policy.isActive === false ? 'Activar' : 'Desactivar'}
+                                  {policy.isActive === false ? tTerm('settings.rate.table.activate') : tTerm('settings.rate.table.deactivate')}
                                 </ActionButton>
                                 <ActionButton
                                   type="button"
                                   onClick={() => handleDelete({
-                                    title: 'Eliminar política de tasa',
-                                    message: `Se eliminará "${policy.label}". Si la política ya fue usada en créditos, desactívala en lugar de eliminarla.`,
+                                    title: tTerm('settings.rate.delete.title'),
+                                    message: tTerm('settings.rate.delete.message', { name: policy.label }),
                                     action: () => deleteRatePolicy.mutateAsync(policy.id),
-                                    successMessage: 'Política eliminada',
+                                    successMessage: tTerm('settings.rate.toast.deleted'),
                                   })}
                                   disabled={deleteRatePolicy.isPending}
                                   variant="danger"
                                   icon={<Trash2 size={14} />}
                                   className="min-h-8 px-3 py-1.5 text-xs"
                                 >
-                                  Eliminar
+                                  {tTerm('settings.rate.table.delete')}
                                 </ActionButton>
                               </div>
                             </td>
@@ -1150,7 +1174,7 @@ export default function Settings() {
                         ))}
                         {ratePolicies.length === 0 && (
                           <tr>
-                            <td colSpan={6} className="table-empty-state">No hay políticas de tasa configuradas.</td>
+                            <td colSpan={6} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
                           </tr>
                         )}
                       </tbody>
@@ -1160,20 +1184,20 @@ export default function Settings() {
               </div>
 
               <SectionSurface
-                title="Cobertura y prueba"
-                subtitle="Comprueba si los rangos obligatorios están cubiertos y qué tasa tomará Nuevo crédito."
+                title={tTerm('settings.coverage.title')}
+                subtitle={tTerm('settings.coverage.subtitle')}
                 bodyClassName="space-y-4"
               >
                 {hasRatePolicyConflicts && (
                   <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
-                    <p className="font-semibold">Hay tasas activas que se cruzan con el mismo orden.</p>
+                    <p className="font-semibold">{tTerm('settings.coverage.conflictTitle')}</p>
                     <p className="mt-1">
-                      Nuevo crédito queda bloqueado para esos montos hasta editar el rango, cambiar el orden o desactivar una regla.
+                      {tTerm('settings.coverage.conflictDescription')}
                     </p>
                     <ul className="mt-2 list-disc space-y-1 pl-5">
                       {ratePolicyConflictPairs.slice(0, 3).map(([left, right]) => (
                         <li key={`${left?.id}-${right?.id}`}>
-                          {left?.label} y {right?.label} cubren montos en común con orden {Number(left?.priority || 100)}.
+                          {tTerm('settings.coverage.conflictPair', { left: left?.label, right: right?.label, priority: Number(left?.priority || 100) })}
                         </li>
                       ))}
                     </ul>
@@ -1186,8 +1210,8 @@ export default function Settings() {
                         <p className="truncate text-sm font-semibold text-text-primary">{check.label}</p>
                         <p className="truncate text-xs text-text-secondary">
                           {check.hasConflict
-                            ? `Conflicto entre ${check.conflicts.map((policy) => policy.label).join(' y ')}.`
-                            : check.policy ? `Cubierto por ${check.policy.label}` : 'Crea una regla activa para este tramo.'}
+                            ? tTerm('settings.coverage.check.conflict', { labels: check.conflicts.map((policy) => policy.label).join(' y ') })
+                            : check.policy ? tTerm('settings.coverage.check.covered', { label: check.policy.label }) : tTerm('settings.coverage.check.missing')}
                         </p>
                       </div>
                       <StatusChip tone={check.hasConflict ? 'danger' : check.policy ? 'success' : 'warning'} size="sm">
@@ -1197,13 +1221,13 @@ export default function Settings() {
                   ))}
                   {hasMissingStandardRateCoverage && (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                      Falta cubrir un tramo recomendado o hay un conflicto de rangos. Nuevo crédito no permite registrar hasta resolverlo.
+                      {tTerm('settings.coverage.missingNote')}
                     </p>
                   )}
                 </div>
-                <FormField label="Monto del crédito">
+                <FormField label={tTerm('settings.coverage.field.amount')}>
                   <TextInput
-                    aria-label="Monto para probar tasa"
+                    aria-label={tTerm('settings.coverage.field.amount')}
                     type="number"
                     min="0"
                     value={ratePreviewAmount}
@@ -1214,12 +1238,12 @@ export default function Settings() {
                 <div className="rounded-xl border border-border-subtle bg-bg-base p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Resultado</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">{tTerm('settings.coverage.resultEyebrow')}</p>
                       <p className="mt-1 truncate text-lg font-bold text-text-primary">
-                        {previewRatePolicy ? formatRate(previewRatePolicy.annualEffectiveRate) : 'Sin tasa aplicable'}
+                        {previewRatePolicy ? formatRate(previewRatePolicy.annualEffectiveRate) : tTerm('settings.coverage.result.noApplicableRate')}
                       </p>
                       <p className="mt-1 truncate text-sm font-medium text-text-secondary">
-                        {previewRatePolicy ? previewRatePolicy.label : 'Sin regla activa'}
+                        {previewRatePolicy ? previewRatePolicy.label : tTerm('settings.coverage.result.noActiveRule')}
                       </p>
                     </div>
                     <StatusChip
@@ -1227,20 +1251,20 @@ export default function Settings() {
                       size="sm"
                       icon={<Calculator size={14} />}
                       title={previewRateConflicts.length > 1
-                        ? 'Hay varias reglas activas con el mismo orden para este monto.'
-                        : previewRatePolicy ? 'Hay regla activa para este monto.' : 'No hay regla activa para este monto.'}
+                        ? tTerm('settings.coverage.statusTitle.conflict')
+                        : previewRatePolicy ? tTerm('settings.coverage.statusTitle.covered') : tTerm('settings.coverage.statusTitle.noRule')}
                     >
-                      {previewRateConflicts.length > 1 ? 'Conflicto' : previewRatePolicy ? 'Cubierto' : 'Sin regla'}
+                      {previewRateConflicts.length > 1 ? tTerm('settings.coverage.status.conflict') : previewRatePolicy ? tTerm('settings.coverage.status.covered') : tTerm('settings.coverage.status.noRule')}
                     </StatusChip>
                   </div>
                   <p className="mt-2 text-sm leading-5 text-text-secondary">
                     {previewRateConflicts.length > 1
-                      ? `No se puede elegir una tasa segura: ${previewRateConflicts.map((policy) => policy.label).join(' y ')} cubren este monto con el mismo orden. Edita o desactiva una antes de crear créditos.`
+                      ? tTerm('settings.coverage.preview.conflict', { labels: previewRateConflicts.map((policy) => policy.label).join(' y ') })
                       : previewRatePolicy
-                      ? `${previewRatePolicy.label} aplica a ${formatRange(previewRatePolicy.minAmount, previewRatePolicy.maxAmount)}. Esa tasa será la que vea el operador en Nuevo crédito.`
+                      ? tTerm('settings.coverage.preview.covered', { label: previewRatePolicy.label, range: formatRange(previewRatePolicy.minAmount, previewRatePolicy.maxAmount) })
                       : hasValidPreviewAmount
-                        ? 'Crea una regla activa que cubra este monto para poder originar el crédito.'
-                        : 'Ingresa un monto válido para probar la tasa.'}
+                        ? tTerm('settings.coverage.preview.createRule')
+                        : tTerm('settings.coverage.preview.invalidAmount')}
                   </p>
                 </div>
               </SectionSurface>
@@ -1253,30 +1277,30 @@ export default function Settings() {
             <SectionSurface
               as="form"
               onSubmit={handleCreateLateFeePolicy}
-              aria-label="Crear política de mora"
-              title="Alta de política de mora"
-              subtitle="La mora debe ser explícita y simple de entender para cartera. La prioridad solo se usa cuando hay varias políticas activas."
+              aria-label={tTerm('settings.lateFee.section.aria')}
+              title={tTerm('settings.lateFee.section.title')}
+              subtitle={tTerm('settings.lateFee.section.subtitle')}
               bodyClassName="space-y-4"
             >
               <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_110px]">
                 <FormField
-                  label="Nombre de la política"
-                  tooltip="Etiqueta visible para identificar la política que se aplicará a créditos nuevos."
+                  label={tTerm('settings.lateFee.field.name')}
+                  tooltip={tTerm('settings.lateFee.field.nameTooltip')}
                 >
                   <TextInput
-                    aria-label="Nombre de la política de mora"
+                    aria-label={tTerm('settings.lateFee.field.name')}
                     required
                     value={newLateFeePolicy.label}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
-                    placeholder="Ej: Mora simple estándar"
+                    placeholder={tTerm('settings.lateFee.field.namePlaceholder')}
                   />
                 </FormField>
                 <FormField
-                  label="Tasa de mora EA %"
-                  tooltip="Tasa efectiva anual que se usará como recargo por mora."
+                  label={tTerm('settings.lateFee.field.rate')}
+                  tooltip={tTerm('settings.lateFee.field.rateTooltip')}
                 >
                   <TextInput
-                    aria-label="Tasa de mora efectiva anual"
+                    aria-label={tTerm('settings.lateFee.field.rate')}
                     required
                     type="number"
                     min="0"
@@ -1284,29 +1308,29 @@ export default function Settings() {
                     step="0.01"
                     value={newLateFeePolicy.annualEffectiveRate}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
-                    placeholder="24"
+                    placeholder={tTerm('settings.lateFee.field.ratePlaceholder')}
                   />
                 </FormField>
                 <FormField
-                  label="Cálculo aplicado"
-                  tooltip="Método matemático de la mora. Esto no crea otra regla: es parte de la política seleccionada."
+                  label={tTerm('settings.lateFee.field.mode')}
+                  tooltip={tTerm('settings.lateFee.field.modeTooltip')}
                 >
                   <SelectInput
-                    aria-label="Cálculo aplicado de mora"
+                    aria-label={tTerm('settings.lateFee.field.mode')}
                     value={newLateFeePolicy.lateFeeMode}
                     onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
                   >
-                    <option value="SIMPLE">Mora simple</option>
-                    <option value="COMPOUND">Mora compuesta</option>
-                    <option value="NONE">Sin mora</option>
+                    <option value="SIMPLE">{tTerm('settings.lateFee.type.simple')}</option>
+                    <option value="COMPOUND">{tTerm('settings.lateFee.type.compound')}</option>
+                    <option value="NONE">{tTerm('settings.lateFee.type.none')}</option>
                   </SelectInput>
                 </FormField>
                 <FormField
-                  label="Prioridad"
-                  tooltip="Si hay varias políticas activas, gana la menor prioridad numérica."
+                  label={tTerm('settings.lateFee.field.priority')}
+                  tooltip={tTerm('settings.lateFee.field.priorityTooltip')}
                 >
                   <TextInput
-                    aria-label="Prioridad de política de mora"
+                    aria-label={tTerm('settings.lateFee.field.priority')}
                     type="number"
                     min="0"
                     value={newLateFeePolicy.priority}
@@ -1321,25 +1345,25 @@ export default function Settings() {
                   variant="primary"
                   icon={<Save size={16} />}
                 >
-                  Crear política
+                  {tTerm('settings.lateFee.cta.create')}
                 </ActionButton>
                 <p className="settings-inline-helper">
-                  Mantén una política estándar y usa prioridades distintas solo cuando exista una excepción real.
+                  {tTerm('settings.lateFee.note')}
                 </p>
               </div>
             </SectionSurface>
 
             <DataTableSurface>
               <div className="overflow-x-auto">
-                <table className="min-w-[760px]" aria-label="Políticas de mora">
+                <table className="min-w-[760px]" aria-label={tTerm('settings.lateFee.table.aria')}>
                   <thead>
                     <tr>
-                      <th>Política</th>
-                      <th>Tasa EA</th>
-                      <th>Cálculo</th>
-                      <th>Prioridad</th>
-                      <th>Estado</th>
-                      <th className="text-right">Acciones</th>
+                      <th>{tTerm('settings.lateFee.table.policy')}</th>
+                      <th>{tTerm('settings.lateFee.table.rate')}</th>
+                      <th>{tTerm('settings.lateFee.table.calculation')}</th>
+                      <th>{tTerm('settings.lateFee.table.priority')}</th>
+                      <th>{tTerm('settings.lateFee.table.state')}</th>
+                      <th className="text-right">{tTerm('settings.lateFee.table.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1347,7 +1371,7 @@ export default function Settings() {
                       <tr key={policy.id}>
                         <td className="font-semibold">{policy.label}</td>
                         <td className="font-semibold">{policy.annualEffectiveRate}%</td>
-                        <td className="text-text-secondary">{lateFeeModeLabels[String(policy.lateFeeMode || 'SIMPLE').toUpperCase()] || policy.lateFeeMode}</td>
+                        <td className="text-text-secondary">{getLateFeeModeLabel(policy.lateFeeMode)}</td>
                         <td className="text-text-secondary">{policy.priority}</td>
                         <td><StatusBadge active={policy.isActive !== false} /></td>
                         <td>
@@ -1357,7 +1381,7 @@ export default function Settings() {
                               onClick={async () => {
                                 try {
                                   await updateLateFeePolicy.mutateAsync({ id: policy.id, isActive: policy.isActive === false });
-                                  toast.success({ description: policy.isActive === false ? 'Política activada' : 'Política desactivada' });
+                                  toast.success({ description: policy.isActive === false ? tTerm('settings.lateFee.toast.activated') : tTerm('settings.lateFee.toast.deactivated') });
                                 } catch (error) {
                                   console.error('[settings] updateLateFeePolicy failed', error);
                                   toast.apiErrorSafe(error, { domain: 'config', action: 'config.update' });
@@ -1368,22 +1392,22 @@ export default function Settings() {
                               icon={policy.isActive === false ? <CheckCircle2 size={14} /> : <CircleOff size={14} />}
                               className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              {policy.isActive === false ? 'Activar' : 'Desactivar'}
+                              {policy.isActive === false ? tTerm('settings.lateFee.table.activate') : tTerm('settings.lateFee.table.deactivate')}
                             </ActionButton>
                             <ActionButton
                               type="button"
                               onClick={() => handleDelete({
-                                title: 'Eliminar política de mora',
-                                message: `Se eliminará "${policy.label}". Si ya fue usada en créditos, desactívala en lugar de eliminarla.`,
+                                title: tTerm('settings.lateFee.delete.title'),
+                                message: tTerm('settings.lateFee.delete.message', { name: policy.label }),
                                 action: () => deleteLateFeePolicy.mutateAsync(policy.id),
-                                successMessage: 'Política eliminada',
+                                successMessage: tTerm('settings.lateFee.toast.deleted'),
                               })}
                               disabled={deleteLateFeePolicy.isPending}
                               variant="danger"
                               icon={<Trash2 size={14} />}
                               className="min-h-8 px-3 py-1.5 text-xs"
                             >
-                              Eliminar
+                              {tTerm('settings.lateFee.table.delete')}
                             </ActionButton>
                           </div>
                         </td>
@@ -1391,7 +1415,7 @@ export default function Settings() {
                     ))}
                     {lateFeePolicies.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="table-empty-state">No hay políticas de mora configuradas.</td>
+                        <td colSpan={6} className="table-empty-state">{tTerm('settings.lateFee.table.empty')}</td>
                       </tr>
                     )}
                   </tbody>

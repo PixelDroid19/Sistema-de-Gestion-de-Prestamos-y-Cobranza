@@ -19,6 +19,12 @@ import { tTerm } from '../i18n/terminology';
 import { useSafeMutationAction } from './hooks/useSafeMutationAction';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../constants/loanStates';
 import { getPaymentTypeLabel } from '../constants/paymentTypes';
+import { useTranslation } from '../i18n';
+import {
+  formatCurrency as formatCurrencyValue,
+  formatDate as formatDateValue,
+  formatDateTime as formatDateTimeValue,
+} from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { formatLoanAlertTypeLabel } from '../lib/loanAlertLabels';
@@ -94,6 +100,7 @@ export default function CreditDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { locale } = useTranslation();
   const loanId = Number(id);
   const [activeTab, setActiveTab] = useState<CreditDetailsTab>('calendar');
   const { user } = useSessionStore();
@@ -165,29 +172,17 @@ export default function CreditDetails() {
 
   const formatDate = (value: unknown, withTime = false) => {
     if (!value) return 'Sin fecha';
-    const date = new Date(String(value));
-    if (Number.isNaN(date.getTime())) return 'Sin fecha';
-    return withTime
-      ? date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
-      : date.toLocaleDateString('es-ES', { dateStyle: 'medium', timeZone: 'UTC' });
+    return (withTime
+      ? formatDateTimeValue(value, { dateStyle: 'medium', timeStyle: 'short' })
+      : formatDateValue(value, { dateStyle: 'medium', timeZone: 'UTC' })) || 'Sin fecha';
   };
 
   const formatCurrency = (value: unknown) => {
-    const numericValue = Number(value ?? 0);
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 2,
-    }).format(Number.isFinite(numericValue) ? numericValue : 0);
+    return formatCurrencyValue(value, { maximumFractionDigits: 2 });
   };
 
   const formatMetricCurrency = (value: unknown) => {
-    const numericValue = Number(value ?? 0);
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(Number.isFinite(numericValue) ? numericValue : 0);
+    return formatCurrencyValue(value, { maximumFractionDigits: 0 });
   };
 
   const cleanAlertDisplayText = (value: unknown) => {
@@ -362,13 +357,15 @@ export default function CreditDetails() {
         type: 'payoff',
       })),
     ].filter((entry) => entry.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [history]);
+  }, [history, locale]);
 
   let customerLabel = loan?.Customer?.name || loan?.customerName || '';
   if (customerLabel) {
     customerLabel = customerLabel.replace(/(qa|seed|test|dev|customer|socio|partner|admin|live|user|demo|example|sample)\s*/ig, '').trim();
   }
-  customerLabel = customerLabel || (loan?.customerId ? `Cliente #${loan.customerId}` : 'Sin cliente');
+  customerLabel = customerLabel || (loan?.customerId
+    ? tTerm('credits.label.customerFallback', { id: loan.customerId })
+    : tTerm('credits.label.customerMissing'));
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
   const reportHistorySource = history?.data?.history ?? history;
   const reportAlertEntries = Array.isArray(reportHistorySource?.alerts) ? reportHistorySource.alerts : [];
@@ -446,7 +443,7 @@ export default function CreditDetails() {
     return [...paymentHistoryEntries, ...alertEvents, ...promiseEvents]
       .filter((entry) => entry.date)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [alertEntries, paymentHistoryEntries, promiseEntries]);
+  }, [alertEntries, paymentHistoryEntries, promiseEntries, locale]);
   const visibleTabs = useMemo(() => {
     const tabs: Array<typeof activeTab> = ['calendar'];
 
@@ -493,19 +490,19 @@ export default function CreditDetails() {
   const { run: runPayoff } = useSafeMutationAction<{ asOfDate: string; quotedTotal: number }>({
     action: async (payload) => executePayoff.mutateAsync(payload),
     errorContext: { domain: 'credits', action: 'generic' },
-    successMessage: 'Crédito liquidado exitosamente',
+    successMessage: tTerm('creditDetails.toast.payoff.success'),
   });
 
   const { run: runDownloadVoucher } = useSafeMutationAction<number>({
     action: async (paymentId) => downloadVoucher(paymentId),
     errorContext: { domain: 'payments', action: 'generic' },
-    successMessage: 'Comprobante descargado',
+    successMessage: tTerm('payouts.toast.voucher.success'),
   });
 
   const { run: runExportCreditExcel, isSubmitting: isExportingCreditExcel } = useSafeMutationAction<number>({
     action: async (targetLoanId) => exportCreditExcel(targetLoanId),
     errorContext: { domain: 'reports', action: 'reports.export' },
-    successMessage: 'Excel del crédito descargado',
+    successMessage: tTerm('creditDetails.toast.exportExcel'),
   });
 
   const payableStatuses = new Set(['pending', 'overdue', 'partial']);
@@ -656,11 +653,11 @@ export default function CreditDetails() {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
         <EmptyState
-          title="ID de crédito inválido"
+          title={tTerm('creditDetails.empty.invalidId')}
           icon={<AlertCircle size={18} />}
           action={(
             <ActionButton onClick={() => navigate('/credits')}>
-              Volver a créditos
+              {tTerm('newCredit.header.back')}
             </ActionButton>
           )}
         />
@@ -671,7 +668,7 @@ export default function CreditDetails() {
   if (isLoadingLoans || isLoadingLoanRecord || isLoadingDetails) {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
-        <EmptyState title="Cargando detalles del crédito…" icon={<Activity size={18} />} compact />
+        <EmptyState title={tTerm('creditDetails.state.loading')} icon={<Activity size={18} />} compact />
       </div>
     );
   }
@@ -680,11 +677,11 @@ export default function CreditDetails() {
     return (
       <div className="mx-auto w-full max-w-[88rem] px-4 py-8 lg:px-6">
         <EmptyState
-          title="Crédito no encontrado"
+          title={tTerm('creditDetails.empty.notFound')}
           icon={<FileText size={18} />}
           action={(
             <ActionButton onClick={() => navigate('/credits')}>
-              Volver a créditos
+              {tTerm('newCredit.header.back')}
             </ActionButton>
           )}
         />
@@ -720,7 +717,7 @@ export default function CreditDetails() {
         await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
         setShowStatusModal(false);
       },
-      successMessage: 'Estado actualizado correctamente',
+      successMessage: tTerm('creditDetails.toast.statusUpdated'),
     });
   };
 
@@ -731,14 +728,14 @@ export default function CreditDetails() {
   const handleRecordPayment = async () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      toast.error({ title: 'Ingrese un monto válido' });
+      toast.error({ title: tTerm('payouts.validation.amount') });
       return;
     }
     const installment = operationalModal.payload?.installment;
     const installmentNumber = installment?.installmentNumber ?? selectedInstallmentNumber;
 
     if (!installmentNumber) {
-      toast.error({ title: 'No se pudo resolver la cuota seleccionada. Reintente desde la fila correspondiente.' });
+      toast.error({ title: tTerm('creditDetails.error.installmentSelection') });
       return;
     }
 
@@ -765,13 +762,13 @@ export default function CreditDetails() {
         setSelectedInstallmentNumber(null);
         await invalidateAfterPayment(queryClient, { loanId });
       },
-      successMessage: 'Pago registrado exitosamente',
+      successMessage: tTerm('creditDetails.toast.paymentSuccess'),
     });
   };
 
   const handleAnnulInstallment = async () => {
     if (!annulInstallmentNumber) {
-      toast.error({ title: 'Seleccione una cuota para anular' });
+      toast.error({ title: tTerm('creditDetails.error.annulSelection') });
       return;
     }
     await executeGuardedAction({
@@ -791,7 +788,7 @@ export default function CreditDetails() {
         setAnnulInstallmentNumber(null);
         setAnnulReason('');
       },
-      successMessage: 'Cuota anulada exitosamente',
+      successMessage: tTerm('creditDetails.toast.annulSuccess'),
     });
   };
 
@@ -806,7 +803,7 @@ export default function CreditDetails() {
         installmentStatus: operationalModal.payload?.installment?.status,
         paymentReconciled: editingPaymentReconciled,
       },
-      confirmationMessage: '¿Confirmar actualización del método de pago?',
+      confirmationMessage: tTerm('creditDetails.confirm.editPaymentMethod'),
       run: async () => {
         await updatePaymentMethod.mutateAsync({ paymentId: editingPaymentId, paymentMethod: newPaymentMethod });
       },
@@ -817,7 +814,7 @@ export default function CreditDetails() {
         setEditingPaymentId(null);
         setEditingPaymentReconciled(false);
       },
-      successMessage: 'Método de pago actualizado',
+      successMessage: tTerm('payouts.toast.edit.success'),
     });
   };
 
@@ -827,12 +824,12 @@ export default function CreditDetails() {
     const installmentNumber = installment?.installmentNumber;
 
     if (!installmentNumber) {
-      toast.error({ title: 'No se pudo resolver la cuota para la promesa.' });
+      toast.error({ title: tTerm('creditDetails.error.promiseInstallment') });
       return;
     }
 
     if (!amount || amount <= 0) {
-      toast.error({ title: 'Ingrese un monto válido para la promesa.' });
+      toast.error({ title: tTerm('payouts.validation.amount') });
       return;
     }
 
@@ -858,7 +855,7 @@ export default function CreditDetails() {
         setPromiseNotes('');
         await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
       },
-      successMessage: 'Promesa registrada correctamente',
+      successMessage: tTerm('creditDetails.toast.promiseSuccess'),
     });
   };
 
@@ -867,12 +864,12 @@ export default function CreditDetails() {
     const installmentNumber = installment?.installmentNumber;
 
     if (!installmentNumber) {
-      toast.error({ title: 'No se pudo resolver la cuota para seguimiento.' });
+      toast.error({ title: tTerm('creditDetails.error.followUpInstallment') });
       return;
     }
 
     if (!followUpNotes.trim()) {
-      toast.error({ title: 'Ingrese una nota de seguimiento.' });
+      toast.error({ title: tTerm('creditDetails.error.followUpNote') });
       return;
     }
 
@@ -895,22 +892,21 @@ export default function CreditDetails() {
         setFollowUpNotes('');
         await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
       },
-      successMessage: 'Seguimiento registrado correctamente',
+      successMessage: tTerm('creditDetails.toast.followUpSuccess'),
     });
   };
 
   const handleUpdateAlertStatus = async (alert: any, status: 'active' | 'resolved') => {
     const alertId = Number(alert?.id);
     if (!Number.isFinite(alertId)) {
-      toast.error({ title: 'No se pudo identificar la alerta.' });
+      toast.error({ title: tTerm('creditDetails.error.alertId') });
       return;
     }
 
-    const label = status === 'resolved' ? 'resolver' : 'reactivar';
     const confirmed = await confirmDanger({
-      title: status === 'resolved' ? 'Resolver alerta' : 'Reactivar alerta',
-      message: `¿Confirmar ${label} esta alerta del crédito?`,
-      confirmLabel: status === 'resolved' ? 'Resolver' : 'Reactivar',
+      title: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.title') : tTerm('creditDetails.confirm.alert.reactivate.title'),
+      message: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.message') : tTerm('creditDetails.confirm.alert.reactivate.message'),
+      confirmLabel: status === 'resolved' ? tTerm('creditDetails.confirm.alert.resolve.confirm') : tTerm('creditDetails.confirm.alert.reactivate.confirm'),
     });
 
     if (!confirmed) return;
@@ -921,20 +917,20 @@ export default function CreditDetails() {
       notes: status === 'resolved' ? 'Resuelta manualmente desde detalle de crédito.' : 'Reactivada manualmente desde detalle de crédito.',
     });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-    toast.success({ title: status === 'resolved' ? 'Alerta resuelta' : 'Alerta reactivada' });
+    toast.success({ title: status === 'resolved' ? tTerm('creditDetails.toast.alertResolved') : tTerm('creditDetails.toast.alertReactivated') });
   };
 
   const handleUpdatePromiseStatus = async (promise: any, status: 'pending' | 'kept' | 'broken' | 'cancelled') => {
     const promiseId = Number(promise?.id);
     if (!Number.isFinite(promiseId)) {
-      toast.error({ title: 'No se pudo identificar el compromiso.' });
+      toast.error({ title: tTerm('creditDetails.error.promiseId') });
       return;
     }
 
     const confirmed = await confirmDanger({
-      title: 'Actualizar compromiso',
-      message: `¿Cambiar el compromiso a "${formatPromiseStatus(status)}"?`,
-      confirmLabel: 'Actualizar',
+      title: tTerm('creditDetails.confirm.promise.title'),
+      message: tTerm('creditDetails.confirm.promise.message', { status: formatPromiseStatus(status) }),
+      confirmLabel: tTerm('creditDetails.confirm.promise.confirm'),
     });
 
     if (!confirmed) return;
@@ -945,29 +941,29 @@ export default function CreditDetails() {
       notes: `Actualizado a ${formatPromiseStatus(status)} desde detalle de crédito.`,
     });
     await invalidateAfterPromiseOrFollowUp(queryClient, { loanId });
-    toast.success({ title: 'Compromiso actualizado' });
+    toast.success({ title: tTerm('creditDetails.toast.promiseUpdated') });
   };
 
   const handleDownloadPromise = async (promise: any) => {
     const promiseId = Number(promise?.id);
     if (!Number.isFinite(promiseId)) {
-      toast.error({ title: 'No se pudo identificar el compromiso.' });
+      toast.error({ title: tTerm('creditDetails.error.promiseId') });
       return;
     }
 
     await downloadPromiseDocument.mutateAsync(promiseId);
-    toast.success({ title: 'Documento de compromiso descargado' });
+    toast.success({ title: tTerm('creditDetails.toast.promiseDocument') });
   };
 
   const handleRecordCapital = async () => {
     const amount = parseFloat(capitalAmount);
     if (!amount || amount <= 0) {
-      toast.error({ title: 'Ingrese un monto válido' });
+      toast.error({ title: tTerm('payouts.validation.amount') });
       return;
     }
     if (!capitalPaymentGuard.executable) {
       toast.error({
-        title: 'Abono a capital no disponible',
+        title: tTerm('creditDetails.toast.capitalUnavailable'),
         description: capitalPaymentGuard.reason || capitalUnavailableDescription,
       });
       return;
@@ -989,14 +985,14 @@ export default function CreditDetails() {
         setCapitalAmount('');
         setCapitalPaymentDate(new Date().toISOString().slice(0, 10));
       },
-      successMessage: 'Abono a capital registrado',
+      successMessage: tTerm('creditDetails.toast.capitalSuccess'),
     });
   };
 
   const handleUpdateLateFeeRate = async () => {
     const rate = parseFloat(lateFeeRate);
     if (isNaN(rate) || rate < 0 || rate > 100) {
-      toast.error({ title: 'La tasa debe estar entre 0 y 100' });
+      toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') });
       return;
     }
     await executeGuardedAction({
@@ -1010,7 +1006,7 @@ export default function CreditDetails() {
         setShowLateFeeModal(false);
         setLateFeeRate('');
       },
-      successMessage: 'Tasa de mora actualizada',
+      successMessage: tTerm('creditDetails.toast.lateFeeSuccess'),
     });
   };
 
@@ -1022,7 +1018,7 @@ export default function CreditDetails() {
   const openEditPaymentMethodModal = (entry: any) => {
     const paymentId = Number(entry?.paymentId);
     if (!Number.isFinite(paymentId)) {
-      toast.error({ title: 'No se pudo identificar el pago.' });
+      toast.error({ title: tTerm('creditDetails.error.paymentId') });
       return;
     }
 
@@ -1039,7 +1035,7 @@ export default function CreditDetails() {
     const installmentNumber = Number(row?.installmentNumber);
 
     if (!Number.isFinite(installmentNumber) || installmentNumber <= 0) {
-      toast.error({ title: 'No se pudo identificar la cuota.' });
+      toast.error({ title: tTerm('creditDetails.error.installmentId') });
       return;
     }
 
@@ -1062,7 +1058,7 @@ export default function CreditDetails() {
     );
 
     if (!nextInstallment) {
-      toast.error({ title: 'No hay cuotas pendientes para registrar pago.' });
+      toast.error({ title: tTerm('creditDetails.error.noPendingInstallments') });
       return;
     }
 
@@ -1246,7 +1242,7 @@ export default function CreditDetails() {
         subtitle={creditDetailSubtitle}
         customerLabel={customerLabel}
         calculationProfileSummary={calculationProfileSummary}
-        registerPaymentLabel={isBackofficeUser ? tTerm('creditDetails.cta.recordPayment') : 'Pagar cuota'}
+        registerPaymentLabel={isBackofficeUser ? tTerm('creditDetails.cta.recordPayment') : tTerm('creditDetails.cta.payInstallment')}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
         canAccessBackofficeActions={isBackofficeUser}
         canExportCreditExcel={isAdmin}
@@ -1301,7 +1297,7 @@ export default function CreditDetails() {
                   <div className="border-b border-border-subtle pb-4">
                     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                       <div>
-                        <p className="text-base font-semibold text-text-primary">Calendario operativo del crédito</p>
+                        <p className="text-base font-semibold text-text-primary">{tTerm('creditDetails.calendar.title')}</p>
                         <p className="mt-1 text-sm leading-6 text-text-secondary">
                           Opera primero la próxima cuota pendiente. El sistema bloquea pagos y anulaciones fuera de secuencia para no romper la cartera.
                         </p>
@@ -1327,7 +1323,7 @@ export default function CreditDetails() {
                         <div key={getInstallmentRowKey(row)} className="rounded-2xl border border-border-subtle bg-bg-surface p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">Cuota #{row.installmentNumber}</p>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary">{tTerm('creditDetails.calendar.installment', { number: row.installmentNumber })}</p>
                               <p className="mt-2 text-xl font-bold text-text-primary">{formatCurrency(row.scheduledPayment)}</p>
                             </div>
                             <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${installmentStatusInfo.className}`}>
@@ -1337,11 +1333,11 @@ export default function CreditDetails() {
 
                           <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                             <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Interés</dt>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.interest')}</dt>
                               <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.interestComponent)}</dd>
                             </div>
                             <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Mora</dt>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.lateFee')}</dt>
                               <dd className="mt-1 text-sm font-medium text-rose-600 dark:text-rose-300">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</dd>
                             </div>
                             <div>
@@ -1349,7 +1345,7 @@ export default function CreditDetails() {
                               <dd className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</dd>
                             </div>
                             <div>
-                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Capital vivo</dt>
+                              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.remainingPrincipal')}</dt>
                               <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.closingBalance)}</dd>
                             </div>
                           </dl>
@@ -1393,11 +1389,11 @@ export default function CreditDetails() {
                       <thead>
                         <tr>
                           <th className="text-center">N°</th>
-                          <th className="text-right">Cuota</th>
-                          <th className="text-right">Interés</th>
-                          <th className="text-right">Mora</th>
+                          <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
+                          <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
+                          <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
                           <th className="text-right">Amortización</th>
-                          <th className="text-right">Capital vivo</th>
+                          <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
                           <th className="text-center">Estado</th>
                           {showInstallmentActionColumn && <th className="text-right">Acciones</th>}
                         </tr>
@@ -1482,8 +1478,8 @@ export default function CreditDetails() {
               ) : (
                 <TabEmptyState
                   icon={Calendar}
-                  title="No hay cuotas programadas"
-                  description="Este crédito todavía no tiene un plan operativo visible. Revisa la originación o genera el plan de pagos completo."
+                  title={tTerm('creditDetails.calendar.empty.title')}
+                  description={tTerm('creditDetails.calendar.empty.description')}
                 />
               )}
             </div>
@@ -1514,11 +1510,11 @@ export default function CreditDetails() {
                             <p className="mt-1 text-sm leading-6 text-text-secondary">{alertPresentation.summary}</p>
                             <dl className="mt-3 grid gap-3 text-xs text-text-secondary sm:grid-cols-3">
                               <div>
-                                <dt className="font-semibold uppercase tracking-[0.12em]">Cuota</dt>
+                                <dt className="font-semibold uppercase tracking-[0.12em]">{tTerm('creditDetails.alerts.label.installment')}</dt>
                                 <dd className="mt-1 text-text-primary">{alertPresentation.installmentLabel}</dd>
                               </div>
                               <div>
-                                <dt className="font-semibold uppercase tracking-[0.12em]">Saldo</dt>
+                                <dt className="font-semibold uppercase tracking-[0.12em]">{tTerm('creditDetails.alerts.label.balance')}</dt>
                                 <dd className="mt-1 text-text-primary">{alertPresentation.balanceLabel}</dd>
                               </div>
                               <div>
@@ -1550,8 +1546,8 @@ export default function CreditDetails() {
               ) : (
                 <TabEmptyState
                   icon={CheckCircle}
-                  title="Sin alertas activas"
-                  description="No hay vencimientos ni seguimientos abiertos que requieran acción sobre este crédito."
+                  title={tTerm('creditDetails.alerts.empty.title')}
+                  description={tTerm('creditDetails.alerts.empty.description')}
                 />
               )}
             </div>
@@ -1571,7 +1567,7 @@ export default function CreditDetails() {
                       <div key={stableCreditKey('promise', promise.id, promiseDate(promise), promise.createdAt, promise.amount)} className="p-5 border border-border-subtle rounded-xl bg-bg-surface shadow-sm">
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <p className="text-sm text-text-secondary mb-1">Monto Prometido</p>
+                            <p className="text-sm text-text-secondary mb-1">{tTerm('creditDetails.promises.amountLabel')}</p>
                             <p className="text-xl font-medium text-text-primary">{formatCurrency(promise.amount)}</p>
                           </div>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -1598,7 +1594,7 @@ export default function CreditDetails() {
                         {promise.statusHistory && promise.statusHistory.length > 0 && (
                           <details className="group">
                             <summary className="text-sm text-brand-primary cursor-pointer hover:underline list-none flex items-center gap-1">
-                              <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> Historial
+                              <ChevronRight size={14} className="group-open:rotate-90 transition-transform" /> {tTerm('creditDetails.tab.history')}
                             </summary>
                             <div className="mt-3 pl-4 border-l-2 border-border-subtle space-y-3">
                               {promise.statusHistory.slice().reverse().map((entry: any) => (
@@ -1671,8 +1667,8 @@ export default function CreditDetails() {
               ) : (
                 <TabEmptyState
                   icon={Clock}
-                  title="Sin compromisos de pago"
-                  description="Todavía no hay promesas asociadas. Crea una desde la cuota pendiente cuando acuerdes una fecha con el cliente."
+                  title={tTerm('creditDetails.promises.empty.title')}
+                  description={tTerm('creditDetails.promises.empty.description')}
                 />
               )}
             </div>
@@ -1686,15 +1682,15 @@ export default function CreditDetails() {
                   <table className="w-full text-sm">
                     <thead className="bg-bg-base border-b border-border-subtle">
                       <tr>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">ID Pago</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentId')}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Tipo</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary"># Cuota</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.installment')}</th>
                         <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Monto</th>
                         <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Capital</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Interés</th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">Mora</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.interest')}</th>
+                        <th className="text-right py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.label.lateFee')}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Método</th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Fecha Pago</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">{tTerm('creditDetails.payouts.table.paymentDate')}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary">Estado</th>
                       </tr>
                     </thead>
@@ -1738,8 +1734,8 @@ export default function CreditDetails() {
               ) : (
                 <TabEmptyState
                   icon={DollarSign}
-                  title="Sin pagos registrados"
-                  description="Cuando registres un recaudo, aquí verás capital, interés, mora y el método usado para cada movimiento."
+                  title={tTerm('creditDetails.payouts.empty.title')}
+                  description={tTerm('creditDetails.payouts.empty.description')}
                 />
               )}
             </div>
@@ -1749,7 +1745,7 @@ export default function CreditDetails() {
           {activeTab === 'history' && (
             <div className="animate-in fade-in duration-300 max-w-5xl" data-tour="credit-detail-history">
               {isLoadingHistory ? (
-                <p className="text-text-secondary">Cargando historial…</p>
+                <p className="text-text-secondary">{tTerm('creditDetails.history.loading')}</p>
               ) : operationalHistoryEntries.length > 0 ? (
                 <div className="space-y-3">
                   {operationalHistoryEntries.map((event: any) => {
@@ -1810,7 +1806,7 @@ export default function CreditDetails() {
                                         disabled={!editGuard.executable}
                                         className="!min-h-0 !px-3 !py-1.5"
                                         icon={<Edit2 size={16} />}
-                                        title={editGuard.executable ? 'Editar método de pago' : (editGuard.reason || 'Acción no disponible')}
+                                        title={editGuard.executable ? tTerm('payouts.action.editPaymentMethod') : (editGuard.reason || tTerm('credits.action.unavailable'))}
                                       >
                                         Método
                                       </ActionButton>
@@ -1828,8 +1824,8 @@ export default function CreditDetails() {
               ) : (
                 <TabEmptyState
                   icon={Activity}
-                  title="Sin historial operativo"
-                  description="Aquí aparecerán pagos, alertas, compromisos y actualizaciones relevantes del crédito en orden cronológico."
+                  title={tTerm('creditDetails.history.empty.title')}
+                  description={tTerm('creditDetails.history.empty.description')}
                 />
               )}
             </div>
@@ -1843,25 +1839,25 @@ export default function CreditDetails() {
       {/* Modal: Change Status */}
       {showStatusModal && (
         <ModalShell
-          title="Cambiar estado"
+          title={tTerm('creditDetails.modal.status.title')}
           footer={(
             <>
               <ActionButton onClick={() => setShowStatusModal(false)} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton onClick={handleUpdateStatus} disabled={!newStatus} variant="primary" fullWidth>
-                Guardar
+                {tTerm('creditDetails.modal.status.save')}
               </ActionButton>
             </>
           )}
         >
-          <FormField label="Nuevo estado">
+          <FormField label={tTerm('creditDetails.modal.status.field')}>
             <SelectInput
               id="credit-status-select"
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
             >
-              <option value="">Seleccione un estado…</option>
+              <option value="">{tTerm('creditDetails.modal.status.placeholder')}</option>
               {BACKEND_SUPPORTED_LOAN_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {LOAN_STATUS_LABELS[status]}
@@ -1875,11 +1871,11 @@ export default function CreditDetails() {
       {/* Modal: Record Payment */}
       {isRecordPaymentModalOpen && (
         <ModalShell
-          title="Registrar pago"
+          title={tTerm('creditDetails.modal.payment.title')}
           footer={(
             <>
               <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton
                 onClick={handleRecordPayment}
@@ -1887,7 +1883,7 @@ export default function CreditDetails() {
                 variant="primary"
                 fullWidth
               >
-                Registrar pago
+                {tTerm('creditDetails.modal.payment.submit')}
               </ActionButton>
             </>
           )}
@@ -1906,7 +1902,7 @@ export default function CreditDetails() {
                         <span className="font-semibold text-text-primary">{formatCurrency(installmentQuote.outstandingAmount)}</span>
                       </div>
                       <div>
-                        <span className="block text-blue-700 dark:text-blue-300">Mora</span>
+                        <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.label.lateFee')}</span>
                         <span className="font-semibold text-red-700 dark:text-red-300">{formatCurrency(installmentQuote.lateFeeDue)}</span>
                       </div>
                       <div>
@@ -1933,11 +1929,11 @@ export default function CreditDetails() {
                   ) : installmentQuoteQuery.isError ? (
                     <p className="text-xs text-red-700 dark:text-red-300">No se pudo calcular la cotización. Revisa la cuota y la fecha.</p>
                   ) : (
-                    <p className="text-xs text-blue-700 dark:text-blue-300">Pago aplicado a esta cuota usando la regla real de cartera.</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.ruleApplied')}</p>
                   )}
                 </div>
               )}
-              <FormField label="Monto a pagar">
+              <FormField label={tTerm('creditDetails.modal.payment.amount')}>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
                   <TextInput
@@ -1951,7 +1947,7 @@ export default function CreditDetails() {
                 </div>
               </FormField>
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Fecha">
+                <FormField label={tTerm('creditDetails.modal.payment.date')}>
                   <TextInput
                     id="credit-payment-date"
                     type="date"
@@ -1959,7 +1955,7 @@ export default function CreditDetails() {
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                 </FormField>
-                <FormField label="Método">
+                <FormField label={tTerm('creditDetails.modal.payment.method')}>
                   <SelectInput
                     id="credit-payment-method"
                     value={paymentMethod}
@@ -1978,20 +1974,20 @@ export default function CreditDetails() {
       {/* Modal: Promise from installment */}
       {isPromiseModalOpen && (
         <ModalShell
-          title="Crear compromiso de pago"
+          title={tTerm('creditDetails.modal.promise.title')}
           footer={(
             <>
               <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton onClick={handleCreatePromise} variant="primary" fullWidth>
-                Guardar compromiso
+                {tTerm('creditDetails.modal.promise.save')}
               </ActionButton>
             </>
           )}
         >
             <div className="space-y-4">
-              <FormField label="Monto prometido">
+              <FormField label={tTerm('creditDetails.modal.promise.amount')}>
                 <TextInput
                   id="credit-promise-amount"
                   type="number"
@@ -1999,7 +1995,7 @@ export default function CreditDetails() {
                   onChange={(e) => setPromiseAmount(e.target.value)}
                 />
               </FormField>
-              <FormField label="Fecha comprometida">
+              <FormField label={tTerm('creditDetails.modal.promise.date')}>
                 <TextInput
                   id="credit-promise-date"
                   type="date"
@@ -2007,7 +2003,7 @@ export default function CreditDetails() {
                   onChange={(e) => setPromiseDateInput(e.target.value)}
                 />
               </FormField>
-              <FormField label="Notas">
+              <FormField label={tTerm('creditDetails.modal.promise.notes')}>
                 <TextAreaInput
                   id="credit-promise-notes"
                   value={promiseNotes}
@@ -2022,20 +2018,20 @@ export default function CreditDetails() {
       {/* Modal: Follow-up from installment */}
       {isFollowUpModalOpen && (
         <ModalShell
-          title="Registrar seguimiento"
+          title={tTerm('creditDetails.modal.followUp.title')}
           footer={(
             <>
               <ActionButton onClick={operationalModal.closeModal} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton onClick={handleCreateFollowUp} variant="primary" fullWidth>
-                Guardar seguimiento
+                {tTerm('creditDetails.modal.followUp.save')}
               </ActionButton>
             </>
           )}
         >
             <div className="space-y-4">
-              <FormField label="Detalle">
+              <FormField label={tTerm('creditDetails.modal.followUp.detail')}>
                 <TextAreaInput
                   id="credit-follow-up-notes"
                   value={followUpNotes}
@@ -2050,8 +2046,8 @@ export default function CreditDetails() {
       {/* Modal: Annul Installment */}
       {showAnnulModal && (
         <ModalShell
-          title={<span className="text-red-600 dark:text-red-400">Anular cuota #{annulInstallmentNumber}</span>}
-          subtitle="Esta acción marcará la cuota como anulada y recalculará el calendario. No se puede deshacer."
+          title={<span className="text-red-600 dark:text-red-400">{tTerm('creditDetails.modal.annul.title', { number: annulInstallmentNumber })}</span>}
+          subtitle={tTerm('creditDetails.modal.annul.subtitle')}
           footer={(
             <>
               <ActionButton
@@ -2061,15 +2057,15 @@ export default function CreditDetails() {
                 }}
                 fullWidth
               >
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton onClick={handleAnnulInstallment} variant="danger" fullWidth>
-                Confirmar anulación
+                {tTerm('creditDetails.modal.annul.confirm')}
               </ActionButton>
             </>
           )}
         >
-          <FormField label="Razón de anulación (opcional)">
+          <FormField label={tTerm('creditDetails.modal.annul.reason')}>
             <TextAreaInput
               id="credit-annul-reason"
               value={annulReason}
@@ -2083,13 +2079,13 @@ export default function CreditDetails() {
       {/* Modal: Capital Contribution */}
       {showCapitalModal && (
         <ModalShell
-          title="Abono a capital"
-          subtitle="Reduce capital vivo. No paga cuotas futuras; recalcula el cronograma pendiente."
+          title={tTerm('creditDetails.modal.capital.title')}
+          subtitle={tTerm('creditDetails.modal.capital.subtitle')}
           maxWidthClassName="max-w-2xl"
           footer={(
             <>
               <ActionButton onClick={() => setShowCapitalModal(false)} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton
                 onClick={handleRecordCapital}
@@ -2098,14 +2094,14 @@ export default function CreditDetails() {
                 variant="primary"
                 fullWidth
               >
-                Registrar abono
+                {tTerm('creditDetails.modal.capital.submit')}
               </ActionButton>
             </>
           )}
         >
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <FormField label="Monto del abono">
+                <FormField label={tTerm('creditDetails.modal.capital.amount')}>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
                     <TextInput
@@ -2118,7 +2114,7 @@ export default function CreditDetails() {
                     />
                   </div>
                 </FormField>
-                <FormField label="Fecha del abono">
+                <FormField label={tTerm('creditDetails.modal.capital.date')}>
                   <TextInput
                     id="credit-capital-date"
                     type="date"
@@ -2128,7 +2124,7 @@ export default function CreditDetails() {
                 </FormField>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Método">
+                <FormField label={tTerm('creditDetails.modal.capital.method')}>
                   <SelectInput
                     id="credit-capital-method"
                     value={capitalMethod}
@@ -2139,7 +2135,7 @@ export default function CreditDetails() {
                     ))}
                   </SelectInput>
                 </FormField>
-                <FormField label="Estrategia">
+                <FormField label={tTerm('creditDetails.modal.capital.strategy')}>
                   <SelectInput
                     id="credit-capital-strategy"
                     value={capitalStrategy}
@@ -2155,11 +2151,11 @@ export default function CreditDetails() {
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">Previsualización</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <p className="text-xs text-text-secondary">Capital vivo actual</p>
+                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.currentPrincipal')}</p>
                     <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.currentPrincipal)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-text-secondary">Capital vivo nuevo</p>
+                    <p className="text-xs text-text-secondary">{tTerm('creditDetails.capitalPreview.newPrincipal')}</p>
                     <p className="mt-1 font-semibold text-text-primary">{formatCurrency(capitalPreview.newPrincipal)}</p>
                   </div>
                   <div>
@@ -2194,7 +2190,7 @@ export default function CreditDetails() {
 
       {showEditPaymentMethodModal && (
         <ModalShell
-          title="Editar método de pago"
+          title={tTerm('creditDetails.modal.editMethod.title')}
           footer={(
             <>
               <ActionButton
@@ -2205,7 +2201,7 @@ export default function CreditDetails() {
                 }}
                 fullWidth
               >
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton
                 onClick={handleUpdatePaymentMethod}
@@ -2213,7 +2209,7 @@ export default function CreditDetails() {
                 variant="primary"
                 fullWidth
               >
-                Guardar
+                {tTerm('creditDetails.modal.editMethod.save')}
               </ActionButton>
             </>
           )}
@@ -2221,10 +2217,10 @@ export default function CreditDetails() {
             <div className="space-y-4">
               {editingPaymentReconciled && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                  El pago está conciliado. No se permite editar su método.
+                  {tTerm('creditDetails.modal.editMethod.warning')}
                 </div>
               )}
-              <FormField label="Nuevo método">
+              <FormField label={tTerm('creditDetails.modal.editMethod.field')}>
                 <SelectInput
                   id="credit-payment-method-select"
                   value={newPaymentMethod}
@@ -2243,19 +2239,19 @@ export default function CreditDetails() {
       {/* Modal: Late Fee Rate */}
       {showLateFeeModal && (
         <ModalShell
-          title="Tasa de mora anual"
+          title={tTerm('creditDetails.modal.lateFee.title')}
           footer={(
             <>
               <ActionButton onClick={() => setShowLateFeeModal(false)} fullWidth>
-                Cancelar
+                {tTerm('common.cta.cancel')}
               </ActionButton>
               <ActionButton onClick={handleUpdateLateFeeRate} variant="primary" fullWidth>
-                Guardar
+                {tTerm('creditDetails.modal.lateFee.save')}
               </ActionButton>
             </>
           )}
         >
-          <FormField label="Tasa (%)">
+          <FormField label={tTerm('creditDetails.modal.lateFee.field')}>
             <div className="relative">
               <TextInput
                 id="credit-late-fee-rate"

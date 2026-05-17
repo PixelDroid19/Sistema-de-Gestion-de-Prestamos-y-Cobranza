@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, ChevronDown, Menu, Moon, Search, Sun } from 'lucide-react';
+import { Bell, ChevronDown, Languages, Menu, Moon, Search, Sun } from 'lucide-react';
 import { APP_BRAND, getRoleLabel, getShellDestinationsForUser } from '../constants/appShell';
 import { getDefaultRouteForUser } from '../constants/appAccess';
 import { useUnreadNotificationsCount } from '../services/notificationService';
 import { useMyPermissions } from '../services/permissionsService';
+import { formatDate as formatDateValue } from '../i18n/format';
+import { tTerm } from '../i18n/terminology';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { useSessionStore } from '../store/sessionStore';
 import { ClickableSurface, IconActionButton, TextInput } from './shared/Surfaces';
+import { useTranslation } from '../i18n';
 
 type HeaderProps = {
   setCurrentView: (view: string) => void;
@@ -14,6 +17,7 @@ type HeaderProps = {
 };
 
 export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderProps) {
+  const { t, locale, setLocale } = useTranslation();
   const [isDark, setIsDark] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -83,14 +87,14 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
       .slice(0, 6);
   }, [normalizedQuery, shellDestinations]);
 
-  const displayDate = new Intl.DateTimeFormat('es-CO', {
+  const displayDate = formatDateValue(new Date(), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-  }).format(new Date());
+  });
 
-  const userLabel = user?.name?.trim() || 'Usuario';
-  const userHandle = user?.email || 'sin-correo';
+  const userLabel = user?.name?.trim() || tTerm('header.user.fallbackName');
+  const userHandle = user?.email || tTerm('header.user.fallbackHandle');
   const roleLabel = getRoleLabel(user?.role);
   const homeView = getDefaultRouteForUser(user).replace(/^\//u, '');
 
@@ -116,7 +120,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             <IconActionButton
               className="md:hidden"
               onClick={toggleMobileSidebar}
-              label="Abrir menú"
+              label={t('header.openMenu')}
               icon={<Menu size={24} />}
             />
           )}
@@ -143,7 +147,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             <TextInput
               type="text"
               value={searchQuery}
-              placeholder="Buscar módulo…"
+              placeholder={t('header.searchModule')}
               onFocus={() => setIsSearchOpen(true)}
               onChange={(event) => {
                 setSearchQuery(event.target.value);
@@ -161,7 +165,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
               }}
               className="w-[min(22rem,30vw)] rounded-full py-2 pl-10 pr-12"
               aria-expanded={isSearchOpen}
-              aria-label="Buscar módulo"
+              aria-label={t('header.searchAriaLabel')}
             />
             <div className="pointer-events-none absolute right-3 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded bg-hover-bg text-[10px] text-text-secondary">
               ↵
@@ -170,7 +174,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             {isSearchOpen && (
               <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[min(26rem,42vw)] overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-xl">
                 <div className="border-b border-border-subtle px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
-                  {normalizedQuery ? 'Resultados' : 'Accesos rápidos'}
+                  {normalizedQuery ? tTerm('header.search.results') : tTerm('header.search.quickAccess')}
                 </div>
 
                 {searchResults.length > 0 ? (
@@ -183,7 +187,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                         className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-hover-bg"
                       >
                         <div className="mt-0.5 rounded-lg bg-brand-primary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-primary">
-                          Ir
+                          {tTerm('header.search.go')}
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-text-primary">{item.label}</div>
@@ -194,7 +198,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
                   </div>
                 ) : (
                   <div className="px-4 py-5 text-sm text-text-secondary">
-                    No encontré un módulo con ese criterio.
+                    {tTerm('header.search.empty')}
                   </div>
                 )}
               </div>
@@ -203,9 +207,17 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
 
           <IconActionButton
             onClick={toggleTheme}
-            title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-            label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            title={isDark ? t('header.lightMode') : t('header.darkMode')}
+            label={isDark ? t('header.lightMode') : t('header.darkMode')}
             icon={isDark ? <Sun size={18} /> : <Moon size={18} />}
+            className="rounded-full"
+          />
+
+          <IconActionButton
+            onClick={() => setLocale(locale === 'es' ? 'en' : 'es')}
+            title={t('header.languageSwitcher')}
+            label={t('header.languageSwitcher')}
+            icon={<Languages size={18} />}
             className="rounded-full"
           />
 
@@ -213,7 +225,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
             variant="list"
             onClick={() => setCurrentView('notifications')}
             className="relative flex shrink-0 items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-2 text-sm transition-colors hover:bg-hover-bg sm:px-4"
-            aria-label={unreadCount > 0 ? `${unreadCount} notificaciones nuevas` : 'Sin notificaciones nuevas'}
+            aria-label={unreadCount > 0 ? tTerm('header.notifications.aria.new', { count: unreadCount }) : tTerm('header.notifications.aria.none')}
           >
             <Bell size={16} className="text-text-secondary" />
             {unreadCount > 0 && (
@@ -222,12 +234,12 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
               </span>
             )}
             <span className="hidden xl:inline">
-              {unreadCount > 0 ? `${unreadCount} nuevas` : 'Sin novedades'}
+              {unreadCount > 0 ? t('header.notificationsNew', { count: unreadCount }) : t('header.noNews')}
             </span>
           </ClickableSurface>
 
           <div className="hidden items-center rounded-full border border-border-subtle bg-bg-surface px-4 py-2 text-sm text-text-secondary 2xl:flex">
-            Hoy · {displayDate}
+            {tTerm('header.date.today')} · {displayDate}
           </div>
 
           <ClickableSurface
@@ -237,7 +249,7 @@ export default function Header({ setCurrentView, toggleMobileSidebar }: HeaderPr
           >
             <img
               src="https://i.pravatar.cc/150?u=admin"
-              alt="Usuario"
+              alt={tTerm('header.user.avatarAlt')}
               className="size-9 shrink-0 rounded-full border border-border-strong md:h-10 md:w-10"
             />
             <div className="hidden min-w-0 max-w-[14rem] flex-col sm:flex">

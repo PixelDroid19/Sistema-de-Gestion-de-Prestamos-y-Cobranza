@@ -13,6 +13,8 @@ import {
 import { AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { Responsive, verticalCompactor } from 'react-grid-layout';
 import { useDashboardReport } from '../services/reportService';
+import { useTranslation } from '../i18n';
+import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
@@ -145,13 +147,15 @@ type DashboardLoanLike = {
 const sanitizeCustomerName = (value: string): string => value.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
 
 export const buildDashboardChartData = (recentLoans: DashboardLoanLike[]) => {
+  const loanLabel = tTerm('dashboard.chart.customerFallbackPrefix');
+
   return recentLoans.slice(0, 6).reverse().map((loan) => {
     const rawName = loan.Customer?.name || loan.customerName || '';
     const customerName = sanitizeCustomerName(rawName);
-    const displayCustomerName = customerName || `${tTerm('dashboard.chart.customerFallbackPrefix')} #${loan.id}`;
+    const displayCustomerName = customerName || `${loanLabel} #${loan.id}`;
 
     return {
-      name: `Crédito #${loan.id}`,
+      name: `${loanLabel} #${loan.id}`,
       customerName: displayCustomerName,
       disbursed: Number(loan.amount || 0),
       recovered: Number(loan.totalPaid || 0),
@@ -161,6 +165,7 @@ export const buildDashboardChartData = (recentLoans: DashboardLoanLike[]) => {
 
 export default function Dashboard() {
   const { dashboardData, isLoading, isError, error, refetch } = useDashboardReport();
+  const { locale } = useTranslation();
   const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const [gridContainerWidth, setGridContainerWidth] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(() => (
@@ -174,7 +179,7 @@ export default function Dashboard() {
   const summary = dashboardData?.summary || {};
   const collections = dashboardData?.collections || {};
   const recentLoans = Array.isArray(dashboardData?.recentActivity?.loans) ? dashboardData.recentActivity.loans : [];
-  const chartData = useMemo(() => buildDashboardChartData(recentLoans), [recentLoans]);
+  const chartData = useMemo(() => buildDashboardChartData(recentLoans), [recentLoans, locale]);
 
   const hasKpiTotals = Number(summary.totalOutstandingAmount || 0) > 0 || Number(summary.totalRecoveredAmount || 0) > 0;
   const chartHasData = chartData.some((row) => Number(row.disbursed || 0) > 0 || Number(row.recovered || 0) > 0);
@@ -182,8 +187,7 @@ export default function Dashboard() {
   const isMobileLayout = effectiveGridWidth < 640;
 
   const formatCurrency = (value: number | string | undefined) => {
-    const amount = Number(value || 0);
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount);
+    return formatCurrencyValue(value);
   };
 
   useEffect(() => {
