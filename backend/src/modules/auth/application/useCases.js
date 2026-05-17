@@ -1,5 +1,6 @@
 const { ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError } = require('@/utils/errorHandler');
 const { APPLICATION_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
+const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
 const PRIVILEGED_ROLES = new Set(['admin']);
 const EMPLOYEE_ROLE = 'employee';
@@ -297,6 +298,10 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
       email: user.email,
       lockedUntil: user.lockedUntil,
     });
+    domainEventBus.emit(EVENT_TYPES.AUTH_ACCOUNT_LOCKED, {
+      userId: user.id,
+      remainingMinutes,
+    });
     const error = new AccountLockedError(
       `Account temporarily locked due to too many failed login attempts. Try again in ${remainingMinutes} minute(s).`,
       15
@@ -324,10 +329,19 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
         failedAttempts: newFailedAttempts,
         lockedUntil: lockUntil,
       });
+      domainEventBus.emit(EVENT_TYPES.AUTH_ACCOUNT_LOCKED, {
+        userId: user.id,
+        failedAttempts: newFailedAttempts,
+        lockedUntil: lockUntil,
+      });
     } else {
       logSecurity('auth.login.failed_attempt', {
         userId: user.id,
         email: user.email,
+        failedAttempts: newFailedAttempts,
+      });
+      domainEventBus.emit(EVENT_TYPES.AUTH_LOGIN_FAILED, {
+        userId: user.id,
         failedAttempts: newFailedAttempts,
       });
     }
@@ -403,6 +417,11 @@ const createLoginUser = ({ userRepository, passwordHasher, tokenService, refresh
       req,
     });
   }
+
+  domainEventBus.emit(EVENT_TYPES.AUTH_LOGIN_SUCCESS, {
+    userId: user.id,
+    loginMethod: username && !email ? 'username' : 'email',
+  });
 
   return {
     user: sanitizedUser,
@@ -506,6 +525,8 @@ const createChangePassword = ({ userRepository, passwordHasher, auditService }) 
       req,
     });
   }
+
+  domainEventBus.emit(EVENT_TYPES.AUTH_PASSWORD_CHANGED, { userId: user.id });
 
   return { success: true };
 };
@@ -710,6 +731,8 @@ const createRevokeAllUserTokens = ({ refreshTokenRepository, auditService }) => 
       req,
     });
   }
+
+  domainEventBus.emit(EVENT_TYPES.AUTH_LOGOUT, { userId, tokensRevoked: revokedCount });
 
   return { revokedCount };
 };

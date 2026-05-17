@@ -6,6 +6,7 @@ const { loanRepository, alertRepository } = require('@/modules/credits/infrastru
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const { createOverdueAlertSyncService } = require('@/modules/credits/application/overdueAlertSyncService');
 const { createOverdueAlertScheduler } = require('@/modules/credits/application/overdueAlertScheduler');
+const { domainEventBus, wireEventLogger } = require('@/modules/shared/events');
 
 const REQUIRED_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'JWT_SECRET'];
 const UNSAFE_JWT_SECRETS = new Set(['changeme', 'replace_me', 'default', 'secret', 'password', 'jwt_secret']);
@@ -74,6 +75,8 @@ const bootstrap = async ({
 
   const overdueAlerts = await scheduler.start();
   const modules = getModuleRegistry({ sharedRuntime });
+
+  wireEventLogger({ domainEventBus });
 
   return {
     ready: true,

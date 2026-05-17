@@ -6,12 +6,14 @@ const serializeAuditLog = (auditLog) => {
 };
 
 const auditLogRepository = {
-  async create({ userId, userName, action, module, entityId, entityType, previousData, newData, metadata, ip, userAgent }) {
+  async create({ userId, userName, action, module, category, severity, entityId, entityType, previousData, newData, metadata, ip, userAgent }) {
     const auditLog = await AuditLog.create({
       userId,
       userName,
       action,
       module,
+      category: category || null,
+      severity: severity || null,
       entityId,
       entityType,
       previousData,
@@ -42,7 +44,7 @@ const auditLogRepository = {
     return AuditLog.count({ where });
   },
 
-  async findWithFilters({ userId, action, module, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 }) {
+  async findWithFilters({ userId, action, module, category, severity, entityId, entityType, ip, dateFrom, dateTo, limit = 100, offset = 0 }) {
     const { Op } = require('@/models').sequelize.Sequelize;
     const where = {};
 
@@ -56,6 +58,14 @@ const auditLogRepository = {
 
     if (module) {
       where.module = module;
+    }
+
+    if (category) {
+      where.category = category;
+    }
+
+    if (severity) {
+      where.severity = severity;
     }
 
     if (entityId) {

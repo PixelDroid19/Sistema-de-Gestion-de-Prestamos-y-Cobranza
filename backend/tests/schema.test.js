@@ -173,7 +173,7 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'AuditLogs') {
     return {
-      id: {}, userId: {}, userName: {}, action: {}, module: {}, entityId: {}, entityType: {},
+      id: {}, userId: {}, userName: {}, action: {}, module: {}, category: {}, severity: {}, entityId: {}, entityType: {},
       previousData: {}, newData: {}, metadata: {}, ip: {}, userAgent: {}, timestamp: {}, createdAt: {}, updatedAt: {},
     };
   }

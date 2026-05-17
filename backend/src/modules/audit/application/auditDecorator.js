@@ -1,5 +1,32 @@
 const { logger } = require('@/utils/logger');
 
+// Lazy-require to avoid circular dependency at load time
+let _domainEventBus = null;
+const getDomainEventBus = () => {
+  if (!_domainEventBus) {
+    _domainEventBus = require('@/modules/shared/events').domainEventBus;
+  }
+  return _domainEventBus;
+};
+
+/**
+ * Map module + action to a well-known EVENT_TYPE string.
+ * Falls back to `<module>.<action>` lowercase.
+ */
+const ACTION_TO_VERB = {
+  CREATE: 'created',
+  UPDATE: 'updated',
+  DELETE: 'deleted',
+  LOGIN: 'login.success',
+  LOGOUT: 'logout',
+  EXPORT: 'exported',
+};
+
+const resolveEventType = (module, action) => {
+  const prefix = String(module || 'unknown').toLowerCase();
+  const verb = ACTION_TO_VERB[String(action).toUpperCase()] || String(action).toLowerCase();
+  return `${prefix}.${verb}`;
+};
 /**
  * Create an audit decorator that wraps a use case with audit logging.
  * @param {{ auditService: object, action: string, module: string, getEntityId?: Function, getEntityType?: Function }} config
@@ -56,6 +83,18 @@ const withAudit = ({ auditService, action, module, getEntityId, getEntityType })
             newData,
             req,
           });
+
+          // Emit domain event for Winston routing (security/business/technical)
+          try {
+            getDomainEventBus().emit(resolveEventType(module, action), {
+              entityId: entityId ? String(entityId) : null,
+              entityType,
+              newData,
+              previousData,
+            });
+          } catch (_) {
+            // Never fail the operation because of event emission
+          }
         } catch (auditError) {
           // Log audit failure but don't fail the main operation
           logger.error('Audit logging failed', { error: auditError.message, action, module });

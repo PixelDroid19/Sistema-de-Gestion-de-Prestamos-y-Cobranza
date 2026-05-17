@@ -1,5 +1,6 @@
 const express = require('express');
 const { createAuditController } = require('./auditController');
+const { sseStreamHandler, wireSSEEmitter } = require('@/modules/audit/infrastructure/sseEmitter');
 
 /**
  * Create the audit router with admin-only endpoints.
@@ -9,16 +10,17 @@ const { createAuditController } = require('./auditController');
 const createAuditRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
 
-  // All audit routes require explicit audit visibility.
+  wireSSEEmitter();
+
   router.use(authMiddleware({ permissions: ['AUDIT_VIEW_ALL'] }));
 
   const controller = createAuditController({ useCases });
 
-  // GET /api/audits - Get paginated audit logs with filters
   router.get('/', controller.getAuditLogs);
 
-  // GET /api/audits/stats - Get aggregated audit statistics
   router.get('/stats', controller.getAuditStats);
+
+  router.get('/stream', sseStreamHandler);
 
   return router;
 };

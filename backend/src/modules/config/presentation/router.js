@@ -1,6 +1,7 @@
 const express = require('express');
 const { asyncHandler } = require('@/utils/errorHandler');
 const { logger } = require('@/utils/logger');
+const { domainEventBus } = require('@/modules/shared/events');
 
 const runOptionalSideEffect = async (label, sideEffect) => {
   try {
@@ -43,6 +44,10 @@ const recordConfigMutation = async ({
     metadata: eventPayload,
     req,
   }));
+
+  // Emit domain event for config mutations
+  const configEvent = `config.${String(entityType || 'setting').toLowerCase()}.${String(action || 'updated').toLowerCase()}`;
+  domainEventBus.emit(configEvent, { entityType, entityId, action });
 
   if (!actor?.id) return;
 

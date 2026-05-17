@@ -1,5 +1,6 @@
 const { NotFoundError, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { PERMISSION_MODULES } = require('@/models/Permission');
+const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
 const normalizeId = (value, fieldName) => {
   if (value === undefined || value === null || value === '') {
@@ -222,6 +223,12 @@ const createGrantPermission = ({ permissionRepository, userPermissionRepository,
 
   const assignment = serializePermissionAssignment(createdAssignment, resolvedPermission, 'direct');
 
+  domainEventBus.emit(EVENT_TYPES.PERMISSION_GRANTED, {
+    userId: normalizedTargetUserId,
+    permissionName: assignment.permissionName,
+    grantedBy: actor.id,
+  });
+
   return {
     userId: normalizedTargetUserId,
     permissionId: assignment.permissionId,
@@ -326,6 +333,12 @@ const createRevokePermission = ({ permissionRepository, userPermissionRepository
   });
 
   const revoked = await userPermissionRepository.revoke(normalizedTargetUserId, resolvedPermission.id);
+
+  domainEventBus.emit(EVENT_TYPES.PERMISSION_REVOKED, {
+    userId: normalizedTargetUserId,
+    permissionName: resolvedPermission.name,
+    revokedBy: actor.id,
+  });
 
   return {
     success: revoked,

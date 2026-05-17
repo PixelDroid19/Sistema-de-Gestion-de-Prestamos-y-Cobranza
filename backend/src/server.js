@@ -2,6 +2,7 @@ require('module-alias/register');
 const createApp = require('./app');
 const { bootstrap } = require('./bootstrap');
 const { createOutboxRelayWorker } = require('./workers/outboxRelayWorker');
+const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
 const PORT = process.env.PORT || 5000;
 
@@ -29,9 +30,11 @@ const startServer = async ({
     let server;
     server = app.listen(port, () => {
       console.log(`Backend server running on http://localhost:${port}`);
+      domainEventBus.emit(EVENT_TYPES.SERVER_STARTED, { port });
 
       const shutdown = async (signal) => {
         console.log(`Received ${signal}, shutting down gracefully...`);
+        domainEventBus.emit(EVENT_TYPES.SERVER_SHUTDOWN, { signal });
         outboxWorker.stop();
         server.close(() => {
           console.log('HTTP server closed');

@@ -7,7 +7,7 @@ const { asyncHandler } = require('@/utils/errorHandler');
  */
 const createAuditController = ({ useCases }) => {
   const getAuditLogs = asyncHandler(async (req, res) => {
-    const { page, pageSize, userId, action, module, entityId, entityType, ip, dateFrom, dateTo } = req.query;
+    const { page, pageSize, userId, action, module, category, severity, entityId, entityType, ip, dateFrom, dateTo } = req.query;
 
     const result = await useCases.getAuditLogs({
       actor: req.user,
@@ -17,6 +17,8 @@ const createAuditController = ({ useCases }) => {
         userId,
         action,
         module,
+        category,
+        severity,
         entityId,
         entityType,
         ip,

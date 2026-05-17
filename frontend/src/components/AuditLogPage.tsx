@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Clock, Network, ShieldCheck } from 'lucide-react';
+import { Activity, AlertTriangle, Clock, Network, Radio, ShieldCheck } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useAuditLogs, useAuditStats, AuditLog } from '../services/auditService';
+import { useAuditStream } from '../services/useAuditStream';
 import AuditFilters, { FilterValues } from './AuditFilters';
 import AuditTable from './AuditTable';
 import AuditDetailModal from './AuditDetailModal';
@@ -15,9 +16,11 @@ export default function AuditLogPage() {
   const [filters, setFilters] = useState<FilterValues>({});
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [liveEnabled, setLiveEnabled] = useState(false);
 
   const { logs, pagination, isLoading } = useAuditLogs({ ...filters, page, pageSize: 25 });
   const { stats: auditStats, isLoading: statsLoading } = useAuditStats();
+  const { events: liveEvents, connected, clear: clearLive } = useAuditStream({ enabled: liveEnabled });
 
   const totalEvents = useMemo(
     () => auditStats.reduce((acc, stat) => acc + Number(stat.totalCount || 0), 0),
@@ -69,8 +72,24 @@ export default function AuditLogPage() {
         guideKey="audit-log"
         tourId="audit-log-header"
         actions={(
-          <div className="rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-xs text-text-secondary">
-            {tTerm('audit.module.diagnostic')}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setLiveEnabled((v) => !v); if (liveEnabled) clearLive(); }}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+                liveEnabled
+                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                  : 'border-border-subtle bg-bg-surface text-text-secondary hover:bg-bg-surface-hover'
+              }`}
+              aria-pressed={liveEnabled}
+              aria-label={liveEnabled ? 'Desactivar tiempo real' : 'Activar tiempo real'}
+            >
+              <Radio size={14} className={liveEnabled && connected ? 'animate-pulse' : ''} />
+              {liveEnabled ? 'En vivo' : 'Tiempo real'}
+            </button>
+            <div className="rounded-xl border border-border-subtle bg-bg-surface px-3 py-2 text-xs text-text-secondary">
+              {tTerm('audit.module.diagnostic')}
+            </div>
           </div>
         )}
       />
@@ -101,6 +120,44 @@ export default function AuditLogPage() {
       <div data-tour="audit-log-filters">
         <AuditFilters values={filters} onFilter={handleFilter} onReset={handleReset} />
       </div>
+
+      {liveEnabled && liveEvents.length > 0 && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              <Radio size={14} className="animate-pulse" />
+              Eventos en tiempo real ({liveEvents.length})
+            </h3>
+            <button
+              type="button"
+              onClick={clearLive}
+              className="text-xs text-emerald-600 underline hover:text-emerald-800 dark:text-emerald-400"
+            >
+              Limpiar
+            </button>
+          </div>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {liveEvents.slice(0, 20).map((evt, i) => (
+              <div
+                key={`${evt.timestamp}-${i}`}
+                className="flex items-center gap-2 rounded-lg bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+              >
+                <span className={`inline-block size-2 rounded-full ${
+                  evt.severity === 'ERROR' || evt.severity === 'CRITICAL'
+                    ? 'bg-red-500'
+                    : evt.category === 'SECURITY'
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                }`} />
+                <span className="font-mono text-text-secondary">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                <span className="font-medium text-text-primary">{evt.eventType}</span>
+                {evt.userId && <span className="text-text-tertiary">user:{evt.userId}</span>}
+                <span className="ml-auto rounded bg-bg-surface px-1.5 py-0.5 text-[10px] text-text-tertiary">{evt.category}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div data-tour="audit-log-table">
         <AuditTable

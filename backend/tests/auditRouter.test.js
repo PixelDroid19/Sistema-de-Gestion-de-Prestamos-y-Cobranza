@@ -13,7 +13,7 @@ afterEach(async () => {
   activeServer = null;
 });
 
-test('GET /audits requires admin role', async () => {
+test('GET /audits allows employee actors already authorized with AUDIT_VIEW_ALL', async () => {
   const mockAuditService = {
     query: mock.fn(() => Promise.resolve({ items: [], totalItems: 0 })),
     getStats: mock.fn(() => Promise.resolve([])),
@@ -21,22 +21,18 @@ test('GET /audits requires admin role', async () => {
 
   const mockUseCases = {
     getAuditLogs: mock.fn(({ actor }) => {
-      if (actor.role !== 'admin') {
-        const error = new Error('Forbidden');
-        error.statusCode = 403;
-        throw error;
-      }
+      assert.equal(actor.role, 'employee');
       return Promise.resolve({ items: [], totalItems: 0, pagination: {} });
     }),
     getAuditStats: mock.fn(() => Promise.resolve({ stats: [], dateRange: {} })),
   };
 
-  const allowAuth = (role = 'customer') => (req, res, next) => {
+  const allowAuth = (role = 'employee') => (req, res, next) => {
     req.user = { id: 1, role };
     next();
   };
 
-  const router = createAuditRouter({ authMiddleware: () => allowAuth('customer'), useCases: mockUseCases, auditService: mockAuditService });
+  const router = createAuditRouter({ authMiddleware: () => allowAuth('employee'), useCases: mockUseCases, auditService: mockAuditService });
 
   const app = express();
   app.use(express.json());
@@ -51,34 +47,72 @@ test('GET /audits requires admin role', async () => {
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 200);
+  assert.equal(mockUseCases.getAuditLogs.mock.callCount(), 1);
 });
 
-test('GET /audits requires admin role', async () => {
+test('GET /audits wires audit view permission to the auth middleware', async () => {
   const mockAuditService = {
     query: mock.fn(() => Promise.resolve({ items: [], totalItems: 0 })),
     getStats: mock.fn(() => Promise.resolve([])),
   };
 
   const mockUseCases = {
-    getAuditLogs: mock.fn(({ actor }) => {
-      if (actor.role !== 'admin') {
-        const error = new Error('Forbidden');
-        error.statusCode = 403;
-        throw error;
-      }
-      return Promise.resolve({ items: [], totalItems: 0, pagination: {} });
-    }),
+    getAuditLogs: mock.fn(() => Promise.resolve({ items: [], totalItems: 0, pagination: {} })),
     getAuditStats: mock.fn(() => Promise.resolve({ stats: [], dateRange: {} })),
   };
 
-  const allowAuth = (role = 'customer') => (req, res, next) => {
-    req.user = { id: 1, role };
-    next();
+  let authOptions;
+  const authMiddleware = (options) => {
+    authOptions = options;
+    return (req, res, next) => {
+      req.user = { id: 1, role: 'employee' };
+      next();
+    };
   };
 
   const router = createAuditRouter({
-    authMiddleware: () => allowAuth('customer'),
+    authMiddleware,
+    useCases: mockUseCases,
+    auditService: mockAuditService,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.deepEqual(authOptions, { permissions: ['AUDIT_VIEW_ALL'] });
+  assert.equal(response.statusCode, 200);
+});
+
+test('GET /audits rejects when the permission middleware denies access', async () => {
+  const mockAuditService = {
+    query: mock.fn(() => Promise.resolve({ items: [], totalItems: 0 })),
+    getStats: mock.fn(() => Promise.resolve([])),
+  };
+
+  const mockUseCases = {
+    getAuditLogs: mock.fn(() => Promise.resolve({ items: [], totalItems: 0, pagination: {} })),
+    getAuditStats: mock.fn(() => Promise.resolve({ stats: [], dateRange: {} })),
+  };
+
+  const denyAuth = () => (req, res, next) => {
+    const error = new Error('Forbidden');
+    error.statusCode = 403;
+    next(error);
+  };
+
+  const router = createAuditRouter({
+    authMiddleware: denyAuth,
     useCases: mockUseCases,
     auditService: mockAuditService,
   });
@@ -97,6 +131,7 @@ test('GET /audits requires admin role', async () => {
   });
 
   assert.equal(response.statusCode, 403);
+  assert.equal(mockUseCases.getAuditLogs.mock.callCount(), 0);
 });
 
 test('GET /audits returns audit logs for admin', async () => {
@@ -251,13 +286,11 @@ test('GET /audits/stats returns audit statistics', async () => {
   assert.equal(response.body.data.stats[0].module, 'customers');
 });
 
-test('GET /audits/stats requires admin role', async () => {
+test('GET /audits/stats allows employee actors already authorized with AUDIT_VIEW_ALL', async () => {
   const mockUseCases = {
     getAuditLogs: mock.fn(() => Promise.resolve({ items: [], totalItems: 0, pagination: {} })),
     getAuditStats: mock.fn(({ actor }) => {
-      if (!actor || actor.role !== 'admin') {
-        throw Object.assign(new Error('Only admin users can access audit statistics'), { statusCode: 403 });
-      }
+      assert.equal(actor.role, 'employee');
       return Promise.resolve({ stats: [], dateRange: {} });
     }),
   };
@@ -268,7 +301,7 @@ test('GET /audits/stats requires admin role', async () => {
   };
 
   const router = createAuditRouter({
-    authMiddleware: () => allowAuth('customer'),
+    authMiddleware: () => allowAuth('employee'),
     useCases: mockUseCases,
   });
 
@@ -285,7 +318,8 @@ test('GET /audits/stats requires admin role', async () => {
     headers: { authorization: 'Bearer valid-token' },
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 200);
+  assert.equal(mockUseCases.getAuditStats.mock.callCount(), 1);
 });
 
 test('GET /audits/stats passes date range filters', async () => {

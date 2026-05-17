@@ -1,6 +1,7 @@
 const { AuthenticationError, AuthorizationError } = require('@/utils/errorHandler');
 const { createJwtTokenService } = require('./auth/tokenService');
 const { isAdministrativeLoginRole, normalizeApplicationRole } = require('./roles');
+const { enrichContextWithUser } = require('./requestContext');
 
 const normalizeRoles = (roles = []) => {
   const requestedRoles = typeof roles === 'string' ? [roles] : roles;
@@ -78,6 +79,7 @@ const createAuthMiddleware = ({ tokenService, permissionService }) => (options =
       }
 
       req.user = authenticatedUser;
+      enrichContextWithUser(authenticatedUser);
       next();
     } catch (error) {
       if (error.name === 'TokenExpiredError') {

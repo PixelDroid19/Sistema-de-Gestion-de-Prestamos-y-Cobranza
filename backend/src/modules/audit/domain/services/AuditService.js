@@ -136,7 +136,7 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
    * @param {{ actor?: object, action: string, module: string, entityId?: string, entityType?: string, previousData?: object, newData?: object, metadata?: object, req?: object }} params
    * @returns {Promise<object>}
    */
-  const log = async ({ actor, action, module, entityId, entityType, previousData, newData, metadata, req }) => {
+  const log = async ({ actor, action, module, category, severity, entityId, entityType, previousData, newData, metadata, req }) => {
     const resolvedRequest = req || getCurrentRequest();
     const userId = actor?.id || null;
     const userName = actor?.name || actor?.email || null;
@@ -153,6 +153,8 @@ const createAuditService = ({ auditLogRepository: repo } = {}) => {
       userName,
       action: normalizeAuditAction(action),
       module: normalizeAuditModule(module),
+      category: category || null,
+      severity: severity || null,
       entityId: entityId ? String(entityId) : null,
       entityType,
       previousData: previousData || null,

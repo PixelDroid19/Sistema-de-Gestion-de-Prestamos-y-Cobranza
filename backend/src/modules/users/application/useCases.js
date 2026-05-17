@@ -1,5 +1,6 @@
 const { ValidationError, NotFoundError, ConflictError } = require('@/utils/errorHandler');
 const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole } = require('@/modules/shared/roles');
+const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
 
 const VALID_ROLES = ADMINISTRATIVE_LOGIN_ROLES;
 
@@ -83,6 +84,7 @@ const createUpdateUser = ({ userRepository }) => async (userId, payload) => {
   }
 
   const updatedUser = await userRepository.update(userId, updates);
+  domainEventBus.emit(EVENT_TYPES.USER_UPDATED, { userId, updates: Object.keys(updates) });
   return sanitizeUser(updatedUser);
 };
 
@@ -99,6 +101,7 @@ const createDeactivateUser = ({ userRepository }) => async (userId) => {
   // This would need the actor passed in, so we'll handle this at the router level
 
   const updatedUser = await userRepository.update(userId, { isActive: false });
+  domainEventBus.emit(EVENT_TYPES.USER_DEACTIVATED, { userId });
   return sanitizeUser(updatedUser);
 };
 
@@ -112,6 +115,7 @@ const createReactivateUser = ({ userRepository }) => async (userId) => {
   }
 
   const updatedUser = await userRepository.update(userId, { isActive: true });
+  domainEventBus.emit(EVENT_TYPES.USER_REACTIVATED, { userId });
   return sanitizeUser(updatedUser);
 };
 
@@ -129,6 +133,7 @@ const createUnlockUser = ({ userRepository }) => async (userId) => {
     lockedUntil: null,
   });
 
+  domainEventBus.emit(EVENT_TYPES.USER_UNLOCKED, { userId });
   return sanitizeUser(updatedUser);
 };
 

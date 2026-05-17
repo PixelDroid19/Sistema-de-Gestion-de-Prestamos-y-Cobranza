@@ -1,5 +1,5 @@
-const { ValidationError, AuthorizationError } = require('@/utils/errorHandler');
-const { AUDIT_MODULES, AUDIT_ACTIONS } = require('@/models/AuditLog');
+const { ValidationError } = require('@/utils/errorHandler');
+const { AUDIT_MODULES, AUDIT_ACTIONS, AUDIT_CATEGORIES, AUDIT_SEVERITIES } = require('@/models/AuditLog');
 const {
   normalizeAuditAction,
   normalizeAuditModule,
@@ -10,16 +10,13 @@ const {
  * @param {{ auditService: object }} dependencies
  * @returns {Function}
  */
-const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} }) => {
-  // Only admin users can access audit logs
-  if (!actor || actor.role !== 'admin') {
-    throw new AuthorizationError('Only admin users can access audit logs');
-  }
-
+const createGetAuditLogs = ({ auditService }) => async ({ filters = {} }) => {
   const {
     userId,
     action,
     module,
+    category,
+    severity,
     entityId,
     entityType,
     ip,
@@ -41,6 +38,14 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
     throw new ValidationError(`Invalid module. Valid modules: ${AUDIT_MODULES.join(', ')}`);
   }
 
+  if (category && !AUDIT_CATEGORIES.includes(category)) {
+    throw new ValidationError(`Invalid category. Valid categories: ${AUDIT_CATEGORIES.join(', ')}`);
+  }
+
+  if (severity && !AUDIT_SEVERITIES.includes(severity)) {
+    throw new ValidationError(`Invalid severity. Valid severities: ${AUDIT_SEVERITIES.join(', ')}`);
+  }
+
   const limit = Math.min(Number(pageSize) || 25, 100);
   const offset = (Math.max(Number(page) || 1, 1) - 1) * limit;
 
@@ -48,6 +53,8 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
     userId: userId ? Number(userId) : undefined,
     action: normalizedAction,
     module: normalizedModule,
+    category,
+    severity,
     entityId,
     entityType,
     ip,
@@ -73,12 +80,7 @@ const createGetAuditLogs = ({ auditService }) => async ({ actor, filters = {} })
  * @param {{ auditService: object }} dependencies
  * @returns {Function}
  */
-const createGetAuditStats = ({ auditService }) => async ({ actor, dateFrom, dateTo }) => {
-  // Only admin users can access audit stats
-  if (!actor || actor.role !== 'admin') {
-    throw new AuthorizationError('Only admin users can access audit statistics');
-  }
-
+const createGetAuditStats = ({ auditService }) => async ({ dateFrom, dateTo }) => {
   const stats = await auditService.getStats({ dateFrom, dateTo });
 
   // Transform stats into a more usable format

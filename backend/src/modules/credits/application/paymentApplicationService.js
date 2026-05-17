@@ -1606,6 +1606,24 @@ const createPaymentApplicationService = ({
           transaction: tx,
         });
 
+        // Emit domain event after successful payment (outside tx is fine — event bus is fire-and-forget)
+        try {
+          const { domainEventBus, EVENT_TYPES } = require('@/modules/shared/events');
+          const eventMap = {
+            [INSTALLMENT_PAYMENT_TYPE]: EVENT_TYPES.PAYMENT_APPLIED,
+            [PARTIAL_PAYMENT_TYPE]: EVENT_TYPES.PAYMENT_APPLIED,
+            [CAPITAL_PAYMENT_TYPE]: EVENT_TYPES.CAPITAL_PREPAYMENT_APPLIED,
+            [PAYOFF_PAYMENT_TYPE]: EVENT_TYPES.LOAN_PAYOFF_COMPLETED,
+          };
+          domainEventBus.emit(eventMap[operationType] || EVENT_TYPES.PAYMENT_APPLIED, {
+            loanId,
+            amount,
+            operationType,
+            paymentMethod,
+            entityId: result?.payment?.id || null,
+          });
+        } catch (_) { /* never break the payment flow */ }
+
         return result;
       });
     } catch (error) {

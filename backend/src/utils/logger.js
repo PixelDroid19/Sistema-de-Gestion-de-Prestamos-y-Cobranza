@@ -1,6 +1,12 @@
 const winston = require('winston');
 const fs = require('fs');
 const path = require('path');
+require('winston-daily-rotate-file');
+const { LOG_CATEGORY } = require('@/modules/shared/logCategories');
+
+// ---------------------------------------------------------------------------
+// Sensitive-data sanitisation
+// ---------------------------------------------------------------------------
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -12,6 +18,11 @@ const SENSITIVE_KEYS = new Set([
   'authorization',
   'cookie',
   'deviceToken',
+  'cvv',
+  'cardNumber',
+  'accountNumber',
+  'ssn',
+  'secret',
 ]);
 
 const sanitizeSensitive = (value) => {
@@ -24,7 +35,7 @@ const sanitizeSensitive = (value) => {
   }
 
   return Object.entries(value).reduce((acc, [key, val]) => {
-    if (SENSITIVE_KEYS.has(String(key))) {
+    if (SENSITIVE_KEYS.has(String(key).toLowerCase())) {
       acc[key] = '[REDACTED]';
     } else {
       acc[key] = sanitizeSensitive(val);
@@ -33,32 +44,104 @@ const sanitizeSensitive = (value) => {
   }, {});
 };
 
+// ---------------------------------------------------------------------------
+// Auto-inject request context (traceId, requestId, userId, ip …)
+// ---------------------------------------------------------------------------
+
+/**
+ * Winston format that reads the current AsyncLocalStorage request context and
+ * merges trace / user / request identifiers into every log entry automatically.
+ *
+ * Imported lazily to avoid circular-require at module load time (logger is
+ * required before the request-context module in some test setups).
+ */
+const injectRequestContext = winston.format((info) => {
+  // Lazy-require to break the potential logger ↔ requestContext cycle.
+  const { getRequestContext } = require('@/modules/shared/requestContext');
+  const ctx = getRequestContext();
+
+  if (ctx) {
+    info.requestId = ctx.requestId ?? undefined;
+    info.traceId = ctx.traceId ?? undefined;
+    info.userId = ctx.userId ?? undefined;
+    info.userRole = ctx.userRole ?? undefined;
+    info.ip = info.ip || ctx.ip || undefined;
+    if (ctx.startTime) {
+      info.elapsed = `${Date.now() - ctx.startTime}ms`;
+    }
+  }
+
+  return info;
+});
+
+// ---------------------------------------------------------------------------
+// Transports
+// ---------------------------------------------------------------------------
+
+const logsDir = path.resolve(process.cwd(), 'logs');
 const shouldUseFileTransports = process.env.LOG_TO_FILES !== 'false';
 const fileTransports = [];
 
 if (shouldUseFileTransports) {
   try {
-    const logsDir = path.resolve(process.cwd(), 'logs');
     fs.mkdirSync(logsDir, { recursive: true });
+
+    // Combined — all levels, daily rotation, 30 days retention
     fileTransports.push(
-      new winston.transports.File({ filename: path.join(logsDir, 'error.log'), level: 'error' }),
-      new winston.transports.File({ filename: path.join(logsDir, 'combined.log') }),
+      new winston.transports.DailyRotateFile({
+        filename: path.join(logsDir, 'combined-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '30d',
+        zippedArchive: true,
+      }),
     );
-  } catch (error) {
-    // If the runtime cannot write log files (common in containers), fallback to console only.
+
+    // Errors only — separate file for fast triage
+    fileTransports.push(
+      new winston.transports.DailyRotateFile({
+        filename: path.join(logsDir, 'error-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        level: 'error',
+        maxSize: '20m',
+        maxFiles: '30d',
+        zippedArchive: true,
+      }),
+    );
+
+    // Security category — separate file for SIEM / compliance
+    fileTransports.push(
+      new winston.transports.DailyRotateFile({
+        filename: path.join(logsDir, 'security-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '90d',
+        zippedArchive: true,
+        // Only accept entries with category === 'security'
+        filter: (info) => info.category === LOG_CATEGORY.SECURITY,
+      }),
+    );
+  } catch (_err) {
+    // Container / read-only FS — fall back to console only.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Logger instance
+// ---------------------------------------------------------------------------
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
-    winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss'
-    }),
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),
-    winston.format.json()
+    injectRequestContext(),
+    winston.format.json(),
   ),
-  defaultMeta: { service: 'loan-recovery-api' },
+  defaultMeta: {
+    service: 'loan-recovery-api',
+    environment: process.env.NODE_ENV || 'development',
+  },
   transports: fileTransports,
 });
 
@@ -66,42 +149,44 @@ if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
-      winston.format.simple()
-    )
+      winston.format.simple(),
+    ),
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Category-aware helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Log the completed HTTP request with timing and caller metadata.
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
  */
 const logRequest = (req, res, next) => {
-  const start = Date.now();
-  
   res.on('finish', () => {
-    const duration = Date.now() - start;
+    const { getRequestContext } = require('@/modules/shared/requestContext');
+    const ctx = getRequestContext();
+    const duration = ctx?.startTime ? Date.now() - ctx.startTime : undefined;
+
     logger.info('HTTP Request', {
+      category: LOG_CATEGORY.TECHNICAL,
       method: req.method,
-      url: req.url,
+      url: req.originalUrl || req.url,
       status: res.statusCode,
-      duration: `${duration}ms`,
+      duration: duration !== undefined ? `${duration}ms` : undefined,
       ip: req.ip,
-      userAgent: req.get('User-Agent')
+      userAgent: req.get('User-Agent'),
     });
   });
-  
+
   next();
 };
 
 /**
  * Log an application error with request context when available.
- * @param {Error & { statusCode?: number }} error
- * @param {import('express').Request} [req]
  */
 const logError = (error, req) => {
   logger.error('Application Error', {
+    category: LOG_CATEGORY.TECHNICAL,
     message: error.message,
     stack: error.stack,
     statusCode: error.statusCode,
@@ -110,43 +195,51 @@ const logError = (error, req) => {
     body: sanitizeSensitive(req?.body),
     params: req?.params,
     query: req?.query,
-    user: req?.user?.id
+    user: req?.user?.id,
   });
 };
 
 /**
- * Log a database operation using the shared structured logger.
- * @param {string} message
- * @param {object} [data={}]
+ * Log a database operation.
  */
 const logDatabase = (message, data = {}) => {
   logger.info('Database Operation', {
+    category: LOG_CATEGORY.TECHNICAL,
     message,
-    ...data
+    ...data,
   });
 };
 
 /**
- * Log a security-relevant event through the shared structured logger.
- * @param {string} event
- * @param {object} [data={}]
+ * Log a security-relevant event (warn level — always captured).
  */
 const logSecurity = (event, data = {}) => {
   logger.warn('Security Event', {
+    category: LOG_CATEGORY.SECURITY,
     event,
-    ...data
+    ...sanitizeSensitive(data),
   });
 };
 
 /**
- * Log a domain or business event through the shared structured logger.
- * @param {string} event
- * @param {object} [data={}]
+ * Log a domain or business event.
  */
 const logBusiness = (event, data = {}) => {
   logger.info('Business Event', {
+    category: LOG_CATEGORY.BUSINESS,
     event,
-    ...data
+    ...data,
+  });
+};
+
+/**
+ * Log a technical/infrastructure event (replaces ad-hoc console calls).
+ */
+const logTechnical = (event, data = {}) => {
+  logger.info('Technical Event', {
+    category: LOG_CATEGORY.TECHNICAL,
+    event,
+    ...data,
   });
 };
 
@@ -157,4 +250,6 @@ module.exports = {
   logDatabase,
   logSecurity,
   logBusiness,
+  logTechnical,
+  sanitizeSensitive,
 };
