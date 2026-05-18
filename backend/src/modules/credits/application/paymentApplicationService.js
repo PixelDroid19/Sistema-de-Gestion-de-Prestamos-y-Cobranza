@@ -5,6 +5,7 @@ const {
   buildAmortizationSchedule,
   calculateInstallmentAmount,
   cloneSchedule,
+  addMonths,
   roundCurrency,
   summarizeSchedule,
   calculateLateFee,
@@ -14,6 +15,7 @@ const {
   assertCapitalPaymentAllowed,
   assertPayoffAllowed,
 } = require('./paymentEligibility');
+const { normalizeOperationalDate } = require('@/modules/shared/dateUtils');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
@@ -134,7 +136,7 @@ const buildSnapshot = (schedule) => {
   };
 };
 
-const normalizePaymentDate = (paymentDate) => new Date(paymentDate);
+const normalizePaymentDate = (paymentDate) => normalizeOperationalDate(paymentDate, 'paymentDate');
 
 const normalizePaymentMethod = (paymentMethod) => {
   if (paymentMethod === undefined || paymentMethod === null || paymentMethod === '') {
@@ -467,7 +469,7 @@ const rebuildPendingScheduleAfterCapitalPayment = ({
     amount: principalAfterReduction,
     interestRate: loan.interestRate,
     termMonths: rebuiltTerm,
-    startDate: firstPending.dueDate,
+    startDate: addMonths(firstPending.dueDate, -1),
     calculationMethod: loan.calculationMethod || 'FRENCH',
     ...(capitalStrategy.applied === 'reduce_term' ? { installmentAmount: currentInstallmentAmount } : {}),
   }).map((row, index) => ({
@@ -1432,10 +1434,7 @@ const createPaymentApplicationService = ({
     if (!paymentDate) {
       throw new ValidationError('paymentDate is required');
     }
-    const parsedDate = new Date(paymentDate);
-    if (isNaN(parsedDate.getTime())) {
-      throw new ValidationError('paymentDate must be a valid date');
-    }
+    normalizePaymentDate(paymentDate);
 
     if (installmentNumber !== undefined && installmentNumber !== null) {
       const parsedInstallmentNumber = Number(installmentNumber);
@@ -1500,14 +1499,7 @@ const createPaymentApplicationService = ({
         const transactionOptions = {
           isolationLevel: transactionNamespace.ISOLATION_LEVELS.SERIALIZABLE,
         };
-        try {
-          return await sequelizeInstance.transaction(transactionOptions, transactionFn);
-        } catch (error) {
-          if (process.env.NODE_ENV === 'test' && /handler is not a function|callback is not a function/i.test(error?.message || '')) {
-            return await sequelizeInstance.transaction(transactionFn);
-          }
-          throw error;
-        }
+        return await sequelizeInstance.transaction(transactionOptions, transactionFn);
       } catch (error) {
         lastError = error;
         if (attempt < MAX_RETRIES && isRetryableTransactionError(error)) {

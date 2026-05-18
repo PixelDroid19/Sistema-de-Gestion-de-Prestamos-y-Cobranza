@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, CircleOff, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleOff, Plus, Save, Trash2 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
@@ -7,6 +7,7 @@ import {
   ActionButton,
   DataTableSurface,
   FormField,
+  ModalShell,
   SectionSurface,
   SelectInput,
   TextInput,
@@ -16,6 +17,8 @@ import {
   type LateFeePolicyDraft,
   buildLateFeePayload,
   getLateFeeModeLabel,
+  getPolicyPriorityLabel,
+  normalizePolicyPriority,
   validateLateFeePolicyDraft,
 } from './settingsHelpers';
 
@@ -36,9 +39,15 @@ export default function LateFeePoliciesTab({
     label: '',
     annualEffectiveRate: '',
     lateFeeMode: 'SIMPLE',
-    priority: '100',
+    priority: 'medium',
     description: '',
   });
+  const [isLateFeeModalOpen, setIsLateFeeModalOpen] = useState(false);
+
+  const resetLateFeeDraft = () => {
+    setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: 'medium', description: '' });
+    setIsLateFeeModalOpen(false);
+  };
 
   const handleCreateLateFeePolicy = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -50,7 +59,7 @@ export default function LateFeePoliciesTab({
 
     try {
       await createLateFeePolicy.mutateAsync(buildLateFeePayload(newLateFeePolicy));
-      setNewLateFeePolicy({ label: '', annualEffectiveRate: '', lateFeeMode: 'SIMPLE', priority: '100', description: '' });
+      resetLateFeeDraft();
       toast.success({ description: tTerm('settings.lateFee.toast.created') });
     } catch (error) {
       console.error('[settings] createLateFeePolicy failed', error);
@@ -75,85 +84,86 @@ export default function LateFeePoliciesTab({
     }
   };
 
+  const lateFeePolicyForm = (
+    <form id="late-fee-policy-form" onSubmit={handleCreateLateFeePolicy} aria-label={tTerm('settings.lateFee.section.aria')} className="space-y-4">
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
+        <FormField
+          label={tTerm('settings.lateFee.field.name')}
+          tooltip={tTerm('settings.lateFee.field.nameTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.lateFee.field.name')}
+            required
+            value={newLateFeePolicy.label}
+            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
+            placeholder={tTerm('settings.lateFee.field.namePlaceholder')}
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.lateFee.field.rate')}
+          tooltip={tTerm('settings.lateFee.field.rateTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.lateFee.field.rate')}
+            required
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={newLateFeePolicy.annualEffectiveRate}
+            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
+            placeholder={tTerm('settings.lateFee.field.ratePlaceholder')}
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.lateFee.field.mode')}
+          tooltip={tTerm('settings.lateFee.field.modeTooltip')}
+        >
+          <SelectInput
+            aria-label={tTerm('settings.lateFee.field.mode')}
+            value={newLateFeePolicy.lateFeeMode}
+            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
+          >
+            <option value="SIMPLE">{tTerm('settings.lateFee.type.simple')}</option>
+            <option value="COMPOUND">{tTerm('settings.lateFee.type.compound')}</option>
+            <option value="NONE">{tTerm('settings.lateFee.type.none')}</option>
+          </SelectInput>
+        </FormField>
+        <FormField
+          label={tTerm('settings.lateFee.field.priority')}
+          tooltip={tTerm('settings.lateFee.field.priorityTooltip')}
+        >
+          <SelectInput
+            aria-label={tTerm('settings.lateFee.field.priority')}
+            value={newLateFeePolicy.priority}
+            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, priority: normalizePolicyPriority(event.target.value) }))}
+          >
+            <option value="low">{tTerm('settings.priority.low')}</option>
+            <option value="medium">{tTerm('settings.priority.medium')}</option>
+            <option value="high">{tTerm('settings.priority.high')}</option>
+          </SelectInput>
+        </FormField>
+      </div>
+    </form>
+  );
+
   return (
     <>
       <SectionSurface
-        as="form"
-        onSubmit={handleCreateLateFeePolicy}
-        aria-label={tTerm('settings.lateFee.section.aria')}
         title={tTerm('settings.lateFee.section.title')}
         subtitle={tTerm('settings.lateFee.section.subtitle')}
-        bodyClassName="space-y-4"
-      >
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_110px]">
-          <FormField
-            label={tTerm('settings.lateFee.field.name')}
-            tooltip={tTerm('settings.lateFee.field.nameTooltip')}
-          >
-            <TextInput
-              aria-label={tTerm('settings.lateFee.field.name')}
-              required
-              value={newLateFeePolicy.label}
-              onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, label: event.target.value }))}
-              placeholder={tTerm('settings.lateFee.field.namePlaceholder')}
-            />
-          </FormField>
-          <FormField
-            label={tTerm('settings.lateFee.field.rate')}
-            tooltip={tTerm('settings.lateFee.field.rateTooltip')}
-          >
-            <TextInput
-              aria-label={tTerm('settings.lateFee.field.rate')}
-              required
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={newLateFeePolicy.annualEffectiveRate}
-              onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
-              placeholder={tTerm('settings.lateFee.field.ratePlaceholder')}
-            />
-          </FormField>
-          <FormField
-            label={tTerm('settings.lateFee.field.mode')}
-            tooltip={tTerm('settings.lateFee.field.modeTooltip')}
-          >
-            <SelectInput
-              aria-label={tTerm('settings.lateFee.field.mode')}
-              value={newLateFeePolicy.lateFeeMode}
-              onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, lateFeeMode: event.target.value as LateFeePolicyDraft['lateFeeMode'] }))}
-            >
-              <option value="SIMPLE">{tTerm('settings.lateFee.type.simple')}</option>
-              <option value="COMPOUND">{tTerm('settings.lateFee.type.compound')}</option>
-              <option value="NONE">{tTerm('settings.lateFee.type.none')}</option>
-            </SelectInput>
-          </FormField>
-          <FormField
-            label={tTerm('settings.lateFee.field.priority')}
-            tooltip={tTerm('settings.lateFee.field.priorityTooltip')}
-          >
-            <TextInput
-              aria-label={tTerm('settings.lateFee.field.priority')}
-              type="number"
-              min="0"
-              value={newLateFeePolicy.priority}
-              onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, priority: event.target.value }))}
-            />
-          </FormField>
-        </div>
-        <div className="settings-form-actions">
+        actions={(
           <ActionButton
-            type="submit"
-            disabled={createLateFeePolicy.isPending}
+            type="button"
             variant="primary"
-            icon={<Save size={16} />}
+            icon={<Plus size={16} />}
+            onClick={() => setIsLateFeeModalOpen(true)}
           >
-            {tTerm('settings.lateFee.cta.create')}
+            {tTerm('settings.lateFee.cta.openCreate')}
           </ActionButton>
-          <p className="settings-inline-helper">
-            {tTerm('settings.lateFee.note')}
-          </p>
-        </div>
+        )}
+      >
+        <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.lateFee.note')}</p>
       </SectionSurface>
 
       <DataTableSurface>
@@ -175,7 +185,7 @@ export default function LateFeePoliciesTab({
                   <td className="font-semibold">{policy.label}</td>
                   <td className="font-semibold">{policy.annualEffectiveRate}%</td>
                   <td className="text-text-secondary">{getLateFeeModeLabel(policy.lateFeeMode)}</td>
-                  <td className="text-text-secondary">{policy.priority}</td>
+                  <td className="text-text-secondary">{getPolicyPriorityLabel(policy.priority)}</td>
                   <td><StatusBadge active={policy.isActive !== false} /></td>
                   <td>
                     <div className="flex justify-end gap-2">
@@ -220,6 +230,32 @@ export default function LateFeePoliciesTab({
           </table>
         </div>
       </DataTableSurface>
+      {isLateFeeModalOpen && (
+        <ModalShell
+          title={tTerm('settings.lateFee.modal.title')}
+          subtitle={tTerm('settings.lateFee.modal.subtitle')}
+          maxWidthClassName="max-w-3xl"
+          onClose={resetLateFeeDraft}
+          footer={(
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+              <ActionButton type="button" onClick={resetLateFeeDraft} disabled={createLateFeePolicy.isPending}>
+                {tTerm('common.cta.cancel')}
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                form="late-fee-policy-form"
+                disabled={createLateFeePolicy.isPending}
+                variant="primary"
+                icon={<Save size={16} />}
+              >
+                {tTerm('settings.lateFee.cta.create')}
+              </ActionButton>
+            </div>
+          )}
+        >
+          {lateFeePolicyForm}
+        </ModalShell>
+      )}
     </>
   );
 }

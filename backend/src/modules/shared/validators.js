@@ -70,10 +70,8 @@ const validateIntegerId = (value) => Number.isInteger(Number(value)) && Number(v
  * @returns {boolean}
  */
 const validateOptionalDateInput = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return true;
-  }
-  return !Number.isNaN(new Date(value).getTime());
+  const { isValidOptionalOperationalDate } = require('@/modules/shared/dateUtils');
+  return isValidOptionalOperationalDate(value);
 };
 
 /**

@@ -104,7 +104,7 @@ describe('NewCredit behavior', () => {
         minAmount: 1000000.01,
         maxAmount: null,
         isActive: true,
-        priority: 1,
+        priority: 'medium',
       },
     ];
     mockConfigState.lateFeePolicies = [];
@@ -249,7 +249,7 @@ describe('NewCredit behavior', () => {
         minAmount: 0,
         maxAmount: 1000000,
         isActive: true,
-        priority: 1,
+        priority: 'medium',
       },
     ];
     mockConfigState.lateFeePolicies = [
@@ -259,7 +259,7 @@ describe('NewCredit behavior', () => {
         annualEffectiveRate: 24,
         lateFeeMode: 'SIMPLE',
         isActive: true,
-        priority: 1,
+        priority: 'medium',
       },
     ];
 
@@ -276,7 +276,7 @@ describe('NewCredit behavior', () => {
     expect(mockCreateLoan).not.toHaveBeenCalled();
   });
 
-  it('blocks validation when active rate policies overlap with the same priority', async () => {
+  it('blocks validation when active rate policies overlap', async () => {
     mockConfigState.ratePolicies = [
       {
         id: 1,
@@ -285,7 +285,7 @@ describe('NewCredit behavior', () => {
         minAmount: 0,
         maxAmount: null,
         isActive: true,
-        priority: 100,
+        priority: 'medium',
       },
       {
         id: 2,
@@ -294,7 +294,7 @@ describe('NewCredit behavior', () => {
         minAmount: 0,
         maxAmount: 5000000,
         isActive: true,
-        priority: 100,
+        priority: 'high',
       },
     ];
 

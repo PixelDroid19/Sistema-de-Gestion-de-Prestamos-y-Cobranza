@@ -379,7 +379,7 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   assert.equal(report.summary.totalDistributed, 150);
   assert.equal(report.summary.totalInterestPaid, 20);
   assert.equal(report.summary.interestDebt, 20);
-  assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15T00:00:00.000Z');
+  assert.equal(report.summary.nextInterestPaymentDate, '2026-05-15');
   assert.equal(report.summary.debtStatus, 'pending');
   assert.equal(report.paymentHistory.length, 1);
   assert.equal(report.distributions[0].distributionType, 'proportional');
@@ -421,6 +421,49 @@ test('createCreateAssociateContribution validates positive amounts', async () =>
   assert.equal(calls[1][0], 'createInstallment');
   assert.equal(calls[1][1].amount, 7.5);
   assert.equal(calls[1][1].capitalBase, 500);
+});
+
+test('associate money movement use cases reject malformed operational dates', async () => {
+  const repository = {
+    async findById() {
+      return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+    },
+    async listContributionsByAssociate() {
+      return [{ amount: 500 }];
+    },
+    async findInstallmentsByAssociateId() {
+      return [];
+    },
+    async createContribution() {
+      throw new Error('createContribution should not be called');
+    },
+    async createProfitDistribution() {
+      throw new Error('createProfitDistribution should not be called');
+    },
+  };
+
+  const createAssociateContribution = createCreateAssociateContribution({ associateRepository: repository });
+  const createProfitDistribution = createCreateProfitDistribution({ associateRepository: repository });
+
+  await assert.rejects(() => createAssociateContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500, contributionDate: '60517-02-14' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /contributionDate/);
+    return true;
+  });
+
+  await assert.rejects(() => createProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500, distributionDate: '+060517-02-14T00:00:00.000Z' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /distributionDate/);
+    return true;
+  });
 });
 
 test('createCreateProfitDistribution rejects non-admin actors', async () => {

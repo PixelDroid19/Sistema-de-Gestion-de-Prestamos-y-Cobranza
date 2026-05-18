@@ -80,7 +80,8 @@ Treat these as implemented product contracts, not open goals. If a future change
 ### 2. Amount-Based Rate Parameterization
 - Credit rates are operational configuration, not free-form per-credit edits.
 - Rate policies are configured by amount ranges under `/api/config/rate-policies`.
-- Active rate policies with the same priority cannot overlap; both frontend and backend validate duplicate labels, invalid ranges, invalid percentages, and ambiguous overlaps.
+- Active rate policies cannot overlap; both frontend and backend validate duplicate labels, invalid ranges, invalid percentages, and ambiguous overlaps.
+- Gaps are allowed only as an incomplete configuration state. Any credit amount that falls in an uncovered gap must be blocked from origination until an active rate policy covers it.
 - Credit creation resolves the applicable policy automatically and freezes the resulting rate/policy snapshot in the created loan.
 - Existing loans must not be recalculated when future rate policies change.
 - Do not reintroduce manual rate mutation for an already-created loan. Admin-only late-fee rate changes are separate operational actions and must remain guarded.

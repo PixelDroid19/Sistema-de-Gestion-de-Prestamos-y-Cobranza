@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, CircleOff, PencilLine, Save, Trash2 } from 'lucide-react';
+import { Calculator, CheckCircle2, CircleOff, PencilLine, Plus, Save, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
@@ -8,7 +8,9 @@ import {
   ActionButton,
   DataTableSurface,
   FormField,
+  ModalShell,
   SectionSurface,
+  SelectInput,
   StatusChip,
   TextInput,
 } from '../shared/Surfaces';
@@ -18,6 +20,8 @@ import {
   type RatePolicyDraft,
   DEFAULT_HIGH_AMOUNT_START,
   DEFAULT_LOW_AMOUNT_LIMIT,
+  DEFAULT_MID_AMOUNT_LIMIT,
+  DEFAULT_TOP_AMOUNT_START,
   EMPTY_RATE_POLICY,
   buildRateCoverageCheck,
   buildRatePayload,
@@ -25,8 +29,11 @@ import {
   formatCurrency,
   formatRange,
   formatRate,
+  getRatePolicyCoverageGaps,
   getRatePolicyConflictPairs,
-  getWinningPriorityConflicts,
+  getRatePolicyConflictsForAmount,
+  getPolicyPriorityLabel,
+  normalizePolicyPriority,
   sortRatePoliciesForApplication,
   validateRatePolicyDraft,
 } from './settingsHelpers';
@@ -48,6 +55,7 @@ export default function RatePoliciesTab({
   const [editingRatePolicyId, setEditingRatePolicyId] = useState<string | null>(null);
   const [newRatePolicy, setNewRatePolicy] = useState<RatePolicyDraft>(EMPTY_RATE_POLICY);
   const [ratePreviewAmount, setRatePreviewAmount] = useState('2000000');
+  const [isRatePolicyModalOpen, setIsRatePolicyModalOpen] = useState(false);
 
   const orderedRatePolicies = useMemo(() => sortRatePoliciesForApplication(ratePolicies), [ratePolicies]);
   const activeRatePolicies = useMemo(
@@ -62,12 +70,17 @@ export default function RatePoliciesTab({
     ratePolicyConflictPairs.flatMap(([left, right]) => [String(left?.id), String(right?.id)]),
   ), [ratePolicyConflictPairs]);
   const hasRatePolicyConflicts = ratePolicyConflictPairs.length > 0;
+  const ratePolicyCoverageGaps = useMemo(
+    () => getRatePolicyCoverageGaps(activeRatePolicies),
+    [activeRatePolicies],
+  );
+  const hasRatePolicyCoverageGaps = ratePolicyCoverageGaps.length > 0;
   const previewRateMatches = useMemo(
     () => findRatePolicyMatchesForAmount(activeRatePolicies, ratePreviewAmount),
     [activeRatePolicies, ratePreviewAmount],
   );
   const previewRateConflicts = useMemo(
-    () => getWinningPriorityConflicts(previewRateMatches),
+    () => getRatePolicyConflictsForAmount(previewRateMatches),
     [previewRateMatches],
   );
   const previewRatePolicy = useMemo(
@@ -81,12 +94,17 @@ export default function RatePoliciesTab({
       findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_LOW_AMOUNT_LIMIT)),
     ),
     buildRateCoverageCheck(
-      tTerm('settings.coverage.bucket.high', { amount: formatCurrency(DEFAULT_HIGH_AMOUNT_START) }),
+      tTerm('settings.coverage.bucket.middle', { from: formatCurrency(DEFAULT_HIGH_AMOUNT_START), to: formatCurrency(DEFAULT_MID_AMOUNT_LIMIT) }),
       DEFAULT_HIGH_AMOUNT_START,
       findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_HIGH_AMOUNT_START)),
     ),
+    buildRateCoverageCheck(
+      tTerm('settings.coverage.bucket.high', { amount: formatCurrency(DEFAULT_TOP_AMOUNT_START) }),
+      DEFAULT_TOP_AMOUNT_START,
+      findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_TOP_AMOUNT_START)),
+    ),
   ], [activeRatePolicies, locale]);
-  const hasMissingStandardRateCoverage = rateCoverageChecks.some((check) => !check.policy || check.hasConflict);
+  const hasMissingStandardRateCoverage = hasRatePolicyCoverageGaps || rateCoverageChecks.some((check) => !check.policy || check.hasConflict);
   const previewAmountNumber = Number(ratePreviewAmount);
   const hasValidPreviewAmount = Number.isFinite(previewAmountNumber) && previewAmountNumber >= 0;
   const isEditingRatePolicy = Boolean(editingRatePolicyId);
@@ -94,6 +112,13 @@ export default function RatePoliciesTab({
   const resetRatePolicyDraft = () => {
     setEditingRatePolicyId(null);
     setNewRatePolicy(EMPTY_RATE_POLICY);
+    setIsRatePolicyModalOpen(false);
+  };
+
+  const openCreateRatePolicyModal = () => {
+    setEditingRatePolicyId(null);
+    setNewRatePolicy(EMPTY_RATE_POLICY);
+    setIsRatePolicyModalOpen(true);
   };
 
   const startEditingRatePolicy = (policy: any) => {
@@ -103,9 +128,10 @@ export default function RatePoliciesTab({
       minAmount: policy.minAmount == null ? '' : String(policy.minAmount),
       maxAmount: policy.maxAmount == null ? '' : String(policy.maxAmount),
       annualEffectiveRate: policy.annualEffectiveRate == null ? '' : String(policy.annualEffectiveRate),
-      priority: policy.priority == null ? '100' : String(policy.priority),
+      priority: normalizePolicyPriority(policy.priority),
       description: String(policy.description || ''),
     });
+    setIsRatePolicyModalOpen(true);
   };
 
   const handleCreateRatePolicy = async (event: React.FormEvent) => {
@@ -148,108 +174,102 @@ export default function RatePoliciesTab({
     }
   };
 
+  const ratePolicyForm = (
+    <form onSubmit={handleCreateRatePolicy} aria-label={tTerm('settings.rate.section.aria')} className="space-y-4">
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
+        <FormField label={tTerm('settings.rate.field.name')}>
+          <TextInput
+            aria-label={tTerm('settings.rate.field.name')}
+            required
+            value={newRatePolicy.label}
+            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
+            placeholder={tTerm('settings.rate.field.namePlaceholderDefault')}
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.rate.field.min')}
+          tooltip={tTerm('settings.rate.field.minTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.rate.field.min')}
+            type="number"
+            min="0"
+            value={newRatePolicy.minAmount}
+            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, minAmount: event.target.value }))}
+            placeholder="0"
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.rate.field.max')}
+          tooltip={tTerm('settings.rate.field.maxTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.rate.field.max')}
+            type="number"
+            min="0"
+            value={newRatePolicy.maxAmount}
+            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
+            placeholder={tTerm('settings.range.noCap')}
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.rate.field.annualRate')}
+          tooltip={tTerm('settings.rate.field.annualRateTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.rate.field.annualRate')}
+            required
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={newRatePolicy.annualEffectiveRate}
+            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
+            placeholder="60"
+          />
+        </FormField>
+        <FormField
+          label={tTerm('settings.rate.field.priority')}
+          tooltip={tTerm('settings.rate.field.priorityTooltip')}
+        >
+          <SelectInput
+            aria-label={tTerm('settings.rate.field.priority')}
+            value={newRatePolicy.priority}
+            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, priority: normalizePolicyPriority(event.target.value) }))}
+          >
+            <option value="low">{tTerm('settings.priority.low')}</option>
+            <option value="medium">{tTerm('settings.priority.medium')}</option>
+            <option value="high">{tTerm('settings.priority.high')}</option>
+          </SelectInput>
+        </FormField>
+      </div>
+      <p className="settings-inline-helper">
+        {tTerm('settings.rate.note')}
+      </p>
+    </form>
+  );
+
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="space-y-4">
         <SectionSurface
-          as="form"
-          onSubmit={handleCreateRatePolicy}
-          aria-label={tTerm('settings.rate.section.aria')}
-          title={isEditingRatePolicy ? tTerm('settings.rate.section.titleEdit') : tTerm('settings.rate.section.titleCreate')}
-          subtitle={isEditingRatePolicy
-            ? tTerm('settings.rate.section.subtitleEdit')
-            : tTerm('settings.rate.section.subtitleCreate')}
-          bodyClassName="space-y-4"
+          title={tTerm('settings.rate.section.titleCreate')}
+          subtitle={tTerm('settings.rate.section.subtitleCreate')}
+          actions={(
+            <ActionButton
+              type="button"
+              variant="primary"
+              icon={<Plus size={16} />}
+              onClick={openCreateRatePolicyModal}
+            >
+              {tTerm('settings.rate.cta.openCreate')}
+            </ActionButton>
+          )}
+          bodyClassName="space-y-3"
         >
-          <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            <FormField label={tTerm('settings.rate.field.name')}>
-              <TextInput
-                aria-label={tTerm('settings.rate.field.name')}
-                required
-                value={newRatePolicy.label}
-                onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, label: event.target.value }))}
-                placeholder={tTerm('settings.rate.field.namePlaceholderDefault')}
-              />
-            </FormField>
-            <FormField
-              label={tTerm('settings.rate.field.min')}
-              tooltip={tTerm('settings.rate.field.minTooltip')}
-            >
-              <TextInput
-                aria-label={tTerm('settings.rate.field.min')}
-                type="number"
-                min="0"
-                value={newRatePolicy.minAmount}
-                onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, minAmount: event.target.value }))}
-                placeholder="0"
-              />
-            </FormField>
-            <FormField
-              label={tTerm('settings.rate.field.max')}
-              tooltip={tTerm('settings.rate.field.maxTooltip')}
-            >
-              <TextInput
-                aria-label={tTerm('settings.rate.field.max')}
-                type="number"
-                min="0"
-                value={newRatePolicy.maxAmount}
-                onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
-                placeholder={tTerm('settings.range.noCap')}
-              />
-            </FormField>
-            <FormField
-              label={tTerm('settings.rate.field.annualRate')}
-              tooltip={tTerm('settings.rate.field.annualRateTooltip')}
-            >
-              <TextInput
-                aria-label={tTerm('settings.rate.field.annualRate')}
-                required
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={newRatePolicy.annualEffectiveRate}
-                onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
-                placeholder="60"
-              />
-            </FormField>
-            <FormField
-              label={tTerm('settings.rate.field.priority')}
-              tooltip={tTerm('settings.rate.field.priorityTooltip')}
-            >
-              <TextInput
-                aria-label={tTerm('settings.rate.field.priority')}
-                type="number"
-                min="0"
-                value={newRatePolicy.priority}
-                onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, priority: event.target.value }))}
-              />
-            </FormField>
-          </div>
-          <div className="settings-form-footer">
-            <p className="settings-inline-helper">
-              {tTerm('settings.rate.note')}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {isEditingRatePolicy && (
-                <ActionButton
-                  type="button"
-                  onClick={resetRatePolicyDraft}
-                  disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
-                >
-                  {tTerm('common.cta.cancel')}
-                </ActionButton>
-              )}
-              <ActionButton
-                type="submit"
-                disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
-                variant="primary"
-                icon={<Save size={16} />}
-              >
-                {isEditingRatePolicy ? tTerm('settings.rate.cta.saveChanges') : tTerm('settings.rate.cta.saveRule')}
-              </ActionButton>
-            </div>
-          </div>
+          <p className="text-sm leading-6 text-text-secondary">
+            {tTerm('settings.rate.section.inlineHelp')}
+          </p>
         </SectionSurface>
 
         <DataTableSurface>
@@ -260,7 +280,7 @@ export default function RatePoliciesTab({
                   <th><HelpLabel label={tTerm('settings.rate.table.rule')} text={tTerm('settings.rate.table.ruleTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.range')} text={tTerm('settings.rate.table.rangeTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.annualRate')} text={tTerm('settings.rate.table.annualRateTooltip')} /></th>
-                  <th><HelpLabel label={tTerm('settings.rate.table.use')} text={tTerm('settings.rate.table.useTooltip')} /></th>
+                  <th><HelpLabel label={tTerm('settings.rate.table.priority')} text={tTerm('settings.rate.table.priorityTooltip')} /></th>
                   <th>{tTerm('settings.rate.table.state')}</th>
                   <th className="text-right">{tTerm('settings.rate.table.actions')}</th>
                 </tr>
@@ -290,7 +310,7 @@ export default function RatePoliciesTab({
                     </td>
                     <td className="text-text-secondary">{formatRange(policy.minAmount, policy.maxAmount)}</td>
                     <td className="font-semibold">{formatRate(policy.annualEffectiveRate)}</td>
-                    <td className="text-text-secondary">{tTerm('settings.rate.table.order', { priority: Number(policy.priority || 100) })}</td>
+                    <td className="text-text-secondary">{getPolicyPriorityLabel(policy.priority)}</td>
                     <td><StatusBadge active={policy.isActive !== false} /></td>
                     <td>
                       <div className="flex justify-end gap-2">
@@ -362,7 +382,24 @@ export default function RatePoliciesTab({
             <ul className="mt-2 list-disc space-y-1 pl-5">
               {ratePolicyConflictPairs.slice(0, 3).map(([left, right]) => (
                 <li key={`${left?.id}-${right?.id}`}>
-                  {tTerm('settings.coverage.conflictPair', { left: left?.label, right: right?.label, priority: Number(left?.priority || 100) })}
+                  {tTerm('settings.coverage.conflictPair', { left: left?.label, right: right?.label })}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {hasRatePolicyCoverageGaps && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+            <p className="font-semibold">{tTerm('settings.coverage.gapTitle')}</p>
+            <p className="mt-1">{tTerm('settings.coverage.gapDescription')}</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {ratePolicyCoverageGaps.slice(0, 4).map((gap) => (
+                <li key={`${gap.from}-${gap.to}`}>
+                  {tTerm('settings.coverage.gapRange', {
+                    range: gap.to === Number.POSITIVE_INFINITY
+                      ? tTerm('settings.range.fromAmount', { amount: formatCurrency(gap.from) })
+                      : formatRange(gap.from, gap.to),
+                  })}
                 </li>
               ))}
             </ul>
@@ -433,6 +470,35 @@ export default function RatePoliciesTab({
           </p>
         </div>
       </SectionSurface>
+      {isRatePolicyModalOpen && (
+        <ModalShell
+          title={isEditingRatePolicy ? tTerm('settings.rate.modal.titleEdit') : tTerm('settings.rate.modal.titleCreate')}
+          subtitle={isEditingRatePolicy ? tTerm('settings.rate.modal.subtitleEdit') : tTerm('settings.rate.modal.subtitleCreate')}
+          maxWidthClassName="max-w-3xl"
+          footer={(
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+              <ActionButton
+                type="button"
+                onClick={resetRatePolicyDraft}
+                disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
+              >
+                {tTerm('common.cta.cancel')}
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                form="rate-policy-form"
+                disabled={createRatePolicy.isPending || updateRatePolicy.isPending}
+                variant="primary"
+                icon={<Save size={16} />}
+              >
+                {isEditingRatePolicy ? tTerm('settings.rate.cta.saveChanges') : tTerm('settings.rate.cta.saveRule')}
+              </ActionButton>
+            </div>
+          )}
+        >
+          {React.cloneElement(ratePolicyForm, { id: 'rate-policy-form' })}
+        </ModalShell>
+      )}
     </div>
   );
 }

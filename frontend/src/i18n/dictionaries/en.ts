@@ -76,8 +76,11 @@ const en: typeof es = {
         inactiveHelper: 'Access suspended',
       },
       create: {
-        title: 'Add employee',
-        subtitle: 'This account only grants access to the back-office platform. It does not create customers or associates.',
+        title: 'New employee',
+        sectionTitle: 'Administrative access',
+        sectionSubtitle: 'Create internal employees and then assign their module permissions.',
+        modalTitle: 'New employee',
+        modalSubtitle: 'Create an internal access. This does not create customers or associates.',
         nameLabel: 'Employee name',
         nameTooltip: 'Visible name in audit and operations. Does not create a customer or associate.',
         namePlaceholder: 'e.g. Ana Operations',
@@ -88,7 +91,7 @@ const en: typeof es = {
         passwordTooltip: 'At least 8 characters. The employee can change it later from their profile.',
         passwordPlaceholder: 'Minimum 8 characters',
         submit: 'Create employee',
-        note: 'Employees only enter modules explicitly granted to them. Rates, late fees, payment methods and sensitive permissions remain reserved for administrators.',
+        note: 'Employees start with no permissions. Assign only the modules they need.',
       },
       table: {
         title: 'Administrative employees',

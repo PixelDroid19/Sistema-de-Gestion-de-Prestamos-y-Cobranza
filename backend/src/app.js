@@ -63,33 +63,52 @@ const createApp = ({
     }
   };
 
-  const corsOptions = {
-    origin: (origin, callback) => {
-      // Requests with no origin: allow in dev (curl, Postman), reject in production
-      if (!origin) {
-        if (process.env.NODE_ENV === 'production') {
-          return callback(new Error('Origin header is required'));
+  const publicReadPaths = new Set([
+    '/',
+    '/health',
+    '/api',
+    '/api/docs/openapi.json',
+  ]);
+
+  const isPublicNoOriginRequest = (req) => (
+    !req.headers.origin
+    && req.method === 'GET'
+    && publicReadPaths.has(req.path)
+  );
+
+  const buildCorsOptions = (req, callback) => {
+    callback(null, {
+      origin: (origin, originCallback) => {
+        // Requests with no origin: allow in dev and allow production public read probes.
+        if (!origin) {
+          if (isPublicNoOriginRequest(req)) {
+            return originCallback(null, true);
+          }
+
+          if (process.env.NODE_ENV === 'production') {
+            return originCallback(new Error('Origin header is required'));
+          }
+          return originCallback(null, true);
         }
-        return callback(null, true);
-      }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+        if (allowedOrigins.includes(origin)) {
+          return originCallback(null, true);
+        }
 
-      if (isDevelopmentLocalOrigin(origin)) {
-        return callback(null, true);
-      }
+        if (isDevelopmentLocalOrigin(origin)) {
+          return originCallback(null, true);
+        }
       
-      // Reject origins not in whitelist
-      callback(new Error(`Origin ${origin} is not allowed by CORS policy`));
-    },
-    credentials: true, // Allow cookies and authentication headers
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
+        // Reject origins not in whitelist
+        originCallback(new Error(`Origin ${origin} is not allowed by CORS policy`));
+      },
+      credentials: true, // Allow cookies and authentication headers
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
+    });
   };
 
-  app.use(cors(corsOptions));
+  app.use(cors(buildCorsOptions));
   app.use((req, res, next) => {
     if (shouldBypassGlobalRateLimit(req)) {
       next();

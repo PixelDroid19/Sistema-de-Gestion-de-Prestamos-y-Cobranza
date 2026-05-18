@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { useNavigate } from 'react-router-dom';
-import { formatCurrency as formatCurrencyValue, formatDateTime as formatDateTimeValue } from '../i18n/format';
+import { formatCurrency as formatCurrencyValue, formatDateTime as formatDateTimeValue, isValidOperationalDateOnly } from '../i18n/format';
 import { useTranslation } from '../i18n';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
@@ -338,12 +338,17 @@ export default function Payouts() {
       return;
     }
 
+    if (!isValidOperationalDateOnly(formData.paymentDate)) {
+      toast.error({ title: tTerm('creditDetails.error.paymentDate') });
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = {
       loanId,
       amount,
-      paymentDate: new Date(formData.paymentDate).toISOString(),
+      paymentDate: `${formData.paymentDate}T00:00:00.000Z`,
       paymentMethod: formData.paymentMethod,
       ...(paymentType === 'capital' ? { strategy: capitalStrategy } : {}),
     };

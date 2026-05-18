@@ -427,7 +427,7 @@ test('createLoanFromCanonicalData freezes the policySnapshot and rate at creatio
     minAmount: 0,
     maxAmount: 15000,
     interestRate: 12,
-    priority: 1,
+    priority: 'medium',
     capturedAt: '2026-04-01T00:00:00.000Z',
   };
 

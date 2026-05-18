@@ -17,6 +17,7 @@ config/
 ## Key Invariants
 
 - Rate policies are admin-only. Employees cannot create/update/delete.
-- Active rate policies with the same priority cannot have overlapping amount ranges.
+- Active rate policies cannot have overlapping amount ranges.
+- If a loan amount falls in an uncovered gap, origination fails until an active rate policy covers that amount.
 - Policy changes do NOT retroactively affect existing loans (snapshot-at-origination).
 - Public `/roles` endpoint is unauthenticated; all other routes require admin.

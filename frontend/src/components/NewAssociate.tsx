@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
+import { isValidOperationalDateOnly } from '../i18n/format';
 import { useAssociateById, useAssociates } from '../services/associateService';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
@@ -62,19 +63,6 @@ const MONTH_TERM_KEYS = [
   'common.month.11',
   'common.month.12',
 ] as const;
-
-const isValidDateOnly = (value: string) => {
-  if (!value.trim()) return true;
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value.trim());
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year
-    && date.getUTCMonth() === month - 1
-    && date.getUTCDate() === day;
-};
 
 export default function NewAssociate({ onBack }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
@@ -150,7 +138,7 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       return;
     }
 
-    if (!isValidDateOnly(formData.interestStartDate)) {
+    if (formData.interestStartDate.trim() && !isValidOperationalDateOnly(formData.interestStartDate)) {
       toast.error({ title: tTerm('newAssociate.validation.startDate') });
       return;
     }

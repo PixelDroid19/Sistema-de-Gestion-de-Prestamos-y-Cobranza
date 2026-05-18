@@ -5,6 +5,7 @@ const {
   createCreatePaymentMethod,
   createUpdatePaymentMethod,
   createDeletePaymentMethod,
+  createListRatePolicies,
   createCreateRatePolicy,
   createResolveRatePolicy,
   createCreateLateFeePolicy,
@@ -159,7 +160,7 @@ test('config policies reject active duplicates that would make resolution ambigu
               minAmount: 0,
               maxAmount: 5000000,
               annualEffectiveRate: 60,
-              priority: 10,
+              priority: 'medium',
             },
           },
         ];
@@ -176,7 +177,7 @@ test('config policies reject active duplicates that would make resolution ambigu
       minAmount: 1000000,
       maxAmount: 2000000,
       annualEffectiveRate: 55,
-      priority: 10,
+      priority: 'high',
     }),
     ConflictError,
   );
@@ -196,7 +197,7 @@ test('config policies reject active duplicates that would make resolution ambigu
             value: {
               annualEffectiveRate: 24,
               lateFeeMode: 'SIMPLE',
-              priority: 10,
+              priority: 'medium',
             },
           },
         ];
@@ -212,13 +213,13 @@ test('config policies reject active duplicates that would make resolution ambigu
       label: 'Mora alterna',
       annualEffectiveRate: 18,
       lateFeeMode: 'SIMPLE',
-      priority: 10,
+      priority: 'medium',
     }),
     ConflictError,
   );
 });
 
-test('rate policy resolution rejects historical overlaps with the same priority', async () => {
+test('rate policy resolution rejects overlapping active ranges instead of guessing a winner', async () => {
   const resolveRatePolicy = createResolveRatePolicy({
     configRepository: {
       async listActiveByCategory() {
@@ -232,7 +233,7 @@ test('rate policy resolution rejects historical overlaps with the same priority'
               minAmount: 0,
               maxAmount: null,
               annualEffectiveRate: 36,
-              priority: 100,
+              priority: 'medium',
             },
           },
           {
@@ -244,7 +245,7 @@ test('rate policy resolution rejects historical overlaps with the same priority'
               minAmount: 0,
               maxAmount: 5000000,
               annualEffectiveRate: 60,
-              priority: 100,
+              priority: 'high',
             },
           },
         ];
@@ -256,6 +257,83 @@ test('rate policy resolution rejects historical overlaps with the same priority'
     () => resolveRatePolicy({ amount: 3000000 }),
     /políticas de tasa activas ambiguas/,
   );
+});
+
+test('rate policy listing and resolution tolerate older numeric priorities as stored data', async () => {
+  const storedPolicies = [
+    {
+      id: 11,
+      key: 'credito-estandar',
+      label: 'Crédito estándar',
+      isActive: true,
+      value: {
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 36,
+        priority: 100,
+      },
+    },
+  ];
+
+  const listRatePolicies = createListRatePolicies({
+    configRepository: {
+      async listByCategory() {
+        return storedPolicies;
+      },
+    },
+  });
+  const resolveRatePolicy = createResolveRatePolicy({
+    configRepository: {
+      async listActiveByCategory() {
+        return storedPolicies;
+      },
+    },
+  });
+
+  const policies = await listRatePolicies();
+  assert.equal(policies[0].priority, 'high');
+
+  const policy = await resolveRatePolicy({ amount: 2000000 });
+  assert.equal(policy.label, 'Crédito estándar');
+  assert.equal(policy.priority, 'high');
+});
+
+test('rate policy resolution returns null for uncovered amount gaps', async () => {
+  const resolveRatePolicy = createResolveRatePolicy({
+    configRepository: {
+      async listActiveByCategory() {
+        return [
+          {
+            id: 11,
+            key: 'credito-pequeno',
+            label: 'Crédito pequeño',
+            isActive: true,
+            value: {
+              minAmount: 0,
+              maxAmount: 1000000,
+              annualEffectiveRate: 36,
+              priority: 'medium',
+            },
+          },
+          {
+            id: 12,
+            key: 'credito-alto',
+            label: 'Crédito alto',
+            isActive: true,
+            value: {
+              minAmount: 5000001,
+              maxAmount: null,
+              annualEffectiveRate: 48,
+              priority: 'medium',
+            },
+          },
+        ];
+      },
+    },
+  });
+
+  const policy = await resolveRatePolicy({ amount: 3000000 });
+  assert.equal(policy, null);
 });
 
 test('createUpsertSetting updates existing records and listAdminCatalogs keeps role scope unchanged', async () => {

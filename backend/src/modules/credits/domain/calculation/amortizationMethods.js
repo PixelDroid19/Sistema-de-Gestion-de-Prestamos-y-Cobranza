@@ -3,11 +3,14 @@ const {
   assertSupportedCalculationMethod,
   normalizeCalculationMethod,
 } = require('./calculationMethods');
+const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const parseUtcDateOnly = (value) => {
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})/.exec(String(value || '').trim());
-  if (!match) return null;
-  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  try {
+    return normalizeDateOnly(value, 'startDate');
+  } catch (_error) {
+    return null;
+  }
 };
 
 const addMonths = (date, months) => {
@@ -29,7 +32,7 @@ const resolveFirstPaymentDate = (startDate) => {
     return addMonths(new Date(), 1);
   }
 
-  return parsedDate;
+  return addMonths(parsedDate, 1);
 };
 
 const calculateInstallmentAmount = ({ amount, interestRate, termMonths }) => {

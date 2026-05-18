@@ -129,7 +129,7 @@ const OPERATIONAL_CONFIG_SEEDS = Object.freeze([
       minAmount: 0,
       maxAmount: null,
       annualEffectiveRate: 36,
-      priority: 100,
+      priority: 'medium',
       description: 'Tasa base usada cuando el crédito toma tasa desde configuración.',
       metadata: { seeded: true },
     },
@@ -142,7 +142,7 @@ const OPERATIONAL_CONFIG_SEEDS = Object.freeze([
     value: {
       annualEffectiveRate: 12,
       lateFeeMode: 'SIMPLE',
-      priority: 100,
+      priority: 'medium',
       description: 'Regla base para calcular mora sobre cuotas vencidas.',
       metadata: { seeded: true },
     },

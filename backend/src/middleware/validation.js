@@ -16,6 +16,7 @@ const {
   validateParticipationPercentage,
   validateAssociateInterestRate,
 } = require('@/modules/shared/validators');
+const { isValidDateOnly } = require('@/modules/shared/dateUtils');
 
 const buildValidationError = (errors, message = 'Please correct the following errors') => {
   const error = new ValidationError(message);
@@ -366,8 +367,7 @@ const loanValidation = {
       errors.push({ field: 'id', message: 'Valid loan ID is required' });
     }
 
-    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
-    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+    if (!asOfDate || !isValidDateOnly(String(asOfDate).trim())) {
       errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
     }
 
@@ -387,8 +387,7 @@ const loanValidation = {
       errors.push({ field: 'id', message: 'Valid loan ID is required' });
     }
 
-    const parsedDate = new Date(`${String(asOfDate || '').trim()}T00:00:00.000Z`);
-    if (!asOfDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate)) || Number.isNaN(parsedDate.getTime())) {
+    if (!asOfDate || !isValidDateOnly(String(asOfDate).trim())) {
       errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
     }
 
@@ -512,8 +511,7 @@ const customerValidation = {
     pushCustomerStatusValidation({ errors, status });
 
     if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
-      const parsedBirthDate = new Date(`${String(birthDate).trim()}T00:00:00.000Z`);
-      if (Number.isNaN(parsedBirthDate.getTime())) {
+      if (!isValidDateOnly(String(birthDate).trim())) {
         errors.push({ field: 'birthDate', message: 'Birth date must be a valid YYYY-MM-DD date' });
       }
     }

@@ -2,6 +2,7 @@ const express = require('express');
 const { asyncHandler, AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { createPaymentApplicationService } = require('@/modules/credits/application/paymentApplicationService');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
+const { normalizeOperationalDate } = require('@/modules/shared/dateUtils');
 
 const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAccessPolicy } = {}) => {
   const router = express.Router();
@@ -44,8 +45,9 @@ const createPaymentRouter = ({ authMiddleware, paymentApplicationService, loanAc
       throw new ValidationError('paymentDate is required');
     }
 
-    const parsedDate = new Date(paymentDate);
-    if (isNaN(parsedDate.getTime())) {
+    try {
+      normalizeOperationalDate(paymentDate, 'paymentDate');
+    } catch (_error) {
       throw new ValidationError('paymentDate must be a valid ISO8601 date string');
     }
 

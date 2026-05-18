@@ -10,9 +10,10 @@ import {
   ActionButton,
   DataTableSurface,
   EmptyState,
+  FormField,
   InsightStrip,
   SectionSurface,
-  TextInput,
+  SelectInput,
   ToolbarSurface,
 } from '../shared/Surfaces';
 
@@ -21,6 +22,11 @@ const formatMoney = (value: unknown) => formatCurrencyValue(value);
 type ScheduleTabProps = {
   selectedLoanId: number | null;
   onLoanIdChange: (id: number | null) => void;
+  loanOptions: Array<{
+    id: number;
+    label: string;
+    helper?: string;
+  }>;
   schedule: any[];
   scheduleSummary: any;
   scheduleLoan: any;
@@ -31,6 +37,7 @@ type ScheduleTabProps = {
 export default function ScheduleTab({
   selectedLoanId,
   onLoanIdChange,
+  loanOptions,
   schedule,
   scheduleSummary,
   scheduleLoan,
@@ -45,19 +52,35 @@ export default function ScheduleTab({
           <p className="mt-1 text-sm text-text-secondary">{tTerm('reports.schedule.selectSubtitle')}</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <TextInput
-            type="number"
-            placeholder={tTerm('reports.schedule.inputPlaceholder')}
-            value={selectedLoanId || ''}
-            onChange={(e) => onLoanIdChange(e.target.value ? parseInt(e.target.value, 10) : null)}
-            className="sm:w-64"
-          />
+          <FormField
+            label={tTerm('reports.schedule.selectLabel')}
+            helper={tTerm('reports.schedule.selectHelper')}
+            className="sm:w-96"
+          >
+            <SelectInput
+              value={selectedLoanId ?? ''}
+              onChange={(event) => onLoanIdChange(event.target.value ? Number(event.target.value) : null)}
+              disabled={loanOptions.length === 0}
+              aria-label={tTerm('reports.schedule.selectLabel')}
+            >
+              <option value="">
+                {loanOptions.length > 0
+                  ? tTerm('reports.schedule.selectPlaceholder')
+                  : tTerm('reports.schedule.selectEmpty')}
+              </option>
+              {loanOptions.map((loan) => (
+                <option key={loan.id} value={loan.id}>
+                  {loan.label}
+                </option>
+              ))}
+            </SelectInput>
+          </FormField>
           <ActionButton
             variant="primary"
             onClick={onRefetch}
             disabled={!selectedLoanId || isScheduleLoading}
           >
-            {isScheduleLoading ? tTerm('reports.schedule.cta.loading') : tTerm('reports.schedule.cta.view')}
+            {isScheduleLoading ? tTerm('reports.schedule.cta.loading') : tTerm('reports.schedule.cta.refresh')}
           </ActionButton>
         </div>
       </ToolbarSurface>

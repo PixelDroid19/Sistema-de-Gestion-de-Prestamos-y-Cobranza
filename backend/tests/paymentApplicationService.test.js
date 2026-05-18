@@ -5,8 +5,8 @@ const models = require('@/models');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('@/modules/credits/application/creditFormulaHelpers');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const moduleOwnedPaymentApplicationService = require('@/modules/credits/application/paymentApplicationService');
-const { createPaymentApplicationService } = require('@/services/paymentApplicationService');
-const { BusinessRuleViolationError } = require('@/utils/errorHandler');
+const { createPaymentApplicationService } = moduleOwnedPaymentApplicationService;
+const { BusinessRuleViolationError, ValidationError } = require('@/utils/errorHandler');
 
 afterEach(() => {
   mock.restoreAll();
@@ -20,10 +20,19 @@ beforeEach(() => {
   mock.method(models.IdempotencyKey, 'update', async () => [1]);
 });
 
-test('root paymentApplicationService stays a thin compatibility adapter to the credits module implementation', () => {
-  assert.equal(createPaymentApplicationService, moduleOwnedPaymentApplicationService.createPaymentApplicationService);
-  assert.equal(require('@/services/paymentApplicationService').isInstallmentOverdue, moduleOwnedPaymentApplicationService.isInstallmentOverdue);
-  assert.equal(require('@/services/paymentApplicationService').CANCELLABLE_STATUSES, moduleOwnedPaymentApplicationService.CANCELLABLE_STATUSES);
+test('processPayment rejects malformed operational payment dates before mutation', async () => {
+  const service = moduleOwnedPaymentApplicationService.createPaymentApplicationService({ loanViewService });
+
+  await assert.rejects(() => service.processPayment({
+    loanId: 1,
+    paymentAmount: 100,
+    paymentDate: '60620-02-02',
+    actorId: 1,
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /paymentDate/);
+    return true;
+  });
 });
 
 test('applyPayment allocates payoff amounts and closes a recovered loan', async () => {
@@ -51,7 +60,10 @@ test('applyPayment allocates payoff amounts and closes a recovered loan', async 
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-1' }));
+  mock.method(models.sequelize, 'transaction', async (optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    return handler({ id: '' });
+  });
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -124,7 +136,10 @@ test('applyPayment prioritizes overdue debt before current installments and send
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-waterfall' }));
+  mock.method(models.sequelize, 'transaction', async (optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    return handler({ id: '' });
+  });
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -215,7 +230,7 @@ test('applyPartialPayment allocates the submitted amount only once across open i
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-partial-once' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -277,7 +292,7 @@ test('applyCapitalPayment reduce_term rebuilds the open schedule without marking
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -345,7 +360,7 @@ test('loan view snapshot keeps completed capital payments in collected totals af
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-read-model' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => ({ id: 890, ...payload }));
 
@@ -438,7 +453,7 @@ test('applyCapitalPayment reduce_payment preserves pending installment count and
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-payment' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => ({ id: 889, ...payload }));
 
@@ -496,7 +511,7 @@ test('applyCapitalPayment rejects loans before the first installment is paid', a
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-first-installment' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -555,7 +570,7 @@ test('applyCapitalPayment rejects loans with overdue unpaid installments and exp
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-overdue' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -614,7 +629,7 @@ test('applyCapitalPayment rejects loans with a partial operative installment bef
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-partial' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -676,7 +691,7 @@ test('applyCapitalPayment rejects loans with a financial block and exposes denia
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-block' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
@@ -713,7 +728,7 @@ test('applyCapitalPayment rejects loans with no outstanding balance and exposes 
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-capital-no-balance' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
@@ -745,7 +760,7 @@ test('applyPayment rejects invalid amounts before persistence', async () => {
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-invalid-amount' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -785,7 +800,7 @@ test('applyPayment activates pending loans with a real schedule and stores payme
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-pending' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -839,7 +854,7 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -903,7 +918,7 @@ test('applyPayoff rejects stale payoff quotes before persistence', async () => {
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-stale-payoff' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -942,7 +957,7 @@ test('applyPayoff rejects overdue unpaid installments and exposes denial reasons
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-overdue' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
@@ -987,7 +1002,7 @@ test('applyPayoff rejects financially blocked loans and exposes denial reasons',
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-block' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
@@ -1028,7 +1043,7 @@ test('applyPayoff rejects loans with no outstanding balance and exposes denial r
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-payoff-no-balance' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
@@ -1067,7 +1082,7 @@ test('applyPayoff rejects already closed loans', async () => {
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-closed-payoff' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
 
   await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyPayoff({
@@ -1123,7 +1138,7 @@ test('annulInstallment excludes annulled installments from outstanding snapshot 
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annulled' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -1216,7 +1231,7 @@ test('annulInstallment respects requested installment number when it matches nea
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annul-selected' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async (payload) => {
     savedPayment = payload;
@@ -1269,7 +1284,7 @@ test('annulInstallment blocks requested installment when it is not the nearest c
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-annul-invalid-selected' }));
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
   mock.method(models.Loan, 'findByPk', async () => loan);
   mock.method(models.Payment, 'create', async () => {
     throw new Error('Payment.create should not be called');
@@ -1301,7 +1316,10 @@ test('updatePaymentMethod updates method for non-reconciled payments and preserv
     },
   };
 
-  mock.method(models.sequelize, 'transaction', async (handler) => handler({ id: 'tx-update-method' }));
+  mock.method(models.sequelize, 'transaction', async (optionsOrHandler, maybeHandler) => {
+    const handler = typeof optionsOrHandler === 'function' ? optionsOrHandler : maybeHandler;
+    return handler({ id: '' });
+  });
   mock.method(models.Payment, 'findOne', async ({ where }) => {
     if (where.id === 701) {
       return { id: 701, loanId: 50, status: 'reconciled' };

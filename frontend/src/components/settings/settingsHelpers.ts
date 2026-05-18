@@ -11,12 +11,14 @@ export type PaymentMethodDraft = {
   type: 'bank_transfer' | 'cash' | 'card' | 'other';
 };
 
+export type PolicyPriority = 'low' | 'medium' | 'high';
+
 export type RatePolicyDraft = {
   label: string;
   minAmount: string;
   maxAmount: string;
   annualEffectiveRate: string;
-  priority: string;
+  priority: PolicyPriority;
   description: string;
 };
 
@@ -24,7 +26,7 @@ export type LateFeePolicyDraft = {
   label: string;
   annualEffectiveRate: string;
   lateFeeMode: 'NONE' | 'SIMPLE' | 'COMPOUND';
-  priority: string;
+  priority: PolicyPriority;
   description: string;
 };
 
@@ -39,12 +41,14 @@ export const EMPTY_RATE_POLICY: RatePolicyDraft = {
   minAmount: '',
   maxAmount: '',
   annualEffectiveRate: '',
-  priority: '100',
+  priority: 'medium',
   description: '',
 };
 
 export const DEFAULT_LOW_AMOUNT_LIMIT = 1000000;
 export const DEFAULT_HIGH_AMOUNT_START = 1000001;
+export const DEFAULT_MID_AMOUNT_LIMIT = 5000000;
+export const DEFAULT_TOP_AMOUNT_START = 5000001;
 
 // --- Label Helpers ---
 
@@ -70,6 +74,16 @@ export const getLateFeeModeLabel = (mode: unknown) => {
 export const getMethodName = (method: any) => method?.name || method?.label || method?.key || tTerm('settings.paymentMethods.methodUnnamed');
 
 export const getMethodTypeLabel = (type: unknown) => getPaymentMethodTypeLabel(type);
+
+export const normalizePolicyPriority = (value: unknown): PolicyPriority => {
+  const normalizedValue = String(value || 'medium').trim().toLowerCase();
+  if (normalizedValue === 'low' || normalizedValue === 'medium' || normalizedValue === 'high') {
+    return normalizedValue;
+  }
+  return 'medium';
+};
+
+export const getPolicyPriorityLabel = (value: unknown) => tTerm(`settings.priority.${normalizePolicyPriority(value)}`);
 
 // --- Formatting ---
 
@@ -119,9 +133,14 @@ export const rangesOverlap = (
 };
 
 export const sortRatePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => {
-  const priorityDiff = Number(left?.priority || 100) - Number(right?.priority || 100);
-  if (priorityDiff !== 0) return priorityDiff;
-  return getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
+  const minDiff = getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
+  if (minDiff !== 0) return minDiff;
+
+  const maxDiff = getRangeBoundary(left?.maxAmount, Number.POSITIVE_INFINITY)
+    - getRangeBoundary(right?.maxAmount, Number.POSITIVE_INFINITY);
+  if (maxDiff !== 0) return maxDiff;
+
+  return String(left?.label || '').localeCompare(String(right?.label || ''));
 });
 
 export const findRatePolicyMatchesForAmount = (policies: any[], rawAmount: string) => {
@@ -136,11 +155,9 @@ export const findRatePolicyMatchesForAmount = (policies: any[], rawAmount: strin
     ));
 };
 
-export const getWinningPriorityConflicts = (matches: any[]) => {
+export const getRatePolicyConflictsForAmount = (matches: any[]) => {
   const orderedMatches = sortRatePoliciesForApplication(matches);
-  const winningPriority = orderedMatches[0] ? Number(orderedMatches[0]?.priority || 100) : null;
-  if (winningPriority === null) return [];
-  return orderedMatches.filter((policy) => Number(policy?.priority || 100) === winningPriority);
+  return orderedMatches.length > 1 ? orderedMatches : [];
 };
 
 export const getRatePolicyConflictPairs = (policies: any[]) => {
@@ -149,10 +166,7 @@ export const getRatePolicyConflictPairs = (policies: any[]) => {
 
   activePolicies.forEach((left, leftIndex) => {
     activePolicies.slice(leftIndex + 1).forEach((right) => {
-      if (
-        Number(left?.priority || 100) === Number(right?.priority || 100)
-        && rangesOverlap(left, right)
-      ) {
+      if (rangesOverlap(left, right)) {
         pairs.push([left, right]);
       }
     });
@@ -161,8 +175,40 @@ export const getRatePolicyConflictPairs = (policies: any[]) => {
   return pairs;
 };
 
+export const getRatePolicyCoverageGaps = (policies: any[]) => {
+  const activePolicies = [...policies]
+    .filter((policy) => policy?.isActive !== false)
+    .map((policy) => ({
+      ...policy,
+      min: getRangeBoundary(policy?.minAmount, 0),
+      max: getRangeBoundary(policy?.maxAmount, Number.POSITIVE_INFINITY),
+    }))
+    .filter((policy) => Number.isFinite(policy.min) && policy.min >= 0)
+    .sort((left, right) => left.min - right.min || left.max - right.max);
+
+  if (activePolicies.length === 0) {
+    return [{ from: 0, to: Number.POSITIVE_INFINITY }];
+  }
+
+  const gaps: Array<{ from: number; to: number }> = [];
+  let expectedStart = 0;
+
+  activePolicies.forEach((policy) => {
+    if (policy.min > expectedStart) {
+      gaps.push({ from: expectedStart, to: policy.min - 1 });
+    }
+    expectedStart = Math.max(expectedStart, policy.max === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : policy.max + 1);
+  });
+
+  if (expectedStart !== Number.POSITIVE_INFINITY) {
+    gaps.push({ from: expectedStart, to: Number.POSITIVE_INFINITY });
+  }
+
+  return gaps;
+};
+
 export const buildRateCoverageCheck = (label: string, amount: number, matches: any[]) => {
-  const conflicts = getWinningPriorityConflicts(matches);
+  const conflicts = getRatePolicyConflictsForAmount(matches);
   const hasConflict = conflicts.length > 1;
   const policy = hasConflict ? null : sortRatePoliciesForApplication(matches)[0] || null;
 
@@ -192,8 +238,8 @@ export const validatePercent = (value: string, label: string) => {
 };
 
 export const validatePriority = (value: string) => {
-  const numericValue = Number(value || 100);
-  if (!Number.isInteger(numericValue) || numericValue < 0) {
+  const normalizedValue = String(value || '').trim().toLowerCase();
+  if (!['low', 'medium', 'high'].includes(normalizedValue)) {
     return tTerm('settings.validation.priority');
   }
   return null;
@@ -249,11 +295,9 @@ export const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: an
     return tTerm('settings.validation.rate.duplicateLabel');
   }
 
-  const priority = Number(draft.priority || 100);
   const overlap = ratePolicies.some((policy) => (
     String(policy?.id) !== String(currentId ?? '')
     && policy?.isActive !== false
-    && Number(policy?.priority || 100) === priority
     && rangesOverlap({ minAmount: normalizedMinAmount, maxAmount: normalizedMaxAmount }, policy)
   ));
   if (overlap) {
@@ -279,10 +323,10 @@ export const validateLateFeePolicyDraft = (draft: LateFeePolicyDraft, lateFeePol
     return tTerm('settings.validation.lateFee.duplicateLabel');
   }
 
-  const priority = Number(draft.priority || 100);
+  const priority = normalizePolicyPriority(draft.priority);
   const duplicatePriority = lateFeePolicies.some((policy) => (
     policy?.isActive !== false
-    && Number(policy?.priority || 100) === priority
+    && normalizePolicyPriority(policy?.priority) === priority
   ));
   if (duplicatePriority) {
     return tTerm('settings.validation.lateFee.duplicatePriority');
@@ -298,13 +342,13 @@ export const buildRatePayload = (policy: RatePolicyDraft) => ({
   annualEffectiveRate: Number(policy.annualEffectiveRate),
   minAmount: policy.minAmount === '' ? null : Number(policy.minAmount),
   maxAmount: policy.maxAmount === '' ? null : Number(policy.maxAmount),
-  priority: Number(policy.priority || 100),
+  priority: normalizePolicyPriority(policy.priority),
   isActive: true,
 });
 
 export const buildLateFeePayload = (policy: LateFeePolicyDraft) => ({
   ...policy,
   annualEffectiveRate: Number(policy.annualEffectiveRate),
-  priority: Number(policy.priority || 100),
+  priority: normalizePolicyPriority(policy.priority),
   isActive: true,
 });

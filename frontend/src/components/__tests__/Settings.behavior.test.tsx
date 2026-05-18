@@ -33,11 +33,29 @@ const baseConfigState: {
   ratePolicies: [
     {
       id: 11,
-      label: 'Crédito estándar',
+      label: 'Crédito básico',
       minAmount: 0,
+      maxAmount: 1000000,
+      annualEffectiveRate: 36,
+      priority: 'low',
+      isActive: true,
+    },
+    {
+      id: 12,
+      label: 'Crédito medio',
+      minAmount: 1000001,
       maxAmount: 5000000,
+      annualEffectiveRate: 48,
+      priority: 'medium',
+      isActive: true,
+    },
+    {
+      id: 13,
+      label: 'Crédito alto',
+      minAmount: 5000001,
+      maxAmount: null,
       annualEffectiveRate: 60,
-      priority: 10,
+      priority: 'high',
       isActive: true,
     },
   ],
@@ -47,7 +65,7 @@ const baseConfigState: {
       label: 'Mora simple',
       annualEffectiveRate: 24,
       lateFeeMode: 'SIMPLE',
-      priority: 10,
+      priority: 'medium',
       isActive: true,
     },
   ],
@@ -158,6 +176,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText('Empleado Activo')).toBeInTheDocument();
     expect(screen.getByText('Empleado Inactivo')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Crear empleado' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del empleado' }), {
       target: { value: 'Empleado Nuevo' },
     });
@@ -167,7 +186,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByPlaceholderText('Mínimo 8 caracteres'), {
       target: { value: 'Password123!' },
     });
-    fireEvent.submit(screen.getByRole('form', { name: 'Alta de empleado' }));
+    fireEvent.submit(screen.getByRole('form', { name: 'Nuevo empleado' }));
 
     await waitFor(() => {
       expect(mockRegisterWithPermissions).toHaveBeenCalledWith({
@@ -197,6 +216,7 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Crear método' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), { target: { value: 'Daviplata QA' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de método' }), { target: { value: 'other' } });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear método de pago' }));
@@ -216,6 +236,7 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole('button', { name: /Métodos de pago/i }));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Crear método' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre del método' }), {
       target: { value: 'Transferencia bancaria' },
     });
@@ -231,10 +252,11 @@ describe('Settings operational configuration', () => {
     expect(mockCreatePaymentMethod).not.toHaveBeenCalled();
   });
 
-  it('blocks overlapping active rate policies with the same priority', async () => {
+  it('blocks overlapping active rate policies', async () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito solapado' },
     });
@@ -247,15 +269,12 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
       target: { value: '55' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prioridad de tasa' }), {
-      target: { value: '10' },
-    });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
         expect.objectContaining({
-          description: expect.stringContaining('mismo rango y prioridad'),
+          description: expect.stringContaining('cruza este rango'),
         }),
       );
     });
@@ -266,21 +285,22 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora QA alterna' },
     });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
       target: { value: '18' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prioridad de política de mora' }), {
-      target: { value: '10' },
+    fireEvent.change(screen.getByRole('combobox', { name: 'Nivel' }), {
+      target: { value: 'medium' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
         expect.objectContaining({
-          description: expect.stringContaining('política de mora activa con esa prioridad'),
+          description: expect.stringContaining('política de mora activa con ese nivel'),
         }),
       );
     });
@@ -293,29 +313,33 @@ describe('Settings operational configuration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
 
     expect(screen.getByRole('heading', { name: 'Tasas automáticas por monto' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Cobertura y prueba' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear rango de tasa' })).toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: 'Prioridad de tasa' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Prueba de tasa' })).toBeInTheDocument();
     expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Desde.*1\.000\.001/)).toBeInTheDocument();
+    expect(screen.getAllByText(/1\.000\.001.*5\.000\.000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Desde.*5\.000\.001/).length).toBeGreaterThan(0);
     expect(screen.getByRole('spinbutton', { name: 'Monto para probar tasa' })).toHaveValue(2000000);
-    expect(screen.getAllByText('60% EA').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/Esa tasa será la que vea el operador en Nuevo crédito/)).toBeInTheDocument();
-    expect(screen.getAllByText('Crédito estándar').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Crédito medio aplica a/)).toBeInTheDocument();
+    expect(screen.getAllByText('Crédito medio').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('table', { name: 'Políticas de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();
   });
 
   it('explains existing active rate conflicts instead of silently choosing one rule', () => {
     mockConfigState.ratePolicies = [
-      ...baseConfigState.ratePolicies,
+      baseConfigState.ratePolicies[0],
       {
-        id: 12,
+        id: 99,
         label: 'Tasa sin tope',
         minAmount: 0,
         maxAmount: null,
         annualEffectiveRate: 36,
-        priority: 10,
+        priority: 'medium',
         isActive: true,
       },
     ];
@@ -323,20 +347,33 @@ describe('Settings operational configuration', () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
 
-    expect(screen.getByText('Hay tasas activas que se cruzan con el mismo orden.')).toBeInTheDocument();
-    expect(screen.getByText(/Crédito estándar y Tasa sin tope cubren montos en común/)).toBeInTheDocument();
+    expect(screen.getByText('Hay tasas activas que se cruzan.')).toBeInTheDocument();
+    expect(screen.getByText(/Crédito básico y Tasa sin tope cubren montos en común/)).toBeInTheDocument();
     expect(screen.getAllByText('Conflicto').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/Nuevo crédito queda bloqueado/)).toBeInTheDocument();
+  });
+
+  it('explains active gaps between configured rate ranges', () => {
+    mockConfigState.ratePolicies = [
+      baseConfigState.ratePolicies[0],
+      baseConfigState.ratePolicies[2],
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+
+    expect(screen.getByText('Hay montos sin tasa configurada.')).toBeInTheDocument();
+    expect(screen.getByText(/Falta cubrir:.*1\.000\.001.*5\.000\.000/)).toBeInTheDocument();
   });
 
   it('edits an existing rate policy without treating the same policy as duplicated', async () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Editar tasa por monto' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito estándar');
+    expect(screen.getByRole('heading', { name: 'Editar rango de tasa' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito básico');
 
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
       target: { value: '58' },
@@ -348,7 +385,7 @@ describe('Settings operational configuration', () => {
         id: '11',
         annualEffectiveRate: 58,
         minAmount: 0,
-        maxAmount: 5000000,
+        maxAmount: 1000000,
       }));
     });
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();

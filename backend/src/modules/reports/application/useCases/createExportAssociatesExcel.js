@@ -1,6 +1,7 @@
 const { AuthorizationError } = require('@/utils/errorHandler');
 const { ensureAdminOrSocio, formatMoney } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
@@ -30,8 +31,7 @@ const formatIsoDate = (value) => {
     return 'N/A';
   }
 
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  return toDateOnlyOrNull(value) || 'N/A';
 };
 
 const SUMMARY_COLUMNS = [
@@ -220,7 +220,9 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
       const nextInterestPayment = installments
         .filter((installment) => installment.status === 'pending')
-        .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())[0] || null;
+        .map((installment) => ({ installment, dueDate: toOperationalDateOrNull(installment.dueDate) }))
+        .filter((entry) => entry.dueDate)
+        .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())[0]?.installment || null;
       const baseFields = {
         interestType: associate.interestType === 'annual' ? 'Anual' : 'Mensual',
         interestRate: associate.interestRate || '0.0000',

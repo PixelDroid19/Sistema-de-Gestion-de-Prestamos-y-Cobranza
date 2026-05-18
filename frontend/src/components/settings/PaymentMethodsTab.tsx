@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, CircleOff, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleOff, Plus, Save, Trash2 } from 'lucide-react';
 import { tTerm } from '../../i18n/terminology';
 import { toast } from '../../lib/toast';
 import { confirmDanger } from '../../lib/confirmModal';
@@ -7,6 +7,7 @@ import {
   ActionButton,
   DataTableSurface,
   FormField,
+  ModalShell,
   SectionSurface,
   SelectInput,
   TextInput,
@@ -37,6 +38,12 @@ export default function PaymentMethodsTab({
     description: '',
     type: 'bank_transfer',
   });
+  const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
+
+  const resetPaymentMethodDraft = () => {
+    setNewPaymentMethod({ name: '', description: '', type: 'bank_transfer' });
+    setIsPaymentMethodModalOpen(false);
+  };
 
   const handleCreatePaymentMethod = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -51,7 +58,7 @@ export default function PaymentMethodsTab({
         ...newPaymentMethod,
         isActive: true,
       });
-      setNewPaymentMethod({ name: '', description: '', type: 'bank_transfer' });
+      resetPaymentMethodDraft();
       toast.success({ description: tTerm('settings.paymentMethods.toast.created') });
     } catch (error) {
       console.error('[settings] createPaymentMethod failed', error);
@@ -76,67 +83,66 @@ export default function PaymentMethodsTab({
     }
   };
 
+  const paymentMethodForm = (
+    <form id="payment-method-form" onSubmit={handleCreatePaymentMethod} aria-label={tTerm('settings.paymentMethods.section.aria')} className="space-y-4">
+      <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(220px,1fr)_180px]">
+        <FormField
+          label={tTerm('settings.paymentMethods.field.name')}
+          tooltip={tTerm('settings.paymentMethods.field.nameTooltip')}
+        >
+          <TextInput
+            aria-label={tTerm('settings.paymentMethods.field.name')}
+            required
+            value={newPaymentMethod.name}
+            onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
+            placeholder={tTerm('settings.paymentMethods.field.namePlaceholder')}
+          />
+        </FormField>
+
+        <FormField
+          label={tTerm('settings.paymentMethods.field.type')}
+          tooltip={tTerm('settings.paymentMethods.field.typeTooltip')}
+        >
+          <SelectInput
+            aria-label={tTerm('settings.paymentMethods.field.type')}
+            value={newPaymentMethod.type}
+            onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
+          >
+            <option value="bank_transfer">{tTerm('settings.paymentMethods.type.bankTransfer')}</option>
+            <option value="cash">{tTerm('settings.paymentMethods.type.cash')}</option>
+            <option value="card">{tTerm('settings.paymentMethods.type.card')}</option>
+            <option value="other">{tTerm('settings.paymentMethods.type.other')}</option>
+          </SelectInput>
+        </FormField>
+      </div>
+      <FormField label={tTerm('settings.paymentMethods.field.description')}>
+        <TextInput
+          aria-label={tTerm('settings.paymentMethods.field.description')}
+          value={newPaymentMethod.description}
+          onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
+          placeholder={tTerm('settings.paymentMethods.field.descriptionPlaceholder')}
+        />
+      </FormField>
+    </form>
+  );
+
   return (
     <>
       <SectionSurface
-        as="form"
-        onSubmit={handleCreatePaymentMethod}
-        aria-label={tTerm('settings.paymentMethods.section.aria')}
         title={tTerm('settings.paymentMethods.section.title')}
         subtitle={tTerm('settings.paymentMethods.section.subtitle')}
-        bodyClassName="space-y-4"
-      >
-        <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(220px,1fr)_180px]">
-          <FormField
-            label={tTerm('settings.paymentMethods.field.name')}
-            tooltip={tTerm('settings.paymentMethods.field.nameTooltip')}
-          >
-            <TextInput
-              aria-label={tTerm('settings.paymentMethods.field.name')}
-              required
-              value={newPaymentMethod.name}
-              onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder={tTerm('settings.paymentMethods.field.namePlaceholder')}
-            />
-          </FormField>
-
-          <FormField
-            label={tTerm('settings.paymentMethods.field.type')}
-            tooltip={tTerm('settings.paymentMethods.field.typeTooltip')}
-          >
-            <SelectInput
-              aria-label={tTerm('settings.paymentMethods.field.type')}
-              value={newPaymentMethod.type}
-              onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, type: event.target.value as PaymentMethodDraft['type'] }))}
-            >
-              <option value="bank_transfer">{tTerm('settings.paymentMethods.type.bankTransfer')}</option>
-              <option value="cash">{tTerm('settings.paymentMethods.type.cash')}</option>
-              <option value="card">{tTerm('settings.paymentMethods.type.card')}</option>
-              <option value="other">{tTerm('settings.paymentMethods.type.other')}</option>
-            </SelectInput>
-          </FormField>
-        </div>
-        <FormField label={tTerm('settings.paymentMethods.field.description')}>
-          <TextInput
-            aria-label={tTerm('settings.paymentMethods.field.description')}
-            value={newPaymentMethod.description}
-            onChange={(event) => setNewPaymentMethod((prev) => ({ ...prev, description: event.target.value }))}
-            placeholder={tTerm('settings.paymentMethods.field.descriptionPlaceholder')}
-          />
-        </FormField>
-        <div className="settings-form-actions">
+        actions={(
           <ActionButton
-            type="submit"
-            disabled={createPaymentMethod.isPending}
+            type="button"
             variant="primary"
             icon={<Plus size={16} />}
+            onClick={() => setIsPaymentMethodModalOpen(true)}
           >
-            {tTerm('settings.paymentMethods.cta.create')}
+            {tTerm('settings.paymentMethods.cta.openCreate')}
           </ActionButton>
-          <p className="settings-inline-helper">
-            {tTerm('settings.paymentMethods.note')}
-          </p>
-        </div>
+        )}
+      >
+        <p className="text-sm leading-6 text-text-secondary">{tTerm('settings.paymentMethods.note')}</p>
       </SectionSurface>
 
       <DataTableSurface>
@@ -204,6 +210,33 @@ export default function PaymentMethodsTab({
           </table>
         </div>
       </DataTableSurface>
+
+      {isPaymentMethodModalOpen && (
+        <ModalShell
+          title={tTerm('settings.paymentMethods.modal.title')}
+          subtitle={tTerm('settings.paymentMethods.modal.subtitle')}
+          maxWidthClassName="max-w-2xl"
+          onClose={resetPaymentMethodDraft}
+          footer={(
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+              <ActionButton type="button" onClick={resetPaymentMethodDraft} disabled={createPaymentMethod.isPending}>
+                {tTerm('common.cta.cancel')}
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                form="payment-method-form"
+                disabled={createPaymentMethod.isPending}
+                variant="primary"
+                icon={<Save size={16} />}
+              >
+                {tTerm('settings.paymentMethods.cta.create')}
+              </ActionButton>
+            </div>
+          )}
+        >
+          {paymentMethodForm}
+        </ModalShell>
+      )}
     </>
   );
 }

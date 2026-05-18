@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, ChevronDown, Clock3, Loader2, RotateCcw, Save, ShieldCheck, User, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';
-import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatNumber, formatPercent } from '../i18n/format';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatNumber, formatPercent, isValidOperationalDateOnly } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
@@ -43,9 +43,10 @@ const getRangeBoundary = (value: unknown, fallback: number) => {
   return Number(value);
 };
 const sortRatePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => {
-  const priorityDiff = Number(left?.priority || 100) - Number(right?.priority || 100);
-  if (priorityDiff !== 0) return priorityDiff;
-  return getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
+  const minDiff = getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
+  if (minDiff !== 0) return minDiff;
+  return getRangeBoundary(left?.maxAmount, Number.POSITIVE_INFINITY)
+    - getRangeBoundary(right?.maxAmount, Number.POSITIVE_INFINITY);
 });
 const findRatePolicyMatchesForAmount = (policies: any[], rawAmount: unknown) => {
   const amount = Number(rawAmount || 0);
@@ -58,11 +59,16 @@ const findRatePolicyMatchesForAmount = (policies: any[], rawAmount: unknown) => 
       && amount <= getRangeBoundary(policy?.maxAmount, Number.POSITIVE_INFINITY)
     ));
 };
-const getWinningPriorityConflicts = (matches: any[]) => {
+const getRatePolicyConflictsForAmount = (matches: any[]) => {
   const orderedMatches = sortRatePoliciesForApplication(matches);
-  const winningPriority = orderedMatches[0] ? Number(orderedMatches[0]?.priority || 100) : null;
-  if (winningPriority === null) return [];
-  return orderedMatches.filter((policy) => Number(policy?.priority || 100) === winningPriority);
+  return orderedMatches.length > 1 ? orderedMatches : [];
+};
+const lateFeePriorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const normalizePolicyPriority = (value: unknown) => {
+  const normalizedValue = String(value || 'medium').trim().toLowerCase();
+  return normalizedValue === 'high' || normalizedValue === 'medium' || normalizedValue === 'low'
+    ? normalizedValue
+    : 'medium';
 };
 const formatAmountInputDisplay = (value: number) => formatNumber(Number.isFinite(value) ? value : 0, { maximumFractionDigits: 0 });
 const parseDigitsToAmount = (raw: string) => {
@@ -198,7 +204,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     [input.amount, ratePolicies],
   );
   const ambiguousRatePolicyMatches = useMemo<any[]>(
-    () => getWinningPriorityConflicts(resolvedRatePolicyMatches),
+    () => getRatePolicyConflictsForAmount(resolvedRatePolicyMatches),
     [resolvedRatePolicyMatches],
   );
   const hasAmbiguousRatePolicy = canReadFinancialConfig && ambiguousRatePolicyMatches.length > 1;
@@ -209,7 +215,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const resolvedLateFeePolicy = useMemo<any>(() => (
     lateFeePolicies
       .filter((policy: any) => policy.isActive)
-      .sort((left: any, right: any) => Number(left.priority || 100) - Number(right.priority || 100))[0] || null
+      .sort((left: any, right: any) => (
+        (lateFeePriorityOrder[normalizePolicyPriority(left.priority)] ?? lateFeePriorityOrder.medium)
+        - (lateFeePriorityOrder[normalizePolicyPriority(right.priority)] ?? lateFeePriorityOrder.medium)
+      ))[0] || null
   ), [lateFeePolicies]);
 
   useEffect(() => {
@@ -426,6 +435,11 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   };
 
   const handleValidateCredit = () => {
+    if (input.startDate && !isValidOperationalDateOnly(input.startDate)) {
+      toast.error({ title: tTerm('newCredit.validation.startDate') });
+      return;
+    }
+
     if (!canValidateWithCurrentPolicy) {
       if (hasAmbiguousRatePolicy) {
         toast.error({

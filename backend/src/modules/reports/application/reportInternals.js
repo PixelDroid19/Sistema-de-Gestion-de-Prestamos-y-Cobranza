@@ -10,6 +10,7 @@
 
 const { formatCurrency } = require('@/modules/shared/money');
 const { buildPaginationMeta, paginateArray } = require('@/modules/shared/pagination');
+const { toDateOnlyOrNull } = require('@/modules/shared/dateUtils');
 
 // ─── PDF Generation ─────────────────────────────────────────────────────────
 
@@ -88,8 +89,7 @@ const formatIsoDate = (value) => {
   if (!value) {
     return 'N/A';
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  return toDateOnlyOrNull(value) || 'N/A';
 };
 
 // ─── Excel Column Helpers ───────────────────────────────────────────────────

@@ -17,7 +17,7 @@ const createConfigRepository = () => ({
             minAmount: 0,
             maxAmount: null,
             annualEffectiveRate: 48,
-            priority: 1,
+            priority: 'medium',
           },
         },
       ];
@@ -33,7 +33,7 @@ const createConfigRepository = () => ({
           value: {
             annualEffectiveRate: 30,
             lateFeeMode: 'SIMPLE',
-            priority: 1,
+            priority: 'medium',
           },
         },
       ];

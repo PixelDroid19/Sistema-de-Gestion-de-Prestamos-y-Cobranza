@@ -133,7 +133,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           minAmount: { type: 'number', nullable: true },
           maxAmount: { type: 'number', nullable: true },
           annualEffectiveRate: { type: 'number', minimum: 0, maximum: 100 },
-          priority: { type: 'integer' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
         },
       },
       LateFeePolicy: {
@@ -145,7 +145,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           isActive: { type: 'boolean' },
           annualEffectiveRate: { type: 'number', minimum: 0, maximum: 100 },
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
-          priority: { type: 'integer' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
         },
       },
       AssociateInput: {

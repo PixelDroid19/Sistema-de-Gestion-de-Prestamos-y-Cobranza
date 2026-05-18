@@ -36,9 +36,21 @@ test('calculateCredit returns a traceable profile-backed contract', () => {
   assert.equal(result.summary.totalInterest, 79.42);
   assert.equal(result.summary.totalPayable, 1279.42);
   assert.equal(result.schedule.length, 12);
-  assert.equal(result.schedule[0].dueDate, '2026-01-01T00:00:00.000Z');
+  assert.equal(result.schedule[0].dueDate, '2026-02-01T00:00:00.000Z');
   assert.ok(result.explanation.method.formula.includes('cuota'));
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'graphVersionId'), false);
+});
+
+test('calculateCredit rejects malformed start dates instead of falling back silently', () => {
+  assert.throws(() => calculateCredit({
+    input: { ...baseInput, startDate: '60620-02-02' },
+    profileVersion: activeProfile,
+  }), /startDate/);
+
+  assert.throws(() => calculateCredit({
+    input: { ...baseInput, startDate: '2026-02-31' },
+    profileVersion: activeProfile,
+  }), /startDate/);
 });
 
 test('calculateCredit supports FRENCH, SIMPLE, and COMPOUND methods with explicit totals', () => {

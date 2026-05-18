@@ -8,6 +8,7 @@ const mockExportContextualReport = vi.fn().mockResolvedValue(undefined);
 const mockExportMonthlyCashFlowExcel = vi.fn().mockResolvedValue(undefined);
 const mockExportMonthlyCashFlowPdf = vi.fn().mockResolvedValue(undefined);
 const mockToastError = vi.fn();
+const mockUsePaymentSchedule = vi.fn(() => ({ schedule: [], summary: null, loan: null, isLoading: false }));
 
 let currentUser = {
   id: 1,
@@ -35,6 +36,22 @@ let reportsState = {
   isLoading: false,
   isError: false,
   error: null,
+};
+
+let loansState = {
+  data: {
+    data: {
+      loans: [
+        {
+          id: 3,
+          customerName: 'Cliente Operativo',
+          amount: 1200000,
+          status: 'active',
+        },
+      ],
+    },
+  },
+  isLoading: false,
 };
 
 vi.mock('../../services/reportService', () => ({
@@ -72,11 +89,15 @@ vi.mock('../../services/reportService', () => ({
     isError: false,
   }),
   usePayoutsReport: () => ({ payouts: [], summary: null, pagination: null, isLoading: false }),
-  usePaymentSchedule: () => ({ schedule: [], summary: null, loan: null, isLoading: false }),
+  usePaymentSchedule: (...args: unknown[]) => (mockUsePaymentSchedule as any)(...args),
   exportDashboardSummary: (...args: unknown[]) => mockExportDashboardSummary(...args),
   exportContextualReport: (...args: unknown[]) => mockExportContextualReport(...args),
   exportMonthlyCashFlowExcel: (...args: unknown[]) => mockExportMonthlyCashFlowExcel(...args),
   exportMonthlyCashFlowPdf: (...args: unknown[]) => mockExportMonthlyCashFlowPdf(...args),
+}));
+
+vi.mock('../../services/loanService', () => ({
+  useLoans: () => loansState,
 }));
 
 vi.mock('../../store/sessionStore', () => ({
@@ -145,6 +166,27 @@ describe('Reports behavioral parity scenarios', () => {
       isError: false,
       error: null,
     };
+    loansState = {
+      data: {
+        data: {
+          loans: [
+            {
+              id: 3,
+              customerName: 'Cliente Operativo',
+              amount: 1200000,
+              status: 'active',
+            },
+          ],
+        },
+      },
+      isLoading: false,
+    };
+    mockUsePaymentSchedule.mockImplementation(() => ({
+      schedule: [],
+      summary: null,
+      loan: null,
+      isLoading: false,
+    }));
     currentUser = {
       id: 1,
       name: 'Admin',
@@ -276,6 +318,23 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
     await waitFor(() => {
       expect(mockExportMonthlyCashFlowPdf).toHaveBeenCalledWith(2026);
+    });
+  });
+
+  it('selects a loan for the payment calendar without requiring a manual loan ID', async () => {
+    renderReports();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calendario de pagos' }));
+
+    expect(screen.queryByPlaceholderText('Ingrese ID del crédito')).not.toBeInTheDocument();
+    const loanSelect = screen.getByLabelText('Crédito');
+    expect(loanSelect).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Cliente Operativo · #3/ })).toBeInTheDocument();
+
+    fireEvent.change(loanSelect, { target: { value: '3' } });
+
+    await waitFor(() => {
+      expect(mockUsePaymentSchedule).toHaveBeenLastCalledWith(3);
     });
   });
 

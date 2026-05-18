@@ -94,6 +94,10 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     }
   };
 
+  const navigateToView = (view: string) => {
+    setCurrentView?.(view);
+  };
+
   const handleExportCreditsExcel = async () => {
     try {
       setIsExporting(true);
@@ -299,7 +303,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     await executeGuardedAction({
       action: 'credit.payouts.navigate',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
-      run: async () => { setCurrentView?.('payouts'); },
+      run: async () => { navigateToView('payouts'); },
     });
   };
 
@@ -405,7 +409,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             )}
             {isAdmin && (
               <ActionButton
-                onClick={() => setCurrentView?.('credit-calculator')}
+                onClick={() => navigateToView('credit-calculator')}
                 data-tour="credits-preview"
                 icon={<Calculator size={16} />}
               >
@@ -414,7 +418,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
             )}
             {isAdmin && (
               <ActionButton
-                onClick={() => setCurrentView?.('credits-new')}
+                onClick={() => navigateToView('credits-new')}
                 data-tour="credits-new"
                 variant="primary"
                 icon={<Plus size={16} />}
@@ -471,7 +475,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
-          onViewCredit={(credit: any) => setCurrentView?.(`credits/${credit.id}`)}
+          onViewCredit={(credit: any) => navigateToView(`credits/${credit.id}`)}
           user={user}
         />
       )}
@@ -483,7 +487,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           isCalendarLoading={isCalendarLoading}
           selectedEvent={selectedEvent}
           onSelectEvent={setSelectedEvent}
-          onViewCredit={(loanId: number) => setCurrentView?.(`credits/${loanId}`)}
+          onViewCredit={(loanId: number) => navigateToView(`credits/${loanId}`)}
         />
       )}
     </PageShell>

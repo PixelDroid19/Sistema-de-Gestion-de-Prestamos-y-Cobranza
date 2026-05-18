@@ -1,56 +1,24 @@
 const { ValidationError } = require('@/utils/errorHandler');
 const { summarizeSchedule, buildAmortizationSchedule, roundCurrency } = require('./creditFormulaHelpers');
 const { assertPayoffAllowed } = require('./paymentEligibility');
+const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const parseDateOnlyParts = (value) => {
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(value || '').trim());
-  if (!match) {
-    return null;
-  }
-
-  return {
-    year: Number(match[1]),
-    month: Number(match[2]),
-    day: Number(match[3]),
-  };
-};
-
 const formatUtcDateOnly = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
+  const date = normalizeUtcDateOnly(value);
   return date.toISOString().slice(0, 10);
 };
 
 const normalizeUtcDateOnly = (value, field = 'date') => {
-  if (!value) {
-    throw new ValidationError(`${field} is required`);
-  }
-
-  const dateOnlyParts = parseDateOnlyParts(value);
-  if (dateOnlyParts) {
-    const utcDate = new Date(Date.UTC(dateOnlyParts.year, dateOnlyParts.month - 1, dateOnlyParts.day));
-    if (
-      utcDate.getUTCFullYear() !== dateOnlyParts.year
-      || utcDate.getUTCMonth() !== dateOnlyParts.month - 1
-      || utcDate.getUTCDate() !== dateOnlyParts.day
-    ) {
-      throw new ValidationError(`${field} must be a valid YYYY-MM-DD date`);
+  try {
+    return normalizeDateOnly(value, field);
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
     }
-
-    return utcDate;
+    throw new ValidationError(`${field} must be a valid YYYY-MM-DD date`);
   }
-
-  const parsedDate = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  if (Number.isNaN(parsedDate.getTime())) {
-    throw new ValidationError(`${field} must be a valid date`);
-  }
-
-  return new Date(Date.UTC(
-    parsedDate.getUTCFullYear(),
-    parsedDate.getUTCMonth(),
-    parsedDate.getUTCDate(),
-  ));
 };
 
 const resolveLoanStartDateValue = (loan) => (

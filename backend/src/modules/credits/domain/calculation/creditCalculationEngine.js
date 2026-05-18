@@ -9,6 +9,7 @@ const { assertSupportedLateFeeMode } = require('./lateFeeCalculator');
 const { buildCalculationExplanation } = require('./calculationExplainer');
 const { buildPolicySnapshot } = require('./policySnapshotBuilder');
 const { assertActiveProfile } = require('./calculationProfiles');
+const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
 const addOneMonthClamped = (date) => {
   const year = date.getFullYear();
@@ -36,8 +37,8 @@ const normalizeCreditCalculationInput = (input = {}) => {
   }
 
   const rawStartDate = input.startDate;
-  const startDate = rawStartDate && !Number.isNaN(new Date(rawStartDate).getTime())
-    ? rawStartDate
+  const startDate = rawStartDate
+    ? normalizeDateOnly(rawStartDate, 'startDate').toISOString()
     : resolveDefaultFirstPaymentDate();
 
   return {

@@ -8,6 +8,12 @@ const {
 } = require('@/utils/errorHandler');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
 const { roundCurrency, formatCurrency } = require('@/modules/shared/money');
+const {
+  normalizeOperationalDate,
+  normalizeOptionalDateOnlyString,
+  toDateOnlyOrNull,
+  toOperationalDateOrNull,
+} = require('@/modules/shared/dateUtils');
 
 const PERCENTAGE_SCALE = 10000;
 const HUNDRED_PERCENT_UNITS = 100 * PERCENTAGE_SCALE;
@@ -116,31 +122,20 @@ const normalizePaymentMonth = (value) => {
   return month;
 };
 
-const normalizeOptionalDateOnly = (value, fieldName) => {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
+const normalizeOptionalDateOnly = (value, fieldName) => normalizeOptionalDateOnlyString(value, fieldName);
 
-  const normalizedValue = String(value).trim();
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(normalizedValue);
-  if (!match) {
-    throw new ValidationError(`${fieldName} must be a valid YYYY-MM-DD date`);
-  }
+const normalizeOptionalOperationDate = (value, fieldName) => (
+  value === undefined || value === null || value === ''
+    ? new Date()
+    : normalizeOperationalDate(value, fieldName)
+);
 
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year
-    || date.getUTCMonth() !== month - 1
-    || date.getUTCDate() !== day
-  ) {
-    throw new ValidationError(`${fieldName} must be a valid YYYY-MM-DD date`);
-  }
-
-  return normalizedValue;
-};
+const mapValidDatedRows = (rows, getDate, mapRow) => rows
+  .map((row) => {
+    const date = toOperationalDateOrNull(getDate(row));
+    return date ? mapRow(row, date) : null;
+  })
+  .filter(Boolean);
 
 const normalizeAssociatePayload = (payload) => {
   const normalizedPayload = { ...payload };
@@ -234,7 +229,7 @@ const buildInterestDueDate = ({ associate, fromDate = new Date(), afterDate = nu
   const interestType = normalizeInterestType(associate.interestType);
   const paymentDay = normalizePaymentDay(associate.interestPaymentDay);
   const paymentMonth = normalizePaymentMonth(associate.interestPaymentMonth);
-  const baseDate = afterDate ? new Date(afterDate) : new Date(fromDate);
+  const baseDate = normalizeOperationalDate(afterDate || fromDate, 'interest due anchor date');
   const year = baseDate.getUTCFullYear();
   const month = baseDate.getUTCMonth();
   let dueDate = interestType === 'annual'
@@ -734,10 +729,16 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
     .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
   const nextInterestPayment = installments
     .filter((installment) => installment.status === 'pending')
-    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())[0] || null;
+    .map((installment) => ({ installment, dateOnly: toDateOnlyOrNull(installment.dueDate) }))
+    .filter((entry) => entry.dateOnly)
+    .sort((left, right) => normalizeOperationalDate(left.dateOnly).getTime() - normalizeOperationalDate(right.dateOnly).getTime())[0]?.installment || null;
   const paymentHistory = installments
     .filter((installment) => installment.status === 'paid')
-    .sort((left, right) => new Date(right.paidAt || right.updatedAt || 0).getTime() - new Date(left.paidAt || left.updatedAt || 0).getTime())
+    .sort((left, right) => {
+      const rightDate = toOperationalDateOrNull(right.paidAt || right.updatedAt);
+      const leftDate = toOperationalDateOrNull(left.paidAt || left.updatedAt);
+      return (rightDate?.getTime() || 0) - (leftDate?.getTime() || 0);
+    })
     .map((installment) => ({
       id: installment.id,
       amount: roundCurrency(installment.amount),
@@ -755,7 +756,7 @@ const createListAssociatePortalSummary = ({ associateRepository }) => async ({ a
       totalDistributed: roundCurrency(totalDistributed),
       totalInterestPaid: roundCurrency(totalInterestPaid),
       interestDebt: roundCurrency(interestDebt),
-      nextInterestPaymentDate: nextInterestPayment?.dueDate ? new Date(nextInterestPayment.dueDate).toISOString() : null,
+      nextInterestPaymentDate: nextInterestPayment?.dueDate ? toDateOnlyOrNull(nextInterestPayment.dueDate) : null,
       netProfit: roundCurrency(totalDistributed),
       debtStatus: interestDebt > 0 ? 'pending' : 'up_to_date',
     },
@@ -784,7 +785,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
     const contribution = await associateRepository.createContribution({
       associateId: associate.id,
       amount,
-      contributionDate: payload.contributionDate ? new Date(payload.contributionDate) : new Date(),
+      contributionDate: normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate'),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
     });
@@ -824,7 +825,7 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
       associateId: associate.id,
       loanId: null,
       amount,
-      distributionDate: payload.distributionDate ? new Date(payload.distributionDate) : new Date(),
+      distributionDate: normalizeOptionalOperationDate(payload.distributionDate, 'distributionDate'),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
       basis: payload.basis && typeof payload.basis === 'object' ? payload.basis : {},
@@ -853,10 +854,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
       throw new ValidationError('Reinvestment amount must be greater than 0');
     }
 
-    const operationDate = payload.reinvestmentDate ? new Date(payload.reinvestmentDate) : new Date();
-    if (Number.isNaN(operationDate.getTime())) {
-      throw new ValidationError('reinvestmentDate must be a valid date when provided');
-    }
+    const operationDate = normalizeOptionalOperationDate(payload.reinvestmentDate, 'reinvestmentDate');
 
     return associateRepository.runInTransaction(async (transaction) => {
       const note = payload.notes ? String(payload.notes).trim() : null;
@@ -908,11 +906,7 @@ const createCreateProportionalProfitDistribution = ({ associateRepository, audit
     }
 
     const amountCents = parseCurrencyToCents(payload.amount);
-    const distributionDate = payload.distributionDate ? new Date(payload.distributionDate) : new Date();
-
-    if (Number.isNaN(distributionDate.getTime())) {
-      throw new ValidationError('distributionDate must be a valid date when provided');
-    }
+    const distributionDate = normalizeOptionalOperationDate(payload.distributionDate, 'distributionDate');
 
     const notes = payload.notes ? String(payload.notes).trim() : null;
     const customBasis = payload.basis && typeof payload.basis === 'object' ? payload.basis : {};
@@ -1065,7 +1059,10 @@ const createGetAssociateInstallments = ({ associateRepository }) => async ({ act
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   const totalOverdue = installments
-    .filter((i) => i.status === 'pending' && new Date(i.dueDate) < new Date())
+    .filter((i) => {
+      const dueDate = toDateOnlyOrNull(i.dueDate);
+      return i.status === 'pending' && dueDate && normalizeOperationalDate(dueDate) < new Date();
+    })
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   return {
@@ -1110,7 +1107,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
       throw new ValidationError('Installment already paid');
     }
 
-    const paymentDate = payload?.paymentDate ? new Date(payload.paymentDate) : new Date();
+    const paymentDate = normalizeOptionalOperationDate(payload?.paymentDate, 'paymentDate');
     const paidBy = actor.id;
 
     await associateRepository.updateInstallmentStatus(
@@ -1172,21 +1169,21 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
   const events = await associateRepository.findCalendarEvents(associateId, startDate, endDate);
 
   const allEvents = [
-    ...events.contributions.map((c) => ({
+    ...mapValidDatedRows(events.contributions, (c) => c.date, (c, date) => ({
       ...c,
-      date: new Date(c.date),
+      date,
       displayType: 'Aporte',
       displayAmount: `+${c.amount.toFixed(2)}`,
     })),
-    ...events.distributions.map((d) => ({
+    ...mapValidDatedRows(events.distributions, (d) => d.date, (d, date) => ({
       ...d,
-      date: new Date(d.date),
+      date,
       displayType: 'Distribución',
       displayAmount: `-${d.amount.toFixed(2)}`,
     })),
-    ...events.installments.map((i) => ({
+    ...mapValidDatedRows(events.installments, (i) => i.dueDate, (i, date) => ({
       ...i,
-      date: new Date(i.dueDate),
+      date,
       displayType: 'Cuota',
       displayAmount: i.status === 'paid' ? `✓ ${i.amount.toFixed(2)}` : i.amount.toFixed(2),
     })),

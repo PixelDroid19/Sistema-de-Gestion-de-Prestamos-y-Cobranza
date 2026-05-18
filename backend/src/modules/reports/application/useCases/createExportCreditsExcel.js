@@ -1,5 +1,6 @@
 const { ensureAdmin, formatMoney, buildCsv, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
+const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
 const toPlainLoan = (loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan);
 
@@ -13,12 +14,7 @@ const toNumberOrNull = (value) => {
 };
 
 const parseDateOrNull = (value) => {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return normalizeOptionalOperationalDate(value, 'date');
 };
 
 const pickLoanDate = (loan) => (
@@ -70,8 +66,8 @@ const matchesFilters = (loan, filters) => {
   }
 
   const rawLoanDate = pickLoanDate(loan);
-  const loanDate = rawLoanDate ? new Date(rawLoanDate) : null;
-  if ((filters.startDate || filters.endDate) && (!loanDate || Number.isNaN(loanDate.getTime()))) {
+  const loanDate = rawLoanDate ? toOperationalDateOrNull(rawLoanDate) : null;
+  if ((filters.startDate || filters.endDate) && !loanDate) {
     return false;
   }
 
@@ -162,8 +158,7 @@ const toDateValue = (value) => {
     return '';
   }
 
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date;
+  return toOperationalDateOrNull(value) || '';
 };
 
 const getLoanCustomer = (loan) => loan?.Customer || loan?.customer || {};
@@ -381,7 +376,8 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         ? (totalInterestGenerated / Number(loan.amount || 1)) * 1000000
         : 0;
       const lastPayment = [...completedPayments].sort((left, right) => (
-        new Date(right.paymentDate || right.createdAt) - new Date(left.paymentDate || left.createdAt)
+        (toOperationalDateOrNull(right.paymentDate || right.createdAt)?.getTime() || 0)
+        - (toOperationalDateOrNull(left.paymentDate || left.createdAt)?.getTime() || 0)
       ))[0];
 
       const detailRow = {

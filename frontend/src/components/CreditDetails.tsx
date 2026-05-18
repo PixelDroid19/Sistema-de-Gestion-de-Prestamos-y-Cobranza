@@ -19,6 +19,7 @@ import {
   formatCurrency as formatCurrencyValue,
   formatDate as formatDateValue,
   formatDateTime as formatDateTimeValue,
+  isValidOperationalDateOnly,
 } from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
 import { resolveOperationalGuard } from '../services/operationalGuards';
@@ -44,6 +45,11 @@ import { PromisesTab } from './creditDetails/PromisesTab';
 import { PayoutsTab } from './creditDetails/PayoutsTab';
 import { HistoryTab } from './creditDetails/HistoryTab';
 import { CreditDetailsModals } from './creditDetails/CreditDetailsModals';
+
+const toMoneyInputValue = (value: unknown) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(2) : '';
+};
 
 export default function CreditDetails() {
   // -------------------------------------------------------------------------
@@ -392,6 +398,7 @@ export default function CreditDetails() {
     const inst = operationalModal.payload?.installment;
     const instNum = inst?.installmentNumber ?? selectedInstallmentNumber;
     if (!instNum) { toast.error({ title: tTerm('creditDetails.error.installmentSelection') }); return; }
+    if (!isValidOperationalDateOnly(paymentDate)) { toast.error({ title: tTerm('creditDetails.error.paymentDate') }); return; }
     await executeGuardedAction({
       action: 'installment.pay',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
@@ -430,12 +437,7 @@ export default function CreditDetails() {
     const inst = operationalModal.payload?.installment;
     if (!inst?.installmentNumber) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
     if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(promiseDateInput)) { toast.error({ title: tTerm('creditDetails.error.promiseDate') }); return; }
-    const parsedPromiseDate = new Date(`${promiseDateInput}T00:00:00.000Z`);
-    if (Number.isNaN(parsedPromiseDate.getTime()) || parsedPromiseDate.toISOString().slice(0, 10) !== promiseDateInput) {
-      toast.error({ title: tTerm('creditDetails.error.promiseDate') });
-      return;
-    }
+    if (!isValidOperationalDateOnly(promiseDateInput)) { toast.error({ title: tTerm('creditDetails.error.promiseDate') }); return; }
     await executeGuardedAction({
       action: 'installment.promise',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
@@ -500,6 +502,7 @@ export default function CreditDetails() {
   const handleRecordCapital = async () => {
     const amount = parseFloat(capitalAmount);
     if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    if (!isValidOperationalDateOnly(capitalPaymentDate)) { toast.error({ title: tTerm('creditDetails.error.paymentDate') }); return; }
     if (!capitalPaymentGuard.executable) { toast.error({ title: tTerm('creditDetails.toast.capitalUnavailable'), description: capitalPaymentGuard.reason || capitalUnavailableDescription }); return; }
     await executeGuardedAction({
       action: 'capital.payment',
@@ -529,7 +532,7 @@ export default function CreditDetails() {
     const n = Number(row?.installmentNumber);
     if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.installmentId') }); return; }
     setSelectedInstallmentNumber(n);
-    setPaymentAmount(String(row.payableAmount ?? row.outstandingAmount ?? row.scheduledPayment ?? ''));
+    setPaymentAmount(toMoneyInputValue(row.payableAmount ?? row.outstandingAmount ?? row.scheduledPayment));
     operationalModal.openModal('record-payment', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.payableAmount ?? row.scheduledPayment, status: row.status } });
   };
 
@@ -543,7 +546,7 @@ export default function CreditDetails() {
     const n = Number(row?.installmentNumber);
     if (!Number.isFinite(n) || n <= 0) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
     operationalModal.openModal('create-promise', { loanId, installment: { installmentId: n, installmentNumber: n, amount: row.scheduledPayment, status: row.status } });
-    setPromiseAmount(String(row.scheduledPayment ?? ''));
+    setPromiseAmount(toMoneyInputValue(row.scheduledPayment));
   };
 
   const openFollowUpFromInstallment = (row: any) => {

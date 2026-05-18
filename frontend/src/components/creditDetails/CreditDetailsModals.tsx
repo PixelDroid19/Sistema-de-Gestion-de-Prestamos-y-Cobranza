@@ -10,6 +10,11 @@ import type { CapitalPreview } from './creditDetailsHelpers';
 
 type PaymentMethodOption = { value: string; label: string };
 
+const toMoneyInputValue = (value: unknown) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(2) : '';
+};
+
 export type CreditDetailsModalsProps = {
   formatCurrency: (v: unknown) => string;
   paymentMethodOptions: PaymentMethodOption[];
@@ -159,7 +164,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                       <span className="block text-blue-700 dark:text-blue-300">{tTerm('creditDetails.paymentQuote.suggestedTotal')}</span>
                       <ActionButton
                         type="button"
-                        onClick={() => props.onPaymentAmountChange(String(props.installmentQuote.totalDue ?? ''))}
+                        onClick={() => props.onPaymentAmountChange(toMoneyInputValue(props.installmentQuote.totalDue))}
                         variant="ghost"
                         className="!min-h-0 !border-0 !bg-transparent !p-0 !font-semibold !text-brand-primary hover:!bg-transparent"
                       >

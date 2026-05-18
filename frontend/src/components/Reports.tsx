@@ -11,6 +11,7 @@ import {
   exportMonthlyCashFlowExcel,
   exportMonthlyCashFlowPdf,
 } from '../services/reportService';
+import { useLoans } from '../services/loanService';
 import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
@@ -36,6 +37,27 @@ import PayoutsTab from './reports/PayoutsTab';
 import ScheduleTab from './reports/ScheduleTab';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+
+const getLoanCustomerName = (loan: any) => {
+  const direct = loan?.customerName || loan?.clientName || loan?.borrowerName;
+  const nested = loan?.customer?.name || loan?.Customer?.name;
+  const composed = [loan?.customer?.firstName, loan?.customer?.lastName].filter(Boolean).join(' ').trim()
+    || [loan?.Customer?.firstName, loan?.Customer?.lastName].filter(Boolean).join(' ').trim();
+  return direct || nested || composed || tTerm('credits.label.customerFallback', { id: loan?.customerId ?? loan?.id });
+};
+
+const getLoanOptionLabel = (loan: any) => {
+  const id = Number(loan?.id);
+  const customerName = getLoanCustomerName(loan);
+  const amount = formatMoney(loan?.amount);
+  const status = String(loan?.status || '').trim();
+  return [
+    customerName,
+    Number.isFinite(id) ? `#${id}` : '',
+    amount,
+    status ? status.toUpperCase() : '',
+  ].filter(Boolean).join(' · ');
+};
 
 export default function Reports() {
   const queryClient = useQueryClient();
@@ -80,6 +102,23 @@ export default function Reports() {
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
   const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear);
+  const { data: scheduleLoansData, isLoading: isScheduleLoansLoading } = useLoans(
+    { pageSize: 100 },
+    { enabled: activeTab === 'schedule' },
+  );
+
+  const scheduleLoanOptions = useMemo(() => {
+    const loans = Array.isArray(scheduleLoansData?.data?.loans)
+      ? scheduleLoansData.data.loans
+      : Array.isArray(scheduleLoansData?.data)
+        ? scheduleLoansData.data
+        : [];
+
+    return loans
+      .map((loan: any) => ({ id: Number(loan?.id), label: getLoanOptionLabel(loan) }))
+      .filter((loan: { id: number; label: string }): loan is { id: number; label: string } => Number.isFinite(loan.id) && loan.label.length > 0)
+      .sort((a: { id: number }, b: { id: number }) => b.id - a.id);
+  }, [scheduleLoansData]);
 
   const metrics = dashboardData?.metrics || {
     totalActiveLoans: 0, totalDisbursed: 0, totalRecovered: 0,
@@ -388,10 +427,11 @@ export default function Reports() {
         <ScheduleTab
           selectedLoanId={selectedLoanId}
           onLoanIdChange={setSelectedLoanId}
+          loanOptions={scheduleLoanOptions}
           schedule={schedule}
           scheduleSummary={scheduleSummary}
           scheduleLoan={scheduleLoan}
-          isScheduleLoading={isScheduleLoading}
+          isScheduleLoading={isScheduleLoading || isScheduleLoansLoading}
           onRefetch={() => { void refetchSchedule(); }}
         />
       )}

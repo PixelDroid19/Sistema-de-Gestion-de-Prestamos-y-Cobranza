@@ -8,6 +8,12 @@ const {
 const { ROLES } = require('@/modules/shared/roles');
 
 const PAYMENT_METHOD_TYPES = new Set(['bank_transfer', 'cash', 'card', 'other']);
+const POLICY_PRIORITIES = new Set(['low', 'medium', 'high']);
+const POLICY_PRIORITY_ORDER = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
 
 const ADMIN_CATALOGS = {
   roles: ['admin', 'employee'],
@@ -76,12 +82,24 @@ const assertPercent = (value, field) => {
 };
 
 const normalizePolicyPriority = (value) => {
-  if (value === undefined || value === null || value === '') return 100;
-  const numericValue = Number(value);
-  if (!Number.isInteger(numericValue) || numericValue < 0) {
-    throw new ValidationError('priority must be a non-negative integer');
+  if (value === undefined || value === null || value === '') return 'medium';
+  const normalizedValue = String(value).trim().toLowerCase();
+  if (!POLICY_PRIORITIES.has(normalizedValue)) {
+    throw new ValidationError('priority must be one of: low, medium, high');
   }
-  return numericValue;
+  return normalizedValue;
+};
+
+const normalizeStoredPolicyPriority = (value) => {
+  if (value === undefined || value === null || value === '') return 'medium';
+  const normalizedValue = String(value).trim().toLowerCase();
+  if (POLICY_PRIORITIES.has(normalizedValue)) return normalizedValue;
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 'medium';
+  if (numericValue >= 67) return 'high';
+  if (numericValue <= 33) return 'low';
+  return 'medium';
 };
 
 const normalizePaymentMethodType = (value) => {
@@ -154,7 +172,7 @@ const buildRatePolicy = (entry) => ({
   minAmount: entry.value?.minAmount ?? null,
   maxAmount: entry.value?.maxAmount ?? null,
   annualEffectiveRate: entry.value?.annualEffectiveRate ?? 0,
-  priority: entry.value?.priority ?? 100,
+  priority: normalizeStoredPolicyPriority(entry.value?.priority),
   description: entry.value?.description || '',
   metadata: entry.value?.metadata || {},
   createdAt: entry.createdAt,
@@ -168,7 +186,7 @@ const buildLateFeePolicy = (entry) => ({
   isActive: entry.isActive !== false,
   annualEffectiveRate: entry.value?.annualEffectiveRate ?? 0,
   lateFeeMode: entry.value?.lateFeeMode || 'SIMPLE',
-  priority: entry.value?.priority ?? 100,
+  priority: normalizeStoredPolicyPriority(entry.value?.priority),
   description: entry.value?.description || '',
   metadata: entry.value?.metadata || {},
   createdAt: entry.createdAt,
@@ -240,19 +258,17 @@ const assertNoAmbiguousRatePolicy = async ({ configRepository, normalized, curre
   const nextPolicy = {
     minAmount: normalized.value.minAmount,
     maxAmount: normalized.value.maxAmount,
-    priority: normalized.value.priority,
   };
   const duplicate = entries
     .map(buildRatePolicy)
     .find((policy) => (
       Number(policy.id) !== Number(currentId)
       && policy.isActive !== false
-      && Number(policy.priority || 100) === Number(nextPolicy.priority || 100)
       && rangesOverlap(nextPolicy, policy)
     ));
 
   if (duplicate) {
-    throw new ConflictError('Active rate policies cannot overlap with the same priority');
+    throw new ConflictError('Active rate policies cannot overlap');
   }
 };
 
@@ -265,7 +281,7 @@ const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, cu
     .find((policy) => (
       Number(policy.id) !== Number(currentId)
       && policy.isActive !== false
-      && Number(policy.priority || 100) === Number(normalized.value.priority || 100)
+      && normalizePolicyPriority(policy.priority) === normalizePolicyPriority(normalized.value.priority)
     ));
 
   if (duplicate) {
@@ -276,7 +292,8 @@ const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, cu
 const pickHighestPriorityPolicy = (policies) => policies
   .filter((policy) => policy.isActive)
   .sort((left, right) => {
-    const priorityDelta = Number(left.priority || 100) - Number(right.priority || 100);
+    const priorityDelta = (POLICY_PRIORITY_ORDER[left.priority] ?? POLICY_PRIORITY_ORDER.medium)
+      - (POLICY_PRIORITY_ORDER[right.priority] ?? POLICY_PRIORITY_ORDER.medium);
     if (priorityDelta !== 0) return priorityDelta;
     return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
   })[0] || null;
@@ -284,31 +301,25 @@ const pickHighestPriorityPolicy = (policies) => policies
 /**
  * Resolves the single operational rate policy for a loan amount.
  *
- * Historical data can contain overlapping policies created before the stricter
- * writer validation existed. In that case selecting by updatedAt would make the
- * credit rate unpredictable for operators, so resolution fails until the
- * configuration is cleaned up.
- *
  * @param {Array<object>} policies Active policies that already cover the amount.
- * @returns {object|null} The unique highest-priority policy, or null.
- * @throws {ConflictError} When multiple policies share the winning priority.
+ * @returns {object|null} The unique policy, or null.
+ * @throws {ConflictError} When multiple active policies cover the amount.
  */
 const pickUniqueRatePolicyForAmount = (policies) => {
   const orderedPolicies = policies
     .filter((policy) => policy.isActive)
     .sort((left, right) => {
-      const priorityDelta = Number(left.priority || 100) - Number(right.priority || 100);
-      if (priorityDelta !== 0) return priorityDelta;
-      return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+      const minDelta = normalizeRangeBoundary(left.minAmount, 0) - normalizeRangeBoundary(right.minAmount, 0);
+      if (minDelta !== 0) return minDelta;
+      return normalizeRangeBoundary(left.maxAmount, Number.POSITIVE_INFINITY)
+        - normalizeRangeBoundary(right.maxAmount, Number.POSITIVE_INFINITY);
     });
 
   const topPolicy = orderedPolicies[0] || null;
   if (!topPolicy) return null;
 
-  const topPriority = Number(topPolicy.priority || 100);
-  const ambiguousPolicies = orderedPolicies.filter((policy) => Number(policy.priority || 100) === topPriority);
-  if (ambiguousPolicies.length > 1) {
-    const labels = ambiguousPolicies.map((policy) => policy.label).filter(Boolean).join(', ');
+  if (orderedPolicies.length > 1) {
+    const labels = orderedPolicies.map((policy) => policy.label).filter(Boolean).join(', ');
     throw new ConflictError(`Hay políticas de tasa activas ambiguas para este monto: ${labels}`);
   }
 

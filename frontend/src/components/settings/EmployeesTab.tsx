@@ -10,6 +10,7 @@ import {
   DataTableSurface,
   FormField,
   InsightStrip,
+  ModalShell,
   SectionSurface,
   TextInput,
 } from '../shared/Surfaces';
@@ -26,6 +27,7 @@ export default function EmployeesTab() {
     password: '',
   });
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
+  const [isCreateEmployeeModalOpen, setIsCreateEmployeeModalOpen] = useState(false);
 
   const users = Array.isArray(usersData?.data?.users)
     ? usersData.data.users
@@ -100,12 +102,58 @@ export default function EmployeesTab() {
         permissions: [],
       });
       setEmployeeDraft({ name: '', email: '', password: '' });
+      setIsCreateEmployeeModalOpen(false);
       toast.success({ description: t('errors.employeeCreated') });
     } catch (error) {
       console.error('[settings] create employee failed', error);
       toast.apiErrorSafe(error, { domain: 'users', action: 'generic' });
     }
   };
+
+  const createEmployeeForm = (
+    <form id="employee-create-form" onSubmit={handleCreateEmployee} aria-label={t('settings.employees.create.modalTitle')} className="space-y-4">
+      <FormField
+        label={t('settings.employees.create.nameLabel')}
+        tooltip={t('settings.employees.create.nameTooltip')}
+      >
+        <TextInput
+          aria-label={t('settings.employees.create.nameLabel')}
+          required
+          value={employeeDraft.name}
+          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, name: event.target.value }))}
+          placeholder={t('settings.employees.create.namePlaceholder')}
+        />
+      </FormField>
+      <FormField
+        label={t('settings.employees.create.emailLabel')}
+        tooltip={t('settings.employees.create.emailTooltip')}
+      >
+        <TextInput
+          aria-label={t('settings.employees.create.emailLabel')}
+          required
+          type="text"
+          inputMode="email"
+          value={employeeDraft.email}
+          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
+          placeholder={t('settings.employees.create.emailPlaceholder')}
+        />
+      </FormField>
+      <FormField
+        label={t('settings.employees.create.passwordLabel')}
+        tooltip={t('settings.employees.create.passwordTooltip')}
+      >
+        <TextInput
+          aria-label={t('settings.employees.create.passwordLabel')}
+          required
+          type="password"
+          minLength={8}
+          value={employeeDraft.password}
+          onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, password: event.target.value }))}
+          placeholder={t('settings.employees.create.passwordPlaceholder')}
+        />
+      </FormField>
+    </form>
+  );
 
   return (
     <div className="space-y-5">
@@ -140,67 +188,19 @@ export default function EmployeesTab() {
       />
 
       <SectionSurface
-        as="form"
-        onSubmit={handleCreateEmployee}
-        aria-label={t('settings.employees.create.title')}
-        title={t('settings.employees.create.title')}
-        subtitle={t('settings.employees.create.subtitle')}
-        bodyClassName="space-y-4"
+        title={t('settings.employees.create.sectionTitle')}
+        subtitle={t('settings.employees.create.sectionSubtitle')}
+        actions={(
+          <ActionButton
+            type="button"
+            variant="primary"
+            icon={<UserPlus size={16} />}
+            onClick={() => setIsCreateEmployeeModalOpen(true)}
+          >
+            {t('settings.employees.create.submit')}
+          </ActionButton>
+        )}
       >
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)]">
-          <FormField
-            label={t('settings.employees.create.nameLabel')}
-            tooltip={t('settings.employees.create.nameTooltip')}
-          >
-            <TextInput
-              aria-label={t('settings.employees.create.nameLabel')}
-              required
-              value={employeeDraft.name}
-              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, name: event.target.value }))}
-              placeholder={t('settings.employees.create.namePlaceholder')}
-            />
-          </FormField>
-          <FormField
-            label={t('settings.employees.create.emailLabel')}
-            tooltip={t('settings.employees.create.emailTooltip')}
-          >
-            <TextInput
-              aria-label={t('settings.employees.create.emailLabel')}
-              required
-              type="text"
-              inputMode="email"
-              value={employeeDraft.email}
-              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, email: event.target.value }))}
-              placeholder={t('settings.employees.create.emailPlaceholder')}
-            />
-          </FormField>
-        </div>
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,0.55fr)_auto]">
-          <FormField
-            label={t('settings.employees.create.passwordLabel')}
-            tooltip={t('settings.employees.create.passwordTooltip')}
-          >
-            <TextInput
-              aria-label={t('settings.employees.create.passwordLabel')}
-              required
-              type="password"
-              minLength={8}
-              value={employeeDraft.password}
-              onChange={(event) => setEmployeeDraft((previous) => ({ ...previous, password: event.target.value }))}
-              placeholder={t('settings.employees.create.passwordPlaceholder')}
-            />
-          </FormField>
-          <div className="settings-form-actions">
-            <ActionButton
-              type="submit"
-              disabled={registerWithPermissions.isPending}
-              variant="primary"
-              icon={<UserPlus size={16} />}
-            >
-              {t('settings.employees.create.submit')}
-            </ActionButton>
-          </div>
-        </div>
         <p className="settings-inline-note">
           {t('settings.employees.create.note')}
         </p>
@@ -276,6 +276,32 @@ export default function EmployeesTab() {
           employee={editingEmployee}
           onClose={() => setEditingEmployee(null)}
         />
+      )}
+      {isCreateEmployeeModalOpen && (
+        <ModalShell
+          title={t('settings.employees.create.title')}
+          subtitle={t('settings.employees.create.modalSubtitle')}
+          maxWidthClassName="max-w-xl"
+          onClose={() => setIsCreateEmployeeModalOpen(false)}
+          footer={(
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+              <ActionButton type="button" onClick={() => setIsCreateEmployeeModalOpen(false)} disabled={registerWithPermissions.isPending}>
+                {t('common.cancel')}
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                form="employee-create-form"
+                disabled={registerWithPermissions.isPending}
+                variant="primary"
+                icon={<UserPlus size={16} />}
+              >
+                {t('settings.employees.create.submit')}
+              </ActionButton>
+            </div>
+          )}
+        >
+          {createEmployeeForm}
+        </ModalShell>
       )}
     </div>
   );

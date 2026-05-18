@@ -3,15 +3,55 @@ import { getIntlLocaleTag } from './index';
 type DateOptions = Intl.DateTimeFormatOptions;
 type NumberOptions = Intl.NumberFormatOptions;
 
+const MIN_OPERATIONAL_YEAR = 1900;
+const MAX_OPERATIONAL_YEAR = 2199;
+const DATE_ONLY_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+const ISO_OPERATIONAL_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[T\s][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]{1,3})?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?$/;
+
 const toNumber = (value: unknown): number => {
   const numericValue = Number(value ?? 0);
   return Number.isFinite(numericValue) ? numericValue : 0;
 };
 
+const hasOperationalYear = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+  return year >= MIN_OPERATIONAL_YEAR && year <= MAX_OPERATIONAL_YEAR;
+};
+
 const toDate = (value: unknown): Date | null => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(String(value));
-  return Number.isNaN(date.getTime()) ? null : date;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) || !hasOperationalYear(value) ? null : value;
+  }
+
+  const normalizedValue = String(value).trim();
+  const dateOnlyMatch = DATE_ONLY_PATTERN.exec(normalizedValue);
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1]);
+    const month = Number(dateOnlyMatch[2]);
+    const day = Number(dateOnlyMatch[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const isValidDateOnly = date.getUTCFullYear() === year
+      && date.getUTCMonth() === month - 1
+      && date.getUTCDate() === day;
+    return isValidDateOnly && hasOperationalYear(date) ? date : null;
+  }
+
+  if (!ISO_OPERATIONAL_PATTERN.test(normalizedValue)) {
+    return null;
+  }
+
+  const date = new Date(normalizedValue);
+  return Number.isNaN(date.getTime()) || !hasOperationalYear(date) ? null : date;
+};
+
+export const isValidOperationalDateOnly = (value: unknown): boolean => {
+  if (typeof value !== 'string' || !DATE_ONLY_PATTERN.test(value.trim())) {
+    return false;
+  }
+
+  return toDate(value) !== null;
 };
 
 export const formatCurrency = (value: unknown, options: NumberOptions = {}): string => {
