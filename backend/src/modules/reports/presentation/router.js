@@ -175,6 +175,12 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     endDate: query.endDate || query.toDate,
     status: query.status,
   });
+  const buildCreditHistoryAuditFilters = (query = {}) => ({
+    month: query.month,
+    startDate: query.startDate || query.fromDate,
+    endDate: query.endDate || query.toDate,
+    status: query.status,
+  });
   const buildPayoutExportFilters = (query = {}) => ({
     customerId: query.customerId,
     loanId: query.loanId,
@@ -375,6 +381,33 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     sendBufferDownload(res, exportFile);
   }));
 
+  router.get('/credit-history/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const report = await useCases.getCreditHistoryAuditReport({
+      actor: req.user,
+      filters: buildCreditHistoryAuditFilters(req.query),
+    });
+    res.json(report);
+  }));
+
+  router.get('/credit-history/monthly/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const filters = buildCreditHistoryAuditFilters(req.query);
+
+    if (format === 'pdf') {
+      const exportFile = await useCases.exportCreditHistoryAuditPdf({ actor: req.user, filters });
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    const exportFile = await useCases.exportCreditHistoryAuditExcel({ actor: req.user, filters });
+    const buffer = await buildWorkbookBuffer(exportFile.sheets);
+    sendBufferDownload(res, {
+      contentType: exportFile.contentType,
+      fileName: exportFile.fileName,
+      buffer,
+    });
+  }));
+
   router.get('/associates/profitability/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId: req.params.associateId });
     res.json({ success: true, data: { report } });
@@ -477,12 +510,6 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   router.get('/credits/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
     const filters = buildCreditExportFilters(req.query);
-
-    if (format === 'csv') {
-      const exportFile = await useCases.exportCreditsCsv({ actor: req.user, filters });
-      sendBufferDownload(res, exportFile);
-      return;
-    }
 
     if (format === 'pdf') {
       const exportFile = await useCases.exportCreditsPdf({ actor: req.user, filters });

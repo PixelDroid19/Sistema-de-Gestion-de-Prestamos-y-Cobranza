@@ -544,6 +544,29 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
   });
 
+  it('shows the first-installment requirement when capital payment is disabled', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockLoan = {
+      ...buildMockLoan(),
+      paymentContext: {
+        ...buildMockLoan().paymentContext,
+        capitalEligibility: {
+          allowed: false,
+          denialReasons: [{
+            code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',
+            message: 'Debe existir al menos la primera cuota pagada antes de abonar a capital',
+          }],
+        },
+      },
+    };
+
+    renderCreditDetails();
+
+    fireEvent.focus(screen.getByLabelText(/Abono a capital no disponible/i));
+
+    expect(await screen.findByText('Abono a capital no disponible. Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.')).toBeInTheDocument();
+  });
+
   it('shows a specific payoff denial reason when an active credit still has balance', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockLoan = {

@@ -1,33 +1,20 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useId, useMemo } from 'react';
 import {
-  AlertCircle,
   Calculator,
   Check,
-  Clock3,
   DollarSign,
-  GitCompareArrows,
   Loader2,
   Percent,
-  Save,
   Sparkles,
   Table2,
-  Trash2,
 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
-import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatDateTime as formatLocaleDateTime, formatNumber } from '../../i18n/format';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
-import { HelpTooltip } from './HelpSupport';
-import { ActionButton, DataTableSurface, InsightStrip, SectionSurface } from './Surfaces';
-
-type SavedScenario = {
-  id: string;
-  name: string;
-  input: CreditCalculationInput;
-  result: CreditCalculationResult;
-  createdAt: Date;
-};
+import { OperationalInput, OperationalSelect } from './FormControls';
+import { ActionButton, DataTableSurface, FormField, InsightStrip } from './Surfaces';
 
 type CreditSimulationWorkspaceProps = {
   title: string;
@@ -43,7 +30,6 @@ type CreditSimulationWorkspaceProps = {
   onSimulate: () => void;
   onReset?: () => void;
   disabled?: boolean;
-  showScenarioTools?: boolean;
   helperText?: string;
   resultBadge?: string | null;
   validationStatus?: {
@@ -64,7 +50,7 @@ type CreditSimulationWorkspaceProps = {
   };
 };
 
-const lateFeeModeOptions: Array<NonNullable<CreditCalculationInput['lateFeeMode']>> = ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'];
+const lateFeeModeOptions: Array<NonNullable<CreditCalculationInput['lateFeeMode']>> = ['NONE', 'SIMPLE', 'COMPOUND'];
 
 const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.mode.none' | 'simulator.lateFee.mode.simple' | 'simulator.lateFee.mode.compound' | 'simulator.lateFee.mode.flat' | 'simulator.lateFee.mode.tiered'> = {
   NONE: 'simulator.lateFee.mode.none',
@@ -97,16 +83,6 @@ const formatLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) =
 
 const formatCurrency = (value: number) => formatCurrencyValue(value);
 
-const formatAmountInputDisplay = (value: number) =>
-  formatNumber(Number.isFinite(value) ? value : 0, { maximumFractionDigits: 0 });
-
-const parseDigitsToAmount = (raw: string) => {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return 0;
-  const n = Number(digits);
-  return Number.isFinite(n) ? n : 0;
-};
-
 const formatDate = (value: string) => {
   if (!value) {
     return '-';
@@ -138,16 +114,6 @@ const formatCalculationMethod = (value?: CreditCalculationResult['method']) => (
   getCalculationValueLabel(value || 'FRENCH', 'method')
 );
 
-const getDefaultScenarioName = (savedScenariosCount: number) => tTerm('simulator.scenario.defaultName', { count: savedScenariosCount + 1 });
-
-function FieldHint({ id, text }: { id: string; text: string }) {
-  return (
-    <span id={id}>
-      <HelpTooltip text={text} />
-    </span>
-  );
-}
-
 export default function CreditSimulationWorkspace({
   title,
   description,
@@ -162,7 +128,6 @@ export default function CreditSimulationWorkspace({
   onSimulate,
   onReset,
   disabled = false,
-  showScenarioTools = false,
   helperText,
   resultBadge,
   validationStatus,
@@ -178,20 +143,6 @@ export default function CreditSimulationWorkspace({
   const { locale } = useTranslation();
   const instanceId = useId();
   const titleId = `${instanceId}-credit-simulation-title`;
-  const amountInputId = `${instanceId}-credit-simulation-amount`;
-  const rateInputId = `${instanceId}-credit-simulation-rate`;
-  const termInputId = `${instanceId}-credit-simulation-term`;
-  const startDateInputId = `${instanceId}-credit-simulation-start-date`;
-  const lateFeeInputId = `${instanceId}-credit-simulation-late-fee`;
-  const amountHelpId = useId();
-  const rateHelpId = useId();
-  const termHelpId = useId();
-  const startDateHelpId = useId();
-  const lateFeeHelpId = useId();
-  const scenariosHelpId = useId();
-  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
-  const [scenarioName, setScenarioName] = useState('');
-  const [isComparisonVisible, setIsComparisonVisible] = useState(false);
   const freshResult = isResultStale ? null : result;
   const resolvedActionLabel = actionLabel || tTerm('simulator.form.simulate');
   const resolvedEmptyTitle = emptyTitle || tTerm('simulator.empty.pendingTitle');
@@ -203,16 +154,12 @@ export default function CreditSimulationWorkspace({
     term: tTerm('simulator.help.term'),
     startDate: tTerm('simulator.help.startDate'),
     lateFee: tTerm('simulator.help.lateFee'),
-    scenarios: tTerm('simulator.help.scenarios'),
   };
 
   const summaryCards = useMemo(() => {
     if (!freshResult) {
       return [];
     }
-
-    const totalInstallments = Math.max(freshResult.schedule.length, input.termMonths || 0, 1);
-    const averageInterestPerInstallment = freshResult.summary.totalInterest / totalInstallments;
 
     return [
       {
@@ -242,66 +189,13 @@ export default function CreditSimulationWorkspace({
         icon: <Percent size={18} />,
         accent: 'amber' as const,
       },
-      {
-        id: 'averageInterest',
-        label: tTerm('simulator.summary.averageInterest'),
-        compactLabel: tTerm('simulator.summary.averageInterest.short'),
-        value: formatCurrency(averageInterestPerInstallment),
-        helper: tTerm('simulator.summary.card.helper.monthlyAverage'),
-        icon: <Clock3 size={18} />,
-        accent: 'slate' as const,
-      },
     ];
-  }, [freshResult, input.termMonths, locale]);
-
-  const handleSaveScenario = () => {
-    if (!showScenarioTools || !freshResult) {
-      return;
-    }
-
-    const nextScenario: SavedScenario = {
-      id: `${Date.now()}`,
-      name: scenarioName.trim() || getDefaultScenarioName(savedScenarios.length),
-      input: { ...input },
-      result: freshResult,
-      createdAt: new Date(),
-    };
-
-    setSavedScenarios((currentScenarios) => [...currentScenarios.slice(-2), nextScenario]);
-    setScenarioName('');
-    setIsComparisonVisible(true);
-  };
-
-  const handleDeleteScenario = (scenarioId: string) => {
-    setSavedScenarios((currentScenarios) => {
-      const nextScenarios = currentScenarios.filter((scenario) => scenario.id !== scenarioId);
-      if (nextScenarios.length === 0) {
-        setIsComparisonVisible(false);
-      }
-      return nextScenarios;
-    });
-  };
-
-  const handleFieldChange = (field: keyof CreditCalculationInput) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const nextValue = event.target.value;
-
-    if (field === 'lateFeeMode' || field === 'startDate') {
-      onInputChange({ [field]: nextValue || undefined });
-      return;
-    }
-
-    if (field === 'amount') {
-      onInputChange({ amount: parseDigitsToAmount(nextValue) });
-      return;
-    }
-
-    onInputChange({ [field]: Number(nextValue) || 0 });
-  };
+  }, [freshResult, locale]);
 
   return (
     <section className={`flex flex-col ${compactChrome ? 'gap-4' : 'gap-6'}`} aria-labelledby={titleId}>
-      <div className={compactChrome ? 'border-t border-border-subtle pt-5' : 'overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}>
-        <div className={`${compactChrome ? 'pb-4' : 'border-b border-border-subtle px-6 py-6 sm:px-8'}`}>
+      <div className={compactChrome ? 'overflow-hidden rounded-[1.35rem] border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]' : 'overflow-hidden rounded-2xl border border-border-subtle bg-bg-surface shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}>
+        <div className={`${compactChrome ? 'border-b border-border-subtle px-6 py-6 sm:px-8' : 'border-b border-border-subtle px-6 py-6 sm:px-8'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className={`max-w-3xl ${compactChrome ? 'space-y-1' : 'space-y-3'}`}>
               {!compactChrome && (
@@ -361,160 +255,94 @@ export default function CreditSimulationWorkspace({
 
         </div>
 
-        <div className={`grid ${compactChrome ? 'gap-4 xl:grid-cols-[minmax(300px,0.52fr)_minmax(0,1.48fr)] 2xl:grid-cols-[minmax(320px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
-          <div className={`${compactChrome ? 'space-y-4 xl:sticky xl:top-4 xl:self-start' : 'space-y-5'}`}>
-            <section className={`${compactChrome ? 'space-y-4 border-b border-border-subtle pb-5' : 'space-y-5'}`}>
+        <div className={`grid ${compactChrome ? 'gap-0 xl:grid-cols-[minmax(300px,0.52fr)_minmax(0,1.48fr)] 2xl:grid-cols-[minmax(320px,0.56fr)_minmax(0,1.44fr)]' : 'gap-6 p-6 sm:p-8 lg:gap-7 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(500px,0.95fr)_minmax(0,1.65fr)]'}`}>
+          <div className={`${compactChrome ? 'space-y-4 p-6 sm:p-8 xl:sticky xl:top-4 xl:self-start xl:border-r xl:border-border-subtle' : 'space-y-5'}`}>
+            <section className={`${compactChrome ? 'space-y-4' : 'space-y-5'}`}>
               <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                 <Calculator size={16} />
                 {tTerm('simulator.section.parameters')}
               </div>
-              <p className={`${compactChrome ? 'text-xs' : 'text-sm'} text-text-secondary`}>
-                {tTerm('simulator.section.parameters.subtitle')}
-              </p>
 
               <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4'}`}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor={amountInputId} className="text-sm font-medium text-text-primary">
-                      {tTerm('simulator.form.amount')}
-                    </label>
-                    <FieldHint id={amountHelpId} text={fieldHelp.amount} />
-                  </div>
-                  <div className="relative mt-2">
-                    <DollarSign size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                    <input
-                      id={amountInputId}
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      value={formatAmountInputDisplay(input.amount)}
-                      onChange={handleFieldChange('amount')}
-                      aria-describedby={fieldErrors.amount ? `${amountInputId}-error` : undefined}
-                      aria-invalid={!!fieldErrors.amount}
-                      disabled={disabled}
-                      className={`w-full rounded-xl border bg-bg-base px-10 py-2.5 text-sm tabular-nums text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.amount ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
-                    />
-                  </div>
-                  {fieldErrors.amount && (
-                    <p id={`${amountInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
-                      {fieldErrors.amount}
-                    </p>
-                  )}
-                </div>
+                <FormField label={tTerm('simulator.form.amount')} tooltip={fieldHelp.amount} error={fieldErrors.amount}>
+                  <OperationalInput
+                    variant="money"
+                    value={input.amount}
+                    onValueChange={(value) => onInputChange({ amount: Number(value) || 0 })}
+                    disabled={disabled}
+                    invalid={!!fieldErrors.amount}
+                    autoComplete="off"
+                    icon={<DollarSign size={16} />}
+                  />
+                </FormField>
 
                 <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4 sm:grid-cols-2'}`}>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label htmlFor={rateInputId} className="text-sm font-medium text-text-primary">
-                        {rateControl?.readOnly ? tTerm('simulator.field.rate.configured') : tTerm('simulator.field.rate.nominal')}
-                      </label>
-                      <FieldHint id={rateHelpId} text={rateControl?.helper || fieldHelp.rate} />
-                      {rateControl?.badge && (
-                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200">
-                          {rateControl.badge}
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative mt-2">
-                      <input
-                        id={rateInputId}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        inputMode="decimal"
-                        value={input.interestRate}
-                        onChange={handleFieldChange('interestRate')}
-                        aria-describedby={fieldErrors.interestRate ? `${rateInputId}-error` : undefined}
-                        aria-invalid={!!fieldErrors.interestRate}
-                        disabled={disabled || rateControl?.readOnly}
-                        className={`w-full rounded-xl border bg-bg-base px-4 py-2.5 pr-10 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.interestRate ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-secondary">%</span>
-                    </div>
-                    {rateControl?.helper && (
-                      <p className="mt-1.5 text-xs text-text-secondary">{rateControl.helper}</p>
-                    )}
-                    {fieldErrors.interestRate && (
-                      <p id={`${rateInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
-                        {fieldErrors.interestRate}
-                      </p>
-                    )}
-                  </div>
+                  <FormField
+                    label={rateControl?.readOnly ? tTerm('simulator.field.rate.configured') : tTerm('simulator.field.rate.nominal')}
+                    tooltip={rateControl?.helper || fieldHelp.rate}
+                    helper={rateControl?.badge || rateControl?.helper}
+                    error={fieldErrors.interestRate}
+                  >
+                    <OperationalInput
+                      variant="percent"
+                      min="0"
+                      step="0.01"
+                      value={input.interestRate}
+                      onValueChange={(value) => onInputChange({ interestRate: Number(value) || 0 })}
+                      disabled={disabled || rateControl?.readOnly}
+                      invalid={!!fieldErrors.interestRate}
+                      suffix="%"
+                    />
+                  </FormField>
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <label htmlFor={termInputId} className="text-sm font-medium text-text-primary">
-                        {tTerm('simulator.field.termMonths')}
-                      </label>
-                      <FieldHint id={termHelpId} text={fieldHelp.term} />
-                    </div>
-                    <input
-                      id={termInputId}
-                      type="number"
+                  <FormField label={tTerm('simulator.field.termMonths')} tooltip={fieldHelp.term} error={fieldErrors.termMonths}>
+                    <OperationalInput
+                      variant="number"
                       min="1"
-                      inputMode="numeric"
                       value={input.termMonths}
-                      onChange={handleFieldChange('termMonths')}
-                      aria-describedby={fieldErrors.termMonths ? `${termInputId}-error` : undefined}
-                      aria-invalid={!!fieldErrors.termMonths}
+                      onValueChange={(value) => onInputChange({ termMonths: Number(value) || 0 })}
                       disabled={disabled}
-                       className={`mt-2 w-full rounded-xl border bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.termMonths ? 'border-red-400 focus:ring-red-500' : 'border-border-subtle focus:ring-blue-500'}`}
+                      invalid={!!fieldErrors.termMonths}
                     />
-                    {fieldErrors.termMonths && (
-                      <p id={`${termInputId}-error`} className="mt-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
-                        {fieldErrors.termMonths}
-                      </p>
-                    )}
-                  </div>
+                  </FormField>
                 </div>
 
                 <div className={`grid ${compactChrome ? 'gap-3' : 'gap-4 sm:grid-cols-2'}`}>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <label htmlFor={startDateInputId} className="text-sm font-medium text-text-primary">
-                        {tTerm('simulator.form.firstPaymentDate')}
-                      </label>
-                      <FieldHint id={startDateHelpId} text={fieldHelp.startDate} />
-                    </div>
-                    <input
-                      id={startDateInputId}
-                      type="date"
+                  <FormField label={tTerm('simulator.form.firstPaymentDate')} tooltip={fieldHelp.startDate}>
+                    <OperationalInput
+                      variant="date"
                       value={input.startDate || ''}
-                      onChange={handleFieldChange('startDate')}
+                      onValueChange={(value) => onInputChange({ startDate: String(value || '') || undefined })}
                       disabled={disabled}
-                       className="mt-2 w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                     />
-                  </div>
+                  </FormField>
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <label htmlFor={lateFeeInputId} className="text-sm font-medium text-text-primary">
-                        {tTerm('simulator.form.lateFeeCalculation')}
-                      </label>
-                      <FieldHint id={lateFeeHelpId} text={fieldHelp.lateFee} />
-                    </div>
-                    <div className="mt-2" data-tour="new-credit-late-fee-mode">
-                      <select
-                        id={lateFeeInputId}
-                        value={input.lateFeeMode || 'SIMPLE'}
-                        onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<CreditCalculationInput['lateFeeMode']> })}
-                        disabled={disabled}
-                        className="w-full rounded-xl border border-border-subtle bg-bg-base px-4 py-2.5 text-sm font-semibold text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {lateFeeModeOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {tTerm(lateFeeModeLabelKeys[option])}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1.5 text-xs leading-5 text-text-secondary">
+                  <FormField
+                    label={tTerm('simulator.form.lateFeeCalculation')}
+                    tooltip={fieldHelp.lateFee}
+                    helper={(
+                      <>
                         <span className="font-semibold text-text-primary">
                           {formatLateFeeModeLabel(input.lateFeeMode)}:
                         </span>{' '}
                         {tTerm(lateFeeModeDescriptionKeys[input.lateFeeMode || 'SIMPLE'])}
-                      </p>
-                    </div>
-                  </div>
+                      </>
+                    )}
+                  >
+                    <OperationalSelect
+                      aria-label={tTerm('simulator.form.lateFeeCalculation')}
+                      value={input.lateFeeMode || 'SIMPLE'}
+                      onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<CreditCalculationInput['lateFeeMode']> })}
+                      disabled={disabled}
+                      data-tour="new-credit-late-fee-mode"
+                    >
+                      {lateFeeModeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {tTerm(lateFeeModeLabelKeys[option])}
+                        </option>
+                      ))}
+                    </OperationalSelect>
+                  </FormField>
                 </div>
               </div>
 
@@ -535,134 +363,10 @@ export default function CreditSimulationWorkspace({
                   {validationStatus.message}
                 </div>
               )}
-
-              {showScenarioTools && (
-                <div className="mt-5 border-t border-border-subtle pt-5">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                    <GitCompareArrows size={16} />
-                    {tTerm('simulator.section.scenarios.title')}
-                    <FieldHint id={scenariosHelpId} text={fieldHelp.scenarios} />
-                  </div>
-                  <p className="mt-2 text-sm text-text-secondary">
-                    {tTerm('simulator.section.scenarios.subtitle')}
-                  </p>
-
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <input
-                      type="text"
-                      value={scenarioName}
-                      onChange={(event) => setScenarioName(event.target.value)}
-                      placeholder={tTerm('simulator.placeholder.scenarioName')}
-                      disabled={disabled}
-                       className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-bg-base px-4 py-3 text-sm text-text-primary shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                    <ActionButton
-                      onClick={handleSaveScenario}
-                      disabled={disabled || !freshResult}
-                      icon={<Save size={16} />}
-                      className="py-3"
-                    >
-                      {tTerm('simulator.action.saveScenario')}
-                    </ActionButton>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs text-text-secondary">
-                      {savedScenarios.length === 1
-                        ? tTerm('simulator.scenario.count.one', { count: savedScenarios.length })
-                        : tTerm('simulator.scenario.count.other', { count: savedScenarios.length })}
-                    </p>
-                    {savedScenarios.length > 0 && (
-                      <ActionButton
-                        onClick={() => setIsComparisonVisible((currentValue) => !currentValue)}
-                        icon={<GitCompareArrows size={14} />}
-                        variant="ghost"
-                        className="min-h-8 px-3 py-1.5 text-xs"
-                        aria-expanded={isComparisonVisible}
-                      >
-                        {isComparisonVisible ? tTerm('simulator.action.hideComparison') : tTerm('simulator.action.compareScenarios')}
-                      </ActionButton>
-                    )}
-                  </div>
-                </div>
-              )}
             </section>
-
-            {showScenarioTools && isComparisonVisible && savedScenarios.length > 0 && (
-              <SectionSurface
-                aria-label={tTerm('simulator.comparison.aria')}
-                title={(
-                  <span className="flex items-center gap-2">
-                    <GitCompareArrows size={16} />
-                    {tTerm('simulator.comparison.title')}
-                  </span>
-                )}
-                bodyClassName="space-y-3"
-              >
-                  {freshResult && (
-                    <article className="rounded-xl border border-blue-200 bg-blue-100 p-4 dark:border-blue-500/30 dark:bg-blue-500/20">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-text-primary">{tTerm('simulator.comparison.current')}</h4>
-                          <p className="mt-1 text-xs leading-5 text-text-secondary">
-                            {formatCurrency(input.amount)} · {input.interestRate}% · {tTerm('schedule.summary.termValue', { months: input.termMonths })}
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-blue-200 bg-bg-surface px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-900 dark:border-blue-500/30 dark:bg-bg-base dark:text-blue-200">
-                          {tTerm('simulator.comparison.active')}
-                        </span>
-                      </div>
-                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <dt className="text-text-secondary">{tTerm('simulator.schedule.header.payment')}</dt>
-                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(freshResult.summary.installmentAmount)}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-text-secondary">{tTerm('simulator.summary.card.totalInterestLabel')}</dt>
-                          <dd className="font-semibold text-text-primary">{formatCurrency(freshResult.summary.totalInterest)}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  )}
-
-                  {savedScenarios.map((scenario) => (
-                    <article key={scenario.id} className="rounded-xl border border-border-subtle bg-bg-base p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-text-primary">{scenario.name}</h4>
-                          <p className="mt-1 text-xs leading-5 text-text-secondary">
-                            {formatCurrency(scenario.input.amount)} · {scenario.input.interestRate}% · {tTerm('schedule.summary.termValue', { months: scenario.input.termMonths })}
-                          </p>
-                          <p className="mt-1 text-xs text-text-secondary">
-                            {tTerm('simulator.comparison.savedAt', { datetime: formatLocaleDateTime(scenario.createdAt) })}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteScenario(scenario.id)}
-                          className="rounded-full p-2 text-text-secondary transition hover:bg-hover-bg hover:text-red-600"
-                          aria-label={tTerm('simulator.action.deleteScenario', { name: scenario.name })}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <dt className="text-text-secondary">{tTerm('simulator.schedule.header.payment')}</dt>
-                          <dd className="font-semibold text-blue-900 dark:text-blue-200">{formatCurrency(scenario.result.summary.installmentAmount)}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-text-secondary">{tTerm('simulator.summary.card.totalInterestLabel')}</dt>
-                          <dd className="font-semibold text-text-primary">{formatCurrency(scenario.result.summary.totalInterest)}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))}
-              </SectionSurface>
-            )}
           </div>
 
-          <div className={`${compactChrome ? 'space-y-4' : 'space-y-5'} min-w-0`}>
+          <div className={`${compactChrome ? 'space-y-4 p-6 sm:p-8' : 'space-y-5'} min-w-0`}>
             {error && (
                <div className="rounded-xl border border-red-200 bg-red-100 px-4 py-3 text-sm leading-6 text-red-900 dark:border-red-500/30 dark:bg-red-500/20 dark:text-red-200" role="alert">
                  {error}
@@ -679,9 +383,6 @@ export default function CreditSimulationWorkspace({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">{tTerm('simulator.section.summary.title')}</h4>
-                  <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
-                    {tTerm('simulator.section.summary.subtitle')}
-                  </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -735,9 +436,6 @@ export default function CreditSimulationWorkspace({
                     <Table2 size={16} />
                     {tTerm('simulator.schedule.title')}
                   </div>
-                  <p className={`${compactChrome ? 'mt-0.5 text-xs' : 'mt-1 text-sm'} leading-6 text-text-secondary`}>
-                    {tTerm('simulator.schedule.subtitle')}
-                  </p>
                 </div>
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">

@@ -27,7 +27,6 @@ const {
   createGetForecastAnalysis,
   createGetNextMonthProjection,
   createExportCreditsExcel,
-  createExportCreditsCsv,
   createExportCreditsPdf,
   createGetCreditsSummary,
   createExportAssociatesExcel,
@@ -37,6 +36,9 @@ const {
   createGetMonthlyCashFlow,
   createExportMonthlyCashFlowExcel,
   createExportMonthlyCashFlowPdf,
+  createGetCreditHistoryAuditReport,
+  createExportCreditHistoryAuditExcel,
+  createExportCreditHistoryAuditPdf,
 } = require('./application/useCases');
 const { reportRepository, paymentRepository } = require('./infrastructure/repositories');
 const { associateRepository } = require('@/modules/associates/infrastructure/repositories');
@@ -78,7 +80,6 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getNextMonthProjection: createGetNextMonthProjection({ reportRepository }),
     // Credits Excel export and summary
     exportCreditsExcel: createExportCreditsExcel({ reportRepository, paymentRepository, loanViewService }),
-    exportCreditsCsv: createExportCreditsCsv({ reportRepository, paymentRepository, loanViewService }),
     exportCreditsPdf: createExportCreditsPdf({ reportRepository, paymentRepository, loanViewService }),
     getCreditsSummary: createGetCreditsSummary({ reportRepository, paymentRepository, loanViewService }),
     exportAssociatesExcel: createExportAssociatesExcel({ associateRepository, reportRepository }),
@@ -89,6 +90,9 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getMonthlyCashFlow: createGetMonthlyCashFlow({ reportRepository }),
     exportMonthlyCashFlowExcel: createExportMonthlyCashFlowExcel({ reportRepository }),
     exportMonthlyCashFlowPdf: createExportMonthlyCashFlowPdf({ reportRepository }),
+    getCreditHistoryAuditReport: createGetCreditHistoryAuditReport({ reportRepository }),
+    exportCreditHistoryAuditExcel: createExportCreditHistoryAuditExcel({ reportRepository }),
+    exportCreditHistoryAuditPdf: createExportCreditHistoryAuditPdf({ reportRepository }),
   };
 
   return createModule({

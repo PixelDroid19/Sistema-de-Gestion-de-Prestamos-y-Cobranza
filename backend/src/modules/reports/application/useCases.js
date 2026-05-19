@@ -819,7 +819,6 @@ module.exports = {
   createGetNextMonthProjection: require('./useCases/createGetNextMonthProjection').createGetNextMonthProjection,
   // Excel export use cases
   createExportCreditsExcel: require('./useCases/createExportCreditsExcel').createExportCreditsExcel,
-  createExportCreditsCsv: require('./useCases/createExportCreditsExcel').createExportCreditsCsv,
   createExportCreditsPdf: require('./useCases/createExportCreditsExcel').createExportCreditsPdf,
   createGetCreditsSummary: require('./useCases/createGetCreditsSummary').createGetCreditsSummary,
   createExportAssociatesExcel: require('./useCases/createExportAssociatesExcel').createExportAssociatesExcel,
@@ -830,4 +829,7 @@ module.exports = {
   createGetMonthlyCashFlow: require('./useCases/createMonthlyCashFlowReport').createGetMonthlyCashFlow,
   createExportMonthlyCashFlowExcel: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowExcel,
   createExportMonthlyCashFlowPdf: require('./useCases/createMonthlyCashFlowReport').createExportMonthlyCashFlowPdf,
+  createGetCreditHistoryAuditReport: require('./useCases/createCreditHistoryAuditReport').createGetCreditHistoryAuditReport,
+  createExportCreditHistoryAuditExcel: require('./useCases/createCreditHistoryAuditReport').createExportCreditHistoryAuditExcel,
+  createExportCreditHistoryAuditPdf: require('./useCases/createCreditHistoryAuditReport').createExportCreditHistoryAuditPdf,
 };

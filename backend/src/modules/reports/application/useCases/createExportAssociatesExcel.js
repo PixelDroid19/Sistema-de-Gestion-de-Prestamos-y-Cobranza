@@ -5,6 +5,13 @@ const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
+const ASSOCIATE_EXPORT_SECTIONS = {
+  summary: 'Resumen',
+  contribution: 'Aporte',
+  distribution: 'Distribución',
+  interestPaid: 'Interés pagado',
+  interestDue: 'Interés pendiente',
+};
 
 const normalizeParticipationPercentage = (value) => {
   if (value === undefined || value === null || value === '') {
@@ -79,9 +86,9 @@ const parseMoney = (value) => Number(String(value ?? 0).replace(/[^0-9.-]/g, '')
 
 const buildAssociateSheets = (rows) => {
   const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
-  const contributionRows = rows.filter((row) => row.section === 'contribution');
-  const distributionRows = rows.filter((row) => row.section === 'distribution');
-  const interestRows = rows.filter((row) => row.section === 'interest-payment' || row.section === 'interest-due');
+  const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
+  const distributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.distribution);
+  const interestRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestPaid || row.section === ASSOCIATE_EXPORT_SECTIONS.interestDue);
   const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalDistributed = distributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
   const totalInterestPaid = interestRows.filter((row) => row.status === 'Pagado').reduce((sum, row) => sum + parseMoney(row.amount), 0);
@@ -236,7 +243,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         associateId: associate.id,
         associateName: associate.name,
         ...baseFields,
-        section: 'contribution',
+        section: ASSOCIATE_EXPORT_SECTIONS.contribution,
         entryId: c.id,
         reference: '',
         amount: formatMoney(c.amount),
@@ -256,7 +263,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
           associateId: associate.id,
           associateName: associate.name,
           ...baseFields,
-          section: 'distribution',
+          section: ASSOCIATE_EXPORT_SECTIONS.distribution,
           entryId: d.id,
           reference: d.loanId || '',
           amount: formatMoney(d.amount),
@@ -274,7 +281,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         associateId: associate.id,
         associateName: associate.name,
         ...baseFields,
-        section: installment.status === 'paid' ? 'interest-payment' : 'interest-due',
+        section: installment.status === 'paid' ? ASSOCIATE_EXPORT_SECTIONS.interestPaid : ASSOCIATE_EXPORT_SECTIONS.interestDue,
         entryId: installment.id,
         reference: installment.installmentNumber || '',
         amount: formatMoney(installment.amount),
@@ -292,17 +299,17 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         associateId: associate.id,
         associateName: associate.name,
         ...baseFields,
-        section: 'summary',
+        section: ASSOCIATE_EXPORT_SECTIONS.summary,
         entryId: '',
         reference: '',
         amount: formatMoney(totalContributed),
-        date: `Distributed: ${formatMoney(totalDistributed)}`,
+        date: `Distribuido: ${formatMoney(totalDistributed)}`,
         status: associate.status || 'N/A',
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         distributionType: '',
         declaredProportionalTotal: '',
         allocatedAmount: '',
-        notes: `Contributions: ${contributions.length}, Distributions: ${distributions.length}, Interest installments: ${installments.length}`,
+        notes: `Aportes: ${contributions.length}, Distribuciones: ${distributions.length}, Cuotas de interés: ${installments.length}`,
       };
 
       return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows];

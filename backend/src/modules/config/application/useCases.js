@@ -9,6 +9,7 @@ const { ROLES } = require('@/modules/shared/roles');
 
 const PAYMENT_METHOD_TYPES = new Set(['bank_transfer', 'cash', 'card', 'other']);
 const POLICY_PRIORITIES = new Set(['low', 'medium', 'high']);
+const OPERATIONAL_LATE_FEE_MODES = new Set(['NONE', 'SIMPLE', 'COMPOUND']);
 const POLICY_PRIORITY_ORDER = {
   high: 0,
   medium: 1,
@@ -229,7 +230,7 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
     throw new ValidationError('label is required');
   }
   const mode = String(payload.lateFeeMode ?? existing?.value?.lateFeeMode ?? 'SIMPLE').trim().toUpperCase();
-  if (!['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'].includes(mode)) {
+  if (!OPERATIONAL_LATE_FEE_MODES.has(mode)) {
     throw new ValidationError('lateFeeMode is invalid');
   }
 

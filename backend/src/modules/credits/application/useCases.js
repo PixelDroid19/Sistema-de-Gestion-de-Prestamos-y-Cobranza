@@ -628,6 +628,85 @@ const buildPaymentCalendarOverview = ({ normalizedLoanIds, entries, asOfDate }) 
   };
 };
 
+const parseCalendarOverviewFilters = (filters = {}) => {
+  const parseDate = (value, field) => {
+    if (!value) return null;
+    return normalizeDateOnly(value, field);
+  };
+  const normalizeStatus = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized || null;
+  };
+
+  return {
+    search: String(filters.search || '').trim(),
+    status: normalizeStatus(filters.status),
+    startDate: parseDate(filters.startDate, 'startDate'),
+    endDate: parseDate(filters.endDate, 'endDate'),
+    limit: Math.min(Math.max(Number.parseInt(String(filters.limit || '100'), 10) || 100, 1), 250),
+  };
+};
+
+const filterCalendarOverviewEntries = ({ entries, filters }) => entries.filter((entry) => {
+  if (filters.status && String(entry.status || '').toLowerCase() !== filters.status) {
+    return false;
+  }
+
+  const dueDate = normalizeDateOnly(entry.dueDate, 'dueDate');
+  if (filters.startDate && dueDate.getTime() < filters.startDate.getTime()) {
+    return false;
+  }
+
+  if (filters.endDate) {
+    const inclusiveEnd = new Date(filters.endDate.getTime());
+    inclusiveEnd.setHours(23, 59, 59, 999);
+    if (dueDate.getTime() > inclusiveEnd.getTime()) {
+      return false;
+    }
+  }
+
+  return true;
+});
+
+const resolveCalendarOverviewLoans = async ({
+  actor,
+  loanIds,
+  loanRepository,
+  loanAccessPolicy,
+  filters,
+}) => {
+  const normalizedLoanIds = normalizeCalendarOverviewLoanIds(loanIds);
+
+  if (normalizedLoanIds.length > 0) {
+    const loans = await Promise.all(
+      normalizedLoanIds.map((loanId) => loanAccessPolicy.findAuthorizedLoan({ actor, loanId })),
+    );
+    return { normalizedLoanIds, loans };
+  }
+
+  let loans = [];
+  if (loanRepository && typeof loanRepository.search === 'function') {
+    loans = await loanRepository.search({
+      actor,
+      filters: filters.search ? { search: filters.search } : {},
+    });
+  } else if (loanRepository && typeof loanRepository.list === 'function') {
+    const allLoans = await loanRepository.list();
+    loans = loanAccessPolicy
+      ? loanAccessPolicy.filterVisibleLoans({ actor, loans: allLoans })
+      : allLoans;
+  }
+
+  const limitedLoans = loans
+    .slice(0, filters.limit)
+    .map((loan) => (typeof loan?.toJSON === 'function' ? loan.toJSON() : loan));
+
+  return {
+    normalizedLoanIds: limitedLoans.map((loan) => Number(loan.id)).filter(Number.isFinite),
+    loans: limitedLoans,
+  };
+};
+
 /**
  * Create the use case that lists loans, optionally filtered through the shared access policy.
  * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
@@ -1152,15 +1231,28 @@ const createGetPaymentCalendar = ({ alertRepository, loanAccessPolicy, loanViewS
   };
 };
 
-const createGetPaymentCalendarOverview = ({ alertRepository, loanAccessPolicy, loanViewService }) => async ({
+const createGetPaymentCalendarOverview = ({
+  alertRepository,
+  loanAccessPolicy,
+  loanViewService,
+  loanRepository,
+}) => async ({
   actor,
   loanIds,
   asOfDate,
+  filters = {},
 }) => {
-  const normalizedLoanIds = normalizeCalendarOverviewLoanIds(loanIds);
+  const parsedFilters = parseCalendarOverviewFilters(filters);
   const effectiveAsOfDate = asOfDate || new Date();
+  const { normalizedLoanIds, loans } = await resolveCalendarOverviewLoans({
+    actor,
+    loanIds,
+    loanRepository,
+    loanAccessPolicy,
+    filters: parsedFilters,
+  });
 
-  if (normalizedLoanIds.length === 0) {
+  if (loans.length === 0) {
     return buildPaymentCalendarOverview({
       normalizedLoanIds,
       entries: [],
@@ -1169,8 +1261,7 @@ const createGetPaymentCalendarOverview = ({ alertRepository, loanAccessPolicy, l
   }
 
   const perLoanEntries = await Promise.all(
-    normalizedLoanIds.map(async (loanId) => {
-      const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
+    loans.map(async (loan) => {
       const { schedule } = loanViewService.getCanonicalLoanView(loan);
       const alerts = await alertRepository.listByLoan(loan.id);
       const entries = buildCalendarEntries({
@@ -1186,7 +1277,10 @@ const createGetPaymentCalendarOverview = ({ alertRepository, loanAccessPolicy, l
 
   return buildPaymentCalendarOverview({
     normalizedLoanIds,
-    entries: perLoanEntries.flat(),
+    entries: filterCalendarOverviewEntries({
+      entries: perLoanEntries.flat(),
+      filters: parsedFilters,
+    }),
     asOfDate: effectiveAsOfDate,
   });
 };

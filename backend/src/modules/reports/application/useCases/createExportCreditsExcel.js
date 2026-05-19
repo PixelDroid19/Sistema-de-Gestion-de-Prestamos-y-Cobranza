@@ -1,4 +1,4 @@
-const { ensureAdmin, formatMoney, buildCsv, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
@@ -197,6 +197,22 @@ const summaryRow = (section, indicator, value, valueFormat) => formattedRow(
   { value: valueFormat },
 );
 
+const compactRepeatedSections = (rows = []) => {
+  let lastSection = null;
+
+  return rows.map((row) => {
+    if (!row.section || row.section !== lastSection) {
+      lastSection = row.section;
+      return row;
+    }
+
+    return {
+      ...row,
+      section: '',
+    };
+  });
+};
+
 const creditInfoRow = (campo, valor, valueFormat) => formattedRow(
   { campo, valor },
   { valor: valueFormat },
@@ -226,7 +242,7 @@ const buildSummaryRows = (rows) => {
     ? roundMoney(rows.reduce((total, row) => total + Number(row.profitPerMillion || 0), 0) / rows.length)
     : 0;
 
-  return [
+  return compactRepeatedSections([
     summaryRow('INFORMACIÓN GENERAL', 'Fecha de Generación', new Date(), DATE_TIME_FORMAT),
     summaryRow('INFORMACIÓN GENERAL', 'Total de Clientes', totalCustomers, INTEGER_FORMAT),
     summaryRow('INFORMACIÓN GENERAL', 'Total de Créditos', totalCredits, INTEGER_FORMAT),
@@ -249,7 +265,7 @@ const buildSummaryRows = (rows) => {
     summaryRow('PORCENTAJES GLOBALES', '% Total Pagado', totalAmountWithInterest > 0 ? totalPaid / totalAmountWithInterest : 0, PERCENT_FORMAT),
     summaryRow('PORCENTAJES GLOBALES', '% Capital Recuperado', totalLoanAmount > 0 ? totalCapitalPaid / totalLoanAmount : 0, PERCENT_FORMAT),
     summaryRow('PORCENTAJES GLOBALES', '% Intereses Cobrados', totalInterestGenerated > 0 ? totalInterestPaid / totalInterestGenerated : 0, PERCENT_FORMAT),
-  ];
+  ]);
 };
 
 const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
@@ -492,50 +508,6 @@ const buildCreditsRowsForExport = async ({ loans, paymentRepository, loanViewSer
   }),
 );
 
-const CSV_HEADERS = [
-  'ID Crédito',
-  'ID Cliente',
-  'Cliente',
-  'Documento',
-  'Estado',
-  'Estado Recuperación',
-  'Fecha Préstamo',
-  'Monto Prestado',
-  'Total a Cobrar',
-  'Saldo Pendiente',
-  'Saldo con Intereses',
-  'TNA (%)',
-  'Cuotas',
-  'Total Pagado',
-  'Capital Pagado',
-  'Interés Pagado',
-  'Interés Generado',
-  'Mora Acumulada',
-  'Pagos Registrados',
-];
-
-const buildCsvRows = (rows) => rows.map((row) => [
-  row.creditId,
-  row.customerId,
-  row.customerName,
-  row.customerDocument,
-  row.status,
-  row.recoveryStatus,
-  row.loanDate ? new Date(row.loanDate).toISOString().slice(0, 10) : '',
-  row.loanAmount,
-  row.totalAmount,
-  row.remainingAmount,
-  row.remainingBalance,
-  row.tna,
-  row.totalQuotas,
-  row.totalPaid,
-  row.totalCapitalPaid,
-  row.totalInterestPaid,
-  row.totalInterestGenerated,
-  row.totalLatePaymentInterest,
-  row.paymentCount,
-]);
-
 const sumColumn = (rows, key) => roundMoney(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
 
 const countByStatus = (rows, predicates) => predicates.reduce((acc, [label, predicate]) => {
@@ -579,19 +551,6 @@ const buildPdfSummaryLines = (rows) => {
   ];
 };
 
-const createExportCreditsCsv = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export credits data');
-  const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
-  const rows = await buildCreditsRowsForExport({ loans, paymentRepository, loanViewService });
-  const csv = buildCsv({ headers: CSV_HEADERS, rows: buildCsvRows(rows) });
-
-  return {
-    fileName: `reporte-creditos-${new Date().toISOString().slice(0, 10)}.csv`,
-    contentType: 'text/csv; charset=utf-8',
-    buffer: Buffer.from(csv, 'utf8'),
-  };
-};
-
 const createExportCreditsPdf = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, filters = {} }) => {
   ensureAdmin(actor, 'Only admins can export credits data');
   const { loans } = await buildCreditsExportDataset({ reportRepository, paymentRepository, loanViewService, filters });
@@ -610,7 +569,6 @@ const createExportCreditsPdf = ({ reportRepository, paymentRepository, loanViewS
 
 module.exports = {
   createExportCreditsExcel,
-  createExportCreditsCsv,
   createExportCreditsPdf,
   normalizeCreditExportFilters,
   matchesFilters,

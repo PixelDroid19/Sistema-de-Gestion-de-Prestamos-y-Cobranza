@@ -418,6 +418,70 @@ const reportRepository = {
 
     return { loans, payments };
   },
+
+  /**
+   * List canonical loans and completed payments for the advanced credit-history audit export.
+   * Loans are filtered by operational credit date; payments are filtered by payment date and,
+   * when a status filter is provided, by the current loan state attached to the payment.
+   *
+   * @param {{startDate?: Date|null, endDate?: Date|null, status?: string[]|null}} filters
+   * @returns {Promise<{loans: Array<object>, payments: Array<object>}>}
+   */
+  async listCreditHistoryDataset({ startDate = null, endDate = null, status = null } = {}) {
+    const loanDateRange = {};
+    if (startDate) {
+      loanDateRange[Op.gte] = startDate;
+    }
+    if (endDate) {
+      loanDateRange[Op.lte] = endDate;
+    }
+
+    const paymentDateRange = buildPaymentDateWhere({ fromDate: startDate, toDate: endDate });
+    const statusWhere = Array.isArray(status) && status.length > 0
+      ? {
+        [Op.or]: [
+          { status: { [Op.in]: status } },
+          { recoveryStatus: { [Op.in]: status } },
+        ],
+      }
+      : {};
+    const loanDateWhere = Object.keys(loanDateRange).length > 0
+      ? {
+        [Op.or]: [
+          { startDate: loanDateRange },
+          { createdAt: loanDateRange },
+        ],
+      }
+      : {};
+
+    const [loans, payments] = await Promise.all([
+      Loan.findAll({
+        where: {
+          ...statusWhere,
+          ...loanDateWhere,
+        },
+        include: reportIncludes,
+        order: [['startDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+      Payment.findAll({
+        where: {
+          status: 'completed',
+          ...(Object.keys(paymentDateRange).length > 0 ? { paymentDate: paymentDateRange } : {}),
+        },
+        include: [
+          {
+            model: Loan,
+            attributes: ['id', 'amount', 'status', 'recoveryStatus', 'customerId'],
+            where: statusWhere,
+            include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
+          },
+        ],
+        order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+    ]);
+
+    return { loans, payments };
+  },
 };
 
 /**

@@ -23,7 +23,6 @@ import {
   PageShell,
   SectionSurface,
   SelectInput,
-  TextInput,
   ViewTabs,
 } from './shared/Surfaces';
 
@@ -127,6 +126,53 @@ export default function CustomerDetails() {
   const getDocumentTypeLabel = (value: unknown) => {
     const normalizedValue = String(value || '').trim().toLowerCase();
     return customerDocumentOptions.find((option) => option.value === normalizedValue)?.label || tTerm('customerDetails.documentType.fallback');
+  };
+
+  const getHistoryActionLabel = (event: any) => {
+    const action = String(event?.action || event?.eventType || '').trim().toLowerCase();
+
+    switch (action) {
+      case 'loan_active':
+      case 'loan_activated':
+        return tTerm('customerDetails.history.action.loanActive');
+      case 'loan_created':
+      case 'credit_created':
+        return tTerm('customerDetails.history.action.loanCreated');
+      case 'payment_completed':
+      case 'payment_registered':
+        return tTerm('customerDetails.history.action.paymentCompleted');
+      case 'document_uploaded':
+        return tTerm('customerDetails.history.action.documentUploaded');
+      case 'customer_updated':
+        return tTerm('customerDetails.history.action.customerUpdated');
+      default:
+        return action
+          ? action.replace(/_/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
+          : tTerm('customerDetails.history.eventFallback');
+    }
+  };
+
+  const getHistoryContextLabel = (event: any) => {
+    const description = String(event?.description || '').trim();
+    if (description) return description;
+
+    const entityType = String(event?.entityType || event?.type || '').trim().toLowerCase();
+    switch (entityType) {
+      case 'loan':
+      case 'credit':
+        return tTerm('customerDetails.history.type.loan');
+      case 'payment':
+        return tTerm('customerDetails.history.type.payment');
+      case 'document':
+      case 'attachment':
+        return tTerm('customerDetails.history.type.document');
+      case 'customer':
+        return tTerm('customerDetails.history.type.customer');
+      default:
+        return entityType
+          ? entityType.replace(/_/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
+          : tTerm('customerDetails.history.descriptionFallback');
+    }
   };
 
   const getLoanStatusBadge = (status: string) => {
@@ -326,7 +372,7 @@ export default function CustomerDetails() {
               as="form"
               onSubmit={handleUpload}
               className="mb-8 border-dashed"
-              bodyClassName="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_minmax(14rem,1fr)_auto_auto] lg:items-end"
+              bodyClassName="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_minmax(18rem,1.25fr)_auto_auto] lg:items-start"
             >
               <FormField label={tTerm('customerDetails.documents.field.type')} htmlFor="customer-document-type">
                 <SelectInput id="customer-document-type" value={docType} onChange={(e) => setDocType(e.target.value)}>
@@ -336,23 +382,35 @@ export default function CustomerDetails() {
                 </SelectInput>
               </FormField>
               <FormField label={tTerm('customerDetails.documents.field.file')} htmlFor="customer-document-file" helper={tTerm('customerDetails.documents.field.fileHelper')}>
-                <TextInput
+                <input
                   id="customer-document-file"
                   key={fileInputKey}
                   type="file"
                   accept={CUSTOMER_DOCUMENT_ACCEPT}
                   required
+                  className="sr-only"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
+                <div className="flex h-11 items-center overflow-hidden rounded-xl border border-border-subtle bg-bg-surface shadow-sm">
+                  <label
+                    htmlFor="customer-document-file"
+                    className="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center border-r border-border-subtle px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-hover-bg focus-within:ring-2 focus-within:ring-brand-primary/35"
+                  >
+                    {tTerm('customerDetails.documents.selectFile')}
+                  </label>
+                  <span className="min-w-0 flex-1 truncate px-3 text-sm text-text-secondary" title={file?.name || tTerm('customerDetails.documents.noFileSelected')}>
+                    {file?.name || tTerm('customerDetails.documents.noFileSelected')}
+                  </span>
+                </div>
               </FormField>
-              <label className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-secondary">
+              <label className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-border-subtle bg-bg-surface px-4 text-sm font-medium text-text-secondary shadow-sm lg:mt-6">
                 <CheckboxInput
                   checked={customerVisible}
                   onChange={(e) => setCustomerVisible(e.target.checked)}
                 />
                 {tTerm('customerDetails.documents.visibleToCustomer')}
               </label>
-              <ActionButton type="submit" disabled={!file || uploadDocument.isPending} isLoading={uploadDocument.isPending} icon={<Upload size={16} />} variant="primary">
+              <ActionButton type="submit" disabled={!file || uploadDocument.isPending} isLoading={uploadDocument.isPending} icon={<Upload size={16} />} variant="primary" className="min-h-11 whitespace-nowrap lg:mt-6">
                 {tTerm('customerDetails.documents.cta.upload')}
               </ActionButton>
             </SectionSurface>
@@ -479,8 +537,8 @@ export default function CustomerDetails() {
                 <div key={i} className="flex gap-4">
                   <div className="mt-1"><Clock size={16} className="text-text-secondary" /></div>
                   <div>
-                    <p className="text-sm font-medium">{event.action || event.eventType || tTerm('customerDetails.history.eventFallback')}</p>
-                    <p className="text-sm text-text-secondary">{event.description || event.entityType || tTerm('customerDetails.history.descriptionFallback')}</p>
+                    <p className="text-sm font-medium">{getHistoryActionLabel(event)}</p>
+                    <p className="text-sm text-text-secondary">{getHistoryContextLabel(event)}</p>
                     <p className="text-xs text-text-secondary mt-1">{formatDisplayDate(event.date || event.occurredAt, true)}</p>
                   </div>
                 </div>

@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ClipboardPlus } from 'lucide-react';
+import { ClipboardPlus } from 'lucide-react';
 import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
-import { ActionButton, PageHeader, PageShell, SectionSurface } from './shared/Surfaces';
+import { tTerm } from '../i18n/terminology';
+import { ActionButton, PageHeader, PageShell } from './shared/Surfaces';
 
 /**
  * Standalone credit calculation route for admins.
@@ -45,14 +46,15 @@ export default function CreditSimulator() {
   return (
     <PageShell className="h-full" data-tour="credit-calculator-page">
       <PageHeader
-        title="Previsualizar crédito"
-        subtitle="Simula un crédito con la regla de cálculo activa. Si el escenario sirve, continúa al registro sin rearmar los parámetros."
+        eyebrow={tTerm('creditCalculator.header.eyebrow')}
+        title={tTerm('creditCalculator.header.title')}
+        subtitle={tTerm('creditCalculator.header.subtitle')}
         guideKey="credit-calculator"
         tourId="credit-calculator-header"
         actions={(
           <>
             <ActionButton onClick={() => navigate('/credits')}>
-            Volver a créditos
+              {tTerm('newCredit.header.back')}
             </ActionButton>
             <ActionButton
               disabled={!canContinueToRegistration}
@@ -60,7 +62,7 @@ export default function CreditSimulator() {
               icon={<ClipboardPlus size={16} />}
               variant="primary"
             >
-            Usar este cálculo para registrar
+              {tTerm('creditCalculator.action.useForRegistration')}
             </ActionButton>
           </>
         )}
@@ -68,44 +70,23 @@ export default function CreditSimulator() {
 
       <div data-tour="credit-calculator-simulation">
         <CreditSimulationWorkspace
-        title="Escenario previo del crédito"
-        description="Revisa cuota, total a pagar, método aplicado y cronograma antes de registrar un crédito real."
-        modeLabel="Regla activa"
-        input={input}
-        result={result}
-        error={error}
-        fieldErrors={fieldErrors}
-        isSimulating={isSimulating}
-        isResultStale={isResultStale}
-        onInputChange={setInput}
-        onSimulate={simulate}
-        showScenarioTools
-        helperText="Si cambias parámetros después de calcular, la interfaz marca el resultado como desactualizado hasta que vuelvas a ejecutar el cálculo."
-        resultBadge={result?.calculationProfileVersionId != null ? `Regla v${result.calculationProfileVersionId}` : null}
-        emptyTitle="Configura tu escenario"
-        emptyDescription="Ajusta el crédito que quieres proyectar y ejecuta el cálculo para revisar cuota, interés total y cronograma mensual."
+          title={tTerm('creditCalculator.workspace.title')}
+          description={tTerm('creditCalculator.workspace.description')}
+          modeLabel={tTerm('creditCalculator.workspace.modeLabel')}
+          input={input}
+          result={result}
+          error={error}
+          fieldErrors={fieldErrors}
+          isSimulating={isSimulating}
+          isResultStale={isResultStale}
+          onInputChange={setInput}
+          onSimulate={simulate}
+          resultBadge={result?.calculationProfileVersionId != null ? tTerm('newCredit.summary.ruleVersion', { version: result.calculationProfileVersionId }) : null}
+          emptyTitle={tTerm('creditCalculator.empty.title')}
+          emptyDescription={tTerm('creditCalculator.empty.description')}
+          compactChrome
         />
       </div>
-
-      {result && (
-        <SectionSurface>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary">Listo para originación</h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                Este escenario usa la misma regla de cálculo activa que se aplicará al crear el crédito real.
-              </p>
-            </div>
-            <ActionButton
-              disabled={!canContinueToRegistration}
-              onClick={navigateToCreditRegistration}
-              icon={<ArrowRight size={16} />}
-            >
-              Continuar a registro
-            </ActionButton>
-          </div>
-        </SectionSurface>
-      )}
     </PageShell>
   );
 }

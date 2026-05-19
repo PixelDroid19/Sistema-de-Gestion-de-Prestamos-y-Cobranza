@@ -353,6 +353,7 @@
     font-size: 0.875rem;
     font-weight: 650;
     line-height: 1.2;
+    white-space: nowrap;
     transition: opacity 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
   }
 
@@ -364,6 +365,13 @@
   .action-button-icon svg {
     height: 1rem;
     width: 1rem;
+  }
+
+  .action-button-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
   }
 
   .action-button--primary {
@@ -446,6 +454,75 @@
   .form-control:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+
+  .operational-control {
+    display: flex;
+    min-height: 3.05rem;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-base) 22%);
+    padding: 0 0.95rem;
+    box-shadow: none;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  }
+
+  .operational-control:focus-within {
+    border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
+    background: var(--bg-surface);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 11%, transparent);
+  }
+
+  .operational-control--invalid {
+    border-color: color-mix(in srgb, #ef4444 70%, var(--border-subtle));
+  }
+
+  .operational-control--invalid:focus-within {
+    border-color: color-mix(in srgb, #ef4444 80%, var(--border-subtle));
+    box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 14%, transparent);
+  }
+
+  .operational-control-icon,
+  .operational-control-suffix {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+  }
+
+  .operational-control-input,
+  .operational-control-select {
+    min-width: 0;
+    flex: 1 1 auto;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    outline: none;
+  }
+
+  .operational-control-input::placeholder {
+    color: color-mix(in srgb, var(--text-secondary) 58%, transparent);
+  }
+
+  .operational-control-input[type="date"] {
+    color-scheme: light;
+  }
+
+  .dark .operational-control-input[type="date"] {
+    color-scheme: dark;
+  }
+
+  .operational-control-input:disabled,
+  .operational-control-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
   }
 
   .form-checkbox {
@@ -691,6 +768,16 @@
     background:
       linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 86%, white 14%), var(--bg-surface)),
       var(--bg-surface);
+  }
+
+  .insight-strip--count-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 980px) {
+    .insight-strip--count-3 {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (min-width: 1280px) and (max-width: 1500px) {
@@ -941,14 +1028,6 @@
     --config-accent: #475569;
   }
 
-  .new-credit-control-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    color: var(--brand-primary);
-  }
-
   .new-credit-field-grid {
     display: grid;
     gap: 1.35rem;
@@ -959,59 +1038,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: start;
     }
-  }
-
-  .new-credit-control-shell {
-    display: flex;
-    min-height: 3.05rem;
-    align-items: center;
-    gap: 0.65rem;
-    border: 1px solid var(--border-subtle);
-    border-radius: 0.85rem;
-    background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-base) 22%);
-    padding: 0 0.95rem;
-    box-shadow: none;
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-  }
-
-  .new-credit-control-shell:focus-within {
-    border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
-    background: var(--bg-surface);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 11%, transparent);
-  }
-
-  .new-credit-control-icon {
-    width: auto;
-    height: auto;
-    border-radius: 0;
-    background: transparent;
-    color: var(--text-secondary);
-  }
-
-  .new-credit-control-input,
-  .new-credit-control-select {
-    min-width: 0;
-    flex: 1 1 auto;
-    border: 0 !important;
-    background: transparent !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    font-weight: 500;
-    outline: none;
-  }
-
-  .new-credit-control-input[type="date"] {
-    color-scheme: light;
-  }
-
-  .dark .new-credit-control-input[type="date"] {
-    color-scheme: dark;
-  }
-
-  .new-credit-control-select {
-    height: auto;
   }
 
   .new-credit-summary-strip {

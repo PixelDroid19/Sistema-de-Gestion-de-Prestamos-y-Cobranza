@@ -55,6 +55,14 @@ export default function PaymentSchedule() {
     }
   };
 
+  const getScheduleErrorDescription = (scheduleError: unknown) => {
+    const message = String((scheduleError as { message?: string } | null)?.message || '');
+    if (/loan not found|not found|404/i.test(message)) {
+      return tTerm('schedule.empty.notFoundDescription');
+    }
+    return tTerm('schedule.empty.errorDescription');
+  };
+
   if (!loanId) {
     return (
       <PageShell>
@@ -85,7 +93,7 @@ export default function PaymentSchedule() {
       <PageShell>
         <EmptyState
           title={tTerm('schedule.empty.errorTitle')}
-          description={error ? (error as any).message || tTerm('schedule.empty.errorDescription') : tTerm('schedule.empty.errorDescription')}
+          description={getScheduleErrorDescription(error)}
           icon={<FileSpreadsheet size={24} />}
           action={<ActionButton onClick={() => navigate('/credits')}>{tTerm('schedule.button.back')}</ActionButton>}
         />

@@ -133,6 +133,13 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
       actor: req.user,
       loanIds,
       asOfDate: req.query.asOfDate,
+      filters: {
+        search: req.query.search,
+        status: req.query.status,
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+        limit: req.query.limit,
+      },
     });
 
     res.json({ success: true, data: { calendar } });

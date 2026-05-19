@@ -71,7 +71,12 @@ const createCreditsModule = ({ sharedRuntime, auditService } = {}) => {
     downloadLoanAttachment: createDownloadLoanAttachment({ attachmentRepository, attachmentStorage, loanAccessPolicy }),
     listLoanAlerts: createListLoanAlerts({ alertRepository, loanAccessPolicy, loanViewService }),
     getPaymentCalendar: createGetPaymentCalendar({ alertRepository, loanAccessPolicy, loanViewService }),
-    getPaymentCalendarOverview: createGetPaymentCalendarOverview({ alertRepository, loanAccessPolicy, loanViewService }),
+    getPaymentCalendarOverview: createGetPaymentCalendarOverview({
+      alertRepository,
+      loanAccessPolicy,
+      loanViewService,
+      loanRepository,
+    }),
     getInstallmentQuote: createGetInstallmentQuote({ loanAccessPolicy, loanViewService }),
     getPayoffQuote: createGetPayoffQuote({ loanAccessPolicy, loanViewService }),
     executePayoff: createExecutePayoff({ loanAccessPolicy, paymentApplicationService, auditService }),

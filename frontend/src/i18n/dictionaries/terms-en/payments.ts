@@ -18,6 +18,7 @@ export const paymentsEn = {
 'schedule.empty.loadingDescription': 'We are preparing the loan amortization.',
 'schedule.empty.errorTitle': 'The schedule could not be loaded',
 'schedule.empty.errorDescription': 'Error loading the payment schedule',
+'schedule.empty.notFoundDescription': 'We could not find this loan. It may have been voided, may not exist in this database, or may no longer be available.',
 'schedule.summary.loanAmount': 'Loan amount',
 'schedule.summary.interestRate': 'Interest rate',
 'schedule.summary.term': 'Term',

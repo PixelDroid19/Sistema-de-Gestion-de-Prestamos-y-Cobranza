@@ -6,7 +6,7 @@ import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportRespon
 import { tTerm } from '../i18n/terminology';
 
 type ReportContextualType = 'credits' | 'payouts';
-type ReportContextualFormat = 'xlsx' | 'pdf' | 'csv';
+type ReportContextualFormat = 'xlsx' | 'pdf';
 type ReportContextualFilters = {
   fromDate?: string;
   toDate?: string;
@@ -675,16 +675,14 @@ export const exportContextualReport = async (
   const format: ReportContextualFormat = filters.format || 'xlsx';
 
   if (type === 'credits') {
-    const extension = format === 'pdf' ? 'pdf' : (format === 'csv' ? 'csv' : 'xlsx');
+    const extension = format === 'pdf' ? 'pdf' : 'xlsx';
     const mimeType = format === 'pdf'
       ? 'application/pdf'
-      : (format === 'csv'
-        ? 'text/csv; charset=utf-8'
-        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     await downloadBlobWithParams({
-      url: '/reports/credits/export',
-      fileName: `reporte_creditos_${suffix}.${extension}`,
+      url: '/reports/credit-history/monthly/export',
+      fileName: `historial_creditos_${suffix}.${extension}`,
       mimeType,
       params: {
         format,

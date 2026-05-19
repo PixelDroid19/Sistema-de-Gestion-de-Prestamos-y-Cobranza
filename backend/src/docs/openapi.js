@@ -84,7 +84,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           lateFeeMode: { type: 'string', enum: ['NONE', 'SIMPLE', 'COMPOUND', 'FLAT', 'TIERED'] },
           annualLateFeeRate: { type: 'number', minimum: 0, maximum: 100 },
           rateSource: { type: 'string', enum: ['policy', 'manual'], description: 'Para POST /loans debe ser policy; no se aceptan tasas manuales en créditos reales.' },
-          lateFeeSource: { type: 'string', enum: ['policy', 'manual'] },
+          lateFeeSource: { type: 'string', enum: ['policy', 'manual'], description: 'Para POST /loans debe ser policy; la mora de créditos reales se resuelve desde /config/late-fee-policies.' },
         },
       },
       PaymentMethod: {
@@ -431,6 +431,42 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
         ],
         responses: { 200: { description: 'Archivo PDF de flujo de caja mensual' } },
+      },
+    },
+    '/reports/credit-history/monthly': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Consultar historial mensual avanzado de créditos',
+        description: [
+          'Devuelve un reporte mensual de auditoría financiera con créditos creados, cuotas recibidas, capital recuperado, intereses cobrados, créditos vencidos, pérdidas/riesgo, ganancias y caja disponible.',
+          'Los datos salen de préstamos y pagos completados registrados en base de datos.',
+        ].join(' '),
+        parameters: [
+          { name: 'month', in: 'query', schema: { type: 'string', pattern: '^\\d{4}-\\d{2}$' }, description: 'Mes exacto en formato YYYY-MM.' },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'status', in: 'query', schema: { type: 'string' }, description: 'Estado de crédito o recuperación. Acepta varios valores separados por coma.' },
+        ],
+        responses: { 200: { description: 'Historial mensual avanzado de créditos' } },
+      },
+    },
+    '/reports/credit-history/monthly/export': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar historial mensual avanzado de créditos',
+        description: [
+          'Exporta el historial mensual avanzado en Excel o PDF para auditoría financiera real.',
+          'El Excel incluye Resumen Auditoría, Historial Mensual, Detalle Créditos y Detalle Pagos.',
+          'CSV no forma parte de este contrato.',
+        ].join(' '),
+        parameters: [
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
+          { name: 'month', in: 'query', schema: { type: 'string', pattern: '^\\d{4}-\\d{2}$' }, description: 'Mes exacto en formato YYYY-MM.' },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'status', in: 'query', schema: { type: 'string' }, description: 'Estado de crédito o recuperación. Acepta varios valores separados por coma.' },
+        ],
+        responses: { 200: { description: 'Archivo Excel o PDF de historial mensual de créditos' } },
       },
     },
     '/reports/payouts/excel': {

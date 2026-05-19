@@ -1214,7 +1214,7 @@ test('createCreditsRouter serves aggregated calendar overview contracts', async 
 
   const response = await requestJson(activeServer, {
     method: 'GET',
-    path: '/calendar/overview?loanIds=55,56&asOfDate=2026-04-24',
+    path: '/calendar/overview?loanIds=55,56&asOfDate=2026-04-24&search=Cliente&status=overdue&startDate=2026-04-01&endDate=2026-04-30',
     headers: { authorization: 'Bearer valid-token' },
   });
 
@@ -1227,6 +1227,13 @@ test('createCreditsRouter serves aggregated calendar overview contracts', async 
       actor: { id: 1, role: 'admin' },
       loanIds: [55, 56],
       asOfDate: '2026-04-24',
+      filters: {
+        search: 'Cliente',
+        status: 'overdue',
+        startDate: '2026-04-01',
+        endDate: '2026-04-30',
+        limit: undefined,
+      },
     },
   ]]);
 });

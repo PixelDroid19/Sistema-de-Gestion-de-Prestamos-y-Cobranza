@@ -107,7 +107,16 @@ describe('NewCredit behavior', () => {
         priority: 'medium',
       },
     ];
-    mockConfigState.lateFeePolicies = [];
+    mockConfigState.lateFeePolicies = [
+      {
+        id: 2,
+        label: 'Mora simple',
+        annualEffectiveRate: 24,
+        lateFeeMode: 'SIMPLE',
+        isActive: true,
+        priority: 'medium',
+      },
+    ];
     currentUser = { id: 1, role: 'admin', permissions: ['*'] };
     mockUseConfig.mockClear();
     mockUseConfig.mockImplementation(() => ({
@@ -122,18 +131,20 @@ describe('NewCredit behavior', () => {
         inputs: {
           ...routeState.calculationInput,
           interestRate: 40,
-          annualLateFeeRate: 0,
+          lateFeeMode: 'SIMPLE',
+          annualLateFeeRate: 24,
         },
         method: 'COMPOUND',
         calculationProfileVersionId: 9,
-        lateFeeMode: 'COMPOUND',
+        lateFeeMode: 'SIMPLE',
         policySnapshot: {
           rateSource: 'policy',
           ratePolicyLabel: 'Tasa mayor a 1M',
           appliedInterestRate: 40,
-          lateFeeSource: 'manual',
-          appliedLateFeeMode: 'COMPOUND',
-          appliedAnnualLateFeeRate: 0,
+          lateFeeSource: 'policy',
+          lateFeePolicyLabel: 'Mora simple',
+          appliedLateFeeMode: 'SIMPLE',
+          appliedAnnualLateFeeRate: 24,
         },
         summary: {
           installmentAmount: 195000,
@@ -172,12 +183,13 @@ describe('NewCredit behavior', () => {
       initialInput: {
         ...routeState.calculationInput,
         rateSource: 'policy',
+        lateFeeSource: 'policy',
       },
       autoRun: true,
     });
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
-    expect(screen.getAllByText('40% EA').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent).toContain('Tasa mayor a 1M');
     expect(screen.queryByRole('spinbutton', { name: 'Tasa configurada' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('fixed');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
@@ -193,10 +205,10 @@ describe('NewCredit behavior', () => {
         interestRate: 40,
         termMonths: 16,
         startDate: '2026-05-01',
-        lateFeeMode: 'COMPOUND',
-        annualLateFeeRate: 0,
+        lateFeeMode: 'SIMPLE',
+        annualLateFeeRate: 24,
         rateSource: 'policy',
-        lateFeeSource: 'manual',
+        lateFeeSource: 'policy',
       });
       expect(mockNavigate).toHaveBeenCalledWith('/credits/55');
     });
@@ -205,14 +217,12 @@ describe('NewCredit behavior', () => {
   it('guides the operator through customer, validation and registration readiness', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByText('Preparación del crédito')).toBeInTheDocument();
     expect(screen.getByLabelText('Estado de preparación del crédito')).toBeInTheDocument();
     expect(screen.getAllByText('Regla v9').length).toBeGreaterThan(0);
     expect(screen.queryByText('Selecciona el cliente que recibirá el crédito.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Acciones del nuevo crédito')).toBeInTheDocument();
-    expect(screen.getByText('La mora no se suma al desembolso ni a la cuota normal al crear el crédito.')).toBeInTheDocument();
-    expect(screen.getByText('Cuándo se cobra')).toBeInTheDocument();
-    expect(screen.getByText('Cómo se calcula')).toBeInTheDocument();
+    expect(screen.getByText('Mora simple · 24% EA')).toBeInTheDocument();
+    expect(screen.getByText('Mora simple · solo si hay atraso')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
 
@@ -229,12 +239,11 @@ describe('NewCredit behavior', () => {
       isLoading: true,
     }));
 
-    render(<NewCredit onBack={vi.fn()} />);
+    const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getAllByText('Cargando tasas').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Cargando mora').length).toBeGreaterThan(0);
-    expect(screen.getByText('Cargando las tasas configuradas antes de permitir la validación del crédito.')).toBeInTheDocument();
-    expect(screen.getByText('La mora no se suma al desembolso ni a la cuota normal al crear el crédito.')).toBeInTheDocument();
+    const policySummary = container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent || '';
+    expect(policySummary).toContain('Cargando');
+    expect(policySummary).toContain('Leyendo la política de mora vigente.');
     expect(screen.queryByText('Sin tasa configurada')).not.toBeInTheDocument();
     expect(screen.queryByText('Mora simple · 0% EA')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Validar crédito' })).toBeDisabled();
@@ -253,17 +262,6 @@ describe('NewCredit behavior', () => {
         priority: 'medium',
       },
     ];
-    mockConfigState.lateFeePolicies = [
-      {
-        id: 2,
-        label: 'Mora simple',
-        annualEffectiveRate: 24,
-        lateFeeMode: 'SIMPLE',
-        isActive: true,
-        priority: 'medium',
-      },
-    ];
-
     render(<NewCredit onBack={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
@@ -275,6 +273,28 @@ describe('NewCredit behavior', () => {
       }));
     });
     expect(mockCreateLoan).not.toHaveBeenCalled();
+  });
+
+  it('blocks validation when no active late-fee policy exists for real credit creation', async () => {
+    mockConfigState.lateFeePolicies = [];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Falta política de mora',
+      }));
+    });
+    expect(mockSimulate).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a manual late-fee selector while creating a real credit', () => {
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(screen.queryByRole('combobox', { name: 'Cálculo de mora' })).not.toBeInTheDocument();
+    expect(screen.getByText('Mora simple · 24% EA')).toBeInTheDocument();
   });
 
   it('blocks validation when active rate policies overlap', async () => {
@@ -299,10 +319,11 @@ describe('NewCredit behavior', () => {
       },
     ];
 
-    render(<NewCredit onBack={vi.fn()} />);
+    const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getAllByText('Conflicto de tasas').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Hay varias tasas activas para/)).toBeInTheDocument();
+    const policySummary = container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent || '';
+    expect(policySummary).toContain('Conflicto de tasas');
+    expect(policySummary).toContain('2 reglas activas se pisan');
 
     fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
 

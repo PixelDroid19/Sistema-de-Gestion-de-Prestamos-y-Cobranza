@@ -38,6 +38,7 @@ test('loanValidation.create accepts a canonical loan payload', async () => {
       amount: 12000,
       interestRate: 12,
       rateSource: 'policy',
+      lateFeeSource: 'policy',
       termMonths: 12,
       lateFeeMode: 'none',
     },
@@ -51,6 +52,7 @@ test('loanValidation.create rejects manual interest rate source for real credit 
       amount: 12000,
       interestRate: 12,
       rateSource: 'manual',
+      lateFeeSource: 'policy',
       termMonths: 12,
       lateFeeMode: 'none',
     },
@@ -75,6 +77,46 @@ test('loanValidation.create allows policy-driven rate without a manual interestR
       lateFeeSource: 'policy',
     },
   }));
+});
+
+test('loanValidation.create rejects manual late-fee source for real credit creation', async () => {
+  const error = await captureMiddlewareError(loanValidation.create, {
+    body: {
+      customerId: 1,
+      amount: 12000,
+      rateSource: 'policy',
+      lateFeeSource: 'manual',
+      termMonths: 12,
+      lateFeeMode: 'none',
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [
+    {
+      field: 'lateFeeSource',
+      message: 'Credit creation must use a configured late fee policy',
+    },
+  ]);
+});
+
+test('loanValidation.create requires a late-fee policy source for real credit creation', async () => {
+  const error = await captureMiddlewareError(loanValidation.create, {
+    body: {
+      customerId: 1,
+      amount: 12000,
+      rateSource: 'policy',
+      termMonths: 12,
+    },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(error.errors, [
+    {
+      field: 'lateFeeSource',
+      message: 'Credit creation must use a configured late fee policy',
+    },
+  ]);
 });
 
 test('loanValidation.create rejects associate assignment for new credits', async () => {

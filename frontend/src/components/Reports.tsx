@@ -98,7 +98,7 @@ export default function Reports() {
   const [reportType, setReportType] = useState<'credits' | 'payouts'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
-  const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf' | 'csv'>('xlsx');
+  const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
   const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear);
@@ -257,7 +257,7 @@ export default function Reports() {
 
       {reportExportGuard.visible && (
         <ToolbarSurface as="form" className="settings-config-form" aria-label={tTerm('reports.export.aria')}>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.9fr)_minmax(10rem,0.9fr)_max-content_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
             <FormField label={tTerm('reports.export.type')}>
               <SelectInput
                 id="report-type"
@@ -284,21 +284,23 @@ export default function Reports() {
                 onChange={(event) => setReportRange((prev) => ({ ...prev, toDate: event.target.value }))}
               />
             </FormField>
-            <div className="flex items-end">
+            <div className="flex min-w-0 flex-col">
+              <span className="form-field-label invisible select-none" aria-hidden="true">
+                {tTerm('reports.cta.export')}
+              </span>
               <ActionButton
                 variant="primary"
-                fullWidth
                 onClick={handleExportContextualReport}
                 disabled={isExporting || hasInvalidRange || !reportExportGuard.executable}
                 title={hasInvalidRange ? tTerm('reports.export.invalidRange') : (reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable')))}
                 icon={<Download size={16} />}
+                className="h-10 min-h-10 px-5"
               >
                 {isExporting ? tTerm('credits.cta.exporting') : (reportType === 'credits' ? tTerm('reports.cta.exportCredits') : tTerm('reports.cta.exportPayouts'))}
               </ActionButton>
             </div>
-          </div>
-          {reportType === 'credits' && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            {reportType === 'credits' && (
+              <>
               <FormField label={tTerm('reports.export.status')}>
                 <SelectInput
                   id="report-status"
@@ -318,15 +320,15 @@ export default function Reports() {
                 <SelectInput
                   id="report-format"
                   value={reportFormat}
-                  onChange={(event) => setReportFormat(event.target.value as 'xlsx' | 'pdf' | 'csv')}
+                  onChange={(event) => setReportFormat(event.target.value as 'xlsx' | 'pdf')}
                 >
                   <option value="xlsx">Excel (xlsx)</option>
                   <option value="pdf">PDF</option>
-                  <option value="csv">CSV</option>
                 </SelectInput>
               </FormField>
-            </div>
-          )}
+              </>
+            )}
+          </div>
           {hasInvalidRange && (
             <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidRange')}</p>
           )}

@@ -879,6 +879,82 @@ test('createGetPaymentCalendarOverview returns actionable agenda and portfolio s
   assert.equal(overview.entries.length, 4);
 });
 
+test('createGetPaymentCalendarOverview searches portfolio and filters installments by due date/status', async () => {
+  const searchedFilters = [];
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      filterVisibleLoans({ loans }) {
+        return loans;
+      },
+    },
+    loanRepository: {
+      async search({ filters }) {
+        searchedFilters.push(filters);
+        return [
+          {
+            id: 31,
+            Customer: { name: 'Cliente Calendario' },
+            status: 'active',
+            termMonths: 3,
+            lateFeeMode: 'SIMPLE',
+            annualLateFeeRate: 0,
+          },
+        ];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2026-05-10T00:00:00.000Z',
+              remainingPrincipal: 0,
+              remainingInterest: 0,
+              scheduledPayment: 100,
+              paidTotal: 100,
+              status: 'paid',
+            },
+            {
+              installmentNumber: 2,
+              dueDate: '2026-06-10T00:00:00.000Z',
+              remainingPrincipal: 90,
+              remainingInterest: 10,
+              scheduledPayment: 100,
+              paidTotal: 0,
+              status: 'pending',
+            },
+          ],
+          snapshot: { outstandingBalance: 100 },
+        };
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [];
+      },
+    },
+  });
+
+  const overview = await getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [],
+    asOfDate: '2026-05-18T00:00:00.000Z',
+    filters: {
+      search: 'Calendario',
+      status: 'pending',
+      startDate: '2026-06-01',
+      endDate: '2026-06-30',
+    },
+  });
+
+  assert.deepEqual(searchedFilters, [{ search: 'Calendario' }]);
+  assert.equal(overview.summary.totalLoans, 1);
+  assert.equal(overview.summary.totalEntries, 1);
+  assert.equal(overview.summary.pendingCount, 1);
+  assert.equal(overview.entries[0].installmentNumber, 2);
+});
+
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
   let requestedLoanId;
   const getPayoffQuote = createGetPayoffQuote({

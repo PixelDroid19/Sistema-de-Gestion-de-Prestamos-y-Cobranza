@@ -287,7 +287,7 @@ describe('Reports behavioral parity scenarios', () => {
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-02-28' } });
     fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'active' } });
     fireEvent.change(screen.getByLabelText('Formato'), { target: { value: 'pdf' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar créditos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar historial' }));
 
     await waitFor(() => {
       expect(mockExportContextualReport).toHaveBeenCalledWith('credits', {

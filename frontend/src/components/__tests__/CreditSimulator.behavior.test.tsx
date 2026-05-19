@@ -81,7 +81,7 @@ describe('CreditSimulator behavior', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Usar este cálculo para registrar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar cálculo para registrar' }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/credits/new', {
@@ -93,26 +93,36 @@ describe('CreditSimulator behavior', () => {
     });
   });
 
-  it('continues to the real registration route from the lower CTA with the simulated scenario', async () => {
+  it('runs the backend-backed calculation from the workspace CTA', async () => {
     render(
       <MemoryRouter>
         <CreditSimulator />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar a registro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular crédito' }));
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/credits/new', {
-        state: {
-          calculationInput,
-          source: 'credit-calculator',
-        },
-      });
-    });
+    expect(calculationState.simulate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('blocks both registration CTAs when the simulation result is stale', () => {
+  it('only exposes late-fee modes that the current settings UI can configure completely', () => {
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    const lateFeeSelect = screen.getByRole('combobox', { name: 'Cálculo de mora' });
+
+    expect(lateFeeSelect).toHaveTextContent('Sin recargo');
+    expect(lateFeeSelect).toHaveTextContent('Mora simple');
+    expect(lateFeeSelect).toHaveTextContent('Mora compuesta');
+    expect(lateFeeSelect).not.toHaveTextContent('Cargo fijo por mora');
+    expect(lateFeeSelect).not.toHaveTextContent('Mora por tramos');
+  });
+
+  it('blocks registration when the simulation result is stale', () => {
     calculationState = {
       ...calculationState,
       isResultStale: true,
@@ -124,16 +134,13 @@ describe('CreditSimulator behavior', () => {
       </MemoryRouter>,
     );
 
-    const topCta = screen.getByRole('button', { name: 'Usar este cálculo para registrar' });
-    const lowerCta = screen.getByRole('button', { name: 'Continuar a registro' });
+    const topCta = screen.getByRole('button', { name: 'Usar cálculo para registrar' });
 
     expect(topCta).toBeDisabled();
-    expect(lowerCta).toBeDisabled();
     expect(screen.getByText(/Ejecuta nuevamente para actualizar los resultados/i)).toBeInTheDocument();
     expect(screen.queryByText('$210.000')).not.toBeInTheDocument();
 
     fireEvent.click(topCta);
-    fireEvent.click(lowerCta);
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });

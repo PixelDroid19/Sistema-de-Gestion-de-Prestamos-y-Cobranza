@@ -48,6 +48,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const calendarAsOfDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [calendarFilters, setCalendarFilters] = useState({
+    search: '',
+    status: '',
+    startDate: '',
+    endDate: '',
+  });
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -190,14 +196,6 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
 
   // ─── Calendar data ────────────────────────────────────────────────────────
 
-  const calendarLoanIds = useMemo<number[]>(
-    () => creditsList
-      .map((loan: any) => Number(loan?.id))
-      .filter((loanId: number): loanId is number => Number.isFinite(loanId))
-      .slice(0, 25),
-    [creditsList],
-  );
-
   const emptyCalendarOverview = useMemo<CalendarOverviewResponse>(() => ({
     asOfDate: calendarAsOfDate,
     summary: {
@@ -211,13 +209,17 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   }), [calendarAsOfDate]);
 
   const { data: calendarOverview = emptyCalendarOverview, isLoading: isCalendarLoading } = useQuery<CalendarOverviewResponse>({
-    queryKey: ['credits.calendar.overview', calendarLoanIds, calendarAsOfDate],
-    enabled: activeTab === 'calendar' && calendarLoanIds.length > 0,
+    queryKey: ['credits.calendar.overview', calendarAsOfDate, calendarFilters],
+    enabled: activeTab === 'calendar',
     queryFn: async () => {
       const { data } = await apiClient.get('/loans/calendar/overview', {
         params: {
-          loanIds: calendarLoanIds.join(','),
           asOfDate: calendarAsOfDate,
+          search: calendarFilters.search || undefined,
+          status: calendarFilters.status || undefined,
+          startDate: calendarFilters.startDate || undefined,
+          endDate: calendarFilters.endDate || undefined,
+          limit: 150,
         },
       });
       return data?.data?.calendar ?? emptyCalendarOverview;
@@ -488,6 +490,9 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           selectedEvent={selectedEvent}
           onSelectEvent={setSelectedEvent}
           onViewCredit={(loanId: number) => navigateToView(`credits/${loanId}`)}
+          filters={calendarFilters}
+          onFiltersChange={setCalendarFilters}
+          onClearFilters={() => setCalendarFilters({ search: '', status: '', startDate: '', endDate: '' })}
         />
       )}
     </PageShell>

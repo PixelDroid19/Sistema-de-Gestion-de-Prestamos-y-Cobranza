@@ -274,7 +274,7 @@ const authValidation = {
 const loanValidation = {
   /** @type {import('express').RequestHandler} */
   create: (req, res, next) => {
-    const { customerId, associateId, amount, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource } = req.body;
+    const { customerId, associateId, amount, termMonths, lateFeeMode, startDate, annualLateFeeRate, rateSource, lateFeeSource } = req.body;
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
@@ -291,6 +291,10 @@ const loanValidation = {
 
     if (!usesPolicySource(rateSource)) {
       errors.push({ field: 'rateSource', message: 'Credit creation must use a configured rate policy' });
+    }
+
+    if (!usesPolicySource(lateFeeSource)) {
+      errors.push({ field: 'lateFeeSource', message: 'Credit creation must use a configured late fee policy' });
     }
 
     if (!validateTermMonths(termMonths)) {

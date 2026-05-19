@@ -334,8 +334,12 @@ describe('Credits behavioral parity scenarios', () => {
     await waitFor(() => {
       expect(mockApiGet).toHaveBeenCalledWith('/loans/calendar/overview', {
         params: {
-          loanIds: '77',
           asOfDate: expect.any(String),
+          search: undefined,
+          status: undefined,
+          startDate: undefined,
+          endDate: undefined,
+          limit: 150,
         },
       });
       expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');

@@ -30,6 +30,10 @@ const resolvePolicyContext = async ({ input, policyResolver }) => {
     throw new ValidationError('Credit creation must use a configured rate policy');
   }
 
+  if (String(input?.lateFeeSource || '').trim().toLowerCase() !== 'policy') {
+    throw new ValidationError('Credit creation must use a configured late fee policy');
+  }
+
   if (!policyResolver || typeof policyResolver.resolve !== 'function') {
     return {
       calculationInput: { ...input },
@@ -88,10 +92,11 @@ const resolveLoanStartDate = (value) => {
  * The `calculationProfileVersionId` persisted on the loan comes directly from
  * the calculation execution result, guaranteeing it is the exact profile that
  * produced the numbers.
- * Real credit creation also requires `rateSource=policy`, so the annual rate is
- * resolved from the configured amount ranges and cannot be hand-edited per loan.
+ * Real credit creation requires `rateSource=policy` and `lateFeeSource=policy`.
+ * The annual rate and late-fee rule are resolved from configuration and cannot
+ * be hand-edited per loan.
  *
- * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeMode?: string }} input
+ * @param {{ customerId: number, amount: number, interestRate?: number, rateSource: 'policy', termMonths: number, lateFeeSource: 'policy', lateFeeMode?: string }} input
  * @returns {Promise<object>}
  */
 const createLoanFromCanonicalDataFactory = ({

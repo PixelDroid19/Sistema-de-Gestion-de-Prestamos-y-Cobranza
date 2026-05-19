@@ -9,7 +9,7 @@ import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
 import TableShell from './shared/TableShell';
-import { ActionButton, FormField, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, IconActionButton, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
 
 export default function Customers({ setCurrentView }: { setCurrentView?: (v: string) => void }) {
@@ -150,8 +150,8 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
 
       <div className="flex min-w-0 flex-1 flex-col gap-5">
         <ToolbarSurface data-tour="customers-filters">
-          <div className="grid gap-3 md:grid-cols-[minmax(18rem,1fr)_14rem_14rem]">
-            <FormField label="Buscar cliente" className="md:max-w-xl" data-tour="customers-search">
+          <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem_14rem]">
+            <FormField label="Buscar cliente" data-tour="customers-search">
               <div className="relative">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <TextInput
@@ -245,7 +245,7 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                       {getCustomerName(customer)}
                     </td>
                     <td className="py-4 text-text-secondary">{customer.email}</td>
-                    <td className="py-4">
+                    <td className="py-4 align-middle">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                         customer.status === 'active'
                           ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
@@ -260,50 +260,38 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
                             : tTerm('common.status.inactive')}
                       </span>
                     </td>
-                    <td className="py-4 text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
-                    <td className="py-4">
+                    <td className="py-4 align-middle text-text-secondary">{formatCreatedAt(customer?.createdAt)}</td>
+                    <td className="py-4 align-middle">
                       <div className="flex items-center gap-2">
-                        <ActionButton
+                        <IconActionButton
                           onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}`)}
                           icon={<Eye size={16} />}
                           variant="ghost"
-                          className="h-9 w-9 !min-h-0 !p-0"
-                          title="Ver detalles"
-                        >
-                          <span className="sr-only">Ver detalles</span>
-                        </ActionButton>
+                          label={tTerm('customers.action.viewDetails')}
+                        />
                         {canUpdateCustomers && (
                           <>
-                            <ActionButton
+                            <IconActionButton
                               onClick={() => setCurrentView && setCurrentView(`customers/${customer.id}/edit`)}
                               icon={<Edit size={16} />}
                               variant="ghost"
-                              className="h-9 w-9 !min-h-0 !p-0"
-                              title="Editar"
-                            >
-                              <span className="sr-only">Editar</span>
-                            </ActionButton>
-                            <ActionButton
+                              label={tTerm('customers.action.edit')}
+                            />
+                            <IconActionButton
                               onClick={() => handleToggleStatus(customer)}
                               icon={<RotateCcw size={16} />}
                               variant="ghost"
-                              className="h-9 w-9 !min-h-0 !p-0"
-                              title={customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}
-                            >
-                              <span className="sr-only">{customer.status === 'active' ? 'Desactivar' : customer.status === 'blacklisted' ? 'Quitar bloqueo' : tTerm('customers.cta.restore')}</span>
-                            </ActionButton>
+                              label={customer.status === 'active' ? tTerm('customers.action.deactivate') : customer.status === 'blacklisted' ? tTerm('customers.action.unblock') : tTerm('customers.cta.restore')}
+                            />
                           </>
                         )}
                         {canDeleteCustomers && (
-                          <ActionButton
+                          <IconActionButton
                             onClick={() => handleDelete(customer)}
                             icon={<Trash2 size={16} />}
                             variant="danger"
-                            className="h-9 w-9 !min-h-0 !p-0"
-                            title="Eliminar"
-                          >
-                            <span className="sr-only">Eliminar</span>
-                          </ActionButton>
+                            label={tTerm('customers.action.delete')}
+                          />
                         )}
                       </div>
                     </td>

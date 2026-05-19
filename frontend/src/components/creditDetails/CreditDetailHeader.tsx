@@ -186,7 +186,8 @@ export function CreditDetailHeader({
             <ActionButton
               onClick={onOpenCapitalPayment}
               disabled={!capitalPaymentGuard.executable}
-              title={capitalPaymentGuard.executable ? undefined : capitalPaymentGuard.reason}
+              disabledReason={!capitalPaymentGuard.executable && capitalPaymentGuard.reason ? `Abono a capital no disponible. ${capitalPaymentGuard.reason}` : undefined}
+              title="Registrar un abono que reduce capital vivo y recalcula el cronograma pendiente"
               icon={<Layers size={16} />}
               className="w-full lg:w-auto"
             >

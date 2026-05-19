@@ -71,8 +71,11 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tipo de Interés'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Deuda con Socio'));
-  assert.ok(result.data.rows.some((row) => row.section === 'interest-payment'));
-  assert.ok(result.data.rows.some((row) => row.section === 'interest-due'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Interés pagado'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Distribución'));
+  assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
 });
 
 test('export credits use case builds approved workbook fields with current snapshots', async () => {
@@ -191,6 +194,60 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.ok(detailHeaders.includes('Interés Generado'));
   assert.equal(detailHeaders.includes('calculationMethod'), false);
   assert.equal(detailHeaders.includes('ratePolicyId'), false);
+  assert.deepEqual(
+    result.data.sheets[0].rows.map((row) => row.indicator),
+    [
+      'Fecha de Generación',
+      'Total de Clientes',
+      'Total de Créditos',
+      'Créditos Activos',
+      'Créditos Finalizados',
+      'Créditos en Mora',
+      'Total Prestado (Capital)',
+      'Capital Pendiente',
+      'Total a Cobrar',
+      'Saldo con Intereses',
+      'Total Pagado',
+      'Capital Pagado',
+      'Interés Pagado',
+      'Intereses por Mora',
+      'Interés Total Generado',
+      'Interés Pendiente',
+      'TNA Promedio',
+      'Ganancia Promedio por Millón',
+      'Tasa de Recaudo',
+      '% Total Pagado',
+      '% Capital Recuperado',
+      '% Intereses Cobrados',
+    ],
+  );
+  assert.deepEqual(
+    result.data.sheets[0].rows.map((row) => row.section),
+    [
+      'INFORMACIÓN GENERAL',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'MONTOS TOTALES (SIN INTERESES)',
+      '',
+      'MONTOS TOTALES (CON INTERESES)',
+      '',
+      'PAGOS TOTALES',
+      '',
+      '',
+      '',
+      'INTERESES PROYECTADOS',
+      '',
+      'MÉTRICAS FINANCIERAS',
+      '',
+      '',
+      'PORCENTAJES GLOBALES',
+      '',
+      '',
+    ],
+  );
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await buildWorkbookBuffer(result.data.sheets));
@@ -734,19 +791,6 @@ test('credits export filters by status (active only excludes closed loans)', asy
   assert.equal(result.success, true);
   assert.equal(result.data.rows.length, 1);
   assert.equal(result.data.rows[0].creditId, 11);
-});
-
-test('credits CSV export returns Spanish headers and matches filtered loans', async () => {
-  const { createExportCreditsCsv } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
-  const fixtures = buildCreditFixtures();
-  const useCase = createExportCreditsCsv(fixtures);
-  const result = await useCase({ actor: { role: 'admin' }, filters: { status: 'closed' } });
-  assert.ok(result.fileName.endsWith('.csv'));
-  assert.equal(result.contentType, 'text/csv; charset=utf-8');
-  const text = result.buffer.toString('utf8');
-  assert.ok(text.includes('ID Crédito'));
-  assert.ok(text.includes('Cliente Cerrado'));
-  assert.ok(!text.includes('Cliente Activo'));
 });
 
 test('credits PDF export returns a valid PDF buffer with summary headline', async () => {

@@ -66,6 +66,7 @@ test('createLoanFromCanonicalData persists the canonical schedule and summary vi
     amount: 12000,
     interestRate: 12,
     rateSource: 'policy',
+    lateFeeSource: 'policy',
     termMonths: 12,
     lateFeeMode: 'none',
     startDate: '2026-04-24',
@@ -107,12 +108,42 @@ test('createLoanFromCanonicalData rejects assigning associates to new credits', 
       amount: 12000,
       interestRate: 12,
       rateSource: 'policy',
+      lateFeeSource: 'policy',
       termMonths: 12,
       lateFeeMode: 'none',
       startDate: '2026-04-24',
     }),
     (error) => {
       assert.equal(error.message, 'Socios are managed as investors and cannot be assigned to new credits');
+      return true;
+    },
+  );
+});
+
+test('createLoanFromCanonicalData rejects manual late-fee source for new credits', async () => {
+  mock.method(models.Customer, 'findByPk', async (id) => ({ id, name: 'Customer Test' }));
+
+  const createLoan = createLoanFromCanonicalDataFactory({
+    calculationService: {
+      async calculate() {
+        throw new Error('calculation should not run when lateFeeSource is manual');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLoan({
+      customerId: 1,
+      amount: 12000,
+      interestRate: 12,
+      rateSource: 'policy',
+      lateFeeSource: 'manual',
+      termMonths: 12,
+      lateFeeMode: 'none',
+      startDate: '2026-04-24',
+    }),
+    (error) => {
+      assert.equal(error.message, 'Credit creation must use a configured late fee policy');
       return true;
     },
   );
@@ -173,6 +204,7 @@ test('createLoanFromCanonicalData stores the selected payment date without timez
     amount: 1000,
     interestRate: 12,
     rateSource: 'policy',
+    lateFeeSource: 'policy',
     termMonths: 1,
     lateFeeMode: 'none',
     startDate: '2026-04-29T23:30:00-05:00',
@@ -222,6 +254,7 @@ test('createLoanFromCanonicalDataFactory persists profile-selected results with 
     amount: 90,
     interestRate: 12,
     rateSource: 'policy',
+    lateFeeSource: 'policy',
     termMonths: 1,
   });
 
@@ -353,6 +386,7 @@ test('createLoanFromCanonicalDataFactory keeps canonical persistence without fal
     amount: 100,
     interestRate: 12,
     rateSource: 'policy',
+    lateFeeSource: 'policy',
     termMonths: 1,
   });
 
@@ -380,6 +414,7 @@ test('createLoanFromCanonicalDataFactory rejects new credits when no calculation
       amount: 90,
       interestRate: 12,
       rateSource: 'policy',
+      lateFeeSource: 'policy',
       termMonths: 1,
     }),
     (error) => {
@@ -485,6 +520,7 @@ test('createLoanFromCanonicalData freezes the policySnapshot and rate at creatio
     amount: 988,
     interestRate: 99, // user-supplied rate must be overridden by the policy resolver
     rateSource: 'policy',
+    lateFeeSource: 'policy',
     termMonths: 1,
     lateFeeMode: 'none',
     startDate: '2026-04-01',

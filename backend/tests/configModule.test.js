@@ -219,6 +219,42 @@ test('config policies reject active duplicates that would make resolution ambigu
   );
 });
 
+test('late-fee policies reject modes that are not configurable from the operational UI', async () => {
+  const createLateFeePolicy = createCreateLateFeePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [];
+      },
+      async create() {
+        throw new Error('create should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createLateFeePolicy({
+      label: 'Mora fija incompleta',
+      annualEffectiveRate: 12,
+      lateFeeMode: 'FLAT',
+      priority: 'medium',
+    }),
+    /lateFeeMode is invalid/,
+  );
+
+  await assert.rejects(
+    () => createLateFeePolicy({
+      label: 'Mora por tramos incompleta',
+      annualEffectiveRate: 12,
+      lateFeeMode: 'TIERED',
+      priority: 'medium',
+    }),
+    /lateFeeMode is invalid/,
+  );
+});
+
 test('rate policy resolution rejects overlapping active ranges instead of guessing a winner', async () => {
   const resolveRatePolicy = createResolveRatePolicy({
     configRepository: {

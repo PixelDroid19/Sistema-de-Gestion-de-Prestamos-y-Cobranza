@@ -257,8 +257,8 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
         )}
 
         <ToolbarSurface data-tour="associates-search">
-          <div className="grid gap-3 md:grid-cols-[minmax(18rem,1fr)_14rem]">
-            <FormField label="Buscar socio" className="md:max-w-xl">
+          <div className="grid items-start gap-3 lg:grid-cols-[minmax(18rem,26rem)_14rem]">
+            <FormField label="Buscar socio">
               <div className="relative">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <TextInput

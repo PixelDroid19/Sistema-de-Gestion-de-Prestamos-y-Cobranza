@@ -19,6 +19,7 @@ export const paymentsEs = {
 'schedule.empty.loadingDescription': 'Estamos preparando la amortización del crédito.',
 'schedule.empty.errorTitle': 'No se pudo cargar el plan',
 'schedule.empty.errorDescription': 'Error al cargar el plan de pagos',
+'schedule.empty.notFoundDescription': 'No encontramos este crédito. Puede haber sido anulado, no existir en esta base o ya no estar disponible.',
 'schedule.summary.loanAmount': 'Monto del crédito',
 'schedule.summary.interestRate': 'Tasa de interés',
 'schedule.summary.term': 'Plazo',

@@ -128,7 +128,7 @@ export default function CreditDetails() {
       ? formatDateTimeValue(value, { dateStyle: 'medium', timeStyle: 'short' })
       : formatDateValue(value, { dateStyle: 'medium', timeZone: 'UTC' })) || tTerm('creditDetails.label.noDate');
   };
-  const formatCurrency = (value: unknown) => formatCurrencyValue(value, { maximumFractionDigits: 2 });
+  const formatCurrency = (value: unknown) => formatCurrencyValue(value, { maximumFractionDigits: 0 });
   const formatMetricCurrency = (value: unknown) => formatCurrencyValue(value, { maximumFractionDigits: 0 });
 
   // -------------------------------------------------------------------------
@@ -680,6 +680,7 @@ export default function CreditDetails() {
                 loanAmount={Number(loan.amount)} showInstallmentActionColumn={showInstallmentActionColumn}
                 nextPayableInstallmentNumber={nextPayableInstallmentNumber}
                 calendarSnapshot={calendarSnapshot} formatCurrency={formatCurrency}
+                formatDate={formatDate}
                 renderInstallmentActions={renderInstallmentActions}
               />
             </div>

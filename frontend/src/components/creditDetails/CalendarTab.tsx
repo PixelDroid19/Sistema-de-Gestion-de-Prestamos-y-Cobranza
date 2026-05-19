@@ -12,6 +12,7 @@ type CalendarTabProps = {
   nextPayableInstallmentNumber: number | null;
   calendarSnapshot: any;
   formatCurrency: (value: unknown) => string;
+  formatDate: (value: unknown, withTime?: boolean) => string;
   renderInstallmentActions: (row: any, options?: { alignClassName?: string; titlePrefix?: string }) => ReactNode;
 };
 
@@ -23,6 +24,7 @@ export function CalendarTab({
   nextPayableInstallmentNumber,
   calendarSnapshot,
   formatCurrency,
+  formatDate,
   renderInstallmentActions,
 }: CalendarTabProps) {
   if (installmentRows.length === 0) {
@@ -42,16 +44,20 @@ export function CalendarTab({
           <div>
             <p className="text-base font-semibold text-text-primary">{tTerm('creditDetails.calendar.title')}</p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Opera primero la próxima cuota pendiente. El sistema bloquea pagos y anulaciones fuera de secuencia para no romper la cartera.
+              {tTerm('creditDetails.calendar.description')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-medium">
             <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-              Próxima cuota operable: {nextPayableInstallmentNumber ?? 'Sin pendientes'}
+              {tTerm('creditDetails.calendar.nextPayable', {
+                number: nextPayableInstallmentNumber ?? tTerm('creditDetails.calendar.noPending'),
+              })}
             </span>
             {calendarSnapshot && (
               <span className="inline-flex items-center gap-2 rounded-full bg-hover-bg px-3 py-2 text-text-secondary">
-                Balance pendiente: {formatCurrency(calendarSnapshot.outstandingBalance)}
+                {tTerm('creditDetails.calendar.outstandingBalance', {
+                  amount: formatCurrency(calendarSnapshot.outstandingBalance),
+                })}
               </span>
             )}
           </div>
@@ -75,6 +81,10 @@ export function CalendarTab({
               </div>
               <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('schedule.table.header.dueDate')}</dt>
+                  <dd className="mt-1 text-sm font-medium text-text-primary">{formatDate(row.dueDate)}</dd>
+                </div>
+                <div>
                   <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.label.interest')}</dt>
                   <dd className="mt-1 text-sm font-medium text-text-primary">{formatCurrency(row.interestComponent)}</dd>
                 </div>
@@ -83,7 +93,7 @@ export function CalendarTab({
                   <dd className="mt-1 text-sm font-medium text-rose-600 dark:text-rose-300">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Amortización</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('credits.modal.amortizedPrincipal')}</dt>
                   <dd className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{formatCurrency(row.principalComponent)}</dd>
                 </div>
                 <div>
@@ -108,13 +118,14 @@ export function CalendarTab({
             {showInstallmentActionColumn ? (
               <>
                 <col style={{ width: '5%' }} />
-                <col style={{ width: '13%' }} />
+                <col style={{ width: '12%' }} />
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '8%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '14%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '13%' }} />
                 <col style={{ width: '12%' }} />
-                <col style={{ width: '21%' }} />
+                <col style={{ width: '17%' }} />
               </>
             ) : (
               <>
@@ -122,27 +133,30 @@ export function CalendarTab({
                 <col style={{ width: '16%' }} />
                 <col style={{ width: '14%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '18%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '12%' }} />
               </>
             )}
           </colgroup>
           <thead>
             <tr>
               <th className="text-center">N°</th>
+              <th>{tTerm('schedule.table.header.dueDate')}</th>
               <th className="text-right">{tTerm('creditDetails.label.installment')}</th>
               <th className="text-right">{tTerm('creditDetails.label.interest')}</th>
               <th className="text-right">{tTerm('creditDetails.label.lateFee')}</th>
-              <th className="text-right">Amortización</th>
+              <th className="text-right">{tTerm('credits.modal.amortizedPrincipal')}</th>
               <th className="text-right">{tTerm('creditDetails.label.remainingPrincipal')}</th>
-              <th className="text-center">Estado</th>
-              {showInstallmentActionColumn && <th className="text-right">Acciones</th>}
+              <th className="text-center">{tTerm('credits.filter.status')}</th>
+              {showInstallmentActionColumn && <th className="text-right">{tTerm('credits.table.actions')}</th>}
             </tr>
           </thead>
           <tbody>
             <tr>
               <td className="text-center text-text-secondary font-medium">0</td>
+              <td className="text-text-secondary">{tTerm('simulator.schedule.row.start')}</td>
               <td className="text-right text-text-secondary">—</td>
               <td className="text-right text-text-secondary">—</td>
               <td className="text-right text-text-secondary">—</td>
@@ -156,6 +170,7 @@ export function CalendarTab({
               return (
                 <tr key={getInstallmentRowKey(row)} data-tour={idx === 0 ? 'credit-detail-installment-row' : undefined} className="group">
                   <td className="text-center font-medium text-text-secondary">{row.installmentNumber}</td>
+                  <td className="text-text-secondary">{formatDate(row.dueDate)}</td>
                   <td className="text-right font-medium text-text-primary">{formatCurrency(row.scheduledPayment)}</td>
                   <td className="text-right text-text-secondary">{formatCurrency(row.interestComponent)}</td>
                   <td className="text-right text-red-600 dark:text-red-400">{row.lateFeeDue ? formatCurrency(row.lateFeeDue) : '—'}</td>
@@ -175,7 +190,8 @@ export function CalendarTab({
           </tbody>
           <tfoot>
             <tr className="border-t border-border-subtle bg-bg-base/70 dark:bg-bg-surface/70">
-              <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Total</td>
+              <td className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.calendar.total')}</td>
+              <td></td>
               <td className="text-right font-bold text-text-primary">{formatCurrency(installmentColumnTotals.scheduledPayment)}</td>
               <td className="text-right font-bold text-text-secondary">{formatCurrency(installmentColumnTotals.interestComponent)}</td>
               <td className="text-right font-bold text-red-600 dark:text-red-400">{installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}</td>
