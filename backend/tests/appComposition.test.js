@@ -368,6 +368,45 @@ test('createApp exposes PATCH and Idempotency-Key in CORS preflight responses', 
   }
 });
 
+test('createApp allows no-origin reads for the public roles catalog in production', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+
+  process.env.NODE_ENV = 'production';
+  process.env.ALLOWED_ORIGINS = 'https://frontend.example.test';
+
+  try {
+    const configRouter = express.Router();
+    configRouter.get('/roles', (_req, res) => {
+      res.json({ success: true, data: { roles: ['admin', 'employee'] } });
+    });
+
+    const app = createApp({
+      sharedRuntime: { id: 'runtime-public-roles' },
+      moduleRegistry: [
+        {
+          name: 'config',
+          basePath: '/api/config',
+          router: configRouter,
+        },
+      ],
+    });
+
+    activeServer = await listen(app);
+
+    const response = await requestJson(activeServer, {
+      method: 'GET',
+      path: '/api/config/roles',
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, { success: true, data: { roles: ['admin', 'employee'] } });
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+    process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+  }
+});
+
 test('createApp allows local development origins on alternate Vite ports', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;

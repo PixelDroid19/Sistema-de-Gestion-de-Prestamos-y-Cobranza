@@ -68,6 +68,7 @@ const createApp = ({
     '/health',
     '/api',
     '/api/docs/openapi.json',
+    '/api/config/roles',
   ]);
 
   const isPublicNoOriginRequest = (req) => (
