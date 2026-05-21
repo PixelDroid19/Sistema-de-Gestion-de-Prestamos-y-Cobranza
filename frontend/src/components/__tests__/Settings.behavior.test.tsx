@@ -336,7 +336,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
       target: { value: '18' },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Nivel' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'Prioridad' }), {
       target: { value: 'medium' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
@@ -360,7 +360,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('button', { name: 'Crear rango de tasa' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
     expect(screen.getByRole('heading', { name: 'Nuevo rango de tasa' })).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Nivel' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.getByRole('heading', { name: 'Prueba de tasa' })).toBeInTheDocument();
     expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
@@ -374,7 +374,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /Nivel/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();
   });
 
