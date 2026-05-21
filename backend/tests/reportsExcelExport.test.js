@@ -528,11 +528,16 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
-  const headers = workbook.getWorksheet('Pagos').getRow(2).values;
+  const payoutSheet = workbook.getWorksheet('Pagos');
+  const headers = payoutSheet.getRow(2).values;
   assert.ok(headers.includes('ID Pago'));
   assert.ok(headers.includes('Interés Aplicado'));
   assert.equal(headers.includes('paymentId'), false);
   assert.equal(headers.includes('paymentMetadata'), false);
+  const amountCell = payoutSheet.getRow(3).getCell(6);
+  assert.equal(amountCell.value, 100);
+  assert.equal(typeof amountCell.value, 'number');
+  assert.match(amountCell.numFmt, /\$/);
 });
 
 test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {

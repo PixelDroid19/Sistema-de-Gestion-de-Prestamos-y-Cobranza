@@ -79,10 +79,79 @@ const normalizeCellValue = (value) => {
   return stringifyForCell(value) || '';
 };
 
-const normalizeRow = (row = {}, keys = []) => keys.reduce((acc, key) => {
-  acc[key] = normalizeCellValue(row[key]);
-  return acc;
-}, {});
+const isNumericExcelFormat = (numFmt) => {
+  const format = String(numFmt || '').toLowerCase();
+  return Boolean(format)
+    && /[#0]/.test(format)
+    && !/(dd|mm|yyyy|yy|hh|ss)/.test(format);
+};
+
+const parseFormattedNumber = (value, { isPercentFormat = false } = {}) => {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '-' || /^n\/?a$/i.test(trimmed)) {
+    return value;
+  }
+
+  const hasPercentSymbol = trimmed.includes('%');
+  const isParenthesesNegative = /^\(.*\)$/.test(trimmed);
+  let sanitized = trimmed
+    .replace(/[^\d,.\-()]/g, '')
+    .replace(/[()]/g, '');
+
+  if (!sanitized || sanitized === '-' || sanitized === '.' || sanitized === ',') {
+    return value;
+  }
+
+  const lastComma = sanitized.lastIndexOf(',');
+  const lastDot = sanitized.lastIndexOf('.');
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    sanitized = lastComma > lastDot
+      ? sanitized.replace(/\./g, '').replace(',', '.')
+      : sanitized.replace(/,/g, '');
+  } else if (lastComma >= 0) {
+    const parts = sanitized.split(',');
+    const lastPart = parts[parts.length - 1];
+    sanitized = parts.length === 2 && lastPart.length <= 2
+      ? `${parts[0]}.${lastPart}`
+      : sanitized.replace(/,/g, '');
+  } else if (lastDot >= 0) {
+    const parts = sanitized.split('.');
+    const lastPart = parts[parts.length - 1];
+    if (parts.length > 2 && lastPart.length === 3) {
+      sanitized = sanitized.replace(/\./g, '');
+    } else if (parts.length > 2) {
+      sanitized = `${parts.slice(0, -1).join('')}.${lastPart}`;
+    }
+  }
+
+  const parsed = Number(sanitized);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  const signedValue = isParenthesesNegative ? -Math.abs(parsed) : parsed;
+  return isPercentFormat && hasPercentSymbol ? signedValue / 100 : signedValue;
+};
+
+const normalizeCellValueForColumn = (value, column = {}) => {
+  const normalizedValue = normalizeCellValue(value);
+  if (!isNumericExcelFormat(column.numFmt)) {
+    return normalizedValue;
+  }
+
+  return parseFormattedNumber(normalizedValue, {
+    isPercentFormat: String(column.numFmt || '').includes('%'),
+  });
+};
 
 const resolveColumns = ({ rows = [], columns = [] }) => {
   if (Array.isArray(columns) && columns.length > 0) {
@@ -223,9 +292,8 @@ const addRowsTable = ({
   let currentRow = startRow + 1;
   rows.forEach((row) => {
     const worksheetRow = worksheet.getRow(currentRow);
-    const normalized = normalizeRow(row, keys);
     keys.forEach((key, index) => {
-      worksheetRow.getCell(index + 1).value = normalized[key];
+      worksheetRow.getCell(index + 1).value = normalizeCellValueForColumn(row[key], resolvedColumns[index]);
     });
     applyColumnFormats({ worksheet, columns: resolvedColumns, rowNumber: currentRow });
     applyRowCellFormats({ worksheetRow, columns: resolvedColumns, row });

@@ -161,6 +161,20 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.ok(headers.includes('Ganancias'));
   assert.ok(headers.includes('Caja Disponible'));
 
+  const historySheet = workbook.getWorksheet('Historial Mensual');
+  const firstCapitalCell = historySheet.getRow(3).getCell(3);
+  const firstReceivedCell = historySheet.getRow(3).getCell(5);
+  const firstGainsCell = historySheet.getRow(3).getCell(11);
+  const firstAvailableCashCell = historySheet.getRow(3).getCell(12);
+  assert.equal(firstCapitalCell.value, 2000000);
+  assert.equal(firstReceivedCell.value, 2000000);
+  assert.equal(firstGainsCell.value, 500000);
+  assert.equal(firstAvailableCashCell.value, 0);
+  assert.equal(typeof firstCapitalCell.value, 'number');
+  assert.match(firstCapitalCell.numFmt, /\$/);
+  assert.match(firstGainsCell.numFmt, /\$/);
+  assert.match(firstAvailableCashCell.numFmt, /\$/);
+
   const summarySheet = workbook.getWorksheet('Resumen Auditoría');
   let capitalVivoRow = null;
   summarySheet.eachRow((row) => {
