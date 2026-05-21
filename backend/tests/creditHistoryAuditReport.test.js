@@ -89,6 +89,7 @@ test('buildCreditHistoryAuditReport reconciles monthly audit totals for loans an
   assert.equal(report.summary.totalPrincipalCreated, '50000000.00');
   assert.equal(report.summary.totalPaymentsReceived, '58000000.00');
   assert.equal(report.summary.totalCapitalRecovered, '52000000.00');
+  assert.equal(report.summary.totalPrincipalOutstanding, '0.00');
   assert.equal(report.summary.totalInterestCollected, '5000000.00');
   assert.equal(report.summary.totalPenaltiesCollected, '1000000.00');
   assert.equal(report.summary.overdueCredits, 1);
@@ -133,7 +134,7 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
       async listCreditHistoryDataset() {
         return {
           loans: [makeLoan({ amount: 2000000 })],
-          payments: [makePayment({ amount: 3000000, principalApplied: 2500000, interestApplied: 500000 })],
+          payments: [makePayment({ amount: 2000000, principalApplied: 1500000, interestApplied: 500000 })],
         };
       },
     },
@@ -159,6 +160,17 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.ok(headers.includes('Pérdidas/Riesgo'));
   assert.ok(headers.includes('Ganancias'));
   assert.ok(headers.includes('Caja Disponible'));
+
+  const summarySheet = workbook.getWorksheet('Resumen Auditoría');
+  let capitalVivoRow = null;
+  summarySheet.eachRow((row) => {
+    if (row.getCell(1).value === 'Capital vivo') {
+      capitalVivoRow = row;
+    }
+  });
+  assert.ok(capitalVivoRow, 'Resumen Auditoría should include Capital vivo');
+  assert.equal(capitalVivoRow.getCell(2).value, 500000);
+  assert.match(capitalVivoRow.getCell(2).numFmt, /\$/);
 
   const pdf = await createExportCreditHistoryAuditPdf(dependencies)({ actor: { role: 'admin' }, filters: {} });
   assert.equal(pdf.contentType, 'application/pdf');

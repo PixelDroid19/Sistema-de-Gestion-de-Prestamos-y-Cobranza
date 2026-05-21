@@ -281,6 +281,11 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
     totalPrincipalCreated: sum('createdPrincipal'),
     totalPaymentsReceived: sum('paymentsReceived'),
     totalCapitalRecovered: sum('capitalRecovered'),
+    totalPrincipalOutstanding: toMoneyString(Math.max(
+      months.reduce((total, month) => total + toNumber(month.createdPrincipal), 0)
+      - months.reduce((total, month) => total + toNumber(month.capitalRecovered), 0),
+      0,
+    )),
     totalInterestCollected: sum('interestCollected'),
     totalPenaltiesCollected: sum('penaltiesCollected'),
     overdueCredits: count('overdueCredits'),
@@ -325,6 +330,7 @@ const buildSummaryRows = (summary) => [
   { indicator: 'Capital prestado', value: Number(summary.totalPrincipalCreated), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Total recibido', value: Number(summary.totalPaymentsReceived), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Capital recuperado', value: Number(summary.totalCapitalRecovered), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Capital vivo', value: Number(summary.totalPrincipalOutstanding), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Intereses cobrados', value: Number(summary.totalInterestCollected), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Mora cobrada', value: Number(summary.totalPenaltiesCollected), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Créditos vencidos', value: summary.overdueCredits },
@@ -409,6 +415,7 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
         `Capital prestado: ${formatMoney(report.summary.totalPrincipalCreated)}`,
         `Total recibido: ${formatMoney(report.summary.totalPaymentsReceived)}`,
         `Capital recuperado: ${formatMoney(report.summary.totalCapitalRecovered)}`,
+        `Capital vivo: ${formatMoney(report.summary.totalPrincipalOutstanding)}`,
         `Intereses cobrados: ${formatMoney(report.summary.totalInterestCollected)}`,
         `Mora cobrada: ${formatMoney(report.summary.totalPenaltiesCollected)}`,
         `Créditos vencidos: ${report.summary.overdueCredits}`,
