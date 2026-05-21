@@ -26,6 +26,8 @@ const ADMIN_CATALOGS = {
 
 const normalizeKey = (value) => String(value || '')
   .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
@@ -135,11 +137,13 @@ const listCategoryEntries = async (configRepository, category) => {
 
 const normalizeComparableLabel = (value) => normalizeKey(value);
 
-const assertUniqueLabel = async ({ configRepository, category, label, currentId = null, entityName }) => {
+const assertUniqueLabel = async ({ configRepository, category, label, currentId = null, ignoreIds = [], entityName }) => {
   const normalizedLabel = normalizeComparableLabel(label);
   const entries = await listCategoryEntries(configRepository, category);
+  const ignoredIds = new Set(ignoreIds.map((id) => Number(id)));
   const duplicate = entries.find((entry) => (
     Number(entry.id) !== Number(currentId)
+    && !ignoredIds.has(Number(entry.id))
     && normalizeComparableLabel(entry.label) === normalizedLabel
   ));
 
@@ -163,6 +167,72 @@ const rangesOverlap = (left, right) => {
   const rightMax = normalizeRangeBoundary(right.maxAmount, Number.POSITIVE_INFINITY);
 
   return leftMin <= rightMax && rightMin <= leftMax;
+};
+
+const isFullRateRange = ({ minAmount, maxAmount }) => (
+  normalizeRangeBoundary(minAmount, 0) === 0
+  && normalizeRangeBoundary(maxAmount, Number.POSITIVE_INFINITY) === Number.POSITIVE_INFINITY
+);
+
+const isSeededCatchAllRateEntry = (entry) => (
+  entry?.value?.metadata?.seeded === true
+  && entry?.isActive !== false
+  && isFullRateRange({
+    minAmount: entry?.value?.minAmount,
+    maxAmount: entry?.value?.maxAmount,
+  })
+);
+
+const getRatePolicyOverlaps = async ({ configRepository, normalized, currentId = null }) => {
+  if (normalized.isActive === false) return [];
+
+  const entries = await listCategoryEntries(configRepository, RATE_POLICY_CATEGORY);
+  const nextPolicy = {
+    minAmount: normalized.value.minAmount,
+    maxAmount: normalized.value.maxAmount,
+  };
+
+  return entries.filter((entry) => (
+    Number(entry.id) !== Number(currentId)
+    && entry.isActive !== false
+    && rangesOverlap(nextPolicy, {
+      minAmount: entry.value?.minAmount,
+      maxAmount: entry.value?.maxAmount,
+    })
+  ));
+};
+
+const getReplaceableSeededRateEntries = async ({ configRepository, normalized, currentId = null }) => {
+  if (currentId || normalized.isActive === false || isFullRateRange({
+    minAmount: normalized.value.minAmount,
+    maxAmount: normalized.value.maxAmount,
+  })) {
+    return [];
+  }
+
+  const overlaps = await getRatePolicyOverlaps({ configRepository, normalized, currentId });
+  if (overlaps.length === 0 || overlaps.some((entry) => !isSeededCatchAllRateEntry(entry))) {
+    return [];
+  }
+
+  return overlaps;
+};
+
+const deactivateSeededRateEntry = async ({ configRepository, entry, normalized }) => {
+  const suffix = `reemplazada-${entry.id}`;
+  return configRepository.update(entry.id, {
+    key: `${entry.key || normalizeKey(entry.label)}-${suffix}`,
+    label: `${entry.label} (reemplazada por rangos)`,
+    isActive: false,
+    value: {
+      ...(entry.value || {}),
+      metadata: {
+        ...(entry.value?.metadata || {}),
+        replacedByExplicitRateRange: true,
+        replacedByRatePolicyKey: normalized.key,
+      },
+    },
+  });
 };
 
 const buildRatePolicy = (entry) => ({
@@ -253,20 +323,7 @@ const normalizeLateFeePolicyPayload = (payload = {}, existing = null) => {
 };
 
 const assertNoAmbiguousRatePolicy = async ({ configRepository, normalized, currentId = null }) => {
-  if (normalized.isActive === false) return;
-
-  const entries = await listCategoryEntries(configRepository, RATE_POLICY_CATEGORY);
-  const nextPolicy = {
-    minAmount: normalized.value.minAmount,
-    maxAmount: normalized.value.maxAmount,
-  };
-  const duplicate = entries
-    .map(buildRatePolicy)
-    .find((policy) => (
-      Number(policy.id) !== Number(currentId)
-      && policy.isActive !== false
-      && rangesOverlap(nextPolicy, policy)
-    ));
+  const duplicate = (await getRatePolicyOverlaps({ configRepository, normalized, currentId }))[0];
 
   if (duplicate) {
     throw new ConflictError('Active rate policies cannot overlap');
@@ -447,15 +504,28 @@ const createCreateRatePolicy = ({ configRepository }) => async (payload = {}) =>
   const normalized = normalizeRatePolicyPayload(payload);
   if (!normalized.key) throw new ValidationError('key is required');
 
+  const replaceableSeededEntries = await getReplaceableSeededRateEntries({ configRepository, normalized });
+  const replaceableSeededIds = new Set(replaceableSeededEntries.map((entry) => Number(entry.id)));
   const existing = await configRepository.findByCategoryAndKey(RATE_POLICY_CATEGORY, normalized.key);
-  if (existing) throw new ConflictError('Rate policy key already exists');
+  if (existing && !replaceableSeededIds.has(Number(existing.id))) {
+    throw new ConflictError('Rate policy key already exists');
+  }
   await assertUniqueLabel({
     configRepository,
     category: RATE_POLICY_CATEGORY,
     label: normalized.label,
+    ignoreIds: replaceableSeededEntries.map((entry) => entry.id),
     entityName: 'Rate policy',
   });
-  await assertNoAmbiguousRatePolicy({ configRepository, normalized });
+  if (replaceableSeededEntries.length === 0) {
+    await assertNoAmbiguousRatePolicy({ configRepository, normalized });
+  }
+
+  await Promise.all(replaceableSeededEntries.map((entry) => deactivateSeededRateEntry({
+    configRepository,
+    entry,
+    normalized,
+  })));
 
   const entry = await configRepository.create({
     category: RATE_POLICY_CATEGORY,

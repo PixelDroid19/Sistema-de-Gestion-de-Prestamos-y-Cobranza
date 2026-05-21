@@ -89,6 +89,8 @@ export const getPolicyPriorityLabel = (value: unknown) => tTerm(`settings.priori
 
 export const normalizeComparable = (value: unknown) => String(value || '')
   .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
@@ -131,6 +133,27 @@ export const rangesOverlap = (
 
   return leftMin <= rightMax && rightMin <= leftMax;
 };
+
+export const isFullRangeRatePolicy = (policy: { minAmount?: unknown; maxAmount?: unknown }) => (
+  getRangeBoundary(policy.minAmount, 0) === 0
+  && getRangeBoundary(policy.maxAmount, Number.POSITIVE_INFINITY) === Number.POSITIVE_INFINITY
+);
+
+export const isSeededCatchAllRatePolicy = (policy: any) => (
+  policy?.metadata?.seeded === true
+  && policy?.isActive !== false
+  && isFullRangeRatePolicy(policy)
+);
+
+const canReplaceSeededCatchAllRatePolicy = (
+  draftRange: { minAmount?: unknown; maxAmount?: unknown },
+  policy: any,
+  currentId: unknown,
+) => (
+  !currentId
+  && isSeededCatchAllRatePolicy(policy)
+  && !isFullRangeRatePolicy(draftRange)
+);
 
 export const sortRatePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => {
   const minDiff = getRangeBoundary(left?.minAmount, 0) - getRangeBoundary(right?.minAmount, 0);
@@ -286,9 +309,11 @@ export const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: an
     return tTerm('settings.validation.rate.minGreater');
   }
 
+  const draftRange = { minAmount: normalizedMinAmount, maxAmount: normalizedMaxAmount };
   const normalizedLabel = normalizeComparable(label);
   const duplicateLabel = ratePolicies.some((policy) => (
     String(policy?.id) !== String(currentId ?? '')
+    && !canReplaceSeededCatchAllRatePolicy(draftRange, policy, currentId)
     && normalizeComparable(policy?.label) === normalizedLabel
   ));
   if (duplicateLabel) {
@@ -298,6 +323,7 @@ export const validateRatePolicyDraft = (draft: RatePolicyDraft, ratePolicies: an
   const overlap = ratePolicies.some((policy) => (
     String(policy?.id) !== String(currentId ?? '')
     && policy?.isActive !== false
+    && !canReplaceSeededCatchAllRatePolicy(draftRange, policy, currentId)
     && rangesOverlap({ minAmount: normalizedMinAmount, maxAmount: normalizedMaxAmount }, policy)
   ));
   if (overlap) {

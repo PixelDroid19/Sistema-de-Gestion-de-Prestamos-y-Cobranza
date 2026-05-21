@@ -281,6 +281,50 @@ describe('Settings operational configuration', () => {
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
   });
 
+  it('allows the first explicit rate range to replace the seeded catch-all rule', async () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 99,
+        label: 'Crédito estándar',
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 36,
+        priority: 'medium',
+        metadata: { seeded: true },
+        isActive: true,
+      },
+    ];
+
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
+      target: { value: 'Crédito estándar' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto mínimo de tasa' }), {
+      target: { value: '0' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto máximo de tasa' }), {
+      target: { value: '1000000' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+      target: { value: '48' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
+
+    await waitFor(() => {
+      expect(mockCreateRatePolicy).toHaveBeenCalledWith(expect.objectContaining({
+        label: 'Crédito estándar',
+        minAmount: 0,
+        maxAmount: 1000000,
+        annualEffectiveRate: 48,
+        priority: 'medium',
+      }));
+    });
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
   it('blocks duplicated active late-fee policy priorities', async () => {
     render(<Settings />);
 
@@ -314,7 +358,10 @@ describe('Settings operational configuration', () => {
 
     expect(screen.getByRole('heading', { name: 'Tasas automáticas por monto' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear rango de tasa' })).toBeInTheDocument();
-    expect(screen.queryByRole('spinbutton', { name: 'Prioridad de tasa' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+    expect(screen.getByRole('heading', { name: 'Nuevo rango de tasa' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Nivel' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.getByRole('heading', { name: 'Prueba de tasa' })).toBeInTheDocument();
     expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1\.000\.001.*5\.000\.000/).length).toBeGreaterThan(0);
@@ -327,6 +374,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('columnheader', { name: /Aplica a montos/ })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Tasa anual/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Nivel/ })).not.toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();
   });
 

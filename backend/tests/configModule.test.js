@@ -219,6 +219,66 @@ test('config policies reject active duplicates that would make resolution ambigu
   );
 });
 
+test('rate policy creation replaces the seeded catch-all when the first explicit range is created', async () => {
+  let updatedSeed;
+  let createdPayload;
+  const seededEntry = {
+    id: 11,
+    key: 'credito-estandar',
+    label: 'Crédito estándar',
+    isActive: true,
+    value: {
+      minAmount: 0,
+      maxAmount: null,
+      annualEffectiveRate: 36,
+      priority: 'medium',
+      metadata: { seeded: true },
+    },
+  };
+
+  const createRatePolicy = createCreateRatePolicy({
+    configRepository: {
+      async findByCategoryAndKey(category, key) {
+        return key === 'credito-estandar' ? seededEntry : null;
+      },
+      async listByCategory() {
+        return [seededEntry];
+      },
+      async update(id, payload) {
+        updatedSeed = { id, ...payload };
+        return updatedSeed;
+      },
+      async create(payload) {
+        createdPayload = payload;
+        return {
+          id: 12,
+          ...payload,
+          createdAt: '2026-05-20T00:00:00.000Z',
+          updatedAt: '2026-05-20T00:00:00.000Z',
+        };
+      },
+    },
+  });
+
+  const result = await createRatePolicy({
+    label: 'Crédito estándar',
+    minAmount: 0,
+    maxAmount: 1000000,
+    annualEffectiveRate: 48,
+  });
+
+  assert.equal(updatedSeed.id, 11);
+  assert.equal(updatedSeed.isActive, false);
+  assert.match(updatedSeed.key, /reemplazada-11$/);
+  assert.equal(updatedSeed.value.metadata.replacedByExplicitRateRange, true);
+  assert.equal(createdPayload.key, 'credito-estandar');
+  assert.equal(createdPayload.value.minAmount, 0);
+  assert.equal(createdPayload.value.maxAmount, 1000000);
+  assert.equal(createdPayload.value.annualEffectiveRate, 48);
+  assert.equal(createdPayload.value.priority, 'medium');
+  assert.equal(result.label, 'Crédito estándar');
+});
+
 test('late-fee policies reject modes that are not configurable from the operational UI', async () => {
   const createLateFeePolicy = createCreateLateFeePolicy({
     configRepository: {

@@ -10,7 +10,6 @@ import {
   FormField,
   ModalShell,
   SectionSurface,
-  SelectInput,
   StatusChip,
   TextInput,
 } from '../shared/Surfaces';
@@ -32,7 +31,6 @@ import {
   getRatePolicyCoverageGaps,
   getRatePolicyConflictPairs,
   getRatePolicyConflictsForAmount,
-  getPolicyPriorityLabel,
   normalizePolicyPriority,
   sortRatePoliciesForApplication,
   validateRatePolicyDraft,
@@ -228,20 +226,6 @@ export default function RatePoliciesTab({
             placeholder="60"
           />
         </FormField>
-        <FormField
-          label={tTerm('settings.rate.field.priority')}
-          tooltip={tTerm('settings.rate.field.priorityTooltip')}
-        >
-          <SelectInput
-            aria-label={tTerm('settings.rate.field.priority')}
-            value={newRatePolicy.priority}
-            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, priority: normalizePolicyPriority(event.target.value) }))}
-          >
-            <option value="low">{tTerm('settings.priority.low')}</option>
-            <option value="medium">{tTerm('settings.priority.medium')}</option>
-            <option value="high">{tTerm('settings.priority.high')}</option>
-          </SelectInput>
-        </FormField>
       </div>
       <p className="settings-inline-helper">
         {tTerm('settings.rate.note')}
@@ -280,7 +264,6 @@ export default function RatePoliciesTab({
                   <th><HelpLabel label={tTerm('settings.rate.table.rule')} text={tTerm('settings.rate.table.ruleTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.range')} text={tTerm('settings.rate.table.rangeTooltip')} /></th>
                   <th><HelpLabel label={tTerm('settings.rate.table.annualRate')} text={tTerm('settings.rate.table.annualRateTooltip')} /></th>
-                  <th><HelpLabel label={tTerm('settings.rate.table.priority')} text={tTerm('settings.rate.table.priorityTooltip')} /></th>
                   <th>{tTerm('settings.rate.table.state')}</th>
                   <th className="text-right">{tTerm('settings.rate.table.actions')}</th>
                 </tr>
@@ -310,7 +293,6 @@ export default function RatePoliciesTab({
                     </td>
                     <td className="text-text-secondary">{formatRange(policy.minAmount, policy.maxAmount)}</td>
                     <td className="font-semibold">{formatRate(policy.annualEffectiveRate)}</td>
-                    <td className="text-text-secondary">{getPolicyPriorityLabel(policy.priority)}</td>
                     <td><StatusBadge active={policy.isActive !== false} /></td>
                     <td>
                       <div className="flex justify-end gap-2">
@@ -359,7 +341,7 @@ export default function RatePoliciesTab({
                 ))}
                 {ratePolicies.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
+                    <td colSpan={5} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
                   </tr>
                 )}
               </tbody>
