@@ -289,6 +289,8 @@ export const creditsEn = {
 'creditDetails.toast.exportExcel': 'Loan Excel downloaded',
 'creditDetails.toast.statusUpdated': 'Status updated successfully',
 'creditDetails.toast.paymentSuccess': 'Payment recorded successfully',
+'creditDetails.toast.paymentVoucherUnavailable': 'Payment recorded without automatic receipt',
+'creditDetails.toast.paymentVoucherUnavailableDescription': 'The payment was saved, but the response did not include the receipt identifier. Download it from payment history.',
 'creditDetails.toast.annulSuccess': 'Installment voided successfully',
 'creditDetails.toast.promiseSuccess': 'Promise recorded successfully',
 'creditDetails.toast.followUpSuccess': 'Follow-up recorded successfully',

@@ -84,7 +84,7 @@ export function HistoryTab({
                         className="!min-h-0 !px-3 !py-1.5"
                         icon={<FileText size={16} />}
                       >
-                        Recibo
+                        {tTerm('payouts.action.downloadVoucher')}
                       </ActionButton>
                       {(() => {
                         const editGuard = resolveOperationalGuard('installment.editPaymentMethod', {

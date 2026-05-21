@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CreditDetails from '../CreditDetails';
+import { downloadVoucher } from '../../services/paymentService';
 
 const mockNavigate = vi.fn();
 const mockRecordPayment = vi.fn();
@@ -219,6 +220,7 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
   it('executes installment payment action with installment context', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockRecordPayment.mockResolvedValueOnce({ data: { paymentId: 7001 } });
     renderCreditDetails();
 
     expect(screen.getByRole('button', { name: 'Calendario' })).toBeInTheDocument();
@@ -237,6 +239,10 @@ describe('CreditDetails behavioral parity scenarios', () => {
           paymentAmount: 250000,
         }),
       );
+    });
+
+    await waitFor(() => {
+      expect(downloadVoucher).toHaveBeenCalledWith(7001);
     });
 
 

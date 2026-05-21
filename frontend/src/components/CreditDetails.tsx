@@ -51,6 +51,16 @@ const toMoneyInputValue = (value: unknown) => {
   return Number.isFinite(numericValue) ? numericValue.toFixed(2) : '';
 };
 
+const resolvePaymentIdFromResponse = (response: any) => {
+  const paymentId = Number(
+    response?.data?.paymentId
+    ?? response?.paymentId
+    ?? response?.data?.payment?.id
+    ?? response?.payment?.id,
+  );
+  return Number.isFinite(paymentId) && paymentId > 0 ? paymentId : null;
+};
+
 export default function CreditDetails() {
   // -------------------------------------------------------------------------
   // Navigation & identity
@@ -399,12 +409,29 @@ export default function CreditDetails() {
     const instNum = inst?.installmentNumber ?? selectedInstallmentNumber;
     if (!instNum) { toast.error({ title: tTerm('creditDetails.error.installmentSelection') }); return; }
     if (!isValidOperationalDateOnly(paymentDate)) { toast.error({ title: tTerm('creditDetails.error.paymentDate') }); return; }
+    let recordedPaymentId: number | null = null;
     await executeGuardedAction({
       action: 'installment.pay',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status, installmentStatus: inst?.status },
       confirmationMessage: `¿Confirmar pago de cuota #${instNum} por ${formatCurrency(amount)}?`,
-      run: async () => { await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod, installmentNumber: instNum }); },
-      onSuccess: async () => { operationalModal.closeModal(); setPaymentAmount(''); setSelectedInstallmentNumber(null); await invalidateAfterPayment(queryClient, { loanId }); },
+      run: async () => {
+        const result = await recordPayment.mutateAsync({ paymentAmount: amount, paymentDate, paymentMethod, installmentNumber: instNum });
+        recordedPaymentId = resolvePaymentIdFromResponse(result);
+      },
+      onSuccess: async () => {
+        operationalModal.closeModal();
+        setPaymentAmount('');
+        setSelectedInstallmentNumber(null);
+        await invalidateAfterPayment(queryClient, { loanId });
+        if (recordedPaymentId) {
+          await runDownloadVoucher(recordedPaymentId);
+        } else {
+          toast.error({
+            title: tTerm('creditDetails.toast.paymentVoucherUnavailable'),
+            description: tTerm('creditDetails.toast.paymentVoucherUnavailableDescription'),
+          });
+        }
+      },
       successMessage: tTerm('creditDetails.toast.paymentSuccess'),
     });
   };

@@ -291,6 +291,8 @@ export const creditsEs = {
 'creditDetails.toast.exportExcel': 'Excel del crédito descargado',
 'creditDetails.toast.statusUpdated': 'Estado actualizado correctamente',
 'creditDetails.toast.paymentSuccess': 'Pago registrado exitosamente',
+'creditDetails.toast.paymentVoucherUnavailable': 'Pago registrado sin desprendible automático',
+'creditDetails.toast.paymentVoucherUnavailableDescription': 'El pago quedó guardado, pero la respuesta no incluyó el identificador del comprobante. Descárgalo desde el historial de pagos.',
 'creditDetails.toast.annulSuccess': 'Cuota anulada exitosamente',
 'creditDetails.toast.promiseSuccess': 'Promesa registrada correctamente',
 'creditDetails.toast.followUpSuccess': 'Seguimiento registrado correctamente',
