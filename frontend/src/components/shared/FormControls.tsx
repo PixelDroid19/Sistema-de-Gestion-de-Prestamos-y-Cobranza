@@ -37,6 +37,9 @@ export const parseMoneyInput = (raw: string) => {
 };
 
 export const formatIntegerInput = (value: OperationalInputValue) => {
+  if (value === '' || value === null || value === undefined) {
+    return '';
+  }
   const numericValue = typeof value === 'number' ? value : Number(value || 0);
   return new Intl.NumberFormat('es-CO', {
     maximumFractionDigits: 0,

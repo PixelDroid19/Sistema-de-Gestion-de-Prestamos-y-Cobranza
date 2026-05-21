@@ -49,6 +49,20 @@ describe('VoucherService', () => {
       const result = VoucherService.formatDate('not-a-date');
       assert.equal(result, 'N/A');
     });
+
+    test('keeps date-only payment strings on the same calendar day', () => {
+      const result = VoucherService.formatDate('2026-05-21');
+      assert.match(result, /21/);
+      assert.match(result, /2026/);
+    });
+  });
+
+  describe('formatPaymentMethod', () => {
+    test('renders canonical payment method keys as Spanish labels', () => {
+      assert.equal(VoucherService.formatPaymentMethod('cash'), 'Efectivo');
+      assert.equal(VoucherService.formatPaymentMethod('transfer'), 'Transferencia');
+      assert.equal(VoucherService.formatPaymentMethod('bank_transfer'), 'Transferencia bancaria');
+    });
   });
 
   describe('generateVoucherPdf', () => {

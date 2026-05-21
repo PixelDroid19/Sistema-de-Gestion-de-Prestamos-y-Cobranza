@@ -14,6 +14,7 @@ import {
   TextInput,
 } from '../shared/Surfaces';
 import { HelpLabel } from '../shared/HelpSupport';
+import { OperationalInput } from '../shared/FormControls';
 import { StatusBadge } from './StatusBadge';
 import {
   type RatePolicyDraft,
@@ -160,6 +161,11 @@ export default function RatePoliciesTab({
     }
   };
 
+  const handleMoneyDraftChange = (field: 'minAmount' | 'maxAmount') => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.target.value.replace(/\D/g, '');
+    setNewRatePolicy((prev) => ({ ...prev, [field]: rawValue }));
+  };
+
   const handleDelete = async (policy: any) => {
     const confirmed = await confirmDanger({
       title: tTerm('settings.rate.delete.title'),
@@ -193,12 +199,11 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.min')}
           tooltip={tTerm('settings.rate.field.minTooltip')}
         >
-          <TextInput
+          <OperationalInput
             aria-label={tTerm('settings.rate.field.min')}
-            type="number"
-            min="0"
+            variant="money"
             value={newRatePolicy.minAmount}
-            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, minAmount: event.target.value }))}
+            onChange={handleMoneyDraftChange('minAmount')}
             placeholder="0"
           />
         </FormField>
@@ -206,12 +211,11 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.max')}
           tooltip={tTerm('settings.rate.field.maxTooltip')}
         >
-          <TextInput
+          <OperationalInput
             aria-label={tTerm('settings.rate.field.max')}
-            type="number"
-            min="0"
+            variant="money"
             value={newRatePolicy.maxAmount}
-            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, maxAmount: event.target.value }))}
+            onChange={handleMoneyDraftChange('maxAmount')}
             placeholder={tTerm('settings.range.noCap')}
           />
         </FormField>
@@ -415,12 +419,11 @@ export default function RatePoliciesTab({
           )}
         </div>
         <FormField label={tTerm('settings.coverage.field.amount')}>
-          <TextInput
+          <OperationalInput
             aria-label={tTerm('settings.coverage.field.amount')}
-            type="number"
-            min="0"
+            variant="money"
             value={ratePreviewAmount}
-            onChange={(event) => setRatePreviewAmount(event.target.value)}
+            onChange={(event) => setRatePreviewAmount(event.target.value.replace(/\D/g, ''))}
             placeholder="2000000"
           />
         </FormField>

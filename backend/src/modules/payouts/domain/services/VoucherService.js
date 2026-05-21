@@ -1,5 +1,21 @@
 const PDFDocument = require('pdfkit');
 
+const PAYMENT_METHOD_LABELS = Object.freeze({
+  cash: 'Efectivo',
+  transfer: 'Transferencia',
+  bank_transfer: 'Transferencia bancaria',
+  card: 'Tarjeta',
+  other: 'Otro',
+});
+
+const PAGE = Object.freeze({
+  left: 56,
+  right: 539,
+  width: 483,
+  valueX: 360,
+  valueWidth: 179,
+});
+
 /**
  * Service for generating payment voucher PDFs.
  */
@@ -20,6 +36,11 @@ const VoucherService = {
     }).format(amount);
   },
 
+  formatPaymentMethod(method) {
+    const normalized = String(method || '').trim().toLowerCase();
+    return PAYMENT_METHOD_LABELS[normalized] || method || 'Efectivo';
+  },
+
   /**
    * Format a date for display in the voucher.
    * @param {Date|string} date
@@ -29,7 +50,10 @@ const VoucherService = {
     if (!date) {
       return 'N/A';
     }
-    const d = new Date(date);
+    const dateOnlyMatch = typeof date === 'string' ? date.match(/^(\d{4})-(\d{2})-(\d{2})$/u) : null;
+    const d = dateOnlyMatch
+      ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]), 12)
+      : new Date(date);
     if (Number.isNaN(d.getTime())) {
       return 'N/A';
     }
@@ -46,32 +70,57 @@ const VoucherService = {
    * @param {object} data
    */
   renderHeader(doc, data) {
-    // Company branding area (left side) + Voucher title (right side)
     doc
       .fontSize(10)
       .fillColor('#666666')
-      .text('CrediCobranza', 50, 50, { continued: true })
-      .text('Sistema de Préstamos', 50, 62);
+      .text('CrediCobranza', PAGE.left, 52, { width: 190 })
+      .text('Sistema de Préstamos', PAGE.left, 66, { width: 190 });
 
     doc
+      .font('Helvetica-Bold')
       .fontSize(16)
-      .fillColor('#333333')
-      .text('COMPROBANTE DE PAGO', 400, 50, { align: 'right' });
+      .fillColor('#1f2937')
+      .text('COMPROBANTE DE PAGO', 330, 50, { width: 209, align: 'right' });
 
     doc
+      .font('Helvetica')
       .fontSize(10)
       .fillColor('#666666')
-      .text(`Nº: ${data.paymentId || 'N/A'}`, 400, 70, { align: 'right' });
+      .text(`No. ${data.paymentId || 'N/A'}`, 330, 72, { width: 209, align: 'right' });
 
-    // Horizontal separator line
     doc
       .strokeColor('#cccccc')
       .lineWidth(1)
-      .moveTo(50, 90)
-      .lineTo(560, 90)
+      .moveTo(PAGE.left, 102)
+      .lineTo(PAGE.right, 102)
       .stroke();
 
     return doc;
+  },
+
+  renderSectionTitle(doc, title, x, y) {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .fillColor('#111827')
+      .text(title, x, y, { width: PAGE.width });
+  },
+
+  renderKeyValue(doc, label, value, x, y, options = {}) {
+    const valueX = options.valueX || PAGE.valueX;
+    const valueWidth = options.valueWidth || PAGE.valueWidth;
+
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#374151')
+      .text(label, x, y, { width: valueX - x - 12 });
+
+    doc
+      .font(options.bold ? 'Helvetica-Bold' : 'Helvetica')
+      .fontSize(options.fontSize || 10)
+      .fillColor(options.color || '#374151')
+      .text(value, valueX, y, { width: valueWidth, align: 'right' });
   },
 
   /**
@@ -80,19 +129,12 @@ const VoucherService = {
    * @param {object} data
    */
   renderClient(doc, data) {
-    const startY = 110;
+    const startY = 124;
 
-    doc
-      .fontSize(12)
-      .fillColor('#333333')
-      .text('DATOS DEL CLIENTE', 50, startY);
-
-    doc
-      .fontSize(10)
-      .fillColor('#555555')
-      .text(`Nombre: ${data.customerName || 'N/A'}`, 50, startY + 20)
-      .text(`C.C./NIT: ${data.documentNumber || 'N/A'}`, 50, startY + 35)
-      .text(`Teléfono: ${data.customerPhone || 'N/A'}`, 50, startY + 50);
+    this.renderSectionTitle(doc, 'DATOS DEL CLIENTE', PAGE.left, startY);
+    this.renderKeyValue(doc, 'Nombre', data.customerName || 'N/A', PAGE.left, startY + 22);
+    this.renderKeyValue(doc, 'C.C./NIT', data.documentNumber || 'N/A', PAGE.left, startY + 40);
+    this.renderKeyValue(doc, 'Teléfono', data.customerPhone || 'N/A', PAGE.left, startY + 58);
 
     return doc;
   },
@@ -103,20 +145,13 @@ const VoucherService = {
    * @param {object} data
    */
   renderCredit(doc, data) {
-    const startY = 180;
+    const startY = 212;
 
-    doc
-      .fontSize(12)
-      .fillColor('#333333')
-      .text('DATOS DEL CRÉDITO', 50, startY);
-
-    doc
-      .fontSize(10)
-      .fillColor('#555555')
-      .text(`ID Préstamo: ${data.creditId || 'N/A'}`, 50, startY + 20)
-      .text(`Monto Original: ${this.formatCurrency(data.originalAmount)}`, 50, startY + 35)
-      .text(`Saldo Anterior: ${this.formatCurrency(data.previousBalance)}`, 50, startY + 50)
-      .text(`Saldo Remaining: ${this.formatCurrency(data.remainingBalance)}`, 50, startY + 65);
+    this.renderSectionTitle(doc, 'DATOS DEL CRÉDITO', PAGE.left, startY);
+    this.renderKeyValue(doc, 'ID préstamo', String(data.creditId || 'N/A'), PAGE.left, startY + 22);
+    this.renderKeyValue(doc, 'Monto original', this.formatCurrency(data.originalAmount), PAGE.left, startY + 40);
+    this.renderKeyValue(doc, 'Saldo anterior', this.formatCurrency(data.previousBalance), PAGE.left, startY + 58);
+    this.renderKeyValue(doc, 'Saldo posterior', this.formatCurrency(data.remainingBalance), PAGE.left, startY + 76);
 
     return doc;
   },
@@ -127,51 +162,25 @@ const VoucherService = {
    * @param {object} data
    */
   renderPayment(doc, data) {
-    const startY = 270;
+    const startY = 330;
 
-    doc
-      .fontSize(12)
-      .fillColor('#333333')
-      .text('DETALLE DEL PAGO', 50, startY);
+    this.renderSectionTitle(doc, 'DETALLE DEL PAGO', PAGE.left, startY);
+    this.renderKeyValue(doc, 'Fecha de pago', this.formatDate(data.paymentDate), PAGE.left, startY + 24);
+    this.renderKeyValue(doc, 'Número de cuota', `Cuota ${data.installmentNumber || 'N/A'}`, PAGE.left, startY + 42);
+    this.renderKeyValue(doc, 'Subtotal', this.formatCurrency(data.totalPaid), PAGE.left, startY + 64);
 
-    // Payment breakdown table
-    const tableTop = startY + 25;
-    const col1 = 50;
-    const col2 = 400;
-
-    doc
-      .fontSize(10)
-      .fillColor('#555555');
-
-    // Row: Fecha de Pago
-    doc.text('Fecha de Pago:', col1, tableTop);
-    doc.text(this.formatDate(data.paymentDate), col2, tableTop, { align: 'right' });
-
-    // Row: Número de Cuota
-    doc.text('Número de Cuota:', col1, tableTop + 18);
-    doc.text(`Cuota ${data.installmentNumber || 'N/A'}`, col2, tableTop + 18, { align: 'right' });
-
-    // Subtotal row
-    doc.text('Subtotal:', col1, tableTop + 40);
-    doc.text(this.formatCurrency(data.totalPaid), col2, tableTop + 40, { align: 'right' });
-
-    // Horizontal separator
     doc
       .strokeColor('#cccccc')
       .lineWidth(0.5)
-      .moveTo(col1, tableTop + 60)
-      .lineTo(560, tableTop + 60)
+      .moveTo(PAGE.left, startY + 86)
+      .lineTo(PAGE.right, startY + 86)
       .stroke();
 
-    // Total row (emphasized)
-    doc
-      .fontSize(11)
-      .fillColor('#333333')
-      .text('TOTAL PAGADO:', col1, tableTop + 72);
-    doc
-      .fontSize(12)
-      .fillColor('#0066cc')
-      .text(this.formatCurrency(data.totalPaid), col2, tableTop + 70, { align: 'right', bold: true });
+    this.renderKeyValue(doc, 'TOTAL PAGADO', this.formatCurrency(data.totalPaid), PAGE.left, startY + 100, {
+      bold: true,
+      fontSize: 12,
+      color: '#0052cc',
+    });
 
     return doc;
   },
@@ -182,33 +191,14 @@ const VoucherService = {
    * @param {object} data
    */
   renderBreakdown(doc, data) {
-    const startY = 380;
+    const startY = 466;
 
-    doc
-      .fontSize(12)
-      .fillColor('#333333')
-      .text('COMPONENTES DEL PAGO', 50, startY);
+    this.renderSectionTitle(doc, 'COMPONENTES DEL PAGO', PAGE.left, startY);
+    this.renderKeyValue(doc, 'Capital', this.formatCurrency(data.capital || 0), PAGE.left, startY + 24);
+    this.renderKeyValue(doc, 'Interés', this.formatCurrency(data.interest || 0), PAGE.left, startY + 42);
 
-    const tableTop = startY + 25;
-    const col1 = 50;
-    const col2 = 400;
-
-    doc
-      .fontSize(10)
-      .fillColor('#555555');
-
-    // Capital
-    doc.text('Capital:', col1, tableTop);
-    doc.text(this.formatCurrency(data.capital || 0), col2, tableTop, { align: 'right' });
-
-    // Interest
-    doc.text('Interés:', col1, tableTop + 18);
-    doc.text(this.formatCurrency(data.interest || 0), col2, tableTop + 18, { align: 'right' });
-
-    // Late Fee
     if (data.lateFee > 0) {
-      doc.text('Mora:', col1, tableTop + 36);
-      doc.text(this.formatCurrency(data.lateFee), col2, tableTop + 36, { align: 'right' });
+      this.renderKeyValue(doc, 'Mora', this.formatCurrency(data.lateFee), PAGE.left, startY + 60);
     }
 
     return doc;
@@ -220,31 +210,27 @@ const VoucherService = {
    * @param {object} data
    */
   renderFooter(doc, data) {
-    const startY = 470;
+    const startY = 568;
 
-    // Payment method
-    doc
-      .fontSize(10)
-      .fillColor('#555555')
-      .text(`Método de Pago: ${data.paymentMethod || 'Efectivo'}`, 50, startY);
+    this.renderKeyValue(doc, 'Método de pago', this.formatPaymentMethod(data.paymentMethod), PAGE.left, startY);
 
-    // Observations
     if (data.observations) {
       doc
+        .font('Helvetica')
         .fontSize(10)
-        .fillColor('#555555')
-        .text(`Observaciones: ${data.observations}`, 50, startY + 20);
+        .fillColor('#374151')
+        .text(`Observaciones: ${data.observations}`, PAGE.left, startY + 24, { width: PAGE.width });
     }
 
-    // Footer note
     doc
+      .font('Helvetica')
       .fontSize(8)
       .fillColor('#999999')
       .text(
         'Este comprobante es un documento oficial de pago. Conserve este comprobante para sus registros.',
-        50,
-        540,
-        { align: 'center', width: 510 }
+        PAGE.left,
+        745,
+        { align: 'center', width: PAGE.width }
       );
 
     return doc;
@@ -301,7 +287,7 @@ const VoucherService = {
           interest: payment.interestApplied,
           lateFee: payment.penaltyApplied,
           totalPaid: payment.amount,
-          paymentMethod: payment.paymentMethod || 'Efectivo',
+          paymentMethod: payment.paymentMethod || 'cash',
           observations: payment.paymentMetadata?.observation || '',
           remainingBalance: payment.remainingBalanceAfterPayment,
         };

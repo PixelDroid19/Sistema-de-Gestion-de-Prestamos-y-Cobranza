@@ -148,6 +148,8 @@ vi.mock('../../lib/guidedTours', () => ({
 }));
 
 describe('Settings operational configuration', () => {
+  const getTextboxByAriaLabel = (label: string) => screen.getAllByLabelText(label).find((node) => node.tagName === 'INPUT') as HTMLInputElement;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfigState.paymentMethods = structuredClone(baseConfigState.paymentMethods);
@@ -260,10 +262,10 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito solapado' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto mínimo de tasa' }), {
+    fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
       target: { value: '1000000' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto máximo de tasa' }), {
+    fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '2000000' },
     });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
@@ -302,10 +304,10 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
       target: { value: 'Crédito estándar' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto mínimo de tasa' }), {
+    fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
       target: { value: '0' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Monto máximo de tasa' }), {
+    fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '1000000' },
     });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
@@ -366,7 +368,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getAllByText(/1\.000\.000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1\.000\.001.*5\.000\.000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Desde.*5\.000\.001/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('spinbutton', { name: 'Monto para probar tasa' })).toHaveValue(2000000);
+    expect(getTextboxByAriaLabel('Monto para probar tasa')).toHaveValue('2.000.000');
     expect(screen.getAllByText('48% EA').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/Crédito medio aplica a/)).toBeInTheDocument();
     expect(screen.getAllByText('Crédito medio').length).toBeGreaterThanOrEqual(2);
