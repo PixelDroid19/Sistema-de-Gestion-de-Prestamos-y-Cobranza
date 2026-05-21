@@ -581,6 +581,7 @@ test('createCreateCapitalPayment delegates payment method to capital application
     paymentDate: '2026-03-23',
     paymentMethod: 'transfer',
     strategy: 'REDUCE_QUOTA',
+    newTermMonths: 10,
   });
 
   assert.equal(result.payment.id, 102);
@@ -590,6 +591,7 @@ test('createCreateCapitalPayment delegates payment method to capital application
     paymentDate: new Date('2026-03-23'),
     paymentMethod: 'transfer',
     strategy: 'REDUCE_QUOTA',
+    newTermMonths: 10,
     actorId: 1,
     idempotencyKey: undefined,
   });

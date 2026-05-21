@@ -73,6 +73,7 @@ export type CreditDetailsModalsProps = {
   capitalPaymentDate: string;
   capitalMethod: PaymentMethod;
   capitalStrategy: CapitalStrategy;
+  capitalNewTermMonths: string;
   capitalPreview: CapitalPreview;
   capitalPaymentGuard: { executable: boolean; reason?: string };
   capitalUnavailableDescription: string;
@@ -80,6 +81,7 @@ export type CreditDetailsModalsProps = {
   onCapitalDateChange: (v: string) => void;
   onCapitalMethodChange: (v: PaymentMethod) => void;
   onCapitalStrategyChange: (v: CapitalStrategy) => void;
+  onCapitalNewTermMonthsChange: (v: string) => void;
   onRecordCapital: () => void;
   onCloseCapitalModal: () => void;
 
@@ -270,7 +272,12 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
             <ActionButton onClick={props.onCloseCapitalModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton
               onClick={props.onRecordCapital}
-              disabled={!props.capitalPaymentGuard.executable || !props.capitalAmount || parseFloat(props.capitalAmount) <= 0}
+              disabled={
+                !props.capitalPaymentGuard.executable
+                || !props.capitalAmount
+                || parseFloat(props.capitalAmount) <= 0
+                || (props.capitalStrategy === 'reduce_payment' && (!props.capitalNewTermMonths || parseInt(props.capitalNewTermMonths, 10) <= 0))
+              }
               title={props.capitalPaymentGuard.executable ? undefined : props.capitalPaymentGuard.reason}
               variant="primary" fullWidth
             >{tTerm('creditDetails.modal.capital.submit')}</ActionButton>
@@ -300,6 +307,22 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                 </SelectInput>
               </FormField>
             </div>
+            {props.capitalStrategy === 'reduce_payment' && (
+              <FormField
+                label={tTerm('creditDetails.modal.capital.newTermMonths')}
+                tooltip={tTerm('creditDetails.modal.capital.newTermMonthsTooltip')}
+              >
+                <TextInput
+                  id="credit-capital-new-term"
+                  type="number"
+                  value={props.capitalNewTermMonths}
+                  onChange={(e) => props.onCapitalNewTermMonthsChange(e.target.value)}
+                  placeholder={String(props.capitalPreview.remainingInstallments || 1)}
+                  min="1"
+                  step="1"
+                />
+              </FormField>
+            )}
             <div className="rounded-xl border border-border-subtle bg-bg-base/70 p-4">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-secondary">{tTerm('creditDetails.capitalPreview.title')}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -256,6 +256,7 @@ export default function CreditDetails() {
   const [capitalAmount, setCapitalAmount] = useState('');
   const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
+  const [capitalNewTermMonths, setCapitalNewTermMonths] = useState('');
   const [capitalPaymentDate, setCapitalPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
@@ -306,8 +307,8 @@ export default function CreditDetails() {
   }, [calendarEntries]);
 
   const capitalPreview = useMemo(
-    () => computeCapitalPreview(capitalAmount, capitalStrategy, loan, paymentSnapshot),
-    [capitalAmount, capitalStrategy, loan, paymentSnapshot],
+    () => computeCapitalPreview(capitalAmount, capitalStrategy, capitalNewTermMonths, loan, paymentSnapshot),
+    [capitalAmount, capitalStrategy, capitalNewTermMonths, loan, paymentSnapshot],
   );
 
   const isRecordPaymentModalOpen = operationalModal.is('record-payment');
@@ -530,12 +531,25 @@ export default function CreditDetails() {
     const amount = parseFloat(capitalAmount);
     if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
     if (!isValidOperationalDateOnly(capitalPaymentDate)) { toast.error({ title: tTerm('creditDetails.error.paymentDate') }); return; }
+    const newTermMonths = Number(capitalNewTermMonths);
+    if (capitalStrategy === 'reduce_payment' && (!Number.isInteger(newTermMonths) || newTermMonths <= 0)) {
+      toast.error({ title: tTerm('creditDetails.modal.capital.newTermValidation') });
+      return;
+    }
     if (!capitalPaymentGuard.executable) { toast.error({ title: tTerm('creditDetails.toast.capitalUnavailable'), description: capitalPaymentGuard.reason || capitalUnavailableDescription }); return; }
     await executeGuardedAction({
       action: 'capital.payment',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
-      run: async () => { await recordCapitalPayment.mutateAsync({ amount, paymentDate: capitalPaymentDate, paymentMethod: capitalMethod, strategy: capitalStrategy }); },
-      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalPaymentDate(new Date().toISOString().slice(0, 10)); },
+      run: async () => {
+        await recordCapitalPayment.mutateAsync({
+          amount,
+          paymentDate: capitalPaymentDate,
+          paymentMethod: capitalMethod,
+          strategy: capitalStrategy,
+          ...(capitalStrategy === 'reduce_payment' ? { newTermMonths } : {}),
+        });
+      },
+      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(new Date().toISOString().slice(0, 10)); },
       successMessage: tTerm('creditDetails.toast.capitalSuccess'),
     });
   };
@@ -786,10 +800,11 @@ export default function CreditDetails() {
         onCloseAnnulModal={() => { setShowAnnulModal(false); setAnnulInstallmentNumber(null); }}
         showCapitalModal={showCapitalModal} capitalAmount={capitalAmount}
         capitalPaymentDate={capitalPaymentDate} capitalMethod={capitalMethod}
-        capitalStrategy={capitalStrategy} capitalPreview={capitalPreview}
+        capitalStrategy={capitalStrategy} capitalNewTermMonths={capitalNewTermMonths} capitalPreview={capitalPreview}
         capitalPaymentGuard={capitalPaymentGuard} capitalUnavailableDescription={capitalUnavailableDescription}
         onCapitalAmountChange={setCapitalAmount} onCapitalDateChange={setCapitalPaymentDate}
         onCapitalMethodChange={setCapitalMethod} onCapitalStrategyChange={setCapitalStrategy}
+        onCapitalNewTermMonthsChange={setCapitalNewTermMonths}
         onRecordCapital={handleRecordCapital} onCloseCapitalModal={() => setShowCapitalModal(false)}
         showEditPaymentMethodModal={showEditPaymentMethodModal}
         editingPaymentReconciled={editingPaymentReconciled}

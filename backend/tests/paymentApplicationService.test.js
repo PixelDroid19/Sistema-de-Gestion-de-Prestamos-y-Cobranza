@@ -416,7 +416,7 @@ test('loan view snapshot keeps completed capital payments in collected totals af
   assert.ok(snapshotAfterAnnulment.totalPrincipal <= loan.amount);
 });
 
-test('applyCapitalPayment reduce_payment preserves pending installment count and lowers the next payment', async () => {
+test('applyCapitalPayment reduce_payment rebuilds the remaining principal with the selected new term', async () => {
   let savedLoan;
   const schedule = buildAmortizationSchedule({
     amount: 1000,
@@ -462,15 +462,63 @@ test('applyCapitalPayment reduce_payment preserves pending installment count and
     amount: 300,
     paymentDate: '2026-05-15T00:00:00.000Z',
     strategy: 'reduce_payment',
+    newTermMonths: 6,
   });
 
   const futureRows = savedLoan.emiSchedule.slice(1);
   assert.equal(result.allocation.strategyApplied, 'reduce_payment');
-  assert.equal(result.allocation.newRemainingInstallments, result.allocation.previousRemainingInstallments);
-  assert.equal(futureRows.length, 3);
+  assert.equal(result.allocation.newTermMonths, 6);
+  assert.equal(result.allocation.newRemainingInstallments, 6);
+  assert.equal(futureRows.length, 6);
   assert.ok(result.allocation.newInstallmentAmount < result.allocation.previousInstallmentAmount);
   assert.ok(futureRows.every((row) => row.status === 'pending'));
   assert.ok(futureRows.every((row) => row.paidTotal === 0));
+});
+
+test('applyCapitalPayment reduce_payment requires an explicit new term', async () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3312,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 3312,
+    amount: 300,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_payment',
+  }), /newTermMonths must be an integer/);
 });
 
 test('applyCapitalPayment rejects loans before the first installment is paid', async () => {

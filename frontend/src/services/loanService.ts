@@ -243,7 +243,7 @@ export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions 
   });
 
   const recordCapitalPayment = useMutation({
-    mutationFn: async (paymentData: { amount: number; paymentDate?: string; paymentMethod?: string; strategy?: CapitalStrategy }) => {
+    mutationFn: async (paymentData: { amount: number; paymentDate?: string; paymentMethod?: string; strategy?: CapitalStrategy; newTermMonths?: number }) => {
       const { data } = await apiClient.post(`/payments/capital`, {
         loanId,
         ...paymentData,

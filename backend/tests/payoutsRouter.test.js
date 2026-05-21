@@ -348,7 +348,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
     method: 'POST',
     path: '/capital',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'capital-15-60' },
-    body: { loanId: 15, amount: 60, paymentDate: '2026-03-23', paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA' },
+    body: { loanId: 15, amount: 60, paymentDate: '2026-03-23', paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA', newTermMonths: 10 },
   });
   const annulResponse = await requestJson(activeServer, {
     method: 'POST',
@@ -362,7 +362,7 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(annulResponse.statusCode, 201);
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40, paymentDate: '2026-03-22', idempotencyKey: 'partial-15-40' }],
-    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentDate: '2026-03-23', paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA', idempotencyKey: 'capital-15-60' }],
+    ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentDate: '2026-03-23', paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA', newTermMonths: 10, idempotencyKey: 'capital-15-60' }],
     ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined, idempotencyKey: 'annul-15-2' }],
   ]);
   assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');

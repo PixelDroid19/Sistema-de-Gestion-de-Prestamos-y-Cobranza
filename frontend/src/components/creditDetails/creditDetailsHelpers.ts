@@ -256,12 +256,17 @@ export type CapitalPreview = {
 export function computeCapitalPreview(
   capitalAmount: string,
   capitalStrategy: string,
+  capitalNewTermMonths: string,
   loan: any,
   paymentSnapshot: any,
 ): CapitalPreview {
   const amount = Number(capitalAmount || 0);
   const currentPrincipal = Number(paymentSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
   const remainingInstallments = Number(paymentSnapshot?.outstandingInstallments ?? 0);
+  const selectedNewTerm = Number(capitalNewTermMonths || 0);
+  const effectiveNewTerm = Number.isInteger(selectedNewTerm) && selectedNewTerm > 0
+    ? selectedNewTerm
+    : remainingInstallments;
   const currentInstallment = Number(paymentSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
   const annualRate = Number(loan?.interestRate ?? 0);
   const newPrincipal = Math.max(0, currentPrincipal - (Number.isFinite(amount) ? amount : 0));
@@ -282,9 +287,9 @@ export function computeCapitalPreview(
     return Number.isFinite(rawTerm) ? Math.max(1, Math.min(remainingInstallments, rawTerm)) : remainingInstallments;
   };
 
-  const estimatedInstallments = capitalStrategy === 'reduce_payment' ? remainingInstallments : estimateTerm();
+  const estimatedInstallments = capitalStrategy === 'reduce_payment' ? effectiveNewTerm : estimateTerm();
   const estimatedPayment = capitalStrategy === 'reduce_payment'
-    ? estimatePayment(newPrincipal, remainingInstallments)
+    ? estimatePayment(newPrincipal, effectiveNewTerm)
     : Math.min(currentInstallment, estimatePayment(newPrincipal, estimatedInstallments) || currentInstallment);
 
   return { amount, currentPrincipal, newPrincipal, currentInstallment, estimatedPayment, remainingInstallments, estimatedInstallments };

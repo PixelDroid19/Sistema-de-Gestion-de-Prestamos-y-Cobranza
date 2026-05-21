@@ -193,6 +193,28 @@ describe('Payouts behavioral parity scenarios', () => {
     });
   });
 
+  it('sends the selected term when a capital payment reduces the installment amount', async () => {
+    const { container } = renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#payout-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+    fireEvent.change(container.querySelector('#payout-capital-new-term') as HTMLInputElement, { target: { value: '10' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    await waitFor(() => {
+      expect(mockCreateCapitalPayment).toHaveBeenCalledWith(expect.objectContaining({
+        loanId: 100,
+        amount: 300000,
+        strategy: 'reduce_payment',
+        newTermMonths: 10,
+      }));
+    });
+  });
+
   it('keeps payout registration unavailable for socios', () => {
     currentUser = {
       id: 3,

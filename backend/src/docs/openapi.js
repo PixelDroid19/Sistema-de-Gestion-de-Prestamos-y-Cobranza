@@ -117,7 +117,13 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
               strategy: {
                 type: 'string',
                 enum: ['reduce_term', 'reduce_payment', 'REDUCE_TIME', 'REDUCE_QUOTA'],
-                description: 'Estrategia de abono: reduce_term mantiene cuota aproximada y reduce plazo; reduce_payment conserva plazo pendiente y baja la cuota.',
+                description: 'Estrategia de abono: reduce_term mantiene cuota aproximada y reduce plazo; reduce_payment difiere el capital vivo nuevo en newTermMonths.',
+              },
+              newTermMonths: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 360,
+                description: 'Cantidad de cuotas elegida por el cliente para redistribuir el saldo restante cuando strategy=reduce_payment.',
               },
             },
           },

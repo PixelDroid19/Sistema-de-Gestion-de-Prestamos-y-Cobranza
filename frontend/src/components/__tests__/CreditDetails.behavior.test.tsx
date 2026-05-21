@@ -139,7 +139,10 @@ vi.mock('../../services/loanService', () => {
       { value: 'transfer', label: 'Transferencia' },
       { value: 'cash', label: 'Efectivo' },
     ],
-    CAPITAL_STRATEGIES: [{ value: 'reduce_term', label: 'Reducir plazo' }],
+    CAPITAL_STRATEGIES: [
+      { value: 'reduce_term', label: 'Reducir plazo' },
+      { value: 'reduce_payment', label: 'Reducir cuota' },
+    ],
     useLoans: () => ({
       data: { data: { loans: [mockLoan] } },
       isLoading: false,
@@ -571,6 +574,27 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.focus(screen.getByLabelText(/Abono a capital no disponible/i));
 
     expect(await screen.findByText('Abono a capital no disponible. Primero registra el pago completo de la primera cuota. Después podrás abonar a capital.')).toBeInTheDocument();
+  });
+
+  it('sends selected installments when reducing the payment after a capital prepayment', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 991 } } });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+    fireEvent.change(container.querySelector('#credit-capital-new-term') as HTMLInputElement, { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
+
+    await waitFor(() => {
+      expect(mockRecordCapitalPayment).toHaveBeenCalledWith(expect.objectContaining({
+        amount: 300000,
+        strategy: 'reduce_payment',
+        newTermMonths: 10,
+      }));
+    });
   });
 
   it('shows a specific payoff denial reason when an active credit still has balance', async () => {

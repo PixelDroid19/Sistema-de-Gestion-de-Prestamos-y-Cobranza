@@ -49,6 +49,7 @@ export default function Payouts() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'regular' | 'partial' | 'capital'>('regular');
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
+  const [capitalNewTermMonths, setCapitalNewTermMonths] = useState('');
   const [formData, setFormData] = useState({
     loanId: '',
     amount: '',
@@ -342,6 +343,11 @@ export default function Payouts() {
       toast.error({ title: tTerm('creditDetails.error.paymentDate') });
       return;
     }
+    const newTermMonths = Number(capitalNewTermMonths);
+    if (paymentType === 'capital' && capitalStrategy === 'reduce_payment' && (!Number.isInteger(newTermMonths) || newTermMonths <= 0)) {
+      toast.error({ title: tTerm('creditDetails.modal.capital.newTermValidation') });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -351,6 +357,7 @@ export default function Payouts() {
       paymentDate: `${formData.paymentDate}T00:00:00.000Z`,
       paymentMethod: formData.paymentMethod,
       ...(paymentType === 'capital' ? { strategy: capitalStrategy } : {}),
+      ...(paymentType === 'capital' && capitalStrategy === 'reduce_payment' ? { newTermMonths } : {}),
     };
 
     const wasExecuted = await executeGuardedAction({
@@ -368,6 +375,7 @@ export default function Payouts() {
       onSuccess: () => {
         setShowPaymentModal(false);
         setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultPaymentMethod });
+        setCapitalNewTermMonths('');
       },
       successMessage: tTerm('payouts.toast.register.success'),
     });
@@ -655,17 +663,32 @@ export default function Payouts() {
               </FormField>
 
               {paymentType === 'capital' && (
-                <FormField label={tTerm('payouts.form.capitalStrategy')}>
-                  <SelectInput
-                    id="payout-capital-strategy"
-                    value={capitalStrategy}
-                    onChange={(event) => setCapitalStrategy(event.target.value as CapitalStrategy)}
-                  >
-                    {CAPITAL_STRATEGIES.map((strategy) => (
-                      <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
-                    ))}
-                  </SelectInput>
-                </FormField>
+                <>
+                  <FormField label={tTerm('payouts.form.capitalStrategy')}>
+                    <SelectInput
+                      id="payout-capital-strategy"
+                      value={capitalStrategy}
+                      onChange={(event) => setCapitalStrategy(event.target.value as CapitalStrategy)}
+                    >
+                      {CAPITAL_STRATEGIES.map((strategy) => (
+                        <option key={strategy.value} value={strategy.value}>{strategy.label}</option>
+                      ))}
+                    </SelectInput>
+                  </FormField>
+                  {capitalStrategy === 'reduce_payment' && (
+                    <FormField label={tTerm('creditDetails.modal.capital.newTermMonths')}>
+                      <TextInput
+                        id="payout-capital-new-term"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={capitalNewTermMonths}
+                        onChange={(event) => setCapitalNewTermMonths(event.target.value)}
+                        placeholder="12"
+                      />
+                    </FormField>
+                  )}
+                </>
               )}
 
               <div className="flex gap-3 pt-4">

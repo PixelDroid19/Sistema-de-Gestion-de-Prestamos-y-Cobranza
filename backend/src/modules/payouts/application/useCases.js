@@ -241,6 +241,7 @@ const auditRejectedCapitalPayment = async ({
   amount,
   paymentMethod,
   strategy,
+  newTermMonths,
   error,
   req,
 }) => {
@@ -259,6 +260,7 @@ const auditRejectedCapitalPayment = async ({
         amount,
         paymentMethod,
         strategy,
+        ...(newTermMonths === undefined ? {} : { newTermMonths }),
         errorCode: error?.code || error?.name || 'CAPITAL_PAYMENT_REJECTED',
         denialReasons: Array.isArray(error?.denialReasons) ? error.denialReasons : [],
       },
@@ -277,7 +279,7 @@ const createCreateCapitalPayment = ({
   loanAccessPolicy,
   auditService,
   clock = () => new Date(),
-}) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, idempotencyKey, req }) => {
+}) => async ({ actor, loanId, amount, paymentDate, paymentMethod, strategy, newTermMonths, idempotencyKey, req }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
     throw new AuthorizationError('Only authorized backoffice users can create capital reduction payments');
   }
@@ -291,6 +293,7 @@ const createCreateCapitalPayment = ({
       paymentDate: resolvePaymentDateInput(paymentDate, clock),
       paymentMethod,
       strategy,
+      newTermMonths,
       actorId: actor?.id || 0,
       idempotencyKey,
     });
@@ -303,6 +306,7 @@ const createCreateCapitalPayment = ({
         amount,
         paymentMethod,
         strategy,
+        newTermMonths,
         error,
         req,
       });

@@ -203,8 +203,17 @@ const assertPositiveAmount = (amount) => {
   return numericAmount;
 };
 
+const assertCapitalRescheduleTerm = (termMonths) => {
+  const numericTerm = Number(termMonths);
+  if (!Number.isInteger(numericTerm) || numericTerm < 1 || numericTerm > 360) {
+    throw new ValidationError('newTermMonths must be an integer between 1 and 360 for reduce_payment capital payments');
+  }
+  return numericTerm;
+};
+
 const persistLoanSnapshot = ({ loan, snapshot, schedule, paymentDate, closeLoan = false, closureReason = null }) => {
   loan.emiSchedule = schedule;
+  loan.termMonths = Array.isArray(schedule) ? schedule.length : loan.termMonths;
   loan.installmentAmount = snapshot.installmentAmount;
   loan.totalPayable = snapshot.totalPayable;
   loan.totalPaid = snapshot.totalPaid;
@@ -344,6 +353,7 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
     capital_reduction: true,
     strategy: strategy?.requested || strategy || 'reduce_term',
     strategyApplied: strategy?.applied || strategy || 'reduce_term',
+    newTermMonths: strategy?.newTermMonths || null,
     before: strategy?.before || null,
     after: strategy?.after || null,
   },
@@ -436,6 +446,7 @@ const rebuildPendingScheduleAfterCapitalPayment = ({
   loan,
   principalAfterReduction,
   capitalStrategy,
+  newTermMonths = null,
 }) => {
   const firstPendingIndex = schedule.findIndex((row) => !isAnnulledOrPaid(row));
   if (firstPendingIndex < 0 || principalAfterReduction <= 0.01) {
@@ -463,7 +474,7 @@ const rebuildPendingScheduleAfterCapitalPayment = ({
       paymentAmount: currentInstallmentAmount,
       maxTerm: remainingTerm,
     })
-    : remainingTerm;
+    : newTermMonths;
 
   const rebuiltRows = buildAmortizationSchedule({
     amount: principalAfterReduction,
@@ -992,7 +1003,7 @@ const createPaymentApplicationService = ({
    * it does not mark future installments as partially paid. Closed rows remain as
    * accounting history, and only the open schedule segment is recalculated.
    */
-  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), paymentMethod = null, strategy = 'REDUCE_TIME', actorId = 0, idempotencyKey = null }) => {
+  const applyCapitalPayment = async ({ loanId, amount, paymentDate = clock(), paymentMethod = null, strategy = 'REDUCE_TIME', newTermMonths = null, actorId = 0, idempotencyKey = null }) => {
     return runPaymentOperationWithIdempotency({
       operationType: CAPITAL_PAYMENT_TYPE,
       loanId,
@@ -1000,6 +1011,7 @@ const createPaymentApplicationService = ({
       paymentDate,
       paymentMethod,
       strategy,
+      newTermMonths,
       actorId,
       idempotencyKey,
       operation: async (transaction) => {
@@ -1018,6 +1030,9 @@ const createPaymentApplicationService = ({
       const { schedule: canonicalSchedule, snapshot: canonicalSnapshot } = loanViewService.getCanonicalLoanView(loan);
       const schedule = normalizeScheduleStatuses(cloneSchedule(canonicalSchedule), normalizedPaymentDate);
       const capitalStrategy = normalizeCapitalStrategy(strategy);
+      const selectedNewTermMonths = capitalStrategy.applied === 'reduce_payment'
+        ? assertCapitalRescheduleTerm(newTermMonths)
+        : null;
 
       assertCapitalPaymentAllowed({
         loan,
@@ -1036,6 +1051,7 @@ const createPaymentApplicationService = ({
         loan,
         principalAfterReduction,
         capitalStrategy,
+        newTermMonths: selectedNewTermMonths,
       });
       const snapshot = applyCapitalAdjustmentToSnapshot({
         snapshot: buildSnapshot(rebuiltSchedule),
@@ -1047,6 +1063,7 @@ const createPaymentApplicationService = ({
       const strategyPayload = {
         requested: capitalStrategy.requested,
         applied: capitalStrategy.applied,
+        newTermMonths: selectedNewTermMonths,
         before: {
           outstandingPrincipal: capitalBefore,
           outstandingBalance: roundCurrency(canonicalSnapshot.outstandingBalance || 0),
@@ -1095,6 +1112,7 @@ const createPaymentApplicationService = ({
           newInstallmentAmount: strategyPayload.after.installmentAmount,
           strategyRequested: capitalStrategy.requested,
           strategyApplied: capitalStrategy.applied,
+          newTermMonths: selectedNewTermMonths,
         },
       };
       },
@@ -1523,6 +1541,7 @@ const createPaymentApplicationService = ({
     asOfDate = null,
     quotedTotal = null,
     strategy = null,
+    newTermMonths = null,
     actorId = 0,
   }) => hashPayload({
     operationType,
@@ -1535,6 +1554,7 @@ const createPaymentApplicationService = ({
     asOfDate,
     quotedTotal: quotedTotal === null || quotedTotal === undefined ? null : roundCurrency(quotedTotal),
     strategy,
+    newTermMonths: newTermMonths === null || newTermMonths === undefined || newTermMonths === '' ? null : Number(newTermMonths),
   }).substring(0, 64);
 
   /**
@@ -1552,6 +1572,7 @@ const createPaymentApplicationService = ({
     asOfDate = null,
     quotedTotal = null,
     strategy = null,
+    newTermMonths = null,
     actorId = 0,
     idempotencyKey = null,
     operation,
@@ -1566,6 +1587,7 @@ const createPaymentApplicationService = ({
       asOfDate,
       quotedTotal,
       strategy,
+      newTermMonths,
       actorId,
     });
     const requestHash = hashPayload({
@@ -1579,6 +1601,7 @@ const createPaymentApplicationService = ({
       asOfDate,
       quotedTotal,
       strategy,
+      newTermMonths: newTermMonths === null || newTermMonths === undefined || newTermMonths === '' ? null : Number(newTermMonths),
     });
 
     try {
