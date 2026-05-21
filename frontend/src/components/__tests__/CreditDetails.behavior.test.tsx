@@ -258,6 +258,21 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('shows voucher download action inside payment history', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: /Historial de pagos/ }));
+
+    expect(screen.getByRole('cell', { name: 'Transferencia' })).toBeInTheDocument();
+    const voucherButton = screen.getByRole('button', { name: 'Descargar comprobante' });
+    fireEvent.click(voucherButton);
+
+    await waitFor(() => {
+      expect(downloadVoucher).toHaveBeenCalledWith(9001);
+    });
+  });
+
   it('keeps row installment actions working when the calendar installment number is serialized as text', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockCalendarEntries = [

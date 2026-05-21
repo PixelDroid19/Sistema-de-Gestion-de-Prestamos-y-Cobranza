@@ -28,6 +28,7 @@ import {
   formatCurrency,
   formatRange,
   formatRate,
+  isArchivedSeededCatchAllRatePolicy,
   getRatePolicyCoverageGaps,
   getRatePolicyConflictPairs,
   getRatePolicyConflictsForAmount,
@@ -56,6 +57,10 @@ export default function RatePoliciesTab({
   const [isRatePolicyModalOpen, setIsRatePolicyModalOpen] = useState(false);
 
   const orderedRatePolicies = useMemo(() => sortRatePoliciesForApplication(ratePolicies), [ratePolicies]);
+  const visibleRatePolicies = useMemo(
+    () => orderedRatePolicies.filter((policy) => !isArchivedSeededCatchAllRatePolicy(policy)),
+    [orderedRatePolicies],
+  );
   const activeRatePolicies = useMemo(
     () => orderedRatePolicies.filter((policy) => policy?.isActive !== false),
     [orderedRatePolicies],
@@ -269,7 +274,7 @@ export default function RatePoliciesTab({
                 </tr>
               </thead>
               <tbody>
-                {orderedRatePolicies.map((policy: any) => (
+                {visibleRatePolicies.map((policy: any) => (
                   <tr key={policy.id}>
                     <td>
                       <div className="min-w-0">
@@ -339,7 +344,7 @@ export default function RatePoliciesTab({
                     </td>
                   </tr>
                 ))}
-                {ratePolicies.length === 0 && (
+                {visibleRatePolicies.length === 0 && (
                   <tr>
                     <td colSpan={5} className="table-empty-state">{tTerm('settings.rate.table.empty')}</td>
                   </tr>

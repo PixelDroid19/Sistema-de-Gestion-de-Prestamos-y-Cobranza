@@ -91,6 +91,11 @@ export default function CreditDetails() {
     return active.length > 0 ? active : [...FALLBACK_PAYMENT_METHODS];
   }, [configuredPaymentMethods]);
   const defaultPaymentMethod = paymentMethodOptions[0]?.value || 'transfer';
+  const paymentMethodLabels = useMemo(() => new Map(paymentMethodOptions.map((method) => [method.value, method.label])), [paymentMethodOptions]);
+  const formatPaymentMethodLabel = (value: unknown) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized ? paymentMethodLabels.get(normalized) || String(value) : '—';
+  };
 
   // -------------------------------------------------------------------------
   // Operational hooks
@@ -753,7 +758,13 @@ export default function CreditDetails() {
 
           {activeTab === 'payouts' && (
             <div className="animate-in fade-in duration-300">
-              <PayoutsTab paymentHistoryEntries={paymentHistoryEntries} formatCurrency={formatCurrency} formatDate={formatDate} />
+              <PayoutsTab
+                paymentHistoryEntries={paymentHistoryEntries}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+                formatPaymentMethod={formatPaymentMethodLabel}
+                onDownloadVoucher={(pid) => runDownloadVoucher(pid)}
+              />
             </div>
           )}
 

@@ -219,9 +219,8 @@ const getReplaceableSeededRateEntries = async ({ configRepository, normalized, c
 };
 
 const deactivateSeededRateEntry = async ({ configRepository, entry, normalized }) => {
-  const suffix = `reemplazada-${entry.id}`;
   return configRepository.update(entry.id, {
-    key: `${entry.key || normalizeKey(entry.label)}-${suffix}`,
+    key: entry.key || normalizeKey(entry.label),
     label: `${entry.label} (reemplazada por rangos)`,
     isActive: false,
     value: {

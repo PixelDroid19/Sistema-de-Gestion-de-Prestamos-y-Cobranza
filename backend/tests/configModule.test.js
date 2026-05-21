@@ -269,7 +269,7 @@ test('rate policy creation replaces the seeded catch-all when the first explicit
 
   assert.equal(updatedSeed.id, 11);
   assert.equal(updatedSeed.isActive, false);
-  assert.match(updatedSeed.key, /reemplazada-11$/);
+  assert.equal(updatedSeed.key, 'credito-estandar');
   assert.equal(updatedSeed.value.metadata.replacedByExplicitRateRange, true);
   assert.equal(createdPayload.key, 'credito-estandar');
   assert.equal(createdPayload.value.minAmount, 0);

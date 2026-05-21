@@ -145,6 +145,13 @@ export const isSeededCatchAllRatePolicy = (policy: any) => (
   && isFullRangeRatePolicy(policy)
 );
 
+export const isArchivedSeededCatchAllRatePolicy = (policy: any) => (
+  policy?.metadata?.seeded === true
+  && policy?.isActive === false
+  && policy?.metadata?.replacedByExplicitRateRange === true
+  && isFullRangeRatePolicy(policy)
+);
+
 const canReplaceSeededCatchAllRatePolicy = (
   draftRange: { minAmount?: unknown; maxAmount?: unknown },
   policy: any,

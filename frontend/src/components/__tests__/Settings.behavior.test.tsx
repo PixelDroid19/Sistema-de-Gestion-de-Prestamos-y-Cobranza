@@ -414,6 +414,40 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText(/Falta cubrir:.*1\.000\.001.*5\.000\.000/)).toBeInTheDocument();
   });
 
+  it('hides archived seeded catch-all replacements from the operational rate table', () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 90,
+        label: 'Crédito estándar (reemplazada por rangos)',
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 36,
+        priority: 'medium',
+        isActive: false,
+        metadata: { seeded: true, replacedByExplicitRateRange: true },
+      },
+      {
+        id: 91,
+        label: 'Crédito estándar (reemplazada por rangos)',
+        minAmount: 0,
+        maxAmount: null,
+        annualEffectiveRate: 36,
+        priority: 'medium',
+        isActive: false,
+        metadata: { seeded: true, replacedByExplicitRateRange: true },
+      },
+      baseConfigState.ratePolicies[0],
+      baseConfigState.ratePolicies[1],
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+
+    expect(screen.queryByText(/reemplazada por rangos/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Crédito básico')).toBeInTheDocument();
+    expect(screen.getAllByText('Crédito medio').length).toBeGreaterThan(0);
+  });
+
   it('edits an existing rate policy without treating the same policy as duplicated', async () => {
     render(<Settings />);
 
