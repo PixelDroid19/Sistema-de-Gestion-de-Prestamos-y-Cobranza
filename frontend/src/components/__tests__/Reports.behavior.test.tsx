@@ -299,6 +299,36 @@ describe('Reports behavioral parity scenarios', () => {
     });
   });
 
+  it('exports the customer profitability Excel when profitability tab is active', async () => {
+    reportsState = {
+      ...reportsState,
+      profitabilityItems: [{
+        customerId: 7,
+        customerName: 'pepito perez',
+        totalLoans: 2,
+        interestCollected: 60000,
+        lateFeesCollected: 0,
+        totalProfit: 60000,
+      }],
+    };
+    mockExportContextualReport.mockClear();
+    renderReports();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rentabilidad de clientes' }));
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-05-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-05-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar rentabilidad' }));
+
+    await waitFor(() => {
+      expect(mockExportContextualReport).toHaveBeenCalledWith('profitability', {
+        fromDate: '2026-05-01',
+        toDate: '2026-05-20',
+        status: undefined,
+        format: undefined,
+      });
+    });
+  });
+
   it('shows monthly cash flow control and exports Excel/PDF', async () => {
     renderReports();
 

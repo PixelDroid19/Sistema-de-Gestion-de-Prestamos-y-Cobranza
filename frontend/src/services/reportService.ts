@@ -5,7 +5,7 @@ import { downloadBlob } from './blobDownload';
 import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportResponse } from '../types/reportSimulation';
 import { tTerm } from '../i18n/terminology';
 
-type ReportContextualType = 'credits' | 'payouts';
+type ReportContextualType = 'credits' | 'payouts' | 'profitability';
 type ReportContextualFormat = 'xlsx' | 'pdf';
 type ReportContextualFilters = {
   fromDate?: string;
@@ -691,6 +691,19 @@ export const exportContextualReport = async (
         customerId: filters.customerId,
         loanId: filters.loanId,
         status: filters.status,
+      },
+    });
+    return;
+  }
+
+  if (type === 'profitability') {
+    await downloadBlobWithParams({
+      url: '/reports/profitability/customers/export',
+      fileName: `rentabilidad_clientes_${suffix}.xlsx`,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      params: {
+        fromDate,
+        toDate,
       },
     });
     return;

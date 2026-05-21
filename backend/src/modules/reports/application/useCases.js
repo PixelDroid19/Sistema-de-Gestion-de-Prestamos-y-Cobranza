@@ -509,6 +509,20 @@ const ASSOCIATE_DISTRIBUTION_COLUMNS = [
   { header: 'Notas', key: 'notes', width: 34 },
 ];
 
+const CUSTOMER_PROFITABILITY_COLUMNS = [
+  { header: 'ID Cliente', key: 'customerId', width: 12 },
+  { header: 'Cliente', key: 'customerName', width: 28 },
+  { header: 'Créditos Totales', key: 'loanCount', width: 16 },
+  { header: 'Créditos Rentables', key: 'profitableLoanCount', width: 18 },
+  moneyColumn('Capital Prestado', 'originatedAmount', 20),
+  moneyColumn('Total Recaudado', 'totalCollected', 20),
+  moneyColumn('Capital Recuperado', 'principalCollected', 20),
+  moneyColumn('Interés Cobrado', 'interestCollected', 20),
+  moneyColumn('Mora Cobrada', 'penaltyCollected', 18),
+  moneyColumn('Rentabilidad Total', 'totalProfit', 20),
+  moneyColumn('Saldo en Cartera', 'outstandingBalance', 20),
+];
+
 const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, format = 'csv' }) => {
   ensureAdmin(actor);
   const report = await createGetRecoveryReport({ reportRepository, paymentRepository, loanViewService })({ actor });
@@ -748,6 +762,42 @@ const createGetCustomerProfitabilityReport = ({ reportRepository }) => async ({ 
   };
 };
 
+const toMoneyNumber = (value) => {
+  const normalized = String(value ?? '0').replace(/[^0-9.-]/g, '');
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const createExportCustomerProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {} }) => {
+  const report = await createGetCustomerProfitabilityReport({ reportRepository })({ actor, filters });
+  const rows = (report.data.customers || []).map((row) => ({
+    customerId: row.customerId,
+    customerName: row.customerName || `Cliente #${row.customerId || 'N/A'}`,
+    loanCount: row.loanCount || 0,
+    profitableLoanCount: row.profitableLoanCount || 0,
+    originatedAmount: toMoneyNumber(row.originatedAmount),
+    totalCollected: toMoneyNumber(row.totalCollected),
+    principalCollected: toMoneyNumber(row.principalCollected),
+    interestCollected: toMoneyNumber(row.interestCollected),
+    penaltyCollected: toMoneyNumber(row.penaltyCollected),
+    totalProfit: toMoneyNumber(row.totalProfit),
+    outstandingBalance: toMoneyNumber(row.outstandingBalance),
+  }));
+
+  return {
+    fileName: 'rentabilidad-clientes.xlsx',
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: await buildWorkbookBuffer([{
+      name: 'Rentabilidad Clientes',
+      title: 'RENTABILIDAD POR CLIENTE',
+      tabColor: STYLE_COLORS.teal,
+      headerFill: STYLE_COLORS.teal,
+      columns: CUSTOMER_PROFITABILITY_COLUMNS,
+      rows,
+    }]),
+  };
+};
+
 const createGetLoanProfitabilityReport = ({ reportRepository }) => async ({ actor, filters = {}, pagination }) => {
   ensureAdmin(actor);
 
@@ -805,6 +855,7 @@ module.exports = {
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
+  createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
   // New financial analytics use cases
   createGetCreditEarnings: require('./useCases/createGetCreditEarnings').createGetCreditEarnings,

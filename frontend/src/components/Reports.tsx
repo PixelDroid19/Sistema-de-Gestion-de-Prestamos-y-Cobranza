@@ -95,7 +95,7 @@ export default function Reports() {
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
-  const [reportType, setReportType] = useState<'credits' | 'payouts'>('credits');
+  const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
   const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
@@ -189,21 +189,36 @@ export default function Reports() {
   };
 
   const handleExportContextualReport = async () => {
+    const effectiveReportType = activeTab === 'profitability' ? 'profitability' : reportType;
     setIsExporting(true);
     await executeGuardedAction({
       action: 'credit.report.download',
       context: { role: user?.role, permissions: user?.permissions },
       run: async () => {
-        await exportContextualReport(reportType, {
+        await exportContextualReport(effectiveReportType, {
           fromDate: reportRange.fromDate || undefined,
           toDate: reportRange.toDate || undefined,
-          status: reportType === 'credits' && reportStatusFilter ? reportStatusFilter : undefined,
-          format: reportType === 'credits' ? reportFormat : undefined,
+          status: effectiveReportType === 'credits' && reportStatusFilter ? reportStatusFilter : undefined,
+          format: effectiveReportType === 'credits' ? reportFormat : undefined,
         });
       },
-      successMessage: reportType === 'credits' ? tTerm('reports.toast.contextual.credits') : tTerm('reports.toast.contextual.payouts'),
+      successMessage: effectiveReportType === 'credits'
+        ? tTerm('reports.toast.contextual.credits')
+        : effectiveReportType === 'profitability'
+          ? tTerm('reports.toast.contextual.profitability')
+          : tTerm('reports.toast.contextual.payouts'),
     });
     setIsExporting(false);
+  };
+
+  const handleReportsTabChange = (tabId: string) => {
+    const nextTab = tabId as typeof activeTab;
+    setActiveTab(nextTab);
+    if (nextTab === 'profitability') {
+      setReportType('profitability');
+    } else if (reportType === 'profitability') {
+      setReportType('credits');
+    }
   };
 
   const handleExportCashFlow = async (format: 'excel' | 'pdf') => {
@@ -262,9 +277,10 @@ export default function Reports() {
               <SelectInput
                 id="report-type"
                 value={reportType}
-                onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts')}
+                onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts' | 'profitability')}
               >
                 <option value="credits">{tTerm('reports.export.type.credits')}</option>
+                <option value="profitability">{tTerm('reports.export.type.profitability')}</option>
                 <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
               </SelectInput>
             </FormField>
@@ -296,7 +312,13 @@ export default function Reports() {
                 icon={<Download size={16} />}
                 className="h-10 min-h-10 px-5"
               >
-                {isExporting ? tTerm('credits.cta.exporting') : (reportType === 'credits' ? tTerm('reports.cta.exportCredits') : tTerm('reports.cta.exportPayouts'))}
+                {isExporting
+                  ? tTerm('credits.cta.exporting')
+                  : reportType === 'credits'
+                    ? tTerm('reports.cta.exportCredits')
+                    : reportType === 'profitability'
+                      ? tTerm('reports.cta.exportProfitability')
+                      : tTerm('reports.cta.exportPayouts')}
               </ActionButton>
             </div>
             {reportType === 'credits' && (
@@ -338,7 +360,7 @@ export default function Reports() {
       <ViewTabs
         data-tour="reports-tabs"
         activeTab={activeTab}
-        onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
+        onChange={handleReportsTabChange}
         tabs={[
           { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
           { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },

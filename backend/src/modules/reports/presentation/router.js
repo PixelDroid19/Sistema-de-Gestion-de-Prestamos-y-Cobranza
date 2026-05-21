@@ -356,6 +356,14 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     }));
   }));
 
+  router.get('/profitability/customers/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const exportFile = await useCases.exportCustomerProfitabilityReport({
+      actor: req.user,
+      filters: { fromDate: req.query.fromDate, toDate: req.query.toDate },
+    });
+    sendBufferDownload(res, exportFile);
+  }));
+
   router.get('/profitability/loans', requirePermission('REPORTS_VIEW_ALL'), attachPagination(), asyncHandler(async (req, res) => {
     res.json(await useCases.getLoanProfitabilityReport({
       actor: req.user,

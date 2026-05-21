@@ -15,6 +15,7 @@ const {
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
+  createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
   createGetCreditEarnings,
   createGetInterestEarnings,
@@ -66,6 +67,7 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     getAssociateProfitabilityReport: createGetAssociateProfitabilityReport({ associateRepository }),
     exportAssociateProfitabilityReport: createExportAssociateProfitabilityReport({ reportRepository, associateRepository }),
     getCustomerProfitabilityReport: createGetCustomerProfitabilityReport({ reportRepository }),
+    exportCustomerProfitabilityReport: createExportCustomerProfitabilityReport({ reportRepository }),
     getLoanProfitabilityReport: createGetLoanProfitabilityReport({ reportRepository }),
     // New financial analytics use cases
     getCreditEarnings: createGetCreditEarnings({ reportRepository }),

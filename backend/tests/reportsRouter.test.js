@@ -106,6 +106,14 @@ test('createReportsRouter serves report contract responses', async () => {
           },
         };
       },
+      async exportCustomerProfitabilityReport(input) {
+        calls.push(['exportCustomerProfitabilityReport', input.actor.role, input.filters]);
+        return {
+          fileName: 'rentabilidad-clientes.xlsx',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          buffer: Buffer.from('PKtest', 'utf8'),
+        };
+      },
       async getLoanProfitabilityReport(input) {
         calls.push(['getLoanProfitabilityReport', input.pagination]);
         return {
@@ -181,6 +189,9 @@ test('createReportsRouter serves report contract responses', async () => {
     path: '/profitability/customers?page=4&pageSize=3',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
+  const customerProfitabilityExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/profitability/customers/export?fromDate=2026-05-01&toDate=2026-05-20`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
   const loanProfitabilityResponse = await requestJson(activeServer, {
     path: '/profitability/loans?page=5&pageSize=2',
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
@@ -204,6 +215,8 @@ test('createReportsRouter serves report contract responses', async () => {
   assert.equal(customerProfitabilityResponse.statusCode, 200);
   assert.equal(customerProfitabilityResponse.body.data.customers[0].customerId, 7);
   assert.deepEqual(customerProfitabilityResponse.body.data.pagination, { page: 4, pageSize: 3, totalItems: 1, totalPages: 1 });
+  assert.equal(customerProfitabilityExportResponse.status, 200);
+  assert.equal((await customerProfitabilityExportResponse.arrayBuffer()).byteLength > 0, true);
   assert.equal(loanProfitabilityResponse.statusCode, 200);
   assert.equal(loanProfitabilityResponse.body.data.loans[0].loanId, 4);
   assert.deepEqual(loanProfitabilityResponse.body.data.pagination, { page: 5, pageSize: 2, totalItems: 1, totalPages: 1 });
@@ -215,6 +228,7 @@ test('createReportsRouter serves report contract responses', async () => {
     ['getCustomerHistory', '7'],
     ['getCustomerCreditProfile', '7'],
     ['getCustomerProfitabilityReport', { page: 4, pageSize: 3, limit: 3, offset: 9 }],
+    ['exportCustomerProfitabilityReport', 'admin', { fromDate: '2026-05-01', toDate: '2026-05-20' }],
     ['getLoanProfitabilityReport', { page: 5, pageSize: 2, limit: 2, offset: 8 }],
   ]);
 });

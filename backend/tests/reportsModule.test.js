@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const ExcelJS = require('exceljs');
 
 const { AuthorizationError } = require('@/utils/errorHandler');
 const {
@@ -17,6 +18,7 @@ const {
   createGetAssociateProfitabilityReport,
   createExportAssociateProfitabilityReport,
   createGetCustomerProfitabilityReport,
+  createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
 } = require('@/modules/reports/application/useCases');
 const { createReportsModule } = require('@/modules/reports');
@@ -482,6 +484,41 @@ test('profitability reports reconcile customer and loan totals from shared calcu
   assert.equal(loanReport.summary.totalProfit, '100.00');
   assert.equal(customerReport.data.customers[0].totalCollected, '850.00');
   assert.equal(loanReport.data.loans[0].customerName, 'Ana');
+});
+
+test('customer profitability Excel export uses the same values shown in profitability report', async () => {
+  const reportRepository = {
+    async listProfitabilityDataset() {
+      return {
+        loans: [
+          { id: 1, customerId: 7, amount: 1000, status: 'active', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 250 } },
+          { id: 2, customerId: 7, amount: 500, status: 'closed', Customer: { name: 'Ana' }, financialSnapshot: { outstandingBalance: 0 } },
+        ],
+        payments: [
+          { id: 1, loanId: 1, amount: 300, status: 'completed', principalApplied: 250, interestApplied: 40, penaltyApplied: 10, paymentDate: '2026-03-01T00:00:00.000Z' },
+          { id: 2, loanId: 2, amount: 550, status: 'completed', principalApplied: 500, interestApplied: 50, penaltyApplied: 0, paymentDate: '2026-03-02T00:00:00.000Z' },
+        ],
+      };
+    },
+  };
+
+  const exportFile = await createExportCustomerProfitabilityReport({ reportRepository })({
+    actor: { id: 1, role: 'admin' },
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(exportFile.buffer);
+  const sheet = workbook.getWorksheet('Rentabilidad Clientes');
+
+  assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.ok(sheet);
+  assert.equal(sheet.getRow(2).values.includes('Interés Cobrado'), true);
+  assert.equal(sheet.getRow(2).values.includes('Mora Cobrada'), true);
+  assert.equal(sheet.getRow(2).values.includes('Rentabilidad Total'), true);
+  assert.equal(sheet.getRow(3).getCell(2).value, 'Ana');
+  assert.equal(sheet.getRow(3).getCell(8).value, 90);
+  assert.equal(sheet.getRow(3).getCell(9).value, 10);
+  assert.equal(sheet.getRow(3).getCell(10).value, 100);
 });
 
 test('profitability reports return empty summaries when the dataset has no loans or posted payments', async () => {
