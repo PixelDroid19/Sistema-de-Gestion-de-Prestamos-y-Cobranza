@@ -290,6 +290,82 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.match(creditAmountRow.getCell(2).numFmt, /\$/);
 });
 
+test('export credits use case includes every credit for the same customer', async () => {
+  const loans = [
+    {
+      id: 2,
+      customerId: 1,
+      amount: 2000000,
+      interestRate: 35,
+      termMonths: 2,
+      status: 'active',
+      recoveryStatus: 'pending',
+      startDate: '2026-04-29T00:00:00.000Z',
+      Customer: { id: 1, name: 'pepito perez', phone: '3154688440' },
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-05-29T00:00:00.000Z', scheduledPayment: 1050000, principalComponent: 1000000, interestComponent: 50000, remainingBalance: 1000000, status: 'pending' },
+        { installmentNumber: 2, dueDate: '2026-06-29T00:00:00.000Z', scheduledPayment: 1050000, principalComponent: 1000000, interestComponent: 50000, remainingBalance: 0, status: 'pending' },
+      ],
+    },
+    {
+      id: 3,
+      customerId: 1,
+      amount: 800000,
+      interestRate: 35,
+      termMonths: 1,
+      status: 'pending',
+      recoveryStatus: 'pending',
+      startDate: '2026-05-01T00:00:00.000Z',
+      Customer: { id: 1, name: 'pepito perez', phone: '3154688440' },
+      emiSchedule: [
+        { installmentNumber: 1, dueDate: '2026-06-01T00:00:00.000Z', scheduledPayment: 823333.33, principalComponent: 800000, interestComponent: 23333.33, remainingBalance: 0, status: 'pending' },
+      ],
+    },
+  ];
+
+  const listedBy = [];
+  const useCase = createExportCreditsExcel({
+    reportRepository: {
+      async listCreditLoans() {
+        return loans;
+      },
+      async listOutstandingLoans() {
+        throw new Error('credits export must not use outstanding-only query');
+      },
+    },
+    paymentRepository: {
+      async listByLoan(loanId) {
+        listedBy.push(loanId);
+        return [];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView(currentLoan) {
+        return {
+          schedule: currentLoan.emiSchedule,
+          snapshot: {
+            installmentAmount: currentLoan.emiSchedule[0]?.scheduledPayment || 0,
+            totalPayable: currentLoan.emiSchedule.reduce((sum, row) => sum + Number(row.scheduledPayment || 0), 0),
+            totalInterest: currentLoan.emiSchedule.reduce((sum, row) => sum + Number(row.interestComponent || 0), 0),
+            outstandingPrincipal: currentLoan.amount,
+            outstandingInterest: currentLoan.emiSchedule.reduce((sum, row) => sum + Number(row.interestComponent || 0), 0),
+            outstandingBalance: currentLoan.emiSchedule.reduce((sum, row) => sum + Number(row.scheduledPayment || 0), 0),
+            nextInstallment: currentLoan.emiSchedule[0],
+          },
+        };
+      },
+    },
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { customerId: 1 } });
+
+  assert.deepEqual(result.data.rows.map((row) => row.creditId).sort((a, b) => a - b), [2, 3]);
+  assert.equal(result.data.sheets[1].rows.length, 2);
+  assert.ok(result.data.sheets.some((sheet) => sheet.name === 'Crédito 2'));
+  assert.ok(result.data.sheets.some((sheet) => sheet.name === 'Crédito 3'));
+  assert.deepEqual(listedBy.sort((a, b) => a - b), [2, 3]);
+});
+
 const roleAwareAuth = (config = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const roles = Array.isArray(config) ? config : [];

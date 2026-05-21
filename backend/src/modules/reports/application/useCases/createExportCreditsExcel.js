@@ -353,7 +353,10 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
  */
 const buildCreditsExportDataset = async ({ reportRepository, paymentRepository, loanViewService, filters }) => {
   const normalizedFilters = normalizeCreditExportFilters(filters);
-  const loans = (await reportRepository.listOutstandingLoans())
+  const listLoans = typeof reportRepository.listCreditLoans === 'function'
+    ? reportRepository.listCreditLoans.bind(reportRepository)
+    : reportRepository.listOutstandingLoans.bind(reportRepository);
+  const loans = (await listLoans())
     .map(toPlainLoan)
     .filter((loan) => matchesFilters(loan, normalizedFilters));
 

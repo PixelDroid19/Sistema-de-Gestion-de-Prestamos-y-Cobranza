@@ -84,6 +84,12 @@ const reportRepository = {
       order: [['updatedAt', 'DESC']],
     });
   },
+  listCreditLoans() {
+    return Loan.findAll({
+      include: reportIncludes,
+      order: [['updatedAt', 'DESC']],
+    });
+  },
   listOutstandingLoansPage({ page, pageSize }) {
     return paginateModel({
       model: Loan,
