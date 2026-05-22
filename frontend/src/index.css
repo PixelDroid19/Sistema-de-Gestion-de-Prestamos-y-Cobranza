@@ -1384,8 +1384,9 @@
 }
 
 .rbc-event {
-  background-color: transparent !important;
   padding: 2px 5px !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .rbc-button-link {

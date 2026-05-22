@@ -103,6 +103,53 @@ test('buildCreditHistoryAuditReport reconciles monthly audit totals for loans an
   assert.equal(report.months[1].availableCash, '8000000.00');
 });
 
+test('credit history detail reconciles paid interest from canonical payments and does not count capital payments as received installments', () => {
+  const report = buildCreditHistoryAuditReport({
+    filters: {
+      startDate: new Date('2026-06-01T00:00:00.000Z'),
+      endDate: new Date('2026-06-30T23:59:59.999Z'),
+    },
+    loans: [
+      makeLoan({
+        id: 1,
+        amount: 2000000,
+        startDate: '2026-06-01T00:00:00.000Z',
+        principalOutstanding: 1390805,
+        financialSnapshot: {
+          totalPaid: 669195,
+          totalPaidInterest: 60000,
+        },
+      }),
+    ],
+    payments: [
+      makePayment({
+        id: 1,
+        loanId: 1,
+        amount: 369195,
+        principalApplied: 309195,
+        interestApplied: 60000,
+        paymentType: 'installment',
+        paymentDate: '2026-06-02T00:00:00.000Z',
+      }),
+      makePayment({
+        id: 2,
+        loanId: 1,
+        amount: 300000,
+        principalApplied: 300000,
+        interestApplied: 0,
+        paymentType: 'capital',
+        paymentDate: '2026-06-10T00:00:00.000Z',
+      }),
+    ],
+  });
+
+  assert.equal(report.summary.installmentsReceived, 1);
+  assert.equal(report.summary.totalPaymentsReceived, '669195.00');
+  assert.equal(report.credits[0].totalPaid, 669195);
+  assert.equal(report.credits[0].interestPaid, 60000);
+  assert.equal(report.credits[0].penaltyPaid, 0);
+});
+
 test('credit history audit use case passes normalized month, date and status filters to canonical repository', async () => {
   const useCase = createGetCreditHistoryAuditReport({
     reportRepository: {

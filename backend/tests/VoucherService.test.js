@@ -55,6 +55,13 @@ describe('VoucherService', () => {
       assert.match(result, /21/);
       assert.match(result, /2026/);
     });
+
+    test('keeps UTC midnight payment timestamps on the same operational day', () => {
+      const result = VoucherService.formatDate('2026-06-01T00:00:00.000Z');
+      assert.match(result, /1/);
+      assert.match(result, /junio|June/);
+      assert.match(result, /2026/);
+    });
   });
 
   describe('formatPaymentMethod', () => {

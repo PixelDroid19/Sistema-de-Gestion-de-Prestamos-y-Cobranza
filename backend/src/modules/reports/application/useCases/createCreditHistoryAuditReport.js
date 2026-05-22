@@ -184,6 +184,10 @@ const getPaymentCustomerName = (payment) => (
   || `Cliente #${getPaymentLoan(payment).customerId || 'N/A'}`
 );
 
+const getPaymentLoanId = (payment) => Number(payment.loanId || getPaymentLoan(payment).id || 0);
+
+const isInstallmentPayment = (payment) => String(payment.paymentType || 'installment').toLowerCase() === 'installment';
+
 const makeEmptyMonth = (monthKey) => ({
   month: monthKey,
   monthLabel: monthLabel(monthKey),
@@ -247,7 +251,9 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
     }
 
     const row = monthsByKey.get(month);
-    row.installmentsReceived += 1;
+    if (isInstallmentPayment(payment)) {
+      row.installmentsReceived += 1;
+    }
     row.paymentsReceived += toNumber(payment.amount);
     row.capitalRecovered += toNumber(payment.principalApplied);
     row.interestCollected += toNumber(payment.interestApplied);
@@ -294,21 +300,46 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
     availableCash: months.at(-1)?.availableCash || '0.00',
   };
 
+  const paymentsByLoanId = plainPayments.reduce((map, payment) => {
+    const loanId = getPaymentLoanId(payment);
+    if (!loanId) {
+      return map;
+    }
+
+    const current = map.get(loanId) || {
+      totalPaid: 0,
+      principalApplied: 0,
+      interestApplied: 0,
+      penaltyApplied: 0,
+    };
+    current.totalPaid += toNumber(payment.amount);
+    current.principalApplied += toNumber(payment.principalApplied);
+    current.interestApplied += toNumber(payment.interestApplied);
+    current.penaltyApplied += toNumber(payment.penaltyApplied);
+    map.set(loanId, current);
+    return map;
+  }, new Map());
+
   return {
     filters,
     summary,
     months,
-    credits: plainLoans.map((loan) => ({
-      creditId: loan.id,
-      customerName: getLoanCustomerName(loan),
-      status: loan.status || '',
-      creditDate: toOperationalDateOrNull(pickLoanDate(loan)) || '',
-      amount: roundMoney(loan.amount),
-      principalOutstanding: roundMoney(getPrincipalOutstanding(loan)),
-      totalPaid: roundMoney(loan.financialSnapshot?.totalPaid),
-      interestPaid: roundMoney(loan.financialSnapshot?.interestPaid || loan.financialSnapshot?.totalInterestPaid),
-      penaltyPaid: roundMoney(loan.financialSnapshot?.penaltyPaid || loan.financialSnapshot?.lateFeesPaid),
-    })),
+    credits: plainLoans.map((loan) => {
+      const paidByLoan = paymentsByLoanId.get(Number(loan.id)) || {};
+      const snapshot = loan.financialSnapshot || {};
+
+      return {
+        creditId: loan.id,
+        customerName: getLoanCustomerName(loan),
+        status: loan.status || '',
+        creditDate: toOperationalDateOrNull(pickLoanDate(loan)) || '',
+        amount: roundMoney(loan.amount),
+        principalOutstanding: roundMoney(getPrincipalOutstanding(loan)),
+        totalPaid: roundMoney(snapshot.totalPaid ?? paidByLoan.totalPaid),
+        interestPaid: roundMoney(snapshot.totalPaidInterest ?? snapshot.interestPaid ?? paidByLoan.interestApplied),
+        penaltyPaid: roundMoney(snapshot.totalPaidPenalty ?? snapshot.penaltyPaid ?? snapshot.lateFeesPaid ?? paidByLoan.penaltyApplied),
+      };
+    }),
     payments: plainPayments.map((payment) => ({
       paymentId: payment.id,
       creditId: payment.loanId || getPaymentLoan(payment).id,

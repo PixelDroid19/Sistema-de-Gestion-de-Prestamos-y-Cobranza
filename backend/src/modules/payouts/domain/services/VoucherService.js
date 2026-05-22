@@ -50,10 +50,11 @@ const VoucherService = {
     if (!date) {
       return 'N/A';
     }
-    const dateOnlyMatch = typeof date === 'string' ? date.match(/^(\d{4})-(\d{2})-(\d{2})$/u) : null;
-    const d = dateOnlyMatch
-      ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]), 12)
-      : new Date(date);
+    const datePartMatch = typeof date === 'string' ? date.match(/^(\d{4})-(\d{2})-(\d{2})/u) : null;
+    const rawDate = date instanceof Date ? date : new Date(date);
+    const d = datePartMatch
+      ? new Date(Number(datePartMatch[1]), Number(datePartMatch[2]) - 1, Number(datePartMatch[3]), 12)
+      : new Date(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate(), 12);
     if (Number.isNaN(d.getTime())) {
       return 'N/A';
     }
@@ -201,6 +202,13 @@ const VoucherService = {
       this.renderKeyValue(doc, 'Mora', this.formatCurrency(data.lateFee), PAGE.left, startY + 60);
     }
 
+    const methodY = data.lateFee > 0 ? startY + 82 : startY + 64;
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#374151')
+      .text(`Método de pago: ${this.formatPaymentMethod(data.paymentMethod)}`, PAGE.left, methodY, { width: PAGE.width });
+
     return doc;
   },
 
@@ -210,16 +218,12 @@ const VoucherService = {
    * @param {object} data
    */
   renderFooter(doc, data) {
-    const startY = 568;
-
-    this.renderKeyValue(doc, 'Método de pago', this.formatPaymentMethod(data.paymentMethod), PAGE.left, startY);
-
     if (data.observations) {
       doc
         .font('Helvetica')
         .fontSize(10)
         .fillColor('#374151')
-        .text(`Observaciones: ${data.observations}`, PAGE.left, startY + 24, { width: PAGE.width });
+        .text(`Observaciones: ${data.observations}`, PAGE.left, 568, { width: PAGE.width });
     }
 
     doc

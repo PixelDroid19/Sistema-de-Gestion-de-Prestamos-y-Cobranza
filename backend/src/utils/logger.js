@@ -82,36 +82,54 @@ const logsDir = path.resolve(process.cwd(), 'logs');
 const shouldUseFileTransports = process.env.LOG_TO_FILES !== 'false';
 const fileTransports = [];
 
-if (shouldUseFileTransports) {
+const canWriteLogFiles = () => {
+  const probePath = path.join(logsDir, `.write-check-${process.pid}`);
   try {
     fs.mkdirSync(logsDir, { recursive: true });
+    fs.writeFileSync(probePath, '');
+    fs.unlinkSync(probePath);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+};
 
+const guardTransport = (transport) => {
+  transport.on('error', () => {
+    // Read-only or transient filesystem failures must not crash the API.
+    transport.silent = true;
+  });
+  return transport;
+};
+
+if (shouldUseFileTransports) {
+  if (canWriteLogFiles()) {
     // Combined — all levels, daily rotation, 30 days retention
     fileTransports.push(
-      new winston.transports.DailyRotateFile({
+      guardTransport(new winston.transports.DailyRotateFile({
         filename: path.join(logsDir, 'combined-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '20m',
         maxFiles: '30d',
         zippedArchive: true,
-      }),
+      })),
     );
 
     // Errors only — separate file for fast triage
     fileTransports.push(
-      new winston.transports.DailyRotateFile({
+      guardTransport(new winston.transports.DailyRotateFile({
         filename: path.join(logsDir, 'error-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         level: 'error',
         maxSize: '20m',
         maxFiles: '30d',
         zippedArchive: true,
-      }),
+      })),
     );
 
     // Security category — separate file for SIEM / compliance
     fileTransports.push(
-      new winston.transports.DailyRotateFile({
+      guardTransport(new winston.transports.DailyRotateFile({
         filename: path.join(logsDir, 'security-%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '20m',
@@ -119,10 +137,8 @@ if (shouldUseFileTransports) {
         zippedArchive: true,
         // Only accept entries with category === 'security'
         filter: (info) => info.category === LOG_CATEGORY.SECURITY,
-      }),
+      })),
     );
-  } catch (_err) {
-    // Container / read-only FS — fall back to console only.
   }
 }
 
