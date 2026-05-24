@@ -32,6 +32,8 @@ const MONTHLY_HISTORY_COLUMNS = [
   moneyColumn('Capital Prestado', 'createdPrincipal'),
   { header: 'Cuotas Recibidas', key: 'installmentsReceived', width: 18, numFmt: INTEGER_FORMAT },
   moneyColumn('Total Recibido', 'paymentsReceived'),
+  moneyColumn('Intereses Pagados a Socios', 'associateInterestPaid', 26),
+  moneyColumn('Gastos Operativos', 'operatingExpenses', 22),
   moneyColumn('Capital Recuperado', 'capitalRecovered'),
   moneyColumn('Intereses Cobrados', 'interestCollected'),
   moneyColumn('Mora Cobrada', 'penaltiesCollected'),
@@ -116,6 +118,24 @@ const normalizeStatusFilter = (value) => {
   return statuses.length > 0 ? statuses : null;
 };
 
+const normalizeOptionalPositiveId = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new BadRequestError(`${fieldName} must be a valid positive integer`);
+  }
+
+  const numericValue = Number(normalized);
+  if (!Number.isSafeInteger(numericValue) || numericValue <= 0) {
+    throw new BadRequestError(`${fieldName} must be a valid positive integer`);
+  }
+
+  return numericValue;
+};
+
 const parseMonthFilter = (value) => {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -154,6 +174,8 @@ const normalizeCreditHistoryFilters = (filters = {}) => {
     startDate,
     endDate,
     status: normalizeStatusFilter(filters.status),
+    customerId: normalizeOptionalPositiveId(filters.customerId, 'customerId'),
+    loanId: normalizeOptionalPositiveId(filters.loanId ?? filters.creditId, 'loanId'),
   };
 };
 
@@ -196,6 +218,8 @@ const makeEmptyMonth = (monthKey) => ({
   createdPrincipal: 0,
   installmentsReceived: 0,
   paymentsReceived: 0,
+  associateInterestPaid: 0,
+  operatingExpenses: 0,
   capitalRecovered: 0,
   interestCollected: 0,
   penaltiesCollected: 0,
@@ -205,7 +229,7 @@ const makeEmptyMonth = (monthKey) => ({
   availableCash: 0,
 });
 
-const getMonthRange = ({ loans, payments, filters }) => {
+const getMonthRange = ({ loans, payments, associateInterestPayments, operatingExpenses, filters }) => {
   const explicitMonths = [];
   if (filters.startDate && filters.endDate) {
     const cursor = new Date(Date.UTC(filters.startDate.getUTCFullYear(), filters.startDate.getUTCMonth(), 1));
@@ -219,15 +243,25 @@ const getMonthRange = ({ loans, payments, filters }) => {
   const observedMonths = [
     ...loans.map((loan) => toMonthKey(pickLoanDate(loan))),
     ...payments.map((payment) => toMonthKey(payment.paymentDate)),
+    ...associateInterestPayments.map((installment) => toMonthKey(installment.paidAt || installment.paymentDate)),
+    ...operatingExpenses.map((expense) => toMonthKey(expense.expenseDate || expense.paymentDate || expense.date)),
   ].filter(Boolean);
 
   return Array.from(new Set([...explicitMonths, ...observedMonths])).sort();
 };
 
-const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {} }) => {
+const buildCreditHistoryAuditReport = ({ loans = [], payments = [], associateInterestPayments = [], operatingExpenses = [], filters = {} }) => {
   const plainLoans = loans.map(toPlain);
   const plainPayments = payments.map(toPlain);
-  const monthKeys = getMonthRange({ loans: plainLoans, payments: plainPayments, filters });
+  const plainAssociateInterestPayments = associateInterestPayments.map(toPlain);
+  const plainOperatingExpenses = operatingExpenses.map(toPlain);
+  const monthKeys = getMonthRange({
+    loans: plainLoans,
+    payments: plainPayments,
+    associateInterestPayments: plainAssociateInterestPayments,
+    operatingExpenses: plainOperatingExpenses,
+    filters,
+  });
   const monthsByKey = new Map(monthKeys.map((month) => [month, makeEmptyMonth(month)]));
 
   plainLoans.forEach((loan) => {
@@ -261,16 +295,40 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
     row.penaltiesCollected += toNumber(payment.penaltyApplied);
   });
 
+  plainAssociateInterestPayments
+    .filter((installment) => String(installment.status || '').toLowerCase() === 'paid')
+    .forEach((installment) => {
+      const month = toMonthKey(installment.paidAt || installment.paymentDate || installment.updatedAt);
+      if (!month || !monthsByKey.has(month)) {
+        return;
+      }
+
+      monthsByKey.get(month).associateInterestPaid += toNumber(installment.amount);
+    });
+
+  plainOperatingExpenses
+    .filter((expense) => ['completed', 'paid', 'posted'].includes(String(expense.status || '').toLowerCase()))
+    .forEach((expense) => {
+      const month = toMonthKey(expense.expenseDate || expense.paymentDate || expense.date || expense.createdAt);
+      if (!month || !monthsByKey.has(month)) {
+        return;
+      }
+
+      monthsByKey.get(month).operatingExpenses += toNumber(expense.amount);
+    });
+
   let accumulatedCash = 0;
   const months = Array.from(monthsByKey.values()).map((month) => {
     month.gains = month.interestCollected + month.penaltiesCollected;
-    accumulatedCash += month.paymentsReceived - month.createdPrincipal;
+    accumulatedCash += month.paymentsReceived - month.createdPrincipal - month.associateInterestPaid - month.operatingExpenses;
     month.availableCash = accumulatedCash;
 
     return {
       ...month,
       createdPrincipal: toMoneyString(month.createdPrincipal),
       paymentsReceived: toMoneyString(month.paymentsReceived),
+      associateInterestPaid: toMoneyString(month.associateInterestPaid),
+      operatingExpenses: toMoneyString(month.operatingExpenses),
       capitalRecovered: toMoneyString(month.capitalRecovered),
       interestCollected: toMoneyString(month.interestCollected),
       penaltiesCollected: toMoneyString(month.penaltiesCollected),
@@ -287,6 +345,8 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
     installmentsReceived: count('installmentsReceived'),
     totalPrincipalCreated: sum('createdPrincipal'),
     totalPaymentsReceived: sum('paymentsReceived'),
+    totalAssociateInterestPaid: sum('associateInterestPaid'),
+    totalOperatingExpenses: sum('operatingExpenses'),
     totalCapitalRecovered: sum('capitalRecovered'),
     totalPrincipalOutstanding: toMoneyString(Math.max(
       months.reduce((total, month) => total + toNumber(month.createdPrincipal), 0)
@@ -361,6 +421,8 @@ const buildSummaryRows = (summary) => [
   { indicator: 'Cuotas recibidas', value: summary.installmentsReceived },
   { indicator: 'Capital prestado', value: Number(summary.totalPrincipalCreated), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Total recibido', value: Number(summary.totalPaymentsReceived), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Intereses pagados a socios', value: Number(summary.totalAssociateInterestPaid), __formats: { value: { numFmt: MONEY_FORMAT } } },
+  { indicator: 'Gastos operativos', value: Number(summary.totalOperatingExpenses), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Capital recuperado', value: Number(summary.totalCapitalRecovered), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Capital vivo', value: Number(summary.totalPrincipalOutstanding), __formats: { value: { numFmt: MONEY_FORMAT } } },
   { indicator: 'Intereses cobrados', value: Number(summary.totalInterestCollected), __formats: { value: { numFmt: MONEY_FORMAT } } },
@@ -434,6 +496,10 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
     toDateOnlyOrNull(report.filters.startDate) || 'inicio',
     toDateOnlyOrNull(report.filters.endDate) || 'hoy',
   ].join(' a ');
+  const monthlyDetailLines = report.months.flatMap((month, index) => [
+    ...(index === 0 ? ['Detalle mensual'] : []),
+    `${month.month} - prestado ${formatMoney(month.createdPrincipal)} - recibido ${formatMoney(month.paymentsReceived)} - socios ${formatMoney(month.associateInterestPaid)} - gastos ${formatMoney(month.operatingExpenses)} - caja ${formatMoney(month.availableCash)}`,
+  ]);
 
   return {
     fileName: `historial-creditos-${toDateOnlyOrNull(report.filters.startDate) || 'inicio'}-${toDateOnlyOrNull(report.filters.endDate) || 'hoy'}.pdf`,
@@ -446,6 +512,8 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
         `Cuotas recibidas: ${report.summary.installmentsReceived}`,
         `Capital prestado: ${formatMoney(report.summary.totalPrincipalCreated)}`,
         `Total recibido: ${formatMoney(report.summary.totalPaymentsReceived)}`,
+        `Intereses pagados a socios: ${formatMoney(report.summary.totalAssociateInterestPaid)}`,
+        `Gastos operativos: ${formatMoney(report.summary.totalOperatingExpenses)}`,
         `Capital recuperado: ${formatMoney(report.summary.totalCapitalRecovered)}`,
         `Capital vivo: ${formatMoney(report.summary.totalPrincipalOutstanding)}`,
         `Intereses cobrados: ${formatMoney(report.summary.totalInterestCollected)}`,
@@ -454,6 +522,7 @@ const createExportCreditHistoryAuditPdf = ({ reportRepository }) => async ({ act
         `Pérdidas/Riesgo: ${formatMoney(report.summary.lossesAtRisk)}`,
         `Ganancias: ${formatMoney(report.summary.gains)}`,
         `Caja disponible: ${formatMoney(report.summary.availableCash)}`,
+        ...monthlyDetailLines,
       ],
     }),
   };

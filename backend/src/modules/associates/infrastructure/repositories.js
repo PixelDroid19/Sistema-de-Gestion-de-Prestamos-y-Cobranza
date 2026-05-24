@@ -137,9 +137,6 @@ const associateRepository = {
   update(associate, payload) {
     return associate.update(payload);
   },
-  destroy(associate) {
-    return associate.destroy();
-  },
   listContributionsByAssociate(associateId, { transaction } = {}) {
     return AssociateContribution.findAll({
       where: { associateId },

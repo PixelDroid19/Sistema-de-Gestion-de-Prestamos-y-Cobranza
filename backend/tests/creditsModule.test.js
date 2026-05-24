@@ -449,13 +449,25 @@ test('createDeleteLoan rejects deletion of a foreign rejected loan before destro
   assert.equal(destroyed, false);
 });
 
-test('createDeleteLoan deletes an authorized rejected loan for admins only', async () => {
+test('createDeleteLoan preserves rejected loan history by cancelling instead of destroying', async () => {
   let destroyedLoan = null;
-  const rejectedLoan = { id: 77, status: 'rejected', customerId: 7 };
+  let savedLoan = null;
+  const rejectedLoan = {
+    id: 77,
+    status: 'rejected',
+    customerId: 7,
+    save() {
+      savedLoan = { ...this };
+      return this;
+    },
+  };
   const deleteLoan = createDeleteLoan({
     loanRepository: {
       async destroy(loan) {
         destroyedLoan = loan;
+      },
+      async save(loan) {
+        return loan.save();
       },
     },
     loanAccessPolicy: {
@@ -473,7 +485,11 @@ test('createDeleteLoan deletes an authorized rejected loan for admins only', asy
     loanId: 77,
   });
 
-  assert.equal(destroyedLoan, rejectedLoan);
+  assert.equal(destroyedLoan, null);
+  assert.equal(savedLoan.id, 77);
+  assert.equal(savedLoan.status, 'cancelled');
+  assert.equal(savedLoan.closureReason, 'cancelled');
+  assert.ok(savedLoan.closedAt instanceof Date);
 });
 
 test('createDeleteLoan rejects non-admin actors before touching the repository', async () => {
@@ -1126,6 +1142,43 @@ test('createGetPaymentCalendarOverview rejects malformed limit filters', async (
     loanIds: [],
     filters: { limit: '1e2' },
   }), /limit/);
+});
+
+test('createGetPaymentCalendarOverview rejects inverted date range in calendar filters', async () => {
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      filterVisibleLoans({ loans }) {
+        return loans;
+      },
+    },
+    loanRepository: {
+      async list() {
+        return [];
+      },
+      async search() {
+        return [];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        throw new Error('getCanonicalLoanView should not be called');
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(() => getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [],
+    filters: {
+      startDate: '2026-06-30',
+      endDate: '2026-06-01',
+    },
+  }), (error) => /startDate must be before or equal to endDate/.test(error.message));
 });
 
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {

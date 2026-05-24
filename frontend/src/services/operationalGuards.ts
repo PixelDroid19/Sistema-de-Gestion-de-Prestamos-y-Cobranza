@@ -123,11 +123,15 @@ const hasRequiredPermission = (
 
 const canDeleteCredit = (role?: OperationalRole, loanStatus?: string): GuardResult => {
   if (!isAdminRole(role)) {
-    return { visible: false, executable: false, reason: 'Solo administradores pueden eliminar créditos.' };
+    return { visible: false, executable: false, reason: 'Solo administradores pueden cancelar créditos.' };
   }
 
   if (loanStatus === 'closed' || loanStatus === 'completed') {
-    return { visible: true, executable: false, reason: 'No se puede eliminar un crédito cerrado o completado.' };
+    return { visible: true, executable: false, reason: 'No se puede cancelar un crédito cerrado o completado.' };
+  }
+
+  if (loanStatus !== 'rejected') {
+    return { visible: true, executable: false, reason: 'Solo se pueden cancelar créditos rechazados.' };
   }
 
   return { visible: true, executable: true };

@@ -564,6 +564,12 @@ const createUpdateRatePolicy = ({ configRepository }) => async (policyId, payloa
 const createDeleteRatePolicy = ({ configRepository }) => async (policyId) => {
   const existing = await configRepository.findByIdAndCategory(policyId, RATE_POLICY_CATEGORY);
   if (!existing) throw new NotFoundError('Rate policy');
+  const usedLoans = typeof configRepository.countLoansUsingRatePolicy === 'function'
+    ? await configRepository.countLoansUsingRatePolicy(existing.id)
+    : 0;
+  if (usedLoans > 0) {
+    throw new ConflictError('Rate policy is used by existing loans and cannot be deleted');
+  }
   await configRepository.destroy(existing.id);
   return { id: Number(policyId) };
 };

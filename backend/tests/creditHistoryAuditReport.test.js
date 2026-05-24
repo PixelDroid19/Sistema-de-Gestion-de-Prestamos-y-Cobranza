@@ -103,6 +103,36 @@ test('buildCreditHistoryAuditReport reconciles monthly audit totals for loans an
   assert.equal(report.months[1].availableCash, '8000000.00');
 });
 
+test('buildCreditHistoryAuditReport subtracts paid associate interest and operating expenses from available cash', () => {
+  const report = buildCreditHistoryAuditReport({
+    filters: {
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      endDate: new Date('2026-01-31T23:59:59.999Z'),
+    },
+    loans: [
+      makeLoan({ id: 1, amount: 40000000, status: 'active', startDate: '2026-01-04T00:00:00.000Z' }),
+    ],
+    payments: [
+      makePayment({ id: 10, amount: 50000000, principalApplied: 45000000, interestApplied: 4000000, penaltyApplied: 1000000, paymentDate: '2026-01-20T00:00:00.000Z' }),
+    ],
+    associateInterestPayments: [
+      { id: 20, amount: 2000000, status: 'paid', paidAt: '2026-01-22T00:00:00.000Z' },
+      { id: 21, amount: 9000000, status: 'pending', dueDate: '2026-01-25T00:00:00.000Z' },
+    ],
+    operatingExpenses: [
+      { id: 30, amount: 1500000, status: 'completed', expenseDate: '2026-01-28T00:00:00.000Z' },
+      { id: 31, amount: 700000, status: 'annulled', expenseDate: '2026-01-29T00:00:00.000Z' },
+    ],
+  });
+
+  assert.equal(report.summary.totalAssociateInterestPaid, '2000000.00');
+  assert.equal(report.summary.totalOperatingExpenses, '1500000.00');
+  assert.equal(report.summary.availableCash, '6500000.00');
+  assert.equal(report.months[0].associateInterestPaid, '2000000.00');
+  assert.equal(report.months[0].operatingExpenses, '1500000.00');
+  assert.equal(report.months[0].availableCash, '6500000.00');
+});
+
 test('credit history detail reconciles paid interest from canonical payments and does not count capital payments as received installments', () => {
   const report = buildCreditHistoryAuditReport({
     filters: {
@@ -175,6 +205,37 @@ test('credit history audit use case passes normalized month, date and status fil
   assert.equal(response.data.summary.totalPaymentsReceived, '3000000.00');
 });
 
+test('credit history audit use case passes normalized customer and credit filters to canonical repository', async () => {
+  const useCase = createGetCreditHistoryAuditReport({
+    reportRepository: {
+      async listCreditHistoryDataset(filters) {
+        assert.equal(filters.customerId, 7);
+        assert.equal(filters.loanId, 15);
+        return {
+          loans: [makeLoan({ id: 15, customerId: 7, amount: 1200000, startDate: '2026-05-03T00:00:00.000Z' })],
+          payments: [makePayment({
+            loanId: 15,
+            amount: 400000,
+            principalApplied: 300000,
+            interestApplied: 100000,
+            paymentDate: '2026-05-20T00:00:00.000Z',
+            Loan: { id: 15, customerId: 7, Customer: { name: 'Cliente filtrado' } },
+          })],
+        };
+      },
+    },
+  });
+
+  const response = await useCase({
+    actor: { role: 'admin' },
+    filters: { customerId: '7', loanId: '15' },
+  });
+
+  assert.equal(response.success, true);
+  assert.equal(response.data.credits[0].creditId, 15);
+  assert.equal(response.data.payments[0].creditId, 15);
+});
+
 test('credit history audit Excel and PDF exports include Spanish operational fields and no CSV payload', async () => {
   const dependencies = {
     reportRepository: {
@@ -182,6 +243,12 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
         return {
           loans: [makeLoan({ amount: 2000000 })],
           payments: [makePayment({ amount: 2000000, principalApplied: 1500000, interestApplied: 500000 })],
+          associateInterestPayments: [
+            { id: 20, amount: 200000, status: 'paid', paidAt: '2026-01-20T00:00:00.000Z' },
+          ],
+          operatingExpenses: [
+            { id: 30, amount: 100000, status: 'completed', expenseDate: '2026-01-21T00:00:00.000Z' },
+          ],
         };
       },
     },
@@ -201,6 +268,8 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const headers = workbook.getWorksheet('Historial Mensual').getRow(2).values;
   assert.ok(headers.includes('Créditos Creados'));
   assert.ok(headers.includes('Cuotas Recibidas'));
+  assert.ok(headers.includes('Intereses Pagados a Socios'));
+  assert.ok(headers.includes('Gastos Operativos'));
   assert.ok(headers.includes('Intereses Cobrados'));
   assert.ok(headers.includes('Capital Recuperado'));
   assert.ok(headers.includes('Créditos Vencidos'));
@@ -211,12 +280,12 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   const historySheet = workbook.getWorksheet('Historial Mensual');
   const firstCapitalCell = historySheet.getRow(3).getCell(3);
   const firstReceivedCell = historySheet.getRow(3).getCell(5);
-  const firstGainsCell = historySheet.getRow(3).getCell(11);
-  const firstAvailableCashCell = historySheet.getRow(3).getCell(12);
+  const firstGainsCell = historySheet.getRow(3).getCell(13);
+  const firstAvailableCashCell = historySheet.getRow(3).getCell(14);
   assert.equal(firstCapitalCell.value, 2000000);
   assert.equal(firstReceivedCell.value, 2000000);
   assert.equal(firstGainsCell.value, 500000);
-  assert.equal(firstAvailableCashCell.value, 0);
+  assert.equal(firstAvailableCashCell.value, -300000);
   assert.equal(typeof firstCapitalCell.value, 'number');
   assert.match(firstCapitalCell.numFmt, /\$/);
   assert.match(firstGainsCell.numFmt, /\$/);
@@ -238,6 +307,10 @@ test('credit history audit Excel and PDF exports include Spanish operational fie
   assert.doesNotMatch(pdf.fileName, /\.csv$/);
   assert.match(pdf.buffer.toString('utf8'), /%PDF-1.4/);
   assert.match(pdf.buffer.toString('utf8'), /Historial de créditos/);
+  assert.match(pdf.buffer.toString('utf8'), /Intereses pagados a socios/);
+  assert.match(pdf.buffer.toString('utf8'), /Gastos operativos/);
+  assert.match(pdf.buffer.toString('utf8'), /Detalle mensual/);
+  assert.match(pdf.buffer.toString('utf8'), /2026-01 - prestado 2000000.00 - recibido 2000000.00 - socios 200000.00 - gastos 100000.00 - caja -300000.00/);
 });
 
 test('reports router exposes advanced credit history JSON, Excel and PDF routes', async () => {
@@ -249,11 +322,11 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
     },
     useCases: {
       async getCreditHistoryAuditReport({ actor, filters }) {
-        calls.push(['json', actor.role, filters.status]);
+        calls.push(['json', actor.role, filters.status, filters.customerId, filters.loanId]);
         return { success: true, data: { summary: { availableCash: '1000.00' }, months: [] } };
       },
       async exportCreditHistoryAuditExcel({ actor, filters }) {
-        calls.push(['excel', actor.role, filters.status]);
+        calls.push(['excel', actor.role, filters.status, filters.customerId, filters.loanId]);
         return {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           fileName: 'historial-creditos-2026-01-01-2026-01-31.xlsx',
@@ -261,7 +334,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
         };
       },
       async exportCreditHistoryAuditPdf({ actor, filters }) {
-        calls.push(['pdf', actor.role, filters.status]);
+        calls.push(['pdf', actor.role, filters.status, filters.customerId, filters.loanId]);
         return {
           contentType: 'application/pdf',
           fileName: 'historial-creditos-2026-01-01-2026-01-31.pdf',
@@ -277,14 +350,14 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   activeServer = await listen(app);
 
   const jsonResponse = await requestJson(activeServer, {
-    path: '/credit-history/monthly?startDate=2026-01-01&endDate=2026-01-31&status=active',
+    path: '/credit-history/monthly?startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(jsonResponse.statusCode, 200);
   assert.equal(jsonResponse.body.data.summary.availableCash, '1000.00');
 
   const excelResponse = await requestBuffer(activeServer, {
-    path: '/credit-history/monthly/export?format=xlsx&startDate=2026-01-01&endDate=2026-01-31&status=active',
+    path: '/credit-history/monthly/export?format=xlsx&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(excelResponse.statusCode, 200);
@@ -292,7 +365,7 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   assert.match(excelResponse.headers['content-disposition'] || '', /\.xlsx/);
 
   const pdfResponse = await requestBuffer(activeServer, {
-    path: '/credit-history/monthly/export?format=pdf&startDate=2026-01-01&endDate=2026-01-31&status=active',
+    path: '/credit-history/monthly/export?format=pdf&startDate=2026-01-01&endDate=2026-01-31&status=active&customerId=7&loanId=15',
     headers: { authorization: 'Bearer valid-token' },
   });
   assert.equal(pdfResponse.statusCode, 200);
@@ -300,8 +373,8 @@ test('reports router exposes advanced credit history JSON, Excel and PDF routes'
   assert.match(pdfResponse.headers['content-disposition'] || '', /\.pdf/);
 
   assert.deepEqual(calls, [
-    ['json', 'admin', 'active'],
-    ['excel', 'admin', 'active'],
-    ['pdf', 'admin', 'active'],
+    ['json', 'admin', 'active', '7', '15'],
+    ['excel', 'admin', 'active', '7', '15'],
+    ['pdf', 'admin', 'active', '7', '15'],
   ]);
 });

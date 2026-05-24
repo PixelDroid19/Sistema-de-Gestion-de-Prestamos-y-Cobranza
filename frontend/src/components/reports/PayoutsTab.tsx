@@ -19,9 +19,11 @@ import {
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
+type PayoutFilters = { fromDate?: string; toDate?: string; status?: string; paymentType?: string };
+
 type PayoutsTabProps = {
-  payoutFilters: { fromDate?: string; toDate?: string };
-  onPayoutFiltersChange: (filters: { fromDate?: string; toDate?: string }) => void;
+  payoutFilters: PayoutFilters;
+  onPayoutFiltersChange: (filters: PayoutFilters) => void;
   payoutPage: number;
   onPayoutPageChange: (page: number) => void;
   payoutPageSize: number;
@@ -44,6 +46,25 @@ export default function PayoutsTab({
   payoutPagination,
   isPayoutsLoading,
 }: PayoutsTabProps) {
+  const updateFilters = (patch: PayoutFilters) => {
+    const candidateFilters = { ...payoutFilters, ...patch };
+    if (candidateFilters.fromDate && candidateFilters.toDate && candidateFilters.fromDate > candidateFilters.toDate) {
+      return;
+    }
+
+    const nextFilters = Object.entries(candidateFilters).reduce<PayoutFilters>(
+      (acc, [key, value]) => {
+        if (value) {
+          acc[key as keyof PayoutFilters] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+    onPayoutFiltersChange(nextFilters);
+    onPayoutPageChange(1);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {payoutSummary && (
@@ -103,7 +124,7 @@ export default function PayoutsTab({
                 <TextInput
                   type="date"
                   value={payoutFilters.fromDate || ''}
-                  onChange={(e) => onPayoutFiltersChange({ ...payoutFilters, fromDate: e.target.value })}
+                  onChange={(e) => updateFilters({ fromDate: e.target.value })}
                 />
               </FormField>
               <span className="pb-2.5 text-sm text-text-secondary">a</span>
@@ -111,10 +132,31 @@ export default function PayoutsTab({
                 <TextInput
                   type="date"
                   value={payoutFilters.toDate || ''}
-                  onChange={(e) => onPayoutFiltersChange({ ...payoutFilters, toDate: e.target.value })}
+                  onChange={(e) => updateFilters({ toDate: e.target.value })}
                 />
               </FormField>
             </div>
+            <FormField label={tTerm('reports.payouts.filter.paymentType')} className="sm:w-44">
+              <SelectInput
+                value={payoutFilters.paymentType || ''}
+                onChange={(event) => updateFilters({ paymentType: event.target.value })}
+              >
+                <option value="">{tTerm('credits.filter.all')}</option>
+                <option value="installment">{getPaymentTypeLabel('installment')}</option>
+                <option value="partial">{getPaymentTypeLabel('partial')}</option>
+                <option value="capital">{getPaymentTypeLabel('capital')}</option>
+                <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
+              </SelectInput>
+            </FormField>
+            <FormField label={tTerm('reports.payouts.filter.status')} className="sm:w-40">
+              <SelectInput
+                value={payoutFilters.status || ''}
+                onChange={(event) => updateFilters({ status: event.target.value })}
+              >
+                <option value="">{tTerm('common.status.completed')}</option>
+                <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
+              </SelectInput>
+            </FormField>
             <FormField label={tTerm('reports.payouts.table.rows')} className="w-24">
               <SelectInput
                 value={payoutPageSize}

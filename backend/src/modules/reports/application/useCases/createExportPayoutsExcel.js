@@ -3,6 +3,8 @@ const {
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
+  normalizePayoutStatusFilter,
+  buildPdfBuffer,
 } = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 
@@ -23,7 +25,7 @@ const normalizePayoutExportFilters = (filters = {}) => {
 
   return {
     loanId: filters.loanId ?? filters.creditId,
-    status: filters.status || 'completed',
+    status: normalizePayoutStatusFilter(filters.status) || 'completed',
     paymentType: filters.paymentType,
     customerId: filters.customerId,
     ...buildPaymentDateWhere(dateRange),
@@ -36,16 +38,14 @@ const compactWhereClause = (filters) => Object.entries(filters)
 
 const resolveCustomer = (payment) => payment?.Loan?.Customer || payment?.Loan?.customer || null;
 
-/**
- * Build the production Excel dataset for payment exports.
- *
- * @param {object} dependencies
- * @param {object} dependencies.paymentRepository Repository with listPayoutsReport.
- * @returns {Function} use case function.
- */
-const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filters = {} }) => {
-  ensureAdmin(actor, 'Only admins can export payment data');
+const parseMoneyValue = (value) => {
+  const normalized = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(normalized) ? normalized : 0;
+};
 
+const sumRowsByMoneyKey = (rows, key) => rows.reduce((sum, row) => sum + parseMoneyValue(row[key]), 0);
+
+const buildPayoutExportRows = async ({ paymentRepository, filters }) => {
   const normalizedFilters = normalizePayoutExportFilters(filters);
   const customerId = normalizedFilters.customerId ? Number(normalizedFilters.customerId) : null;
   const { customerId: _customerId, ...paymentFilters } = normalizedFilters;
@@ -62,37 +62,79 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
     return Number(customer?.id || payment?.Loan?.customerId) === customerId;
   });
 
+  return payments.map((payment) => {
+    const customer = resolveCustomer(payment);
+
+    return {
+      paymentId: payment.id,
+      loanId: payment.loanId,
+      customerId: customer?.id || payment?.Loan?.customerId || 'N/A',
+      customerName: customer?.name || 'N/A',
+      customerEmail: customer?.email || 'N/A',
+      paymentDate: formatIsoDate(payment.paymentDate),
+      amount: formatMoney(payment.amount),
+      principalApplied: formatMoney(payment.principalApplied),
+      interestApplied: formatMoney(payment.interestApplied),
+      penaltyApplied: formatMoney(payment.penaltyApplied),
+      remainingBalanceAfterPayment: formatMoney(payment.remainingBalanceAfterPayment),
+      paymentType: formatPaymentType(payment.paymentType),
+      paymentMethod: formatPaymentMethod(payment.paymentMethod),
+      status: formatOperationalStatus(payment.status),
+      reference: payment.paymentMetadata?.reference || '',
+      observation: payment.paymentMetadata?.observation || '',
+      voucherNumber: payment.paymentMetadata?.voucherNumber || '',
+      createdAt: formatIsoDate(payment.createdAt),
+    };
+  });
+};
+
+/**
+ * Build the production Excel dataset for payment exports.
+ *
+ * @param {object} dependencies
+ * @param {object} dependencies.paymentRepository Repository with listPayoutsReport.
+ * @returns {Function} use case function.
+ */
+const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor, 'Only admins can export payment data');
+
+  const rows = await buildPayoutExportRows({ paymentRepository, filters });
+
   return {
     success: true,
     data: {
-      rows: payments.map((payment) => {
-        const customer = resolveCustomer(payment);
-
-        return {
-          paymentId: payment.id,
-          loanId: payment.loanId,
-          customerId: customer?.id || payment?.Loan?.customerId || 'N/A',
-          customerName: customer?.name || 'N/A',
-          customerEmail: customer?.email || 'N/A',
-          paymentDate: formatIsoDate(payment.paymentDate),
-          amount: formatMoney(payment.amount),
-          principalApplied: formatMoney(payment.principalApplied),
-          interestApplied: formatMoney(payment.interestApplied),
-          penaltyApplied: formatMoney(payment.penaltyApplied),
-          remainingBalanceAfterPayment: formatMoney(payment.remainingBalanceAfterPayment),
-          paymentType: formatPaymentType(payment.paymentType),
-          paymentMethod: formatPaymentMethod(payment.paymentMethod),
-          status: formatOperationalStatus(payment.status),
-          reference: payment.paymentMetadata?.reference || '',
-          observation: payment.paymentMetadata?.observation || '',
-          voucherNumber: payment.paymentMetadata?.voucherNumber || '',
-          createdAt: formatIsoDate(payment.createdAt),
-        };
-      }),
+      rows,
     },
+  };
+};
+
+const createExportPayoutsPdf = ({ paymentRepository }) => async ({ actor, filters = {} }) => {
+  ensureAdmin(actor, 'Only admins can export payment data');
+
+  const rows = await buildPayoutExportRows({ paymentRepository, filters });
+  const lines = [
+    `Pagos incluidos: ${rows.length}`,
+    `Total recibido: ${formatMoney(sumRowsByMoneyKey(rows, 'amount'))}`,
+    `Capital aplicado: ${formatMoney(sumRowsByMoneyKey(rows, 'principalApplied'))}`,
+    `Interes aplicado: ${formatMoney(sumRowsByMoneyKey(rows, 'interestApplied'))}`,
+    `Mora aplicada: ${formatMoney(sumRowsByMoneyKey(rows, 'penaltyApplied'))}`,
+    'Detalle operativo:',
+    ...rows.slice(0, 20).map((row) => (
+      `Pago ${row.paymentId} | Credito ${row.loanId} | ${row.customerName} | ${row.paymentDate} | ${row.amount} | ${row.paymentType} | ${row.status}`
+    )),
+  ];
+
+  return {
+    fileName: 'reporte-pagos.pdf',
+    contentType: 'application/pdf',
+    buffer: buildPdfBuffer({
+      title: 'REPORTE DE PAGOS Y MOVIMIENTOS',
+      lines,
+    }),
   };
 };
 
 module.exports = {
   createExportPayoutsExcel,
+  createExportPayoutsPdf,
 };

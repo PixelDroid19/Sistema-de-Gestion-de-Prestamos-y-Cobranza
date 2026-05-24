@@ -10,9 +10,13 @@ const {
   resetDatabaseSchema,
   seedOperationalConfigDefaults,
   seedPermissionCatalogAndRoleDefaults,
+  ensureAssociateInstallmentStatusEnums,
+  ensurePermissionModuleEnums,
   syncDatabaseSchema,
   verifyRequiredSchema,
 } = require('@/bootstrap/schema');
+const { permissionsCatalog, PERMISSION_MODULES } = require('@/db/seeds/permissions_catalog');
+const { AssociateInstallment, Permission } = require('@/models');
 
 const buildDescribedTable = (tableName) => {
   if (tableName === 'Customers') {
@@ -66,6 +70,14 @@ const buildDescribedTable = (tableName) => {
   if (tableName === 'ConfigEntries') {
     return {
       id: {}, category: {}, key: {}, label: {}, value: {}, isActive: {}, createdAt: {}, updatedAt: {},
+    };
+  }
+
+  if (tableName === 'OperatingExpenses') {
+    return {
+      id: {}, amount: {}, expenseDate: {}, category: {}, description: {}, status: {}, paymentMethod: {},
+      reference: {}, notes: {}, createdByUserId: {}, annulledAt: {}, annulledByUserId: {}, annulmentReason: {},
+      createdAt: {}, updatedAt: {},
     };
   }
 
@@ -141,7 +153,7 @@ const buildDescribedTable = (tableName) => {
 
   if (tableName === 'AssociateContributions') {
     return {
-      id: {}, associateId: {}, amount: {}, contributionDate: {}, createdByUserId: {}, notes: {}, createdAt: {}, updatedAt: {},
+      id: {}, associateId: {}, amount: {}, contributionDate: {}, interestTypeSnapshot: {}, interestRateSnapshot: {}, createdByUserId: {}, notes: {}, createdAt: {}, updatedAt: {},
     };
   }
 
@@ -181,11 +193,11 @@ const buildDescribedTable = (tableName) => {
   return {
     id: {}, loanId: {}, amount: {}, paymentDate: {}, status: {}, principalApplied: {}, interestApplied: {},
     penaltyApplied: {}, paymentType: {}, overpaymentAmount: {}, remainingBalanceAfterPayment: {}, allocationBreakdown: {}, paymentMetadata: {},
-    paymentMethod: {}, installmentNumber: {}, annulledFromInstallment: {}, createdAt: {}, updatedAt: {},
+    paymentMethod: {}, installmentNumber: {}, annulledFromInstallment: {}, createdByUserId: {}, createdAt: {}, updatedAt: {},
   };
 };
 
-const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'CalculationProfileVersions', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'Permissions', 'RolePermissions', 'UserPermissions', 'refresh_tokens', 'rate_limit_entries'];
+const allTables = ['Customers', 'Associates', 'Loans', 'Payments', 'DocumentAttachments', 'LoanAlerts', 'PromiseToPays', 'AssociateContributions', 'AssociateInstallments', 'ProfitDistributions', 'IdempotencyKeys', 'Notifications', 'PushSubscriptions', 'Users', 'AuditLogs', 'CalculationProfileVersions', 'FinancialProducts', 'OutboxEvents', 'ConfigEntries', 'OperatingExpenses', 'Permissions', 'RolePermissions', 'UserPermissions', 'refresh_tokens', 'rate_limit_entries'];
 
 test('buildRequiredSchema derives required tables and columns from runtime models', () => {
   const requiredSchema = buildRequiredSchema();
@@ -205,6 +217,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   const financialProducts = requiredSchema.find((entry) => entry.tableName === 'FinancialProducts');
   const outboxEvents = requiredSchema.find((entry) => entry.tableName === 'OutboxEvents');
   const configEntries = requiredSchema.find((entry) => entry.tableName === 'ConfigEntries');
+  const operatingExpenses = requiredSchema.find((entry) => entry.tableName === 'OperatingExpenses');
   const permissions = requiredSchema.find((entry) => entry.tableName === 'Permissions');
   const rolePermissions = requiredSchema.find((entry) => entry.tableName === 'RolePermissions');
   const userPermissions = requiredSchema.find((entry) => entry.tableName === 'UserPermissions');
@@ -226,6 +239,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(financialProducts);
   assert.ok(outboxEvents);
   assert.ok(configEntries);
+  assert.ok(operatingExpenses);
   assert.ok(permissions);
   assert.ok(rolePermissions);
   assert.ok(userPermissions);
@@ -239,6 +253,8 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(associates.columns.includes('interestType'));
   assert.ok(associates.columns.includes('interestRate'));
   assert.ok(associates.columns.includes('interestPaymentDay'));
+  assert.ok(contributions.columns.includes('interestTypeSnapshot'));
+  assert.ok(contributions.columns.includes('interestRateSnapshot'));
   assert.ok(associateInstallments.columns.includes('capitalBase'));
   assert.ok(associateInstallments.columns.includes('interestRate'));
   assert.ok(associateInstallments.columns.includes('interestType'));
@@ -253,6 +269,7 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(payments.columns.includes('allocationBreakdown'));
   assert.ok(payments.columns.includes('paymentType'));
   assert.ok(payments.columns.includes('paymentMetadata'));
+  assert.ok(payments.columns.includes('createdByUserId'));
   assert.ok(attachments.columns.includes('customerId'));
   assert.ok(attachments.columns.includes('customerVisible'));
   assert.ok(alerts.columns.includes('outstandingAmount'));
@@ -271,6 +288,11 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(outboxEvents.columns.includes('eventType'));
   assert.ok(configEntries.columns.includes('category'));
   assert.ok(configEntries.columns.includes('value'));
+  assert.ok(operatingExpenses.columns.includes('amount'));
+  assert.ok(operatingExpenses.columns.includes('expenseDate'));
+  assert.ok(operatingExpenses.columns.includes('status'));
+  assert.ok(operatingExpenses.columns.includes('createdByUserId'));
+  assert.ok(operatingExpenses.columns.includes('annulledAt'));
   assert.ok(permissions.columns.includes('name'));
   assert.ok(rolePermissions.columns.includes('role'));
   assert.ok(rolePermissions.columns.includes('permissionId'));
@@ -279,6 +301,56 @@ test('buildRequiredSchema derives required tables and columns from runtime model
   assert.ok(rateLimitEntries.columns.includes('keyPrefix'));
   assert.ok(rateLimitEntries.columns.includes('identifier'));
   assert.ok(rateLimitEntries.columns.includes('created_at'));
+});
+
+test('permission catalog includes finance permissions for operating expenses', () => {
+  const permissionNames = permissionsCatalog.map((permission) => permission.name);
+  const permissionModuleValues = Permission.getAttributes().module.values;
+
+  assert.ok(PERMISSION_MODULES.includes('FINANZAS'));
+  assert.ok(permissionModuleValues.includes('FINANZAS'));
+  assert.deepEqual(permissionModuleValues, PERMISSION_MODULES);
+  assert.ok(permissionNames.includes('FINANCE_VIEW_ALL'));
+  assert.ok(permissionNames.includes('FINANCE_CREATE'));
+  assert.ok(permissionNames.includes('FINANCE_ANNUL'));
+});
+
+test('associate installment status enum includes persisted overdue state', () => {
+  const associateInstallmentStatusValues = AssociateInstallment.getAttributes().status.values;
+
+  assert.deepEqual(associateInstallmentStatusValues, ['pending', 'paid', 'overdue']);
+});
+
+test('ensurePermissionModuleEnums keeps Postgres permission module enum aligned before seeding', async () => {
+  const queries = [];
+
+  await ensurePermissionModuleEnums({
+    database: {
+      getDialect: () => 'postgres',
+      query: async (sql) => {
+        queries.push(sql);
+      },
+    },
+  });
+
+  assert.ok(queries.some((sql) => sql.includes('ALTER TYPE "enum_Permissions_module" ADD VALUE IF NOT EXISTS')));
+  assert.ok(queries.some((sql) => sql.includes("'FINANZAS'")));
+});
+
+test('ensureAssociateInstallmentStatusEnums keeps overdue status available before seeding data', async () => {
+  const queries = [];
+
+  await ensureAssociateInstallmentStatusEnums({
+    database: {
+      getDialect: () => 'postgres',
+      query: async (sql) => {
+        queries.push(sql);
+      },
+    },
+  });
+
+  assert.ok(queries.some((sql) => sql.includes('ALTER TYPE "enum_AssociateInstallments_status" ADD VALUE IF NOT EXISTS')));
+  assert.ok(queries.some((sql) => sql.includes("'overdue'")));
 });
 
 test('verifyRequiredSchema rejects when a required table is missing', async () => {
@@ -524,6 +596,7 @@ test('REQUIRED_SCHEMA_MODELS keeps parent tables before dependent child tables',
   assert.ok(names.indexOf('Loan') < names.indexOf('Payment'));
   assert.ok(names.indexOf('User') < names.indexOf('Notification'));
   assert.ok(names.indexOf('User') < names.indexOf('RefreshToken'));
+  assert.ok(names.indexOf('User') < names.indexOf('OperatingExpense'));
   assert.ok(names.indexOf('Associate') < names.indexOf('AssociateInstallment'));
   assert.ok(names.indexOf('User') < names.indexOf('AssociateInstallment'));
   assert.ok(names.indexOf('Loan') < names.indexOf('DocumentAttachment'));

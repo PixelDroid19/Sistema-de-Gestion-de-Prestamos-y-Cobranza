@@ -7,6 +7,7 @@ const {
   createDeletePaymentMethod,
   createListRatePolicies,
   createCreateRatePolicy,
+  createDeleteRatePolicy,
   createResolveRatePolicy,
   createCreateLateFeePolicy,
   createUpsertSetting,
@@ -361,6 +362,31 @@ test('late-fee policies reject modes that are not configurable from the operatio
     }),
     /lateFeeMode is invalid/,
   );
+});
+
+test('rate policy deletion rejects policies already used by existing loans', async () => {
+  const deleteRatePolicy = createDeleteRatePolicy({
+    configRepository: {
+      async findByIdAndCategory(id, category) {
+        assert.equal(id, 15);
+        assert.equal(category, 'rate_policy');
+        return { id: 15, key: 'rango-usado', label: 'Rango usado' };
+      },
+      async countLoansUsingRatePolicy(id) {
+        assert.equal(id, 15);
+        return 2;
+      },
+      async destroy() {
+        throw new Error('destroy should not be called for used rate policies');
+      },
+    },
+  });
+
+  await assert.rejects(() => deleteRatePolicy(15), (error) => {
+    assert.ok(error instanceof ConflictError);
+    assert.match(error.message, /used by existing loans/i);
+    return true;
+  });
 });
 
 test('rate policy resolution rejects overlapping active ranges instead of guessing a winner', async () => {

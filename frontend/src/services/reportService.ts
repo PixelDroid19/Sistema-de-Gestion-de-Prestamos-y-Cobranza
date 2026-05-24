@@ -4,16 +4,56 @@ import { queryKeys } from './queryKeys';
 import { downloadBlob } from './blobDownload';
 import type { PaymentScheduleResponse, PayoutsReportFilters, PayoutsReportResponse } from '../types/reportSimulation';
 import { tTerm } from '../i18n/terminology';
+import type { CreditHistoryMonthlyFilters, DailyCashFlowFilters, MonthlyCashFlowFilters, OperatingExpenseListParams } from './queryKeys';
 
-type ReportContextualType = 'credits' | 'payouts' | 'profitability';
+type ReportContextualType = 'credits' | 'payouts' | 'profitability' | 'associates';
 type ReportContextualFormat = 'xlsx' | 'pdf';
 type ReportContextualFilters = {
   fromDate?: string;
   toDate?: string;
   customerId?: number;
   loanId?: number;
+  associateId?: number;
   status?: string;
+  paymentType?: string;
   format?: ReportContextualFormat;
+};
+
+export type OperatingExpenseStatus = 'completed' | 'annulled';
+
+export type OperatingExpense = {
+  id: number;
+  amount: number | string;
+  expenseDate: string;
+  category: string;
+  description: string;
+  status: OperatingExpenseStatus;
+  paymentMethod?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  annulmentReason?: string | null;
+  createdBy?: { id?: number; name?: string; email?: string } | null;
+  annulledBy?: { id?: number; name?: string; email?: string } | null;
+};
+
+export type OperatingExpensePayload = {
+  amount: number;
+  expenseDate: string;
+  category: string;
+  description: string;
+  paymentMethod?: string;
+  reference?: string;
+  notes?: string;
+};
+
+export type OperatingExpenseFilters = Pick<OperatingExpenseListParams, 'fromDate' | 'toDate' | 'status'>;
+export type OperatingExpenseExportFormat = 'xlsx' | 'pdf';
+
+export type CreditHistoryMonthlyReport = {
+  summary?: Record<string, unknown>;
+  months?: Array<Record<string, unknown>>;
+  credits?: Array<Record<string, unknown>>;
+  payments?: Array<Record<string, unknown>>;
 };
 
 const toArray = <T,>(value: unknown): T[] => Array.isArray(value) ? value : [];
@@ -343,11 +383,11 @@ export const useMonthlyEarnings = (year?: number) => {
   };
 };
 
-export const useMonthlyCashFlow = (year?: number) => {
+export const useMonthlyCashFlow = (year?: number, filters: MonthlyCashFlowFilters = {}) => {
   const getMonthlyCashFlow = useQuery({
-    queryKey: queryKeys.reports.monthlyCashFlow(year),
+    queryKey: queryKeys.reports.monthlyCashFlow(year, filters),
     queryFn: async () => {
-      const params = year ? { year } : {};
+      const params = { ...(year ? { year } : {}), ...filters };
       const { data } = await apiClient.get('/reports/cash-flow/monthly', { params });
       return data;
     },
@@ -358,6 +398,40 @@ export const useMonthlyCashFlow = (year?: number) => {
     isLoading: getMonthlyCashFlow.isLoading,
     isError: getMonthlyCashFlow.isError,
     error: getMonthlyCashFlow.error,
+  };
+};
+
+export const useDailyCashFlow = (filters: DailyCashFlowFilters = {}) => {
+  const getDailyCashFlow = useQuery({
+    queryKey: queryKeys.reports.dailyCashFlow(filters),
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/cash-flow/daily', { params: filters });
+      return data;
+    },
+  });
+
+  return {
+    data: getDailyCashFlow.data?.data,
+    isLoading: getDailyCashFlow.isLoading,
+    isError: getDailyCashFlow.isError,
+    error: getDailyCashFlow.error,
+  };
+};
+
+export const useCreditHistoryMonthly = (filters: CreditHistoryMonthlyFilters = {}) => {
+  const getCreditHistoryMonthly = useQuery({
+    queryKey: queryKeys.reports.creditHistoryMonthly(filters),
+    queryFn: async () => {
+      const { data } = await apiClient.get('/reports/credit-history/monthly', { params: filters });
+      return data;
+    },
+  });
+
+  return {
+    data: getCreditHistoryMonthly.data?.data as CreditHistoryMonthlyReport | undefined,
+    isLoading: getCreditHistoryMonthly.isLoading,
+    isError: getCreditHistoryMonthly.isError,
+    error: getCreditHistoryMonthly.error,
   };
 };
 
@@ -571,6 +645,47 @@ export const usePaymentSchedule = (loanId: number | null) => {
   };
 };
 
+export const useOperatingExpenses = (
+  filters: OperatingExpenseFilters = {},
+  page = 1,
+  pageSize = 20,
+  enabled = true,
+) => {
+  const params = {
+    ...filters,
+    page,
+    pageSize,
+  };
+
+  const getOperatingExpenses = useQuery({
+    queryKey: queryKeys.operatingExpenses.list(params),
+    queryFn: async () => {
+      const { data } = await apiClient.get('/operating-expenses', { params });
+      return data;
+    },
+    enabled,
+  });
+
+  return {
+    data: getOperatingExpenses.data?.data,
+    expenses: (getOperatingExpenses.data?.data?.expenses || []) as OperatingExpense[],
+    pagination: getOperatingExpenses.data?.data?.pagination,
+    isLoading: getOperatingExpenses.isLoading,
+    isError: getOperatingExpenses.isError,
+    error: getOperatingExpenses.error,
+  };
+};
+
+export const createOperatingExpense = async (payload: OperatingExpensePayload) => {
+  const { data } = await apiClient.post('/operating-expenses', payload);
+  return data;
+};
+
+export const annulOperatingExpense = async (expenseId: number, reason: string) => {
+  const { data } = await apiClient.post(`/operating-expenses/${expenseId}/annul`, { reason });
+  return data;
+};
+
 // === Export Functions ===
 
 export const exportCreditsExcel = async (filters: ReportContextualFilters = {}): Promise<void> => {
@@ -604,11 +719,16 @@ export const downloadCreditReport = async (loanId: number): Promise<void> => {
   });
 };
 
-export const exportAssociatesExcel = async (): Promise<void> => {
-  await downloadBlob({
+export const exportAssociatesExcel = async (
+  filters: Pick<ReportContextualFilters, 'status'> = {},
+): Promise<void> => {
+  await downloadBlobWithParams({
     url: '/reports/associates/excel',
     fileName: 'associates-export.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    params: {
+      status: filters.status,
+    },
   });
 };
 
@@ -620,21 +740,52 @@ export const exportDashboardSummary = async (): Promise<void> => {
   });
 };
 
-export const exportMonthlyCashFlowExcel = async (year?: number): Promise<void> => {
+export const exportMonthlyCashFlowExcel = async (
+  year?: number,
+  filters: MonthlyCashFlowFilters = {},
+): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/excel',
     fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.xlsx`,
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    params: { year },
+    params: { year, ...filters },
   });
 };
 
-export const exportMonthlyCashFlowPdf = async (year?: number): Promise<void> => {
+export const exportMonthlyCashFlowPdf = async (
+  year?: number,
+  filters: MonthlyCashFlowFilters = {},
+): Promise<void> => {
   await downloadBlobWithParams({
     url: '/reports/cash-flow/monthly/pdf',
     fileName: `flujo-caja-mensual-${year || new Date().getFullYear()}.pdf`,
     mimeType: 'application/pdf',
-    params: { year },
+    params: { year, ...filters },
+  });
+};
+
+export const exportOperatingExpensesReport = async (
+  format: OperatingExpenseExportFormat,
+  filters: OperatingExpenseFilters = {},
+): Promise<void> => {
+  const fromDate = filters.fromDate || undefined;
+  const toDate = filters.toDate || undefined;
+  const suffix = `${fromDate || 'inicio'}_${toDate || 'hoy'}`;
+  const extension = format === 'pdf' ? 'pdf' : 'xlsx';
+  const mimeType = format === 'pdf'
+    ? 'application/pdf'
+    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  await downloadBlobWithParams({
+    url: '/reports/operating-expenses/export',
+    fileName: `gastos_operativos_${suffix}.${extension}`,
+    mimeType,
+    params: {
+      format,
+      fromDate,
+      toDate,
+      status: filters.status,
+    },
   });
 };
 
@@ -709,16 +860,44 @@ export const exportContextualReport = async (
     return;
   }
 
+  if (type === 'associates') {
+    const extension = format === 'pdf' ? 'pdf' : 'xlsx';
+    const mimeType = format === 'pdf'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    await downloadBlobWithParams({
+      url: '/reports/associates/export',
+      fileName: `socios_inversionistas_${suffix}.${extension}`,
+      mimeType,
+      params: {
+        format,
+        fromDate,
+        toDate,
+        associateId: filters.associateId,
+        status: filters.status,
+      },
+    });
+    return;
+  }
+
+  const extension = format === 'pdf' ? 'pdf' : 'xlsx';
+  const mimeType = format === 'pdf'
+    ? 'application/pdf'
+    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
   await downloadBlobWithParams({
-    url: '/reports/payouts/excel',
-    fileName: `reporte_pagos_${suffix}.xlsx`,
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    url: '/reports/payouts/export',
+    fileName: `reporte_pagos_${suffix}.${extension}`,
+    mimeType,
     params: {
+      format,
       startDate: fromDate,
       endDate: toDate,
       customerId: filters.customerId,
       loanId: filters.loanId,
       status: filters.status,
+      paymentType: filters.paymentType,
     },
   });
 };

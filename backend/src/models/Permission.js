@@ -1,7 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
-
-const PERMISSION_MODULES = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'DASHBOARD', 'USUARIOS', 'PERMISOS', 'AUDITORÍA'];
+const { PERMISSION_MODULES } = require('@/db/seeds/permissions_catalog');
 
 const Permission = sequelize.define('Permission', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },

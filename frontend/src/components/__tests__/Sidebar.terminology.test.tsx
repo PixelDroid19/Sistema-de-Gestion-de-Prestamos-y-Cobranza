@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import Sidebar from '../Sidebar';
 
 const mockClearSession = vi.fn();
@@ -128,8 +128,6 @@ describe('Sidebar canonical terminology parity', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Créditos' }));
-
     expect(screen.getByRole('button', { name: 'Créditos vigentes' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cálculo de Crédito' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nuevo crédito' })).not.toBeInTheDocument();
@@ -153,8 +151,63 @@ describe('Sidebar canonical terminology parity', () => {
     );
 
     expect(container.querySelector('aside')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('aside')).toHaveClass('h-full');
     expect(container.querySelector('nav')).toHaveClass('overflow-y-auto');
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+  });
+
+  it('keeps administrative module links in the scrollable navigation area', () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    const { container } = render(
+      <Sidebar
+        currentView="settings"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    const navigation = container.querySelector('nav');
+    expect(navigation).not.toBeNull();
+    expect(within(navigation as HTMLElement).getByRole('button', { name: 'Auditoría' })).toBeInTheDocument();
+    expect(within(navigation as HTMLElement).getByRole('button', { name: 'Configuración' })).toBeInTheDocument();
+  });
+
+  it('closes inactive section menus when the active module changes', () => {
+    const setCurrentView = vi.fn();
+    const setIsCollapsed = vi.fn();
+    const setIsMobileOpen = vi.fn();
+
+    const { rerender } = render(
+      <Sidebar
+        currentView="associates"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Gestión de socios' })).toBeInTheDocument();
+
+    rerender(
+      <Sidebar
+        currentView="credits"
+        setCurrentView={setCurrentView}
+        isCollapsed={false}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={false}
+        setIsMobileOpen={setIsMobileOpen}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Gestión de socios' })).not.toBeInTheDocument();
   });
 
   it('clears the local session and redirects immediately on logout', async () => {

@@ -89,6 +89,7 @@ vi.mock('../../services/reportService', () => ({
               paymentMethod: 'transfer',
               status: 'completed',
               reconciled: false,
+              createdBy: { id: 72, name: 'Operadora Caja', email: 'caja@test.local', role: 'employee' },
             },
           ],
           payoffHistory: [],
@@ -737,6 +738,15 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByTitle('Crear compromiso de pago')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Crear seguimiento')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tasa de mora' })).not.toBeInTheDocument();
+  });
+
+  it('shows who registered each payment in the credit payment history', async () => {
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: /Historial de pagos/ }));
+
+    expect(await screen.findByText('Operadora Caja')).toBeInTheDocument();
+    expect(screen.getByText('Registrado por')).toBeInTheDocument();
   });
 
   it('renders an employee read-only detail view without admin-only tabs or payoff', () => {

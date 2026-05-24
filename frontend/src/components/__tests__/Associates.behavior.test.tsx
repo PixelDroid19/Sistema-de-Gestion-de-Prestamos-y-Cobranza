@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Associates from '../Associates';
+import { exportAssociatesExcel } from '../../services/reportService';
 
 const updateAssociateMutateAsync = vi.fn();
 const deleteAssociateMutateAsync = vi.fn();
@@ -117,6 +118,19 @@ describe('Associates behavior', () => {
     });
   });
 
+  it('exports the associates list with the selected status filter', async () => {
+    render(<Associates setCurrentView={vi.fn()} />);
+
+    fireEvent.change(screen.getByDisplayValue('Todos los estados'), {
+      target: { value: 'inactive' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }));
+
+    await waitFor(() => {
+      expect(exportAssociatesExcel).toHaveBeenCalledWith({ status: 'inactive' });
+    });
+  });
+
   it('routes the edit action to the associate edit form', () => {
     const setCurrentView = vi.fn();
     render(<Associates setCurrentView={setCurrentView} />);
@@ -144,6 +158,13 @@ describe('Associates behavior', () => {
     await waitFor(() => {
       expect(restoreAssociateMutateAsync).toHaveBeenCalledWith(2);
     });
+  });
+
+  it('does not expose a physical delete action for associate history', () => {
+    render(<Associates setCurrentView={vi.fn()} />);
+
+    expect(screen.getByTitle('Reactivar')).toBeInTheDocument();
+    expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 
   it('hides mutation and export actions for employees with associates read-only permission', () => {

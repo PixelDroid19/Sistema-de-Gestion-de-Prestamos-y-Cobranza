@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { queryKeys } from './queryKeys';
+import { queryKeys, type AssociateCalendarFilters } from './queryKeys';
 import { useCrudListQuery, useInvalidatingMutation } from './crudHooks';
+
+export type AssociateInstallmentPaymentPayload = {
+  installmentNumber: number;
+  paymentDate?: string;
+  paymentMethod?: string;
+  notes?: string;
+};
 
 export const useAssociates = (
   params?: { page?: number; pageSize?: number; search?: string; status?: string },
@@ -54,8 +61,14 @@ export const useAssociateById = (associateId: number) => {
   });
 };
 
-export const useAssociateDetails = (associateId: number) => {
+const normalizeCalendarFilters = (filters?: AssociateCalendarFilters): AssociateCalendarFilters => ({
+  ...(filters?.startDate ? { startDate: filters.startDate } : {}),
+  ...(filters?.endDate ? { endDate: filters.endDate } : {}),
+});
+
+export const useAssociateDetails = (associateId: number, calendarFilters?: AssociateCalendarFilters) => {
   const queryClient = useQueryClient();
+  const normalizedCalendarFilters = normalizeCalendarFilters(calendarFilters);
 
   const getFinancialDetails = useQuery({
     queryKey: queryKeys.associates.financialDetails(associateId),
@@ -76,9 +89,11 @@ export const useAssociateDetails = (associateId: number) => {
   });
 
   const getCalendar = useQuery({
-    queryKey: queryKeys.associates.calendar(associateId),
+    queryKey: queryKeys.associates.calendar(associateId, normalizedCalendarFilters),
     queryFn: async () => {
-      const { data } = await apiClient.get(`/associates/${associateId}/calendar-events`);
+      const { data } = await apiClient.get(`/associates/${associateId}/calendar-events`, {
+        params: normalizedCalendarFilters,
+      });
       return data;
     },
     enabled: !!associateId,
@@ -118,8 +133,24 @@ export const useAssociateDetails = (associateId: number) => {
   });
 
   const payInstallment = useMutation({
-    mutationFn: async (installmentNumber: number) => {
-      const { data } = await apiClient.post(`/associates/${associateId}/installments/${installmentNumber}/pay`);
+    mutationFn: async (payment: number | AssociateInstallmentPaymentPayload) => {
+      const paymentPayload = typeof payment === 'number'
+        ? { installmentNumber: payment }
+        : payment;
+      const {
+        installmentNumber,
+        paymentDate,
+        paymentMethod,
+        notes,
+      } = paymentPayload;
+      const { data } = await apiClient.post(
+        `/associates/${associateId}/installments/${installmentNumber}/pay`,
+        {
+          ...(paymentDate ? { paymentDate } : {}),
+          ...(paymentMethod ? { paymentMethod } : {}),
+          ...(notes ? { notes } : {}),
+        },
+      );
       return data;
     },
     onSuccess: () => {

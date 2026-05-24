@@ -724,6 +724,12 @@ const parseCalendarOverviewFilters = (filters = {}) => {
   };
 };
 
+const assertCalendarOverviewDateRange = ({ startDate, endDate }) => {
+  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+    throw new ValidationError('startDate must be before or equal to endDate');
+  }
+};
+
 const filterCalendarOverviewEntries = ({ entries, filters }) => entries.filter((entry) => {
   if (filters.status && String(entry.status || '').toLowerCase() !== filters.status) {
     return false;
@@ -1170,8 +1176,21 @@ const createUpdateRecoveryStatus = ({ loanRepository, loanAccessPolicy, recovery
   return useCase;
 };
 
+const saveLoanRecord = async (loanRepository, loan) => {
+  if (typeof loanRepository.save === 'function') {
+    return loanRepository.save(loan);
+  }
+
+  if (typeof loan.save === 'function') {
+    return loan.save();
+  }
+
+  return loan;
+};
+
 /**
- * Create the use case that deletes rejected loans after access checks succeed.
+ * Create the use case that preserves rejected loans by cancelling them after
+ * access checks succeed.
  * @param {{ loanRepository: object, loanAccessPolicy?: object, auditService?: object }} dependencies
  * @returns {Function}
  */
@@ -1190,14 +1209,18 @@ const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) =>
     }
 
     if (loan.status !== 'rejected') {
-      throw new ValidationError('Only rejected loans can be deleted');
+      throw new ValidationError('Only rejected loans can be cancelled');
     }
 
-    await loanRepository.destroy(loan);
+    loan.status = 'cancelled';
+    loan.closureReason = 'cancelled';
+    loan.closedAt = new Date();
+
+    return saveLoanRecord(loanRepository, loan);
   };
 
   if (auditService) {
-    return withAudit({ auditService, action: 'DELETE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
+    return withAudit({ auditService, action: 'UPDATE', module: 'credits', getEntityId: (p) => p?.loanId, getEntityType: () => 'Loan' })(useCase);
   }
   return useCase;
 };
@@ -1308,6 +1331,7 @@ const createGetPaymentCalendarOverview = ({
   filters = {},
 }) => {
   const parsedFilters = parseCalendarOverviewFilters(filters);
+  assertCalendarOverviewDateRange(parsedFilters);
   const effectiveAsOfDate = asOfDate || new Date();
   const { normalizedLoanIds, loans } = await resolveCalendarOverviewLoans({
     actor,

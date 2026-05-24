@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AssociateDetails from '../AssociateDetails';
 
@@ -20,7 +20,7 @@ vi.mock('../../store/sessionStore', () => ({
 }));
 
 vi.mock('../../services/associateService', () => ({
-  useAssociateDetails: (associateId: number) => useAssociateDetailsSpy(associateId),
+  useAssociateDetails: (associateId: number, calendarFilters?: { startDate?: string; endDate?: string }) => useAssociateDetailsSpy(associateId, calendarFilters),
 }));
 
 vi.mock('../../lib/toast', () => ({
@@ -84,6 +84,26 @@ const buildDetailsResponse = () => ({
       totalPaid: 0,
       totalOverdue: 0,
     },
+    alerts: [
+      {
+        type: 'overdue',
+        severity: 'high',
+        installmentNumber: 1,
+        amount: 350000,
+        dueDate: '2026-05-10T00:00:00.000Z',
+        daysOverdue: 2,
+        daysUntilDue: null,
+      },
+      {
+        type: 'upcoming',
+        severity: 'medium',
+        installmentNumber: 2,
+        amount: 125000,
+        dueDate: '2026-05-15T00:00:00.000Z',
+        daysOverdue: null,
+        daysUntilDue: 5,
+      },
+    ],
   },
   contributions: [],
   calendar: {
@@ -188,6 +208,116 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
     expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('transfer')).toBeInTheDocument();
+  });
+
+  it('shows upcoming and overdue associate payment alerts', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    expect(screen.getByText('Alertas de pagos a socio')).toBeInTheDocument();
+    expect(screen.getByText('Cuota #1 vencida hace 2 días')).toBeInTheDocument();
+    expect(screen.getByText('Cuota #2 vence en 5 días')).toBeInTheDocument();
+  });
+
+  it('keeps associate calendar date filters within a valid range', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+    fireEvent.change(screen.getByLabelText('Desde calendario'), { target: { value: '2026-07-01' } });
+    fireEvent.change(screen.getByLabelText('Hasta calendario'), { target: { value: '2026-06-30' } });
+
+    expect(screen.getByLabelText('Desde calendario')).toHaveValue('2026-07-01');
+    expect(screen.getByLabelText('Hasta calendario')).toHaveValue('');
+    expect(useAssociateDetailsSpy).toHaveBeenLastCalledWith(1, {
+      startDate: '2026-07-01',
+      endDate: '',
+    });
+  });
+
+  it('allows admins to pay overdue associate interest installments', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    useAssociateDetailsSpy.mockReturnValue({
+      ...buildDetailsResponse(),
+      installments: {
+        installments: [
+          {
+            id: 11,
+            installmentNumber: 1,
+            amount: 350000,
+            dueDate: '2000-05-10T00:00:00.000Z',
+            status: 'overdue',
+          },
+        ],
+        totals: {
+          totalPending: 0,
+          totalPaid: 0,
+          totalOverdue: 350000,
+        },
+      },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
+
+    expect(screen.getAllByText('Vencido').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Marcar como pagado' })).toBeInTheDocument();
+  });
+
+  it('requires the actual associate interest payment details before marking an installment as paid', async () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    detailsResponse.payInstallment.mutateAsync = vi.fn().mockResolvedValue({});
+    useAssociateDetailsSpy.mockReturnValue({
+      ...detailsResponse,
+      installments: {
+        installments: [
+          {
+            id: 11,
+            installmentNumber: 1,
+            amount: 350000,
+            dueDate: '2000-05-10T00:00:00.000Z',
+            status: 'overdue',
+          },
+        ],
+        totals: {
+          totalPending: 0,
+          totalPaid: 0,
+          totalOverdue: 350000,
+        },
+      },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar como pagado' }));
+
+    expect(screen.getByRole('heading', { name: 'Registrar pago de interés' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '2026-05-16' } });
+    fireEvent.change(screen.getByLabelText('Método de pago'), { target: { value: 'transferencia' } });
+    fireEvent.change(screen.getByLabelText('Notas'), { target: { value: 'Pago confirmado por banco' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }));
+
+    await waitFor(() => {
+      expect(detailsResponse.payInstallment.mutateAsync).toHaveBeenCalledWith({
+        installmentNumber: 1,
+        paymentDate: '2026-05-16',
+        paymentMethod: 'transferencia',
+        notes: 'Pago confirmado por banco',
+      });
+    });
   });
 
   it('rejects malformed reinvestment amounts instead of truncating them', () => {

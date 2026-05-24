@@ -18,7 +18,7 @@ const AssociateInstallment = sequelize.define('AssociateInstallment', {
   paymentMethod: { type: DataTypes.STRING, allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
   status: {
-    type: DataTypes.ENUM('pending', 'paid'),
+    type: DataTypes.ENUM('pending', 'paid', 'overdue'),
     allowNull: false,
     defaultValue: 'pending',
   },

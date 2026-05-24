@@ -96,6 +96,8 @@ const ASSOCIATES_COLUMNS = [
   dateColumn('Fecha', 'date', 18),
   { header: 'Estado', key: 'status', width: 14 },
   { header: 'Participación %', key: 'participationPercentage', width: 18 },
+  { header: 'Rentabilidad del Aporte', key: 'contributionInterestType', width: 24 },
+  { header: 'Tasa Histórica del Aporte %', key: 'contributionInterestRate', width: 28 },
   { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
   moneyColumn('Total Declarado', 'declaredProportionalTotal', 20),
   moneyColumn('Monto Asignado', 'allocatedAmount', 20),
@@ -211,6 +213,13 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
     return Number(String(value).trim());
   };
+  const parseOptionalQueryId = (value, fieldName) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    return parseRequiredRouteId(value, fieldName);
+  };
   const buildCreditExportFilters = (query = {}) => ({
     customerId: query.customerId,
     loanId: query.loanId,
@@ -223,6 +232,14 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     month: query.month,
     startDate: query.startDate || query.fromDate,
     endDate: query.endDate || query.toDate,
+    status: query.status,
+    customerId: query.customerId,
+    loanId: query.loanId || query.creditId,
+  });
+  const buildAssociateExportFilters = (query = {}) => ({
+    associateId: parseOptionalQueryId(query.associateId, 'associateId'),
+    fromDate: query.fromDate || query.startDate,
+    toDate: query.toDate || query.endDate,
     status: query.status,
   });
   const buildPayoutExportFilters = (query = {}) => ({
@@ -352,12 +369,23 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/cash-flow/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const year = parseOptionalReportYear(req.query.year);
-    res.json(await useCases.getMonthlyCashFlow({ actor: req.user, year }));
+    const filters = { fromDate: req.query.fromDate, toDate: req.query.toDate };
+    res.json(await useCases.getMonthlyCashFlow({ actor: req.user, year, filters }));
+  }));
+
+  router.get('/cash-flow/daily', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const filters = {
+      date: req.query.date,
+      fromDate: req.query.fromDate,
+      toDate: req.query.toDate,
+    };
+    res.json(await useCases.getDailyCashFlow({ actor: req.user, filters }));
   }));
 
   router.get('/cash-flow/monthly/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const year = parseOptionalReportYear(req.query.year);
-    const exportFile = await useCases.exportMonthlyCashFlowExcel({ actor: req.user, year });
+    const filters = { fromDate: req.query.fromDate, toDate: req.query.toDate };
+    const exportFile = await useCases.exportMonthlyCashFlowExcel({ actor: req.user, year, filters });
     const buffer = await buildWorkbookBuffer(exportFile.sheets);
     sendBufferDownload(res, {
       contentType: exportFile.contentType,
@@ -368,7 +396,33 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/cash-flow/monthly/pdf', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const year = parseOptionalReportYear(req.query.year);
-    const exportFile = await useCases.exportMonthlyCashFlowPdf({ actor: req.user, year });
+    const filters = { fromDate: req.query.fromDate, toDate: req.query.toDate };
+    const exportFile = await useCases.exportMonthlyCashFlowPdf({ actor: req.user, year, filters });
+    sendBufferDownload(res, exportFile);
+  }));
+
+  router.get('/operating-expenses/export', requirePermission('FINANCE_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const exportFile = await useCases.exportOperatingExpensesReport({
+      actor: req.user,
+      format,
+      filters: {
+        fromDate: req.query.fromDate || req.query.startDate,
+        toDate: req.query.toDate || req.query.endDate,
+        status: req.query.status,
+      },
+    });
+
+    if (Array.isArray(exportFile.sheets)) {
+      const buffer = await buildWorkbookBuffer(exportFile.sheets);
+      sendBufferDownload(res, {
+        contentType: exportFile.contentType,
+        fileName: exportFile.fileName,
+        buffer,
+      });
+      return;
+    }
+
     sendBufferDownload(res, exportFile);
   }));
 
@@ -607,12 +661,71 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     });
   }));
 
+  router.get('/payouts/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const filters = buildPayoutExportFilters(req.query);
+
+    if (format === 'pdf') {
+      const exportFile = await useCases.exportPayoutsPdf({ actor: req.user, filters });
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    const exportData = await useCases.exportPayoutsExcel({ actor: req.user, filters });
+    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
+      ? exportData.data.sheets
+      : [{
+        name: 'Pagos',
+        title: 'REPORTE DE PAGOS',
+        tabColor: STYLE_COLORS.green,
+        headerFill: STYLE_COLORS.green,
+        columns: PAYOUT_COLUMNS,
+        rows: exportData.data.rows,
+      }];
+    const buffer = await buildWorkbookBuffer(workbookSheets);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: `reporte-pagos-${buildExportSuffix(req.query)}.xlsx`,
+      buffer,
+    });
+  }));
+
   router.get('/credits/summary', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getCreditsSummary({ actor: req.user }));
   }));
 
   router.get('/associates/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const exportData = await useCases.exportAssociatesExcel({ actor: req.user });
+    const filters = buildAssociateExportFilters(req.query);
+    const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
+    const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
+      ? exportData.data.sheets
+      : [{
+        name: 'Detalle de Socios',
+        title: 'DETALLE OPERATIVO DE SOCIOS',
+        tabColor: STYLE_COLORS.red,
+        headerFill: STYLE_COLORS.headerBlue,
+        columns: ASSOCIATES_COLUMNS,
+        rows: exportData.data.rows,
+      }];
+    const buffer = await buildWorkbookBuffer(workbookSheets);
+    sendBufferDownload(res, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileName: 'associates-export.xlsx',
+      buffer,
+    });
+  }));
+
+  router.get('/associates/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    const filters = buildAssociateExportFilters(req.query);
+
+    if (format === 'pdf') {
+      const exportFile = await useCases.exportAssociatesPdf({ actor: req.user, filters });
+      sendBufferDownload(res, exportFile);
+      return;
+    }
+
+    const exportData = await useCases.exportAssociatesExcel({ actor: req.user, filters });
     const workbookSheets = Array.isArray(exportData.data?.sheets) && exportData.data.sheets.length > 0
       ? exportData.data.sheets
       : [{

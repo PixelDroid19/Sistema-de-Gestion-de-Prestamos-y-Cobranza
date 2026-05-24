@@ -54,6 +54,17 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     startDate: '',
     endDate: '',
   });
+  const updateCalendarFilters = (
+    updater: typeof calendarFilters | ((current: typeof calendarFilters) => typeof calendarFilters),
+  ) => {
+    setCalendarFilters((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      if (next.startDate && next.endDate && next.startDate > next.endDate) {
+        return current;
+      }
+      return next;
+    });
+  };
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -280,12 +291,12 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
     await executeGuardedAction({
       action: 'credit.delete',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: credit?.status },
-      confirmationMessage: `¿Eliminar el crédito #${credit?.id} de ${getCreditLabelInline(credit)}? Esta acción no se puede deshacer.`,
+      confirmationMessage: `¿Cancelar el crédito #${credit?.id} de ${getCreditLabelInline(credit)}? El registro quedará en el historial operativo.`,
       run: async () => { await deleteLoan.mutateAsync(Number(credit.id)); },
       onSuccess: async () => {
         await invalidateAfterDelete(queryClient, { loanId: Number(credit.id), loansParams: { page, pageSize } });
       },
-      successMessage: 'Crédito eliminado correctamente',
+      successMessage: 'Crédito cancelado correctamente',
     });
   };
 
@@ -491,8 +502,8 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
           onSelectEvent={setSelectedEvent}
           onViewCredit={(loanId: number) => navigateToView(`credits/${loanId}`)}
           filters={calendarFilters}
-          onFiltersChange={setCalendarFilters}
-          onClearFilters={() => setCalendarFilters({ search: '', status: '', startDate: '', endDate: '' })}
+          onFiltersChange={updateCalendarFilters}
+          onClearFilters={() => updateCalendarFilters({ search: '', status: '', startDate: '', endDate: '' })}
         />
       )}
     </PageShell>

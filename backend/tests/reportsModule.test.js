@@ -20,6 +20,7 @@ const {
   createGetCustomerProfitabilityReport,
   createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
+  createGetPayoutsReport,
   createExportPayoutsExcel,
 } = require('@/modules/reports/application/useCases');
 const { createReportsModule } = require('@/modules/reports');
@@ -633,6 +634,24 @@ test('customer profitability Excel export uses the same values shown in profitab
   assert.equal(sheet.getRow(3).getCell(10).value, 100);
 });
 
+test('customer profitability export rejects inverted date ranges before reading report data', async () => {
+  let repositoryCalled = false;
+  const exportCustomerProfitabilityReport = createExportCustomerProfitabilityReport({
+    reportRepository: {
+      async listProfitabilityDataset() {
+        repositoryCalled = true;
+        return { loans: [], payments: [] };
+      },
+    },
+  });
+
+  await assert.rejects(() => exportCustomerProfitabilityReport({
+    actor: { id: 1, role: 'admin' },
+    filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
+  }), /fromDate must be before or equal to toDate/i);
+  assert.equal(repositoryCalled, false);
+});
+
 test('profitability reports return empty summaries when the dataset has no loans or posted payments', async () => {
   const reportRepository = {
     async listProfitabilityDataset() {
@@ -880,6 +899,50 @@ test('createExportPayoutsExcel formats payout methods and states as operational 
   assert.equal(row.paymentMethod, 'Efectivo');
   assert.equal(row.status, 'Completado');
   assert.notEqual(row.paymentMethod, 'cash');
+});
+
+test('payout reports normalize legacy reversed status to annulled payment records', async () => {
+  const calls = [];
+  const getPayoutsReport = createGetPayoutsReport({
+    paymentRepository: {
+      async listPayoutsReport(query) {
+        calls.push(query);
+        return {
+          items: [{
+            id: 9,
+            amount: 0,
+            principalApplied: 0,
+            interestApplied: 0,
+            penaltyApplied: 0,
+            status: 'annulled',
+          }],
+          pagination: { totalItems: 1 },
+        };
+      },
+    },
+  });
+  const exportPayoutsExcel = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport(query) {
+        calls.push(query);
+        return {
+          items: [],
+        };
+      },
+    },
+  });
+
+  await getPayoutsReport({
+    actor: { id: 1, role: 'admin' },
+    filters: { status: 'reversed' },
+  });
+  await exportPayoutsExcel({
+    actor: { id: 1, role: 'admin' },
+    filters: { status: 'reversed' },
+  });
+
+  assert.equal(calls[0].status, 'annulled');
+  assert.equal(calls[1].status, 'annulled');
 });
 
 test('createGetAssociateProfitabilityReport rejects socio records as report users', async () => {

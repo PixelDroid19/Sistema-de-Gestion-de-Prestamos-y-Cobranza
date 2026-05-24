@@ -1,4 +1,4 @@
-const PERMISSION_MODULES = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'DASHBOARD', 'USUARIOS', 'PERMISOS', 'AUDITORÍA'];
+const PERMISSION_MODULES = ['CREDITOS', 'CLIENTES', 'PAGOS', 'SOCIOS', 'REPORTES', 'DASHBOARD', 'FINANZAS', 'USUARIOS', 'PERMISOS', 'AUDITORÍA'];
 
 const permissionsCatalog = [
   {
@@ -120,6 +120,21 @@ const permissionsCatalog = [
     name: 'DASHBOARD_EXPORT',
     module: 'DASHBOARD',
     description: 'Exportar datos del dashboard',
+  },
+  {
+    name: 'FINANCE_VIEW_ALL',
+    module: 'FINANZAS',
+    description: 'Consultar movimientos financieros operativos',
+  },
+  {
+    name: 'FINANCE_CREATE',
+    module: 'FINANZAS',
+    description: 'Registrar gastos operativos',
+  },
+  {
+    name: 'FINANCE_ANNUL',
+    module: 'FINANZAS',
+    description: 'Anular gastos operativos conservando historial',
   },
   {
     name: 'USERS_VIEW_ALL',

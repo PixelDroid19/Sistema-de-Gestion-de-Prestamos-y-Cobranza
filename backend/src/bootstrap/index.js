@@ -1,6 +1,13 @@
 const { sequelize } = require('@/models');
 const { buildModuleRegistry } = require('@/modules');
-const { syncDatabaseSchema, ensureAuditLogEnums, ensureApplicationRoleEnums, seedFinancialProductsAndProfiles } = require('./schema');
+const {
+  syncDatabaseSchema,
+  ensureAuditLogEnums,
+  ensureApplicationRoleEnums,
+  ensurePermissionModuleEnums,
+  ensureAssociateInstallmentStatusEnums,
+  seedFinancialProductsAndProfiles,
+} = require('./schema');
 const { createSharedRuntime } = require('./sharedRuntime');
 const { loanRepository, alertRepository } = require('@/modules/credits/infrastructure/repositories');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
@@ -49,6 +56,8 @@ const bootstrap = async ({
   syncSchema = syncDatabaseSchema,
   ensureAuditEnums = ensureAuditLogEnums,
   ensureRoleEnums = ensureApplicationRoleEnums,
+  ensurePermissionEnums = ensurePermissionModuleEnums,
+  ensureAssociateInstallmentEnums = ensureAssociateInstallmentStatusEnums,
   seedFinancialProducts = seedFinancialProductsAndProfiles,
   buildModuleRegistry: getModuleRegistry = buildModuleRegistry,
   createSharedRuntime: buildSharedRuntime = createSharedRuntime,
@@ -65,6 +74,8 @@ const bootstrap = async ({
   const schema = await syncSchema({ database, env });
   await ensureRoleEnums({ database });
   await ensureAuditEnums({ database });
+  await ensurePermissionEnums({ database });
+  await ensureAssociateInstallmentEnums({ database });
   await seedFinancialProducts();
   const sharedRuntime = buildSharedRuntime();
 

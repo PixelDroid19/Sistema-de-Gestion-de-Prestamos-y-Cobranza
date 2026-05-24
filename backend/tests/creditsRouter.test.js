@@ -10,7 +10,7 @@ const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('@
 const { createCreditsRouter } = require('@/modules/credits/presentation/router');
 const { createAuthMiddleware } = require('@/modules/shared/auth');
 const { createLoanAccessPolicy } = require('@/modules/shared/loanAccessPolicy');
-const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
+const { globalErrorHandler, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -1170,15 +1170,23 @@ test('createCreditsRouter returns Spanish messages for recovery and late-fee upd
   ]);
 });
 
-test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardless of previous assignment', async () => {
+test('createCreditsRouter DELETE /:id cancels rejected loans without physical deletion', async () => {
   let destroyCalled = false;
+  let savedLoan = null;
   const loanRepository = {
     async findById(loanId) {
       return {
         id: Number(loanId),
         customerId: 4,
         status: 'rejected',
+        save() {
+          savedLoan = { ...this };
+          return this;
+        },
       };
+    },
+    async save(loan) {
+      return loan.save();
     },
     async destroy() {
       destroyCalled = true;
@@ -1203,9 +1211,12 @@ test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardle
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Crédito eliminado correctamente',
+    message: 'Crédito cancelado correctamente',
   });
-  assert.equal(destroyCalled, true);
+  assert.equal(destroyCalled, false);
+  assert.equal(savedLoan.status, 'cancelled');
+  assert.equal(savedLoan.closureReason, 'cancelled');
+  assert.ok(savedLoan.closedAt instanceof Date);
 });
 
 test('createCreditsRouter DELETE /:id blocks customer deletion attempts at runtime', async () => {
@@ -1586,6 +1597,40 @@ test('createCreditsRouter rejects malformed calendar overview loan IDs before qu
   assert.equal(response.statusCode, 400);
   assert.match(response.body.error.message, /loanIds/i);
   assert.deepEqual(calls, []);
+});
+
+test('createCreditsRouter rejects inverted calendar overview date range', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getPaymentCalendarOverview(input) {
+        calls.push(input);
+        throw new ValidationError('startDate must be before or equal to endDate');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/calendar/overview?startDate=2026-06-30&endDate=2026-06-01',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /startDate must be before or equal to endDate/i);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].filters.startDate, '2026-06-30');
+  assert.equal(calls[0].filters.endDate, '2026-06-01');
 });
 
 test('createCreditsRouter serves payoff quote and payoff execution contracts', async () => {

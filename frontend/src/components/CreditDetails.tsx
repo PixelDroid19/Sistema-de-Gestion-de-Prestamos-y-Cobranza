@@ -182,6 +182,7 @@ export default function CreditDetails() {
         installmentNumber: p.installmentNumber, principalApplied: p.principalApplied,
         interestApplied: p.interestApplied, penaltyApplied: p.penaltyApplied,
         paymentMethod: p.paymentMethod,
+        createdBy: p.createdBy,
         paymentStatus: p.status,
         paymentReconciled: Boolean(p.reconciled || p.isReconciled || String(p.status || '').toLowerCase().includes('reconcil')),
         action: tTerm('creditDetails.history.action.payment', { type: getPaymentTypeLabel(p.paymentType) }),

@@ -89,6 +89,7 @@ test('applyPayment allocates payoff amounts and closes a recovered loan', async 
     loanId: 10,
     amount: totalPayable + 5,
     paymentDate: '2026-02-15T00:00:00.000Z',
+    actorId: 71,
   });
 
   assert.equal(result.loan.status, 'closed');
@@ -99,6 +100,7 @@ test('applyPayment allocates payoff amounts and closes a recovered loan', async 
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
   assert.equal(savedPayment.remainingBalanceAfterPayment, 0);
   assert.equal(savedPayment.overpaymentAmount, 5);
+  assert.equal(savedPayment.createdByUserId, 71);
   assert.equal(savedPayment.principalApplied + savedPayment.interestApplied, totalPayable);
 });
 
@@ -257,12 +259,14 @@ test('applyPartialPayment allocates the submitted amount only once across open i
     amount: 50,
     paymentDate: '2026-05-17T00:00:00.000Z',
     paymentMethod: 'cash',
+    actorId: 73,
   });
 
   assert.equal(result.allocation.interestApplied, 20);
   assert.equal(result.allocation.principalApplied, 30);
   assert.equal(savedPayment.amount, 50);
   assert.equal(savedPayment.interestApplied + savedPayment.principalApplied, 50);
+  assert.equal(savedPayment.createdByUserId, 73);
   assert.equal(savedLoan.emiSchedule[0].paidTotal, 50);
   assert.equal(savedLoan.emiSchedule[1].paidTotal, 0);
 });
@@ -335,6 +339,59 @@ test('applyCapitalPayment reduce_term rebuilds the open schedule without marking
   assert.equal(savedPayment.paymentMetadata.strategyApplied, 'reduce_term');
   assert.equal(savedPayment.paymentMetadata.before.outstandingPrincipal, startingSnapshot.outstandingPrincipal);
   assert.equal(savedPayment.paymentMetadata.after.outstandingPrincipal, savedLoan.financialSnapshot.outstandingPrincipal);
+});
+
+test('applyCapitalPayment stores the operator who registered the capital movement', async () => {
+  let savedPayment;
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3401,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => {
+    savedPayment = payload;
+    return { id: 891, ...payload };
+  });
+
+  await createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 3401,
+    amount: 250,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    actorId: 72,
+  });
+
+  assert.equal(savedPayment.createdByUserId, 72);
 });
 
 test('loan view snapshot keeps completed capital payments in collected totals after later payments', async () => {
@@ -1066,6 +1123,7 @@ test('applyPayoff closes the loan, stores payoff metadata, and leaves no future 
   assert.equal(result.allocation.payoff.total, 1024);
   assert.equal(savedLoan.financialSnapshot.outstandingBalance, 0);
   assert.equal(savedPayment.paymentType, 'payoff');
+  assert.equal(savedPayment.createdByUserId, 55);
   assert.equal(savedPayment.paymentMetadata.payoff.asOfDate, '2026-03-15');
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overduePrincipal, 0);
   assert.equal(savedPayment.paymentMetadata.payoff.breakdown.overdueInterest, 0);

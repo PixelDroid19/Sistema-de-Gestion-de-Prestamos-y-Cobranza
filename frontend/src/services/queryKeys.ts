@@ -34,6 +34,38 @@ export type AssociateListParams = {
   status?: string;
 };
 
+export type MonthlyCashFlowFilters = {
+  fromDate?: string;
+  toDate?: string;
+};
+
+export type DailyCashFlowFilters = {
+  date?: string;
+  fromDate?: string;
+  toDate?: string;
+};
+
+export type CreditHistoryMonthlyFilters = {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  customerId?: number;
+  loanId?: number;
+};
+
+export type OperatingExpenseListParams = {
+  page?: number;
+  pageSize?: number;
+  fromDate?: string;
+  toDate?: string;
+  status?: string;
+};
+
+export type AssociateCalendarFilters = {
+  startDate?: string;
+  endDate?: string;
+};
+
 export const queryKeys = {
   customers: {
     all: ['customers'] as const,
@@ -51,7 +83,8 @@ export const queryKeys = {
     detail: (associateId: number) => ['associates', 'detail', associateId] as const,
     financialDetails: (associateId: number) => ['associates', 'financial-details', associateId] as const,
     installments: (associateId: number) => ['associates', 'installments', associateId] as const,
-    calendar: (associateId: number) => ['associates', 'calendar', associateId] as const,
+    calendar: (associateId: number, filters?: AssociateCalendarFilters) =>
+      ['associates', 'calendar', associateId, filters ?? {}] as const,
   },
   config: {
     paymentMethods: ['config.paymentMethods'] as const,
@@ -101,7 +134,12 @@ export const queryKeys = {
     creditEarnings: ['reports.creditEarnings'] as const,
     interestEarnings: (year?: number) => ['reports.interestEarnings', year] as const,
     monthlyEarnings: (year?: number) => ['reports.monthlyEarnings', year] as const,
-    monthlyCashFlow: (year?: number) => ['reports.monthlyCashFlow', year] as const,
+    monthlyCashFlow: (year?: number, filters?: MonthlyCashFlowFilters) =>
+      ['reports.monthlyCashFlow', year, filters ?? {}] as const,
+    dailyCashFlow: (filters?: DailyCashFlowFilters) =>
+      ['reports.dailyCashFlow', filters ?? {}] as const,
+    creditHistoryMonthly: (filters?: CreditHistoryMonthlyFilters) =>
+      ['reports.creditHistoryMonthly', filters ?? {}] as const,
     monthlyInterest: (year?: number) => ['reports.monthlyInterest', year] as const,
     performanceAnalysis: (year?: number) => ['reports.performanceAnalysis', year] as const,
     executiveDashboard: ['reports.executiveDashboard'] as const,
@@ -113,6 +151,10 @@ export const queryKeys = {
     payouts: (filters: object, page: number, pageSize: number) =>
       ['reports.payouts', filters, page, pageSize] as const,
     paymentSchedule: (loanId: number | null) => ['reports.paymentSchedule', loanId] as const,
+  },
+  operatingExpenses: {
+    all: ['operatingExpenses'] as const,
+    list: (params?: OperatingExpenseListParams) => ['operatingExpenses', 'list', params ?? {}] as const,
   },
   timeline: {
     loan: (loanId: number) => ['loans.timeline', loanId] as const,

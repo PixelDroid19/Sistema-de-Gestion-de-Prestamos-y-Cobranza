@@ -369,7 +369,7 @@ const createCreditsRouter = ({ authMiddleware, attachmentUpload, loanValidation,
   router.delete('/:id', requirePermission('CREDITS_DELETE'), asyncHandler(async (req, res) => {
     const loanId = parseRequiredRouteId(req.params.id, 'loanId');
     await useCases.deleteLoan({ actor: req.user, loanId });
-    res.json({ success: true, message: 'Crédito eliminado correctamente' });
+    res.json({ success: true, message: 'Crédito cancelado correctamente' });
   }));
 
   router.get('/:id', requirePermission('CREDITS_VIEW_ALL'), asyncHandler(async (req, res) => {

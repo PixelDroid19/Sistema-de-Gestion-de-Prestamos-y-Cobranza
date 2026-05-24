@@ -3,6 +3,7 @@ const {
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
+  normalizePayoutStatusFilter,
 } = require('@/modules/reports/application/reportHelpers');
 
 /**
@@ -15,8 +16,9 @@ const createGetPayoutsReport = ({ reportRepository, paymentRepository }) => asyn
 
   const { fromDate, toDate, status, paymentType } = filters;
   const dateRange = parseDateRange({ fromDate, toDate });
+  const normalizedStatus = normalizePayoutStatusFilter(status);
 
-  const statusWhere = status ? { status } : { status: 'completed' };
+  const statusWhere = normalizedStatus ? { status: normalizedStatus } : { status: 'completed' };
   const paymentTypeWhere = paymentType ? { paymentType } : {};
 
   const whereClause = {

@@ -159,4 +159,36 @@ describe('resolveOperationalGuard', () => {
       reason: 'Solo administradores pueden actualizar la tasa de mora.',
     });
   });
+
+  it('describes credit delete action as logical cancellation instead of physical deletion', () => {
+    const hidden = resolveOperationalGuard('credit.delete', {
+      role: 'employee',
+      permissions: ['CREDITS_DELETE'],
+      loanStatus: 'rejected',
+    });
+    const blocked = resolveOperationalGuard('credit.delete', {
+      role: 'admin',
+      loanStatus: 'closed',
+    });
+    const active = resolveOperationalGuard('credit.delete', {
+      role: 'admin',
+      loanStatus: 'active',
+    });
+    const rejected = resolveOperationalGuard('credit.delete', {
+      role: 'admin',
+      loanStatus: 'rejected',
+    });
+
+    expect(hidden.reason).toBe('Solo administradores pueden cancelar créditos.');
+    expect(blocked.reason).toBe('No se puede cancelar un crédito cerrado o completado.');
+    expect(active).toMatchObject({
+      visible: true,
+      executable: false,
+      reason: 'Solo se pueden cancelar créditos rechazados.',
+    });
+    expect(rejected).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+  });
 });

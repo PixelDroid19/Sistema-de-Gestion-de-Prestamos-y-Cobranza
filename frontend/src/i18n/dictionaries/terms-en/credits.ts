@@ -222,6 +222,7 @@ export const creditsEn = {
 'creditDetails.promises.forDate': 'For {date}',
 'creditDetails.payouts.table.paymentId': 'Payment ID',
 'creditDetails.payouts.table.installment': 'Installment #',
+'creditDetails.payouts.table.createdBy': 'Registered by',
 'creditDetails.payouts.table.paymentDate': 'Payment date',
 'creditDetails.history.action.payment': '{type} payment',
 'creditDetails.history.action.payoffApplied': 'Payoff applied',

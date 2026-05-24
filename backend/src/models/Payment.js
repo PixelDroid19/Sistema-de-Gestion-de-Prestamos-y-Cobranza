@@ -35,6 +35,7 @@ const Payment = sequelize.define('Payment', {
   paymentMethod: { type: DataTypes.STRING, allowNull: true }, // Payment method used (e.g., 'cash', 'transfer', 'card')
   installmentNumber: { type: DataTypes.INTEGER, allowNull: true }, // For installment payments
   annulledFromInstallment: { type: DataTypes.INTEGER, allowNull: true }, // For annulled payments, reference to original installment
+  createdByUserId: { type: DataTypes.INTEGER, allowNull: true },
 }, {
   timestamps: true,
   indexes: [
@@ -43,6 +44,7 @@ const Payment = sequelize.define('Payment', {
     { fields: ['status'] },
     { fields: ['paymentType'] },
     { fields: ['loanId', 'installmentNumber'] },
+    { fields: ['createdByUserId'] },
   ],
   validate: {
     /** Ensure allocation fields sum approximately to the payment amount (within rounding tolerance). */

@@ -1,4 +1,9 @@
-const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const {
+  assertDateRangeOrder,
+  ensureAdmin,
+  formatMoney,
+  buildPdfBuffer,
+} = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
@@ -58,6 +63,35 @@ const formatIsoDate = (value) => {
   return toDateOnlyOrNull(value) || 'N/A';
 };
 
+const formatInterestType = (value) => (value === 'annual' ? 'Anual' : 'Mensual');
+
+const isOverdueInterestInstallment = (installment, asOfDate = new Date()) => {
+  if (installment?.status === 'overdue') {
+    return true;
+  }
+
+  if (installment?.status !== 'pending') {
+    return false;
+  }
+
+  const dueDate = toOperationalDateOrNull(installment.dueDate);
+  return Boolean(dueDate && dueDate < asOfDate);
+};
+
+const resolveInterestInstallmentExportStatus = (installment, asOfDate = new Date()) => {
+  if (installment?.status === 'paid') {
+    return 'paid';
+  }
+
+  if (installment?.status === 'overdue') {
+    return 'overdue';
+  }
+
+  return isOverdueInterestInstallment(installment, asOfDate) ? 'overdue' : 'pending';
+};
+
+const isUnpaidInterestInstallment = (installment) => ['pending', 'overdue'].includes(String(installment?.status || '').toLowerCase());
+
 const SUMMARY_COLUMNS = [
   { header: 'Indicador', key: 'indicator', width: 34 },
   { header: 'Valor', key: 'value', width: 22 },
@@ -80,6 +114,8 @@ const DETAIL_COLUMNS = [
   dateColumn('Fecha', 'date', 18),
   { header: 'Estado', key: 'status', width: 14 },
   { header: 'Participación %', key: 'participationPercentage', width: 18 },
+  { header: 'Rentabilidad del Aporte', key: 'contributionInterestType', width: 24 },
+  { header: 'Tasa Histórica del Aporte %', key: 'contributionInterestRate', width: 28 },
   { header: 'Tipo Distribución', key: 'distributionType', width: 20 },
   moneyColumn('Total Declarado', 'declaredProportionalTotal', 20),
   moneyColumn('Monto Asignado', 'allocatedAmount', 20),
@@ -100,6 +136,57 @@ const SECTION_COLUMNS = [
 ];
 
 const parseMoney = (value) => Number(String(value ?? 0).replace(/[^0-9.-]/g, '')) || 0;
+const formatPdfMoney = (value) => `$${Number(value || 0).toLocaleString('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})}`;
+const normalizeAssociateFilterId = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return /^\d+$/.test(normalized) ? Number(normalized) : null;
+};
+const normalizeAssociateStatusFilter = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return ['active', 'inactive'].includes(normalized) ? normalized : null;
+};
+const normalizeDateFilter = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  return toOperationalDateOrNull(value);
+};
+const buildDateRangeFilter = (filters = {}) => {
+  const range = {
+    fromDate: normalizeDateFilter(filters.fromDate || filters.startDate),
+    toDate: normalizeDateFilter(filters.toDate || filters.endDate),
+  };
+  assertDateRangeOrder(range);
+  return range;
+};
+const isWithinDateRange = (value, range) => {
+  const date = toOperationalDateOrNull(value);
+  if (!date) {
+    return true;
+  }
+
+  if (range.fromDate && date < range.fromDate) {
+    return false;
+  }
+
+  if (range.toDate && date > range.toDate) {
+    return false;
+  }
+
+  return true;
+};
 
 const buildAssociateSheets = (rows) => {
   const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
@@ -209,38 +296,56 @@ const buildAssociateSheets = (rows) => {
  * GET /api/reports/associates/excel
  *
  * @param {{ associateRepository: object, reportRepository?: object }} dependencies
- * @returns {(input: { actor: { id?: number|string, role: string } }) => Promise<{ success: boolean, data: { rows: Array<object>, sheets: Array<object> } }>}
+ * @returns {(input: { actor: { id?: number|string, role: string }, filters?: { associateId?: number|string } }) => Promise<{ success: boolean, data: { rows: Array<object>, sheets: Array<object> } }>}
  */
-const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor }) => {
+const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor, filters = {} }) => {
   ensureAdmin(actor, 'Only authorized backoffice users can export associates data');
-  const allAssociates = await associateRepository.list();
-  const associateIds = allAssociates.map((associate) => associate.id);
+  const associateIdFilter = normalizeAssociateFilterId(filters.associateId);
+  const statusFilter = normalizeAssociateStatusFilter(filters.status);
+  const dateRange = buildDateRangeFilter(filters);
+  const associates = associateIdFilter
+    ? [await associateRepository.findById(associateIdFilter)].filter(Boolean)
+    : await associateRepository.list();
+  const selectedAssociates = associates.filter((associate) => (
+    !statusFilter || String(associate.status || '').trim().toLowerCase() === statusFilter
+  ));
+  const associateById = new Map(selectedAssociates.map((associate) => [Number(associate.id), associate]));
+  const associateIds = selectedAssociates.map((associate) => associate.id);
 
   // Build rows for each associate
   const rows = await Promise.all(
     associateIds.map(async (associateId) => {
       const [associate, contributions, distributions, installments] = await Promise.all([
-        associateRepository.findById(associateId),
+        associateById.get(Number(associateId)) || associateRepository.findById(associateId),
         associateRepository.listContributionsByAssociate(associateId),
         associateRepository.listProfitDistributionsByAssociate(associateId),
         associateRepository.findInstallmentsByAssociateId(associateId),
       ]);
+      const filteredContributions = contributions.filter((contribution) => (
+        isWithinDateRange(contribution.contributionDate, dateRange)
+      ));
+      const filteredDistributions = distributions.filter((distribution) => (
+        isWithinDateRange(distribution.distributionDate, dateRange)
+      ));
+      const filteredInstallments = installments.filter((installment) => (
+        isWithinDateRange(installment.status === 'paid' ? installment.paidAt : installment.dueDate, dateRange)
+      ));
 
-      const totalContributed = contributions.reduce((sum, c) => sum + Number(c.amount || 0), 0);
-      const totalDistributed = distributions.reduce((sum, d) => sum + Number(d.amount || 0), 0);
-      const totalInterestPaid = installments
+      const totalContributed = filteredContributions.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+      const totalDistributed = filteredDistributions.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+      const totalInterestPaid = filteredInstallments
         .filter((installment) => installment.status === 'paid')
         .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
-      const interestDebt = installments
-        .filter((installment) => installment.status === 'pending')
+      const interestDebt = filteredInstallments
+        .filter(isUnpaidInterestInstallment)
         .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
-      const nextInterestPayment = installments
-        .filter((installment) => installment.status === 'pending')
+      const nextInterestPayment = filteredInstallments
+        .filter(isUnpaidInterestInstallment)
         .map((installment) => ({ installment, dueDate: toOperationalDateOrNull(installment.dueDate) }))
         .filter((entry) => entry.dueDate)
         .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())[0]?.installment || null;
       const baseFields = {
-        interestType: associate.interestType === 'annual' ? 'Anual' : 'Mensual',
+        interestType: formatInterestType(associate.interestType),
         interestRate: associate.interestRate || '0.0000',
         interestDebt: formatMoney(interestDebt),
         totalInterestPaid: formatMoney(totalInterestPaid),
@@ -248,7 +353,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
       };
 
       // Contribution rows
-      const contributionRows = contributions.map((c) => ({
+      const contributionRows = filteredContributions.map((c) => ({
         associateId: associate.id,
         associateName: associate.name,
         ...baseFields,
@@ -259,6 +364,8 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         date: formatIsoDate(c.contributionDate),
         status: formatOperationalStatus(c.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
+        contributionInterestType: c.interestTypeSnapshot ? formatInterestType(c.interestTypeSnapshot) : 'N/A',
+        contributionInterestRate: c.interestRateSnapshot || 'N/A',
         distributionType: '',
         declaredProportionalTotal: '',
         allocatedAmount: '',
@@ -266,7 +373,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
       }));
 
       // Distribution rows
-      const distributionRows = distributions.map((d) => {
+      const distributionRows = filteredDistributions.map((d) => {
         const normalized = normalizeDistributionRecord(d);
         return {
           associateId: associate.id,
@@ -279,6 +386,8 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
           date: formatIsoDate(d.distributionDate),
           status: formatOperationalStatus(d.status),
           participationPercentage: normalized.participationPercentage || normalizeParticipationPercentage(associate.participationPercentage),
+          contributionInterestType: '',
+          contributionInterestRate: '',
           distributionType: formatDistributionType(normalized.distributionType),
           declaredProportionalTotal: normalized.declaredProportionalTotal || 'N/A',
           allocatedAmount: normalized.allocatedAmount || 'N/A',
@@ -286,22 +395,27 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         };
       });
 
-      const interestRows = installments.map((installment) => ({
-        associateId: associate.id,
-        associateName: associate.name,
-        ...baseFields,
-        section: installment.status === 'paid' ? ASSOCIATE_EXPORT_SECTIONS.interestPaid : ASSOCIATE_EXPORT_SECTIONS.interestDue,
-        entryId: installment.id,
-        reference: installment.installmentNumber || '',
-        amount: formatMoney(installment.amount),
-        date: formatIsoDate(installment.status === 'paid' ? installment.paidAt : installment.dueDate),
-        status: formatOperationalStatus(installment.status),
-        participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
-        distributionType: associate.interestType === 'annual' ? 'Interés anual' : 'Interés mensual',
-        declaredProportionalTotal: '',
-        allocatedAmount: '',
-        notes: installment.notes || '',
-      }));
+      const interestRows = filteredInstallments.map((installment) => {
+        const operationalStatus = resolveInterestInstallmentExportStatus(installment);
+        return {
+          associateId: associate.id,
+          associateName: associate.name,
+          ...baseFields,
+          section: operationalStatus === 'paid' ? ASSOCIATE_EXPORT_SECTIONS.interestPaid : ASSOCIATE_EXPORT_SECTIONS.interestDue,
+          entryId: installment.id,
+          reference: installment.installmentNumber || '',
+          amount: formatMoney(installment.amount),
+          date: formatIsoDate(operationalStatus === 'paid' ? installment.paidAt : installment.dueDate),
+          status: formatOperationalStatus(operationalStatus),
+          participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
+          contributionInterestType: '',
+          contributionInterestRate: '',
+          distributionType: associate.interestType === 'annual' ? 'Interés anual' : 'Interés mensual',
+          declaredProportionalTotal: '',
+          allocatedAmount: '',
+          notes: installment.notes || '',
+        };
+      });
 
       // Summary row
       const summaryRow = {
@@ -315,10 +429,12 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         date: `Distribuido: ${formatMoney(totalDistributed)}`,
         status: formatOperationalStatus(associate.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
+        contributionInterestType: '',
+        contributionInterestRate: '',
         distributionType: '',
         declaredProportionalTotal: '',
         allocatedAmount: '',
-        notes: `Aportes: ${contributions.length}, Distribuciones: ${distributions.length}, Cuotas de interés: ${installments.length}`,
+        notes: `Aportes: ${filteredContributions.length}, Distribuciones: ${filteredDistributions.length}, Cuotas de interés: ${filteredInstallments.length}`,
       };
 
       return [summaryRow, ...contributionRows, ...distributionRows, ...interestRows];
@@ -336,4 +452,44 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
   };
 };
 
-module.exports = { createExportAssociatesExcel };
+const buildAssociatesPdfLines = (rows = []) => {
+  const associateIds = new Set(rows.map((row) => row.associateId).filter(Boolean));
+  const contributionRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.contribution);
+  const interestPaidRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestPaid);
+  const interestDueRows = rows.filter((row) => row.section === ASSOCIATE_EXPORT_SECTIONS.interestDue);
+  const totalContributed = contributionRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalInterestPaid = interestPaidRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const totalInterestDue = interestDueRows.reduce((sum, row) => sum + parseMoney(row.amount), 0);
+  const paidLines = interestPaidRows.slice(0, 5).map((row) => (
+    `Pagado: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${row.amount || '$0.00'}`
+  ));
+  const pendingScheduleLines = interestDueRows.slice(0, 8).map((row) => (
+    `Pendiente: ${row.associateName || 'Socio sin nombre'} - ${row.date || 'Sin fecha'} - ${row.amount || '$0.00'}`
+  ));
+
+  return [
+    `Socios incluidos: ${associateIds.size}`,
+    `Capital aportado por socios: ${formatPdfMoney(totalContributed)}`,
+    `Pagos realizados a socios: ${formatPdfMoney(totalInterestPaid)}`,
+    `Intereses pendientes de socios: ${formatPdfMoney(totalInterestDue)}`,
+    `Cronograma de pagos de socios: ${interestDueRows.length} cuota${interestDueRows.length === 1 ? '' : 's'}`,
+    ...paidLines,
+    ...pendingScheduleLines,
+  ];
+};
+
+const createExportAssociatesPdf = ({ associateRepository, reportRepository }) => async ({ actor, filters = {} }) => {
+  const exportData = await createExportAssociatesExcel({ associateRepository, reportRepository })({ actor, filters });
+  const rows = exportData.data?.rows || [];
+
+  return {
+    fileName: 'associates-export.pdf',
+    contentType: 'application/pdf',
+    buffer: buildPdfBuffer({
+      title: 'REPORTE DE SOCIOS INVERSIONISTAS',
+      lines: buildAssociatesPdfLines(rows),
+    }),
+  };
+};
+
+module.exports = { createExportAssociatesExcel, createExportAssociatesPdf };

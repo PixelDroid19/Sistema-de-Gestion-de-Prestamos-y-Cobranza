@@ -413,8 +413,23 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         description: 'Devuelve el cuadre mensual de caja: entradas por cuotas completadas, salidas por préstamos desembolsados, caja disponible acumulada, ganancia cobrada y pérdidas en riesgo.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
         responses: { 200: { description: 'Resumen financiero mensual e historial por mes' } },
+      },
+    },
+    '/reports/cash-flow/daily': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Consultar control financiero diario',
+        description: 'Devuelve el cuadre diario de caja para una fecha o rango: entradas por cuotas, salidas por préstamos, pagos a socios, gastos operativos, caja disponible y pérdidas en riesgo.',
+        parameters: [
+          { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: { 200: { description: 'Resumen financiero diario e historial por día' } },
       },
     },
     '/reports/cash-flow/monthly/excel': {
@@ -424,6 +439,8 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         description: 'Genera un Excel con hojas Resumen Financiero e Historial Mensual. Los totales coinciden con préstamos y pagos completados registrados en base de datos.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
         responses: { 200: { description: 'Archivo Excel de flujo de caja mensual' } },
       },
@@ -435,6 +452,8 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         description: 'Genera un PDF ejecutivo con entradas, salidas, caja disponible, ganancia cobrada, pérdidas en riesgo y resultado neto del año seleccionado.',
         parameters: [
           { name: 'year', in: 'query', schema: { type: 'integer', minimum: 2000, maximum: 2100 } },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
         ],
         responses: { 200: { description: 'Archivo PDF de flujo de caja mensual' } },
       },
@@ -452,6 +471,8 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'status', in: 'query', schema: { type: 'string' }, description: 'Estado de crédito o recuperación. Acepta varios valores separados por coma.' },
+          { name: 'customerId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por cliente administrativo.' },
+          { name: 'loanId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por crédito específico.' },
         ],
         responses: { 200: { description: 'Historial mensual avanzado de créditos' } },
       },
@@ -471,6 +492,8 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
           { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'status', in: 'query', schema: { type: 'string' }, description: 'Estado de crédito o recuperación. Acepta varios valores separados por coma.' },
+          { name: 'customerId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por cliente administrativo.' },
+          { name: 'loanId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra por crédito específico.' },
         ],
         responses: { 200: { description: 'Archivo Excel o PDF de historial mensual de créditos' } },
       },
@@ -491,12 +514,51 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 200: { description: 'Archivo Excel de pagos' } },
       },
     },
+    '/reports/payouts/export': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar pagos a Excel o PDF desde backend',
+        description: 'Genera un reporte operativo de pagos y movimientos en Excel o PDF usando los mismos filtros canonicos.',
+        parameters: [
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
+          { name: 'customerId', in: 'query', schema: { type: 'integer' } },
+          { name: 'loanId', in: 'query', schema: { type: 'integer' } },
+          { name: 'creditId', in: 'query', schema: { type: 'integer' } },
+          { name: 'startDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'endDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'status', in: 'query', schema: { type: 'string' } },
+          { name: 'paymentType', in: 'query', schema: { type: 'string', enum: ['installment', 'partial', 'capital', 'payoff'] } },
+        ],
+        responses: { 200: { description: 'Archivo de pagos en el formato solicitado' } },
+      },
+    },
     '/reports/associates/excel': {
       get: {
         tags: ['Reports'],
         summary: 'Exportar socios a Excel operativo',
         description: 'Genera hojas inspiradas en el reporte anterior de socios: Resumen General, Distribución por Estado, Detalle de Socios, Análisis de Rentabilidad y Rangos de Inversión. Incluye capital aportado, tipo/tasa de interés, deuda con el socio, interés pagado, próximo pago y movimientos.',
+        parameters: [
+          { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive'] }, description: 'Filtra socios activos o inactivos.' },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
         responses: { 200: { description: 'Archivo Excel de socios' } },
+      },
+    },
+    '/reports/associates/export': {
+      get: {
+        tags: ['Reports'],
+        summary: 'Exportar socios a Excel o PDF operativo',
+        description: 'Genera el reporte administrativo de socios en Excel o PDF. El PDF resume pagos realizados a socios, intereses pendientes y cronograma de pagos.',
+        parameters: [
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx' } },
+          { name: 'associateId', in: 'query', schema: { type: 'integer', minimum: 1 }, description: 'Filtra el reporte por socio inversionista.' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive'] }, description: 'Filtra socios activos o inactivos.' },
+          { name: 'fromDate', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'toDate', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: { 200: { description: 'Archivo de socios en el formato solicitado' } },
       },
     },
     '/notifications': {

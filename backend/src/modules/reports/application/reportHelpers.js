@@ -1,4 +1,4 @@
-const { AuthorizationError } = require('@/utils/errorHandler');
+const { AuthorizationError, ValidationError } = require('@/utils/errorHandler');
 const { formatCurrency } = require('@/modules/shared/money');
 const { normalizeOptionalOperationalDate } = require('@/modules/shared/dateUtils');
 
@@ -24,11 +24,19 @@ const ensureAdmin = (actor, message = 'Only authorized backoffice users can acce
 
 const formatMoney = formatCurrency;
 
+const assertDateRangeOrder = ({ fromDate, toDate }, { fromLabel = 'fromDate', toLabel = 'toDate' } = {}) => {
+  if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
+    throw new ValidationError(`${fromLabel} must be before or equal to ${toLabel}`);
+  }
+};
+
 const parseDateRange = ({ fromDate, toDate } = {}) => {
-  return {
+  const range = {
     fromDate: normalizeOptionalOperationalDate(fromDate, 'fromDate'),
     toDate: normalizeOptionalOperationalDate(toDate, 'toDate'),
   };
+  assertDateRangeOrder(range);
+  return range;
 };
 
 const buildPaymentDateWhere = (range = {}) => {
@@ -45,6 +53,14 @@ const buildPaymentDateWhere = (range = {}) => {
   return Object.keys(paymentDateWhere).length > 0
     ? { paymentDate: paymentDateWhere }
     : {};
+};
+
+const normalizePayoutStatusFilter = (status) => {
+  if (!status) {
+    return status;
+  }
+
+  return status === 'reversed' ? 'annulled' : status;
 };
 
 const mapMonthlySeries = ({ year, rows, valueKey }) => {
@@ -134,9 +150,11 @@ const buildPdfBuffer = ({ title, lines }) => {
 module.exports = {
   MONTHS,
   ensureAdmin,
+  assertDateRangeOrder,
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,
+  normalizePayoutStatusFilter,
   mapMonthlySeries,
   buildCsv,
   buildPdfBuffer,

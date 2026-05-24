@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import {
   useReports,
@@ -8,8 +8,17 @@ import {
   exportContextualReport,
   useFinancialAnalytics,
   useMonthlyCashFlow,
+  useDailyCashFlow,
+  useCreditHistoryMonthly,
   exportMonthlyCashFlowExcel,
   exportMonthlyCashFlowPdf,
+  useOperatingExpenses,
+  createOperatingExpense,
+  annulOperatingExpense,
+  exportOperatingExpensesReport,
+  type OperatingExpense,
+  type OperatingExpenseExportFormat,
+  type OperatingExpensePayload,
 } from '../services/reportService';
 import { useLoans } from '../services/loanService';
 import { formatCurrency as formatCurrencyValue } from '../i18n/format';
@@ -18,8 +27,11 @@ import { tTerm } from '../i18n/terminology';
 import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../services/queryKeys';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { PERMISSION } from '../constants/permissionNames';
+import { requestInput } from '../lib/confirmModal';
+import { toast } from '../lib/toast';
 import {
   ActionButton,
   DataTableSurface,
@@ -33,10 +45,13 @@ import {
 } from './shared/Surfaces';
 import DashboardTab from './reports/DashboardTab';
 import CashflowTab from './reports/CashflowTab';
+import CreditHistoryMonthlyTab from './reports/CreditHistoryMonthlyTab';
 import ProfitabilityTab from './reports/ProfitabilityTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ScheduleTab from './reports/ScheduleTab';
+import OperatingExpensesTab from './reports/OperatingExpensesTab';
 import { getLoanStatusLabel } from './credits/creditsHelpers';
+import { getPaymentTypeLabel } from '../constants/paymentTypes';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -73,6 +88,9 @@ export default function Reports() {
     user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission)
   );
   const canViewPaymentScheduleTab = canAccessPermission(PERMISSION.CREDITS_VIEW_ALL);
+  const canViewOperatingExpensesTab = canAccessPermission(PERMISSION.FINANCE_VIEW_ALL);
+  const canCreateOperatingExpenses = canAccessPermission(PERMISSION.FINANCE_CREATE);
+  const canAnnulOperatingExpenses = canAccessPermission(PERMISSION.FINANCE_ANNUL);
   const {
     dashboardData,
     monthlyPerformance,
@@ -85,10 +103,22 @@ export default function Reports() {
   } = useReports();
 
   // Payouts report state
-  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string }>({});
+  const [payoutFilters, setPayoutFilters] = useState<{ fromDate?: string; toDate?: string; paymentType?: string }>({});
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutPageSize, setPayoutPageSize] = useState(20);
   const { payouts, summary: payoutSummary, pagination: payoutPagination, isLoading: isPayoutsLoading } = usePayoutsReport(payoutFilters, payoutPage, payoutPageSize);
+
+  const [expenseFilters, setExpenseFilters] = useState<{ fromDate?: string; toDate?: string; status?: string }>({});
+  const [expensePage, setExpensePage] = useState(1);
+  const [expensePageSize] = useState(20);
+  const {
+    expenses,
+    pagination: expensePagination,
+    isLoading: isExpensesLoading,
+  } = useOperatingExpenses(expenseFilters, expensePage, expensePageSize, canViewOperatingExpensesTab);
+  const [isCreatingExpense, setIsCreatingExpense] = useState(false);
+  const [annullingExpenseId, setAnnullingExpenseId] = useState<number | null>(null);
+  const [exportingExpensesFormat, setExportingExpensesFormat] = useState<OperatingExpenseExportFormat | null>(null);
 
   // Payment schedule state
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
@@ -100,18 +130,47 @@ export default function Reports() {
     refetch: refetchSchedule,
   } = usePaymentSchedule(selectedLoanId);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashflow' | 'outstanding' | 'profitability' | 'payouts' | 'schedule'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashflow' | 'creditHistory' | 'outstanding' | 'profitability' | 'payouts' | 'schedule' | 'expenses'>('dashboard');
   const [isExporting, setIsExporting] = useState(false);
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
+  const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
+  const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [creditHistoryFilters, setCreditHistoryFilters] = useState<{ startDate: string; endDate: string; status: string; customerId: string; loanId: string }>({
+    startDate: '',
+    endDate: '',
+    status: '',
+    customerId: '',
+    loanId: '',
+  });
   const [isCashFlowExporting, setIsCashFlowExporting] = useState<'excel' | 'pdf' | null>(null);
-  const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability'>('credits');
+  const [reportType, setReportType] = useState<'credits' | 'payouts' | 'profitability' | 'associates'>('credits');
   const [reportRange, setReportRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('');
+  const [reportPaymentTypeFilter, setReportPaymentTypeFilter] = useState<string>('');
+  const [reportAssociateIdFilter, setReportAssociateIdFilter] = useState<string>('');
+  const [reportCustomerIdFilter, setReportCustomerIdFilter] = useState<string>('');
+  const [reportLoanIdFilter, setReportLoanIdFilter] = useState<string>('');
   const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
 
   const { performanceAnalysis, forecastAnalysis, nextMonthProjection } = useFinancialAnalytics(analyticsYear);
-  const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear);
+  const cashFlowFilters = useMemo(() => ({
+    ...(cashFlowRange.fromDate ? { fromDate: cashFlowRange.fromDate } : {}),
+    ...(cashFlowRange.toDate ? { toDate: cashFlowRange.toDate } : {}),
+  }), [cashFlowRange]);
+  const { data: cashFlowData, isLoading: isCashFlowLoading } = useMonthlyCashFlow(cashFlowYear, cashFlowFilters);
+  const dailyCashFlowFilters = useMemo(() => ({
+    ...(dailyCashFlowDate ? { date: dailyCashFlowDate } : {}),
+  }), [dailyCashFlowDate]);
+  const { data: dailyCashFlowData, isLoading: isDailyCashFlowLoading } = useDailyCashFlow(dailyCashFlowFilters);
+  const creditHistoryQueryFilters = useMemo(() => ({
+    ...(creditHistoryFilters.startDate ? { startDate: creditHistoryFilters.startDate } : {}),
+    ...(creditHistoryFilters.endDate ? { endDate: creditHistoryFilters.endDate } : {}),
+    ...(creditHistoryFilters.status ? { status: creditHistoryFilters.status } : {}),
+    ...(/^\d+$/.test(creditHistoryFilters.customerId.trim()) ? { customerId: Number(creditHistoryFilters.customerId) } : {}),
+    ...(/^\d+$/.test(creditHistoryFilters.loanId.trim()) ? { loanId: Number(creditHistoryFilters.loanId) } : {}),
+  }), [creditHistoryFilters]);
+  const { data: creditHistoryData, isLoading: isCreditHistoryLoading } = useCreditHistoryMonthly(creditHistoryQueryFilters);
   const { data: scheduleLoansData, isLoading: isScheduleLoansLoading } = useLoans(
     { pageSize: 100 },
     { enabled: activeTab === 'schedule' },
@@ -183,9 +242,48 @@ export default function Reports() {
     role: user?.role, permissions: user?.permissions,
   });
 
+  const updateReportRange = (key: 'fromDate' | 'toDate', value: string) => {
+    if (key === 'fromDate' && value && reportRange.toDate && value > reportRange.toDate) {
+      return;
+    }
+    if (key === 'toDate' && value && reportRange.fromDate && value < reportRange.fromDate) {
+      return;
+    }
+
+    setReportRange((prev) => ({ ...prev, [key]: value }));
+  };
+
   const hasInvalidRange = Boolean(
     reportRange.fromDate && reportRange.toDate && reportRange.fromDate > reportRange.toDate,
   );
+  const normalizedReportAssociateId = reportAssociateIdFilter.trim();
+  const hasInvalidAssociateId = reportType === 'associates'
+    && normalizedReportAssociateId.length > 0
+    && !/^[1-9]\d*$/.test(normalizedReportAssociateId);
+  const reportAssociateId = reportType === 'associates'
+    && normalizedReportAssociateId.length > 0
+    && !hasInvalidAssociateId
+    ? Number(normalizedReportAssociateId)
+    : undefined;
+  const reportSupportsCustomerLoanFilters = reportType === 'credits' || reportType === 'payouts';
+  const normalizedReportCustomerId = reportCustomerIdFilter.trim();
+  const normalizedReportLoanId = reportLoanIdFilter.trim();
+  const hasInvalidReportCustomerId = reportSupportsCustomerLoanFilters
+    && normalizedReportCustomerId.length > 0
+    && !/^[1-9]\d*$/.test(normalizedReportCustomerId);
+  const hasInvalidReportLoanId = reportSupportsCustomerLoanFilters
+    && normalizedReportLoanId.length > 0
+    && !/^[1-9]\d*$/.test(normalizedReportLoanId);
+  const reportCustomerId = reportSupportsCustomerLoanFilters
+    && normalizedReportCustomerId.length > 0
+    && !hasInvalidReportCustomerId
+    ? Number(normalizedReportCustomerId)
+    : undefined;
+  const reportLoanId = reportSupportsCustomerLoanFilters
+    && normalizedReportLoanId.length > 0
+    && !hasInvalidReportLoanId
+    ? Number(normalizedReportLoanId)
+    : undefined;
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -208,15 +306,25 @@ export default function Reports() {
         await exportContextualReport(effectiveReportType, {
           fromDate: reportRange.fromDate || undefined,
           toDate: reportRange.toDate || undefined,
-          status: effectiveReportType === 'credits' && reportStatusFilter ? reportStatusFilter : undefined,
-          format: effectiveReportType === 'credits' ? reportFormat : undefined,
+          status: (effectiveReportType === 'credits' || effectiveReportType === 'associates' || effectiveReportType === 'payouts') && reportStatusFilter
+            ? reportStatusFilter
+            : undefined,
+          format: effectiveReportType === 'credits' || effectiveReportType === 'associates' || effectiveReportType === 'payouts'
+            ? reportFormat
+            : undefined,
+          paymentType: effectiveReportType === 'payouts' && reportPaymentTypeFilter ? reportPaymentTypeFilter : undefined,
+          associateId: effectiveReportType === 'associates' ? reportAssociateId : undefined,
+          customerId: effectiveReportType === 'credits' || effectiveReportType === 'payouts' ? reportCustomerId : undefined,
+          loanId: effectiveReportType === 'credits' || effectiveReportType === 'payouts' ? reportLoanId : undefined,
         });
       },
       successMessage: effectiveReportType === 'credits'
         ? tTerm('reports.toast.contextual.credits')
         : effectiveReportType === 'profitability'
           ? tTerm('reports.toast.contextual.profitability')
-          : tTerm('reports.toast.contextual.payouts'),
+          : effectiveReportType === 'associates'
+            ? tTerm('reports.toast.contextual.associates')
+            : tTerm('reports.toast.contextual.payouts'),
     });
     setIsExporting(false);
   };
@@ -231,36 +339,121 @@ export default function Reports() {
     }
   };
 
+  const updateNumericTextFilter = (
+    value: string,
+    setter: Dispatch<SetStateAction<string>>,
+  ) => {
+    if (!/^\d*$/.test(value.trim())) {
+      return;
+    }
+
+    setter(value);
+  };
+
   const handleExportCashFlow = async (format: 'excel' | 'pdf') => {
     setIsCashFlowExporting(format);
     await executeGuardedAction({
       action: 'credit.report.download',
       context: { role: user?.role, permissions: user?.permissions },
       run: async () => {
-        if (format === 'excel') { await exportMonthlyCashFlowExcel(cashFlowYear); return; }
-        await exportMonthlyCashFlowPdf(cashFlowYear);
+        if (format === 'excel') { await exportMonthlyCashFlowExcel(cashFlowYear, cashFlowFilters); return; }
+        await exportMonthlyCashFlowPdf(cashFlowYear, cashFlowFilters);
       },
       successMessage: format === 'excel' ? tTerm('reports.toast.cashflow.excel') : tTerm('reports.toast.cashflow.pdf'),
     });
     setIsCashFlowExporting(null);
   };
 
+  const invalidateFinancialViews = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.operatingExpenses.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }),
+    ]);
+  };
+
+  const handleCreateOperatingExpense = async (payload: OperatingExpensePayload) => {
+    setIsCreatingExpense(true);
+    try {
+      await createOperatingExpense(payload);
+      await invalidateFinancialViews();
+      toast.success({ description: tTerm('reports.expenses.toast.created') });
+    } catch (mutationError) {
+      toast.apiErrorSafe(mutationError, { domain: 'reports', action: 'generic' });
+      throw mutationError;
+    } finally {
+      setIsCreatingExpense(false);
+    }
+  };
+
+  const handleAnnulOperatingExpense = async (expense: OperatingExpense) => {
+    const reason = await requestInput({
+      title: tTerm('reports.expenses.prompt.annul.title'),
+      message: tTerm('reports.expenses.prompt.annul.message'),
+      label: tTerm('reports.expenses.prompt.annul.label'),
+      placeholder: tTerm('reports.expenses.prompt.annul.placeholder'),
+      confirmLabel: tTerm('reports.expenses.cta.annul'),
+      confirmVariant: 'danger',
+    });
+
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason) {
+      if (reason !== null) {
+        toast.error({ description: tTerm('reports.expenses.error.reasonRequired') });
+      }
+      return;
+    }
+
+    setAnnullingExpenseId(expense.id);
+    try {
+      await annulOperatingExpense(expense.id, normalizedReason);
+      await invalidateFinancialViews();
+      toast.success({ description: tTerm('reports.expenses.toast.annulled') });
+    } catch (mutationError) {
+      toast.apiErrorSafe(mutationError, { domain: 'reports', action: 'generic' });
+    } finally {
+      setAnnullingExpenseId(null);
+    }
+  };
+
+  const handleExportOperatingExpenses = async (format: OperatingExpenseExportFormat) => {
+    setExportingExpensesFormat(format);
+    try {
+      await exportOperatingExpensesReport(format, expenseFilters);
+      toast.success({
+        description: format === 'pdf'
+          ? tTerm('reports.expenses.toast.exportPdf')
+          : tTerm('reports.expenses.toast.exportExcel'),
+      });
+    } catch (exportError) {
+      toast.apiErrorSafe(exportError, { domain: 'reports', action: 'generic' });
+    } finally {
+      setExportingExpensesFormat(null);
+    }
+  };
+
   const reportTabs = useMemo(() => [
     { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
     { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
+    { id: 'creditHistory', label: tTerm('reports.tab.creditHistory'), title: tTerm('reports.tab.creditHistory.title') },
     { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
     { id: 'profitability', label: tTerm('reports.tab.profitability') },
     { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
+    ...(canViewOperatingExpensesTab
+      ? [{ id: 'expenses', label: tTerm('reports.tab.expenses'), title: tTerm('reports.tab.expenses.title') }]
+      : []),
     ...(canViewPaymentScheduleTab
       ? [{ id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
       : []),
-  ], [canViewPaymentScheduleTab]);
+  ], [canViewOperatingExpensesTab, canViewPaymentScheduleTab]);
 
   useEffect(() => {
     if (activeTab === 'schedule' && !canViewPaymentScheduleTab) {
       setActiveTab('dashboard');
     }
-  }, [activeTab, canViewPaymentScheduleTab]);
+    if (activeTab === 'expenses' && !canViewOperatingExpensesTab) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, canViewOperatingExpensesTab, canViewPaymentScheduleTab]);
 
   // ─── Loading / Error states ───────────────────────────────────────────────
 
@@ -299,15 +492,23 @@ export default function Reports() {
 
       {reportExportGuard.visible && (
         <ToolbarSurface as="form" className="settings-config-form" aria-label={tTerm('reports.export.aria')}>
-          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.9fr)_minmax(10rem,0.9fr)_max-content_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
+          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.9fr)_minmax(10rem,0.9fr)_max-content_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
             <FormField label={tTerm('reports.export.type')}>
               <SelectInput
                 id="report-type"
                 value={reportType}
-                onChange={(event) => setReportType(event.target.value as 'credits' | 'payouts' | 'profitability')}
+                onChange={(event) => {
+                  setReportType(event.target.value as 'credits' | 'payouts' | 'profitability' | 'associates');
+                  setReportStatusFilter('');
+                  setReportPaymentTypeFilter('');
+                  setReportAssociateIdFilter('');
+                  setReportCustomerIdFilter('');
+                  setReportLoanIdFilter('');
+                }}
               >
                 <option value="credits">{tTerm('reports.export.type.credits')}</option>
                 <option value="profitability">{tTerm('reports.export.type.profitability')}</option>
+                <option value="associates">{tTerm('reports.export.type.associates')}</option>
                 <option value="payouts">{tTerm('reports.export.type.payouts')}</option>
               </SelectInput>
             </FormField>
@@ -316,7 +517,7 @@ export default function Reports() {
                 id="report-from"
                 type="date"
                 value={reportRange.fromDate}
-                onChange={(event) => setReportRange((prev) => ({ ...prev, fromDate: event.target.value }))}
+                onChange={(event) => updateReportRange('fromDate', event.target.value)}
               />
             </FormField>
             <FormField label={tTerm('reports.export.to')}>
@@ -324,7 +525,7 @@ export default function Reports() {
                 id="report-to"
                 type="date"
                 value={reportRange.toDate}
-                onChange={(event) => setReportRange((prev) => ({ ...prev, toDate: event.target.value }))}
+                onChange={(event) => updateReportRange('toDate', event.target.value)}
               />
             </FormField>
             <div className="flex min-w-0 flex-col">
@@ -334,8 +535,16 @@ export default function Reports() {
               <ActionButton
                 variant="primary"
                 onClick={handleExportContextualReport}
-                disabled={isExporting || hasInvalidRange || !reportExportGuard.executable}
-                title={hasInvalidRange ? tTerm('reports.export.invalidRange') : (reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable')))}
+                disabled={isExporting || hasInvalidRange || hasInvalidAssociateId || hasInvalidReportCustomerId || hasInvalidReportLoanId || !reportExportGuard.executable}
+                title={hasInvalidRange
+                  ? tTerm('reports.export.invalidRange')
+                  : hasInvalidAssociateId
+                    ? tTerm('reports.export.invalidAssociate')
+                    : hasInvalidReportCustomerId
+                      ? tTerm('reports.export.invalidCustomer')
+                      : hasInvalidReportLoanId
+                        ? tTerm('reports.export.invalidLoan')
+                        : (reportExportGuard.executable ? tTerm('reports.cta.exportContextual') : (reportExportGuard.reason || tTerm('credits.action.unavailable')))}
                 icon={<Download size={16} />}
                 className="h-10 min-h-10 px-5"
               >
@@ -345,26 +554,74 @@ export default function Reports() {
                     ? tTerm('reports.cta.exportCredits')
                     : reportType === 'profitability'
                       ? tTerm('reports.cta.exportProfitability')
-                      : tTerm('reports.cta.exportPayouts')}
+                      : reportType === 'associates'
+                        ? tTerm('reports.cta.exportAssociates')
+                        : tTerm('reports.cta.exportPayouts')}
               </ActionButton>
             </div>
-            {reportType === 'credits' && (
+            {(reportType === 'credits' || reportType === 'associates') && (
               <>
-              <FormField label={tTerm('reports.export.status')}>
-                <SelectInput
-                  id="report-status"
-                  value={reportStatusFilter}
-                  onChange={(event) => setReportStatusFilter(event.target.value)}
-                >
-                  <option value="">{tTerm('credits.filter.all')}</option>
-                  <option value="approved">{tTerm('credits.status.approved')}</option>
-                  <option value="active">{tTerm('common.status.active')}</option>
-                  <option value="overdue">{tTerm('schedule.status.overdue')}</option>
-                  <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
-                  <option value="closed">{tTerm('common.status.closed')}</option>
-                  <option value="paid">{tTerm('schedule.status.paid')}</option>
-                </SelectInput>
-              </FormField>
+                <FormField label={tTerm('reports.export.status')}>
+                  <SelectInput
+                    id="report-status"
+                    value={reportStatusFilter}
+                    onChange={(event) => setReportStatusFilter(event.target.value)}
+                  >
+                    <option value="">{tTerm('credits.filter.all')}</option>
+                    {reportType === 'credits' ? (
+                      <>
+                        <option value="approved">{tTerm('credits.status.approved')}</option>
+                        <option value="active">{tTerm('common.status.active')}</option>
+                        <option value="overdue">{tTerm('schedule.status.overdue')}</option>
+                        <option value="defaulted">{tTerm('credits.status.defaulted')}</option>
+                        <option value="closed">{tTerm('common.status.closed')}</option>
+                        <option value="paid">{tTerm('schedule.status.paid')}</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="active">{tTerm('common.status.active')}</option>
+                        <option value="inactive">{tTerm('common.status.inactive')}</option>
+                      </>
+                    )}
+                  </SelectInput>
+                </FormField>
+              {reportType === 'associates' && (
+                <FormField label={tTerm('reports.export.associate')}>
+                  <TextInput
+                    id="report-associate"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder={tTerm('reports.export.associate.placeholder')}
+                    value={reportAssociateIdFilter}
+                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportAssociateIdFilter)}
+                  />
+                </FormField>
+              )}
+              </>
+            )}
+            {(reportType === 'credits' || reportType === 'payouts') && (
+              <>
+                <FormField label={tTerm('reports.export.customer')}>
+                  <TextInput
+                    id="report-customer"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={reportCustomerIdFilter}
+                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportCustomerIdFilter)}
+                  />
+                </FormField>
+                <FormField label={tTerm('reports.export.loan')}>
+                  <TextInput
+                    id="report-loan"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={reportLoanIdFilter}
+                    onChange={(event) => updateNumericTextFilter(event.target.value, setReportLoanIdFilter)}
+                  />
+                </FormField>
+              </>
+            )}
+            {(reportType === 'credits' || reportType === 'associates' || reportType === 'payouts') && (
               <FormField label={tTerm('reports.export.format')}>
                 <SelectInput
                   id="report-format"
@@ -375,11 +632,46 @@ export default function Reports() {
                   <option value="pdf">PDF</option>
                 </SelectInput>
               </FormField>
+            )}
+            {reportType === 'payouts' && (
+              <>
+                <FormField label={tTerm('reports.payouts.filter.paymentType')}>
+                  <SelectInput
+                    id="report-payment-type"
+                    value={reportPaymentTypeFilter}
+                    onChange={(event) => setReportPaymentTypeFilter(event.target.value)}
+                  >
+                    <option value="">{tTerm('credits.filter.all')}</option>
+                    <option value="installment">{getPaymentTypeLabel('installment')}</option>
+                    <option value="partial">{getPaymentTypeLabel('partial')}</option>
+                    <option value="capital">{getPaymentTypeLabel('capital')}</option>
+                    <option value="payoff">{getPaymentTypeLabel('payoff')}</option>
+                  </SelectInput>
+                </FormField>
+                <FormField label={tTerm('reports.payouts.filter.status')}>
+                  <SelectInput
+                    id="report-payout-status"
+                    value={reportStatusFilter}
+                    onChange={(event) => setReportStatusFilter(event.target.value)}
+                  >
+                    <option value="">{tTerm('common.status.completed')}</option>
+                    <option value="annulled">{tTerm('reports.payouts.status.annulled')}</option>
+                  </SelectInput>
+                </FormField>
               </>
             )}
           </div>
           {hasInvalidRange && (
             <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidRange')}</p>
+          )}
+          {hasInvalidAssociateId && (
+            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidAssociate')}</p>
+          )}
+          {hasInvalidReportCustomerId && (
+            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidCustomer')}</p>
+          )}
+          {hasInvalidReportLoanId && (
+            <p className="mt-2 text-sm text-red-600">{tTerm('reports.export.invalidLoan')}</p>
           )}
         </ToolbarSurface>
       )}
@@ -399,11 +691,26 @@ export default function Reports() {
         <CashflowTab
           cashFlowYear={cashFlowYear}
           onCashFlowYearChange={setCashFlowYear}
+          cashFlowRange={cashFlowRange}
+          onCashFlowRangeChange={setCashFlowRange}
           cashFlowData={cashFlowData}
           isCashFlowLoading={isCashFlowLoading}
+          dailyCashFlowDate={dailyCashFlowDate}
+          onDailyCashFlowDateChange={setDailyCashFlowDate}
+          dailyCashFlowData={dailyCashFlowData}
+          isDailyCashFlowLoading={isDailyCashFlowLoading}
           isCashFlowExporting={isCashFlowExporting}
           onExportCashFlow={handleExportCashFlow}
           reportExportGuard={reportExportGuard}
+        />
+      )}
+
+      {activeTab === 'creditHistory' && (
+        <CreditHistoryMonthlyTab
+          filters={creditHistoryFilters}
+          onFiltersChange={setCreditHistoryFilters}
+          data={creditHistoryData}
+          isLoading={isCreditHistoryLoading}
         />
       )}
 
@@ -464,6 +771,26 @@ export default function Reports() {
           payoutSummary={payoutSummary}
           payoutPagination={payoutPagination}
           isPayoutsLoading={isPayoutsLoading}
+        />
+      )}
+
+      {activeTab === 'expenses' && (
+        <OperatingExpensesTab
+          expenseFilters={expenseFilters}
+          onExpenseFiltersChange={setExpenseFilters}
+          expensePage={expensePage}
+          onExpensePageChange={setExpensePage}
+          expenses={expenses}
+          pagination={expensePagination}
+          isLoading={isExpensesLoading}
+          canCreate={canCreateOperatingExpenses}
+          canAnnul={canAnnulOperatingExpenses}
+          isCreating={isCreatingExpense}
+          annullingExpenseId={annullingExpenseId}
+          exportingFormat={exportingExpensesFormat}
+          onCreateExpense={handleCreateOperatingExpense}
+          onAnnulExpense={handleAnnulOperatingExpense}
+          onExportExpenses={handleExportOperatingExpenses}
         />
       )}
 

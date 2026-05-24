@@ -20,6 +20,7 @@ import {
   PageHeader,
   PageShell,
   SectionSurface,
+  TextAreaInput,
   TextInput,
   ToolbarSurface,
   ViewTabs,
@@ -67,6 +68,17 @@ const getCalendarEventTypeLabel = (event: any) => {
   return event?.displayType || tTerm('common.notAvailable');
 };
 
+const formatAlertDayCount = (value: unknown) => {
+  const days = Number(value || 0);
+  return formatNumber(days, { maximumFractionDigits: 0 });
+};
+
+const getTodayDateInputValue = () => {
+  const today = new Date();
+  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
+};
+
 export default function AssociateDetails() {
   useTranslation();
   const { id } = useParams<{ id: string }>();
@@ -76,13 +88,30 @@ export default function AssociateDetails() {
   const isAdmin = user?.role === 'admin';
   const isReadOnlyBackoffice = user?.role === 'employee';
 
-  const { details, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
+  const [calendarFilters, setCalendarFilters] = useState({ startDate: '', endDate: '' });
+  const updateCalendarFilter = (key: 'startDate' | 'endDate', value: string) => {
+    setCalendarFilters((current) => {
+      const next = { ...current, [key]: value };
+      if (next.startDate && next.endDate && next.startDate > next.endDate) {
+        return current;
+      }
+      return next;
+    });
+  };
+
+  const { details, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId, calendarFilters);
   const associate = details?.associate ?? null;
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<'contribution' | 'distribution' | 'reinvestment' | null>(null);
   const [showContributionsModal, setShowContributionsModal] = useState(false);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
+  const [payingInstallmentNumber, setPayingInstallmentNumber] = useState<number | null>(null);
+  const [installmentPaymentForm, setInstallmentPaymentForm] = useState({
+    paymentDate: getTodayDateInputValue(),
+    paymentMethod: '',
+    notes: '',
+  });
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -131,7 +160,27 @@ export default function AssociateDetails() {
   });
 
   const installmentsData = installments || { installments: [], totals: { totalPending: 0, totalPaid: 0, totalOverdue: 0 } };
+  const associatePaymentAlerts = Array.isArray(installmentsData.alerts) ? installmentsData.alerts : [];
   const calendarData = calendar || { events: [], summary: { contributionCount: 0, distributionCount: 0, installmentCount: 0, pendingInstallments: 0 } };
+
+  const getAssociatePaymentAlertTitle = (alert: any) => {
+    const installmentNumber = alert?.installmentNumber ?? tTerm('common.notAvailable');
+    if (alert?.type === 'overdue') {
+      return tTerm(Number(alert.daysOverdue) === 1
+        ? 'associateDetails.alerts.item.overdue.one'
+        : 'associateDetails.alerts.item.overdue.many', {
+        installmentNumber,
+        days: formatAlertDayCount(alert.daysOverdue),
+      });
+    }
+
+    return tTerm(Number(alert?.daysUntilDue) === 1
+      ? 'associateDetails.alerts.item.upcoming.one'
+      : 'associateDetails.alerts.item.upcoming.many', {
+      installmentNumber,
+      days: formatAlertDayCount(alert?.daysUntilDue),
+    });
+  };
 
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,13 +218,43 @@ export default function AssociateDetails() {
     }
   };
 
-  const handlePayInstallment = async (installmentNumber: number) => {
+  const handleOpenPayInstallmentModal = (installmentNumber: number) => {
+    setPayingInstallmentNumber(installmentNumber);
+    setInstallmentPaymentForm({
+      paymentDate: getTodayDateInputValue(),
+      paymentMethod: '',
+      notes: '',
+    });
+  };
+
+  const handleClosePayInstallmentModal = () => {
+    setPayingInstallmentNumber(null);
+    setInstallmentPaymentForm({
+      paymentDate: getTodayDateInputValue(),
+      paymentMethod: '',
+      notes: '',
+    });
+  };
+
+  const handlePayInstallment = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (payInstallment.isPending) {
       return;
     }
 
+    if (payingInstallmentNumber === null || !installmentPaymentForm.paymentDate) {
+      return;
+    }
+
     try {
-      await payInstallment.mutateAsync(installmentNumber);
+      await payInstallment.mutateAsync({
+        installmentNumber: payingInstallmentNumber,
+        paymentDate: installmentPaymentForm.paymentDate,
+        paymentMethod: installmentPaymentForm.paymentMethod.trim(),
+        notes: installmentPaymentForm.notes.trim(),
+      });
+      handleClosePayInstallmentModal();
       toast.success({ title: tTerm('associateDetails.toast.installmentPaid') });
     } catch (error) {
       toast.apiErrorSafe(error, { domain: 'associates' });
@@ -225,6 +304,38 @@ export default function AssociateDetails() {
           },
         ]}
       />
+
+      {associatePaymentAlerts.length > 0 && (
+        <SectionSurface
+          title={tTerm('associateDetails.alerts.title')}
+          subtitle={tTerm('associateDetails.alerts.description')}
+          bodyClassName="grid gap-2"
+        >
+          {associatePaymentAlerts.map((alert: any) => (
+            <div
+              key={`associate-payment-alert-${alert.type}-${alert.installmentNumber}-${alert.dueDate}`}
+              className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                alert.type === 'overdue'
+                  ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
+                  : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'
+              }`}
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{getAssociatePaymentAlertTitle(alert)}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  {tTerm('associateDetails.alerts.item.detail', {
+                    amount: formatAssociateCurrency(alert.amount),
+                    date: formatAssociateDate(alert.dueDate),
+                  })}
+                </p>
+              </div>
+              <span className="inline-flex w-fit items-center rounded-full bg-bg-surface/80 px-2.5 py-1 text-xs font-semibold text-text-primary">
+                {alert.type === 'overdue' ? tTerm('schedule.status.overdue') : tTerm('schedule.status.pending')}
+              </span>
+            </div>
+          ))}
+        </SectionSurface>
+      )}
 
       <DataTableSurface>
         <div className="px-5 pt-5 sm:px-6">
@@ -351,9 +462,9 @@ export default function AssociateDetails() {
                     </span>
                   </td>
                   <td>
-                    {isAdmin && inst.status === 'pending' && (
+                    {isAdmin && ['pending', 'overdue'].includes(String(inst.status || '').toLowerCase()) && (
                       <ActionButton
-                        onClick={() => handlePayInstallment(inst.installmentNumber)}
+                        onClick={() => handleOpenPayInstallmentModal(inst.installmentNumber)}
                         disabled={payInstallment.isPending}
                         isLoading={payInstallment.isPending}
                         icon={<CheckCircle size={14} />}
@@ -420,6 +531,24 @@ export default function AssociateDetails() {
           <p className="mt-1 text-sm text-text-secondary">
             {tTerm('associateDetails.calendar.description')}
           </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <FormField label={tTerm('associateDetails.calendar.filter.from')} htmlFor="associate-calendar-start-date">
+              <TextInput
+                id="associate-calendar-start-date"
+                type="date"
+                value={calendarFilters.startDate}
+                onChange={(event) => updateCalendarFilter('startDate', event.target.value)}
+              />
+            </FormField>
+            <FormField label={tTerm('associateDetails.calendar.filter.to')} htmlFor="associate-calendar-end-date">
+              <TextInput
+                id="associate-calendar-end-date"
+                type="date"
+                value={calendarFilters.endDate}
+                onChange={(event) => updateCalendarFilter('endDate', event.target.value)}
+              />
+            </FormField>
+          </div>
         </div>
         <TableShell
           isLoading={false}
@@ -589,6 +718,59 @@ export default function AssociateDetails() {
                 </ActionButton>
               </div>
             </form>
+        </ModalShell>
+      )}
+
+      {payingInstallmentNumber !== null && (
+        <ModalShell
+          title={tTerm('associateDetails.installmentPayment.title')}
+          subtitle={tTerm('associateDetails.installmentPayment.subtitle', { installmentNumber: payingInstallmentNumber })}
+        >
+          <form onSubmit={handlePayInstallment} className="space-y-4">
+            <FormField label={tTerm('associateDetails.installmentPayment.field.paymentDate')}>
+              <TextInput
+                type="date"
+                required
+                value={installmentPaymentForm.paymentDate}
+                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }))}
+              />
+            </FormField>
+            <FormField label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}>
+              <TextInput
+                value={installmentPaymentForm.paymentMethod}
+                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentMethod: event.target.value }))}
+                placeholder={tTerm('associateDetails.installmentPayment.placeholder.paymentMethod')}
+              />
+            </FormField>
+            <FormField label={tTerm('associateDetails.installmentPayment.field.notes')}>
+              <TextAreaInput
+                value={installmentPaymentForm.notes}
+                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
+                placeholder={tTerm('associateDetails.installmentPayment.placeholder.notes')}
+                rows={3}
+              />
+            </FormField>
+            <div className="flex gap-3 pt-2">
+              <ActionButton
+                type="button"
+                onClick={handleClosePayInstallmentModal}
+                fullWidth
+              >
+                {tTerm('common.cta.cancel')}
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                disabled={payInstallment.isPending}
+                isLoading={payInstallment.isPending}
+                variant="primary"
+                fullWidth
+              >
+                {payInstallment.isPending
+                  ? tTerm('associateDetails.installmentPayment.cta.submitting')
+                  : tTerm('associateDetails.installmentPayment.cta.submit')}
+              </ActionButton>
+            </div>
+          </form>
         </ModalShell>
       )}
 

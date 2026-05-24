@@ -345,4 +345,25 @@ describe('Credits behavioral parity scenarios', () => {
       expect(mockSetCurrentView).toHaveBeenCalledWith('credits/77');
     });
   });
+
+  it('keeps credit calendar date filters within a valid range', async () => {
+    renderCredits();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }));
+
+    const fromInput = await screen.findByLabelText('Desde');
+    const toInput = screen.getByLabelText('Hasta');
+
+    fireEvent.change(fromInput, { target: { value: '2026-07-01' } });
+    fireEvent.change(toInput, { target: { value: '2026-06-30' } });
+
+    expect(fromInput).toHaveValue('2026-07-01');
+    expect(toInput).toHaveValue('');
+    expect(mockApiGet).not.toHaveBeenCalledWith('/loans/calendar/overview', {
+      params: expect.objectContaining({
+        startDate: '2026-07-01',
+        endDate: '2026-06-30',
+      }),
+    });
+  });
 });

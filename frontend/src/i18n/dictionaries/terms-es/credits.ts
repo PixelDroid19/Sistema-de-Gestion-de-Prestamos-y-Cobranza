@@ -224,6 +224,7 @@ export const creditsEs = {
 'creditDetails.promises.forDate': 'Para el {date}',
 'creditDetails.payouts.table.paymentId': 'ID Pago',
 'creditDetails.payouts.table.installment': '# Cuota',
+'creditDetails.payouts.table.createdBy': 'Registrado por',
 'creditDetails.payouts.table.paymentDate': 'Fecha Pago',
 'creditDetails.history.action.payment': 'Pago {type}',
 'creditDetails.history.action.payoffApplied': 'Pago total aplicado',

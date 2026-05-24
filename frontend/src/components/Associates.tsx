@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Download, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
+import { Plus, Search, MoreVertical, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
   formatNumber as formatNumberValue,
@@ -30,9 +30,8 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   const hasPermission = (permission: string) => user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission);
   const canCreateAssociates = hasPermission(PERMISSION.SOCIOS_CREATE);
   const canUpdateAssociates = hasPermission(PERMISSION.SOCIOS_UPDATE);
-  const canDeleteAssociates = hasPermission(PERMISSION.SOCIOS_DELETE);
   const canExportAssociates = hasPermission(PERMISSION.REPORTS_VIEW_ALL);
-  const { data: associatesData, isLoading, isError, updateAssociate, deleteAssociate, restoreAssociate } = useAssociates({
+  const { data: associatesData, isLoading, isError, updateAssociate, restoreAssociate } = useAssociates({
     page,
     pageSize,
     search: searchTerm || undefined,
@@ -48,7 +47,9 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
 
     try {
       setIsExporting(true);
-      await exportAssociatesExcel();
+      await exportAssociatesExcel({
+        status: statusFilter === 'all' ? undefined : statusFilter,
+      });
       toast.success({ description: tTerm('associates.toast.export.success') });
     } catch (error) {
       toast.error({ description: tTerm('associates.toast.export.error') });
@@ -120,31 +121,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       ? tTerm('common.interestType.annual')
       : tTerm('common.interestType.monthly');
     return `${formatNumberValue(rate, { maximumFractionDigits: 4 })}% ${type.toLowerCase()}`;
-  };
-
-  const handleDelete = async (associate: any) => {
-    if (!canDeleteAssociates) {
-      toast.apiErrorSafe(new Error('No tiene permiso para eliminar socios.'), { domain: 'associates' });
-      return;
-    }
-
-    const associateId = Number(associate?.id);
-    if (!Number.isFinite(associateId)) return;
-
-    const confirmed = await confirmDanger({
-      title: 'Eliminar socio',
-      message: `¿Está seguro de eliminar a ${getAssociateName(associate)}? Esta acción no se puede deshacer.`,
-      confirmLabel: 'Eliminar',
-    });
-    if (!confirmed) return;
-
-    try {
-      await deleteAssociate.mutateAsync(associateId);
-      toast.success({ description: 'Socio eliminado correctamente' });
-    } catch (error) {
-      console.error('[associates] deleteAssociate failed', error);
-      toast.apiErrorSafe(error, { domain: 'associates' });
-    }
   };
 
   const handleToggleStatus = async (associate: any) => {
@@ -380,17 +356,6 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                             <span className="sr-only">{associate.status === 'active' ? 'Desactivar' : 'Reactivar'}</span>
                           </ActionButton>
                         </>
-                      )}
-                      {canDeleteAssociates && (
-                        <ActionButton
-                          onClick={() => handleDelete(associate)}
-                          icon={<Trash2 size={16} />}
-                          variant="danger"
-                          className="h-9 w-9 !min-h-0 !p-0"
-                          title="Eliminar"
-                        >
-                          <span className="sr-only">Eliminar</span>
-                        </ActionButton>
                       )}
                     </div>
                   </td>

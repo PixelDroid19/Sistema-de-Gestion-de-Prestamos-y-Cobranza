@@ -9,6 +9,8 @@ const {
   PromiseToPay,
   Notification,
   AssociateContribution,
+  AssociateInstallment,
+  OperatingExpense,
   ProfitDistribution,
   User,
 } = require('@/models');
@@ -385,16 +387,19 @@ const reportRepository = {
   },
 
   /**
-   * List canonical loans and payments used to reconcile monthly cash flow.
-   * Inflows are completed payments. Outflows are disbursed loan principal.
-   * @param {{year: number}} options
-   * @returns {Promise<{loans: Array<object>, payments: Array<object>}>}
+   * List canonical records used to reconcile monthly cash flow.
+   * Inflows are completed customer payments. Outflows are disbursed loan principal,
+   * paid associate interest installments and canonical completed operating expenses.
+   * Pending associate interest installments are returned as reporting liabilities
+   * without reducing available cash until they are paid.
+   * @param {{year: number, fromDate?: Date|null, toDate?: Date|null}} options
+   * @returns {Promise<{loans: Array<object>, payments: Array<object>, associateInterestPayments: Array<object>, operatingExpenses: Array<object>}>}
    */
-  async listCashFlowDataset({ year }) {
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+  async listCashFlowDataset({ year, fromDate = null, toDate = null }) {
+    const startDate = fromDate || new Date(year, 0, 1);
+    const endDate = toDate || new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const [loans, payments] = await Promise.all([
+    const [loans, payments, associateInterestPayments, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           status: { [Op.in]: ['approved', 'active', 'overdue', 'paid', 'closed', 'defaulted'] },
@@ -420,9 +425,85 @@ const reportRepository = {
         ],
         order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
+      AssociateInstallment.findAll({
+        where: {
+          status: { [Op.in]: ['paid', 'pending', 'overdue'] },
+          [Op.or]: [
+            { paidAt: { [Op.gte]: startDate, [Op.lte]: endDate } },
+            { dueDate: { [Op.gte]: startDate, [Op.lte]: endDate } },
+          ],
+        },
+        include: [
+          {
+            model: Associate,
+            attributes: ['id', 'name', 'email', 'phone', 'status'],
+          },
+          {
+            model: User,
+            as: 'paidByUser',
+            attributes: ['id', 'name', 'email', 'role'],
+          },
+        ],
+        order: [['paidAt', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+      OperatingExpense.findAll({
+        where: {
+          status: 'completed',
+          expenseDate: { [Op.gte]: startDate, [Op.lte]: endDate },
+        },
+        include: [
+          {
+            model: User,
+            as: 'createdBy',
+            attributes: ['id', 'name', 'email', 'role'],
+          },
+        ],
+        order: [['expenseDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
     ]);
 
-    return { loans, payments };
+    return {
+      loans,
+      payments,
+      associateInterestPayments,
+      operatingExpenses,
+    };
+  },
+
+  /**
+   * List operating expenses for operator-facing financial exports.
+   * Includes both completed and annulled records when no status filter is used.
+   * @param {{fromDate?: Date|null, toDate?: Date|null, status?: string|null}} filters
+   * @returns {Promise<Array<object>>}
+   */
+  listOperatingExpensesForReport({ fromDate = null, toDate = null, status = null } = {}) {
+    const expenseDate = {};
+    if (fromDate) {
+      expenseDate[Op.gte] = fromDate;
+    }
+    if (toDate) {
+      expenseDate[Op.lte] = toDate;
+    }
+
+    return OperatingExpense.findAll({
+      where: {
+        ...(status ? { status } : {}),
+        ...(Object.keys(expenseDate).length > 0 ? { expenseDate } : {}),
+      },
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'email', 'role'],
+        },
+        {
+          model: User,
+          as: 'annulledBy',
+          attributes: ['id', 'name', 'email', 'role'],
+        },
+      ],
+      order: [['expenseDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+    });
   },
 
   /**
@@ -430,10 +511,10 @@ const reportRepository = {
    * Loans are filtered by operational credit date; payments are filtered by payment date and,
    * when a status filter is provided, by the current loan state attached to the payment.
    *
-   * @param {{startDate?: Date|null, endDate?: Date|null, status?: string[]|null}} filters
+   * @param {{startDate?: Date|null, endDate?: Date|null, status?: string[]|null, customerId?: number|null, loanId?: number|null}} filters
    * @returns {Promise<{loans: Array<object>, payments: Array<object>}>}
    */
-  async listCreditHistoryDataset({ startDate = null, endDate = null, status = null } = {}) {
+  async listCreditHistoryDataset({ startDate = null, endDate = null, status = null, customerId = null, loanId = null } = {}) {
     const loanDateRange = {};
     if (startDate) {
       loanDateRange[Op.gte] = startDate;
@@ -459,12 +540,33 @@ const reportRepository = {
         ],
       }
       : {};
+    const loanIdentityWhere = {
+      ...(customerId ? { customerId } : {}),
+      ...(loanId ? { id: loanId } : {}),
+    };
 
-    const [loans, payments] = await Promise.all([
+    const associateInterestDateWhere = {};
+    if (startDate) {
+      associateInterestDateWhere[Op.gte] = startDate;
+    }
+    if (endDate) {
+      associateInterestDateWhere[Op.lte] = endDate;
+    }
+
+    const operatingExpenseDateWhere = {};
+    if (startDate) {
+      operatingExpenseDateWhere[Op.gte] = startDate;
+    }
+    if (endDate) {
+      operatingExpenseDateWhere[Op.lte] = endDate;
+    }
+
+    const [loans, payments, associateInterestPayments, operatingExpenses] = await Promise.all([
       Loan.findAll({
         where: {
           ...statusWhere,
           ...loanDateWhere,
+          ...loanIdentityWhere,
         },
         include: reportIncludes,
         order: [['startDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
@@ -478,15 +580,32 @@ const reportRepository = {
           {
             model: Loan,
             attributes: ['id', 'amount', 'status', 'recoveryStatus', 'customerId'],
-            where: statusWhere,
+            where: {
+              ...statusWhere,
+              ...loanIdentityWhere,
+            },
             include: [{ model: Customer, attributes: ['id', 'name', 'email', 'phone'] }],
           },
         ],
         order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
       }),
+      AssociateInstallment.findAll({
+        where: {
+          status: 'paid',
+          ...(startDate || endDate ? { paidAt: associateInterestDateWhere } : {}),
+        },
+        order: [['paidAt', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
+      OperatingExpense.findAll({
+        where: {
+          status: 'completed',
+          ...(startDate || endDate ? { expenseDate: operatingExpenseDateWhere } : {}),
+        },
+        order: [['expenseDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
+      }),
     ]);
 
-    return { loans, payments };
+    return { loans, payments, associateInterestPayments, operatingExpenses };
   },
 };
 
@@ -497,6 +616,7 @@ const paymentRepository = {
   listByLoan(loanId) {
     return Payment.findAll({
       where: { loanId },
+      include: [{ model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'role'] }],
       order: [['paymentDate', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']],
     });
   },

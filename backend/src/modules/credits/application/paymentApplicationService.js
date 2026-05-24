@@ -261,6 +261,7 @@ const buildInstallmentPaymentCreatePayload = ({
   allocations,
   installmentNumber,
   paymentMethod,
+  actorId = null,
 }) => ({
   loanId: loan.id,
   amount,
@@ -280,6 +281,7 @@ const buildInstallmentPaymentCreatePayload = ({
   },
   paymentMethod,
   installmentNumber,
+  createdByUserId: actorId || null,
 });
 
 const buildPayoffAllocationBreakdown = (quote) => {
@@ -310,6 +312,7 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
   paymentDate,
   status: 'completed',
   paymentType: PAYOFF_PAYMENT_TYPE,
+  createdByUserId: actor?.id || null,
   principalApplied: roundCurrency(quote.breakdown.overduePrincipal + quote.breakdown.futurePrincipal),
   interestApplied: roundCurrency(quote.breakdown.overdueInterest + quote.breakdown.accruedInterest),
   overpaymentAmount: 0,
@@ -334,7 +337,7 @@ const buildPayoffPaymentCreatePayload = ({ loan, amount, paymentDate, quote, exe
 /**
  * Build partial payment payload (free amount, goes to interest then principal)
  */
-const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, remainingBalanceAfterPayment, paymentMethod }) => ({
+const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, interestApplied, remainingBalanceAfterPayment, paymentMethod, actorId = null }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -346,13 +349,14 @@ const buildPartialPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   remainingBalanceAfterPayment,
   allocationBreakdown: [],
   paymentMethod: paymentMethod || null,
+  createdByUserId: actorId || null,
   paymentMetadata: { partial: true },
 });
 
 /**
  * Build capital payment payload (reduces principal directly)
  */
-const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot, paymentMethod, strategy }) => ({
+const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principalApplied, snapshot, paymentMethod, strategy, actorId = null }) => ({
   loanId: loan.id,
   amount,
   paymentDate,
@@ -364,6 +368,7 @@ const buildCapitalPaymentCreatePayload = ({ loan, amount, paymentDate, principal
   remainingBalanceAfterPayment: snapshot.outstandingBalance,
   allocationBreakdown: [],
   paymentMethod: paymentMethod || null,
+  createdByUserId: actorId || null,
   paymentMetadata: {
     capital_reduction: true,
     strategy: strategy?.requested || strategy || 'reduce_term',
@@ -615,7 +620,7 @@ const createPaymentApplicationService = ({
    * 5. Capital de la cuota from current/future installments
    * 6. Abonos adicionales a capital (excess overpayment reduces future principal)
    */
-  const executeInstallmentPayment = async ({ loanId, amount, paymentDate = clock(), transaction, paymentMetadata = null, paymentMethod = null }) => {
+  const executeInstallmentPayment = async ({ loanId, amount, paymentDate = clock(), transaction, paymentMetadata = null, paymentMethod = null, actorId = null }) => {
     const run = async (transactionContext) => {
       const transaction = transactionContext;
       const loan = await loanModel.findByPk(loanId, { transaction, lock: true });
@@ -823,6 +828,7 @@ const createPaymentApplicationService = ({
         allocations,
         installmentNumber: targetInstallment,
         paymentMethod: normalizedPaymentMethod,
+        actorId,
       }), { transaction });
 
       if (paymentMetadata && typeof payment.update === 'function') {
@@ -874,6 +880,7 @@ const createPaymentApplicationService = ({
         paymentDate,
         paymentMethod,
         transaction,
+        actorId,
         paymentMetadata: buildProcessPaymentMetadata({
           idempotencyKey: idempotencyKey || buildPaymentOperationIdempotencyKey({
             operationType: INSTALLMENT_PAYMENT_TYPE,
@@ -1016,6 +1023,7 @@ const createPaymentApplicationService = ({
         interestApplied: totalInterestApplied,
         remainingBalanceAfterPayment: snapshot.outstandingBalance,
         paymentMethod: normalizedPaymentMethod,
+        actorId,
       }), { transaction });
 
       return {
@@ -1138,6 +1146,7 @@ const createPaymentApplicationService = ({
         snapshot,
         paymentMethod: normalizedPaymentMethod,
         strategy: strategyPayload,
+        actorId,
       }), { transaction });
 
       return {

@@ -5,7 +5,8 @@ const ExcelJS = require('exceljs');
 
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
 const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
-const { createExportAssociatesExcel } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
+const { createExportPayoutsExcel } = require('@/modules/reports/application/useCases/createExportPayoutsExcel');
+const { createExportAssociatesExcel, createExportAssociatesPdf } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 const { closeServer, listen } = require('./helpers/http');
@@ -43,7 +44,15 @@ test('export associates use case builds approved operational sheet structure', a
       },
       async listContributionsByAssociate(id) {
         assert.equal(Number(id), 4);
-        return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'completed', notes: 'Aporte inicial' }];
+        return [{
+          id: 1,
+          amount: 1000000,
+          contributionDate: '2026-01-10',
+          status: 'completed',
+          interestTypeSnapshot: 'monthly',
+          interestRateSnapshot: '2.5000',
+          notes: 'Aporte inicial',
+        }];
       },
       async listProfitDistributionsByAssociate(id) {
         assert.equal(Number(id), 4);
@@ -53,7 +62,7 @@ test('export associates use case builds approved operational sheet structure', a
         assert.equal(Number(id), 4);
         return [
           { id: 3, installmentNumber: 1, amount: 25000, dueDate: '2026-02-15', status: 'paid', paidAt: '2026-02-16', paymentMethod: 'transfer' },
-          { id: 4, installmentNumber: 2, amount: 25000, dueDate: '2026-03-15', status: 'pending' },
+          { id: 4, installmentNumber: 2, amount: 25000, dueDate: '2000-03-15', status: 'pending' },
         ];
       },
       async listLoansByAssociate(id) {
@@ -78,11 +87,225 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Participación %'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tipo de Interés'));
   assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Deuda con Socio'));
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Rentabilidad del Aporte'));
+  assert.ok(result.data.sheets[3].columns.some((column) => column.header === 'Tasa Histórica del Aporte %'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pagado'));
   assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Interés pendiente' && row.status === 'Vencido'));
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
+  assert.ok(result.data.rows.some((row) => row.section === 'Aporte' && row.contributionInterestType === 'Mensual' && row.contributionInterestRate === '2.5000'));
   assert.ok(result.data.rows.some((row) => row.section === 'Distribución'));
   assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
+});
+
+test('export associates PDF summarizes associate payments, pending interest, and schedule', async () => {
+  const associate = {
+    id: 4,
+    name: 'Socio PDF QA',
+    status: 'active',
+    participationPercentage: 25,
+    interestType: 'monthly',
+    interestRate: '2.5000',
+  };
+  const useCase = createExportAssociatesPdf({
+    associateRepository: {
+      async list() {
+        return [associate];
+      },
+      async findById(id) {
+        assert.equal(Number(id), 4);
+        return associate;
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'completed', interestTypeSnapshot: 'monthly', interestRateSnapshot: '2.5000' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 3, installmentNumber: 1, amount: 25000, dueDate: '2026-02-15', status: 'paid', paidAt: '2026-02-16', paymentMethod: 'transfer' },
+          { id: 4, installmentNumber: 2, amount: 25000, dueDate: '2099-03-15', status: 'pending' },
+        ];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  const pdfText = result.buffer.toString('utf8');
+
+  assert.equal(result.fileName, 'associates-export.pdf');
+  assert.equal(result.contentType, 'application/pdf');
+  assert.match(pdfText, /REPORTE DE SOCIOS INVERSIONISTAS/);
+  assert.match(pdfText, /Pagos realizados a socios: \$25,000\.00/);
+  assert.match(pdfText, /Intereses pendientes de socios: \$25,000\.00/);
+  assert.match(pdfText, /Cronograma de pagos de socios: 1 cuota/);
+  assert.match(pdfText, /Socio PDF QA/);
+});
+
+test('export associates use case filters the operational report by associate id', async () => {
+  const associate = {
+    id: 8,
+    name: 'Socio Filtrado QA',
+    status: 'active',
+    participationPercentage: 40,
+    interestType: 'annual',
+    interestRate: '12.0000',
+  };
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        throw new Error('The global associates list should not be used for a single-associate export');
+      },
+      async findById(id) {
+        assert.equal(Number(id), 8);
+        return associate;
+      },
+      async listContributionsByAssociate(id) {
+        assert.equal(Number(id), 8);
+        return [{ id: 20, amount: 2500000, contributionDate: '2026-04-01', status: 'completed', interestTypeSnapshot: 'annual', interestRateSnapshot: '12.0000' }];
+      },
+      async listProfitDistributionsByAssociate(id) {
+        assert.equal(Number(id), 8);
+        return [];
+      },
+      async findInstallmentsByAssociateId(id) {
+        assert.equal(Number(id), 8);
+        return [];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { associateId: 8 } });
+
+  assert.equal(result.success, true);
+  assert.equal(new Set(result.data.rows.map((row) => row.associateId)).size, 1);
+  assert.equal(result.data.rows[0].associateId, 8);
+  assert.equal(result.data.rows[0].associateName, 'Socio Filtrado QA');
+});
+
+test('export associates use case filters the operational report by associate status', async () => {
+  const associates = [
+    {
+      id: 8,
+      name: 'Socio Activo QA',
+      status: 'active',
+      participationPercentage: 40,
+      interestType: 'monthly',
+      interestRate: '2.5000',
+    },
+    {
+      id: 9,
+      name: 'Socio Inactivo QA',
+      status: 'inactive',
+      participationPercentage: 10,
+      interestType: 'annual',
+      interestRate: '12.0000',
+    },
+  ];
+  const queriedAssociateIds = [];
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return associates;
+      },
+      async findById(id) {
+        return associates.find((associate) => Number(associate.id) === Number(id));
+      },
+      async listContributionsByAssociate(id) {
+        queriedAssociateIds.push(Number(id));
+        return [{ id: 90, amount: 1200000, contributionDate: '2026-04-01', status: 'completed' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { status: 'inactive' } });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(queriedAssociateIds, [9]);
+  assert.equal(new Set(result.data.rows.map((row) => row.associateId)).size, 1);
+  assert.equal(result.data.rows[0].associateId, 9);
+  assert.equal(result.data.rows[0].associateName, 'Socio Inactivo QA');
+});
+
+test('export associates use case filters movements by operational date range', async () => {
+  const associate = {
+    id: 8,
+    name: 'Socio Fecha QA',
+    status: 'active',
+    participationPercentage: 40,
+    interestType: 'monthly',
+    interestRate: '2.5000',
+  };
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return [associate];
+      },
+      async findById() {
+        return associate;
+      },
+      async listContributionsByAssociate() {
+        return [
+          { id: 20, amount: 2500000, contributionDate: '2026-03-31', status: 'completed' },
+          { id: 21, amount: 3000000, contributionDate: '2026-04-15', status: 'completed' },
+        ];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [
+          { id: 30, loanId: 9, amount: 100000, distributionDate: '2026-04-20', status: 'completed' },
+          { id: 31, loanId: 10, amount: 110000, distributionDate: '2026-05-01', status: 'completed' },
+        ];
+      },
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 40, installmentNumber: 1, amount: 25000, dueDate: '2026-04-30', status: 'paid', paidAt: '2026-04-30' },
+          { id: 41, installmentNumber: 2, amount: 25000, dueDate: '2026-05-15', status: 'pending' },
+        ];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' }, filters: { fromDate: '2026-04-01', toDate: '2026-04-30' } });
+  const movementRows = result.data.rows.filter((row) => row.section !== 'Resumen');
+
+  assert.deepEqual(movementRows.map((row) => row.entryId).sort(), [21, 30, 40]);
+  assert.equal(result.data.rows.some((row) => row.entryId === 20), false);
+  assert.equal(result.data.rows.some((row) => row.entryId === 31), false);
+  assert.equal(result.data.rows.some((row) => row.entryId === 41), false);
+});
+
+test('export associates use case rejects inverted date ranges before reading associate records', async () => {
+  let repositoryCalled = false;
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        repositoryCalled = true;
+        return [];
+      },
+      async findById() {
+        repositoryCalled = true;
+        return null;
+      },
+    },
+    reportRepository: {},
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    filters: { fromDate: '2026-04-30', toDate: '2026-04-01' },
+  }), /fromDate must be before or equal to toDate/i);
+  assert.equal(repositoryCalled, false);
 });
 
 test('export associates use case uses operational fallbacks for unknown movement labels', async () => {
@@ -460,6 +683,34 @@ test('export credits use case includes every credit for the same customer', asyn
   assert.deepEqual(listedBy.sort((a, b) => a - b), [2, 3]);
 });
 
+test('export credits use case rejects inverted date ranges before reading loans', async () => {
+  let repositoryCalled = false;
+  const useCase = createExportCreditsExcel({
+    reportRepository: {
+      async listCreditLoans() {
+        repositoryCalled = true;
+        return [];
+      },
+      async listOutstandingLoans() {
+        repositoryCalled = true;
+        return [];
+      },
+    },
+    paymentRepository: {
+      async listByLoan() {
+        throw new Error('payment rows should not be read for an invalid range');
+      },
+    },
+    loanViewService: {},
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    filters: { startDate: '2026-02-28', endDate: '2026-02-01' },
+  }), /startDate must be before or equal to endDate/i);
+  assert.equal(repositoryCalled, false);
+});
+
 const roleAwareAuth = (config = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const roles = Array.isArray(config) ? config : [];
@@ -639,6 +890,236 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   assert.equal(amountCell.value, 100);
   assert.equal(typeof amountCell.value, 'number');
   assert.match(amountCell.numFmt, /\$/);
+});
+
+test('export payouts use case rejects inverted date ranges before reading payments', async () => {
+  let repositoryCalled = false;
+  const useCase = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        repositoryCalled = true;
+        return { items: [] };
+      },
+    },
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    filters: { startDate: '2026-02-28', endDate: '2026-02-01' },
+  }), /fromDate must be before or equal to toDate/i);
+  assert.equal(repositoryCalled, false);
+});
+
+test('GET /reports/payouts/export returns pdf file for admin', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportPayoutsPdf(input) {
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          customerId: '10',
+          loanId: undefined,
+          creditId: undefined,
+          startDate: '2026-02-01',
+          endDate: '2026-02-28',
+          status: 'annulled',
+          paymentType: 'capital',
+        });
+        return {
+          fileName: 'reporte-pagos.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\nREPORTE DE PAGOS\n%%EOF'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/payouts/export?format=pdf&customerId=10&startDate=2026-02-01&endDate=2026-02-28&status=annulled&paymentType=capital`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
+  assert.match(response.headers.get('content-disposition') || '', /reporte-pagos\.pdf/);
+  const body = Buffer.from(await response.arrayBuffer()).toString('utf8');
+  assert.match(body, /REPORTE DE PAGOS/);
+});
+
+test('export operating expenses report builds operational Excel and PDF artifacts', async () => {
+  const { createExportOperatingExpensesReport } = require('@/modules/reports/application/useCases');
+  const useCase = createExportOperatingExpensesReport({
+    reportRepository: {
+      async listOperatingExpensesForReport(filters) {
+        assert.deepEqual(filters, {
+          fromDate: new Date('2026-05-01T00:00:00.000Z'),
+          toDate: new Date('2026-05-31T23:59:59.999Z'),
+          status: 'annulled',
+        });
+        return [{
+          id: 12,
+          amount: 950000,
+          expenseDate: '2026-05-12T00:00:00.000Z',
+          category: 'Servicios',
+          description: 'Internet oficina',
+          paymentMethod: 'Transferencia',
+          reference: 'TRX-12',
+          status: 'annulled',
+          annulmentReason: 'Registro duplicado',
+          createdBy: { name: 'Operador QA' },
+          annulledBy: { name: 'Admin QA' },
+          createdAt: '2026-05-12T10:00:00.000Z',
+          annulledAt: '2026-05-13T10:00:00.000Z',
+        }];
+      },
+    },
+  });
+
+  const excel = await useCase({
+    actor: { role: 'admin' },
+    format: 'xlsx',
+    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled' },
+  });
+
+  assert.equal(excel.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(excel.sheets[0].name, 'Gastos Operativos');
+  assert.deepEqual(excel.sheets[0].rows[0], {
+    expenseId: 12,
+    expenseDate: '2026-05-12',
+    category: 'Servicios',
+    description: 'Internet oficina',
+    amount: 950000,
+    paymentMethod: 'Transferencia',
+    status: 'Anulado',
+    reference: 'TRX-12',
+    createdBy: 'Operador QA',
+    annulledBy: 'Admin QA',
+    annulledAt: '2026-05-13',
+    annulmentReason: 'Registro duplicado',
+  });
+  assert.equal(excel.sheets[0].rows.some((row) => row.status === 'annulled'), false);
+
+  const pdf = await useCase({
+    actor: { role: 'admin' },
+    format: 'pdf',
+    filters: { fromDate: '2026-05-01', toDate: '2026-05-31', status: 'annulled' },
+  });
+
+  assert.equal(pdf.contentType, 'application/pdf');
+  assert.match(pdf.buffer.toString('utf8'), /Gastos operativos/);
+  assert.match(pdf.buffer.toString('utf8'), /Total reportado: \$950000.00/);
+  assert.match(pdf.buffer.toString('utf8'), /Anulado/);
+});
+
+test('export operating expenses report rejects inverted date ranges before querying repository', async () => {
+  const { createExportOperatingExpensesReport } = require('@/modules/reports/application/useCases');
+
+  let repositoryCalled = false;
+  const useCase = createExportOperatingExpensesReport({
+    reportRepository: {
+      async listOperatingExpensesForReport() {
+        repositoryCalled = true;
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(() => useCase({
+    actor: { role: 'admin' },
+    format: 'xlsx',
+    filters: { fromDate: '2026-05-31', toDate: '2026-05-01' },
+  }), /fromDate must be before or equal to toDate/i);
+  assert.equal(repositoryCalled, false);
+});
+
+test('GET /reports/operating-expenses/export returns filtered xlsx and pdf files for admin', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportOperatingExpensesReport(input) {
+        calls.push(input);
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          fromDate: '2026-05-01',
+          toDate: '2026-05-31',
+          status: 'completed',
+        });
+
+        if (input.format === 'pdf') {
+          return {
+            contentType: 'application/pdf',
+            fileName: 'gastos-operativos-2026-05-24.pdf',
+            buffer: Buffer.from('%PDF-1.4 gastos operativos', 'utf8'),
+          };
+        }
+
+        return {
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          fileName: 'gastos-operativos-2026-05-24.xlsx',
+          sheets: [{
+            name: 'Gastos Operativos',
+            title: 'REPORTE DE GASTOS OPERATIVOS',
+            columns: [
+              { header: 'Gasto', key: 'expenseId', width: 12 },
+              { header: 'Fecha', key: 'expenseDate', width: 18 },
+              { header: 'Categoría', key: 'category', width: 24 },
+              { header: 'Descripción', key: 'description', width: 32 },
+              { header: 'Monto', key: 'amount', width: 18, numFmt: '"$"#,##0.00' },
+              { header: 'Estado', key: 'status', width: 16 },
+              { header: 'Registrado por', key: 'createdBy', width: 24 },
+            ],
+            rows: [{
+              expenseId: 1,
+              expenseDate: '2026-05-10',
+              category: 'Arriendo',
+              description: 'Arriendo oficina',
+              amount: 850000,
+              status: 'Completado',
+              createdBy: 'Admin QA',
+            }],
+          }],
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const xlsxResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?fromDate=2026-05-01&toDate=2026-05-31&status=completed`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(xlsxResponse.status, 200);
+  assert.equal(xlsxResponse.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.match(xlsxResponse.headers.get('content-disposition') || '', /gastos-operativos-2026-05-24\.xlsx/);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await xlsxResponse.arrayBuffer()));
+  const sheet = workbook.getWorksheet('Gastos Operativos');
+  const headers = sheet.getRow(2).values;
+  assert.ok(headers.includes('Gasto'));
+  assert.ok(headers.includes('Fecha'));
+  assert.ok(headers.includes('Categoría'));
+  assert.ok(headers.includes('Monto'));
+  assert.equal(headers.includes('expenseId'), false);
+  assert.equal(sheet.getRow(3).getCell(5).value, 850000);
+
+  const pdfResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/operating-expenses/export?format=pdf&fromDate=2026-05-01&toDate=2026-05-31&status=completed`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(pdfResponse.status, 200);
+  assert.equal(pdfResponse.headers.get('content-type'), 'application/pdf');
+  assert.match(pdfResponse.headers.get('content-disposition') || '', /gastos-operativos-2026-05-24\.pdf/);
+  assert.equal(calls.map((call) => call.format).join(','), 'xlsx,pdf');
 });
 
 test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
@@ -872,6 +1353,133 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   assert.ok(headers.includes('Tipo de Interés'));
   assert.ok(headers.includes('Deuda con Socio'));
   assert.equal(headers.includes('associateId'), false);
+});
+
+test('GET /reports/associates/export returns pdf file for admin', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesPdf(input) {
+        assert.equal(input.actor.role, 'admin');
+        return {
+          fileName: 'associates-export.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\nREPORTE DE SOCIOS INVERSIONISTAS\n%%EOF', 'utf8'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
+  assert.equal(response.headers.get('content-disposition'), 'attachment; filename="associates-export.pdf"');
+  assert.match(Buffer.from(await response.arrayBuffer()).toString('utf8'), /REPORTE DE SOCIOS INVERSIONISTAS/);
+});
+
+test('GET /reports/associates/export forwards associate filter to pdf export use case', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesPdf(input) {
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, { associateId: 8, fromDate: undefined, toDate: undefined, status: undefined });
+        return {
+          fileName: 'associates-export.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\nSOCIO FILTRADO\n%%EOF', 'utf8'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&associateId=8`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
+});
+
+test('GET /reports/associates/export forwards status filter to pdf export use case', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesPdf(input) {
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          associateId: undefined,
+          fromDate: undefined,
+          toDate: undefined,
+          status: 'inactive',
+        });
+        return {
+          fileName: 'associates-export.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\nSOCIOS INACTIVOS\n%%EOF', 'utf8'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&status=inactive`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
+});
+
+test('GET /reports/associates/export forwards date range filters to pdf export use case', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesPdf(input) {
+        assert.equal(input.actor.role, 'admin');
+        assert.deepEqual(input.filters, {
+          associateId: undefined,
+          fromDate: '2026-04-01',
+          toDate: '2026-04-30',
+          status: undefined,
+        });
+        return {
+          fileName: 'associates-export.pdf',
+          contentType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\nSOCIOS POR FECHA\n%%EOF', 'utf8'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/export?format=pdf&fromDate=2026-04-01&toDate=2026-04-30`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
 });
 
 test('GET /reports/associates/excel allows employee role with report permission', async () => {

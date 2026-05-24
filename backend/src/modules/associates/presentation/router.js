@@ -100,8 +100,8 @@ const createAssociatesRouter = ({ associateValidation, authMiddleware, useCases 
 
   router.delete('/:id', requirePermission('SOCIOS_DELETE'), asyncHandler(async (req, res) => {
     const associateId = parseRequiredRouteId(req.params.id, 'associateId');
-    await useCases.deleteAssociate({ actor: req.user, associateId });
-    res.json({ success: true, message: 'Socio eliminado correctamente' });
+    const associate = await useCases.deleteAssociate({ actor: req.user, associateId });
+    res.json({ success: true, message: 'Socio desactivado correctamente', data: { associate } });
   }));
 
   router.get('/:id/financial-details', requirePermission('SOCIOS_VIEW_ALL'), asyncHandler(async (req, res) => {

@@ -12,6 +12,7 @@ const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
   normalizeOperationalDate,
   normalizeOptionalDateOnlyString,
+  normalizeOptionalOperationalDate,
   toDateOnlyOrNull,
   toOperationalDateOrNull,
 } = require('@/modules/shared/dateUtils');
@@ -22,6 +23,8 @@ const ALLOWED_ASSOCIATE_STATUSES = new Set(['active', 'inactive']);
 const ALLOWED_INTEREST_TYPES = new Set(['monthly', 'annual']);
 const DEFAULT_INTEREST_PAYMENT_DAY = 1;
 const DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH = 1;
+const ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS = 7;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -218,6 +221,26 @@ const addMonthsUtc = (date, months) => new Date(Date.UTC(
   date.getUTCDate(),
 ));
 
+const toUtcDateOnlyTimestamp = (value) => {
+  const date = toOperationalDateOrNull(value);
+  if (!date) {
+    return null;
+  }
+
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
+
+const diffCalendarDaysUtc = (targetDate, baseDate) => {
+  const targetTimestamp = toUtcDateOnlyTimestamp(targetDate);
+  const baseTimestamp = toUtcDateOnlyTimestamp(baseDate);
+
+  if (targetTimestamp === null || baseTimestamp === null) {
+    return null;
+  }
+
+  return Math.round((targetTimestamp - baseTimestamp) / DAY_IN_MS);
+};
+
 const addYearsUtc = (date, years) => new Date(Date.UTC(
   date.getUTCFullYear() + years,
   date.getUTCMonth(),
@@ -255,9 +278,53 @@ const calculateInterestInstallmentAmount = ({ capitalBase, interestRate }) => ro
   Number(capitalBase || 0) * (Number(interestRate || 0) / 100),
 );
 
-const getTotalContributed = (contributions = []) => roundCurrency(
-  contributions.reduce((sum, contribution) => sum + Number(contribution.amount || 0), 0),
+const getContributionInterestRate = ({ contribution, associate }) => normalizeInterestRate(
+  contribution.interestRateSnapshot ?? associate.interestRate,
 );
+
+const buildInterestInstallmentBasis = ({ associate, contributions = [], capitalBaseOverride = null }) => {
+  if (capitalBaseOverride !== null) {
+    const capitalBase = roundCurrency(capitalBaseOverride);
+    const interestRate = normalizeInterestRate(associate.interestRate);
+    const amount = calculateInterestInstallmentAmount({ capitalBase, interestRate });
+
+    return {
+      capitalBase,
+      amount,
+      effectiveInterestRate: interestRate,
+    };
+  }
+
+  const basis = contributions.reduce((result, contribution) => {
+    const contributionAmount = roundCurrency(contribution.amount);
+    if (contributionAmount <= 0) {
+      return result;
+    }
+
+    const interestRate = getContributionInterestRate({ contribution, associate });
+    result.capitalBase += contributionAmount;
+    result.amount += calculateInterestInstallmentAmount({
+      capitalBase: contributionAmount,
+      interestRate,
+    });
+    return result;
+  }, { capitalBase: 0, amount: 0 });
+
+  const effectiveInterestRate = basis.capitalBase > 0
+    ? ((basis.amount / basis.capitalBase) * 100).toFixed(4)
+    : normalizeInterestRate(associate.interestRate);
+
+  return {
+    capitalBase: roundCurrency(basis.capitalBase),
+    amount: roundCurrency(basis.amount),
+    effectiveInterestRate,
+  };
+};
+
+const buildContributionTermsSnapshot = (associate) => ({
+  interestTypeSnapshot: normalizeInterestType(associate.interestType),
+  interestRateSnapshot: normalizeInterestRate(associate.interestRate),
+});
 
 const getNextInstallmentNumber = (installments = []) => {
   const maxInstallmentNumber = installments.reduce((max, installment) => (
@@ -266,6 +333,99 @@ const getNextInstallmentNumber = (installments = []) => {
 
   return maxInstallmentNumber + 1;
 };
+
+const isAssociateInstallmentOverdue = (installment, asOfDate = new Date()) => {
+  if (installment?.status === 'overdue') {
+    return true;
+  }
+
+  if (installment?.status !== 'pending') {
+    return false;
+  }
+
+  const dueDate = toOperationalDateOrNull(installment.dueDate);
+  if (!dueDate) {
+    return false;
+  }
+
+  return dueDate < asOfDate;
+};
+
+const resolveAssociateInstallmentStatus = (installment, asOfDate = new Date()) => {
+  if (installment?.status === 'paid') {
+    return 'paid';
+  }
+
+  if (installment?.status === 'overdue') {
+    return 'overdue';
+  }
+
+  return isAssociateInstallmentOverdue(installment, asOfDate) ? 'overdue' : 'pending';
+};
+
+const persistExpiredAssociateInstallments = async ({ associateRepository, associateId, installments, asOfDate }) => {
+  if (typeof associateRepository.updateInstallmentStatus !== 'function') {
+    return installments;
+  }
+
+  await Promise.all(installments
+    .filter((installment) => installment.status === 'pending' && isAssociateInstallmentOverdue(installment, asOfDate))
+    .map((installment) => associateRepository.updateInstallmentStatus(
+      associateId,
+      installment.installmentNumber,
+      'overdue',
+      null,
+      null,
+      installment.paymentMethod || null,
+      installment.notes || null,
+    )));
+
+  return installments.map((installment) => (
+    installment.status === 'pending' && isAssociateInstallmentOverdue(installment, asOfDate)
+      ? { ...installment, status: 'overdue' }
+      : installment
+  ));
+};
+
+const buildAssociatePaymentAlerts = (installments, asOfDate = new Date()) => installments
+  .map((installment) => {
+    const status = resolveAssociateInstallmentStatus(installment, asOfDate);
+    if (!['pending', 'overdue'].includes(status)) {
+      return null;
+    }
+
+    const daysUntilDue = diffCalendarDaysUtc(installment.dueDate, asOfDate);
+    if (daysUntilDue === null) {
+      return null;
+    }
+
+    if (status === 'overdue') {
+      return {
+        type: 'overdue',
+        severity: 'high',
+        installmentNumber: installment.installmentNumber,
+        amount: Number(installment.amount || 0),
+        dueDate: installment.dueDate,
+        daysUntilDue: null,
+        daysOverdue: Math.abs(daysUntilDue),
+      };
+    }
+
+    if (daysUntilDue <= ASSOCIATE_PAYMENT_ALERT_WINDOW_DAYS) {
+      return {
+        type: 'upcoming',
+        severity: 'medium',
+        installmentNumber: installment.installmentNumber,
+        amount: Number(installment.amount || 0),
+        dueDate: installment.dueDate,
+        daysUntilDue,
+        daysOverdue: null,
+      };
+    }
+
+    return null;
+  })
+  .filter(Boolean);
 
 const ensureNextInterestInstallment = async ({
   associateRepository,
@@ -277,11 +437,6 @@ const ensureNextInterestInstallment = async ({
   excludeInstallmentNumber = null,
 }) => {
   if (typeof associateRepository.createInstallment !== 'function') {
-    return null;
-  }
-
-  const interestRate = normalizeInterestRate(associate.interestRate);
-  if (Number(interestRate) <= 0) {
     return null;
   }
 
@@ -302,27 +457,26 @@ const ensureNextInterestInstallment = async ({
     return null;
   }
 
-  const capitalBase = capitalBaseOverride === null ? getTotalContributed(contributions) : roundCurrency(capitalBaseOverride);
-  if (capitalBase <= 0) {
+  const interestBasis = buildInterestInstallmentBasis({
+    associate,
+    contributions,
+    capitalBaseOverride,
+  });
+  if (interestBasis.capitalBase <= 0 || interestBasis.amount <= 0) {
     return null;
   }
 
   const interestType = normalizeInterestType(associate.interestType);
   const dueDate = buildInterestDueDate({ associate, fromDate, afterDate });
   const { periodStartDate, periodEndDate } = buildInterestPeriod({ interestType, dueDate });
-  const amount = calculateInterestInstallmentAmount({ capitalBase, interestRate });
-
-  if (amount <= 0) {
-    return null;
-  }
 
   return associateRepository.createInstallment({
     associateId: associate.id,
     installmentNumber: getNextInstallmentNumber(installments),
-    amount,
+    amount: interestBasis.amount,
     dueDate,
-    capitalBase,
-    interestRate,
+    capitalBase: interestBasis.capitalBase,
+    interestRate: interestBasis.effectiveInterestRate,
     interestType,
     periodStartDate,
     periodEndDate,
@@ -602,6 +756,7 @@ const createCreateAssociate = ({ associateRepository, auditService }) => {
           associateId: associate.id,
           amount: initialCapital,
           contributionDate: normalizedPayload.interestStartsAt ? new Date(normalizedPayload.interestStartsAt) : new Date(),
+          ...buildContributionTermsSnapshot(associate),
           createdByUserId: actor?.id || null,
           notes: 'Capital inicial registrado al crear el socio',
         }, { transaction });
@@ -676,7 +831,7 @@ const createUpdateAssociate = ({ associateRepository, auditService }) => {
 };
 
 /**
- * Create the use case that deletes an associate after confirming the record exists.
+ * Create the use case that deactivates an associate while preserving financial history.
  * @param {{ associateRepository: object, auditService?: object }} dependencies
  * @returns {Function}
  */
@@ -687,11 +842,11 @@ const createDeleteAssociate = ({ associateRepository, auditService }) => {
       throw new NotFoundError('Associate');
     }
 
-    await associateRepository.destroy(associate);
+    return normalizeAssociateRecord(await associateRepository.update(associate, { status: 'inactive' }));
   };
 
   if (auditService) {
-    return withAudit({ auditService, action: 'DELETE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'Associate' })(useCase);
+    return withAudit({ auditService, action: 'UPDATE', module: 'associates', getEntityId: (p) => p?.associateId, getEntityType: () => 'Associate' })(useCase);
   }
   return useCase;
 };
@@ -729,11 +884,17 @@ const ensureAssociateFinancialDetailsAccess = async ({ actor, associateRepositor
  */
 const createListAssociateFinancialDetails = ({ associateRepository }) => async ({ actor, associateId }) => {
   const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
-  const [contributions, distributions, installments] = await Promise.all([
+  const [contributions, distributions, rawInstallments] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
     associateRepository.findInstallmentsByAssociateId(associate.id),
   ]);
+  const installments = await persistExpiredAssociateInstallments({
+    associateRepository,
+    associateId: associate.id,
+    installments: rawInstallments,
+    asOfDate: new Date(),
+  });
 
   const totalContributed = contributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const totalDistributed = distributions.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
@@ -741,10 +902,10 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
     .filter((installment) => installment.status === 'paid')
     .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
   const interestDebt = installments
-    .filter((installment) => installment.status === 'pending')
+    .filter((installment) => ['pending', 'overdue'].includes(installment.status))
     .reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
   const nextInterestPayment = installments
-    .filter((installment) => installment.status === 'pending')
+    .filter((installment) => ['pending', 'overdue'].includes(installment.status))
     .map((installment) => ({ installment, dateOnly: toDateOnlyOrNull(installment.dueDate) }))
     .filter((entry) => entry.dateOnly)
     .sort((left, right) => normalizeOperationalDate(left.dateOnly).getTime() - normalizeOperationalDate(right.dateOnly).getTime())[0]?.installment || null;
@@ -774,7 +935,9 @@ const createListAssociateFinancialDetails = ({ associateRepository }) => async (
       interestDebt: roundCurrency(interestDebt),
       nextInterestPaymentDate: nextInterestPayment?.dueDate ? toDateOnlyOrNull(nextInterestPayment.dueDate) : null,
       netProfit: roundCurrency(totalDistributed),
-      debtStatus: interestDebt > 0 ? 'pending' : 'up_to_date',
+      debtStatus: installments.some((installment) => installment.status === 'overdue')
+        ? 'overdue'
+        : (interestDebt > 0 ? 'pending' : 'up_to_date'),
     },
     contributions,
     distributions: distributions.map(normalizeDistributionRecord),
@@ -802,6 +965,7 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       associateId: associate.id,
       amount,
       contributionDate: normalizeOptionalOperationDate(payload.contributionDate, 'contributionDate'),
+      ...buildContributionTermsSnapshot(associate),
       createdByUserId: actor.id,
       notes: payload.notes ? String(payload.notes).trim() : null,
     });
@@ -892,6 +1056,7 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
         associateId: associate.id,
         amount,
         contributionDate: operationDate,
+        ...buildContributionTermsSnapshot(associate),
         createdByUserId: actor.id,
         notes: note,
       }, { transaction });
@@ -1069,13 +1234,20 @@ const createCreateProportionalProfitDistribution = ({ associateRepository, audit
  * @param {{ associateRepository: object }} dependencies
  * @returns {Function}
  */
-const createGetAssociateInstallments = ({ associateRepository }) => async ({ actor, associateId }) => {
+const createGetAssociateInstallments = ({ associateRepository, clock = () => new Date() }) => async ({ actor, associateId }) => {
   await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
-  const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
+  const rawInstallments = await associateRepository.findInstallmentsByAssociateId(associateId);
+  const asOfDate = clock();
+  const installments = await persistExpiredAssociateInstallments({
+    associateRepository,
+    associateId,
+    installments: rawInstallments,
+    asOfDate,
+  });
 
   const totalPending = installments
-    .filter((i) => i.status === 'pending')
+    .filter((i) => resolveAssociateInstallmentStatus(i, asOfDate) === 'pending')
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   const totalPaid = installments
@@ -1083,10 +1255,7 @@ const createGetAssociateInstallments = ({ associateRepository }) => async ({ act
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   const totalOverdue = installments
-    .filter((i) => {
-      const dueDate = toDateOnlyOrNull(i.dueDate);
-      return i.status === 'pending' && dueDate && normalizeOperationalDate(dueDate) < new Date();
-    })
+    .filter((i) => resolveAssociateInstallmentStatus(i, asOfDate) === 'overdue')
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   return {
@@ -1096,7 +1265,7 @@ const createGetAssociateInstallments = ({ associateRepository }) => async ({ act
       installmentNumber: i.installmentNumber,
       amount: Number(i.amount),
       dueDate: i.dueDate,
-      status: i.status,
+      status: resolveAssociateInstallmentStatus(i, asOfDate),
       paidAt: i.paidAt,
       paidBy: i.paidBy,
       paidByUser: i.paidByUser,
@@ -1106,6 +1275,7 @@ const createGetAssociateInstallments = ({ associateRepository }) => async ({ act
       totalPaid: roundCurrency(totalPaid),
       totalOverdue: roundCurrency(totalOverdue),
     },
+    alerts: buildAssociatePaymentAlerts(installments, asOfDate),
   };
 };
 
@@ -1190,7 +1360,14 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
 const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, associateId, startDate, endDate }) => {
   await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
-  const events = await associateRepository.findCalendarEvents(associateId, startDate, endDate);
+  const normalizedStartDate = normalizeOptionalOperationalDate(startDate, 'startDate');
+  const normalizedEndDate = normalizeOptionalOperationalDate(endDate, 'endDate');
+
+  if (normalizedStartDate && normalizedEndDate && normalizedStartDate.getTime() > normalizedEndDate.getTime()) {
+    throw new ValidationError('startDate must be before or equal to endDate');
+  }
+
+  const events = await associateRepository.findCalendarEvents(associateId, normalizedStartDate, normalizedEndDate);
 
   const allEvents = [
     ...mapValidDatedRows(events.contributions, (c) => c.date, (c, date) => ({
@@ -1215,8 +1392,8 @@ const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, 
 
   return {
     associateId,
-    startDate: startDate || null,
-    endDate: endDate || null,
+    startDate: toDateOnlyOrNull(normalizedStartDate),
+    endDate: toDateOnlyOrNull(normalizedEndDate),
     events: allEvents,
     summary: {
       contributionCount: events.contributions.length,

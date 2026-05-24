@@ -23,6 +23,7 @@ const AuditLog = require('./AuditLog');
 const RefreshToken = require('./RefreshToken');
 const AssociateInstallment = require('./AssociateInstallment');
 const RateLimitEntry = require('./RateLimitEntry');
+const OperatingExpense = require('./OperatingExpense');
 Loan.belongsTo(Customer, { foreignKey: 'customerId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Customer.hasMany(Loan, { foreignKey: 'customerId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 
@@ -37,6 +38,9 @@ Associate.hasMany(User, { foreignKey: 'associateId', as: 'users', onDelete: 'SET
 
 Payment.belongsTo(Loan, { foreignKey: 'loanId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Loan.hasMany(Payment, { foreignKey: 'loanId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+
+Payment.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+User.hasMany(Payment, { foreignKey: 'createdByUserId', as: 'createdPayments', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
 LoanAlert.belongsTo(Loan, { foreignKey: 'loanId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Loan.hasMany(LoanAlert, { foreignKey: 'loanId', as: 'alerts', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
@@ -116,6 +120,12 @@ User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs', onDelete: 'SET N
 RefreshToken.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 
+OperatingExpense.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+User.hasMany(OperatingExpense, { foreignKey: 'createdByUserId', as: 'createdOperatingExpenses', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+
+OperatingExpense.belongsTo(User, { foreignKey: 'annulledByUserId', as: 'annulledBy', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+User.hasMany(OperatingExpense, { foreignKey: 'annulledByUserId', as: 'annulledOperatingExpenses', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+
 module.exports = {
   sequelize,
   Customer,
@@ -142,4 +152,5 @@ module.exports = {
   AuditLog,
   RefreshToken,
   RateLimitEntry,
+  OperatingExpense,
 };

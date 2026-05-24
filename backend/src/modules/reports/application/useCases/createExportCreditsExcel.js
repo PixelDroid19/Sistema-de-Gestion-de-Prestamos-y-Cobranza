@@ -1,4 +1,9 @@
-const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const {
+  assertDateRangeOrder,
+  ensureAdmin,
+  formatMoney,
+  buildPdfBuffer,
+} = require('@/modules/reports/application/reportHelpers');
 const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
@@ -41,13 +46,20 @@ const normalizeStatusFilter = (value) => {
   return normalized.length > 0 ? normalized : null;
 };
 
-const normalizeCreditExportFilters = (filters = {}) => ({
-  customerId: toNumberOrNull(filters.customerId),
-  loanId: toNumberOrNull(filters.loanId ?? filters.creditId),
-  startDate: parseDateOrNull(filters.startDate ?? filters.fromDate),
-  endDate: parseDateOrNull(filters.endDate ?? filters.toDate),
-  status: normalizeStatusFilter(filters.status),
-});
+const normalizeCreditExportFilters = (filters = {}) => {
+  const normalizedFilters = {
+    customerId: toNumberOrNull(filters.customerId),
+    loanId: toNumberOrNull(filters.loanId ?? filters.creditId),
+    startDate: parseDateOrNull(filters.startDate ?? filters.fromDate),
+    endDate: parseDateOrNull(filters.endDate ?? filters.toDate),
+    status: normalizeStatusFilter(filters.status),
+  };
+  assertDateRangeOrder(
+    { fromDate: normalizedFilters.startDate, toDate: normalizedFilters.endDate },
+    { fromLabel: 'startDate', toLabel: 'endDate' },
+  );
+  return normalizedFilters;
+};
 
 const matchesFilters = (loan, filters) => {
   if (filters.customerId !== null && Number(loan?.customerId) !== filters.customerId) {

@@ -1,4 +1,4 @@
-const { ConfigEntry } = require('@/models');
+const { ConfigEntry, Loan } = require('@/models');
 
 const PAYMENT_METHOD_CATEGORY = 'payment_method';
 const BUSINESS_SETTING_CATEGORY = 'business_setting';
@@ -87,6 +87,10 @@ const configRepository = {
 
   async destroy(id) {
     return ConfigEntry.destroy({ where: { id } });
+  },
+
+  async countLoansUsingRatePolicy(id) {
+    return Loan.count({ where: { ratePolicyId: id } });
   },
 };
 

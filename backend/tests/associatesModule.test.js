@@ -155,6 +155,33 @@ test('createDeleteAssociate rejects when the record is missing', async () => {
   });
 });
 
+test('createDeleteAssociate preserves financial history by deactivating instead of destroying the associate', async () => {
+  const associate = { id: 12, status: 'active', name: 'Socio Histórico' };
+  let updatePayload = null;
+  const deleteAssociate = createDeleteAssociate({
+    associateRepository: {
+      async findById(id) {
+        assert.equal(Number(id), 12);
+        return associate;
+      },
+      async update(record, payload) {
+        assert.equal(record, associate);
+        updatePayload = payload;
+        return { ...record, ...payload };
+      },
+      async destroy() {
+        throw new Error('destroy should not be called for associates with financial history');
+      },
+    },
+  });
+
+  const result = await deleteAssociate({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.deepEqual(updatePayload, { status: 'inactive' });
+  assert.equal(result.status, 'inactive');
+  assert.equal(result.name, 'Socio Histórico');
+});
+
 test('createCreateAssociate delegates persistence to the repository', async () => {
   const createAssociate = createCreateAssociate({
     associateRepository: {
@@ -226,6 +253,8 @@ test('createCreateAssociate records initial capital and schedules the first mont
   assert.equal(calls[1][0], 'createContribution');
   assert.equal(calls[1][1].amount, 2000000);
   assert.equal(calls[1][1].createdByUserId, 7);
+  assert.equal(calls[1][1].interestTypeSnapshot, 'monthly');
+  assert.equal(calls[1][1].interestRateSnapshot, '2.5000');
   assert.equal(calls[2][0], 'createInstallment');
   assert.equal(calls[2][1].amount, 50000);
   assert.equal(calls[2][1].capitalBase, 2000000);
@@ -474,9 +503,50 @@ test('createCreateAssociateContribution validates positive amounts', async () =>
 
   assert.equal(contribution.id, 4);
   assert.equal(contribution.amount, 500);
+  assert.equal(calls[0][1].interestTypeSnapshot, 'monthly');
+  assert.equal(calls[0][1].interestRateSnapshot, '1.5000');
   assert.equal(calls[1][0], 'createInstallment');
   assert.equal(calls[1][1].amount, 7.5);
   assert.equal(calls[1][1].capitalBase, 500);
+});
+
+test('createCreateAssociateContribution schedules interest from historical contribution rate snapshots', async () => {
+  const calls = [];
+  const createAssociateContribution = createCreateAssociateContribution({
+    associateRepository: {
+      async findById() {
+        return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+      },
+      async listContributionsByAssociate() {
+        return [
+          { amount: 1000000, interestTypeSnapshot: 'monthly', interestRateSnapshot: '2.5000' },
+          { amount: 500000, interestTypeSnapshot: 'monthly', interestRateSnapshot: '1.5000' },
+        ];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+      async createContribution(payload) {
+        calls.push(['createContribution', payload]);
+        return { id: 4, ...payload };
+      },
+      async createInstallment(payload) {
+        calls.push(['createInstallment', payload]);
+        return { id: 5, ...payload };
+      },
+    },
+  });
+
+  await createAssociateContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: 500000, notes: 'Capital con nueva tasa' },
+  });
+
+  assert.equal(calls[1][0], 'createInstallment');
+  assert.equal(calls[1][1].capitalBase, 1500000);
+  assert.equal(calls[1][1].amount, 32500);
+  assert.equal(calls[1][1].interestRate, '2.1667');
 });
 
 test('associate money movement use cases reject ambiguous currency amounts', async () => {
@@ -913,8 +983,8 @@ test('createGetAssociateInstallments returns installments with totals', async ()
       async findInstallmentsByAssociateId(associateId) {
         return [
           { id: 1, installmentNumber: 1, amount: 100, dueDate: new Date('2026-01-01'), status: 'paid', paidAt: new Date('2026-01-15'), paidBy: 1, paidByUser: { id: 1, name: 'Admin' } },
-          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2026-02-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
-          { id: 3, installmentNumber: 3, amount: 100, dueDate: new Date('2026-03-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 2, installmentNumber: 2, amount: 100, dueDate: new Date('2199-02-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 3, installmentNumber: 3, amount: 100, dueDate: new Date('2199-03-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
         ];
       },
       async findById() {
@@ -929,6 +999,71 @@ test('createGetAssociateInstallments returns installments with totals', async ()
   assert.equal(result.installments.length, 3);
   assert.equal(result.totals.totalPaid, 100);
   assert.equal(result.totals.totalPending, 200);
+});
+
+test('createGetAssociateInstallments separates overdue installments from pending totals', async () => {
+  const calls = [];
+  const getInstallments = createGetAssociateInstallments({
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 1, installmentNumber: 1, amount: 100, dueDate: new Date('2000-01-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 2, installmentNumber: 2, amount: 75, dueDate: new Date('2199-01-01'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 3, installmentNumber: 3, amount: 50, dueDate: new Date('2000-02-01'), status: 'paid', paidAt: new Date('2000-02-02'), paidBy: 1, paidByUser: { id: 1, name: 'Admin' } },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+      async updateInstallmentStatus(associateId, installmentNumber, status, paidAt, paidBy) {
+        calls.push({ associateId, installmentNumber, status, paidAt, paidBy });
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.deepEqual(calls, [
+    { associateId: 12, installmentNumber: 1, status: 'overdue', paidAt: null, paidBy: null },
+  ]);
+  assert.equal(result.installments[0].status, 'overdue');
+  assert.equal(result.installments[1].status, 'pending');
+  assert.equal(result.installments[2].status, 'paid');
+  assert.equal(result.totals.totalOverdue, 100);
+  assert.equal(result.totals.totalPending, 75);
+  assert.equal(result.totals.totalPaid, 50);
+});
+
+test('createGetAssociateInstallments returns alerts for overdue and upcoming associate payments', async () => {
+  const getInstallments = createGetAssociateInstallments({
+    clock: () => new Date('2026-05-10T00:00:00.000Z'),
+    associateRepository: {
+      async findInstallmentsByAssociateId() {
+        return [
+          { id: 1, installmentNumber: 1, amount: 120, dueDate: new Date('2026-05-08T00:00:00.000Z'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 2, installmentNumber: 2, amount: 80, dueDate: new Date('2026-05-15T00:00:00.000Z'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 3, installmentNumber: 3, amount: 70, dueDate: new Date('2026-06-20T00:00:00.000Z'), status: 'pending', paidAt: null, paidBy: null, paidByUser: null },
+          { id: 4, installmentNumber: 4, amount: 60, dueDate: new Date('2026-05-05T00:00:00.000Z'), status: 'paid', paidAt: new Date('2026-05-05T00:00:00.000Z'), paidBy: 1, paidByUser: { id: 1, name: 'Admin' } },
+        ];
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  const result = await getInstallments({ actor: { id: 1, role: 'admin' }, associateId: 12 });
+
+  assert.deepEqual(result.alerts.map((alert) => ({
+    type: alert.type,
+    severity: alert.severity,
+    installmentNumber: alert.installmentNumber,
+    daysUntilDue: alert.daysUntilDue,
+    daysOverdue: alert.daysOverdue,
+  })), [
+    { type: 'overdue', severity: 'high', installmentNumber: 1, daysUntilDue: null, daysOverdue: 2 },
+    { type: 'upcoming', severity: 'medium', installmentNumber: 2, daysUntilDue: 5, daysOverdue: null },
+  ]);
 });
 
 test('createGetAssociateInstallments rejects socio records before associate lookup', async () => {
@@ -1076,4 +1211,24 @@ test('createGetAssociateCalendar aggregates contributions, distributions, and in
   assert.equal(result.summary.distributionCount, 1);
   assert.equal(result.summary.installmentCount, 1);
   assert.equal(result.summary.pendingInstallments, 1);
+});
+
+test('createGetAssociateCalendar rejects inverted date ranges before reading calendar events', async () => {
+  const getCalendar = createGetAssociateCalendar({
+    associateRepository: {
+      async findCalendarEvents() {
+        throw new Error('calendar events should not be read for an invalid date range');
+      },
+      async findById() {
+        return { id: 12, name: 'Partner One' };
+      },
+    },
+  });
+
+  await assert.rejects(() => getCalendar({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    startDate: '2026-12-31',
+    endDate: '2026-01-01',
+  }), /startDate must be before or equal to endDate/i);
 });

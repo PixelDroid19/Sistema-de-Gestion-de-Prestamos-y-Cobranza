@@ -78,6 +78,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       },
       async deleteAssociate(input) {
         calls.push(['deleteAssociate', input]);
+        return { id: Number(input.associateId), status: 'inactive' };
       },
       async createProportionalProfitDistribution({ payload }) {
         calls.push(['createProportionalProfitDistribution', payload]);
@@ -206,7 +207,8 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.equal(deleteResponse.statusCode, 200);
   assert.deepEqual(deleteResponse.body, {
     success: true,
-    message: 'Socio eliminado correctamente',
+    message: 'Socio desactivado correctamente',
+    data: { associate: { id: 5, status: 'inactive' } },
   });
   assert.equal(proportionalResponse.statusCode, 201);
   assert.deepEqual(proportionalResponse.body, {
