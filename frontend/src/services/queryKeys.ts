@@ -49,7 +49,7 @@ export const queryKeys = {
     all: ['associates'] as const,
     list: (params?: AssociateListParams) => ['associates', 'list', params ?? {}] as const,
     detail: (associateId: number) => ['associates', 'detail', associateId] as const,
-    portal: (associateId: number) => ['associates', 'portal', associateId] as const,
+    financialDetails: (associateId: number) => ['associates', 'financial-details', associateId] as const,
     installments: (associateId: number) => ['associates', 'installments', associateId] as const,
     calendar: (associateId: number) => ['associates', 'calendar', associateId] as const,
   },

@@ -22,18 +22,30 @@ type OperationalSelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   selectClassName?: string;
 };
 
-export const parseNumericInput = (raw: string) => {
-  const normalized = raw.replace(/[^\d.-]/g, '');
-  if (!normalized || normalized === '-' || normalized === '.') return 0;
+/**
+ * Parses a plain non-negative numeric input without accepting exponent
+ * notation or mixed alphanumeric values.
+ */
+export const parseNumericInput = (raw: string): number | null => {
+  const normalized = raw.trim();
+  if (!normalized) return 0;
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
-export const parseMoneyInput = (raw: string) => {
+/**
+ * Parses formatted whole-money input while rejecting text or signs such as
+ * exponent notation (`1e2`) or `-100` that would silently change the amount.
+ */
+export const parseMoneyInput = (raw: string): number | null => {
+  if (/[A-Za-z+-]/.test(raw)) return null;
+
   const digits = raw.replace(/\D/g, '');
   if (!digits) return 0;
   const parsed = Number(digits);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 export const formatIntegerInput = (value: OperationalInputValue) => {
@@ -85,12 +97,18 @@ export function OperationalInput({
     if (!onValueChange) return;
 
     if (variant === 'money') {
-      onValueChange(parseMoneyInput(event.target.value), event);
+      const parsedMoney = parseMoneyInput(event.target.value);
+      if (parsedMoney !== null) {
+        onValueChange(parsedMoney, event);
+      }
       return;
     }
 
     if (variant === 'number' || variant === 'percent') {
-      onValueChange(parseNumericInput(event.target.value), event);
+      const parsedNumber = parseNumericInput(event.target.value);
+      if (parsedNumber !== null) {
+        onValueChange(parsedNumber, event);
+      }
       return;
     }
 

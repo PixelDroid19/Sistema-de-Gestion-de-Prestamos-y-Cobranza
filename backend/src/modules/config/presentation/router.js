@@ -1,7 +1,8 @@
 const express = require('express');
-const { asyncHandler } = require('@/utils/errorHandler');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { logger } = require('@/utils/logger');
 const { domainEventBus } = require('@/modules/shared/events');
+const { validateIntegerId } = require('@/modules/shared/validators');
 
 const runOptionalSideEffect = async (label, sideEffect) => {
   try {
@@ -60,8 +61,28 @@ const recordConfigMutation = async ({
   ));
 };
 
+/**
+ * Composes public configuration reads and admin-only configuration mutation
+ * routes with optional audit and notification side effects.
+ * @param {{ authMiddleware: Function, useCases: object, auditService?: object, notificationService?: object }} dependencies
+ * @returns {import('express').Router} Express router for operational configuration.
+ */
 const createConfigRouter = ({ authMiddleware, useCases, auditService, notificationService }) => {
   const router = express.Router();
+  /**
+   * Parses required config resource identifiers without accepting partial
+   * numeric coercion.
+   * @param {string|number} value
+   * @param {string} fieldName
+   * @returns {number}
+   */
+  const parseRequiredRouteId = (value, fieldName) => {
+    if (!validateIntegerId(value)) {
+      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+    }
+
+    return Number(String(value).trim());
+  };
 
   // Public endpoint - no auth required
   router.get('/roles', asyncHandler(async (_req, res) => {
@@ -98,37 +119,39 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
       payload: { policy },
       message: `Política de tasa "${policy?.label || policy?.key || policy?.id}" creada.`,
     });
-    res.status(201).json({ success: true, message: 'Rate policy created successfully', data: { policy } });
+    res.status(201).json({ success: true, message: 'Política de tasa creada correctamente', data: { policy } });
   }));
 
   router.put('/rate-policies/:policyId', asyncHandler(async (req, res) => {
-    const policy = await useCases.updateRatePolicy(req.params.policyId, req.body);
+    const policyId = parseRequiredRouteId(req.params.policyId, 'policyId');
+    const policy = await useCases.updateRatePolicy(policyId, req.body);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'UPDATE',
       entityType: 'RatePolicy',
-      entityId: policy?.id || req.params.policyId,
+      entityId: policy?.id || policyId,
       payload: { policy },
-      message: `Política de tasa "${policy?.label || policy?.key || req.params.policyId}" actualizada.`,
+      message: `Política de tasa "${policy?.label || policy?.key || policyId}" actualizada.`,
     });
-    res.json({ success: true, message: 'Rate policy updated successfully', data: { policy } });
+    res.json({ success: true, message: 'Política de tasa actualizada correctamente', data: { policy } });
   }));
 
   router.delete('/rate-policies/:policyId', asyncHandler(async (req, res) => {
-    const result = await useCases.deleteRatePolicy(req.params.policyId);
+    const policyId = parseRequiredRouteId(req.params.policyId, 'policyId');
+    const result = await useCases.deleteRatePolicy(policyId);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'DELETE',
       entityType: 'RatePolicy',
-      entityId: result?.id || req.params.policyId,
+      entityId: result?.id || policyId,
       payload: { result },
-      message: `Política de tasa #${result?.id || req.params.policyId} eliminada.`,
+      message: `Política de tasa #${result?.id || policyId} eliminada.`,
     });
-    res.json({ success: true, message: 'Rate policy deleted successfully', data: result });
+    res.json({ success: true, message: 'Política de tasa eliminada correctamente', data: result });
   }));
 
   router.get('/late-fee-policies', asyncHandler(async (_req, res) => {
@@ -153,37 +176,39 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
       payload: { policy },
       message: `Política de mora "${policy?.label || policy?.key || policy?.id}" creada.`,
     });
-    res.status(201).json({ success: true, message: 'Late fee policy created successfully', data: { policy } });
+    res.status(201).json({ success: true, message: 'Política de mora creada correctamente', data: { policy } });
   }));
 
   router.put('/late-fee-policies/:policyId', asyncHandler(async (req, res) => {
-    const policy = await useCases.updateLateFeePolicy(req.params.policyId, req.body);
+    const policyId = parseRequiredRouteId(req.params.policyId, 'policyId');
+    const policy = await useCases.updateLateFeePolicy(policyId, req.body);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'UPDATE',
       entityType: 'LateFeePolicy',
-      entityId: policy?.id || req.params.policyId,
+      entityId: policy?.id || policyId,
       payload: { policy },
-      message: `Política de mora "${policy?.label || policy?.key || req.params.policyId}" actualizada.`,
+      message: `Política de mora "${policy?.label || policy?.key || policyId}" actualizada.`,
     });
-    res.json({ success: true, message: 'Late fee policy updated successfully', data: { policy } });
+    res.json({ success: true, message: 'Política de mora actualizada correctamente', data: { policy } });
   }));
 
   router.delete('/late-fee-policies/:policyId', asyncHandler(async (req, res) => {
-    const result = await useCases.deleteLateFeePolicy(req.params.policyId);
+    const policyId = parseRequiredRouteId(req.params.policyId, 'policyId');
+    const result = await useCases.deleteLateFeePolicy(policyId);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'DELETE',
       entityType: 'LateFeePolicy',
-      entityId: result?.id || req.params.policyId,
+      entityId: result?.id || policyId,
       payload: { result },
-      message: `Política de mora #${result?.id || req.params.policyId} eliminada.`,
+      message: `Política de mora #${result?.id || policyId} eliminada.`,
     });
-    res.json({ success: true, message: 'Late fee policy deleted successfully', data: result });
+    res.json({ success: true, message: 'Política de mora eliminada correctamente', data: result });
   }));
 
   router.post('/payment-methods', asyncHandler(async (req, res) => {
@@ -198,37 +223,39 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
       payload: { paymentMethod },
       message: `Método de pago "${paymentMethod?.label || paymentMethod?.key || paymentMethod?.id}" creado.`,
     });
-    res.status(201).json({ success: true, message: 'Payment method created successfully', data: { paymentMethod } });
+    res.status(201).json({ success: true, message: 'Método de pago creado correctamente', data: { paymentMethod } });
   }));
 
   router.put('/payment-methods/:paymentMethodId', asyncHandler(async (req, res) => {
-    const paymentMethod = await useCases.updatePaymentMethod(req.params.paymentMethodId, req.body);
+    const paymentMethodId = parseRequiredRouteId(req.params.paymentMethodId, 'paymentMethodId');
+    const paymentMethod = await useCases.updatePaymentMethod(paymentMethodId, req.body);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'UPDATE',
       entityType: 'PaymentMethod',
-      entityId: paymentMethod?.id || req.params.paymentMethodId,
+      entityId: paymentMethod?.id || paymentMethodId,
       payload: { paymentMethod },
-      message: `Método de pago "${paymentMethod?.label || paymentMethod?.key || req.params.paymentMethodId}" actualizado.`,
+      message: `Método de pago "${paymentMethod?.label || paymentMethod?.key || paymentMethodId}" actualizado.`,
     });
-    res.json({ success: true, message: 'Payment method updated successfully', data: { paymentMethod } });
+    res.json({ success: true, message: 'Método de pago actualizado correctamente', data: { paymentMethod } });
   }));
 
   router.delete('/payment-methods/:paymentMethodId', asyncHandler(async (req, res) => {
-    const result = await useCases.deletePaymentMethod(req.params.paymentMethodId);
+    const paymentMethodId = parseRequiredRouteId(req.params.paymentMethodId, 'paymentMethodId');
+    const result = await useCases.deletePaymentMethod(paymentMethodId);
     await recordConfigMutation({
       auditService,
       notificationService,
       req,
       action: 'DELETE',
       entityType: 'PaymentMethod',
-      entityId: result?.id || req.params.paymentMethodId,
+      entityId: result?.id || paymentMethodId,
       payload: { result },
-      message: `Método de pago #${result?.id || req.params.paymentMethodId} eliminado.`,
+      message: `Método de pago #${result?.id || paymentMethodId} eliminado.`,
     });
-    res.json({ success: true, message: 'Payment method deleted successfully', data: result });
+    res.json({ success: true, message: 'Método de pago eliminado correctamente', data: result });
   }));
 
   router.get('/settings', asyncHandler(async (_req, res) => {
@@ -248,7 +275,7 @@ const createConfigRouter = ({ authMiddleware, useCases, auditService, notificati
       payload: { setting },
       message: `Ajuste "${setting?.label || setting?.key || req.params.settingKey}" actualizado.`,
     });
-    res.json({ success: true, message: 'Setting saved successfully', data: { setting } });
+    res.json({ success: true, message: 'Ajuste guardado correctamente', data: { setting } });
   }));
 
   router.get('/catalogs', asyncHandler(async (_req, res) => {

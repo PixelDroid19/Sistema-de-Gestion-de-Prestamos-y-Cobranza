@@ -11,6 +11,11 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const hasJsdocForConst = (source, symbolName) => new RegExp(`/\\*\\*[\\s\\S]*?\\*/\\s*const ${escapeRegExp(symbolName)}\\s*=`, 'm').test(source);
 
+const findJsdocForConst = (source, symbolName) => {
+  const match = source.match(new RegExp(`(/\\*\\*[\\s\\S]*?\\*/)\\s*const ${escapeRegExp(symbolName)}\\s*=`, 'm'));
+  return match?.[1] || '';
+};
+
 const selectedPublicSeams = [
   ['src/app.js', 'createApp'],
   ['src/server.js', 'startServer'],
@@ -36,6 +41,55 @@ test('selected exported backend seams keep explicit JSDoc contracts', () => {
   });
 });
 
+test('backend module factories document their composition contract', () => {
+  const moduleIndexFiles = fs.readdirSync(path.join(backendRoot, 'src/modules'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
+    .map((entry) => `src/modules/${entry.name}/index.js`)
+    .filter((relativePath) => fs.existsSync(path.join(backendRoot, relativePath)));
+
+  moduleIndexFiles.forEach((relativePath) => {
+    const source = readBackendFile(relativePath);
+    const factoryMatches = [...source.matchAll(/const (create[A-Z][A-Za-z]+Module)\s*=/g)];
+    assert.notEqual(factoryMatches.length, 0, `${relativePath} should expose a module factory`);
+
+    factoryMatches.forEach(([, symbolName]) => {
+      const jsdoc = findJsdocForConst(source, symbolName);
+      assert.notEqual(jsdoc, '', `${relativePath} should document ${symbolName} with JSDoc`);
+      assert.match(jsdoc, /@param\b/, `${relativePath} should document ${symbolName} dependencies with @param`);
+      assert.match(jsdoc, /@returns\b/, `${relativePath} should document ${symbolName} module registration with @returns`);
+    });
+  });
+});
+
+test('backend presentation router factories document their HTTP composition contract', () => {
+  const moduleDirectories = fs.readdirSync(path.join(backendRoot, 'src/modules'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'shared');
+
+  const routerFactoryFiles = moduleDirectories.flatMap((entry) => {
+    const presentationPath = path.join(backendRoot, 'src/modules', entry.name, 'presentation');
+    if (!fs.existsSync(presentationPath)) return [];
+
+    return fs.readdirSync(presentationPath, { withFileTypes: true })
+      .filter((fileEntry) => fileEntry.isFile() && fileEntry.name.endsWith('.js'))
+      .map((fileEntry) => `src/modules/${entry.name}/presentation/${fileEntry.name}`);
+  });
+
+  let routerFactoryCount = 0;
+  routerFactoryFiles.forEach((relativePath) => {
+    const source = readBackendFile(relativePath);
+    const factoryMatches = [...source.matchAll(/const (create[A-Z][A-Za-z]+Router)\s*=/g)];
+    routerFactoryCount += factoryMatches.length;
+
+    factoryMatches.forEach(([, symbolName]) => {
+      const jsdoc = findJsdocForConst(source, symbolName);
+      assert.notEqual(jsdoc, '', `${relativePath} should document ${symbolName} with JSDoc`);
+      assert.match(jsdoc, /@param\b/, `${relativePath} should document ${symbolName} dependencies with @param`);
+      assert.match(jsdoc, /@returns\b/, `${relativePath} should document ${symbolName} Express router with @returns`);
+    });
+  });
+  assert.ok(routerFactoryCount > 0, 'presentation files should expose router factories');
+});
+
 test('documentation stays selective for non-obvious helpers only', () => {
   const documentedHelpers = [
     ['src/modules/credits/application/loanFinancials.js', 'buildFinancialSnapshot'],
@@ -44,6 +98,14 @@ test('documentation stays selective for non-obvious helpers only', () => {
     ['src/modules/credits/application/creditPolicyResolver.js', 'createCreditPolicyResolver'],
     ['src/modules/credits/application/recoveryStatusGuard.js', 'createRecoveryStatusGuard'],
     ['src/modules/reports/application/reportInternals.js', 'buildLoanReportRecord'],
+    ['src/modules/reports/application/reportLabels.js', 'formatOperationalStatus'],
+    ['src/modules/reports/application/reportLabels.js', 'formatPaymentType'],
+    ['src/modules/reports/application/reportLabels.js', 'formatPaymentMethod'],
+    ['src/modules/customers/application/useCases.js', 'ensureCustomerDocumentAccess'],
+    ['src/modules/associates/application/useCases.js', 'buildProportionalIdempotencyRequestHash'],
+    ['src/modules/associates/application/useCases.js', 'allocateProportionalDistribution'],
+    ['src/modules/associates/application/useCases.js', 'validateEligibleParticipationPool'],
+    ['src/modules/associates/application/useCases.js', 'createCreateProportionalProfitDistribution'],
     ['src/docs/openapi.js', 'buildOpenApiDocument'],
   ];
 

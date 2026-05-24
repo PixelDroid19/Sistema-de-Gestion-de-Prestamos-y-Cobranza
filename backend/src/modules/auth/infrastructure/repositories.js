@@ -1,9 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const sequelize = require('@/models/database');
 const User = require('@/models/User');
-const Customer = require('@/models/Customer');
-const Associate = require('@/models/Associate');
 const RefreshToken = require('@/models/RefreshToken');
 
 /**
@@ -16,7 +13,7 @@ const hashRefreshToken = (token) => {
 };
 
 /**
- * Persistence ports for user identities and role-specific profile records.
+ * Persistence ports for administrative user identities.
  */
 const userRepository = {
   findByEmail(email) {
@@ -42,22 +39,6 @@ const userRepository = {
   findById(id) {
     return User.findByPk(id);
   },
-  syncPrimaryKeySequenceWithCustomerProfiles() {
-    return sequelize.query(`
-      WITH max_ids AS (
-        SELECT GREATEST(
-          COALESCE((SELECT MAX(id) FROM "Users"), 0),
-          COALESCE((SELECT MAX(id) FROM "Customers"), 0)
-        ) AS max_id
-      )
-      SELECT setval(
-        pg_get_serial_sequence('"Users"', 'id'),
-        CASE WHEN max_id > 0 THEN max_id ELSE 1 END,
-        max_id > 0
-      )
-      FROM max_ids;
-    `);
-  },
   create(payload) {
     return User.create(payload);
   },
@@ -75,39 +56,6 @@ const userRepository = {
   },
   findRecoveryAssigneeUserByEmail(email) {
     return User.findOne({ where: { email } });
-  },
-};
-
-/**
- * Persistence port for customer profile records linked to user identities.
- */
-const customerProfileRepository = {
-  create(payload) {
-    return Customer.create(payload);
-  },
-  async update(id, payload) {
-    const customer = await Customer.findByPk(id);
-    if (!customer) {
-      return null;
-    }
-
-    await customer.update(payload);
-    return customer;
-  },
-};
-
-const associateProfileRepository = {
-  create(payload) {
-    return Associate.create(payload);
-  },
-  async update(id, payload) {
-    const associate = await Associate.findByPk(id);
-    if (!associate) {
-      return null;
-    }
-
-    await associate.update(payload);
-    return associate;
   },
 };
 
@@ -169,8 +117,6 @@ const refreshTokenRepository = {
 
 module.exports = {
   userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
   passwordHasher,
   refreshTokenRepository,
   hashRefreshToken,

@@ -1,5 +1,6 @@
 const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
+const { AuthorizationError } = require('@/utils/errorHandler');
 
 const {
   createListCustomers,
@@ -288,23 +289,26 @@ test('createCreateCustomer does not retry non-primary-key unique conflicts', asy
   assert.equal(syncCalls, 0);
 });
 
-test('createListCustomerDocuments hides internal documents from customer actors', async () => {
+test('createListCustomerDocuments rejects customer records before document lookup', async () => {
   const listCustomerDocuments = createListCustomerDocuments({
     customerRepository: {
       async findById() {
-        return { id: 7 };
+        throw new Error('findById should not be called for customer records');
       },
       async listDocuments() {
-        return [
-          { id: 1, customerVisible: true },
-          { id: 2, customerVisible: false },
-        ];
+        throw new Error('listDocuments should not be called for customer records');
       },
     },
   });
 
-  const documents = await listCustomerDocuments({ actor: { id: 7, role: 'customer' }, customerId: 7 });
-  assert.deepEqual(documents, [{ id: 1, customerVisible: true }]);
+  await assert.rejects(() => listCustomerDocuments({
+    actor: { id: 7, role: 'customer' },
+    customerId: 7,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can access customer documents');
+    return true;
+  });
 });
 
 test('createUploadCustomerDocument persists customer-owned attachment metadata', async () => {
@@ -345,14 +349,14 @@ test('createUploadCustomerDocument persists customer-owned attachment metadata',
   assert.equal(createdPayload.customerVisible, true);
 });
 
-test('createDownloadCustomerDocument blocks customers from internal documents', async () => {
+test('createDownloadCustomerDocument rejects customer records before document lookup', async () => {
   const downloadCustomerDocument = createDownloadCustomerDocument({
     customerRepository: {
       async findById() {
-        return { id: 7 };
+        throw new Error('findById should not be called for customer records');
       },
       async findDocument() {
-        return { id: 10, customerVisible: false, storagePath: 'internal.pdf' };
+        throw new Error('findDocument should not be called for customer records');
       },
     },
     attachmentStorage: {
@@ -363,7 +367,15 @@ test('createDownloadCustomerDocument blocks customers from internal documents', 
     },
   });
 
-  await assert.rejects(() => downloadCustomerDocument({ actor: { id: 7, role: 'customer' }, customerId: 7, documentId: 10 }));
+  await assert.rejects(() => downloadCustomerDocument({
+    actor: { id: 7, role: 'customer' },
+    customerId: 7,
+    documentId: 10,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can access customer documents');
+    return true;
+  });
 });
 
 test('createRestoreCustomer restores a soft-deleted customer', async () => {

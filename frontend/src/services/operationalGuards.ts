@@ -1,5 +1,6 @@
 import { CLOSED_OR_BLOCKED_LOAN_STATUSES, NON_EXECUTABLE_INSTALLMENT_STATUSES } from '../constants/operationalStates';
 import { LOAN_STATUS_LABELS, type BackendSupportedLoanStatus } from '../constants/loanStates';
+import { PERMISSION } from '../constants/permissionNames';
 
 export type OperationalRole = 'admin' | 'employee' | 'socio' | 'customer' | string;
 
@@ -71,22 +72,22 @@ const unavailableInstallmentStatusReason = (installmentStatus?: string): string 
 );
 
 const actionPermissionMap: Partial<Record<GuardedAction, OperationalPermission[]>> = {
-  'credit.delete': ['credits.delete', 'credit.delete'],
-  'credit.report.download': ['reports_export', 'reports.download', 'credit.report.download'],
-  'credit.payouts.navigate': ['payments.view', 'payouts.view', 'credit.payouts.navigate'],
-  'credit.status.update': ['credits.updateStatus', 'credits.update', 'credit.status.update'],
-  'installment.pay': ['payments_create', 'payments.create', 'installment.pay'],
-  'installment.editPaymentMethod': ['payments_update', 'payments.update', 'installment.editPaymentMethod'],
+  'credit.delete': [PERMISSION.CREDITS_DELETE, 'credits.delete', 'credit.delete'],
+  'credit.report.download': [PERMISSION.REPORTS_VIEW_ALL, 'reports.download', 'credit.report.download'],
+  'credit.payouts.navigate': [PERMISSION.PAYMENTS_VIEW_ALL, 'payments.view', 'payouts.view', 'credit.payouts.navigate'],
+  'credit.status.update': [PERMISSION.CREDITS_UPDATE, 'credits.updateStatus', 'credits.update', 'credit.status.update'],
+  'installment.pay': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'installment.pay'],
+  'installment.editPaymentMethod': [PERMISSION.PAYMENTS_UPDATE, 'payments.update', 'installment.editPaymentMethod'],
   'installment.promise': ['promises.create', 'installment.promise'],
   'installment.followUp': ['followups.create', 'installment.followUp'],
-  'installment.annul': ['payments_annul', 'payments.annul', 'installment.annul'],
-  'capital.payment': ['payments_create', 'payments.create', 'capital.payment'],
-  'lateFee.update': ['credits_update', 'loans_update', 'loans.update', 'lateFee.update'],
-  'payout.register': ['payments_create', 'payments.create', 'payout.register'],
-  'payout.voucher.download': ['payments_view_all', 'payments.view', 'payout.voucher.download'],
-  'payout.credit.view': ['credits_view_all', 'credits.view', 'payout.credit.view'],
-  'payout.metadata.edit': ['payments_update', 'payments.update', 'payout.metadata.edit'],
-  'payout.delete': ['payments_delete', 'payments.delete', 'payout.delete'],
+  'installment.annul': [PERMISSION.PAYMENTS_REVERSE, 'payments.annul', 'installment.annul'],
+  'capital.payment': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'capital.payment'],
+  'lateFee.update': [PERMISSION.CREDITS_UPDATE, 'loans.update', 'lateFee.update'],
+  'payout.register': [PERMISSION.PAYMENTS_CREATE, 'payments.create', 'payout.register'],
+  'payout.voucher.download': [PERMISSION.PAYMENTS_VIEW_ALL, 'payments.view', 'payout.voucher.download'],
+  'payout.credit.view': [PERMISSION.CREDITS_VIEW_ALL, 'credits.view', 'payout.credit.view'],
+  'payout.metadata.edit': [PERMISSION.PAYMENTS_UPDATE, 'payments.update', 'payout.metadata.edit'],
+  'payout.delete': [PERMISSION.PAYMENTS_DELETE, 'payments.delete', 'payout.delete'],
 };
 
 const isAdminRole = (role?: OperationalRole) => role === 'admin';
@@ -159,7 +160,7 @@ const canProcessLoanPayments = (
   installmentStatus: string | undefined,
   actionLabel: string,
 ): GuardResult => {
-  if (!isBackofficeRole(role) && role !== 'customer') {
+  if (!isBackofficeRole(role)) {
     return { visible: false, executable: false, reason: 'Acción no disponible para este tipo de usuario.' };
   }
 
@@ -190,39 +191,23 @@ const canRegisterPayout = (
   role: OperationalRole | undefined,
   payoutType: GuardInput['payoutType'],
 ): GuardResult => {
-  if (payoutType === 'regular') {
-    if (role === 'customer') {
-      return { visible: true, executable: true };
-    }
+  if (!isBackofficeRole(role)) {
+    return { visible: false, executable: false, reason: 'Solo el equipo autorizado puede registrar pagos.' };
+  }
 
+  if (payoutType === 'regular') {
     return {
       visible: false,
       executable: false,
-      reason: 'El pago regular solo está disponible para clientes autenticados.',
+      reason: 'El pago regular no está disponible en el módulo administrativo.',
     };
   }
 
   if (payoutType === 'capital') {
-    if (isBackofficeRole(role)) {
-      return { visible: true, executable: true };
-    }
-
-    return {
-      visible: false,
-      executable: false,
-      reason: 'El abono a capital solo está disponible para administradores.',
-    };
-  }
-
-  if (isBackofficeRole(role)) {
     return { visible: true, executable: true };
   }
 
-  return {
-    visible: false,
-    executable: false,
-    reason: 'El pago parcial solo está disponible para administradores.',
-  };
+  return { visible: true, executable: true };
 };
 
 export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput): GuardResult => {
@@ -247,25 +232,13 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       return { visible: true, executable: true };
     case 'credit.report.download':
     case 'credit.payouts.navigate':
-      if (role === 'customer') {
-        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Acción disponible solo para usuarios administrativos.' };
       }
       return { visible: true, executable: true };
     case 'credit.delete':
       return canDeleteCredit(role, loanStatus);
     case 'installment.pay':
-      if (role === 'customer') {
-        if (loanStatus && CLOSED_LOAN_STATUSES.has(loanStatus)) {
-          return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
-        }
-        if (loanStatus && !PAYABLE_LOAN_STATUSES.has(loanStatus)) {
-          return { visible: true, executable: false, reason: unavailableLoanStatusReason(loanStatus) };
-        }
-        if (installmentStatus && NON_EXECUTABLE_STATUSES.has(installmentStatus)) {
-          return { visible: true, executable: false, reason: unavailableInstallmentStatusReason(installmentStatus) };
-        }
-        return { visible: true, executable: true };
-      }
       return canProcessLoanPayments(role, loanStatus, installmentStatus, 'pagos de cuota');
     case 'installment.editPaymentMethod':
       if (!isBackofficeRole(role)) {
@@ -317,8 +290,8 @@ export const resolveOperationalGuard = (action: GuardedAction, input: GuardInput
       return canRegisterPayout(role, payoutType);
     case 'payout.voucher.download':
     case 'payout.credit.view':
-      if (role === 'customer') {
-        return { visible: false, executable: false, reason: 'Acción no disponible para clientes.' };
+      if (!isBackofficeRole(role)) {
+        return { visible: false, executable: false, reason: 'Acción disponible solo para usuarios administrativos.' };
       }
       return { visible: true, executable: true };
     case 'credit.status.update':

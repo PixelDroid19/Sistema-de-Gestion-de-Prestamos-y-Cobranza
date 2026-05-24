@@ -47,6 +47,7 @@ const { createReportsRouter } = require('./presentation/router');
 
 /**
  * Compose the reports module entrypoint from reporting repositories and credit read models.
+ * @param {{ sharedRuntime?: object }} [options]
  * @returns {{ name: string, basePath: string, router: object }}
  */
 const createReportsModule = ({ sharedRuntime } = {}) => {
@@ -88,7 +89,7 @@ const createReportsModule = ({ sharedRuntime } = {}) => {
     exportPayoutsExcel: createExportPayoutsExcel({ paymentRepository }),
     // Enhanced reports - payouts and payment schedule
     getPayoutsReport: createGetPayoutsReport({ reportRepository, paymentRepository }),
-    getPaymentSchedule: createGetPaymentSchedule({ loanAccessPolicy }),
+    getPaymentSchedule: createGetPaymentSchedule({ loanAccessPolicy, paymentRepository }),
     getMonthlyCashFlow: createGetMonthlyCashFlow({ reportRepository }),
     exportMonthlyCashFlowExcel: createExportMonthlyCashFlowExcel({ reportRepository }),
     exportMonthlyCashFlowPdf: createExportMonthlyCashFlowPdf({ reportRepository }),

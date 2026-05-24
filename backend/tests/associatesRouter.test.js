@@ -17,11 +17,8 @@ const roleAwareAuth = (config = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const permissions = Array.isArray(config?.permissions) ? config.permissions : [];
   const roles = Array.isArray(config) ? config : [];
-  if (roles.length > 0 && !roles.includes(role)) {
-    res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
-    return;
-  }
-  if (permissions.includes('SOCIOS_UPDATE') && !['admin', 'employee'].includes(role)) {
+  const allowedRoles = permissions.length > 0 ? ['admin', 'employee'] : roles;
+  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
@@ -92,6 +89,18 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
           createdRows: [{ id: 9, amount: 60 }],
         };
       },
+      async createAssociateContribution(input) {
+        calls.push(['createAssociateContribution', input]);
+        return { id: 10, associateId: Number(input.associateId), amount: input.payload.amount };
+      },
+      async createProfitDistribution(input) {
+        calls.push(['createProfitDistribution', input]);
+        return { id: 11, associateId: Number(input.associateId), amount: input.payload.amount };
+      },
+      async createAssociateReinvestment(input) {
+        calls.push(['createAssociateReinvestment', input]);
+        return { contribution: { id: 12 }, distribution: { id: 13 } };
+      },
     },
   });
 
@@ -141,6 +150,24 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { amount: '100.00' },
   });
+  const contributionResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/contributions',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: 500 },
+  });
+  const distributionResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/distributions',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: 200 },
+  });
+  const reinvestmentResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/5/reinvestments',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    body: { amount: 150 },
+  });
 
   assert.equal(listResponse.statusCode, 200);
   assert.deepEqual(listResponse.body, {
@@ -162,7 +189,7 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
     success: true,
-    message: 'Associate created successfully',
+    message: 'Socio creado correctamente',
     data: { associate: { id: 5, ...payload } },
   });
   assert.equal(readResponse.statusCode, 200);
@@ -173,18 +200,18 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
   assert.equal(updateResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body, {
     success: true,
-    message: 'Associate updated successfully',
+    message: 'Socio actualizado correctamente',
     data: { associate: { id: 5, status: 'inactive' } },
   });
   assert.equal(deleteResponse.statusCode, 200);
   assert.deepEqual(deleteResponse.body, {
     success: true,
-    message: 'Associate deleted successfully',
+    message: 'Socio eliminado correctamente',
   });
   assert.equal(proportionalResponse.statusCode, 201);
   assert.deepEqual(proportionalResponse.body, {
     success: true,
-    message: 'Proportional profit distribution created successfully',
+    message: 'Distribución proporcional de utilidad registrada correctamente',
     data: {
       distribution: {
         batchKey: 'batch-1',
@@ -195,13 +222,108 @@ test('createAssociatesRouter serves CRUD contract responses', async () => {
       },
     },
   });
+  assert.equal(contributionResponse.statusCode, 201);
+  assert.equal(contributionResponse.body.message, 'Aporte del socio registrado correctamente');
+  assert.equal(distributionResponse.statusCode, 201);
+  assert.equal(distributionResponse.body.message, 'Distribución de utilidad registrada correctamente');
+  assert.equal(reinvestmentResponse.statusCode, 201);
+  assert.equal(reinvestmentResponse.body.message, 'Reinversión del socio registrada correctamente');
   assert.deepEqual(calls[0], ['listAssociates', {
     pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
     filters: { search: 'Ana', status: 'active' },
   }]);
   assert.deepEqual(calls[1], ['createAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, payload }]);
-  assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5', payload: { status: 'inactive' } }]);
-  assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: '5' }]);
+  assert.deepEqual(calls[3], ['updateAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { status: 'inactive' } }]);
+  assert.deepEqual(calls[4], ['deleteAssociate', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5 }]);
+  assert.deepEqual(calls[6], ['createAssociateContribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 500 } }]);
+  assert.deepEqual(calls[7], ['createProfitDistribution', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 200 } }]);
+  assert.deepEqual(calls[8], ['createAssociateReinvestment', { actor: { id: 1, role: 'admin', name: 'Admin Test' }, associateId: 5, payload: { amount: 150 } }]);
+});
+
+test('createAssociatesRouter rejects malformed route identifiers before executing associate operations', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateById(associateId) {
+        calls.push(['getAssociateById', associateId]);
+        return { id: Number(associateId) };
+      },
+      async updateAssociate(input) {
+        calls.push(['updateAssociate', input.associateId]);
+        return { id: Number(input.associateId) };
+      },
+      async deleteAssociate(input) {
+        calls.push(['deleteAssociate', input.associateId]);
+      },
+      async getAssociateFinancialDetails(input) {
+        calls.push(['getAssociateFinancialDetails', input.associateId]);
+        return { associate: { id: Number(input.associateId) } };
+      },
+      async createAssociateContribution(input) {
+        calls.push(['createAssociateContribution', input.associateId]);
+        return { id: 1 };
+      },
+      async createProfitDistribution(input) {
+        calls.push(['createProfitDistribution', input.associateId]);
+        return { id: 1 };
+      },
+      async createAssociateReinvestment(input) {
+        calls.push(['createAssociateReinvestment', input.associateId]);
+        return { contribution: { id: 1 }, distribution: { id: 2 } };
+      },
+      async getAssociateInstallments(input) {
+        calls.push(['getAssociateInstallments', input.associateId]);
+        return { associateId: Number(input.associateId), installments: [] };
+      },
+      async payAssociateInstallment(input) {
+        calls.push(['payAssociateInstallment', input.associateId, input.installmentNumber]);
+        return { id: 1, installmentNumber: Number(input.installmentNumber) };
+      },
+      async getAssociateCalendar(input) {
+        calls.push(['getAssociateCalendar', input.associateId]);
+        return { associateId: Number(input.associateId), events: [] };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const cases = [
+    { method: 'GET', path: '/5abc', field: /associateId/i },
+    { method: 'PATCH', path: '/1e2', field: /associateId/i, body: { status: 'inactive' } },
+    { method: 'DELETE', path: '/1.5', field: /associateId/i },
+    { method: 'GET', path: '/abc/financial-details', field: /associateId/i },
+    { method: 'POST', path: '/abc/contributions', field: /associateId/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/distributions', field: /associateId/i, body: { amount: 100 } },
+    { method: 'POST', path: '/abc/reinvestments', field: /associateId/i, body: { amount: 100 } },
+    { method: 'GET', path: '/abc/installments', field: /associateId/i },
+    { method: 'POST', path: '/12/installments/1e2/pay', field: /installmentNumber/i, body: { paymentDate: '2026-02-15' } },
+    { method: 'GET', path: '/abc/calendar-events', field: /associateId/i },
+  ];
+
+  for (const routeCase of cases) {
+    const response = await requestJson(activeServer, {
+      method: routeCase.method,
+      path: routeCase.path,
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+      body: routeCase.body,
+    });
+    assert.equal(response.statusCode, 400, routeCase.path);
+    assert.match(response.body.error.message, routeCase.field);
+  }
+  assert.deepEqual(calls, []);
 });
 
 test('createAssociatesRouter replays proportional distributions safely for repeated idempotency keys', async () => {
@@ -243,7 +365,7 @@ test('createAssociatesRouter replays proportional distributions safely for repea
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Proportional profit distribution replayed safely',
+    message: 'Distribución proporcional de utilidad reutilizada correctamente',
     data: {
       distribution: {
         batchKey: 'batch-1',
@@ -299,12 +421,77 @@ test('createAssociatesRouter surfaces missing-record errors', async () => {
   assert.equal(response.body.error.message, 'Associate not found');
 });
 
+test('createAssociatesRouter does not expose associate self-service portal routes', async () => {
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateFinancialDetails() {
+        throw new Error('getAssociateFinancialDetails should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/portal/me',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 404);
+});
+
+test('createAssociatesRouter serves administrative associate financial details without portal aliases', async () => {
+  const calls = [];
+  const router = createAssociatesRouter({
+    associateValidation,
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getAssociateFinancialDetails(input) {
+        calls.push(['getAssociateFinancialDetails', input.associateId]);
+        return {
+          associate: { id: Number(input.associateId), name: 'Socio QA' },
+          summary: { totalContributed: '1000.00' },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const detailsResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/7/financial-details',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+  const portalResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/7/portal',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(detailsResponse.statusCode, 200);
+  assert.equal(detailsResponse.body.data.details.associate.id, 7);
+  assert.equal(portalResponse.statusCode, 404);
+  assert.deepEqual(calls, [['getAssociateFinancialDetails', 7]]);
+});
+
 test('createAssociatesRouter surfaces proportional distribution validation and authorization errors', async () => {
   const router = createAssociatesRouter({
     associateValidation: {
       ...associateValidation,
       proportionalDistribution(req, res, next) {
-        const error = new ValidationError('Validation failed');
+        const error = new ValidationError('La validación falló');
         error.errors = [{ field: 'amount', message: 'Amount must be positive' }];
         next(error);
       },
@@ -421,8 +608,9 @@ test('createAssociatesRouter POST /:id/installments/:installmentNumber/pay marks
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.success, true);
+  assert.equal(response.body.message, 'Cuota del socio marcada como pagada');
   assert.equal(response.body.data.installment.installment.status, 'paid');
-  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin', name: 'Admin Test' }, '12', '2', { paymentDate: '2026-02-15' }]);
+  assert.deepEqual(calls[0], ['payAssociateInstallment', { id: 1, role: 'admin', name: 'Admin Test' }, 12, 2, { paymentDate: '2026-02-15' }]);
 });
 
 test('createAssociatesRouter GET /:id/calendar-events returns calendar data', async () => {
@@ -465,7 +653,7 @@ test('createAssociatesRouter GET /:id/calendar-events returns calendar data', as
   assert.equal(response.body.data.calendar.summary.contributionCount, 1);
 });
 
-test('createAssociatesRouter rejects socio from accessing another associate installments', async () => {
+test('createAssociatesRouter rejects socio records before associate installment use cases', async () => {
   const router = createAssociatesRouter({
     associateValidation,
     authMiddleware: roleAwareAuth,

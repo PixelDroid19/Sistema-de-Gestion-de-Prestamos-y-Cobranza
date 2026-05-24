@@ -7,7 +7,8 @@ const {
   ConflictError,
 } = require('@/utils/errorHandler');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
-const { roundCurrency, formatCurrency } = require('@/modules/shared/money');
+const { parsePositiveCurrencyAmount, roundCurrency, formatCurrency } = require('@/modules/shared/money');
+const { validateIntegerRange } = require('@/modules/shared/validators');
 const {
   normalizeOperationalDate,
   normalizeOptionalDateOnlyString,
@@ -101,12 +102,11 @@ const normalizePaymentDay = (value) => {
     return DEFAULT_INTEREST_PAYMENT_DAY;
   }
 
-  const day = Number(value);
-  if (!Number.isInteger(day) || day < 1 || day > 28) {
+  if (!validateIntegerRange(value, 1, 28)) {
     throw new ValidationError('interestPaymentDay must be an integer between 1 and 28');
   }
 
-  return day;
+  return Number(typeof value === 'string' ? value.trim() : value);
 };
 
 const normalizePaymentMonth = (value) => {
@@ -114,12 +114,11 @@ const normalizePaymentMonth = (value) => {
     return DEFAULT_ANNUAL_INTEREST_PAYMENT_MONTH;
   }
 
-  const month = Number(value);
-  if (!Number.isInteger(month) || month < 1 || month > 12) {
+  if (!validateIntegerRange(value, 1, 12)) {
     throw new ValidationError('interestPaymentMonth must be an integer between 1 and 12');
   }
 
-  return month;
+  return Number(typeof value === 'string' ? value.trim() : value);
 };
 
 const normalizeOptionalDateOnly = (value, fieldName) => normalizeOptionalDateOnlyString(value, fieldName);
@@ -391,6 +390,12 @@ const canonicalizeJson = (value) => {
   return value;
 };
 
+/**
+ * Builds the canonical request hash used to distinguish safe retries from
+ * conflicting proportional distribution submissions.
+ * @param {object} payload - Normalized distribution request payload.
+ * @returns {string} SHA-256 hash of the canonical payload.
+ */
 const buildProportionalIdempotencyRequestHash = (payload) => crypto
   .createHash('sha256')
   .update(JSON.stringify(canonicalizeJson(payload)))
@@ -423,6 +428,12 @@ const buildBatchKey = ({ actorId, distributionDate, amountCents, associateIds })
   Date.now(),
 ].join(':');
 
+/**
+ * Allocates a declared distribution amount across eligible associates using
+ * participation units and deterministic largest-remainder rounding.
+ * @param {{associates: Array<object>, amountCents: number}} params
+ * @returns {Array<{associate: object, amountCents: number, roundingAdjustmentCents: number}>}
+ */
 const allocateProportionalDistribution = ({ associates, amountCents }) => {
   const baseAllocations = associates.map((associate) => {
     const numerator = amountCents * associate.participationUnits;
@@ -460,6 +471,13 @@ const allocateProportionalDistribution = ({ associates, amountCents }) => {
     .sort((left, right) => Number(left.associate.id) - Number(right.associate.id));
 };
 
+/**
+ * Validates and normalizes the active associate pool before proportional
+ * distributions so allocated money always closes against exactly 100.0000%.
+ * @param {Array<object>} associates
+ * @returns {Array<object>} Associates with normalized participation units.
+ * @throws {ValidationError} When the active pool is empty, incomplete, or does not total 100%.
+ */
 const validateEligibleParticipationPool = (associates) => {
   if (!associates.length) {
     throw new ValidationError('At least one active associate is required for proportional distributions');
@@ -678,7 +696,18 @@ const createDeleteAssociate = ({ associateRepository, auditService }) => {
   return useCase;
 };
 
-const ensureAssociatePortalAccess = async ({ actor, associateRepository, associateId = null }) => {
+/**
+ * Ensure an administrative actor can inspect a specific associate's financial details.
+ * Socios are investor records in this backoffice and are not authenticated portal users.
+ * @param {{ actor: { role: string }, associateRepository: object, associateId?: number|string|null }} params
+ * @returns {Promise<object>} Associate record authorized for the request.
+ * @throws {AuthorizationError|ValidationError|NotFoundError}
+ */
+const ensureAssociateFinancialDetailsAccess = async ({ actor, associateRepository, associateId = null }) => {
+  if (actor.role !== 'admin' && actor.role !== 'employee') {
+    throw new AuthorizationError('Only authorized backoffice users can access associate financial details');
+  }
+
   if (actor.role === 'admin' || actor.role === 'employee') {
     if (!associateId) {
       throw new ValidationError('Associate ID is required');
@@ -691,28 +720,15 @@ const ensureAssociatePortalAccess = async ({ actor, associateRepository, associa
 
     return associate;
   }
-
-  if (actor.role !== 'socio') {
-    throw new AuthorizationError('Only authorized backoffice users can access associate portal data');
-  }
-
-  const associate = actor.associateId
-    ? await associateRepository.findById(actor.associateId)
-    : await associateRepository.findByLinkedUser(actor.id);
-
-  if (!associate) {
-    throw new NotFoundError('Associate');
-  }
-
-  if (associateId && Number(associate.id) !== Number(associateId)) {
-    throw new AuthorizationError('Socio users can only access their linked associate data');
-  }
-
-  return associate;
 };
 
-const createListAssociatePortalSummary = ({ associateRepository }) => async ({ actor, associateId }) => {
-  const associate = await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+/**
+ * Build the administrative associate financial-details read model.
+ * @param {{ associateRepository: object }} dependencies
+ * @returns {Function}
+ */
+const createListAssociateFinancialDetails = ({ associateRepository }) => async ({ actor, associateId }) => {
+  const associate = await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
   const [contributions, distributions, installments] = await Promise.all([
     associateRepository.listContributionsByAssociate(associate.id),
     associateRepository.listProfitDistributionsByAssociate(associate.id),
@@ -777,8 +793,8 @@ const createCreateAssociateContribution = ({ associateRepository, auditService }
       throw new NotFoundError('Associate');
     }
 
-    const amount = Number(payload.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = parsePositiveCurrencyAmount(payload.amount);
+    if (amount === null) {
       throw new ValidationError('Contribution amount must be greater than 0');
     }
 
@@ -816,8 +832,8 @@ const createCreateProfitDistribution = ({ associateRepository, auditService }) =
       throw new NotFoundError('Associate');
     }
 
-    const amount = Number(payload.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = parsePositiveCurrencyAmount(payload.amount);
+    if (amount === null) {
       throw new ValidationError('Distribution amount must be greater than 0');
     }
 
@@ -849,8 +865,8 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
       throw new NotFoundError('Associate');
     }
 
-    const amount = Number(payload.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = parsePositiveCurrencyAmount(payload.amount);
+    if (amount === null) {
       throw new ValidationError('Reinvestment amount must be greater than 0');
     }
 
@@ -899,6 +915,14 @@ const createCreateAssociateReinvestment = ({ associateRepository, auditService }
   return useCase;
 };
 
+/**
+ * Creates the proportional profit distribution use case with idempotency,
+ * deterministic allocation, transactional persistence, and audit recording.
+ * @param {object} dependencies
+ * @param {object} dependencies.associateRepository
+ * @param {object} [dependencies.auditService]
+ * @returns {Function} Use case for creating a proportional distribution batch.
+ */
 const createCreateProportionalProfitDistribution = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, idempotencyKey, payload }) => {
     if (!['admin', 'employee'].includes(actor.role)) {
@@ -1046,7 +1070,7 @@ const createCreateProportionalProfitDistribution = ({ associateRepository, audit
  * @returns {Function}
  */
 const createGetAssociateInstallments = ({ associateRepository }) => async ({ actor, associateId }) => {
-  await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+  await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
   const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
 
@@ -1092,7 +1116,7 @@ const createGetAssociateInstallments = ({ associateRepository }) => async ({ act
  */
 const createPayAssociateInstallment = ({ associateRepository, auditService }) => {
   const useCase = async ({ actor, associateId, installmentNumber, payload }) => {
-    await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+    await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
     const installments = await associateRepository.findInstallmentsByAssociateId(associateId);
     const installment = installments.find(
@@ -1164,7 +1188,7 @@ const createPayAssociateInstallment = ({ associateRepository, auditService }) =>
  * @returns {Function}
  */
 const createGetAssociateCalendar = ({ associateRepository }) => async ({ actor, associateId, startDate, endDate }) => {
-  await ensureAssociatePortalAccess({ actor, associateRepository, associateId });
+  await ensureAssociateFinancialDetailsAccess({ actor, associateRepository, associateId });
 
   const events = await associateRepository.findCalendarEvents(associateId, startDate, endDate);
 
@@ -1212,7 +1236,7 @@ module.exports = {
   createGetAssociateById,
   createUpdateAssociate,
   createDeleteAssociate,
-  createListAssociatePortalSummary,
+  createListAssociateFinancialDetails,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
   createCreateAssociateReinvestment,

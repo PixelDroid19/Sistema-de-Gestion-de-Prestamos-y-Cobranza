@@ -8,6 +8,8 @@ const {
   createListLoans,
   createSearchLoans,
   createCreateCreditCalculation,
+  createCreateLoan,
+  createListLoansByCustomer,
   createUpdateLoanStatus,
   createUpdateRecoveryStatus,
   createDeleteLoan,
@@ -18,6 +20,7 @@ const {
   createGetLoanById,
   createGetPaymentCalendar,
   createGetPaymentCalendarOverview,
+  createGetInstallmentQuote,
   createGetPayoffQuote,
   createExecutePayoff,
   createListPromisesToPay,
@@ -25,6 +28,9 @@ const {
   createCreateLoanFollowUp,
   createUpdateLoanAlertStatus,
   createUpdatePromiseToPayStatus,
+  createDownloadPromiseToPay,
+  createGetDuePayments,
+  createUpdateLateFeeRate,
 } = require('@/modules/credits/application/useCases');
 const { createLoanViewService } = require('@/modules/credits/application/loanFinancials');
 const { createLocalAttachmentStorage } = require('@/modules/credits/infrastructure/attachmentStorage');
@@ -55,6 +61,30 @@ test('createListLoans scopes repository results through the shared access policy
   assert.equal(filterCall.actor.id, 9);
   assert.equal(loans.length, 1);
   assert.equal(loans[0].id, 41);
+});
+
+test('createUpdateLateFeeRate rejects malformed numeric rates before saving', async () => {
+  const savedLoans = [];
+  const updateLateFeeRate = createUpdateLateFeeRate({
+    loanRepository: {
+      async findById() {
+        return { id: 11, annualLateFeeRate: 0 };
+      },
+      async save(loan) {
+        savedLoans.push(loan);
+        return loan;
+      },
+    },
+  });
+
+  for (const lateFeeRate of ['1abc', '1e2']) {
+    await assert.rejects(
+      () => updateLateFeeRate({ actor: { id: 1, role: 'admin' }, loanId: 11, lateFeeRate }),
+      (error) => error instanceof ValidationError && /Late fee rate/.test(error.message),
+    );
+  }
+
+  assert.deepEqual(savedLoans, []);
 });
 
 test('createListLoans enriches visible loan rows with additive customer summary data', async () => {
@@ -91,7 +121,7 @@ test('createListLoans enriches visible loan rows with additive customer summary 
   });
 });
 
-test('createSearchLoans scopes visible rows before applying customer search filters', async () => {
+test('createSearchLoans scopes visible rows before applying search filters', async () => {
   let filterCall;
   const searchLoans = createSearchLoans({
     loanRepository: {
@@ -125,7 +155,7 @@ test('createSearchLoans scopes visible rows before applying customer search filt
   });
 
   const result = await searchLoans({
-    actor: { id: 7, role: 'customer' },
+    actor: { id: 7, role: 'admin' },
     filters: { search: 'ana', status: 'approved' },
     pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
   });
@@ -138,6 +168,30 @@ test('createSearchLoans scopes visible rows before applying customer search filt
     totalPages: 1,
   });
   assert.deepEqual(result.items.map((loan) => loan.id), [41]);
+});
+
+test('createSearchLoans rejects customer records before repository lookup', async () => {
+  const searchLoans = createSearchLoans({
+    loanRepository: {
+      async list() {
+        throw new Error('list should not be called for customer records');
+      },
+    },
+    loanAccessPolicy: {
+      filterVisibleLoans() {
+        throw new Error('filterVisibleLoans should not be called for customer records');
+      },
+    },
+  });
+
+  await assert.rejects(() => searchLoans({
+    actor: { id: 7, role: 'customer' },
+    filters: { search: 'ana' },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can search loans');
+    return true;
+  });
 });
 
 test('createCreateCreditCalculation returns canonical credit data from the domain service', async () => {
@@ -163,7 +217,7 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
   const getLoanById = createGetLoanById({
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
-        assert.equal(actor.role, 'customer');
+        assert.equal(actor.role, 'admin');
         assert.equal(loanId, 55);
         return {
           id: 55,
@@ -218,10 +272,10 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
     loanViewService: createLoanViewService(),
   });
 
-  const loan = await getLoanById({ actor: { id: 7, role: 'customer' }, loanId: 55 });
+  const loan = await getLoanById({ actor: { id: 7, role: 'admin' }, loanId: 55 });
 
   assert.equal(loan.id, 55);
-  assert.deepEqual(loan.paymentContext.allowedPaymentTypes, ['installment', 'payoff']);
+  assert.deepEqual(loan.paymentContext.allowedPaymentTypes, ['installment', 'partial', 'capital']);
   assert.equal(loan.paymentContext.isPayable, true);
   assert.equal(loan.paymentContext.snapshot.outstandingBalance, 1030);
   assert.equal(loan.paymentContext.payoffEligibility.allowed, true);
@@ -232,6 +286,50 @@ test('createGetLoanById enriches the loan with canonical payment context and eli
     totalOutstandingBalance: 1000,
     latestLoanId: 55,
     latestLoanStatus: 'approved',
+  });
+});
+
+test('createCreateLoan rejects customer records before loan creation', async () => {
+  const createLoan = createCreateLoan({
+    loanCreationService: {
+      async create() {
+        throw new Error('loan creation should not be called for customer records');
+      },
+    },
+  });
+
+  await assert.rejects(() => createLoan({
+    actor: { id: 7, role: 'customer' },
+    payload: { customerId: 7, amount: 1000 },
+    idempotencyKey: 'qa-credit-create-1',
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can create loans');
+    return true;
+  });
+});
+
+test('createListLoansByCustomer rejects customer records before repository lookup', async () => {
+  const listLoansByCustomer = createListLoansByCustomer({
+    customerRepository: {
+      async findById() {
+        throw new Error('findById should not be called for customer records');
+      },
+    },
+    loanRepository: {
+      async listByCustomer() {
+        throw new Error('listByCustomer should not be called for customer records');
+      },
+    },
+  });
+
+  await assert.rejects(() => listLoansByCustomer({
+    actor: { id: 7, role: 'customer' },
+    customerId: 7,
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can list customer loans');
+    return true;
   });
 });
 
@@ -406,7 +504,7 @@ test('createDeleteLoan rejects non-admin actors before touching the repository',
   assert.equal(checkedMutationAccess, false);
 });
 
-test('createListLoanAttachments hides internal-only documents from customers', async () => {
+test('createListLoanAttachments rejects customer records before loading attachments', async () => {
   const listLoanAttachments = createListLoanAttachments({
     loanAccessPolicy: {
       async findAuthorizedLoan({ actor, loanId }) {
@@ -417,19 +515,16 @@ test('createListLoanAttachments hides internal-only documents from customers', a
     },
     attachmentRepository: {
       async listByLoan() {
-        return [
-          { id: 1, customerVisible: true, originalName: 'visible.pdf' },
-          { id: 2, customerVisible: false, originalName: 'internal.pdf' },
-        ];
+        throw new Error('listByLoan should not be called for customer records');
       },
     },
   });
 
-  const attachments = await listLoanAttachments({ actor: { id: 7, role: 'customer' }, loanId: 22 });
-
-  assert.deepEqual(attachments, [
-    { id: 1, customerVisible: true, originalName: 'visible.pdf' },
-  ]);
+  await assert.rejects(() => listLoanAttachments({ actor: { id: 7, role: 'customer' }, loanId: 22 }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can list loan attachments');
+    return true;
+  });
 });
 
 test('createCreateLoanAttachment persists metadata for an authorized admin upload', async () => {
@@ -601,7 +696,7 @@ test('createLoanAttachment rejects unreadable or too-small files for declared si
   assert.equal(deletedPath, '/tmp/loan-proof.pdf');
 });
 
-test('createDownloadLoanAttachment blocks customers from internal-only files', async () => {
+test('createDownloadLoanAttachment rejects customer records before attachment lookup', async () => {
   const downloadLoanAttachment = createDownloadLoanAttachment({
     loanAccessPolicy: {
       async findAuthorizedLoan() {
@@ -610,7 +705,7 @@ test('createDownloadLoanAttachment blocks customers from internal-only files', a
     },
     attachmentRepository: {
       async findByIdForLoan() {
-        return { id: 4, loanId: 22, customerVisible: false, originalName: 'internal.pdf' };
+        throw new Error('findByIdForLoan should not be called for customer records');
       },
     },
     attachmentStorage: {
@@ -625,7 +720,11 @@ test('createDownloadLoanAttachment blocks customers from internal-only files', a
     actor: { id: 7, role: 'customer' },
     loanId: 22,
     attachmentId: 4,
-  }), AuthorizationError);
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can download loan attachments');
+    return true;
+  });
 });
 
 test('createDownloadLoanAttachment surfaces missing backing files as not found', async () => {
@@ -763,7 +862,50 @@ test('createGetPaymentCalendar keeps annulled installments hidden from overdue a
 
   assert.equal(calendar.entries[0].status, 'annulled');
   assert.equal(calendar.entries[0].outstandingAmount, 0);
+  assert.equal(calendar.entries[0].disabledReason, 'La cuota está anulada');
   assert.equal(calendar.entries[0].alertId, null);
+});
+
+test('createGetInstallmentQuote returns Spanish disabled reasons for non-payable installments', async () => {
+  const getInstallmentQuote = createGetInstallmentQuote({
+    loanAccessPolicy: {
+      async findAuthorizedLoan({ actor, loanId }) {
+        assert.equal(actor.role, 'admin');
+        assert.equal(loanId, 44);
+        return {
+          id: 44,
+          status: 'rejected',
+          annualLateFeeRate: 0,
+          lateFeeMode: 'SIMPLE',
+        };
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [{
+            installmentNumber: 1,
+            dueDate: '2026-04-01T00:00:00.000Z',
+            remainingPrincipal: 80,
+            remainingInterest: 20,
+            scheduledPayment: 100,
+            paidTotal: 0,
+            status: 'pending',
+          }],
+        };
+      },
+    },
+  });
+
+  const quote = await getInstallmentQuote({
+    actor: { id: 1, role: 'admin' },
+    loanId: 44,
+    installmentNumber: 1,
+    asOfDate: '2026-04-02',
+  });
+
+  assert.equal(quote.canPay, false);
+  assert.equal(quote.disabledReason, 'El estado del crédito no permite registrar pagos');
 });
 
 test('createGetPaymentCalendarOverview returns actionable agenda and portfolio summary', async () => {
@@ -955,6 +1097,37 @@ test('createGetPaymentCalendarOverview searches portfolio and filters installmen
   assert.equal(overview.entries[0].installmentNumber, 2);
 });
 
+test('createGetPaymentCalendarOverview rejects malformed limit filters', async () => {
+  const getPaymentCalendarOverview = createGetPaymentCalendarOverview({
+    loanAccessPolicy: {
+      filterVisibleLoans({ loans }) {
+        return loans;
+      },
+    },
+    loanRepository: {
+      async search() {
+        return [];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        throw new Error('getCanonicalLoanView should not be called');
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        throw new Error('listByLoan should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => getPaymentCalendarOverview({
+    actor: { id: 1, role: 'admin' },
+    loanIds: [],
+    filters: { limit: '1e2' },
+  }), /limit/);
+});
+
 test('createGetPayoffQuote reuses visible-loan authorization for quotes', async () => {
   let requestedLoanId;
   const getPayoffQuote = createGetPayoffQuote({
@@ -1006,7 +1179,7 @@ test('createGetPayoffQuote rejects already settled loans', async () => {
 
   await assert.rejects(() => getPayoffQuote({ actor: { id: 7, role: 'customer' }, loanId: 22, asOfDate: '2026-03-15' }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.match(error.message, /not allowed/i);
+    assert.equal(error.message, 'El pago total no está permitido para este crédito');
     assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     return true;
   });
@@ -1149,6 +1322,93 @@ test('createListPromisesToPay expires broken pending promises before returning h
   const promises = await listPromisesToPay({ actor: { id: 9, role: 'admin' }, loanId: 22 });
 
   assert.equal(promises[0].status, 'broken');
+});
+
+test('createDownloadPromiseToPay generates an operational Spanish PDF', async () => {
+  const downloadPromiseToPay = createDownloadPromiseToPay({
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return {
+          id: 22,
+          amount: 1500000,
+          Customer: { name: 'Ana Cliente', email: 'ana@example.com' },
+        };
+      },
+    },
+    promiseRepository: {
+      async findByIdForLoan({ loanId, promiseId }) {
+        assert.equal(loanId, 22);
+        assert.equal(promiseId, 4);
+        return {
+          id: 4,
+          amount: 300000,
+          status: 'pending',
+          promisedDate: '2026-03-25',
+          createdAt: '2026-03-20T10:00:00.000Z',
+          notes: 'Confirma pago al cierre de caja',
+        };
+      },
+      async getCustomerForPromise() {
+        throw new Error('customer should come from the authorized loan');
+      },
+    },
+  });
+
+  const download = await downloadPromiseToPay({
+    actor: { id: 9, role: 'admin' },
+    loanId: 22,
+    promiseId: 4,
+  });
+
+  const pdfText = download.buffer.toString('utf8');
+  assert.equal(download.contentType, 'application/pdf');
+  assert.match(pdfText, /COMPROBANTE DE PROMESA DE PAGO/);
+  assert.match(pdfText, /ID del documento: 4/);
+  assert.match(pdfText, /Fecha prometida: 2026-03-25/);
+  assert.match(pdfText, /Cliente: Ana Cliente/);
+  assert.match(pdfText, /Monto prometido: \$300000\.00/);
+  assert.match(pdfText, /Estado: Pendiente/);
+  assert.doesNotMatch(pdfText, /PROMISE TO PAY RECEIPT|Customer Email|The customer agrees/);
+});
+
+test('createGetDuePayments uses a Spanish customer fallback label', async () => {
+  const getDuePayments = createGetDuePayments({
+    loanRepository: {
+      async list() {
+        return [
+          {
+            id: 22,
+            customerId: 44,
+            status: 'active',
+          },
+        ];
+      },
+    },
+    alertRepository: {
+      async listByLoan() {
+        return [];
+      },
+    },
+    loanViewService: {
+      getCanonicalLoanView() {
+        return {
+          schedule: [
+            {
+              installmentNumber: 1,
+              dueDate: '2026-03-20',
+              status: 'pending',
+              remainingPrincipal: 100,
+              remainingInterest: 20,
+            },
+          ],
+        };
+      },
+    },
+  });
+
+  const duePayments = await getDuePayments({ date: '2026-03-25' });
+
+  assert.equal(duePayments[0].customerName, 'Cliente 44');
 });
 
 test('createCreateLoanFollowUp creates a reminder and notifies the customer', async () => {

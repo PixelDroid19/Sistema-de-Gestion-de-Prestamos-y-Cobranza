@@ -1,12 +1,12 @@
 const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { normalizeApplicationRole } = require('./roles');
 
-const normalizeId = (value) => Number(value);
 const resolveActorRole = (actor) => normalizeApplicationRole(actor?.role);
 const isBackofficeRole = (role) => role === 'admin' || role === 'employee';
 
 /**
- * Determine whether an actor can read a loan under the shared visibility rules.
+ * Determine whether an actor can read a loan under the administrative visibility rules.
+ * Customers and socios are domain records, not authenticated backoffice roles.
  * @param {{ actor: object, loan: object }} input
  * @returns {boolean}
  */
@@ -17,35 +17,24 @@ const isLoanVisibleToActor = ({ actor, loan }) => {
 
   const actorRole = resolveActorRole(actor);
 
-  if (isBackofficeRole(actorRole)) {
-    return true;
-  }
-
-  if (actorRole === 'customer') {
-    return normalizeId(actor.id) === normalizeId(loan.customerId);
-  }
-
-  if (actorRole === 'socio') {
-    return normalizeId(actor.associateId) === normalizeId(loan.associateId);
-  }
-
-  return false;
+  return isBackofficeRole(actorRole);
 };
 
+/**
+ * Determine whether an actor can read a loan attachment.
+ * @param {{ actor: object, loan: object, attachment: object }} input
+ * @returns {boolean}
+ */
 const canActorViewAttachment = ({ actor, loan, attachment }) => {
   if (!actor || !loan || !attachment) {
     return false;
-  }
-
-  if (resolveActorRole(actor) === 'customer') {
-    return isLoanVisibleToActor({ actor, loan }) && Boolean(attachment.customerVisible);
   }
 
   return isLoanVisibleToActor({ actor, loan });
 };
 
 /**
- * Determine whether an actor can mutate a loan under the shared write rules.
+ * Determine whether an actor can mutate a loan under the administrative write rules.
  * @param {{ actor: object, loan: object }} input
  * @returns {boolean}
  */
@@ -54,26 +43,10 @@ const isLoanMutableByActor = ({ actor, loan }) => {
     return false;
   }
 
-  if (isBackofficeRole(resolveActorRole(actor))) {
-    return true;
-  }
-
-  return false;
+  return isBackofficeRole(resolveActorRole(actor));
 };
 
-const buildAccessDeniedMessage = (actor) => {
-  const actorRole = resolveActorRole(actor);
-
-  if (actorRole === 'customer') {
-    return 'You can only access your own loans';
-  }
-
-  if (actorRole === 'socio') {
-    return 'You can only access loans linked to your associate account';
-  }
-
-  return 'You do not have access to this loan';
-};
+const buildAccessDeniedMessage = () => 'Only authorized backoffice users can access loans';
 
 const buildMutationDeniedMessage = () => 'You do not have permission to update this loan';
 

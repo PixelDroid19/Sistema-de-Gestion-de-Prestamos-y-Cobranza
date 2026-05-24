@@ -250,7 +250,7 @@ test('createRegisterUser rejects privileged public signup even when validation i
     assert.deepEqual(error.errors, [
       {
         field: 'role',
-        message: 'Public registration is disabled. An administrator must create employee accounts.',
+        message: 'El registro público está deshabilitado. Un administrador debe crear las cuentas de empleados.',
       },
     ]);
     return true;
@@ -405,7 +405,7 @@ test('createRegisterUser rejects roleIds payloads without canonical role', async
       phone: '+573001112233',
       associateId: 61,
     },
-  }), /Please correct the following errors/);
+  }), /Corrige los errores indicados/);
 
   assert.equal(linkedAssociateId, null);
 });
@@ -503,7 +503,7 @@ test('createRegisterUser rejects socio account provisioning in administrative au
   }), (error) => {
     assert.ok(error instanceof ValidationError);
     assert.deepEqual(error.errors, [
-      { field: 'role', message: 'Administrative users must be admin or employee' },
+      { field: 'role', message: 'Los usuarios administrativos deben ser admin o employee' },
     ]);
     return true;
   });
@@ -770,7 +770,7 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
     nextPassword: 'Short1',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.ok(error.errors.some(e => e.message.includes('8 characters')));
+    assert.ok(error.errors.some(e => e.message.includes('8 caracteres')));
     return true;
   });
 
@@ -780,7 +780,7 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
     nextPassword: 'newpassword1',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.ok(error.errors.some(e => e.message.includes('uppercase')));
+    assert.ok(error.errors.some(e => e.message.includes('mayúscula')));
     return true;
   });
 
@@ -790,7 +790,7 @@ test('createChangePassword rejects weak passwords that do not meet complexity re
     nextPassword: 'NewPassword',
   }), (error) => {
     assert.ok(error instanceof ValidationError);
-    assert.ok(error.errors.some(e => e.message.includes('number')));
+    assert.ok(error.errors.some(e => e.message.includes('número')));
     return true;
   });
 });

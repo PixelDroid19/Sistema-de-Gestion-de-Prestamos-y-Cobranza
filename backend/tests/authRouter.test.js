@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const { createAuthRouter } = require('@/modules/auth/presentation/router');
+const { authValidation: realAuthValidation } = require('@/middleware/validation');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -13,7 +15,7 @@ afterEach(async () => {
 });
 
 const allowAuth = () => (req, res, next) => {
-  req.user = { id: 7, role: 'customer' };
+  req.user = { id: 7, role: 'employee' };
   next();
 };
 
@@ -29,24 +31,17 @@ const passthroughValidation = {
   },
 };
 
-test('createAuthRouter serves register and login contract responses', async () => {
+test('createAuthRouter rejects public registration and serves login contract responses', async () => {
   const calls = [];
   const router = createAuthRouter({
-    authValidation: passthroughValidation,
+    authValidation: {
+      ...passthroughValidation,
+      register: realAuthValidation.register,
+    },
     authMiddleware: allowAuth,
     useCases: {
-      async registerUser(payload) {
-        calls.push(['registerUser', payload]);
-        const registrationPayload = payload.payload;
-        return {
-          token: 'register-token',
-          user: {
-            id: 11,
-            name: registrationPayload.name,
-            email: registrationPayload.email,
-            role: registrationPayload.role,
-          },
-        };
+      async registerUser() {
+        throw new Error('registerUser should not be called for public registration');
       },
       async loginUser(payload) {
         calls.push(['loginUser', payload]);
@@ -54,9 +49,9 @@ test('createAuthRouter serves register and login contract responses', async () =
           token: 'login-token',
           user: {
             id: 11,
-            name: 'Ana Customer',
+            name: 'Ana Employee',
             email: payload.email,
-            role: 'customer',
+            role: 'employee',
           },
         };
       },
@@ -75,14 +70,15 @@ test('createAuthRouter serves register and login contract responses', async () =
   const app = express();
   app.use(express.json());
   app.use(router);
+  app.use(globalErrorHandler);
 
   activeServer = await listen(app);
 
   const registerPayload = {
-    name: 'Ana Customer',
+    name: 'Ana Employee',
     email: 'ana@example.com',
     password: 'secret123',
-    role: 'customer',
+    role: 'employee',
   };
   const loginPayload = {
     email: 'ana@example.com',
@@ -100,36 +96,29 @@ test('createAuthRouter serves register and login contract responses', async () =
     body: loginPayload,
   });
 
-  assert.equal(registerResponse.statusCode, 201);
-  assert.deepEqual(registerResponse.body, {
-    success: true,
-    message: 'User registered successfully',
-    data: {
-      token: 'register-token',
-      user: {
-        id: 11,
-        name: 'Ana Customer',
-        email: 'ana@example.com',
-        role: 'customer',
-      },
+  assert.equal(registerResponse.statusCode, 400);
+  assert.equal(registerResponse.body.success, false);
+  assert.deepEqual(registerResponse.body.error.validationErrors, [
+    {
+      field: 'role',
+      message: 'El registro público está deshabilitado. Un administrador debe crear las cuentas de empleados.',
     },
-  });
+  ]);
   assert.equal(loginResponse.statusCode, 200);
   assert.deepEqual(loginResponse.body, {
     success: true,
-    message: 'Login successful',
+    message: 'Inicio de sesión correcto',
     data: {
       token: 'login-token',
       user: {
         id: 11,
-        name: 'Ana Customer',
+        name: 'Ana Employee',
         email: 'ana@example.com',
-        role: 'customer',
+        role: 'employee',
       },
     },
   });
   assert.deepEqual(calls, [
-    ['registerUser', { actor: null, registrationSource: 'public', payload: registerPayload }],
     ['loginUser', loginPayload],
   ]);
 });
@@ -151,7 +140,7 @@ test('createAuthRouter accepts username login payloads for legacy compatibility'
             id: 31,
             name: 'Ana User',
             email: 'ana.user@example.com',
-            role: 'customer',
+            role: 'employee',
           },
         };
       },
@@ -257,7 +246,7 @@ test('createAuthRouter serves admin registration through the trusted flow contra
   assert.equal(response.statusCode, 201);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'User created successfully',
+    message: 'Usuario creado correctamente',
     data: {
         token: 'admin-register-token',
         user: {
@@ -270,6 +259,47 @@ test('createAuthRouter serves admin registration through the trusted flow contra
   });
   assert.deepEqual(calls, [
     ['registerUser', { actor: { id: 1, role: 'admin' }, registrationSource: 'admin', payload }],
+  ]);
+});
+
+test('createAuthRouter serves admin registration with permissions in Spanish', async () => {
+  const calls = [];
+  const router = createAuthRouter({
+    authValidation: passthroughValidation,
+    authMiddleware: allowAuth,
+    useCases: {
+      async registerWithPermissions(input) {
+        calls.push(['registerWithPermissions', input]);
+        return {
+          user: { id: 24, email: input.payload.email, role: 'employee' },
+          permissions: input.payload.permissions,
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const payload = {
+    email: 'employee@example.com',
+    role: 'employee',
+    permissions: ['CREDITS_VIEW_ALL'],
+  };
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/register-with-permissions',
+    headers: { authorization: 'Bearer valid-token' },
+    body: payload,
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.message, 'Usuario registrado con permisos correctamente');
+  assert.deepEqual(calls, [
+    ['registerWithPermissions', { actor: { id: 7, role: 'employee' }, payload }],
   ]);
 });
 
@@ -341,28 +371,23 @@ test('createAuthRouter applies auth limiter only to login requests', async () =>
   };
 
   const router = createAuthRouter({
-    authValidation: passthroughValidation,
+    authValidation: {
+      ...passthroughValidation,
+      register: realAuthValidation.register,
+    },
     authMiddleware: allowAuth,
     useCases: {
-      async registerUser(payload) {
-        return {
-          token: 'register-token',
-          user: {
-            id: 11,
-            name: payload.payload.name,
-            email: payload.payload.email,
-            role: payload.payload.role,
-          },
-        };
+      async registerUser() {
+        throw new Error('registerUser should not be called for public registration');
       },
       async loginUser() {
         return {
           token: 'login-token',
           user: {
             id: 22,
-            name: 'Ana Customer',
+            name: 'Ana Employee',
             email: 'ana@example.com',
-            role: 'customer',
+            role: 'employee',
           },
         };
       },
@@ -385,6 +410,7 @@ test('createAuthRouter applies auth limiter only to login requests', async () =>
   app.use(express.json());
   app.use((req, res, next) => authLimiter(req, res, next));
   app.use(router);
+  app.use(globalErrorHandler);
 
   activeServer = await listen(app);
 
@@ -392,10 +418,10 @@ test('createAuthRouter applies auth limiter only to login requests', async () =>
     method: 'POST',
     path: '/register',
     body: {
-      name: 'Ana Customer',
+      name: 'Ana Employee',
       email: 'ana@example.com',
       password: 'secret123',
-      role: 'customer',
+      role: 'employee',
     },
   });
   const refreshResponse = await requestJson(activeServer, {
@@ -414,7 +440,7 @@ test('createAuthRouter applies auth limiter only to login requests', async () =>
     },
   });
 
-  assert.equal(registerResponse.statusCode, 201);
+  assert.equal(registerResponse.statusCode, 400);
   assert.equal(refreshResponse.statusCode, 200);
   assert.equal(loginResponse.statusCode, limitedStatus);
 });
@@ -445,7 +471,7 @@ test('createAuthRouter refresh token requires refresh token in body', async () =
   assert.equal(refreshResponse.statusCode, 400);
   assert.deepEqual(refreshResponse.body, {
     success: false,
-    error: { message: 'Refresh token is required' },
+    error: { message: 'El token de actualización es obligatorio' },
   });
 });
 
@@ -492,7 +518,7 @@ test('createAuthRouter serves logout endpoint', async () => {
   assert.equal(logoutResponse.statusCode, 200);
   assert.deepEqual(logoutResponse.body, {
     success: true,
-    message: 'Logged out successfully',
+    message: 'Sesión cerrada correctamente',
   });
   assert.deepEqual(calls, [['revokeAllUserTokens', 7]]);
 });
@@ -513,9 +539,9 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
         calls.push(['getProfile', userId]);
         return {
           id: userId,
-          name: 'Ana Customer',
+          name: 'Ana Employee',
           email: 'ana@example.com',
-          role: 'customer',
+          role: 'employee',
         };
       },
       async updateProfile(userId, payload) {
@@ -524,7 +550,7 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
           id: userId,
           name: payload.name,
           email: payload.email,
-          role: 'customer',
+          role: 'employee',
         };
       },
       async changePassword(userId, payload) {
@@ -569,30 +595,30 @@ test('createAuthRouter serves profile read and update happy paths', async () => 
     success: true,
     data: {
       user: {
-        id: 7,
-        name: 'Ana Customer',
-        email: 'ana@example.com',
-        role: 'customer',
-      },
+          id: 7,
+          name: 'Ana Employee',
+          email: 'ana@example.com',
+          role: 'employee',
+        },
     },
   });
   assert.equal(updateResponse.statusCode, 200);
   assert.equal(changePasswordResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body, {
     success: true,
-    message: 'Profile updated successfully',
+    message: 'Perfil actualizado correctamente',
     data: {
       user: {
-        id: 7,
-        name: 'Ana Maria',
-        email: 'ana.maria@example.com',
-        role: 'customer',
-      },
+          id: 7,
+          name: 'Ana Maria',
+          email: 'ana.maria@example.com',
+          role: 'employee',
+        },
     },
   });
   assert.deepEqual(changePasswordResponse.body, {
     success: true,
-    message: 'Password changed successfully',
+    message: 'Contraseña actualizada correctamente',
   });
   assert.deepEqual(calls, [
     ['getProfile', 7],
@@ -626,7 +652,7 @@ test('createAuthRouter exposes /users alias with users module response shape', a
       },
       async listUsers() {
         return {
-          items: [{ id: 4, email: 'user@example.com', role: 'customer' }],
+          items: [{ id: 4, email: 'user@example.com', role: 'employee' }],
           pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
         };
       },
@@ -650,7 +676,7 @@ test('createAuthRouter exposes /users alias with users module response shape', a
     success: true,
     count: 1,
     data: {
-      users: [{ id: 4, email: 'user@example.com', role: 'customer' }],
+      users: [{ id: 4, email: 'user@example.com', role: 'employee' }],
       pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
     },
   });

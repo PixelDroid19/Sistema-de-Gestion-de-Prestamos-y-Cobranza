@@ -27,7 +27,7 @@ const baseCalculationResult = {
     outstandingInstallments: 18,
     nextInstallment: null,
   },
-  schedule: [],
+  schedule: [] as any[],
 };
 
 let calculationState = {
@@ -106,6 +106,17 @@ describe('CreditSimulator behavior', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('does not expose the internal calculation profile version in the simulation summary', () => {
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('Regla activa').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/v8/i)).not.toBeInTheDocument();
+  });
+
   it('only exposes late-fee modes that the current settings UI can configure completely', () => {
     render(
       <MemoryRouter>
@@ -120,6 +131,35 @@ describe('CreditSimulator behavior', () => {
     expect(lateFeeSelect).toHaveTextContent('Mora compuesta');
     expect(lateFeeSelect).not.toHaveTextContent('Cargo fijo por mora');
     expect(lateFeeSelect).not.toHaveTextContent('Mora por tramos');
+  });
+
+  it('uses an operational fallback for unknown simulated installment statuses', () => {
+    calculationState = {
+      ...calculationState,
+      result: {
+        ...baseCalculationResult,
+        schedule: [
+          {
+            installmentNumber: 1,
+            dueDate: '2026-05-26',
+            scheduledPayment: 210000,
+            interestComponent: 90000,
+            principalComponent: 120000,
+            remainingBalance: 2280000,
+            status: 'manual_hold',
+          },
+        ],
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Estado no clasificado')).toBeInTheDocument();
+    expect(screen.queryByText('manual_hold')).not.toBeInTheDocument();
   });
 
   it('blocks registration when the simulation result is stale', () => {

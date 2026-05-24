@@ -1,6 +1,6 @@
 import { driver, type DriveStep } from 'driver.js';
 
-export type GuideRole = 'admin' | 'employee' | 'customer' | 'socio';
+export type GuideRole = 'admin' | 'employee';
 export type GuideViewKey =
   | 'dashboard'
   | 'customers'
@@ -44,8 +44,6 @@ type ViewGuideDefinition = {
   default?: GuideProducer;
   admin?: GuideProducer;
   employee?: GuideProducer;
-  customer?: GuideProducer;
-  socio?: GuideProducer;
 };
 
 const isBrowserAvailable = () => typeof document !== 'undefined';
@@ -178,9 +176,9 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
   },
   'associate-details': {
     default: [
-      { selector: '[data-tour="associate-details-page"]', title: 'Portal del socio', description: 'Muestra aportes, distribuciones, cuotas y calendario asociado al socio.' },
+      { selector: '[data-tour="associate-details-page"]', title: 'Detalle del socio', description: 'Muestra aportes, distribuciones, cuotas y calendario asociado al socio.' },
       { selector: '[data-tour="associate-details-header"]', title: 'Resumen del socio', description: 'Desde aquí accedes a historiales y, si eres admin, registras movimientos.' },
-      { selector: '[data-tour="associate-details-tabs"]', title: 'Pestañas del portal', description: 'Separa resumen, cuotas y calendario para lectura clara.' },
+      { selector: '[data-tour="associate-details-tabs"]', title: 'Pestañas del detalle', description: 'Separa resumen, cuotas y calendario para lectura clara.' },
       { selector: '[data-tour="associate-details-content"]', title: 'Contenido principal', description: 'Aquí revisas saldos, eventos y actividad del socio.' },
     ],
   },

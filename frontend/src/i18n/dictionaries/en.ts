@@ -58,6 +58,33 @@ const en: typeof es = {
     es: 'Español',
     en: 'English',
   },
+  profile: {
+    title: 'My profile',
+    subtitle: 'Manage your personal information and security.',
+    adminNotice: 'This profile belongs to an internal administrative user.',
+    tabs: {
+      info: 'Personal information',
+      security: 'Security',
+    },
+    fields: {
+      name: 'Full name',
+      email: 'Email',
+      currentPassword: 'Current password',
+      newPassword: 'New password',
+      confirmPassword: 'Confirm new password',
+    },
+    actions: {
+      save: 'Save changes',
+      updatePassword: 'Update password',
+    },
+    toast: {
+      nameRequired: 'Name is required',
+      updated: 'Profile updated successfully',
+      passwordMismatch: 'New passwords do not match',
+      passwordShort: 'The new password must be at least 8 characters long',
+      passwordUpdated: 'Password updated successfully',
+    },
+  },
   settings: {
     title: 'Settings',
     tabs: {

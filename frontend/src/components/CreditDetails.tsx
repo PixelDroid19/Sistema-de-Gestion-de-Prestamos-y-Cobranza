@@ -22,6 +22,7 @@ import {
   isValidOperationalDateOnly,
 } from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
+import { parsePercentageRateInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
@@ -160,10 +161,15 @@ export default function CreditDetails() {
     executable: Boolean(baseCapitalPaymentGuard.executable && capitalEligibility?.allowed !== false),
     reason: baseCapitalPaymentGuard.executable && capitalEligibility?.allowed === false ? capitalUnavailableDescription : baseCapitalPaymentGuard.reason,
   };
+  const creditReportDownloadGuard = resolveOperationalGuard('credit.report.download', {
+    role: user?.role,
+    permissions: user?.permissions,
+    loanStatus: loan?.status,
+  });
   const lateFeeUpdateGuard = resolveOperationalGuard('lateFee.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
   const creditStatusUpdateGuard = resolveOperationalGuard('credit.status.update', { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status });
   const showInstallmentActionColumn = isBackofficeUser || installmentPaymentGuard.visible;
-  const creditDetailSubtitle = isBackofficeUser ? tTerm('creditDetails.subtitle.backoffice') : tTerm('creditDetails.subtitle.customer');
+  const creditDetailSubtitle = tTerm('creditDetails.subtitle.backoffice');
 
   const paymentHistoryEntries = useMemo(() => {
     const source = history?.data?.history ?? history;
@@ -409,8 +415,8 @@ export default function CreditDetails() {
   };
 
   const handleRecordPayment = async () => {
-    const amount = parseFloat(paymentAmount);
-    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    const amount = parsePositiveMoneyInput(paymentAmount);
+    if (amount === null) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
     const inst = operationalModal.payload?.installment;
     const instNum = inst?.installmentNumber ?? selectedInstallmentNumber;
     if (!instNum) { toast.error({ title: tTerm('creditDetails.error.installmentSelection') }); return; }
@@ -466,10 +472,10 @@ export default function CreditDetails() {
   };
 
   const handleCreatePromise = async () => {
-    const amount = parseFloat(promiseAmount);
+    const amount = parsePositiveMoneyInput(promiseAmount);
     const inst = operationalModal.payload?.installment;
     if (!inst?.installmentNumber) { toast.error({ title: tTerm('creditDetails.error.promiseInstallment') }); return; }
-    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    if (amount === null) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
     if (!isValidOperationalDateOnly(promiseDateInput)) { toast.error({ title: tTerm('creditDetails.error.promiseDate') }); return; }
     await executeGuardedAction({
       action: 'installment.promise',
@@ -533,11 +539,15 @@ export default function CreditDetails() {
   };
 
   const handleRecordCapital = async () => {
-    const amount = parseFloat(capitalAmount);
-    if (!amount || amount <= 0) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    const amount = parsePositiveMoneyInput(capitalAmount);
+    if (amount === null) { toast.error({ title: tTerm('payouts.validation.amount') }); return; }
+    if (amount > capitalPreview.currentPrincipal && capitalPreview.currentPrincipal > 0) {
+      toast.error({ title: tTerm('creditDetails.modal.capital.amountExceedsPrincipal') });
+      return;
+    }
     if (!isValidOperationalDateOnly(capitalPaymentDate)) { toast.error({ title: tTerm('creditDetails.error.paymentDate') }); return; }
-    const newTermMonths = Number(capitalNewTermMonths);
-    if (capitalStrategy === 'reduce_payment' && (!Number.isInteger(newTermMonths) || newTermMonths <= 0)) {
+    const newTermMonths = parsePositiveIntegerInput(capitalNewTermMonths);
+    if (capitalStrategy === 'reduce_payment' && newTermMonths === null) {
       toast.error({ title: tTerm('creditDetails.modal.capital.newTermValidation') });
       return;
     }
@@ -551,7 +561,7 @@ export default function CreditDetails() {
           paymentDate: capitalPaymentDate,
           paymentMethod: capitalMethod,
           strategy: capitalStrategy,
-          ...(capitalStrategy === 'reduce_payment' ? { newTermMonths } : {}),
+          ...(capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
         });
       },
       onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(new Date().toISOString().slice(0, 10)); },
@@ -560,14 +570,22 @@ export default function CreditDetails() {
   };
 
   const handleUpdateLateFeeRate = async () => {
-    const rate = parseFloat(lateFeeRate);
-    if (isNaN(rate) || rate < 0 || rate > 100) { toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') }); return; }
+    const rate = parsePercentageRateInput(lateFeeRate);
+    if (rate === null) { toast.error({ title: tTerm('creditDetails.validation.lateFeeRate') }); return; }
     await executeGuardedAction({
       action: 'lateFee.update',
       context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
       run: async () => { await updateLateFeeRateMutation.mutateAsync(rate); },
       onSuccess: async () => { await invalidateAfterPromiseOrFollowUp(queryClient, { loanId }); setShowLateFeeModal(false); setLateFeeRate(''); },
       successMessage: tTerm('creditDetails.toast.lateFeeSuccess'),
+    });
+  };
+
+  const handleExportCreditExcel = async () => {
+    await executeGuardedAction({
+      action: 'credit.report.download',
+      context: { role: user?.role, permissions: user?.permissions, loanStatus: loan?.status },
+      run: async () => { await runExportCreditExcel(loanId); },
     });
   };
 
@@ -625,9 +643,9 @@ export default function CreditDetails() {
   };
 
   const calculationProfileSummary = loan?.calculationProfile?.name
-    ? tTerm('creditDetails.calculationProfile.namedVersion', { name: loan.calculationProfile.name, version: loan.calculationProfile.version })
+    ? tTerm('creditDetails.calculationProfile.namedVersion', { name: loan.calculationProfile.name })
     : loan?.calculationProfileVersionId
-      ? tTerm('creditDetails.calculationProfile.versionedRule', { version: loan.calculationProfileVersionId })
+      ? tTerm('creditDetails.calculationProfile.versionedRule')
       : tTerm('creditDetails.calculationProfile.frozenSnapshot');
 
   // -------------------------------------------------------------------------
@@ -651,7 +669,7 @@ export default function CreditDetails() {
         {payG.visible && (
           <InstallmentActionButton onClick={() => openInstallmentPayment(row)} disabled={!isNext || !payG.executable}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-secondary transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-transparent disabled:hover:bg-transparent dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-            label={isNext && payG.executable ? `${prefix}${isBackofficeUser ? tTerm('credits.action.registerPayment') : tTerm('creditDetails.cta.payInstallment')}` : payReason}>
+            label={isNext && payG.executable ? `${prefix}${tTerm('credits.action.registerPayment')}` : payReason}>
             <DollarSign size={16} />
           </InstallmentActionButton>
         )}
@@ -690,9 +708,9 @@ export default function CreditDetails() {
       <CreditDetailHeader
         loanId={loan.id} statusInfo={statusInfo} subtitle={creditDetailSubtitle}
         customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
-        registerPaymentLabel={isBackofficeUser ? tTerm('creditDetails.cta.recordPayment') : tTerm('creditDetails.cta.payInstallment')}
+        registerPaymentLabel={tTerm('creditDetails.cta.recordPayment')}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
-        canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={isAdmin}
+        canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={creditReportDownloadGuard.visible}
         isExportingCreditExcel={isExportingCreditExcel}
         installmentPaymentGuard={installmentPaymentGuard} capitalPaymentGuard={capitalPaymentGuard}
         payoffPaymentGuard={payoffPaymentGuard} lateFeeUpdateGuard={lateFeeUpdateGuard}
@@ -702,7 +720,7 @@ export default function CreditDetails() {
         onPayoff={handlePayoff}
         onOpenLateFeeRate={() => { setLateFeeRate(String(loan.annualLateFeeRate || '')); setShowLateFeeModal(true); }}
         onOpenStatus={() => setShowStatusModal(true)}
-        onExportCreditExcel={() => runExportCreditExcel(loanId)}
+        onExportCreditExcel={handleExportCreditExcel}
         onOpenSchedule={() => navigate(`/credits/${loanId}/schedule`)}
       />
 

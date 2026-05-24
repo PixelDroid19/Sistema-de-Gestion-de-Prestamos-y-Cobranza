@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { tTerm } from '../i18n/terminology';
 import { isValidOperationalDateOnly } from '../i18n/format';
 import { useAssociateById, useAssociates } from '../services/associateService';
+import { parsePercentageWithPrecisionInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import { useCreateEntitySubmit } from './hooks/useCreateEntitySubmit';
 import {
@@ -126,14 +127,24 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
       return;
     }
 
-    const interestRate = Number(formData.interestRate);
-    if (!Number.isFinite(interestRate) || interestRate < 0 || interestRate > 100) {
+    if (formData.initialCapital.trim() && parsePositiveMoneyInput(formData.initialCapital) === null) {
+      toast.error({ title: tTerm('newAssociate.validation.initialCapital') });
+      return;
+    }
+
+    if (formData.participationPercentage.trim() && parsePercentageWithPrecisionInput(formData.participationPercentage, 4) === null) {
+      toast.error({ title: tTerm('newAssociate.validation.participationRange') });
+      return;
+    }
+
+    const interestRate = parsePercentageWithPrecisionInput(formData.interestRate, 4);
+    if (interestRate === null) {
       toast.error({ title: tTerm('newAssociate.validation.rateRange') });
       return;
     }
 
-    const paymentDay = Number(formData.interestPaymentDay);
-    if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 28) {
+    const paymentDay = parsePositiveIntegerInput(formData.interestPaymentDay);
+    if (paymentDay === null || paymentDay > 28) {
       toast.error({ title: tTerm('newAssociate.validation.dayRange') });
       return;
     }

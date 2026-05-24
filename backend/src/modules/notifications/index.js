@@ -15,6 +15,7 @@ const { createNotificationsRouter } = require('./presentation/router');
 
 /**
  * Compose the notifications module entrypoint and its router dependencies.
+ * @param {{ sharedRuntime?: object }} [options]
  * @returns {{ name: string, basePath: string, router: object }}
  */
 const createNotificationsModule = ({ sharedRuntime } = {}) => {

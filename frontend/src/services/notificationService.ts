@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import type { AppUserLike } from '../constants/appAccess';
 import { useInvalidatingMutation } from './crudHooks';
 import { queryKeys } from './queryKeys';
 
@@ -17,6 +18,10 @@ const toPositiveInteger = (value: unknown): number | null => {
   }
 
   return parsed;
+};
+
+const isAdministrativeRole = (role?: string): boolean => {
+  return role === 'admin' || role === 'employee';
 };
 
 const getNotificationTitle = (notification: any) => {
@@ -61,6 +66,10 @@ export const resolveNotificationDestinationForUser = (
     return null;
   }
 
+  if (!isAdministrativeRole(user.role)) {
+    return null;
+  }
+
   if (destination.startsWith('/credits/')) {
     return destination;
   }
@@ -72,11 +81,6 @@ export const resolveNotificationDestinationForUser = (
   if (destination.startsWith('/associates/')) {
     if (user.role === 'admin') {
       return destination;
-    }
-
-    if (user.role === 'socio') {
-      const associateId = toPositiveInteger(destination.split('/')[2]);
-      return associateId && associateId === toPositiveInteger(user.associateId) ? destination : null;
     }
   }
 
@@ -149,4 +153,3 @@ export const useUnreadNotificationsCount = () => {
     isLoading: getUnreadCount.isLoading,
   };
 };
-import type { AppUserLike } from '../constants/appAccess';

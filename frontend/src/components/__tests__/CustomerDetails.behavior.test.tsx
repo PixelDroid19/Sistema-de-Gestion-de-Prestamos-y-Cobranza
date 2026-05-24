@@ -81,7 +81,7 @@ describe('CustomerDetails behavior', () => {
     loansFixture = [];
   });
 
-  it('uploads customer documents using category and customer visibility metadata', async () => {
+  it('uploads customer documents as internal records by default', async () => {
     uploadDocumentMutateAsync.mockResolvedValue({ success: true });
 
     const { container } = render(<CustomerDetails />);
@@ -108,13 +108,13 @@ describe('CustomerDetails behavior', () => {
         file,
         metadata: {
           category: 'proof_of_address',
-          customerVisible: true,
+          customerVisible: false,
         },
       });
     });
   });
 
-  it('renders stored document category and customer visibility labels', () => {
+  it('renders stored document category and operational visibility labels', () => {
     documentsFixture = [
       {
         id: 9,
@@ -131,6 +131,7 @@ describe('CustomerDetails behavior', () => {
 
     expect(screen.getByText('Comprobante de Ingresos')).toBeInTheDocument();
     expect(screen.getByText(/Uso interno/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Visible para cliente/i)).not.toBeInTheDocument();
   });
 
   it('does not show negative outstanding balance for overpaid customer credits', () => {

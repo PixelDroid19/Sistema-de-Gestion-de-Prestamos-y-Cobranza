@@ -22,7 +22,7 @@ test('loanValidation.simulate rejects unsupported late-fee modes', async () => {
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'lateFeeMode',
@@ -62,7 +62,7 @@ test('loanValidation.create rejects manual interest rate source for real credit 
   assert.deepEqual(error.errors, [
     {
       field: 'rateSource',
-      message: 'Credit creation must use a configured rate policy',
+      message: 'La creación de créditos debe usar una política de tasa configurada',
     },
   ]);
 });
@@ -95,7 +95,7 @@ test('loanValidation.create rejects manual late-fee source for real credit creat
   assert.deepEqual(error.errors, [
     {
       field: 'lateFeeSource',
-      message: 'Credit creation must use a configured late fee policy',
+      message: 'La creación de créditos debe usar una política de mora configurada',
     },
   ]);
 });
@@ -114,7 +114,7 @@ test('loanValidation.create requires a late-fee policy source for real credit cr
   assert.deepEqual(error.errors, [
     {
       field: 'lateFeeSource',
-      message: 'Credit creation must use a configured late fee policy',
+      message: 'La creación de créditos debe usar una política de mora configurada',
     },
   ]);
 });
@@ -135,7 +135,7 @@ test('loanValidation.create rejects associate assignment for new credits', async
   assert.deepEqual(error.errors, [
     {
       field: 'associateId',
-      message: 'Socios are managed as investors and cannot be assigned to new credits',
+      message: 'Los socios se gestionan como inversionistas y no se asignan a créditos nuevos',
     },
   ]);
 });
@@ -162,11 +162,11 @@ test('associateValidation.update rejects invalid participation percentage precis
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'participationPercentage',
-      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
     },
   ]);
 });
@@ -184,11 +184,11 @@ test('associateValidation.create rejects negative participation percentage value
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'participationPercentage',
-      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
     },
   ]);
 });
@@ -202,11 +202,11 @@ test('associateValidation.update rejects participation percentage values above o
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'participationPercentage',
-      message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+      message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
     },
   ]);
 });
@@ -220,11 +220,11 @@ test('associateValidation.update rejects socio participation percentage mutation
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'participationPercentage',
-      message: 'Only admins can set participationPercentage',
+      message: 'Solo los administradores pueden definir el porcentaje de participación',
     },
   ]);
 });
@@ -237,11 +237,11 @@ test('associateValidation.proportionalDistribution rejects invalid declared amou
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'amount',
-      message: 'Amount must be a positive number with up to 2 decimal places',
+      message: 'El monto debe ser un número positivo con máximo 2 decimales',
     },
   ]);
 });
@@ -380,7 +380,7 @@ test('evaluatePayoffEligibility denies payoff before the loan start date', () =>
   assert.deepEqual(eligibility.denialReasons, [
     {
       code: 'PAYOFF_BEFORE_LOAN_START',
-      message: 'Payoff effective date must be on or after the loan start date',
+      message: 'La fecha efectiva del pago total debe ser igual o posterior al inicio del crédito',
     },
   ]);
 });
@@ -406,7 +406,7 @@ test('buildPayoffQuote rejects overdue unpaid installments with structured denia
     assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     }]);
     return true;
   });
@@ -438,11 +438,11 @@ test('evaluateCapitalPaymentEligibility denies no-outstanding-balance, overdue, 
   assert.deepEqual(eligibility.denialReasons, [
     {
       code: 'NO_OUTSTANDING_BALANCE',
-      message: 'Loan has no outstanding balance for capital payment',
+      message: 'El crédito no tiene saldo pendiente para abono a capital',
     },
     {
       code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     },
     {
       code: 'FINANCIAL_BLOCK',
@@ -527,11 +527,27 @@ test('loanValidation.payoffExecute rejects invalid quote totals', async () => {
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
     {
       field: 'quotedTotal',
-      message: 'quotedTotal must be a positive number',
+      message: 'El total cotizado debe ser un número positivo',
+    },
+  ]);
+});
+
+test('loanValidation.payoffExecute rejects exponent notation quote totals', async () => {
+  const error = await captureMiddlewareError(loanValidation.payoffExecute, {
+    params: { id: '12' },
+    body: { asOfDate: '2026-03-15', quotedTotal: '1e2' },
+  });
+
+  assert.ok(error instanceof ValidationError);
+  assert.equal(error.message, 'Corrige los errores indicados');
+  assert.deepEqual(error.errors, [
+    {
+      field: 'quotedTotal',
+      message: 'El total cotizado debe ser un número positivo',
     },
   ]);
 });

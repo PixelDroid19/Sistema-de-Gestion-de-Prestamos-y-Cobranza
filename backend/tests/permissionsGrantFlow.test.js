@@ -173,7 +173,7 @@ test('E2E: admin can grant permission to user', async () => {
 
   assert.equal(response.statusCode, 201);
   assert.equal(response.body.success, true);
-  assert.equal(response.body.message, 'Permission granted successfully');
+  assert.equal(response.body.message, 'Permiso concedido correctamente');
   assert.equal(grantedPermission.targetUserId, 10);
   assert.equal(grantedPermission.permissionId, 5);
 });
@@ -314,7 +314,7 @@ test('E2E: admin can revoke permission', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.success, true);
-  assert.equal(response.body.message, 'Permission revoked successfully');
+  assert.equal(response.body.message, 'Permiso revocado correctamente');
   assert.equal(revokedPermission.targetUserId, 7);
   assert.equal(revokedPermission.permissionId, 5);
 });

@@ -21,8 +21,11 @@ const allowAuth = () => (req, res, next) => {
   next();
 };
 
-const enforceAuth = (allowedRoles) => (req, res, next) => {
+const enforceAuth = (options = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
+  const allowedRoles = Array.isArray(options)
+    ? options
+    : (options?.permissions ? ['admin', 'employee'] : []);
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({
       success: false,
@@ -123,7 +126,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
     path: '/',
     headers: {
       authorization: 'Bearer valid-token',
-      'x-test-role': 'customer',
+      'x-test-role': 'admin',
       'idempotency-key': 'payment-8-200',
     },
     body: createPayload,
@@ -138,7 +141,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
     success: true,
-    message: 'Payment created successfully',
+    message: 'Pago registrado correctamente',
     data: {
       payment: {
         id: 73,
@@ -161,7 +164,7 @@ test('createPayoutsRouter serves list and create contract responses', async () =
       pagination: { page: 2, pageSize: 10, limit: 10, offset: 10 },
       filters: { search: 'ana', status: 'completed' },
     }],
-    ['createPayment', { actor: { id: 3, role: 'customer' }, ...createPayload, idempotencyKey: 'payment-8-200' }],
+    ['createPayment', { actor: { id: 3, role: 'admin' }, ...createPayload, idempotencyKey: 'payment-8-200' }],
   ]);
 });
 
@@ -185,14 +188,64 @@ test('createPayoutsRouter requires idempotency key for financial mutations', asy
     path: '/',
     headers: {
       authorization: 'Bearer valid-token',
-      'x-test-role': 'customer',
+      'x-test-role': 'admin',
     },
     body: { loanId: 8, amount: 200, paymentDate: '2026-03-21' },
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /Idempotency-Key header is required/);
+  assert.match(response.body.error.message, /El encabezado Idempotency-Key es obligatorio/);
   assert.deepEqual(calls, []);
+});
+
+test('createPayoutsRouter rejects customer records before administrative payment use cases', async () => {
+  const router = createPayoutsRouter({
+    authMiddleware: enforceAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      listPayments: unexpectedUseCase('listPayments'),
+      createPayment: unexpectedUseCase('createPayment'),
+      listPaymentsByLoan: unexpectedUseCase('listPaymentsByLoan'),
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const listResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'customer',
+    },
+  });
+  const createResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'customer',
+      'idempotency-key': 'payment-8-200',
+    },
+    body: { loanId: 8, amount: 200, paymentDate: '2026-03-21' },
+  });
+  const loanLookupResponse = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/loan/22',
+    headers: {
+      authorization: 'Bearer valid-token',
+      'x-test-role': 'customer',
+    },
+  });
+
+  assert.equal(listResponse.statusCode, 403);
+  assert.equal(createResponse.statusCode, 403);
+  assert.equal(loanLookupResponse.statusCode, 403);
 });
 
 test('createPayoutsRouter serves loan payment lookup contract responses', async () => {
@@ -231,7 +284,7 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
     path: '/loan/22',
     headers: {
       authorization: 'Bearer valid-token',
-      'x-test-role': 'customer',
+      'x-test-role': 'admin',
     },
   });
 
@@ -245,8 +298,91 @@ test('createPayoutsRouter serves loan payment lookup contract responses', async 
     },
   });
   assert.deepEqual(calls, [
-    ['listPaymentsByLoan', { actor: { id: 3, role: 'customer' }, loanId: '22', pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
+    ['listPaymentsByLoan', { actor: { id: 3, role: 'admin' }, loanId: 22, pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
   ]);
+});
+
+test('createPayoutsRouter rejects malformed route identifiers before executing payout use cases', async () => {
+  const calls = [];
+  const router = createPayoutsRouter({
+    authMiddleware: enforceAuth,
+    attachmentUpload: noopAttachmentUpload,
+    paymentValidation,
+    useCases: {
+      async listPaymentsByLoan(input) {
+        calls.push(['listPaymentsByLoan', input.loanId]);
+        return { payments: [], loan: { id: Number(input.loanId) } };
+      },
+      async annulInstallment(input) {
+        calls.push(['annulInstallment', input.loanId]);
+        return { payment: { id: 1 }, annulment: {}, loan: { id: Number(input.loanId) } };
+      },
+      async updatePaymentMetadata(input) {
+        calls.push(['updatePaymentMetadata', input.paymentId]);
+        return { id: Number(input.paymentId) };
+      },
+      async listPaymentDocuments(input) {
+        calls.push(['listPaymentDocuments', input.paymentId]);
+        return [];
+      },
+      async downloadPaymentDocument(input) {
+        calls.push(['downloadPaymentDocument', input.paymentId, input.documentId]);
+        return { document: { originalName: 'proof.pdf' }, absolutePath: __filename };
+      },
+      async getPaymentVoucher(input) {
+        calls.push(['getPaymentVoucher', input.paymentId]);
+        return { filename: 'voucher.pdf', buffer: Buffer.from('%PDF-1.4 test') };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const responses = await Promise.all([
+    requestJson(activeServer, {
+      method: 'GET',
+      path: '/loan/22abc',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      method: 'POST',
+      path: '/annul/1e2',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'annul-invalid-id' },
+      body: { installmentNumber: 1 },
+    }),
+    requestJson(activeServer, {
+      method: 'PATCH',
+      path: '/55.5/metadata',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+      body: { paymentMethod: 'transfer' },
+    }),
+    requestJson(activeServer, {
+      method: 'GET',
+      path: '/77abc/documents',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      method: 'GET',
+      path: '/88/documents/doc-1/download',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      method: 'GET',
+      path: '/99xyz/voucher/pdf',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+  ]);
+
+  for (const response of responses) {
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.error.message, /(loanId|paymentId|documentId)/);
+  }
+  assert.deepEqual(calls, []);
 });
 
 test('createPayoutsRouter serves paginated loan payment lookup contract responses with loan context', async () => {
@@ -279,7 +415,7 @@ test('createPayoutsRouter serves paginated loan payment lookup contract response
     path: '/loan/22?page=2&pageSize=1',
     headers: {
       authorization: 'Bearer valid-token',
-      'x-test-role': 'customer',
+      'x-test-role': 'admin',
     },
   });
 
@@ -360,10 +496,13 @@ test('createPayoutsRouter serves partial, capital, and annulment contract respon
   assert.equal(partialResponse.statusCode, 201);
   assert.equal(capitalResponse.statusCode, 201);
   assert.equal(annulResponse.statusCode, 201);
+  assert.equal(partialResponse.body.message, 'Abono parcial registrado correctamente');
+  assert.equal(capitalResponse.body.message, 'Abono a capital registrado correctamente');
+  assert.equal(annulResponse.body.message, 'Cuota anulada correctamente');
   assert.deepEqual(calls, [
     ['createPartialPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 40, paymentDate: '2026-03-22', idempotencyKey: 'partial-15-40' }],
     ['createCapitalPayment', { actor: { id: 3, role: 'admin' }, loanId: 15, amount: 60, paymentDate: '2026-03-23', paymentMethod: 'transfer', strategy: 'REDUCE_QUOTA', newTermMonths: 10, idempotencyKey: 'capital-15-60' }],
-    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: '15', installmentNumber: 2, reason: undefined, idempotencyKey: 'annul-15-2' }],
+    ['annulInstallment', { actor: { id: 3, role: 'admin' }, loanId: 15, installmentNumber: 2, reason: undefined, idempotencyKey: 'annul-15-2' }],
   ]);
   assert.equal(capitalResponse.body.data.strategy, 'REDUCE_QUOTA');
   assert.equal(capitalResponse.body.data.strategyApplied, 'reduce_payment');
@@ -411,22 +550,23 @@ test('createPayoutsRouter serves calculate-total-debt and pay-total-debt compati
   const calculateResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/calculate-total-debt',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
     body: { loanId: 44, asOfDate: '2026-04-01' },
   });
 
   const payResponse = await requestJson(activeServer, {
     method: 'POST',
     path: '/pay-total-debt',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer', 'idempotency-key': 'pay-total-44' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin', 'idempotency-key': 'pay-total-44' },
     body: { loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12 },
   });
 
   assert.equal(calculateResponse.statusCode, 200);
   assert.equal(payResponse.statusCode, 201);
+  assert.equal(payResponse.body.message, 'Pago total registrado correctamente');
   assert.deepEqual(calls, [
-    ['calculateTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01' }],
-    ['payTotalDebt', { actor: { id: 3, role: 'customer' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: 'pay-total-44' }],
+    ['calculateTotalDebt', { actor: { id: 3, role: 'admin' }, loanId: 44, asOfDate: '2026-04-01' }],
+    ['payTotalDebt', { actor: { id: 3, role: 'admin' }, loanId: 44, asOfDate: '2026-04-01', quotedTotal: 955.12, idempotencyKey: 'pay-total-44' }],
   ]);
 });
 
@@ -469,7 +609,7 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
       createPayment: unexpectedUseCase('createPayment'),
       createPartialPayment: unexpectedUseCase('createPartialPayment'),
       async createCapitalPayment() {
-        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+        throw new BusinessRuleViolationError('El abono a capital no está permitido para este crédito', {
           code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
           denialReasons: [{
             code: 'FINANCIAL_BLOCK',
@@ -508,11 +648,11 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
       createPayment: unexpectedUseCase('createPayment'),
       createPartialPayment: unexpectedUseCase('createPartialPayment'),
       async createCapitalPayment() {
-        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+        throw new BusinessRuleViolationError('El abono a capital no está permitido para este crédito', {
           code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
           denialReasons: [{
             code: 'NO_OUTSTANDING_BALANCE',
-            message: 'Loan has no outstanding balance for capital payment',
+            message: 'El crédito no tiene saldo pendiente para abono a capital',
           }],
         });
       },
@@ -534,7 +674,7 @@ test('createPayoutsRouter returns structured denial reasons for capital payment 
   assert.equal(response.body.error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
   assert.deepEqual(response.body.error.denialReasons, [{
     code: 'NO_OUTSTANDING_BALANCE',
-    message: 'Loan has no outstanding balance for capital payment',
+    message: 'El crédito no tiene saldo pendiente para abono a capital',
   }]);
 });
 
@@ -580,11 +720,12 @@ test('createPayoutsRouter forwards payment metadata updates with the admin actor
   });
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.body.message, 'Datos del pago actualizados correctamente');
   assert.deepEqual(calls, [[
     'updatePaymentMetadata',
     {
       actor: { id: 3, role: 'admin' },
-      paymentId: '55',
+      paymentId: 55,
       payload: {
         paymentMethod: 'transfer',
         paymentMetadata: {
@@ -641,5 +782,6 @@ test('createPayoutsRouter serves payment document list and upload contracts', as
 
   assert.equal(listResponse.statusCode, 200);
   assert.equal(createResponse.statusCode, 201);
-  assert.deepEqual(calls[0][1], { actor: { id: 3, role: 'admin' }, paymentId: '91' });
+  assert.equal(createResponse.body.message, 'Documento de pago cargado correctamente');
+  assert.deepEqual(calls[0][1], { actor: { id: 3, role: 'admin' }, paymentId: 91 });
 });

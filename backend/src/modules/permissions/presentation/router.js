@@ -1,8 +1,27 @@
 const express = require('express');
-const { asyncHandler } = require('@/utils/errorHandler');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
+const { validateIntegerId } = require('@/modules/shared/validators');
 
+/**
+ * Composes permission catalog, effective-permission and grant/revoke routes
+ * from authorization middleware and permission use cases.
+ * @param {{ authMiddleware: Function, useCases: object }} dependencies
+ * @returns {import('express').Router} Express router for administrative permission management.
+ */
 const createPermissionsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
+  /**
+   * Parses user route identifiers without accepting partial numeric coercion.
+   * @param {string|number} value
+   * @returns {number}
+   */
+  const parseUserId = (value) => {
+    if (!validateIntegerId(value)) {
+      throw new ValidationError('userId must be a valid positive integer');
+    }
+
+    return Number(String(value).trim());
+  };
 
   const extractTargetUserId = (body = {}) => body.targetUserId ?? body.userId;
   const extractPermissionReference = (body = {}) => ({
@@ -26,7 +45,8 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/user/:userId', authMiddleware({ permissions: ['PERMISSIONS_VIEW_ALL'] }), asyncHandler(async (req, res) => {
-    const result = await useCases.getUserPermissions({ actor: req.user, targetUserId: req.params.userId });
+    const targetUserId = parseUserId(req.params.userId);
+    const result = await useCases.getUserPermissions({ actor: req.user, targetUserId });
     res.json({ success: true, data: result });
   }));
 
@@ -69,7 +89,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
       permissionId,
       permission,
     });
-    res.status(201).json({ success: true, message: 'Permission granted successfully', data: result });
+    res.status(201).json({ success: true, message: 'Permiso concedido correctamente', data: result });
   }));
 
   router.post('/grant/batch', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -79,7 +99,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
       permissionIds: req.body.permissionIds,
       permissions: req.body.permissions,
     });
-    res.status(201).json({ success: true, message: 'Batch permissions granted', data: result });
+    res.status(201).json({ success: true, message: 'Permisos concedidos correctamente', data: result });
   }));
 
   router.post('/revoke', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -90,7 +110,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
       permissionId,
       permission,
     });
-    res.json({ success: true, message: 'Permission revoked successfully', data: result });
+    res.json({ success: true, message: 'Permiso revocado correctamente', data: result });
   }));
 
   router.delete('/direct', authMiddleware(['admin']), asyncHandler(async (req, res) => {
@@ -102,7 +122,7 @@ const createPermissionsRouter = ({ authMiddleware, useCases }) => {
       permissionId,
       permission,
     });
-    res.json({ success: true, message: 'Direct permission revoked successfully', data: result });
+    res.json({ success: true, message: 'Permiso directo revocado correctamente', data: result });
   }));
 
   router.post('/check', authMiddleware(), asyncHandler(async (req, res) => {

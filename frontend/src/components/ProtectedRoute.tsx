@@ -8,9 +8,11 @@ import { useSessionStore } from '../store/sessionStore';
 import { extractStatusCode } from '../services/safeErrorMessages';
 import { ActionButton, SectionSurface } from './shared/Surfaces';
 
+type AdministrativeRole = 'admin' | 'employee';
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('admin' | 'employee' | 'customer' | 'socio')[];
+  allowedRoles?: AdministrativeRole[];
   requiredPermissions?: string[];
 }
 
@@ -112,6 +114,18 @@ const extractPermissionNames = (payload: unknown): string[] => {
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 };
 
+/**
+ * Narrows persisted session roles to the administrative roles accepted by the
+ * backoffice shell. Customer and socio records are domain data, not login roles
+ * for protected administrative routes.
+ */
+const isAdministrativeRole = (role?: string): role is AdministrativeRole => role === 'admin' || role === 'employee';
+
+/**
+ * Guards administrative application routes by session, role and optional
+ * permission names. Permission checks are only needed for employees because
+ * admins receive the full catalog server-side.
+ */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, requiredPermissions = [] }) => {
   const location = useLocation();
   const {
@@ -164,7 +178,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && (!isAdministrativeRole(user.role) || !allowedRoles.includes(user.role))) {
     return <Navigate to={getDefaultRouteForUser(user)} replace />;
   }
 
@@ -183,6 +197,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   return <>{children}</>;
 };
 
+/**
+ * Keeps authenticated administrative users away from the login view while
+ * allowing stale non-administrative sessions to re-enter through access.
+ */
 export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
   const {
     user,
@@ -197,7 +215,10 @@ export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
   }
 
   if (accessToken && user) {
-    return <Navigate to={getDefaultRouteForUser(user)} replace />;
+    const defaultRoute = getDefaultRouteForUser(user);
+    if (defaultRoute !== '/login') {
+      return <Navigate to={defaultRoute} replace />;
+    }
   }
 
   return <>{children}</>;

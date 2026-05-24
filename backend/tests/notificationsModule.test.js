@@ -47,6 +47,7 @@ test('createMarkAsRead verifies ownership before mutation', async () => {
 
   await assert.rejects(() => markAsRead({ actor: { id: 8, role: 'admin' }, notificationId: '9' }), (error) => {
     assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Solo puede marcar sus propias notificaciones como leídas');
     return true;
   });
   assert.equal(markAsReadCalled, false);
@@ -100,7 +101,7 @@ test('notification use cases preserve count-based contracts', async () => {
 
   assert.equal(marked.data.count, 2);
   assert.equal(unread.data.unreadCount, 4);
-  assert.deepEqual(cleared, { success: true, message: 'All notifications cleared' });
+  assert.deepEqual(cleared, { success: true, message: 'Notificaciones eliminadas correctamente' });
 });
 
 test('createGetNotifications preserves persisted payload fields for frontend compatibility', async () => {
@@ -141,6 +142,7 @@ test('createRegisterPushSubscription upserts an actor-owned subscription', async
   });
 
   assert.equal(result.success, true);
+  assert.equal(result.message, 'Suscripción de notificaciones registrada correctamente');
   assert.equal(result.data.subscription.userId, 8);
   assert.equal(result.data.subscription.providerKey, 'webpush');
 });
@@ -165,7 +167,7 @@ test('createDeletePushSubscription is idempotent when a subscription is already 
 
   assert.deepEqual(result, {
     success: true,
-    message: 'Push subscription removed',
+    message: 'Suscripción de notificaciones eliminada correctamente',
     data: { removed: false },
   });
 });
@@ -185,7 +187,7 @@ test('push subscription use cases reject payloads without endpoint or device tok
       providerKey: 'fcm',
       channel: 'mobile',
     },
-  }), /Subscription endpoint or device token is required/);
+  }), /Debe indicar endpoint o token del dispositivo para la suscripción/);
 });
 
 test('createNotificationsModule publishes notification ports to the shared runtime', () => {

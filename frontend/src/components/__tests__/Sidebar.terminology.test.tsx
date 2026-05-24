@@ -22,6 +22,8 @@ let currentUser: SidebarTestUser = {
 
 vi.mock('../../store/sessionStore', () => ({
   useSessionStore: () => ({
+    accessToken: 'access-token-before-clear',
+    refreshToken: 'refresh-token-before-clear',
     logout: mockClearSession,
     user: currentUser,
   }),
@@ -173,7 +175,11 @@ describe('Sidebar canonical terminology parity', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
-    expect(mockRequestLogout).toHaveBeenCalledTimes(1);
+    expect(mockRequestLogout).toHaveBeenCalledWith({
+      accessToken: 'access-token-before-clear',
+      refreshToken: 'refresh-token-before-clear',
+      user: currentUser,
+    });
     expect(mockClearSession).toHaveBeenCalledTimes(1);
     expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
     expect(setIsMobileOpen).toHaveBeenCalledWith(false);

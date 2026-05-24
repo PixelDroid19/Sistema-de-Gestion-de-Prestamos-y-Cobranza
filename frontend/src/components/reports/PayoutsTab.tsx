@@ -6,7 +6,7 @@ import {
   formatNumber as formatNumberValue,
 } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
-import { getPaymentTypeLabel } from '../../constants/paymentTypes';
+import { getPaymentMethodLabel, getPaymentTypeLabel } from '../../constants/paymentTypes';
 import { getChipClassName } from '../../constants/uiChips';
 import {
   ActionButton,
@@ -169,7 +169,7 @@ export default function PayoutsTab({
                         {getPaymentTypeLabel(payout.paymentType)}
                       </span>
                     </td>
-                    <td className="text-text-secondary capitalize">{payout.paymentMethod || 'N/A'}</td>
+                    <td className="text-text-secondary">{getPaymentMethodLabel(payout.paymentMethod)}</td>
                   </tr>
                 ))
               )}
@@ -193,7 +193,7 @@ export default function PayoutsTab({
                 variant="ghost"
                 className="min-h-8 px-3 py-1.5 text-xs"
               >
-                Anterior
+                {tTerm('reports.payouts.pagination.previous')}
               </ActionButton>
               <ActionButton
                 disabled={payoutPage === payoutPagination.totalPages}
@@ -201,7 +201,7 @@ export default function PayoutsTab({
                 variant="ghost"
                 className="min-h-8 px-3 py-1.5 text-xs"
               >
-                Siguiente
+                {tTerm('reports.payouts.pagination.next')}
               </ActionButton>
             </div>
           </div>

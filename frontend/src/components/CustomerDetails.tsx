@@ -92,7 +92,7 @@ export default function CustomerDetails() {
   const [activeTab, setActiveTab] = useState<'profile' | 'documents' | 'loans' | 'history'>('profile');
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('identification');
-  const [customerVisible, setCustomerVisible] = useState(true);
+  const [customerVisible, setCustomerVisible] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
 
   const formatDisplayDate = (value: unknown, includeTime = false) => {
@@ -408,7 +408,7 @@ export default function CustomerDetails() {
                   checked={customerVisible}
                   onChange={(e) => setCustomerVisible(e.target.checked)}
                 />
-                {tTerm('customerDetails.documents.visibleToCustomer')}
+                {tTerm('customerDetails.documents.availableForDelivery')}
               </label>
               <ActionButton type="submit" disabled={!file || uploadDocument.isPending} isLoading={uploadDocument.isPending} icon={<Upload size={16} />} variant="primary" className="min-h-11 whitespace-nowrap lg:mt-6">
                 {tTerm('customerDetails.documents.cta.upload')}
@@ -426,7 +426,7 @@ export default function CustomerDetails() {
                         {getDocumentTypeLabel(doc.category)}
                         {doc.customerVisible === false
                           ? ` • ${tTerm('customerDetails.documents.visibility.internal')}`
-                          : ` • ${tTerm('customerDetails.documents.visibility.customer')}`}
+                          : ` • ${tTerm('customerDetails.documents.visibility.delivery')}`}
                         {' • '}
                         {formatDisplayDate(doc.createdAt)}
                       </p>

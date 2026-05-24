@@ -56,11 +56,11 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
       },
       async listAdminCatalogs() {
         calls.push(['listAdminCatalogs']);
-        return { roles: ['admin', 'customer', 'socio'] };
+        return { roles: ['admin', 'employee'] };
       },
       async listRoles() {
         calls.push(['listRoles']);
-        return ['admin', 'customer', 'socio'];
+        return ['admin', 'employee'];
       },
     },
   }));
@@ -134,32 +134,100 @@ test('createConfigRouter serves payment-method, settings, and catalog contract r
       paymentMethods: [{ id: 11, label: 'Transferencia', key: 'transferencia', isActive: true, requiresReference: true, description: '' }],
     },
   });
-  assert.equal(createResponse.body.message, 'Payment method created successfully');
-  assert.equal(updateResponse.body.message, 'Payment method updated successfully');
-  assert.equal(deleteResponse.body.message, 'Payment method deleted successfully');
-  assert.equal(saveSettingResponse.body.message, 'Setting saved successfully');
+  assert.equal(createResponse.body.message, 'Método de pago creado correctamente');
+  assert.equal(updateResponse.body.message, 'Método de pago actualizado correctamente');
+  assert.equal(deleteResponse.body.message, 'Método de pago eliminado correctamente');
+  assert.equal(saveSettingResponse.body.message, 'Ajuste guardado correctamente');
   assert.deepEqual(rolesResponse.body, {
     success: true,
     data: {
-      roles: ['admin', 'customer', 'socio'],
+      roles: ['admin', 'employee'],
     },
   });
   assert.deepEqual(catalogsResponse.body, {
     success: true,
     data: {
-      catalogs: { roles: ['admin', 'customer', 'socio'] },
+      catalogs: { roles: ['admin', 'employee'] },
     },
   });
   assert.deepEqual(calls, [
     ['listPaymentMethods'],
     ['createPaymentMethod', createPayload],
-    ['updatePaymentMethod', '12', { label: 'Transferencia editada', isActive: false }],
-    ['deletePaymentMethod', '12'],
+    ['updatePaymentMethod', 12, { label: 'Transferencia editada', isActive: false }],
+    ['deletePaymentMethod', 12],
     ['listSettings'],
     ['upsertSetting', 'company-name', { label: 'Nombre legal', value: 'LendFlow SAS', description: 'Exportes' }],
     ['listRoles'],
     ['listAdminCatalogs'],
   ]);
+});
+
+test('createConfigRouter rejects malformed config resource identifiers before executing mutations', async (t) => {
+  const calls = [];
+  const app = express();
+
+  app.use(express.json());
+  app.use(createConfigRouter({
+    authMiddleware: allowAdminOnly,
+    useCases: {
+      async updateRatePolicy(policyId) {
+        calls.push(['updateRatePolicy', policyId]);
+        return { id: Number(policyId), label: 'Tasa QA' };
+      },
+      async deleteRatePolicy(policyId) {
+        calls.push(['deleteRatePolicy', policyId]);
+        return { id: Number(policyId) };
+      },
+      async updateLateFeePolicy(policyId) {
+        calls.push(['updateLateFeePolicy', policyId]);
+        return { id: Number(policyId), label: 'Mora QA' };
+      },
+      async deleteLateFeePolicy(policyId) {
+        calls.push(['deleteLateFeePolicy', policyId]);
+        return { id: Number(policyId) };
+      },
+      async updatePaymentMethod(paymentMethodId) {
+        calls.push(['updatePaymentMethod', paymentMethodId]);
+        return { id: Number(paymentMethodId), label: 'Transferencia QA' };
+      },
+      async deletePaymentMethod(paymentMethodId) {
+        calls.push(['deletePaymentMethod', paymentMethodId]);
+        return { id: Number(paymentMethodId) };
+      },
+      async listRoles() {
+        return ['admin', 'employee'];
+      },
+    },
+  }));
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  const activeServer = await listenForTest(t, app);
+
+  const cases = [
+    { method: 'PUT', path: '/rate-policies/1e2', field: /policyId/i, body: { label: 'Tasa QA' } },
+    { method: 'DELETE', path: '/rate-policies/abc', field: /policyId/i },
+    { method: 'PUT', path: '/late-fee-policies/7.5', field: /policyId/i, body: { label: 'Mora QA' } },
+    { method: 'DELETE', path: '/late-fee-policies/1e2', field: /policyId/i },
+    { method: 'PUT', path: '/payment-methods/abc', field: /paymentMethodId/i, body: { label: 'Transferencia QA' } },
+    { method: 'DELETE', path: '/payment-methods/1.5', field: /paymentMethodId/i },
+  ];
+
+  for (const routeCase of cases) {
+    const response = await requestJson(activeServer, {
+      method: routeCase.method,
+      path: routeCase.path,
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+      body: routeCase.body,
+    });
+    assert.equal(response.statusCode, 400, routeCase.path);
+    assert.match(response.body.error.message, routeCase.field);
+  }
+  assert.deepEqual(calls, []);
 });
 
 test('createConfigRouter emits audit entries and notifications for config mutations', async (t) => {
@@ -188,7 +256,7 @@ test('createConfigRouter emits audit entries and notifications for config mutati
         return { id: 22, label: 'Mora QA', key: 'mora-qa' };
       },
       async listRoles() {
-        return ['admin', 'customer', 'socio'];
+        return ['admin', 'employee'];
       },
     },
   }));
@@ -315,10 +383,10 @@ test('createConfigRouter does not expose legacy /pmconfig', async (t) => {
         return [];
       },
       async listRoles() {
-        return ['admin', 'customer', 'socio'];
+        return ['admin', 'employee'];
       },
       async listAdminCatalogs() {
-        return { roles: ['admin', 'customer', 'socio'] };
+        return { roles: ['admin', 'employee'] };
       },
     },
   }));

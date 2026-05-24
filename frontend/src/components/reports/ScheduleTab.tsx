@@ -6,6 +6,8 @@ import {
 } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { getChipClassName } from '../../constants/uiChips';
+import type { ChipTone } from '../../constants/uiChips';
+import { getLoanStatusLabel } from '../credits/creditsHelpers';
 import {
   ActionButton,
   DataTableSurface,
@@ -18,6 +20,42 @@ import {
 } from '../shared/Surfaces';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
+
+/**
+ * Returns the operator-facing label for an installment status in the reports schedule.
+ */
+const getScheduleEntryStatusLabel = (status: unknown) => {
+  switch (String(status || '').toLowerCase()) {
+    case 'paid':
+      return tTerm('schedule.status.paid');
+    case 'overdue':
+      return tTerm('schedule.status.overdue');
+    case 'partial':
+      return tTerm('credits.calendar.status.partial');
+    case 'annulled':
+      return tTerm('schedule.status.annulled');
+    default:
+      return tTerm('schedule.status.pending');
+  }
+};
+
+/**
+ * Maps installment statuses to visual severity without exposing backend enum names.
+ */
+const getScheduleEntryStatusTone = (status: unknown): ChipTone => {
+  switch (String(status || '').toLowerCase()) {
+    case 'paid':
+      return 'success';
+    case 'overdue':
+      return 'danger';
+    case 'partial':
+      return 'info';
+    case 'annulled':
+      return 'neutral';
+    default:
+      return 'warning';
+  }
+};
 
 type ScheduleTabProps = {
   selectedLoanId: number | null;
@@ -117,7 +155,7 @@ export default function ScheduleTab({
               {
                 id: 'schedule-loan-status',
                 label: tTerm('schedule.summary.status'),
-                value: <span className="capitalize">{scheduleLoan.status}</span>,
+                value: getLoanStatusLabel(scheduleLoan.status),
                 helper: tTerm('schedule.summary.statusHelper'),
                 icon: <AlertCircle size={18} />,
                 accent: 'slate',
@@ -200,8 +238,8 @@ export default function ScheduleTab({
                       <td className="text-emerald-600">{formatMoney(entry.interestComponent)}</td>
                       <td>{formatMoney(entry.remainingBalance)}</td>
                       <td>
-                        <span className={`px-2 py-1 rounded text-xs ${entry.status === 'paid' ? getChipClassName('success') : getChipClassName('warning')}`}>
-                          {entry.status === 'paid' ? tTerm('schedule.status.paid') : tTerm('schedule.status.pending')}
+                        <span className={`px-2 py-1 rounded text-xs ${getChipClassName(getScheduleEntryStatusTone(entry.status))}`}>
+                          {getScheduleEntryStatusLabel(entry.status)}
                         </span>
                       </td>
                     </tr>

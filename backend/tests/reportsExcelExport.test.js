@@ -6,6 +6,7 @@ const ExcelJS = require('exceljs');
 const { createReportsRouter } = require('@/modules/reports/presentation/router');
 const { createExportCreditsExcel } = require('@/modules/reports/application/useCases/createExportCreditsExcel');
 const { createExportAssociatesExcel } = require('@/modules/reports/application/useCases/createExportAssociatesExcel');
+const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer } = require('@/modules/reports/application/workbookBuilder');
 const { closeServer, listen } = require('./helpers/http');
 
@@ -14,6 +15,12 @@ let activeServer;
 afterEach(async () => {
   await closeServer(activeServer);
   activeServer = null;
+});
+
+test('report labels use operational fallbacks instead of raw enum-like values', () => {
+  assert.equal(formatOperationalStatus('manual_hold'), 'Estado no clasificado');
+  assert.equal(formatPaymentType('adjustment_fee'), 'Tipo de pago no clasificado');
+  assert.equal(formatPaymentMethod('wallet_mobile'), 'Método no clasificado');
 });
 
 test('export associates use case builds approved operational sheet structure', async () => {
@@ -76,6 +83,88 @@ test('export associates use case builds approved operational sheet structure', a
   assert.ok(result.data.rows.some((row) => row.section === 'Aporte'));
   assert.ok(result.data.rows.some((row) => row.section === 'Distribución'));
   assert.equal(result.data.rows.some((row) => /contribution|distribution|Distributed|Interest installments/i.test(`${row.section} ${row.date} ${row.notes}`)), false);
+});
+
+test('export associates use case uses operational fallbacks for unknown movement labels', async () => {
+  const associate = {
+    id: 4,
+    name: 'Socio Excel QA',
+    status: 'manual_hold',
+    participationPercentage: 25,
+    interestType: 'monthly',
+    interestRate: '2.5000',
+  };
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return [associate];
+      },
+      async findById() {
+        return associate;
+      },
+      async listContributionsByAssociate() {
+        return [{ id: 1, amount: 1000000, contributionDate: '2026-01-10', status: 'manual_hold', notes: 'Aporte inicial' }];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [{ id: 2, loanId: 9, amount: 150000, distributionDate: '2026-02-10', status: 'manual_hold', distributionType: 'manual_adjustment' }];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+      async listLoansByAssociate() {
+        return [];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { role: 'admin' } });
+  const serializedRows = JSON.stringify(result.data.rows);
+
+  assert.match(serializedRows, /Estado no clasificado/);
+  assert.match(serializedRows, /Tipo de distribución no clasificado/);
+  assert.doesNotMatch(serializedRows, /manual_hold|manual_adjustment|manual hold|manual adjustment/);
+});
+
+test('export associates use case allows permissioned employees to export the administrative associates report', async () => {
+  const associate = {
+    id: 4,
+    name: 'Socio Excel QA',
+    status: 'active',
+    participationPercentage: 25,
+    interestType: 'monthly',
+    interestRate: '2.5000',
+  };
+  const useCase = createExportAssociatesExcel({
+    associateRepository: {
+      async list() {
+        return [associate];
+      },
+      async findById(id) {
+        assert.equal(Number(id), 4);
+        return associate;
+      },
+      async listContributionsByAssociate() {
+        return [];
+      },
+      async listProfitDistributionsByAssociate() {
+        return [];
+      },
+      async findInstallmentsByAssociateId() {
+        return [];
+      },
+      async listLoansByAssociate() {
+        return [];
+      },
+    },
+    reportRepository: {},
+  });
+
+  const result = await useCase({ actor: { id: 7, role: 'employee' } });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.rows.length, 1);
+  assert.equal(result.data.rows[0].associateName, 'Socio Excel QA');
 });
 
 test('export credits use case builds approved workbook fields with current snapshots', async () => {
@@ -182,6 +271,7 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.equal(result.success, true);
   assert.equal(result.data.rows[0].creditId, 9);
   assert.equal(result.data.rows[0].customerDocument, '100200300');
+  assert.equal(result.data.rows[0].creditStatus, 'Activo');
   assert.equal(result.data.rows[0].totalInterestPaid, 250000);
   assert.equal(result.data.rows[0].totalInterestGenerated, 382500);
   assert.equal(result.data.sheets[0].name, 'Resumen General');
@@ -189,6 +279,10 @@ test('export credits use case builds approved workbook fields with current snaps
   assert.equal(result.data.sheets[2].name, 'Crédito 9');
   assert.ok(result.data.sheets[2].sections.some((section) => section.title === 'TABLA DE AMORTIZACIÓN'));
   assert.ok(result.data.sheets[2].sections.some((section) => section.title === 'HISTORIAL DE PAGOS'));
+  const paymentHistorySection = result.data.sheets[2].sections.find((section) => section.title === 'HISTORIAL DE PAGOS');
+  assert.equal(paymentHistorySection.rows[0].paymentType, 'Cuota');
+  assert.equal(paymentHistorySection.rows[0].paymentMethod, 'Efectivo');
+  assert.notEqual(paymentHistorySection.rows[0].paymentMethod, 'cash');
   const detailHeaders = result.data.sheets[1].columns.map((column) => column.header);
   assert.ok(detailHeaders.includes('Interés Pagado'));
   assert.ok(detailHeaders.includes('Interés Generado'));
@@ -374,7 +468,7 @@ const roleAwareAuth = (config = []) => (req, res, next) => {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
-  if (permissions.includes('REPORTS_VIEW_ALL') && !['admin', 'socio'].includes(role)) {
+  if (permissions.includes('REPORTS_VIEW_ALL') && !['admin', 'employee'].includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
@@ -506,7 +600,7 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
         return {
           success: true,
           data: {
-            rows: [{ paymentId: 7, loanId: 4, customerName: 'Ana', amount: '100.00' }],
+            rows: [{ paymentId: 7, loanId: 4, customerId: 10, customerName: 'Ana', amount: '100.00' }],
           },
         };
       },
@@ -530,7 +624,14 @@ test('GET /reports/payouts/excel returns xlsx file for admin', async () => {
   await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
   const payoutSheet = workbook.getWorksheet('Pagos');
   const headers = payoutSheet.getRow(2).values;
-  assert.ok(headers.includes('ID Pago'));
+  assert.ok(headers.includes('Pago'));
+  assert.ok(headers.includes('Crédito'));
+  assert.ok(headers.includes('Cliente'));
+  assert.equal(headers.includes('ID Pago'), false);
+  assert.equal(headers.includes('ID Crédito'), false);
+  assert.equal(headers.includes('ID Cliente'), false);
+  const visibleHeaders = headers.filter(Boolean);
+  assert.equal(new Set(visibleHeaders).size, visibleHeaders.length);
   assert.ok(headers.includes('Interés Aplicado'));
   assert.equal(headers.includes('paymentId'), false);
   assert.equal(headers.includes('paymentMetadata'), false);
@@ -578,7 +679,11 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
               }],
               payments: [{
                 paymentId: 10,
+                loanId: 4,
+                customerName: 'QA Cliente',
                 amount: '50000.00',
+                paymentType: 'installment',
+                status: 'completed',
                 metadata: { paymentMethod: 'cash' },
                 circular: null,
               }],
@@ -611,6 +716,19 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
   assert.ok(headers.includes('Indicador'));
   assert.ok(headers.includes('Valor'));
   assert.equal(headers.includes('totalLoans'), false);
+
+  const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
+  assert.ok(loanHeaders.includes('Crédito'));
+  assert.equal(loanHeaders.includes('ID Crédito'), false);
+  assert.equal(workbook.getWorksheet('Préstamos recientes').getRow(3).getCell(4).value, 'Activo');
+
+  const paymentHeaders = workbook.getWorksheet('Pagos recientes').getRow(2).values;
+  assert.ok(paymentHeaders.includes('Pago'));
+  assert.ok(paymentHeaders.includes('Crédito'));
+  assert.equal(paymentHeaders.includes('ID Pago'), false);
+  assert.equal(paymentHeaders.includes('ID Crédito'), false);
+  assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(5).value, 'Cuota');
+  assert.equal(workbook.getWorksheet('Pagos recientes').getRow(3).getCell(6).value, 'Completado');
 });
 
 test('GET /reports/credits/excel rejects non-admin users', async () => {
@@ -756,7 +874,7 @@ test('GET /reports/associates/excel returns xlsx file for admin', async () => {
   assert.equal(headers.includes('associateId'), false);
 });
 
-test('GET /reports/associates/excel allows socio role', async () => {
+test('GET /reports/associates/excel allows employee role with report permission', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
     useCases: {
@@ -765,7 +883,7 @@ test('GET /reports/associates/excel allows socio role', async () => {
       async getRecoveryReport() { return { success: true, data: { recoveredLoans: [], outstandingLoans: [] }, summary: {} }; },
       async getDashboardSummary() { return { success: true, data: { summary: {} } }; },
       async exportAssociatesExcel(input) {
-        assert.equal(input.actor.role, 'socio');
+        assert.equal(input.actor.role, 'employee');
         return { success: true, data: { rows: [] } };
       },
       async exportRecoveryReport() {
@@ -780,10 +898,32 @@ test('GET /reports/associates/excel allows socio role', async () => {
   activeServer = await listen(app);
 
   const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'employee' },
   });
 
   assert.equal(response.status, 200);
+});
+
+test('GET /reports/associates/excel rejects socio role', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async exportAssociatesExcel() {
+        throw new Error('Should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/excel`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
+  });
+
+  assert.equal(response.status, 403);
 });
 
 test('GET /reports/associates/excel rejects customer role', async () => {

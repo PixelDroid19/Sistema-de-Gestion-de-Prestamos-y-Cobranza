@@ -1,5 +1,6 @@
 import { tTerm } from '../../i18n/terminology';
 import { formatLoanAlertTypeLabel } from '../../lib/loanAlertLabels';
+import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,6 +107,9 @@ export function getInstallmentRowKey(row: any): string {
 // Status helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Converts workflow/status-history values into Spanish operator labels.
+ */
 export function formatOperationalStatus(status: unknown): string {
   const normalizedStatus = String(status || '').toLowerCase();
   const labels: Record<string, string> = {
@@ -118,9 +122,12 @@ export function formatOperationalStatus(status: unknown): string {
     broken: tTerm('creditDetails.status.broken'),
     cancelled: tTerm('creditDetails.status.cancelled'),
   };
-  return labels[normalizedStatus] || String(status || '');
+  return labels[normalizedStatus] || tTerm('common.status.unknown');
 }
 
+/**
+ * Builds the label and chip style for the current credit status.
+ */
 export function getStatusInfo(status: string): StatusPresentation {
   switch (status) {
     case 'active':
@@ -146,7 +153,7 @@ export function getStatusInfo(status: string): StatusPresentation {
     case 'rejected':
       return { label: tTerm('creditDetails.loanStatus.rejected'), className: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30' };
     default:
-      return { label: status || tTerm('creditDetails.loanStatus.missing'), className: 'bg-gray-100 text-gray-700 border border-gray-200' };
+      return { label: status ? tTerm('common.status.unknown') : tTerm('creditDetails.loanStatus.missing'), className: 'bg-gray-100 text-gray-700 border border-gray-200' };
   }
 }
 
@@ -253,6 +260,10 @@ export type CapitalPreview = {
   estimatedInstallments: number;
 };
 
+/**
+ * Builds the operator-facing preview for a capital prepayment without applying
+ * JavaScript numeric coercions that the real submit path rejects.
+ */
 export function computeCapitalPreview(
   capitalAmount: string,
   capitalStrategy: string,
@@ -260,13 +271,10 @@ export function computeCapitalPreview(
   loan: any,
   paymentSnapshot: any,
 ): CapitalPreview {
-  const amount = Number(capitalAmount || 0);
+  const amount = parsePositiveMoneyInput(capitalAmount) ?? 0;
   const currentPrincipal = Number(paymentSnapshot?.outstandingPrincipal ?? loan?.principalOutstanding ?? 0);
   const remainingInstallments = Number(paymentSnapshot?.outstandingInstallments ?? 0);
-  const selectedNewTerm = Number(capitalNewTermMonths || 0);
-  const effectiveNewTerm = Number.isInteger(selectedNewTerm) && selectedNewTerm > 0
-    ? selectedNewTerm
-    : remainingInstallments;
+  const effectiveNewTerm = parsePositiveIntegerInput(capitalNewTermMonths) ?? remainingInstallments;
   const currentInstallment = Number(paymentSnapshot?.nextInstallment?.scheduledPayment ?? loan?.installmentAmount ?? 0);
   const annualRate = Number(loan?.interestRate ?? 0);
   const newPrincipal = Math.max(0, currentPrincipal - (Number.isFinite(amount) ? amount : 0));

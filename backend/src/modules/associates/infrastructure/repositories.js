@@ -224,11 +224,6 @@ const associateRepository = {
   updateProportionalDistributionIdempotency(record, payload, { transaction } = {}) {
     return record.update(payload, { transaction });
   },
-  findByLinkedUser(userId) {
-    return Associate.findOne({
-      include: [{ model: User, as: 'portalUsers', where: { id: userId }, attributes: [] }],
-    });
-  },
   findInstallmentsByAssociateId(associateId, { transaction } = {}) {
     return AssociateInstallment.findAll({
       where: { associateId },

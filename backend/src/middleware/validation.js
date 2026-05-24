@@ -2,7 +2,7 @@ const { ValidationError } = require('@/utils/errorHandler');
 const { UNSUPPORTED_LATE_FEE_MODES, normalizeLateFeeMode } = require('@/modules/credits/domain/calculation');
 const { parsePaginationQuery } = require('@/modules/shared/pagination');
 const { ADMINISTRATIVE_LOGIN_ROLES, isAdministrativeLoginRole, normalizeApplicationRole } = require('@/modules/shared/roles');
-const { validateCurrencyPrecision } = require('@/modules/shared/money');
+const { parsePositiveCurrencyAmount, validateCurrencyPrecision } = require('@/modules/shared/money');
 const {
   validateEmail,
   validatePhone,
@@ -18,7 +18,7 @@ const {
 } = require('@/modules/shared/validators');
 const { isValidDateOnly } = require('@/modules/shared/dateUtils');
 
-const buildValidationError = (errors, message = 'Please correct the following errors') => {
+const buildValidationError = (errors, message = 'Corrige los errores indicados') => {
   const error = new ValidationError(message);
   error.errors = errors;
   return error;
@@ -39,7 +39,7 @@ const validate = (schema) => {
           message: detail.message,
           value: detail.context?.value
         }));
-        throw new ValidationError('Validation failed', validationErrors);
+        throw new ValidationError('La validación falló', validationErrors);
       }
       next();
     } catch (err) {
@@ -54,58 +54,58 @@ const usesPolicySource = (value) => String(value || '').trim().toLowerCase() ===
 const pushParticipationPercentageError = (errors, field = 'participationPercentage') => {
   errors.push({
     field,
-    message: 'participationPercentage must be between 0 and 100 with up to 4 decimal places',
+    message: 'El porcentaje de participación debe estar entre 0 y 100 con máximo 4 decimales',
   });
 };
 
 const pushNameValidation = ({ errors, name, required }) => {
   if (required && (!name || String(name).trim().length < 2)) {
-    errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+    errors.push({ field: 'name', message: 'El nombre debe tener al menos 2 caracteres' });
     return;
   }
 
   if (!required && name !== undefined && String(name).trim().length < 2) {
-    errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+    errors.push({ field: 'name', message: 'El nombre debe tener al menos 2 caracteres' });
   }
 };
 
 const pushEmailValidation = ({ errors, email, required }) => {
   if (required && !email) {
-    errors.push({ field: 'email', message: 'Email is required' });
+    errors.push({ field: 'email', message: 'El correo es obligatorio' });
     return;
   }
 
   if (email !== undefined && email !== null && email !== '' && !validateEmail(email)) {
-    errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+    errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
   }
 };
 
 const pushPhoneValidation = ({ errors, phone, required }) => {
   if (required && (!phone || !validatePhone(phone))) {
-    errors.push({ field: 'phone', message: 'Valid phone number is required' });
+    errors.push({ field: 'phone', message: 'El teléfono debe ser válido' });
     return;
   }
 
   if (!required && phone !== undefined && !validatePhone(phone)) {
-    errors.push({ field: 'phone', message: 'Valid phone number is required' });
+    errors.push({ field: 'phone', message: 'El teléfono debe ser válido' });
   }
 };
 
 const pushActiveInactiveStatusValidation = ({ errors, status }) => {
   if (status !== undefined && !['active', 'inactive'].includes(status)) {
-    errors.push({ field: 'status', message: 'Status must be active or inactive' });
+    errors.push({ field: 'status', message: 'El estado debe ser activo o inactivo' });
   }
 };
 
 const pushCustomerStatusValidation = ({ errors, status }) => {
   if (status !== undefined && !['active', 'inactive', 'blacklisted'].includes(status)) {
-    errors.push({ field: 'status', message: 'Status must be active, inactive, or blacklisted' });
+    errors.push({ field: 'status', message: 'El estado debe ser activo, inactivo o bloqueado' });
   }
 };
 
 const pushParticipationValidation = ({ req, errors, participationPercentage }) => {
   if (req.user?.role !== 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'participationPercentage')) {
-    errors.push({ field: 'participationPercentage', message: 'Only admins can set participationPercentage' });
+    errors.push({ field: 'participationPercentage', message: 'Solo los administradores pueden definir el porcentaje de participación' });
   } else if (!validateParticipationPercentage(participationPercentage)) {
     pushParticipationPercentageError(errors);
   }
@@ -170,28 +170,28 @@ const authValidation = {
     const { name, email, password, phone } = req.body;
     const errors = [];
     if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+      errors.push({ field: 'name', message: 'El nombre debe tener al menos 2 caracteres' });
     }
 
     if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
+      errors.push({ field: 'email', message: 'El correo es obligatorio' });
     } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
     }
 
     if (!password) {
-      errors.push({ field: 'password', message: 'Password is required' });
+      errors.push({ field: 'password', message: 'La contraseña es obligatoria' });
     } else if (password.length < 8) {
-      errors.push({ 
-        field: 'password', 
-        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.' 
+      errors.push({
+        field: 'password',
+        message: 'La contraseña debe tener al menos 8 caracteres e incluir mayúsculas, minúsculas y números.'
       });
     }
 
-    errors.push({ field: 'role', message: 'Public registration is disabled. An administrator must create employee accounts.' });
+    errors.push({ field: 'role', message: 'El registro público está deshabilitado. Un administrador debe crear las cuentas de empleados.' });
 
     if (phone && !validatePhone(phone)) {
-      errors.push({ field: 'phone', message: 'Please enter a valid phone number' });
+      errors.push({ field: 'phone', message: 'Ingresa un teléfono válido' });
     }
 
     if (errors.length > 0) {
@@ -203,39 +203,31 @@ const authValidation = {
 
   /** @type {import('express').RequestHandler} */
   adminRegister: (req, res, next) => {
-    const { name, email, password, role, phone, associateId } = req.body;
+    const { name, email, password, role } = req.body;
     const errors = [];
     const normalizedRole = normalizeApplicationRole(role);
 
     if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
+      errors.push({ field: 'name', message: 'El nombre debe tener al menos 2 caracteres' });
     }
 
     if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
+      errors.push({ field: 'email', message: 'El correo es obligatorio' });
     } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
     }
 
     if (!password) {
-      errors.push({ field: 'password', message: 'Password is required' });
+      errors.push({ field: 'password', message: 'La contraseña es obligatoria' });
     } else if (password.length < 8) {
       errors.push({
         field: 'password',
-        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.',
+        message: 'La contraseña debe tener al menos 8 caracteres e incluir mayúsculas, minúsculas y números.',
       });
     }
 
     if (!normalizedRole || !isAdministrativeLoginRole(normalizedRole)) {
-      errors.push({ field: 'role', message: `Role must be one of: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
-    }
-
-    if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required for socio registration' });
-    }
-
-    if (normalizedRole === 'socio' && !validateIntegerId(associateId)) {
-      errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
+      errors.push({ field: 'role', message: `El rol debe ser uno de: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
     }
 
     if (errors.length > 0) {
@@ -254,13 +246,13 @@ const authValidation = {
     const normalizedUsername = typeof username === 'string' ? username.trim() : '';
 
     if (!normalizedEmail && !normalizedUsername) {
-      errors.push({ field: 'email', message: 'Email or username is required' });
+      errors.push({ field: 'email', message: 'El correo o usuario es obligatorio' });
     } else if (normalizedEmail && !validateEmail(normalizedEmail)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
+      errors.push({ field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' });
     }
 
     if (!password) {
-      errors.push({ field: 'password', message: 'Password is required' });
+      errors.push({ field: 'password', message: 'La contraseña es obligatoria' });
     }
 
     if (errors.length > 0) {
@@ -278,35 +270,35 @@ const loanValidation = {
     const errors = [];
 
     if (!validateIntegerId(customerId)) {
-      errors.push({ field: 'customerId', message: 'Valid customer ID is required' });
+      errors.push({ field: 'customerId', message: 'El ID del cliente debe ser válido' });
     }
 
     if (associateId !== undefined && associateId !== null && associateId !== '') {
-      errors.push({ field: 'associateId', message: 'Socios are managed as investors and cannot be assigned to new credits' });
+      errors.push({ field: 'associateId', message: 'Los socios se gestionan como inversionistas y no se asignan a créditos nuevos' });
     }
 
     if (!validateAmount(amount)) {
-      errors.push({ field: 'amount', message: 'Amount must be a positive number' });
+      errors.push({ field: 'amount', message: 'El monto debe ser un número positivo' });
     }
 
     if (!usesPolicySource(rateSource)) {
-      errors.push({ field: 'rateSource', message: 'Credit creation must use a configured rate policy' });
+      errors.push({ field: 'rateSource', message: 'La creación de créditos debe usar una política de tasa configurada' });
     }
 
     if (!usesPolicySource(lateFeeSource)) {
-      errors.push({ field: 'lateFeeSource', message: 'Credit creation must use a configured late fee policy' });
+      errors.push({ field: 'lateFeeSource', message: 'La creación de créditos debe usar una política de mora configurada' });
     }
 
     if (!validateTermMonths(termMonths)) {
-      errors.push({ field: 'termMonths', message: 'Term must be between 1 and 360 months' });
+      errors.push({ field: 'termMonths', message: 'El plazo debe estar entre 1 y 360 meses' });
     }
 
     if (!validateOptionalDateInput(startDate)) {
-      errors.push({ field: 'startDate', message: 'Loan start date must be a valid date' });
+      errors.push({ field: 'startDate', message: 'La fecha de inicio del crédito debe ser válida' });
     }
 
-    if (annualLateFeeRate !== undefined && annualLateFeeRate !== null && annualLateFeeRate !== '' && !validateInterestRate(Number(annualLateFeeRate))) {
-      errors.push({ field: 'annualLateFeeRate', message: 'Annual late fee rate must be between 0 and 100' });
+    if (annualLateFeeRate !== undefined && annualLateFeeRate !== null && annualLateFeeRate !== '' && !validateInterestRate(annualLateFeeRate)) {
+      errors.push({ field: 'annualLateFeeRate', message: 'La tasa anual de mora debe estar entre 0 y 100' });
     }
 
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);
@@ -324,19 +316,19 @@ const loanValidation = {
     const errors = [];
 
     if (!validateAmount(amount)) {
-      errors.push({ field: 'amount', message: 'Amount must be a positive number' });
+      errors.push({ field: 'amount', message: 'El monto debe ser un número positivo' });
     }
 
     if (!usesPolicySource(rateSource) && !validateInterestRate(interestRate)) {
-      errors.push({ field: 'interestRate', message: 'Interest rate must be between 0 and 100' });
+      errors.push({ field: 'interestRate', message: 'La tasa de interés debe estar entre 0 y 100' });
     }
 
     if (!validateTermMonths(termMonths)) {
-      errors.push({ field: 'termMonths', message: 'Term must be between 1 and 360 months' });
+      errors.push({ field: 'termMonths', message: 'El plazo debe estar entre 1 y 360 meses' });
     }
 
     if (!validateOptionalDateInput(startDate)) {
-      errors.push({ field: 'startDate', message: 'Loan start date must be a valid date' });
+      errors.push({ field: 'startDate', message: 'La fecha de inicio del crédito debe ser válida' });
     }
 
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);
@@ -354,8 +346,8 @@ const loanValidation = {
     const validStatuses = ['pending', 'approved', 'rejected', 'active', 'closed', 'defaulted'];
     
     if (!validStatuses.includes(status)) {
-      const error = new ValidationError('Invalid loan status');
-      error.errors = [{ field: 'status', message: `Status must be one of: ${validStatuses.join(', ')}` }];
+      const error = new ValidationError('Estado del crédito inválido');
+      error.errors = [{ field: 'status', message: `El estado debe ser uno de: ${validStatuses.join(', ')}` }];
       return next(error);
     }
 
@@ -368,11 +360,11 @@ const loanValidation = {
     const { asOfDate } = req.query;
 
     if (!validateIntegerId(req.params.id)) {
-      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+      errors.push({ field: 'id', message: 'El ID del crédito debe ser válido' });
     }
 
     if (!asOfDate || !isValidDateOnly(String(asOfDate).trim())) {
-      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+      errors.push({ field: 'asOfDate', message: 'La fecha efectiva debe tener formato AAAA-MM-DD' });
     }
 
     if (errors.length > 0) {
@@ -388,59 +380,15 @@ const loanValidation = {
     const { asOfDate, quotedTotal } = req.body;
 
     if (!validateIntegerId(req.params.id)) {
-      errors.push({ field: 'id', message: 'Valid loan ID is required' });
+      errors.push({ field: 'id', message: 'El ID del crédito debe ser válido' });
     }
 
     if (!asOfDate || !isValidDateOnly(String(asOfDate).trim())) {
-      errors.push({ field: 'asOfDate', message: 'asOfDate must be a valid YYYY-MM-DD date' });
+      errors.push({ field: 'asOfDate', message: 'La fecha efectiva debe tener formato AAAA-MM-DD' });
     }
 
-    if (!validateAmount(Number(quotedTotal))) {
-      errors.push({ field: 'quotedTotal', message: 'quotedTotal must be a positive number' });
-    }
-
-    if (errors.length > 0) {
-      return next(buildValidationError(errors));
-    }
-
-    next();
-  },
-
-  /** @type {import('express').RequestHandler} */
-  adminRegister: (req, res, next) => {
-    const { name, email, password, role, phone, associateId } = req.body;
-    const errors = [];
-    const normalizedRole = normalizeApplicationRole(role);
-
-    if (!name || name.trim().length < 2) {
-      errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-    }
-
-    if (!email) {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!validateEmail(email)) {
-      errors.push({ field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' });
-    }
-
-    if (!password) {
-      errors.push({ field: 'password', message: 'Password is required' });
-    } else if (password.length < 8) {
-      errors.push({
-        field: 'password',
-        message: 'Password must be at least 8 characters long and include uppercase, lowercase, and numeric characters.',
-      });
-    }
-
-    if (!normalizedRole || !isAdministrativeLoginRole(normalizedRole)) {
-      errors.push({ field: 'role', message: `Role must be one of: ${ADMINISTRATIVE_LOGIN_ROLES.join(', ')}` });
-    }
-
-    if (normalizedRole === 'socio' && (!phone || !validatePhone(phone))) {
-      errors.push({ field: 'phone', message: 'Valid phone number is required for socio registration' });
-    }
-
-    if (normalizedRole === 'socio' && !validateIntegerId(associateId)) {
-      errors.push({ field: 'associateId', message: 'Valid associateId is required for socio registration' });
+    if (parsePositiveCurrencyAmount(quotedTotal) === null) {
+      errors.push({ field: 'quotedTotal', message: 'El total cotizado debe ser un número positivo' });
     }
 
     if (errors.length > 0) {
@@ -458,11 +406,11 @@ const paymentValidation = {
     const errors = [];
 
     if (!validateAmount(amount)) {
-      errors.push({ field: 'amount', message: 'Amount must be a positive number' });
+      errors.push({ field: 'amount', message: 'El monto debe ser un número positivo' });
     }
 
-    if (!loanId || !Number.isInteger(Number(loanId))) {
-      errors.push({ field: 'loanId', message: 'Valid loan ID is required' });
+    if (!validateIntegerId(loanId)) {
+      errors.push({ field: 'loanId', message: 'El ID del crédito debe ser válido' });
     }
 
     rejectUnsupportedLateFeeMode(lateFeeMode, errors);
@@ -516,28 +464,28 @@ const customerValidation = {
 
     if (birthDate !== undefined && birthDate !== null && birthDate !== '') {
       if (!isValidDateOnly(String(birthDate).trim())) {
-        errors.push({ field: 'birthDate', message: 'Birth date must be a valid YYYY-MM-DD date' });
+        errors.push({ field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' });
       }
     }
 
     if (documentNumber !== undefined && documentNumber !== null && String(documentNumber).trim() === '') {
-      errors.push({ field: 'documentNumber', message: 'Document number cannot be empty' });
+      errors.push({ field: 'documentNumber', message: 'El número de documento no puede estar vacío' });
     }
 
     if (occupation !== undefined && occupation !== null && String(occupation).trim() === '') {
-      errors.push({ field: 'occupation', message: 'Occupation cannot be empty' });
+      errors.push({ field: 'occupation', message: 'La ocupación no puede estar vacía' });
     }
 
     if (department !== undefined && department !== null && String(department).trim() === '') {
-      errors.push({ field: 'department', message: 'Department cannot be empty' });
+      errors.push({ field: 'department', message: 'El departamento no puede estar vacío' });
     }
 
     if (city !== undefined && city !== null && String(city).trim() === '') {
-      errors.push({ field: 'city', message: 'City cannot be empty' });
+      errors.push({ field: 'city', message: 'La ciudad no puede estar vacía' });
     }
 
     if (address !== undefined && address !== null && String(address).trim() === '') {
-      errors.push({ field: 'address', message: 'Address cannot be empty' });
+      errors.push({ field: 'address', message: 'La dirección no puede estar vacía' });
     }
 
     if (errors.length > 0) {
@@ -621,7 +569,7 @@ const associateValidation = {
       : idempotencyKey;
 
     if (!validateAmount(Number(amount)) || !validateCurrencyPrecision(amount)) {
-      errors.push({ field: 'amount', message: 'Amount must be a positive number with up to 2 decimal places' });
+      errors.push({ field: 'amount', message: 'El monto debe ser un número positivo con máximo 2 decimales' });
     }
 
     if (!validateOptionalDateInput(distributionDate)) {
@@ -629,11 +577,11 @@ const associateValidation = {
     }
 
     if (basis !== undefined && (typeof basis !== 'object' || basis === null || Array.isArray(basis))) {
-      errors.push({ field: 'basis', message: 'basis must be an object when provided' });
+      errors.push({ field: 'basis', message: 'La base de distribución debe ser un objeto cuando se indique' });
     }
 
     if (!validateIdempotencyKey(effectiveIdempotencyKey)) {
-      errors.push({ field: 'idempotencyKey', message: 'Idempotency key must be between 8 and 160 characters when provided' });
+      errors.push({ field: 'idempotencyKey', message: 'La clave de idempotencia debe tener entre 8 y 160 caracteres cuando se indique' });
     }
 
     if (errors.length > 0) {
@@ -666,11 +614,11 @@ const notificationValidation = {
     const errors = [];
 
     if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
-      errors.push({ field: 'providerKey', message: 'Provider key must be one of: webpush, fcm, apns' });
+      errors.push({ field: 'providerKey', message: 'El proveedor debe ser uno de: webpush, fcm, apns' });
     }
 
     if (!PUSH_CHANNELS.has(channel)) {
-      errors.push({ field: 'channel', message: 'Channel must be one of: web, mobile' });
+      errors.push({ field: 'channel', message: 'El canal debe ser uno de: web, mobile' });
     }
 
     if (PUSH_PROVIDER_KEYS.has(providerKey) && PUSH_CHANNELS.has(channel)) {
@@ -678,27 +626,27 @@ const notificationValidation = {
       if (expectedChannel !== channel) {
         errors.push({
           field: 'channel',
-          message: `${providerKey} subscriptions must use the ${expectedChannel} channel`,
+          message: `Las suscripciones ${providerKey} deben usar el canal ${expectedChannel}`,
         });
       }
     }
 
     if (!endpoint && !deviceToken) {
-      errors.push({ field: 'endpoint', message: 'Endpoint or deviceToken is required' });
+      errors.push({ field: 'endpoint', message: 'Debes indicar endpoint o token del dispositivo' });
     }
 
     if (channel === 'web') {
       if (!endpoint) {
-        errors.push({ field: 'endpoint', message: 'Web subscriptions require an endpoint' });
+        errors.push({ field: 'endpoint', message: 'Las suscripciones web requieren un endpoint' });
       }
 
       if (!subscription || typeof subscription !== 'object' || Array.isArray(subscription)) {
-        errors.push({ field: 'subscription', message: 'Web subscriptions require a subscription object' });
+        errors.push({ field: 'subscription', message: 'Las suscripciones web requieren un objeto de suscripción' });
       }
     }
 
     if (channel === 'mobile' && !deviceToken && !endpoint) {
-      errors.push({ field: 'deviceToken', message: 'Mobile subscriptions require a deviceToken or endpoint' });
+      errors.push({ field: 'deviceToken', message: 'Las suscripciones móviles requieren token del dispositivo o endpoint' });
     }
 
     if (errors.length > 0) {
@@ -713,11 +661,11 @@ const notificationValidation = {
     const errors = [];
 
     if (!PUSH_PROVIDER_KEYS.has(providerKey)) {
-      errors.push({ field: 'providerKey', message: 'Provider key must be one of: webpush, fcm, apns' });
+      errors.push({ field: 'providerKey', message: 'El proveedor debe ser uno de: webpush, fcm, apns' });
     }
 
     if (!endpoint && !deviceToken) {
-      errors.push({ field: 'endpoint', message: 'Endpoint or deviceToken is required' });
+      errors.push({ field: 'endpoint', message: 'Debes indicar endpoint o token del dispositivo' });
     }
 
     if (providerKey === 'webpush' && !endpoint) {

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const { createUsersRouter } = require('@/modules/users/presentation/router');
+const { globalErrorHandler } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -84,6 +85,10 @@ test('createUsersRouter serves list, read, update, deactivate, reactivate, and u
   assert.equal(deactivateResponse.statusCode, 200);
   assert.equal(reactivateResponse.statusCode, 200);
   assert.equal(unlockResponse.statusCode, 200);
+  assert.equal(updateResponse.body.message, 'Usuario actualizado correctamente');
+  assert.equal(deactivateResponse.body.message, 'Usuario desactivado correctamente');
+  assert.equal(reactivateResponse.body.message, 'Usuario reactivado correctamente');
+  assert.equal(unlockResponse.body.message, 'Cuenta de usuario desbloqueada correctamente');
   assert.deepEqual(calls, [
     ['listUsers', { pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['getUserById', '7'],
@@ -132,5 +137,50 @@ test('createUsersRouter blocks self-deactivation at the HTTP contract', async ()
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.body.error.message, 'You cannot deactivate your own account');
+  assert.equal(response.body.error.message, 'No puede desactivar su propia cuenta');
+});
+
+test('createUsersRouter rejects malformed user identifiers before executing mutations', async () => {
+  const calls = [];
+  const router = createUsersRouter({
+    authMiddleware: allowAuth({ id: 9, role: 'admin' }),
+    useCases: {
+      async listUsers() {
+        throw new Error('listUsers should not be called');
+      },
+      async getUserById() {
+        throw new Error('getUserById should not be called');
+      },
+      async updateUser() {
+        throw new Error('updateUser should not be called');
+      },
+      async deactivateUser(userId) {
+        calls.push(['deactivateUser', userId]);
+        throw new Error('deactivateUser should not be called');
+      },
+      async reactivateUser() {
+        throw new Error('reactivateUser should not be called');
+      },
+      async unlockUser() {
+        throw new Error('unlockUser should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/7.0/deactivate',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /userId/i);
+  assert.deepEqual(calls, []);
 });

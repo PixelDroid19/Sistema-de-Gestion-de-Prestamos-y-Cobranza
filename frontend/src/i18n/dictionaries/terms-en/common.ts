@@ -53,6 +53,7 @@ export const commonEn = {
 'common.status.active': 'Active',
 'common.status.inactive': 'Inactive',
 'common.status.blacklisted': 'Blocked',
+'common.status.unknown': 'Unclassified status',
 'common.interestType.monthly': 'Monthly',
 'common.interestType.annual': 'Annual',
 'common.month.1': 'January',

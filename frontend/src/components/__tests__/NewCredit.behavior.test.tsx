@@ -214,11 +214,71 @@ describe('NewCredit behavior', () => {
     });
   });
 
+  it('uses an operational fallback for unknown preview installment statuses', () => {
+    mockUseActiveCreditSimulation.mockReturnValue({
+      input: routeState.calculationInput,
+      result: {
+        inputs: {
+          ...routeState.calculationInput,
+          interestRate: 40,
+          lateFeeMode: 'SIMPLE',
+          annualLateFeeRate: 24,
+        },
+        method: 'COMPOUND',
+        calculationProfileVersionId: 9,
+        lateFeeMode: 'SIMPLE',
+        policySnapshot: {
+          rateSource: 'policy',
+          ratePolicyLabel: 'Tasa mayor a 1M',
+          appliedInterestRate: 40,
+          lateFeeSource: 'policy',
+          lateFeePolicyLabel: 'Mora simple',
+          appliedLateFeeMode: 'SIMPLE',
+          appliedAnnualLateFeeRate: 24,
+        },
+        summary: {
+          installmentAmount: 195000,
+          totalPrincipal: 2300000,
+          totalInterest: 820000,
+          totalPayable: 3120000,
+          outstandingBalance: 3120000,
+          outstandingPrincipal: 2300000,
+          outstandingInterest: 820000,
+          outstandingInstallments: 16,
+          nextInstallment: null,
+        },
+        schedule: [
+          {
+            installmentNumber: 1,
+            dueDate: '2026-06-01',
+            scheduledPayment: 195000,
+            interestComponent: 76667,
+            principalComponent: 118333,
+            remainingBalance: 2181667,
+            status: 'manual_hold',
+          },
+        ],
+      },
+      error: null,
+      fieldErrors: {},
+      isSimulating: false,
+      isResultStale: false,
+      setInput: mockSetInput,
+      simulate: mockSimulate,
+    });
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(screen.getByText('Estado no clasificado')).toBeInTheDocument();
+    expect(screen.queryByText('manual_hold')).not.toBeInTheDocument();
+  });
+
   it('guides the operator through customer, validation and registration readiness', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     expect(screen.getByLabelText('Estado de preparación del crédito')).toBeInTheDocument();
-    expect(screen.getAllByText('Regla v9').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Regla activa').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Regla v9')).not.toBeInTheDocument();
     expect(screen.queryByText('Selecciona el cliente que recibirá el crédito.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Acciones del nuevo crédito')).toBeInTheDocument();
     expect(screen.getByText('Mora simple · 24% EA')).toBeInTheDocument();

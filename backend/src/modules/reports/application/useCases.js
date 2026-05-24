@@ -24,6 +24,7 @@ const {
   normalizeParticipationPercentage,
   normalizeAssociateRecord,
 } = require('./reportInternals');
+const { formatOperationalStatus, formatPaymentType } = require('./reportLabels');
 
 const createGetRecoveredLoans = ({ reportRepository, paymentRepository, loanViewService }) => async ({ actor, pagination }) => {
   ensureAdmin(actor);
@@ -323,6 +324,77 @@ const createGetCustomerCreditHistory = ({ paymentRepository, loanViewService, lo
   };
 };
 
+const REPORT_ENTITY_LABELS = {
+  loan: 'Crédito',
+  payment: 'Pago',
+  document: 'Documento',
+  alert: 'Alerta',
+  promise: 'Promesa',
+  notification: 'Notificación',
+};
+
+const REPORT_STATUS_LABELS = {
+  approved: 'Aprobado',
+  active: 'Activo',
+  closed: 'Cerrado',
+  completed: 'Completado',
+  defaulted: 'En mora',
+  pending: 'Pendiente',
+  broken: 'Incumplida',
+  uploaded: 'Cargado',
+  payoff: 'Pago total',
+  installment: 'Cuota',
+  partial: 'Parcial',
+  capital: 'Abono a capital',
+};
+
+const PROFILE_MISSING_SECTION_LABELS = {
+  payment_history: 'Historial de pagos',
+  supporting_documents: 'Documentos de soporte',
+  servicing_notes: 'Notas de seguimiento',
+};
+
+/**
+ * Converts internal report event identifiers into operator-facing Spanish labels.
+ *
+ * Exported documents are operational artifacts, so they must avoid raw enum keys
+ * even though the API payload keeps those keys for frontend logic.
+ */
+const formatReportEventLabel = (entry = {}) => {
+  const [entityKey, ...statusParts] = String(entry.eventType || '').split('_');
+  const statusKey = statusParts.join('_');
+  const entityLabel = REPORT_ENTITY_LABELS[entry.entityType] || REPORT_ENTITY_LABELS[entityKey] || 'Movimiento';
+  const statusLabel = REPORT_STATUS_LABELS[statusKey] || (statusKey ? formatOperationalStatus(statusKey) : 'Registrado');
+  return `${entityLabel} ${statusLabel}`.trim();
+};
+
+const formatReportEntityLabel = (entry = {}) => REPORT_ENTITY_LABELS[entry.entityType] || 'Movimiento';
+
+const formatMissingSections = (sections = []) => {
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return 'Ninguna';
+  }
+  return sections.map((section) => PROFILE_MISSING_SECTION_LABELS[section] || section).join('; ');
+};
+
+const formatYesNo = (value) => (value ? 'Sí' : 'No');
+
+const ASSOCIATE_DISTRIBUTION_TYPE_LABELS = {
+  proportional: 'Proporcional',
+  fixed: 'Fija',
+  manual: 'Manual',
+};
+
+/**
+ * Formats associate distribution type values for operator-facing reports.
+ *
+ * @param {string} value Normalized associate distribution type.
+ * @returns {string} Spanish label for CSV/PDF/XLSX report artifacts.
+ */
+const formatAssociateDistributionType = (value) => (
+  ASSOCIATE_DISTRIBUTION_TYPE_LABELS[String(value || '').trim().toLowerCase()] || (value ? 'Tipo de distribución no clasificado' : '')
+);
+
 const createExportCustomerHistory = ({ reportRepository }) => async ({ actor, customerId, format = 'pdf' }) => {
   const history = await createGetCustomerHistory({ reportRepository })({ actor, customerId });
   const data = history.data;
@@ -330,8 +402,12 @@ const createExportCustomerHistory = ({ reportRepository }) => async ({ actor, cu
 
   if (String(format).toLowerCase() === 'csv') {
     const csv = buildCsv({
-      headers: ['eventType', 'entityType', 'occurredAt'],
-      rows: timelinePreview.map((entry) => [entry.eventType, entry.entityType, formatIsoDate(entry.occurredAt)]),
+      headers: ['Tipo de evento', 'Entidad', 'Fecha'],
+      rows: timelinePreview.map((entry) => [
+        formatReportEventLabel(entry),
+        formatReportEntityLabel(entry),
+        formatIsoDate(entry.occurredAt),
+      ]),
     });
 
     return {
@@ -345,17 +421,17 @@ const createExportCustomerHistory = ({ reportRepository }) => async ({ actor, cu
     fileName: `customer-${data.customer.id}-history.pdf`,
     contentType: 'application/pdf',
     buffer: buildPdfBuffer({
-      title: `Customer History #${data.customer.id}`,
+      title: `Historial del cliente #${data.customer.id}`,
       lines: [
-        `Customer: ${data.customer.name || `#${data.customer.id}`}`,
-        `Loans: ${data.segments.loans.length}`,
-        `Payments: ${data.segments.payments.length}`,
-        `Documents: ${data.segments.documents.length}`,
-        `Alerts: ${data.segments.alerts.length}`,
-        `Promises: ${data.segments.promises.length}`,
-        `Notifications: ${data.segments.notifications.length}`,
-        'Recent timeline:',
-        ...timelinePreview.map((entry) => `${formatIsoDate(entry.occurredAt)} | ${entry.entityType} | ${entry.eventType}`),
+        `Cliente: ${data.customer.name || `#${data.customer.id}`}`,
+        `Créditos: ${data.segments.loans.length}`,
+        `Pagos: ${data.segments.payments.length}`,
+        `Documentos: ${data.segments.documents.length}`,
+        `Alertas: ${data.segments.alerts.length}`,
+        `Promesas: ${data.segments.promises.length}`,
+        `Notificaciones: ${data.segments.notifications.length}`,
+        'Actividad reciente:',
+        ...timelinePreview.map((entry) => `${formatIsoDate(entry.occurredAt)} | ${formatReportEntityLabel(entry)} | ${formatReportEventLabel(entry)}`),
       ],
     }),
   };
@@ -368,12 +444,12 @@ const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ act
   const completeness = data.profile?.completeness || {};
   const profitability = data.profile?.profitability || null;
   const missingSections = Array.isArray(completeness.missingSections) && completeness.missingSections.length > 0
-    ? completeness.missingSections.join('; ')
-    : 'none';
+    ? formatMissingSections(completeness.missingSections)
+    : 'Ninguna';
 
   if (String(format).toLowerCase() === 'csv') {
     const csv = buildCsv({
-      headers: ['customerId', 'customerName', 'totalLoans', 'activeLoans', 'completedPayments', 'delinquentAlerts', 'brokenPromises', 'totalPaid', 'isComplete', 'missingSections', 'profitability'],
+      headers: ['ID Cliente', 'Cliente', 'Créditos Totales', 'Créditos Activos', 'Pagos Completados', 'Alertas de Mora', 'Promesas Incumplidas', 'Total Pagado', 'Perfil Completo', 'Secciones Pendientes', 'Rentabilidad'],
       rows: [[
         data.customer.id,
         data.customer.name || '',
@@ -383,7 +459,7 @@ const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ act
         summary.delinquentAlerts || 0,
         summary.brokenPromises || 0,
         summary.totalPaid || '0.00',
-        completeness.isComplete ? 'yes' : 'no',
+        formatYesNo(completeness.isComplete),
         missingSections,
         profitability?.totalProfit || '',
       ]],
@@ -400,19 +476,19 @@ const createExportCustomerCreditProfile = ({ reportRepository }) => async ({ act
     fileName: `customer-${data.customer.id}-credit-profile.pdf`,
     contentType: 'application/pdf',
     buffer: buildPdfBuffer({
-      title: `Customer Credit Profile #${data.customer.id}`,
+      title: `Perfil crediticio del cliente #${data.customer.id}`,
       lines: [
-        `Customer: ${data.customer.name || `#${data.customer.id}`}`,
-        `Total loans: ${summary.totalLoans || 0}`,
-        `Active loans: ${summary.activeLoans || 0}`,
-        `Closed loans: ${summary.closedLoans || 0}`,
-        `Completed payments: ${summary.completedPayments || 0}`,
-        `Delinquent alerts: ${summary.delinquentAlerts || 0}`,
-        `Broken promises: ${summary.brokenPromises || 0}`,
-        `Total paid: ${summary.totalPaid || '0.00'}`,
-        `Complete profile: ${completeness.isComplete ? 'yes' : 'no'}`,
-        `Missing sections: ${missingSections}`,
-        `Profitability total: ${profitability?.totalProfit || 'N/A'}`,
+        `Cliente: ${data.customer.name || `#${data.customer.id}`}`,
+        `Créditos totales: ${summary.totalLoans || 0}`,
+        `Créditos activos: ${summary.activeLoans || 0}`,
+        `Créditos cerrados: ${summary.closedLoans || 0}`,
+        `Pagos completados: ${summary.completedPayments || 0}`,
+        `Alertas de mora: ${summary.delinquentAlerts || 0}`,
+        `Promesas incumplidas: ${summary.brokenPromises || 0}`,
+        `Total pagado: ${summary.totalPaid || '0.00'}`,
+        `Perfil completo: ${formatYesNo(completeness.isComplete)}`,
+        `Secciones pendientes: ${missingSections}`,
+        `Rentabilidad total: ${profitability?.totalProfit || 'N/A'}`,
       ],
     }),
   };
@@ -423,8 +499,14 @@ const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService,
 
   if (String(format).toLowerCase() === 'csv') {
     const csv = buildCsv({
-      headers: ['paymentId', 'paymentDate', 'paymentType', 'status', 'amount'],
-      rows: (history.payments || []).map((payment) => [payment.id, formatIsoDate(payment.paymentDate), payment.paymentType || '', payment.status || '', payment.amount || 0]),
+      headers: ['ID Pago', 'Fecha de pago', 'Tipo de pago', 'Estado', 'Monto'],
+      rows: (history.payments || []).map((payment) => [
+        payment.id,
+        formatIsoDate(payment.paymentDate),
+        formatPaymentType(payment.paymentType),
+        formatOperationalStatus(payment.status),
+        payment.amount || 0,
+      ]),
     });
 
     return {
@@ -438,16 +520,16 @@ const createExportCustomerCreditHistory = ({ paymentRepository, loanViewService,
     fileName: `loan-${history.loan.id}-credit-history.pdf`,
     contentType: 'application/pdf',
     buffer: buildPdfBuffer({
-      title: `Loan Credit History #${history.loan.id}`,
+      title: `Historial del crédito #${history.loan.id}`,
       lines: [
-        `Customer ID: ${history.loan.customerId || 'N/A'}`,
-        `Loan status: ${history.loan.status || 'N/A'}`,
-        `Outstanding balance: ${formatMoney(history.snapshot?.outstandingBalance || 0)}`,
-        `Total paid: ${formatMoney(history.snapshot?.totalPaid || 0)}`,
-        `Payments recorded: ${history.payments?.length || 0}`,
-        `Payoff entries: ${history.payoffHistory?.length || 0}`,
-        `Closure reason: ${history.closure?.closureReason || 'N/A'}`,
-        `Closed at: ${formatIsoDate(history.closure?.closedAt)}`,
+        `ID cliente: ${history.loan.customerId || 'N/A'}`,
+        `Estado del crédito: ${formatOperationalStatus(history.loan.status)}`,
+        `Saldo pendiente: ${formatMoney(history.snapshot?.outstandingBalance || 0)}`,
+        `Total pagado: ${formatMoney(history.snapshot?.totalPaid || 0)}`,
+        `Pagos registrados: ${history.payments?.length || 0}`,
+        `Pagos totales registrados: ${history.payoffHistory?.length || 0}`,
+        `Motivo de cierre: ${formatOperationalStatus(history.closure?.closureReason)}`,
+        `Fecha de cierre: ${formatIsoDate(history.closure?.closedAt)}`,
       ],
     }),
   };
@@ -533,14 +615,14 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
       fileName: 'recovery-report.pdf',
       contentType: 'application/pdf',
       buffer: buildPdfBuffer({
-        title: 'CrediCobranza Recovery Report',
+        title: 'Reporte de recuperación CrediCobranza',
         lines: [
-          `Total loans: ${report.summary.totalLoans}`,
-          `Recovered loans: ${report.summary.recoveredLoans}`,
-          `Outstanding loans: ${report.summary.outstandingLoans}`,
-          `Total recovered amount: ${report.summary.totalRecoveredAmount}`,
-          `Total outstanding amount: ${report.summary.totalOutstandingAmount}`,
-          `Recovery rate: ${report.summary.recoveryRate}`,
+          `Créditos totales: ${report.summary.totalLoans}`,
+          `Créditos recuperados: ${report.summary.recoveredLoans}`,
+          `Créditos pendientes: ${report.summary.outstandingLoans}`,
+          `Monto total recuperado: ${report.summary.totalRecoveredAmount}`,
+          `Saldo total pendiente: ${report.summary.totalOutstandingAmount}`,
+          `Tasa de recuperación: ${report.summary.recoveryRate}`,
         ],
       }),
     };
@@ -574,27 +656,15 @@ const createExportRecoveryReport = ({ reportRepository, paymentRepository, loanV
 };
 
 const createGetAssociateProfitabilityReport = ({ associateRepository }) => async ({ actor, associateId = null }) => {
+  ensureAdmin(actor, 'Only authorized backoffice users can access profitability reports');
+
   const resolveAssociate = async () => {
-    if (actor.role === 'admin' || actor.role === 'employee') {
-      return associateRepository.findById(associateId);
-    }
-
-    if (actor.role !== 'socio') {
-      throw new AuthorizationError('Only authorized backoffice users can access profitability reports');
-    }
-
-    return actor.associateId
-      ? associateRepository.findById(actor.associateId)
-      : associateRepository.findByLinkedUser(actor.id);
+    return associateRepository.findById(associateId);
   };
 
   const associate = await resolveAssociate();
   if (!associate) {
     throw new AuthorizationError('Associate access is not configured for this user');
-  }
-
-  if (associateId && actor.role === 'socio' && Number(associate.id) !== Number(associateId)) {
-    throw new AuthorizationError('Socio users can only access their own profitability data');
   }
 
   const [contributions, distributions] = await Promise.all([
@@ -640,7 +710,7 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
       creditId: entry.loanId,
       amount: entry.amount,
       distributionDate: entry.distributionDate,
-      distributionType: normalizedEntry.distributionType,
+      distributionType: formatAssociateDistributionType(normalizedEntry.distributionType),
       participationPercentage: normalizedEntry.participationPercentage || normalizeParticipationPercentage(dataset.associate?.participationPercentage),
       declaredProportionalTotal: normalizedEntry.declaredProportionalTotal,
       allocatedAmount: normalizedEntry.allocatedAmount,
@@ -649,11 +719,11 @@ const createExportAssociateProfitabilityReport = ({ reportRepository, associateR
   });
   if (format === 'csv') {
     const csv = buildCsv({
-      headers: ['section', 'id', 'reference', 'amount', 'date', 'status', 'participationPercentage', 'distributionType', 'declaredProportionalTotal', 'allocatedAmount', 'notes'],
+      headers: ['Sección', 'ID', 'Referencia', 'Monto', 'Fecha', 'Estado', 'Participación %', 'Tipo Distribución', 'Total Proporcional', 'Monto Asignado', 'Notas'],
       rows: [
-        ...contributionRows.map((row) => ['contribution', row.contributionId, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
+        ...contributionRows.map((row) => ['Aporte', row.contributionId, '', row.amount, row.contributionDate, '', normalizeParticipationPercentage(dataset.associate?.participationPercentage), '', '', '', row.notes]),
         ...distributionRows.map((row) => [
-          'distribution',
+          'Distribución',
           row.distributionId,
           row.creditId || '',
           row.amount,

@@ -77,7 +77,11 @@ test('createApp exposes OpenAPI documentation for registered production surfaces
   assert.equal(response.body.openapi, '3.0.3');
   assert.equal(response.body.paths['/loans/calculations'].post.tags[0], 'Credits');
   assert.equal(response.body.paths['/config/rate-policies'].get.tags[0], 'Config');
+  assert.equal(response.body.paths['/payments'].post.summary, 'Registrar pago de cuota por operador interno');
   assert.equal(response.body['x-module-endpoints'].credits, '/api/loans');
+  assert.equal(JSON.stringify(response.body).includes('autoservicio'), false);
+  assert.equal(JSON.stringify(response.body).includes('elegida por el cliente'), false);
+  assert.equal(JSON.stringify(response.body).includes('/auth/register'), false);
 });
 
 test('createApp forwards all modularized business surfaces from injected module routers', async () => {

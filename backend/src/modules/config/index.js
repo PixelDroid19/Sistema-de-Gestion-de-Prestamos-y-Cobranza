@@ -22,6 +22,11 @@ const {
 const { configRepository } = require('./infrastructure/repositories');
 const { createConfigRouter } = require('./presentation/router');
 
+/**
+ * Compose the sensitive configuration module for admin-only operational settings.
+ * @param {{ sharedRuntime?: object, auditService?: object }} [options]
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createConfigModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const notificationService = sharedRuntime?.notificationService;

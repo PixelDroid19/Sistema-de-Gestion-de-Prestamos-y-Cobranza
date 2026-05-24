@@ -1,4 +1,5 @@
 const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { normalizeOptionalOperationalDate, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
@@ -178,8 +179,7 @@ const pickCustomerState = (customer = {}) => (
 );
 
 const getPaymentMethod = (payment = {}) => (
-  payment.paymentMethod
-  || 'N/A'
+  formatPaymentMethod(payment.paymentMethod)
 );
 
 const formattedRow = (row, formats = {}) => ({
@@ -308,7 +308,7 @@ const buildCreditSections = ({ loan, detailRow, payments, schedule }) => {
   const paymentRows = payments.map((payment) => ({
     paymentDate: toDateValue(payment.paymentDate || payment.paidAt || payment.createdAt),
     amount: roundMoney(payment.amount),
-    paymentType: payment.paymentType || 'installment',
+    paymentType: formatPaymentType(payment.paymentType || 'installment'),
     installmentNumber: payment.installmentNumber || payment.paymentMetadata?.installmentNumber || '',
     paymentMethod: getPaymentMethod(payment),
   }));
@@ -417,7 +417,7 @@ const createExportCreditsExcel = ({ reportRepository, paymentRepository, loanVie
         quota: roundMoney(snapshot.installmentAmount),
         totalQuotas: schedule.length,
         status: loan.status || 'N/A',
-        creditStatus: loan.status || 'N/A',
+        creditStatus: formatOperationalStatus(loan.status),
         recoveryStatus: loan.recoveryStatus || 'N/A',
         totalPaid: roundMoney(totalPaid),
         totalCapitalPaid: roundMoney(totalPrincipal),

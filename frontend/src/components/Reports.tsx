@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import {
   useReports,
@@ -19,6 +19,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveOperationalGuard } from '../services/operationalGuards';
+import { PERMISSION } from '../constants/permissionNames';
 import {
   ActionButton,
   DataTableSurface,
@@ -35,6 +36,7 @@ import CashflowTab from './reports/CashflowTab';
 import ProfitabilityTab from './reports/ProfitabilityTab';
 import PayoutsTab from './reports/PayoutsTab';
 import ScheduleTab from './reports/ScheduleTab';
+import { getLoanStatusLabel } from './credits/creditsHelpers';
 
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
 
@@ -55,7 +57,7 @@ const getLoanOptionLabel = (loan: any) => {
     customerName,
     Number.isFinite(id) ? `#${id}` : '',
     amount,
-    status ? status.toUpperCase() : '',
+    status ? getLoanStatusLabel(status) : '',
   ].filter(Boolean).join(' · ');
 };
 
@@ -63,6 +65,14 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const { executeGuardedAction } = useOperationalActions(queryClient);
   const { user } = useSessionStore();
+  const permissionSet = useMemo(
+    () => new Set((user?.permissions || []).map((permission) => permission.toUpperCase())),
+    [user?.permissions],
+  );
+  const canAccessPermission = (permission: string) => (
+    user?.role === 'admin' || permissionSet.has('*') || permissionSet.has(permission)
+  );
+  const canViewPaymentScheduleTab = canAccessPermission(PERMISSION.CREDITS_VIEW_ALL);
   const {
     dashboardData,
     monthlyPerformance,
@@ -235,6 +245,23 @@ export default function Reports() {
     setIsCashFlowExporting(null);
   };
 
+  const reportTabs = useMemo(() => [
+    { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
+    { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
+    { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
+    { id: 'profitability', label: tTerm('reports.tab.profitability') },
+    { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
+    ...(canViewPaymentScheduleTab
+      ? [{ id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') }]
+      : []),
+  ], [canViewPaymentScheduleTab]);
+
+  useEffect(() => {
+    if (activeTab === 'schedule' && !canViewPaymentScheduleTab) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, canViewPaymentScheduleTab]);
+
   // ─── Loading / Error states ───────────────────────────────────────────────
 
   if (isLoading) {
@@ -361,14 +388,7 @@ export default function Reports() {
         data-tour="reports-tabs"
         activeTab={activeTab}
         onChange={handleReportsTabChange}
-        tabs={[
-          { id: 'dashboard', label: tTerm('reports.tab.dashboard') },
-          { id: 'cashflow', label: tTerm('reports.tab.cashflow'), title: tTerm('reports.tab.cashflow.title') },
-          { id: 'outstanding', label: tTerm('reports.tab.outstanding'), title: tTerm('reports.tab.outstanding.title') },
-          { id: 'profitability', label: tTerm('reports.tab.profitability') },
-          { id: 'payouts', label: tTerm('reports.tab.payouts'), title: tTerm('reports.tab.payouts.title') },
-          { id: 'schedule', label: tTerm('reports.tab.schedule'), title: tTerm('reports.tab.schedule.title') },
-        ]}
+        tabs={reportTabs}
       />
 
       {activeTab === 'dashboard' && (

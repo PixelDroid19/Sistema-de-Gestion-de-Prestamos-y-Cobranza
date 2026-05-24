@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'r
 import { AlertCircle, CalendarClock, TrendingUp } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
+import { parseReportYearInput } from '../../lib/reportYearInput';
 import MeasuredChart from '../shared/MeasuredChart';
 import {
   DataTableSurface,
@@ -30,6 +31,13 @@ export default function ProfitabilityTab({
   advancedMetrics,
   advancedTrendSeries,
 }: ProfitabilityTabProps) {
+  const handleYearChange = (value: string) => {
+    const parsedYear = parseReportYearInput(value);
+    if (parsedYear !== null) {
+      onAnalyticsYearChange(parsedYear);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <DataTableSurface>
@@ -39,7 +47,7 @@ export default function ProfitabilityTab({
             <TextInput
               type="number"
               value={analyticsYear}
-              onChange={(event) => onAnalyticsYearChange(Number(event.target.value) || new Date().getFullYear())}
+              onChange={(event) => handleYearChange(event.target.value)}
             />
           </FormField>
         </div>

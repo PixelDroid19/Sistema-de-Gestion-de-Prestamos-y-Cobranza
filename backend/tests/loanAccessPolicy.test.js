@@ -4,11 +4,12 @@ const assert = require('node:assert/strict');
 const { AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
 const { createLoanAccessPolicy, isLoanVisibleToActor, isLoanMutableByActor, canActorViewAttachment } = require('@/modules/shared/loanAccessPolicy');
 
-test('isLoanVisibleToActor supports admin and customer visibility under the three-role model', () => {
+test('isLoanVisibleToActor allows only backoffice actors', () => {
   const loan = { id: 18, customerId: 7 };
 
   assert.equal(isLoanVisibleToActor({ actor: { id: 1, role: 'admin' }, loan }), true);
-  assert.equal(isLoanVisibleToActor({ actor: { id: 7, role: 'customer' }, loan }), true);
+  assert.equal(isLoanVisibleToActor({ actor: { id: 2, role: 'employee' }, loan }), true);
+  assert.equal(isLoanVisibleToActor({ actor: { id: 7, role: 'customer' }, loan }), false);
   assert.equal(isLoanVisibleToActor({ actor: { id: 99, role: 'customer' }, loan }), false);
 });
 
@@ -33,6 +34,7 @@ test('createLoanAccessPolicy finds only authorized loans', async () => {
     loanId: 18,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can access loans');
     return true;
   });
 });
@@ -80,27 +82,30 @@ test('createLoanAccessPolicy filters visible loans for list responses', async ()
   ]);
 });
 
-test('isLoanMutableByActor only allows admins', () => {
+test('isLoanMutableByActor only allows backoffice actors', () => {
   const loan = { id: 18, customerId: 7 };
 
   assert.equal(isLoanMutableByActor({ actor: { id: 1, role: 'admin' }, loan }), true);
+  assert.equal(isLoanMutableByActor({ actor: { id: 2, role: 'employee' }, loan }), true);
   assert.equal(isLoanMutableByActor({ actor: { id: 7, role: 'customer' }, loan }), false);
   assert.equal(isLoanMutableByActor({ actor: { id: 40, role: 'socio', associateId: 22 }, loan }), false);
 });
 
-test('isLoanVisibleToActor supports socio visibility through associate ownership', () => {
+test('isLoanVisibleToActor rejects socio records even when a loan references the associate', () => {
   const loan = { id: 18, customerId: 7, associateId: 22 };
 
-  assert.equal(isLoanVisibleToActor({ actor: { id: 40, role: 'socio', associateId: 22 }, loan }), true);
+  assert.equal(isLoanVisibleToActor({ actor: { id: 40, role: 'socio', associateId: 22 }, loan }), false);
   assert.equal(isLoanVisibleToActor({ actor: { id: 41, role: 'socio', associateId: 99 }, loan }), false);
 });
 
-test('canActorViewAttachment blocks customers from internal-only files and allows socio-linked loans', () => {
+test('canActorViewAttachment allows only backoffice actors', () => {
   const loan = { id: 18, customerId: 7, associateId: 22 };
 
-  assert.equal(canActorViewAttachment({ actor: { id: 7, role: 'customer' }, loan, attachment: { customerVisible: true } }), true);
+  assert.equal(canActorViewAttachment({ actor: { id: 1, role: 'admin' }, loan, attachment: { customerVisible: false } }), true);
+  assert.equal(canActorViewAttachment({ actor: { id: 2, role: 'employee' }, loan, attachment: { customerVisible: false } }), true);
+  assert.equal(canActorViewAttachment({ actor: { id: 7, role: 'customer' }, loan, attachment: { customerVisible: true } }), false);
   assert.equal(canActorViewAttachment({ actor: { id: 7, role: 'customer' }, loan, attachment: { customerVisible: false } }), false);
-  assert.equal(canActorViewAttachment({ actor: { id: 40, role: 'socio', associateId: 22 }, loan, attachment: { customerVisible: false } }), true);
+  assert.equal(canActorViewAttachment({ actor: { id: 40, role: 'socio', associateId: 22 }, loan, attachment: { customerVisible: false } }), false);
 });
 
 test('createLoanAccessPolicy rejects loan mutation for non-admin actors', async () => {

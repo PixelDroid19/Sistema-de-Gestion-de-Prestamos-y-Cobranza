@@ -137,7 +137,7 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(mockCreatePayment).not.toHaveBeenCalled();
   });
 
-  it('allows regular payout registration for customer users', async () => {
+  it('keeps payout registration unavailable for customer records', () => {
     currentUser = {
       id: 2,
       name: 'Customer',
@@ -148,21 +148,10 @@ describe('Payouts behavioral parity scenarios', () => {
 
     renderPayouts();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
-
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
-
-    await waitFor(() => {
-      expect(mockCreatePayment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          loanId: 100,
-          amount: 250000,
-        }),
-      );
-    });
+    expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeDisabled();
+    expect(mockCreatePayment).not.toHaveBeenCalled();
+    expect(mockCreatePartialPayment).not.toHaveBeenCalled();
+    expect(mockCreateCapitalPayment).not.toHaveBeenCalled();
   });
 
   it('allows permissioned employees to register backoffice partial payments', async () => {
@@ -213,6 +202,68 @@ describe('Payouts behavioral parity scenarios', () => {
         newTermMonths: 10,
       }));
     });
+  });
+
+  it('rejects exponent-like new term values for capital payment reductions', () => {
+    const { container } = renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#payout-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+    fireEvent.change(container.querySelector('#payout-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    expect(mockCreateCapitalPayment).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith({ title: 'Indica cuántas cuotas tendrá el saldo restante.' });
+  });
+
+  it('shows the specific capital-payment backend denial when a payout capital payment is rejected', async () => {
+    mockCreateCapitalPayment.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: {
+          error: {
+            statusCode: 400,
+            message: 'El abono a capital no puede exceder el capital vivo del crédito',
+          },
+        },
+      },
+    });
+
+    const { container } = renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    fireEvent.change(container.querySelector('#payout-type') as HTMLSelectElement, { target: { value: 'capital' } });
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '900000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith({
+        title: 'No se pudo registrar el abono a capital',
+        description: 'El abono a capital no puede exceder el capital vivo del crédito',
+      });
+    });
+  });
+
+  it('rejects exponent-like credit identifiers before registering payouts', async () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '1e2' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith({ title: 'Ingrese un ID de crédito válido.' });
+    });
+    expect(mockCreatePartialPayment).not.toHaveBeenCalled();
+    expect(mockCreatePayment).not.toHaveBeenCalled();
+    expect(mockCreateCapitalPayment).not.toHaveBeenCalled();
   });
 
   it('keeps payout registration unavailable for socios', () => {

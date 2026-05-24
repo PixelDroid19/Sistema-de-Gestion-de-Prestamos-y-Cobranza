@@ -81,7 +81,7 @@ export default function CreditSimulator() {
           isResultStale={isResultStale}
           onInputChange={setInput}
           onSimulate={simulate}
-          resultBadge={result?.calculationProfileVersionId != null ? tTerm('newCredit.summary.ruleVersion', { version: result.calculationProfileVersionId }) : null}
+          resultBadge={result ? tTerm('newCredit.summary.activeRule') : null}
           emptyTitle={tTerm('creditCalculator.empty.title')}
           emptyDescription={tTerm('creditCalculator.empty.description')}
           compactChrome

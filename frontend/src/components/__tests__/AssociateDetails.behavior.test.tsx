@@ -39,7 +39,7 @@ vi.mock('../InstallmentsModal', () => ({
 }));
 
 const buildDetailsResponse = () => ({
-  portal: {
+  details: {
     associate: {
       id: 1,
       name: 'Socio Uno',
@@ -121,9 +121,20 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByRole('button', { name: 'Registrar reinversión' })).toBeInTheDocument();
   });
 
-  it('keeps the socio portal read-only for operational actions', () => {
+  it('presents associate records as administrative details, not a portal', () => {
     mockUseSessionStore.mockReturnValue({
-      user: { id: 7, role: 'socio', name: 'Socio', email: 'socio@test.com', permissions: [], associateId: 1 },
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+
+    render(<AssociateDetails />);
+
+    expect(screen.getByText('Detalle del socio')).toBeInTheDocument();
+    expect(screen.queryByText(/portal del socio/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps non-admin associate access read-only for operational actions', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 7, role: 'employee', name: 'Empleado', email: 'employee@test.com', permissions: ['SOCIOS_VIEW_ALL'] },
     });
 
     render(<AssociateDetails />);
@@ -140,13 +151,13 @@ describe('AssociateDetails behavior', () => {
 
   it('does not present associates as linked to credit participation', () => {
     mockUseSessionStore.mockReturnValue({
-      user: { id: 7, role: 'socio', name: 'Socio', email: 'socio@test.com', permissions: [], associateId: 1 },
+      user: { id: 7, role: 'employee', name: 'Empleado', email: 'employee@test.com', permissions: ['SOCIOS_VIEW_ALL'] },
     });
 
     useAssociateDetailsSpy.mockReturnValue({
       ...buildDetailsResponse(),
-      portal: {
-        ...buildDetailsResponse().portal,
+      details: {
+        ...buildDetailsResponse().details,
         loans: [
           { id: 4, amount: 360000, totalInterest: 0, status: 'active' },
           { id: 3, amount: 350000, totalInterest: 0, status: 'pending' },
@@ -177,5 +188,21 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
     expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
     expect(screen.getByText('transfer')).toBeInTheDocument();
+  });
+
+  it('rejects malformed reinvestment amounts instead of truncating them', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar reinversión' }));
+    fireEvent.change(screen.getByLabelText('Monto'), { target: { value: '100e2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(detailsResponse.createReinvestment.mutateAsync).not.toHaveBeenCalled();
   });
 });

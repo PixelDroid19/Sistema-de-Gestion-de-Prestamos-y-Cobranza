@@ -50,18 +50,18 @@ test('customerValidation.update rejects invalid partial customer updates with st
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
-    { field: 'name', message: 'Name must be at least 2 characters long' },
-    { field: 'email', message: 'Please enter a valid email format (e.g., user@example.com)' },
-    { field: 'phone', message: 'Valid phone number is required' },
-    { field: 'status', message: 'Status must be active, inactive, or blacklisted' },
-    { field: 'birthDate', message: 'Birth date must be a valid YYYY-MM-DD date' },
-    { field: 'documentNumber', message: 'Document number cannot be empty' },
-    { field: 'occupation', message: 'Occupation cannot be empty' },
-    { field: 'department', message: 'Department cannot be empty' },
-    { field: 'city', message: 'City cannot be empty' },
-    { field: 'address', message: 'Address cannot be empty' },
+    { field: 'name', message: 'El nombre debe tener al menos 2 caracteres' },
+    { field: 'email', message: 'Ingresa un correo válido (por ejemplo, usuario.com)' },
+    { field: 'phone', message: 'El teléfono debe ser válido' },
+    { field: 'status', message: 'El estado debe ser activo, inactivo o bloqueado' },
+    { field: 'birthDate', message: 'La fecha de nacimiento debe tener formato AAAA-MM-DD' },
+    { field: 'documentNumber', message: 'El número de documento no puede estar vacío' },
+    { field: 'occupation', message: 'La ocupación no puede estar vacía' },
+    { field: 'department', message: 'El departamento no puede estar vacío' },
+    { field: 'city', message: 'La ciudad no puede estar vacía' },
+    { field: 'address', message: 'La dirección no puede estar vacía' },
   ]);
 });
 
@@ -75,8 +75,8 @@ test('customerValidation.create rejects phone numbers with formatting spaces', a
   });
 
   assert.ok(error instanceof ValidationError);
-  assert.equal(error.message, 'Please correct the following errors');
+  assert.equal(error.message, 'Corrige los errores indicados');
   assert.deepEqual(error.errors, [
-    { field: 'phone', message: 'Valid phone number is required' },
+    { field: 'phone', message: 'El teléfono debe ser válido' },
   ]);
 });

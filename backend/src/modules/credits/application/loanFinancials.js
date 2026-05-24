@@ -74,7 +74,7 @@ const buildPayoffQuote = ({ loan, schedule, snapshot, asOfDate }) => {
   const normalizedStartDate = normalizeUtcDateOnly(resolveLoanStartDateValue(loan), 'Loan start date');
 
   if (normalizedAsOfDate.getTime() < normalizedStartDate.getTime()) {
-    throw new ValidationError('Payoff effective date must be on or after the loan start date');
+    throw new ValidationError('La fecha efectiva del pago total debe ser igual o posterior al inicio del crédito');
   }
 
   assertPayoffAllowed({

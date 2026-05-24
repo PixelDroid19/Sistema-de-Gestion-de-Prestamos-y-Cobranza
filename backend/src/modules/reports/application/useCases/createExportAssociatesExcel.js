@@ -1,5 +1,5 @@
-const { AuthorizationError } = require('@/utils/errorHandler');
-const { ensureAdminOrSocio, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { ensureAdmin, formatMoney } = require('@/modules/reports/application/reportHelpers');
+const { formatOperationalStatus } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 
@@ -31,6 +31,23 @@ const normalizeDistributionRecord = (distribution) => {
     declaredProportionalTotal: serializedDistribution?.declaredProportionalTotal || null,
     allocatedAmount: serializedDistribution?.allocatedAmount || null,
   };
+};
+
+const DISTRIBUTION_TYPE_LABELS = {
+  proportional: 'Proporcional',
+  manual: 'Manual',
+  fixed: 'Fija',
+};
+
+/**
+ * Formats associate distribution type values for operational export rows.
+ *
+ * @param {string} value Raw distribution type stored on the movement.
+ * @returns {string} Spanish operational label for Excel/CSV exports.
+ */
+const formatDistributionType = (value) => {
+  if (!value) return 'N/A';
+  return DISTRIBUTION_TYPE_LABELS[String(value).trim().toLowerCase()] || 'Tipo de distribución no clasificado';
 };
 
 const formatIsoDate = (value) => {
@@ -187,25 +204,17 @@ const buildAssociateSheets = (rows) => {
 /**
  * Create use case: Export Associates to Excel
  * Exports all associates with their contributions, distributions, interest installments, reinvestments, and debt status.
+ * This is an administrative report for backoffice actors with report permission;
+ * socio records are investment records, not login roles for this route.
  * GET /api/reports/associates/excel
+ *
+ * @param {{ associateRepository: object, reportRepository?: object }} dependencies
+ * @returns {(input: { actor: { id?: number|string, role: string } }) => Promise<{ success: boolean, data: { rows: Array<object>, sheets: Array<object> } }>}
  */
 const createExportAssociatesExcel = ({ associateRepository, reportRepository }) => async ({ actor }) => {
-  ensureAdminOrSocio(actor, 'Only admins and socios can export associates data');
-
-  // Admin can export all, socio can only export self
-  let associateIds;
-  if (actor.role === 'admin') {
-    // Get all associate IDs
-    const allAssociates = await associateRepository.list();
-    associateIds = allAssociates.map((a) => a.id);
-  } else {
-    // Socio can only export their own data
-    const associate = await associateRepository.findByLinkedUser(actor.id);
-    if (!associate) {
-      throw new AuthorizationError('Associate not found for current user');
-    }
-    associateIds = [associate.id];
-  }
+  ensureAdmin(actor, 'Only authorized backoffice users can export associates data');
+  const allAssociates = await associateRepository.list();
+  const associateIds = allAssociates.map((associate) => associate.id);
 
   // Build rows for each associate
   const rows = await Promise.all(
@@ -248,7 +257,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         reference: '',
         amount: formatMoney(c.amount),
         date: formatIsoDate(c.contributionDate),
-        status: c.status || 'N/A',
+        status: formatOperationalStatus(c.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         distributionType: '',
         declaredProportionalTotal: '',
@@ -268,9 +277,9 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
           reference: d.loanId || '',
           amount: formatMoney(d.amount),
           date: formatIsoDate(d.distributionDate),
-          status: d.status || 'N/A',
+          status: formatOperationalStatus(d.status),
           participationPercentage: normalized.participationPercentage || normalizeParticipationPercentage(associate.participationPercentage),
-          distributionType: normalized.distributionType || 'N/A',
+          distributionType: formatDistributionType(normalized.distributionType),
           declaredProportionalTotal: normalized.declaredProportionalTotal || 'N/A',
           allocatedAmount: normalized.allocatedAmount || 'N/A',
           notes: d.notes || '',
@@ -286,7 +295,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         reference: installment.installmentNumber || '',
         amount: formatMoney(installment.amount),
         date: formatIsoDate(installment.status === 'paid' ? installment.paidAt : installment.dueDate),
-        status: installment.status === 'paid' ? 'Pagado' : 'Pendiente',
+        status: formatOperationalStatus(installment.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         distributionType: associate.interestType === 'annual' ? 'Interés anual' : 'Interés mensual',
         declaredProportionalTotal: '',
@@ -304,7 +313,7 @@ const createExportAssociatesExcel = ({ associateRepository, reportRepository }) 
         reference: '',
         amount: formatMoney(totalContributed),
         date: `Distribuido: ${formatMoney(totalDistributed)}`,
-        status: associate.status || 'N/A',
+        status: formatOperationalStatus(associate.status),
         participationPercentage: normalizeParticipationPercentage(associate.participationPercentage),
         distributionType: '',
         declaredProportionalTotal: '',

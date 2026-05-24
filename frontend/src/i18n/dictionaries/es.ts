@@ -56,6 +56,33 @@ export const es = {
     es: 'Español',
     en: 'English',
   },
+  profile: {
+    title: 'Mi perfil',
+    subtitle: 'Administra tu información personal y seguridad.',
+    adminNotice: 'Este perfil corresponde a un usuario administrativo interno.',
+    tabs: {
+      info: 'Información personal',
+      security: 'Seguridad',
+    },
+    fields: {
+      name: 'Nombre completo',
+      email: 'Correo electrónico',
+      currentPassword: 'Contraseña actual',
+      newPassword: 'Nueva contraseña',
+      confirmPassword: 'Confirmar nueva contraseña',
+    },
+    actions: {
+      save: 'Guardar cambios',
+      updatePassword: 'Actualizar contraseña',
+    },
+    toast: {
+      nameRequired: 'El nombre es obligatorio',
+      updated: 'Perfil actualizado correctamente',
+      passwordMismatch: 'Las contraseñas nuevas no coinciden',
+      passwordShort: 'La nueva contraseña debe tener al menos 8 caracteres',
+      passwordUpdated: 'Contraseña actualizada correctamente',
+    },
+  },
   settings: {
     title: 'Configuración',
     tabs: {

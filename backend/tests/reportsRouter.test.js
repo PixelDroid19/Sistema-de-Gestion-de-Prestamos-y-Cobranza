@@ -16,11 +16,8 @@ const roleAwareAuth = (options = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const allowedRoles = Array.isArray(options)
     ? options
-    : (options?.permissions ? ['admin', 'employee', 'socio'] : []);
-  const effectiveAllowedRoles = req.path.startsWith('/credit-history/')
-    ? [...allowedRoles, 'customer']
-    : allowedRoles;
-  if (effectiveAllowedRoles.length > 0 && !effectiveAllowedRoles.includes(role)) {
+    : (options?.permissions ? ['admin', 'employee'] : []);
+  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
   }
@@ -225,12 +222,214 @@ test('createReportsRouter serves report contract responses', async () => {
     ['getOutstandingLoans', 'admin', { page: 3, pageSize: 4, limit: 4, offset: 8 }],
     ['getRecoveryReport', 'admin', undefined],
     ['getDashboardSummary', 'admin'],
-    ['getCustomerHistory', '7'],
-    ['getCustomerCreditProfile', '7'],
+    ['getCustomerHistory', 7],
+    ['getCustomerCreditProfile', 7],
     ['getCustomerProfitabilityReport', { page: 4, pageSize: 3, limit: 3, offset: 9 }],
     ['exportCustomerProfitabilityReport', 'admin', { fromDate: '2026-05-01', toDate: '2026-05-20' }],
     ['getLoanProfitabilityReport', { page: 5, pageSize: 2, limit: 2, offset: 8 }],
   ]);
+});
+
+test('createReportsRouter rejects malformed payment schedule loan identifiers', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getPaymentSchedule(input) {
+        calls.push(input);
+        return { success: true, data: { schedule: [] } };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/payment-schedule/1e2',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /loanId/i);
+  assert.equal(calls.length, 0);
+});
+
+test('createReportsRouter rejects malformed customer report identifiers before executing reports', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getCustomerHistory(input) {
+        calls.push(['getCustomerHistory', input.customerId]);
+        return { success: true, data: { customer: { id: Number(input.customerId) }, timeline: [] } };
+      },
+      async getCustomerCreditProfile(input) {
+        calls.push(['getCustomerCreditProfile', input.customerId]);
+        return { success: true, data: { customer: { id: Number(input.customerId) }, profile: {} } };
+      },
+      async exportCustomerHistory(input) {
+        calls.push(['exportCustomerHistory', input.customerId]);
+        return { fileName: 'customer-history.pdf', contentType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
+      },
+      async exportCustomerCreditProfile(input) {
+        calls.push(['exportCustomerCreditProfile', input.customerId]);
+        return { fileName: 'customer-credit-profile.pdf', contentType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const responses = await Promise.all([
+    requestJson(activeServer, {
+      path: '/customer-history/7abc',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/customer-credit-profile/1e2',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/customer-history/1.5/export',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/customer-credit-profile/foo/export?format=pdf',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+  ]);
+
+  for (const response of responses) {
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.error.message, /customerId/i);
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('createReportsRouter rejects malformed credit and associate report identifiers before executing reports', async () => {
+  const calls = [];
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getCustomerCreditHistory(input) {
+        calls.push(['getCustomerCreditHistory', input.loanId]);
+        return { loan: { id: Number(input.loanId) }, snapshot: {}, payments: [] };
+      },
+      async exportCustomerCreditHistory(input) {
+        calls.push(['exportCustomerCreditHistory', input.loanId]);
+        return { fileName: 'credit-history.pdf', contentType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
+      },
+      async getAssociateProfitabilityReport(input) {
+        calls.push(['getAssociateProfitabilityReport', input.associateId]);
+        return { associate: { id: Number(input.associateId) }, summary: {} };
+      },
+      async exportAssociateProfitabilityReport(input) {
+        calls.push(['exportAssociateProfitabilityReport', input.associateId]);
+        return {
+          fileName: 'associate-profitability.xlsx',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          buffer: Buffer.from('PKtest'),
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const responses = await Promise.all([
+    requestJson(activeServer, {
+      path: '/credit-history/loan/10abc',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/credit-history/loan/1e2/export',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/associates/profitability/7.5',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/associates/abc/export',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+    requestJson(activeServer, {
+      path: '/partner-report/1e2',
+      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+    }),
+  ]);
+
+  assert.equal(responses[0].statusCode, 400);
+  assert.match(responses[0].body.error.message, /loanId/i);
+  assert.equal(responses[1].statusCode, 400);
+  assert.match(responses[1].body.error.message, /loanId/i);
+  assert.equal(responses[2].statusCode, 400);
+  assert.match(responses[2].body.error.message, /associateId/i);
+  assert.equal(responses[3].statusCode, 400);
+  assert.match(responses[3].body.error.message, /associateId/i);
+  assert.equal(responses[4].statusCode, 400);
+  assert.match(responses[4].body.error.message, /associateId/i);
+  assert.deepEqual(calls, []);
+});
+
+test('createReportsRouter protects credit payment schedules with credit view permission', async () => {
+  const authOptions = [];
+  const router = createReportsRouter({
+    authMiddleware: (options) => (req, _res, next) => {
+      authOptions.push(options);
+      req.user = { id: 7, role: 'employee' };
+      next();
+    },
+    useCases: {
+      async getPaymentSchedule(input) {
+        return { success: true, data: { loanId: input.loanId, schedule: [] } };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/payment-schedule/42',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'employee' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(authOptions, [{ permissions: ['CREDITS_VIEW_ALL'] }]);
 });
 
 test('createReportsRouter rejects invalid pagination parameters', async () => {
@@ -340,10 +539,10 @@ test('createReportsRouter serves export and credit-history contracts', async () 
   });
   const historyResponse = await requestJson(activeServer, {
     path: '/credit-history/loan/12',
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const loanHistoryExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/credit-history/loan/12/export?format=pdf`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
   });
   const associateExportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
     headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
@@ -467,7 +666,37 @@ test('createReportsRouter requires admin access', async () => {
   assert.equal(response.statusCode, 403);
 });
 
-test('createReportsRouter limits associate export routes to admin and socio roles', async () => {
+test('createReportsRouter rejects customer records from administrative credit history report routes', async () => {
+  const router = createReportsRouter({
+    authMiddleware: roleAwareAuth,
+    useCases: {
+      async getCustomerCreditHistory() {
+        throw new Error('getCustomerCreditHistory should not be called');
+      },
+      async exportCustomerCreditHistory() {
+        throw new Error('exportCustomerCreditHistory should not be called');
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  activeServer = await listen(app);
+
+  const historyResponse = await requestJson(activeServer, {
+    path: '/credit-history/loan/12',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+  });
+  const exportResponse = await fetch(`http://127.0.0.1:${activeServer.address().port}/credit-history/loan/12/export?format=pdf`, {
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+  });
+
+  assert.equal(historyResponse.statusCode, 403);
+  assert.equal(exportResponse.status, 403);
+});
+
+test('createReportsRouter rejects socio records from administrative associate export routes', async () => {
   const router = createReportsRouter({
     authMiddleware: roleAwareAuth,
     useCases: {
@@ -483,7 +712,7 @@ test('createReportsRouter limits associate export routes to admin and socio role
   activeServer = await listen(app);
 
   const response = await fetch(`http://127.0.0.1:${activeServer.address().port}/associates/7/export?format=xlsx`, {
-    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'socio' },
   });
 
   assert.equal(response.status, 403);

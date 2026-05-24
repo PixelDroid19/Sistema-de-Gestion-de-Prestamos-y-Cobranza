@@ -1,5 +1,6 @@
 import { tTerm } from '../../i18n/terminology';
 import { formatCurrency as formatCurrencyValue, formatPercent as formatPercentValue } from '../../i18n/format';
+import { parsePercentageRateInput } from '../../lib/moneyInput';
 
 // --- Types ---
 
@@ -260,8 +261,7 @@ export const buildRateCoverageCheck = (label: string, amount: number, matches: a
 // --- Validation ---
 
 export const validatePercent = (value: string, label: string) => {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+  if (parsePercentageRateInput(value) === null) {
     return tTerm('settings.validation.percentRange', { label });
   }
   return null;

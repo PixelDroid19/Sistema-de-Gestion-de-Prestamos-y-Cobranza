@@ -8,6 +8,7 @@ import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
 import { toast } from '../lib/toast';
 import { extractValidationErrors } from '../services/apiErrors';
+import { formatScheduleStatusLabel } from '../lib/scheduleStatusLabels';
 import { useConfig } from '../services/configService';
 import { useSessionStore } from '../store/sessionStore';
 import {
@@ -76,15 +77,6 @@ const formatDueDate = (value?: string) => {
   if (Number.isNaN(date.getTime())) return '-';
   return formatLocaleDate(date, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) || '-';
 };
-const formatScheduleStatus = (status?: string) => {
-  const normalized = String(status || '').toLowerCase();
-  if (normalized === 'pending') return tTerm('schedule.status.pending');
-  if (normalized === 'paid' || normalized === 'settled') return tTerm('credits.modal.status.paid');
-  if (normalized === 'overdue' || normalized === 'defaulted') return tTerm('credits.modal.status.overdue');
-  if (normalized === 'cancelled' || normalized === 'annulled') return tTerm('schedule.status.annulled');
-  return status || '-';
-};
-
 const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.mode.none' | 'simulator.lateFee.mode.simple' | 'simulator.lateFee.mode.compound' | 'simulator.lateFee.mode.flat' | 'simulator.lateFee.mode.tiered'> = {
   NONE: 'simulator.lateFee.mode.none',
   SIMPLE: 'simulator.lateFee.mode.simple',
@@ -278,9 +270,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
   const isRegistrationReady = isBorrowerReady && hasValidatedResult;
-  const calculationRuleLabel = result?.calculationProfileVersionId != null
-    ? tTerm('newCredit.summary.ruleVersion', { version: result.calculationProfileVersionId })
-    : tTerm('newCredit.summary.activeRule');
+  const calculationRuleLabel = result
+    ? tTerm('newCredit.summary.activeRule')
+    : tTerm('newCredit.summary.pendingRule');
   const summaryCards = useMemo(() => (result && !isResultStale ? [
     { id: 'new-credit-installment', label: tTerm('simulator.schedule.header.payment'), value: formatMoney(result.summary.installmentAmount), helper: tTerm('newCredit.summary.card.installmentHelper'), accent: 'teal' as const, icon: <Wallet size={18} /> },
     { id: 'new-credit-total', label: tTerm('simulator.summary.totalPayment.short'), value: formatMoney(result.summary.totalPayable), helper: tTerm('simulator.summary.card.helper.capitalInterest'), accent: 'blue' as const, icon: <Calculator size={18} /> },
@@ -457,10 +449,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         lateFeeSource: resolvedLateFeeSource,
       });
       const createdLoanId = Number(response?.data?.loan?.id);
-      const versionLabel = result?.calculationProfileVersionId != null
-        ? tTerm('newCredit.toast.success.versionLabel', { version: result.calculationProfileVersionId })
-        : tTerm('newCredit.toast.success.activeRuleLabel');
-      toast.success({ description: tTerm('newCredit.toast.success', { versionLabel }) });
+      toast.success({ description: tTerm('newCredit.toast.success') });
 
       if (Number.isFinite(createdLoanId) && createdLoanId > 0) {
         navigate(`/credits/${createdLoanId}`);
@@ -698,7 +687,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                                 <td className="px-4 py-3 text-right text-text-primary">{formatMoney(row.interestComponent)}</td>
                                 <td className="px-4 py-3 text-right text-text-primary">{formatMoney(row.principalComponent)}</td>
                                 <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatMoney(row.remainingBalance)}</td>
-                                <td className="px-4 py-3 text-center text-text-secondary">{formatScheduleStatus(row.status)}</td>
+                                <td className="px-4 py-3 text-center text-text-secondary">{formatScheduleStatusLabel(row.status)}</td>
                               </tr>
                             )) : (
                               <tr>

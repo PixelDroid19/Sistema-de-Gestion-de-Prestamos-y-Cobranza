@@ -42,7 +42,7 @@ module.exports = {
         'RolePermissions',
         {
           role: {
-            type: DataTypes.ENUM('admin', 'customer', 'socio'),
+            type: DataTypes.ENUM('admin', 'employee'),
             allowNull: false,
           },
           permissionId: {

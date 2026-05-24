@@ -16,6 +16,10 @@ const sessionState = {
 };
 
 vi.mock('../store/sessionStore', () => ({
+  isAdministrativeUser: (user: unknown) => {
+    const role = (user as { role?: unknown } | null)?.role;
+    return role === 'admin' || role === 'employee';
+  },
   useSessionStore: {
     getState: () => sessionState,
   },
@@ -27,6 +31,7 @@ describe('apiClient refresh coordination', () => {
     vi.clearAllMocks();
     sessionState.accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.signature';
     sessionState.refreshToken = 'refresh-token-1';
+    sessionState.user = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin' };
   });
 
   it('reuses a single refresh request for concurrent stale-token requests', async () => {
@@ -116,5 +121,89 @@ describe('apiClient refresh coordination', () => {
 
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/api/auth/refresh'))).toHaveLength(0);
     expect(sessionState.logout).not.toHaveBeenCalled();
+  });
+
+  it('refreshes stale tokens before administrative user provisioning requests', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const authHeader = init?.headers instanceof Headers
+        ? init.headers.get('Authorization')
+        : (init?.headers as Record<string, string> | undefined)?.Authorization;
+
+      if (url.includes('/api/auth/refresh')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            accessToken: 'fresh-access',
+            refreshToken: 'refresh-token-2',
+          },
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url.includes('/api/auth/register-with-permissions') && authHeader === 'Bearer fresh-access') {
+        return new Response(JSON.stringify({
+          success: true,
+          data: { user: { id: 8, role: 'employee' } },
+        }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: false, error: { message: 'expired', statusCode: 401 } }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    const response = await apiClient.post('/auth/register-with-permissions', {
+      name: 'Nuevo operador',
+      email: 'operador@test.local',
+      password: 'Admin123!',
+      role: 'employee',
+      permissions: [],
+    });
+
+    expect(response.status).toBe(201);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/api/auth/refresh'))).toHaveLength(1);
+    expect(sessionState.updateAccessToken).toHaveBeenCalledWith('fresh-access', 'refresh-token-2');
+  });
+
+  it('logs out instead of refreshing when the administrative user is missing', async () => {
+    sessionState.accessToken = null as unknown as string;
+    sessionState.refreshToken = 'orphan-refresh-token';
+    sessionState.user = null as never;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/auth/refresh')) {
+        throw new Error('refresh should not be called without an administrative user');
+      }
+
+      return new Response(JSON.stringify({ success: true, data: { ok: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('./client');
+
+    await expect(apiClient.get('/reports/dashboard')).rejects.toMatchObject({
+      message: 'No administrative user available',
+      statusCode: 401,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sessionState.logout).toHaveBeenCalled();
   });
 });

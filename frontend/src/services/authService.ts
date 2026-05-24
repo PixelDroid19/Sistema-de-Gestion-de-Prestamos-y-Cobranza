@@ -6,6 +6,10 @@ const authQueryKeys = {
   profile: ['auth.profile'] as const,
 };
 
+type LogoutSessionSnapshot = {
+  accessToken?: string | null;
+};
+
 export const useAuth = () => {
   const queryClient = useQueryClient();
   const { login, logout } = useSessionStore();
@@ -23,21 +27,13 @@ export const useAuth = () => {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (userData: any) => {
-      const { data } = await apiClient.post('/auth/register', userData);
-      return data;
-    },
-    onSuccess: (data) => {
-      // Registration also returns token pair
-      const { accessToken, refreshToken, user } = data.data;
-      login({ accessToken, refreshToken, user });
-    },
-  });
-
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiClient.post('/auth/logout');
+    mutationFn: async (sessionSnapshot?: LogoutSessionSnapshot) => {
+      const headers = sessionSnapshot?.accessToken
+        ? { Authorization: `Bearer ${sessionSnapshot.accessToken}` }
+        : undefined;
+
+      await apiClient.post('/auth/logout', undefined, headers ? { headers } : undefined);
     },
     onSuccess: () => {
       logout();
@@ -76,7 +72,6 @@ export const useAuth = () => {
 
   return {
     login: loginMutation.mutateAsync,
-    register: registerMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
     profile: profileQuery.data,
     isLoading: profileQuery.isLoading,

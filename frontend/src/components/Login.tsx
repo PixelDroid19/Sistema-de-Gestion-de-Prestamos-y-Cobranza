@@ -36,7 +36,8 @@ export default function Login() {
     try {
       const response = await login({ email, password });
       const authenticatedUser = response?.data?.user;
-      const nextRoute = from || (authenticatedUser ? getDefaultRouteForUser(authenticatedUser) : '/dashboard');
+      const defaultRoute = getDefaultRouteForUser(authenticatedUser);
+      const nextRoute = defaultRoute === '/login' ? defaultRoute : (from || defaultRoute);
       navigate(nextRoute, { replace: true });
     } catch (err: any) {
       setError(getSafeErrorText(err, { domain: 'auth', action: 'login' }));

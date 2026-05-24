@@ -3,7 +3,9 @@ const { IdempotencyKey } = require('@/models');
 const { NotFoundError, ValidationError, AuthorizationError } = require('@/utils/errorHandler');
 const { roundCurrency, calculateLateFee } = require('./creditFormulaHelpers');
 const { paginateArray } = require('@/modules/shared/pagination');
+const { validateInterestRate } = require('@/modules/shared/validators');
 const { withAudit } = require('@/modules/audit/application/auditDecorator');
+const { isAdministrativeLoginRole } = require('@/modules/shared/roles');
 const {
   normalizeAttachmentVisibility,
   ensureUploadedFile,
@@ -30,6 +32,19 @@ const LOAN_CREATION_IDEMPOTENCY_SCOPE = 'loan_creation';
 const IDEMPOTENCY_WAIT_BASE_MS = 50;
 
 class PendingIdempotencyError extends Error {}
+
+/**
+ * Ensure credit use cases are invoked only by administrative backoffice users.
+ * @param {{ role?: string }} actor
+ * @param {string} message
+ * @returns {void}
+ * @throws {AuthorizationError}
+ */
+const ensureCreditBackofficeActor = (actor, message) => {
+  if (!isAdministrativeLoginRole(actor?.role)) {
+    throw new AuthorizationError(message);
+  }
+};
 
 const stringifyStable = (value) => {
   if (Array.isArray(value)) {
@@ -235,48 +250,87 @@ const enrichCustomerWithLoanSummary = async ({ customerRepository, customer }) =
   return enrichedCustomer;
 };
 
-const buildPromiseToPayPdfBuffer = ({ promise, loan, customer }) => {
-  const formatDate = (date) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+const formatDateOnlyForDocument = (date) => {
+  if (!date) return '-';
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    return date.slice(0, 10);
+  }
 
-  const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
+  const parsedDate = new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return '-';
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
+};
+
+const formatCurrencyForDocument = (amount) => `$${Number(amount || 0).toFixed(2)}`;
+
+const formatPromiseStatus = (status) => ({
+  pending: 'Pendiente',
+  kept: 'Cumplida',
+  broken: 'Incumplida',
+  cancelled: 'Cancelada',
+}[String(status || 'pending').trim().toLowerCase()] || 'Pendiente');
+
+/**
+ * Resolve the customer label used by due-payment API rows.
+ * @param {object} loan
+ * @returns {string}
+ */
+const getDuePaymentCustomerLabel = (loan) => {
+  const name = String(loan?.Customer?.name || loan?.customerName || '').trim();
+  if (name) {
+    return name;
+  }
+
+  if (loan?.customerId !== undefined && loan?.customerId !== null) {
+    return `Cliente ${loan.customerId}`;
+  }
+
+  return 'Cliente sin nombre';
+};
+
+/**
+ * Build the operator-facing promise-to-pay PDF in Spanish with date-only
+ * rendering so promised dates do not shift by local timezone.
+ * @param {{ promise: object, loan: object, customer: object }} input
+ * @returns {Buffer}
+ */
+const buildPromiseToPayPdfBuffer = ({ promise, loan, customer }) => {
+  const customerName = customer?.name || `Cliente ${loan?.customerId || '-'}`;
+  const customerEmail = customer?.email || '-';
 
   return buildPdfBuffer({
-    title: 'PROMISE TO PAY RECEIPT',
+    title: 'COMPROBANTE DE PROMESA DE PAGO',
     lines: [
-      `Document ID: ${promise.id}`,
-      `Date: ${formatDate(promise.createdAt)}`,
+      `ID del documento: ${promise.id}`,
+      `Fecha de generacion: ${formatDateOnlyForDocument(promise.createdAt)}`,
       '',
-      '=== LOAN DETAILS ===',
-      `Loan ID: ${loan.id}`,
-      `Loan Amount: ${formatCurrency(loan.amount)}`,
-      `Customer: ${customer.name}`,
-      `Customer Email: ${customer.email}`,
+      '=== DATOS DEL CREDITO ===',
+      `Credito: ${loan.id}`,
+      `Monto del credito: ${formatCurrencyForDocument(loan.amount)}`,
+      `Cliente: ${customerName}`,
+      `Correo del cliente: ${customerEmail}`,
       '',
-      '=== PROMISE DETAILS ===',
-      `Promised Payment Date: ${formatDate(promise.promisedDate)}`,
-      `Promised Amount: ${formatCurrency(promise.amount)}`,
-      `Status: ${promise.status?.toUpperCase() || 'PENDING'}`,
-      promise.notes ? `Notes: ${promise.notes}` : '',
+      '=== DATOS DE LA PROMESA ===',
+      `Fecha prometida: ${formatDateOnlyForDocument(promise.promisedDate)}`,
+      `Monto prometido: ${formatCurrencyForDocument(promise.amount)}`,
+      `Estado: ${formatPromiseStatus(promise.status)}`,
+      promise.notes ? `Notas: ${promise.notes}` : '',
       '',
-      '=== PAYMENT TERMS ===',
-      'This document serves as official acknowledgment of the promise to pay.',
-      'The customer agrees to make the payment by the specified date.',
-      'Failure to comply may result in collection proceedings.',
+      '=== CONDICIONES OPERATIVAS ===',
+      'Este documento registra la promesa de pago recibida por el operador.',
+      'El cliente se compromete a pagar en la fecha indicada.',
+      'El incumplimiento puede activar acciones de seguimiento y cobranza.',
       '',
-      '=== SIGNATURES ===',
+      '=== FIRMAS ===',
       '',
-      'Customer Signature: ________________________',
-      `Date: ${formatDate(promise.promisedDate)}`,
+      'Firma del cliente: ________________________',
+      `Fecha: ${formatDateOnlyForDocument(promise.promisedDate)}`,
       '',
-      'Authorized Agent: ________________________',
-      `Date: ${formatDate(promise.createdAt)}`,
+      'Operador autorizado: ________________________',
+      `Fecha: ${formatDateOnlyForDocument(promise.createdAt)}`,
       '',
       '---',
       'Generated by CrediCobranza - Sistema de Gestion de Prestamos y Cobranza',
@@ -381,7 +435,7 @@ const getNextPayableInstallmentNumber = (schedule) => {
 const buildInstallmentQuote = ({ loan, schedule, installmentNumber, asOfDate = new Date() }) => {
   const targetInstallmentNumber = Number(installmentNumber);
   if (!Number.isInteger(targetInstallmentNumber) || targetInstallmentNumber <= 0) {
-    throw new ValidationError('installmentNumber must be a positive integer');
+    throw new ValidationError('El número de cuota debe ser un entero positivo');
   }
 
   const parsedAsOfDate = normalizeDateOnly(asOfDate, 'asOfDate');
@@ -406,15 +460,15 @@ const buildInstallmentQuote = ({ loan, schedule, installmentNumber, asOfDate = n
 
   let disabledReason = null;
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
-    disabledReason = `Loan status ${loan.status} does not allow payments`;
+    disabledReason = 'El estado del crédito no permite registrar pagos';
   } else if (targetRow.status === 'annulled') {
-    disabledReason = 'Installment is annulled';
+    disabledReason = 'La cuota está anulada';
   } else if (outstandingAmount <= 0.01 || targetRow.status === 'paid') {
-    disabledReason = 'Installment is already paid';
+    disabledReason = 'La cuota ya está pagada';
   } else if (!isNextPayable) {
     disabledReason = nextPayableInstallmentNumber
-      ? `Pay installment #${nextPayableInstallmentNumber} first`
-      : 'No payable installments are available';
+      ? `Debe pagar primero la cuota ${nextPayableInstallmentNumber}`
+      : 'No hay cuotas disponibles para pago';
   }
 
   return {
@@ -491,7 +545,7 @@ const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() })
         lateFeeDue: 0,
         daysOverdue: 0,
         canPay: false,
-        disabledReason: 'Installment is annulled',
+        disabledReason: 'La cuota está anulada',
         isNextPayable: false,
         status: 'annulled',
         alertId: null,
@@ -531,7 +585,7 @@ const buildCalendarEntries = ({ loan, schedule, alerts, asOfDate = new Date() })
       canPay,
       disabledReason: canPay
         ? null
-        : (isNextPayable ? null : `Pay installment #${nextPayableInstallmentNumber || row.installmentNumber} first`),
+        : (isNextPayable ? null : `Debe pagar primero la cuota ${nextPayableInstallmentNumber || row.installmentNumber}`),
       isNextPayable,
       status,
       alertId: alertByInstallment.get(Number(row.installmentNumber))?.id || null,
@@ -637,13 +691,36 @@ const parseCalendarOverviewFilters = (filters = {}) => {
     const normalized = String(value || '').trim().toLowerCase();
     return normalized || null;
   };
+  /**
+   * Parses the optional agenda limit without accepting partial numeric text or
+   * exponent notation, preserving the existing 1-250 clamp for plain integers.
+   * @param {string|number|null|undefined} value
+   * @returns {number}
+   */
+  const parseLimit = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return 100;
+    }
+
+    const normalizedValue = String(value).trim();
+    if (!/^\d+$/.test(normalizedValue)) {
+      throw new ValidationError('limit must be a positive integer');
+    }
+
+    const limit = Number(normalizedValue);
+    if (!Number.isSafeInteger(limit)) {
+      throw new ValidationError('limit must be a positive integer');
+    }
+
+    return Math.min(Math.max(limit || 100, 1), 250);
+  };
 
   return {
     search: String(filters.search || '').trim(),
     status: normalizeStatus(filters.status),
     startDate: parseDate(filters.startDate, 'startDate'),
     endDate: parseDate(filters.endDate, 'endDate'),
-    limit: Math.min(Math.max(Number.parseInt(String(filters.limit || '100'), 10) || 100, 1), 250),
+    limit: parseLimit(filters.limit),
   };
 };
 
@@ -755,11 +832,9 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
 
   return {
     isPayable: PAYABLE_LOAN_STATUSES.has(loan.status),
-    allowedPaymentTypes: ['admin', 'employee'].includes(actor?.role)
+    allowedPaymentTypes: isAdministrativeLoginRole(actor?.role)
       ? ['installment', 'partial', 'capital']
-      : actor?.role === 'customer'
-        ? ['installment', 'payoff']
-        : [],
+      : [],
     snapshot,
     payoffEligibility,
     capitalEligibility,
@@ -767,6 +842,8 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
 };
 
 const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }) => async ({ actor, loanId }) => {
+  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can access loans');
+
   if (loanAccessPolicy) {
     const authorizedLoan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
     const loan = await enrichLoanWithCustomerSummary({ loanRepository, loan: authorizedLoan });
@@ -782,10 +859,6 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }
     throw new NotFoundError('Loan');
   }
 
-  if (actor.role === 'customer' && loan.customerId !== actor.id) {
-    throw new AuthorizationError('You can only view your own loans');
-  }
-
   return {
     ...loan,
     paymentContext: loanViewService ? buildLoanPaymentContext({ actor, loan, loanViewService }) : undefined,
@@ -794,12 +867,12 @@ const createGetLoanById = ({ loanAccessPolicy, loanRepository, loanViewService }
 
 const validateLoanCreationIdempotencyKey = (idempotencyKey) => {
   if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-    throw new ValidationError('Idempotency-Key header is required for loan creation');
+    throw new ValidationError('El encabezado Idempotency-Key es obligatorio para crear créditos');
   }
 
   const normalizedKey = idempotencyKey.trim();
   if (normalizedKey.length < 8 || normalizedKey.length > 160) {
-    throw new ValidationError('Idempotency-Key header must be between 8 and 160 characters');
+    throw new ValidationError('El encabezado Idempotency-Key debe tener entre 8 y 160 caracteres');
   }
 
   return normalizedKey;
@@ -936,15 +1009,13 @@ const runLoanCreationWithIdempotency = async ({
 };
 
 /**
- * Create the use case that persists a new loan while enforcing customer self-service boundaries.
+ * Create the use case that persists a new loan for an authorized backoffice actor.
  * @param {{ loanCreationService: object, auditService?: object, idempotencyKeyModel?: object }} dependencies
  * @returns {Function}
  */
 const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyModel = IdempotencyKey }) => {
   const useCase = async ({ actor, payload, idempotencyKey }) => {
-    if (actor.role === 'customer' && Number(payload.customerId) !== actor.id) {
-      throw new AuthorizationError('You can only create loans for your own customer record');
-    }
+    ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can create loans');
 
     return runLoanCreationWithIdempotency({
       actor,
@@ -967,9 +1038,7 @@ const createCreateLoan = ({ loanCreationService, auditService, idempotencyKeyMod
  * @returns {Function}
  */
 const createListLoansByCustomer = ({ customerRepository, loanRepository }) => async ({ actor, customerId, pagination }) => {
-  if (actor.role === 'customer' && actor.id !== Number(customerId)) {
-    throw new AuthorizationError('You can only view your own loans');
-  }
+  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can list customer loans');
 
   const foundCustomer = await customerRepository.findById(customerId);
   const customer = await enrichCustomerWithLoanSummary({ customerRepository, customer: foundCustomer });
@@ -1134,17 +1203,15 @@ const createDeleteLoan = ({ loanRepository, loanAccessPolicy, auditService }) =>
 };
 
 /**
- * Create the use case that lists authorized loan attachments, filtering customer-visible rows when needed.
+ * Create the use case that lists authorized loan attachments for backoffice users.
  * @param {{ attachmentRepository: object, loanAccessPolicy: object }} dependencies
  * @returns {Function}
  */
 const createListLoanAttachments = ({ attachmentRepository, loanAccessPolicy }) => async ({ actor, loanId }) => {
+  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can list loan attachments');
+
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const attachments = await attachmentRepository.listByLoan(loan.id);
-
-  if (actor.role === 'customer') {
-    return attachments.filter((attachment) => attachment.customerVisible);
-  }
 
   return attachments;
 };
@@ -1196,14 +1263,12 @@ const createCreateLoanAttachment = ({
  * @returns {Function}
  */
 const createDownloadLoanAttachment = ({ attachmentRepository, attachmentStorage, loanAccessPolicy }) => async ({ actor, loanId, attachmentId }) => {
+  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can download loan attachments');
+
   const loan = await loanAccessPolicy.findAuthorizedLoan({ actor, loanId });
   const attachment = await attachmentRepository.findByIdForLoan({ loanId: loan.id, attachmentId });
 
   ensureDocumentExists(attachment, 'Attachment');
-
-  if (actor.role === 'customer' && !attachment.customerVisible) {
-    throw new AuthorizationError('You do not have access to this attachment');
-  }
 
   return {
     attachment,
@@ -1760,7 +1825,7 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
 
       duePayments.push({
         creditId: loan.id,
-        customerName: loan.Customer?.name || loan.customerId || 'Unknown',
+        customerName: getDuePaymentCustomerLabel(loan),
         installmentNumber: installment.installmentNumber,
         amountDue: roundCurrency(outstandingAmount),
         dueDate: installment.dueDate,
@@ -1774,12 +1839,13 @@ const createGetDuePayments = ({ loanRepository, alertRepository, loanViewService
 
 /**
  * Create the use case that searches loans with filters and pagination.
- * Search results are always scoped through the shared visibility policy so
- * customers and associates only see their own portfolio slices.
+ * Search results are always scoped through the shared backoffice visibility policy.
  * @param {{ loanRepository: object, loanAccessPolicy?: object }} dependencies
  * @returns {Function}
  */
 const createSearchLoans = ({ loanRepository, loanAccessPolicy }) => async ({ actor, filters = {}, pagination }) => {
+  ensureCreditBackofficeActor(actor, 'Only authorized backoffice users can search loans');
+
   if (pagination && typeof loanRepository.searchPage === 'function') {
     return loanRepository.searchPage({ actor, filters, ...pagination });
   }
@@ -1812,10 +1878,10 @@ const createUpdateLateFeeRate = ({ loanRepository, loanAccessPolicy, auditServic
       throw new AuthorizationError('Only admins can update late fee rates');
     }
 
-    const parsedRate = parseFloat(lateFeeRate);
-    if (Number.isNaN(parsedRate) || parsedRate < 0 || parsedRate > 100) {
+    if (!validateInterestRate(lateFeeRate)) {
       throw new ValidationError('Late fee rate must be a number between 0 and 100');
     }
+    const parsedRate = Number(typeof lateFeeRate === 'string' ? lateFeeRate.trim() : lateFeeRate);
 
     const loan = loanAccessPolicy
       ? await loanAccessPolicy.findAuthorizedMutationLoan({ actor, loanId })

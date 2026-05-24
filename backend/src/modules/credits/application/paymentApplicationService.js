@@ -16,6 +16,7 @@ const {
   assertPayoffAllowed,
 } = require('./paymentEligibility');
 const { normalizeOperationalDate } = require('@/modules/shared/dateUtils');
+const { parsePositiveCurrencyAmount } = require('@/modules/shared/money');
 
 const INSTALLMENT_PAYMENT_TYPE = 'installment';
 const PAYOFF_PAYMENT_TYPE = 'payoff';
@@ -203,8 +204,22 @@ const assertPositiveAmount = (amount) => {
   return numericAmount;
 };
 
+/**
+ * Normalize a reduce-payment term while rejecting JavaScript string coercions
+ * such as exponent notation that operators cannot enter as a plain month count.
+ */
 const assertCapitalRescheduleTerm = (termMonths) => {
-  const numericTerm = Number(termMonths);
+  const normalizedTerm = typeof termMonths === 'string' ? termMonths.trim() : termMonths;
+  if (
+    normalizedTerm === null
+    || normalizedTerm === undefined
+    || normalizedTerm === ''
+    || (typeof normalizedTerm === 'string' && !/^\d+$/.test(normalizedTerm))
+  ) {
+    throw new ValidationError('newTermMonths must be an integer between 1 and 360 for reduce_payment capital payments');
+  }
+
+  const numericTerm = Number(normalizedTerm);
   if (!Number.isInteger(numericTerm) || numericTerm < 1 || numericTerm > 360) {
     throw new ValidationError('newTermMonths must be an integer between 1 and 360 for reduce_payment capital payments');
   }
@@ -385,6 +400,28 @@ const buildCapitalPaymentBlockedError = (denialReasons) => new BusinessRuleViola
   code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
   denialReasons,
 });
+
+/**
+ * Ensure a capital payment does not silently apply less than the requested amount.
+ */
+const assertCapitalPaymentDoesNotExceedPrincipal = ({ amount, outstandingPrincipal }) => {
+  const requestedAmount = roundCurrency(amount);
+  const currentOutstandingPrincipal = roundCurrency(outstandingPrincipal || 0);
+
+  if (requestedAmount <= currentOutstandingPrincipal) {
+    return;
+  }
+
+  throw new BusinessRuleViolationError('El abono a capital no puede exceder el capital vivo del crédito', {
+    code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
+    denialReasons: [{
+      code: 'CAPITAL_PAYMENT_EXCEEDS_PRINCIPAL',
+      message: 'El abono a capital no puede exceder el capital vivo del crédito',
+      outstandingPrincipal: currentOutstandingPrincipal,
+      requestedAmount,
+    }],
+  });
+};
 
 const assertCapitalScheduleCanBeRebuilt = ({ schedule, asOfDate }) => {
   const normalizedAsOfDate = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
@@ -1042,8 +1079,12 @@ const createPaymentApplicationService = ({
       });
       assertCapitalScheduleCanBeRebuilt({ schedule, asOfDate: normalizedPaymentDate });
 
-      const principalReduction = Math.min(numericAmount, roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0));
       const capitalBefore = roundCurrency(canonicalSnapshot.outstandingPrincipal || loan.principalOutstanding || 0);
+      assertCapitalPaymentDoesNotExceedPrincipal({
+        amount: numericAmount,
+        outstandingPrincipal: capitalBefore,
+      });
+      const principalReduction = numericAmount;
       const principalAfterReduction = roundCurrency(Math.max(0, capitalBefore - principalReduction));
 
       const rebuiltSchedule = rebuildPendingScheduleAfterCapitalPayment({
@@ -1272,7 +1313,7 @@ const createPaymentApplicationService = ({
         : Number(installmentNumber);
 
       if (requestedInstallmentNumber !== null && (!Number.isInteger(requestedInstallmentNumber) || requestedInstallmentNumber <= 0)) {
-        throw new ValidationError('installmentNumber must be a positive integer when provided');
+        throw new ValidationError('El número de cuota debe ser un entero positivo cuando se indique');
       }
 
       // Find the nearest cancellable installment
@@ -1440,24 +1481,20 @@ const createPaymentApplicationService = ({
 
   const validateProcessPaymentInput = ({ loanId, paymentAmount, paymentDate, installmentNumber }) => {
     if (!loanId) {
-      throw new ValidationError('loanId is required');
+      throw new ValidationError('El crédito es obligatorio');
     }
-    if (!paymentAmount || paymentAmount === '0') {
-      throw new ValidationError('paymentAmount must be greater than 0');
-    }
-    const parsedAmount = parseFloat(paymentAmount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      throw new ValidationError('paymentAmount must be a valid number greater than 0');
+    if (parsePositiveCurrencyAmount(paymentAmount) === null) {
+      throw new ValidationError('El monto del pago debe ser un número válido mayor que 0');
     }
     if (!paymentDate) {
-      throw new ValidationError('paymentDate is required');
+      throw new ValidationError('La fecha de pago es obligatoria');
     }
     normalizePaymentDate(paymentDate);
 
     if (installmentNumber !== undefined && installmentNumber !== null) {
       const parsedInstallmentNumber = Number(installmentNumber);
       if (!Number.isInteger(parsedInstallmentNumber) || parsedInstallmentNumber <= 0) {
-        throw new ValidationError('installmentNumber must be a positive integer');
+        throw new ValidationError('El número de cuota debe ser un entero positivo');
       }
     }
   };

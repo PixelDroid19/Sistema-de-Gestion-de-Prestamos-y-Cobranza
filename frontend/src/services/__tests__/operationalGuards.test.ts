@@ -44,6 +44,94 @@ describe('resolveOperationalGuard', () => {
     });
   });
 
+  it('allows employees with backend payment view permission to navigate to collections', () => {
+    const guard = resolveOperationalGuard('credit.payouts.navigate', {
+      role: 'employee',
+      permissions: ['PAYMENTS_VIEW_ALL'],
+      loanStatus: 'active',
+    });
+
+    expect(guard).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+  });
+
+  it('allows employees with backend reverse permission to annul installments', () => {
+    const guard = resolveOperationalGuard('installment.annul', {
+      role: 'employee',
+      permissions: ['PAYMENTS_REVERSE'],
+      loanStatus: 'active',
+      installmentStatus: 'pending',
+    });
+
+    expect(guard).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+  });
+
+  it('does not expose payout registration to customer records', () => {
+    const guard = resolveOperationalGuard('payout.register', {
+      role: 'customer',
+      permissions: ['*'],
+      payoutType: 'regular',
+    });
+
+    expect(guard).toMatchObject({
+      visible: false,
+      executable: false,
+      reason: 'Solo el equipo autorizado puede registrar pagos.',
+    });
+  });
+
+  it('does not expose payout vouchers to associate records', () => {
+    const guard = resolveOperationalGuard('payout.voucher.download', {
+      role: 'socio',
+      permissions: ['*'],
+    });
+
+    expect(guard).toMatchObject({
+      visible: false,
+      executable: false,
+      reason: 'Acción disponible solo para usuarios administrativos.',
+    });
+  });
+
+  it('does not expose internal report exports to associate records', () => {
+    const guard = resolveOperationalGuard('credit.report.download', {
+      role: 'socio',
+      permissions: ['*'],
+    });
+
+    expect(guard).toMatchObject({
+      visible: false,
+      executable: false,
+      reason: 'Acción disponible solo para usuarios administrativos.',
+    });
+  });
+
+  it('uses the backend report view permission for credit report downloads', () => {
+    const allowed = resolveOperationalGuard('credit.report.download', {
+      role: 'employee',
+      permissions: ['REPORTS_VIEW_ALL'],
+    });
+    const exportOnly = resolveOperationalGuard('credit.report.download', {
+      role: 'employee',
+      permissions: ['REPORTS_EXPORT'],
+    });
+
+    expect(allowed).toMatchObject({
+      visible: true,
+      executable: true,
+    });
+    expect(exportOnly).toMatchObject({
+      visible: false,
+      executable: false,
+      reason: 'No cuenta con permisos para ejecutar esta acción.',
+    });
+  });
+
   it('hides backoffice financial actions from employees without the required permission', () => {
     const guard = resolveOperationalGuard('capital.payment', {
       role: 'employee',

@@ -1,4 +1,5 @@
 const { ensureAdmin, formatMoney, buildPdfBuffer } = require('@/modules/reports/application/reportHelpers');
+const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 const { normalizeOptionalOperationalDate, toDateOnlyOrNull, toOperationalDateOrNull } = require('@/modules/shared/dateUtils');
 const { BadRequestError } = require('@/utils/errorHandler');
@@ -331,7 +332,7 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
       return {
         creditId: loan.id,
         customerName: getLoanCustomerName(loan),
-        status: loan.status || '',
+        status: formatOperationalStatus(loan.status),
         creditDate: toOperationalDateOrNull(pickLoanDate(loan)) || '',
         amount: roundMoney(loan.amount),
         principalOutstanding: roundMoney(getPrincipalOutstanding(loan)),
@@ -345,8 +346,8 @@ const buildCreditHistoryAuditReport = ({ loans = [], payments = [], filters = {}
       creditId: payment.loanId || getPaymentLoan(payment).id,
       customerName: getPaymentCustomerName(payment),
       paymentDate: toOperationalDateOrNull(payment.paymentDate) || '',
-      paymentType: payment.paymentType || '',
-      status: payment.status || '',
+      paymentType: formatPaymentType(payment.paymentType),
+      status: formatOperationalStatus(payment.status),
       amount: roundMoney(payment.amount),
       principalApplied: roundMoney(payment.principalApplied),
       interestApplied: roundMoney(payment.interestApplied),

@@ -2,7 +2,7 @@ const { AuthorizationError, NotFoundError, ValidationError } = require('@/utils/
 
 const ensureSubscriptionIdentifier = ({ endpoint, deviceToken }) => {
   if (!endpoint && !deviceToken) {
-    throw new ValidationError('Subscription endpoint or device token is required');
+    throw new ValidationError('Debe indicar endpoint o token del dispositivo para la suscripción');
   }
 };
 
@@ -37,13 +37,13 @@ const createMarkAsRead = ({ notificationRepository }) => async ({ actor, notific
   }
 
   if (notification.userId !== actor.id) {
-    throw new AuthorizationError('You can only mark your own notifications as read');
+    throw new AuthorizationError('Solo puede marcar sus propias notificaciones como leídas');
   }
 
   const updatedNotification = await notificationRepository.markAsRead(Number(notificationId));
   return {
     success: true,
-    message: 'Notification marked as read',
+    message: 'Notificación marcada como leída',
     data: { notification: updatedNotification },
   };
 };
@@ -57,7 +57,7 @@ const createMarkAllAsRead = ({ notificationRepository }) => async ({ actor }) =>
   const notifications = await notificationRepository.markAllAsRead(actor.id);
   return {
     success: true,
-    message: 'All notifications marked as read',
+    message: 'Todas las notificaciones fueron marcadas como leídas',
     data: {
       notifications,
       count: notifications.length,
@@ -86,7 +86,7 @@ const createClearNotifications = ({ notificationRepository }) => async ({ actor 
   await notificationRepository.clearNotifications(actor.id);
   return {
     success: true,
-    message: 'All notifications cleared',
+    message: 'Notificaciones eliminadas correctamente',
   };
 };
 
@@ -105,7 +105,7 @@ const createRegisterPushSubscription = ({ pushSubscriptionRepository }) => async
 
   return {
     success: true,
-    message: 'Push subscription registered',
+    message: 'Suscripción de notificaciones registrada correctamente',
     data: { subscription },
   };
 };
@@ -127,7 +127,7 @@ const createDeletePushSubscription = ({ pushSubscriptionRepository }) => async (
 
   return {
     success: true,
-    message: 'Push subscription removed',
+    message: 'Suscripción de notificaciones eliminada correctamente',
     data: { removed },
   };
 };

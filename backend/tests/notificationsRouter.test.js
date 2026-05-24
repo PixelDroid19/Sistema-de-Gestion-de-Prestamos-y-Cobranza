@@ -57,7 +57,7 @@ test('createNotificationsRouter serves notification contract responses', async (
         calls.push(['markAsRead', input.notificationId]);
         return {
           success: true,
-          message: 'Notification marked as read',
+          message: 'Notificación marcada como leída',
           data: { notification: { id: Number(input.notificationId), isRead: true } },
         };
       },
@@ -65,19 +65,19 @@ test('createNotificationsRouter serves notification contract responses', async (
         calls.push(['markAllAsRead', input.actor.id]);
         return {
           success: true,
-          message: 'All notifications marked as read',
+          message: 'Todas las notificaciones fueron marcadas como leídas',
           data: { notifications: [{ id: 5, isRead: true }], count: 1 },
         };
       },
       async clearNotifications(input) {
         calls.push(['clearNotifications', input.actor.id]);
-        return { success: true, message: 'All notifications cleared' };
+        return { success: true, message: 'Notificaciones eliminadas correctamente' };
       },
       async registerPushSubscription(input) {
         calls.push(['registerPushSubscription', input.payload.providerKey]);
         return {
           success: true,
-          message: 'Push subscription registered',
+          message: 'Suscripción de notificaciones registrada correctamente',
           data: { subscription: { id: 10, providerKey: input.payload.providerKey } },
         };
       },
@@ -85,7 +85,7 @@ test('createNotificationsRouter serves notification contract responses', async (
         calls.push(['deletePushSubscription', input.payload.providerKey]);
         return {
           success: true,
-          message: 'Push subscription removed',
+          message: 'Suscripción de notificaciones eliminada correctamente',
           data: { removed: true },
         };
       },
@@ -148,24 +148,63 @@ test('createNotificationsRouter serves notification contract responses', async (
   assert.equal(unreadResponse.statusCode, 200);
   assert.equal(unreadResponse.body.data.unreadCount, 1);
   assert.equal(markReadResponse.statusCode, 200);
-  assert.equal(markReadResponse.body.message, 'Notification marked as read');
+  assert.equal(markReadResponse.body.message, 'Notificación marcada como leída');
   assert.equal(markAllResponse.statusCode, 200);
   assert.equal(markAllResponse.body.data.count, 1);
   assert.equal(clearResponse.statusCode, 200);
-  assert.equal(clearResponse.body.message, 'All notifications cleared');
+  assert.equal(clearResponse.body.message, 'Notificaciones eliminadas correctamente');
   assert.equal(registerResponse.statusCode, 201);
-  assert.equal(registerResponse.body.message, 'Push subscription registered');
+  assert.equal(registerResponse.body.message, 'Suscripción de notificaciones registrada correctamente');
   assert.equal(deleteResponse.statusCode, 200);
-  assert.equal(deleteResponse.body.message, 'Push subscription removed');
+  assert.equal(deleteResponse.body.message, 'Suscripción de notificaciones eliminada correctamente');
   assert.deepEqual(calls, [
     ['getNotifications', 8],
     ['getUnreadCount', 8],
-    ['markAsRead', '5'],
+    ['markAsRead', 5],
     ['markAllAsRead', 8],
     ['clearNotifications', 8],
     ['registerPushSubscription', 'webpush'],
     ['deletePushSubscription', 'webpush'],
   ]);
+});
+
+test('createNotificationsRouter rejects malformed notification identifiers before marking read', async () => {
+  const calls = [];
+  const router = createNotificationsRouter({
+    authMiddleware,
+    notificationValidation: passthroughValidation,
+    useCases: {
+      async markAsRead(input) {
+        calls.push(['markAsRead', input.notificationId]);
+        return {
+          success: true,
+          data: { notification: { id: Number(input.notificationId), isRead: true } },
+        };
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'PUT',
+    path: '/1e2/read',
+    headers: { authorization: 'Bearer valid-token', 'x-test-user-id': '8' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /notificationId/i);
+  assert.deepEqual(calls, []);
 });
 
 test('createNotificationsRouter requires authentication', async () => {
@@ -216,7 +255,7 @@ test('createNotificationsRouter returns validation failures for malformed subscr
     authMiddleware,
     notificationValidation: {
       registerSubscription(req, res, next) {
-        const error = new Error('Validation failed');
+        const error = new Error('La validación falló');
         error.statusCode = 400;
         next(error);
       },
@@ -319,7 +358,7 @@ test('createNotificationsRouter rejects mismatched provider and channel combinat
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /webpush subscriptions must use the web channel/);
+  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones webpush deben usar el canal web/);
 });
 
 test('createNotificationsRouter rejects mobile subscription registration without deviceToken', async () => {
@@ -373,7 +412,7 @@ test('createNotificationsRouter rejects mobile subscription registration without
 
   assert.equal(response.statusCode, 400);
   assert.equal(response.body.success, false);
-  assert.match(JSON.stringify(response.body.error.validationErrors), /Mobile subscriptions require a deviceToken/);
+  assert.match(JSON.stringify(response.body.error.validationErrors), /Las suscripciones móviles requieren token del dispositivo/);
 });
 
 test('createNotificationsRouter rejects webpush deletion without endpoint identifier', async () => {

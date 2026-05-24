@@ -5,6 +5,8 @@ const {
   RATE_POLICY_CATEGORY,
   LATE_FEE_POLICY_CATEGORY,
 } = require('@/modules/config/infrastructure/repositories');
+const { validateCurrencyPrecision } = require('@/modules/shared/money');
+const { validateInterestRate } = require('@/modules/shared/validators');
 const { ROLES } = require('@/modules/shared/roles');
 
 const PAYMENT_METHOD_TYPES = new Set(['bank_transfer', 'cash', 'card', 'other']);
@@ -67,8 +69,12 @@ const toOptionalNumber = (value, field) => {
     return null;
   }
 
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
+  if (!validateCurrencyPrecision(value)) {
+    throw new ValidationError(`${field} must be numeric`);
+  }
+
+  const numericValue = Number(typeof value === 'string' ? value.trim() : value);
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
     throw new ValidationError(`${field} must be numeric`);
   }
 
@@ -76,12 +82,11 @@ const toOptionalNumber = (value, field) => {
 };
 
 const assertPercent = (value, field) => {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+  if (!validateInterestRate(value)) {
     throw new ValidationError(`${field} must be between 0 and 100`);
   }
 
-  return numericValue;
+  return Number(typeof value === 'string' ? value.trim() : value);
 };
 
 const normalizePolicyPriority = (value) => {

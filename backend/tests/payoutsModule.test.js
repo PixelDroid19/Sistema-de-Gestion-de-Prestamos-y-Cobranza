@@ -607,7 +607,7 @@ test('createCreateCapitalPayment audits invalid capital payment attempts', async
     },
     paymentApplicationService: {
       async applyCapitalPayment() {
-        throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+        throw new BusinessRuleViolationError('El abono a capital no está permitido para este crédito', {
           code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
           denialReasons: [{
             code: 'FIRST_INSTALLMENT_PAYMENT_REQUIRED',

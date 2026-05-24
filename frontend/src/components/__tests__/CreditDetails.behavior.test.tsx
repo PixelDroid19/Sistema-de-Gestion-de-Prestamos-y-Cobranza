@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CreditDetails from '../CreditDetails';
 import { downloadVoucher } from '../../services/paymentService';
+import { exportCreditExcel } from '../../services/reportService';
 
 const mockNavigate = vi.fn();
 const mockRecordPayment = vi.fn();
@@ -612,6 +613,60 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('keeps capital prepayment submission disabled when the amount exceeds live principal', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '900000' } });
+
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
+    expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects exponent-like new term values before recording a capital prepayment', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+    fireEvent.change(container.querySelector('#credit-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
+
+    expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
+  });
+
+  it('keeps capital prepayment submission disabled for exponent-like new term values', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+    fireEvent.change(container.querySelector('#credit-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
+
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
+  });
+
+  it('rejects exponent-like late fee rate values before updating the credit', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tasa de mora' }));
+    fireEvent.change(container.querySelector('#credit-late-fee-rate') as HTMLInputElement, { target: { value: '1e2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(mockUpdateLateFeeRate).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith({ title: 'La tasa debe estar entre 0 y 100' });
+  });
+
   it('shows a specific payoff denial reason when an active credit still has balance', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     mockLoan = {
@@ -647,14 +702,14 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByText('Este crédito ya no tiene saldo pendiente para liquidar.')).not.toBeInTheDocument();
   });
 
-  it('does not expose backoffice payment actions to customer-role users in this administrative component', () => {
-    setSessionUser({ id: 10, name: 'QA Customer', email: 'customer@test.com', role: 'customer', permissions: [] });
+  it('does not expose payment actions to employees without payment permissions', () => {
+    setSessionUser({ id: 10, name: 'Empleado consulta', email: 'readonly.employee@test.com', role: 'employee', permissions: ['CREDITS_VIEW_ALL'] });
 
     renderCreditDetails();
 
     expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Pago total' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Pagar cuota' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
@@ -684,16 +739,34 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByRole('button', { name: 'Tasa de mora' })).not.toBeInTheDocument();
   });
 
-  it('renders a socio read-only detail view without admin-only tabs or payoff', () => {
-    setSessionUser({ id: 3, name: 'QA Socio', email: 'socio@test.com', role: 'socio', associateId: 1, permissions: [] });
+  it('renders an employee read-only detail view without admin-only tabs or payoff', () => {
+    setSessionUser({ id: 3, name: 'Empleado lectura', email: 'employee.read@test.com', role: 'employee', permissions: ['CREDITS_VIEW_ALL'] });
 
     renderCreditDetails();
 
     expect(screen.queryByRole('button', { name: 'Alertas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Compromisos de pago' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Pago total' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pago total' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Registrar pago' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Estado' })).not.toBeInTheDocument();
     expect(screen.queryByTitle('Registrar pago de cuota')).not.toBeInTheDocument();
+  });
+
+  it('allows employees with report permission to export the credit Excel', async () => {
+    setSessionUser({
+      id: 4,
+      name: 'Empleado reportes',
+      email: 'employee.reports@test.com',
+      role: 'employee',
+      permissions: ['CREDITS_VIEW_ALL', 'REPORTS_VIEW_ALL'],
+    });
+
+    renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+
+    await waitFor(() => {
+      expect(exportCreditExcel).toHaveBeenCalledWith(101);
+    });
   });
 });

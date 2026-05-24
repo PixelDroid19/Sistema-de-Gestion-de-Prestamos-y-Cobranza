@@ -123,7 +123,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
                 type: 'integer',
                 minimum: 1,
                 maximum: 360,
-                description: 'Cantidad de cuotas elegida por el cliente para redistribuir el saldo restante cuando strategy=reduce_payment.',
+                description: 'Cantidad de cuotas definida por el operador para redistribuir el saldo restante cuando strategy=reduce_payment.',
               },
             },
           },
@@ -278,7 +278,7 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
     '/payments': {
       post: {
         tags: ['Payments'],
-        summary: 'Registrar pago de cuota por autoservicio de cliente',
+        summary: 'Registrar pago de cuota por operador interno',
         parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
         requestBody: {
           required: true,
@@ -325,10 +325,10 @@ const buildOpenApiDocument = ({ moduleRegistry = [] } = {}) => ({
         responses: { 201: { description: 'Socio registrado con trazabilidad de capital inicial e interés cuando aplica' } },
       },
     },
-    '/associates/{associateId}/portal': {
+    '/associates/{associateId}/financial-details': {
       get: {
         tags: ['Associates'],
-        summary: 'Consultar portal financiero del socio',
+        summary: 'Consultar detalle financiero del socio',
         parameters: [{ name: 'associateId', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'Resumen de capital aportado, interés pagado, deuda, movimientos y cuotas del socio' } },
       },

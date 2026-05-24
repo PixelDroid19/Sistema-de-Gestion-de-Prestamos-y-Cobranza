@@ -114,6 +114,66 @@ describe('Login behavior', () => {
     });
   });
 
+  it('does not preserve administrative pending routes for non-administrative login responses', async () => {
+    currentLocation = {
+      state: {
+        from: {
+          pathname: '/credits/77',
+        },
+      },
+    };
+    mockLogin.mockResolvedValue({
+      data: {
+        user: {
+          role: 'customer',
+        },
+      },
+    });
+
+    render(<Login />);
+
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
+      target: { value: 'qa.customer@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
+      target: { value: 'Admin1234' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
+    });
+    expect(mockNavigate).not.toHaveBeenCalledWith('/credits/77', { replace: true });
+  });
+
+  it('falls closed to login when the login response does not include a user', async () => {
+    currentLocation = {
+      state: {
+        from: {
+          pathname: '/dashboard',
+        },
+      },
+    };
+    mockLogin.mockResolvedValue({
+      data: {},
+    });
+
+    render(<Login />);
+
+    fireEvent.change(screen.getByPlaceholderText('nombre@empresa.com'), {
+      target: { value: 'qa.admin@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Ingresa tu contraseña'), {
+      target: { value: 'Admin1234' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
+    });
+    expect(mockNavigate).not.toHaveBeenCalledWith('/dashboard', { replace: true });
+  });
+
   it('shows the safe login error text when credentials are rejected', async () => {
     mockLogin.mockRejectedValue({
       statusCode: 401,

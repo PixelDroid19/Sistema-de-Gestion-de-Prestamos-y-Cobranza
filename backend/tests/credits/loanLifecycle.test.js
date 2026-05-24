@@ -114,7 +114,7 @@ test('createLoanFromCanonicalData rejects assigning associates to new credits', 
       startDate: '2026-04-24',
     }),
     (error) => {
-      assert.equal(error.message, 'Socios are managed as investors and cannot be assigned to new credits');
+      assert.equal(error.message, 'Los socios se gestionan como inversionistas y no se asignan a créditos nuevos');
       return true;
     },
   );
@@ -143,7 +143,7 @@ test('createLoanFromCanonicalData rejects manual late-fee source for new credits
       startDate: '2026-04-24',
     }),
     (error) => {
-      assert.equal(error.message, 'Credit creation must use a configured late fee policy');
+      assert.equal(error.message, 'La creación de créditos debe usar una política de mora configurada');
       return true;
     },
   );

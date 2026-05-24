@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { safeSessionStateStorage } from '../lib/safeStorage';
 
+type AdministrativeRole = 'admin' | 'employee';
+
 interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'employee' | 'customer' | 'socio';
-  phone?: string;
-  associateId?: number;
+  role: AdministrativeRole;
   permissions?: string[];
 }
 
@@ -27,15 +27,49 @@ interface SessionState {
   markHydrated: () => void;
 }
 
+const isAdministrativeRole = (role: unknown): role is AdministrativeRole => role === 'admin' || role === 'employee';
+
+/**
+ * Validates that a persisted or API-provided identity belongs to an internal
+ * backoffice user. Borrowers and investor associates are domain records, not
+ * authenticated administrative sessions.
+ */
+export const isAdministrativeUser = (user: unknown): user is User => {
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+
+  return isAdministrativeRole((user as { role?: unknown }).role);
+};
+
+const sanitizeSession = (state: Partial<SessionState>): Partial<SessionState> => {
+  if (!isAdministrativeUser(state.user)) {
+    return {
+      ...state,
+      accessToken: null,
+      refreshToken: null,
+      user: null,
+    };
+  }
+
+  return state;
+};
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set) => ({
       accessToken: null,
       refreshToken: null,
       user: null,
-      hasHydrated: false,
-      login: ({ accessToken, refreshToken, user }) => set({ accessToken, refreshToken, user }),
-      updateAccessToken: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      hasHydrated: true,
+      login: ({ accessToken, refreshToken, user }) => set(sanitizeSession({ accessToken, refreshToken, user })),
+      updateAccessToken: (accessToken, refreshToken) => set((state) => {
+        if (!isAdministrativeUser(state.user)) {
+          return { accessToken: null, refreshToken: null, user: null };
+        }
+
+        return { accessToken, refreshToken };
+      }),
       logout: () => set({ accessToken: null, refreshToken: null, user: null }),
       markHydrated: () => set({ hasHydrated: true }),
     }),
@@ -46,6 +80,10 @@ export const useSessionStore = create<SessionState>()(
         refreshToken: state.refreshToken,
         user: state.user,
         // Don't persist accessToken for security - it should be short-lived
+      }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...sanitizeSession(persistedState as Partial<SessionState>),
       }),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();

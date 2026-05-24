@@ -26,7 +26,7 @@ test('GET /api/permissions returns all permissions (requires auth)', async () =>
     getUserPermissions: mock.fn(() => Promise.resolve({})),
     getMyPermissions: mock.fn(() => Promise.resolve({ userId: 1, permissions: [] })),
     grantPermission: mock.fn(() => Promise.resolve({})),
-    grantBatchPermissions: mock.fn(() => Promise.resolve({ granted: [], failed: [] })),
+    grantBatchPermissions: mock.fn((payload) => Promise.resolve({ granted: payload.permissions || [], failed: [] })),
     revokePermission: mock.fn(() => Promise.resolve({ success: true })),
     checkPermission: mock.fn(() => Promise.resolve({ allowed: false, source: null })),
     checkMultiplePermissions: mock.fn(() => Promise.resolve({ permissions: [] })),
@@ -111,6 +111,53 @@ test('GET /api/permissions/me returns current user permissions', async () => {
   assert.deepEqual(response.body.data.allPermissions, ['CREDITS_VIEW_ALL', 'CLIENTS_VIEW_ALL']);
 });
 
+test('GET /api/permissions/user/:userId rejects malformed route identifiers before reading permissions', async () => {
+  const calls = [];
+  const mockUseCases = {
+    listPermissions: mock.fn(() => Promise.resolve({ permissionsByModule: {}, permissions: [], total: 0 })),
+    getPermissionsByModule: mock.fn(() => Promise.resolve({ module: 'CREDITOS', permissions: [] })),
+    getUserPermissions: mock.fn((payload) => {
+      calls.push(payload);
+      return Promise.resolve({ userId: Number(payload.targetUserId), permissions: [] });
+    }),
+    getMyPermissions: mock.fn(() => Promise.resolve({ userId: 1, permissions: [] })),
+    grantPermission: mock.fn(() => Promise.resolve({})),
+    grantBatchPermissions: mock.fn(() => Promise.resolve({ granted: [], failed: [] })),
+    revokePermission: mock.fn(() => Promise.resolve({ success: true })),
+    checkPermission: mock.fn(() => Promise.resolve({ allowed: false, source: null })),
+    checkMultiplePermissions: mock.fn(() => Promise.resolve({ permissions: [] })),
+  };
+
+  const allowAuth = () => (req, res, next) => {
+    req.user = { id: 1, role: 'admin' };
+    next();
+  };
+
+  const router = createPermissionsRouter({ authMiddleware: allowAuth, useCases: mockUseCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/user/1e2',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /userId/i);
+  assert.deepEqual(calls, []);
+});
+
 test('POST /api/permissions/grant accepts legacy permissionId and modern permission payloads', async () => {
   const calls = [];
   const mockUseCases = {
@@ -159,9 +206,19 @@ test('POST /api/permissions/grant accepts legacy permissionId and modern permiss
     headers: { authorization: 'Bearer valid-token' },
     body: { userId: 5, permission: 'CREDITS_VIEW_ALL' },
   });
+  const batchResponse = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/grant/batch',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { userId: 5, permissions: ['CREDITS_VIEW_ALL'] },
+  });
 
   assert.equal(legacyResponse.statusCode, 201);
   assert.equal(modernResponse.statusCode, 201);
+  assert.equal(batchResponse.statusCode, 201);
+  assert.equal(legacyResponse.body.message, 'Permiso concedido correctamente');
+  assert.equal(modernResponse.body.message, 'Permiso concedido correctamente');
+  assert.equal(batchResponse.body.message, 'Permisos concedidos correctamente');
   assert.deepEqual(calls, [
     { actor: { id: 1, role: 'admin' }, targetUserId: 5, permissionId: 10, permission: undefined },
     { actor: { id: 1, role: 'admin' }, targetUserId: 5, permissionId: undefined, permission: 'CREDITS_VIEW_ALL' },
@@ -215,6 +272,8 @@ test('POST /api/permissions/revoke accepts legacy permissionId and modern permis
 
   assert.equal(legacyResponse.statusCode, 200);
   assert.equal(modernResponse.statusCode, 200);
+  assert.equal(legacyResponse.body.message, 'Permiso revocado correctamente');
+  assert.equal(modernResponse.body.message, 'Permiso revocado correctamente');
   assert.deepEqual(calls, [
     { actor: { id: 1, role: 'admin' }, targetUserId: 5, permissionId: 10, permission: undefined },
     { actor: { id: 1, role: 'admin' }, targetUserId: 5, permissionId: undefined, permission: 'CREDITS_VIEW_ALL' },
@@ -268,6 +327,8 @@ test('DELETE /api/permissions/direct accepts legacy and modern payloads', async 
 
   assert.equal(legacyResponse.statusCode, 200);
   assert.equal(modernResponse.statusCode, 200);
+  assert.equal(legacyResponse.body.message, 'Permiso directo revocado correctamente');
+  assert.equal(modernResponse.body.message, 'Permiso directo revocado correctamente');
   assert.deepEqual(calls, [
     { actor: { id: 1, role: 'admin' }, targetUserId: 7, permissionId: 10, permission: undefined },
     { actor: { id: 1, role: 'admin' }, targetUserId: 7, permissionId: undefined, permission: 'CREDITS_VIEW_ALL' },

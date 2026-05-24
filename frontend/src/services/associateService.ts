@@ -57,10 +57,10 @@ export const useAssociateById = (associateId: number) => {
 export const useAssociateDetails = (associateId: number) => {
   const queryClient = useQueryClient();
 
-  const getPortal = useQuery({
-    queryKey: queryKeys.associates.portal(associateId),
+  const getFinancialDetails = useQuery({
+    queryKey: queryKeys.associates.financialDetails(associateId),
     queryFn: async () => {
-      const { data } = await apiClient.get(`/associates/${associateId}/portal`);
+      const { data } = await apiClient.get(`/associates/${associateId}/financial-details`);
       return data;
     },
     enabled: !!associateId,
@@ -90,7 +90,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
@@ -101,7 +101,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
@@ -112,7 +112,7 @@ export const useAssociateDetails = (associateId: number) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
     },
   });
@@ -125,16 +125,18 @@ export const useAssociateDetails = (associateId: number) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.installments(associateId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.associates.calendar(associateId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.associates.portal(associateId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.associates.financialDetails(associateId) });
     },
   });
 
+  const details = getFinancialDetails.data?.data?.details;
+
   return {
-    portal: getPortal.data?.data?.portal,
+    details,
     installments: getInstallments.data?.data?.installments,
-    contributions: getPortal.data?.data?.portal?.contributions,
+    contributions: details?.contributions,
     calendar: getCalendar.data?.data?.calendar,
-    isLoading: getPortal.isLoading || getInstallments.isLoading || getCalendar.isLoading,
+    isLoading: getFinancialDetails.isLoading || getInstallments.isLoading || getCalendar.isLoading,
     createContribution,
     createDistribution,
     createReinvestment,

@@ -44,6 +44,7 @@ const isCustomerPrimaryKeyConflict = (error) => {
 
 const ALLOWED_CUSTOMER_STATUSES = new Set(['active', 'inactive', 'blacklisted']);
 const ALLOWED_CUSTOMER_REGISTERED_WINDOWS = new Set(['today', 'week', 'month', 'year']);
+const CUSTOMER_DOCUMENT_ACCESS_MESSAGE = 'Only authorized backoffice users can access customer documents';
 
 const normalizeCustomerListFilters = (filters = {}) => {
   const normalized = {};
@@ -175,13 +176,19 @@ const createDeleteCustomer = ({ customerRepository, auditService }) => {
   return useCase;
 };
 
+/**
+ * Resolves a customer record for document operations after enforcing the
+ * administrative backoffice boundary.
+ *
+ * Customer records are borrower domain data, not login principals for this
+ * platform, so document listing and downloads are restricted to internal users.
+ *
+ * @param {{ actor: { role?: string }, customerRepository: object, customerId: number|string }} input
+ * @returns {Promise<object>} Customer record.
+ */
 const ensureCustomerDocumentAccess = async ({ actor, customerRepository, customerId }) => {
-  if (!['admin', 'employee', 'customer'].includes(actor.role)) {
-    throw new AuthorizationError('You do not have access to customer documents');
-  }
-
-  if (actor.role === 'customer' && Number(actor.id) !== Number(customerId)) {
-    throw new AuthorizationError('You can only access your own customer documents');
+  if (!actor || !['admin', 'employee'].includes(actor.role)) {
+    throw new AuthorizationError(CUSTOMER_DOCUMENT_ACCESS_MESSAGE);
   }
 
   const customer = await customerRepository.findById(customerId);
@@ -194,13 +201,7 @@ const ensureCustomerDocumentAccess = async ({ actor, customerRepository, custome
 
 const createListCustomerDocuments = ({ customerRepository }) => async ({ actor, customerId }) => {
   await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
-  const documents = await customerRepository.listDocuments(customerId);
-
-  if (actor.role === 'customer') {
-    return documents.filter((document) => document.customerVisible);
-  }
-
-  return documents;
+  return customerRepository.listDocuments(customerId);
 };
 
 const createUploadCustomerDocument = ({ customerRepository, attachmentStorage, auditService }) => {
@@ -216,7 +217,7 @@ const createUploadCustomerDocument = ({ customerRepository, attachmentStorage, a
       file,
       attachmentStorage,
       task: async () => {
-      const customer = await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
+        const customer = await ensureCustomerDocumentAccess({ actor, customerRepository, customerId });
 
         return customerRepository.createDocument({
           customerId: customer.id,
@@ -241,10 +242,6 @@ const createDownloadCustomerDocument = ({ customerRepository, attachmentStorage 
   const document = await customerRepository.findDocument({ customerId, documentId });
 
   ensureDocumentExists(document, 'Document');
-
-  if (actor.role === 'customer' && !document.customerVisible) {
-    throw new AuthorizationError('You do not have access to this document');
-  }
 
   return {
     document,

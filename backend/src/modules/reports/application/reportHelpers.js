@@ -6,13 +6,17 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 
 const isBackofficeActor = (actor) => actor?.role === 'admin' || actor?.role === 'employee';
 
+/**
+ * Require an authenticated administrative backoffice actor.
+ * Employees must still pass route-level permission checks before reaching
+ * use cases that call this helper.
+ *
+ * @param {{ role?: string }} actor
+ * @param {string} [message]
+ * @throws {AuthorizationError}
+ * @returns {void}
+ */
 const ensureAdmin = (actor, message = 'Only authorized backoffice users can access reports') => {
-  if (!isBackofficeActor(actor)) {
-    throw new AuthorizationError(message);
-  }
-};
-
-const ensureAdminOrSocio = (actor, message = 'Only authorized backoffice users can access reports') => {
   if (!isBackofficeActor(actor)) {
     throw new AuthorizationError(message);
   }
@@ -130,7 +134,6 @@ const buildPdfBuffer = ({ title, lines }) => {
 module.exports = {
   MONTHS,
   ensureAdmin,
-  ensureAdminOrSocio,
   formatMoney,
   parseDateRange,
   buildPaymentDateWhere,

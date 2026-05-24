@@ -55,6 +55,21 @@ const validateCurrencyPrecision = (value) => {
 };
 
 /**
+ * Parse a positive currency amount from operator/API input without accepting
+ * JavaScript partial-number coercions such as "250abc" or exponent notation.
+ * @param {number|string} value
+ * @returns {number|null} Rounded positive amount, or null when invalid.
+ */
+const parsePositiveCurrencyAmount = (value) => {
+  if (!validateCurrencyPrecision(value)) {
+    return null;
+  }
+
+  const amount = Number(typeof value === 'string' ? value.trim() : value);
+  return Number.isFinite(amount) && amount > 0 ? roundCurrency(amount) : null;
+};
+
+/**
  * Normalize a tolerance value, falling back to a default if invalid.
  * @param {number|string} value
  * @param {number} [fallback=0.01]
@@ -82,6 +97,7 @@ module.exports = {
   formatCurrency,
   hasDecimalPrecision,
   validateCurrencyPrecision,
+  parsePositiveCurrencyAmount,
   normalizeTolerance,
   compareWithinTolerance,
 };

@@ -10,7 +10,7 @@ const { createListLoans, createUpdateLoanStatus, createDeleteLoan } = require('@
 const { createCreditsRouter } = require('@/modules/credits/presentation/router');
 const { createAuthMiddleware } = require('@/modules/shared/auth');
 const { createLoanAccessPolicy } = require('@/modules/shared/loanAccessPolicy');
-const { globalErrorHandler, AuthorizationError, NotFoundError } = require('@/utils/errorHandler');
+const { globalErrorHandler, NotFoundError } = require('@/utils/errorHandler');
 const { closeServer, listen, requestJson } = require('./helpers/http');
 
 let activeServer;
@@ -56,6 +56,7 @@ const createUseCases = (overrides) => ({
   updateLoanStatus: unexpectedUseCase('updateLoanStatus'),
   assignRecoveryAssignee: unexpectedUseCase('assignRecoveryAssignee'),
   updateRecoveryStatus: unexpectedUseCase('updateRecoveryStatus'),
+  updateLateFeeRate: unexpectedUseCase('updateLateFeeRate'),
   deleteLoan: unexpectedUseCase('deleteLoan'),
   getLoanById: unexpectedUseCase('getLoanById'),
   listLoanAttachments: unexpectedUseCase('listLoanAttachments'),
@@ -227,7 +228,7 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
     success: true,
-    message: 'Loan application submitted successfully',
+    message: 'Solicitud de crédito registrada correctamente',
     data: {
       loan: createdLoan,
       financialSummary: createdLoan.financialSnapshot,
@@ -260,8 +261,185 @@ test('createCreditsRouter serves create, list, and read contract responses', asy
   assert.deepEqual(calls, [
     ['listLoans', { actor: { id: 2, role: 'admin' }, pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 } }],
     ['createLoan', { actor: { id: 2, role: 'admin' }, payload: createPayload, idempotencyKey: 'loan-create-test-1' }],
-    ['getLoanById', { actor: { id: 2, role: 'admin' }, loanId: '44' }],
+    ['getLoanById', { actor: { id: 2, role: 'admin' }, loanId: 44 }],
   ]);
+});
+
+test('createCreditsRouter rejects malformed route identifiers before executing credit operations', async () => {
+  const calls = [];
+  const useCases = createUseCases({
+    async listLoansByCustomer(input) {
+      calls.push(['listLoansByCustomer', input.customerId]);
+      return { loans: [], pagination: { totalItems: 0 } };
+    },
+    async updateLoanStatus(input) {
+      calls.push(['updateLoanStatus', input.loanId]);
+      return { id: Number(input.loanId), status: input.status };
+    },
+    async updateRecoveryStatus(input) {
+      calls.push(['updateRecoveryStatus', input.loanId]);
+      return { id: Number(input.loanId), recoveryStatus: input.recoveryStatus };
+    },
+    async listLoanAttachments(input) {
+      calls.push(['listLoanAttachments', input.loanId]);
+      return [];
+    },
+    async createLoanAttachment(input) {
+      calls.push(['createLoanAttachment', input.loanId]);
+      return { id: 1 };
+    },
+    async listLoanAlerts(input) {
+      calls.push(['listLoanAlerts', input.loanId]);
+      return [];
+    },
+    async createLoanFollowUp(input) {
+      calls.push(['createLoanFollowUp', input.loanId]);
+      return { reminder: { id: 1 } };
+    },
+    async updateLoanAlertStatus(input) {
+      calls.push(['updateLoanAlertStatus', input.loanId, input.alertId]);
+      return { id: Number(input.alertId), status: input.payload.status };
+    },
+    async getPaymentCalendar(input) {
+      calls.push(['getPaymentCalendar', input.loanId]);
+      return { loanId: Number(input.loanId), entries: [] };
+    },
+    async getInstallmentQuote(input) {
+      calls.push(['getInstallmentQuote', input.loanId, input.installmentNumber]);
+      return { installmentNumber: Number(input.installmentNumber) };
+    },
+    async getPayoffQuote(input) {
+      calls.push(['getPayoffQuote', input.loanId]);
+      return { total: 0 };
+    },
+    async executePayoff(input) {
+      calls.push(['executePayoff', input.loanId]);
+      return {
+        payment: { id: 1 },
+        loan: { id: Number(input.loanId) },
+        allocation: {},
+      };
+    },
+    async listPromisesToPay(input) {
+      calls.push(['listPromisesToPay', input.loanId]);
+      return [];
+    },
+    async createPromiseToPay(input) {
+      calls.push(['createPromiseToPay', input.loanId]);
+      return { id: 1 };
+    },
+    async updatePromiseToPayStatus(input) {
+      calls.push(['updatePromiseToPayStatus', input.loanId, input.promiseId]);
+      return { id: Number(input.promiseId), status: input.payload.status };
+    },
+    async downloadPromiseToPay(input) {
+      calls.push(['downloadPromiseToPay', input.loanId, input.promiseId]);
+      return { fileName: 'promise.pdf', contentType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') };
+    },
+    async deleteLoan(input) {
+      calls.push(['deleteLoan', input.loanId]);
+    },
+    async getLoanById(input) {
+      calls.push(['getLoanById', input.loanId]);
+      return { id: Number(input.loanId) };
+    },
+    async updateLateFeeRate(input) {
+      calls.push(['updateLateFeeRate', input.loanId]);
+      return { id: Number(input.loanId), lateFeeRate: input.lateFeeRate };
+    },
+  });
+  const paymentApplicationService = createPaymentApplicationServiceStub({
+    async updatePaymentMethod(input) {
+      calls.push(['updatePaymentMethod', input.loanId, input.paymentId]);
+      return { id: Number(input.paymentId), loanId: Number(input.loanId), paymentMethod: input.paymentMethod };
+    },
+    async annulInstallment(input) {
+      calls.push(['annulInstallment', input.loanId, input.installmentNumber]);
+      return {
+        payment: { id: 1 },
+        annulment: { installmentNumber: Number(input.installmentNumber) },
+        loan: { id: Number(input.loanId) },
+      };
+    },
+  });
+  const uploadMiddleware = {
+    single() {
+      return (req, _res, next) => {
+        req.file = { path: '/tmp/test.pdf', originalname: 'test.pdf' };
+        next();
+      };
+    },
+  };
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: uploadMiddleware,
+    loanValidation: noopLoanValidation,
+    useCases,
+    paymentApplicationService,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+
+  activeServer = await listen(app);
+
+  const cases = [
+    { method: 'GET', path: '/customer/7abc', field: /customerId/i },
+    { method: 'PATCH', path: '/1e2/status', field: /loanId/i, body: { status: 'approved' } },
+    { method: 'PATCH', path: '/1.5/recovery-status', field: /loanId/i, body: { recoveryStatus: 'in_progress' } },
+    { method: 'GET', path: '/abc/attachments', field: /loanId/i },
+    { method: 'POST', path: '/abc/attachments', field: /loanId/i, body: {} },
+    { method: 'GET', path: '/abc/alerts', field: /loanId/i },
+    { method: 'POST', path: '/abc/follow-ups', field: /loanId/i, body: { note: 'Seguimiento' } },
+    { method: 'PATCH', path: '/55/alerts/abc/status', field: /alertId/i, body: { status: 'resolved' } },
+    { method: 'GET', path: '/abc/calendar', field: /loanId/i },
+    { method: 'GET', path: '/55/installments/1e2/quote', field: /installmentNumber/i },
+    { method: 'GET', path: '/abc/payoff-quote?asOfDate=2026-03-15', field: /loanId/i },
+    {
+      method: 'POST',
+      path: '/abc/payoff-executions',
+      field: /loanId/i,
+      headers: { 'idempotency-key': 'payoff-invalid-route' },
+      body: { asOfDate: '2026-03-15', quotedTotal: 10 },
+    },
+    { method: 'GET', path: '/abc/promises', field: /loanId/i },
+    { method: 'POST', path: '/abc/promises', field: /loanId/i, body: { promisedDate: '2026-03-25', amount: 10 } },
+    { method: 'PATCH', path: '/55/promises/abc/status', field: /promiseId/i, body: { status: 'kept' } },
+    { method: 'GET', path: '/55/promises/abc/download', field: /promiseId/i },
+    { method: 'DELETE', path: '/abc', field: /loanId/i },
+    { method: 'GET', path: '/abc', field: /loanId/i },
+    { method: 'PATCH', path: '/55/payments/abc', field: /paymentId/i, body: { paymentMethod: 'cash' } },
+    {
+      method: 'POST',
+      path: '/55/installments/abc/annul',
+      field: /installmentNumber/i,
+      headers: { 'idempotency-key': 'annul-invalid-route' },
+      body: { reason: 'Corrección' },
+    },
+    { method: 'PATCH', path: '/abc/late-fee-rate', field: /loanId/i, body: { lateFeeRate: 4.5 } },
+  ];
+
+  for (const routeCase of cases) {
+    const response = await requestJson(activeServer, {
+      method: routeCase.method,
+      path: routeCase.path,
+      headers: {
+        authorization: 'Bearer valid-token',
+        ...(routeCase.headers || {}),
+      },
+      body: routeCase.body,
+    });
+    assert.equal(response.statusCode, 400, routeCase.path);
+    assert.match(response.body.error.message, routeCase.field);
+  }
+  assert.deepEqual(calls, []);
 });
 
 test('createCreditsRouter delegates payment method edits and installment annulments through paymentApplicationService', async () => {
@@ -311,7 +489,7 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   assert.equal(updateResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body, {
     success: true,
-    message: 'Payment method updated successfully',
+    message: 'Método de pago actualizado correctamente',
     data: {
       payment: { id: 91, paymentMethod: 'transfer', loanId: 41 },
     },
@@ -320,7 +498,7 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   assert.equal(annulResponse.statusCode, 201);
   assert.deepEqual(annulResponse.body, {
     success: true,
-    message: 'Installment annulled successfully',
+    message: 'Cuota anulada correctamente',
     data: {
       payment: { id: 77 },
       annulment: { installmentNumber: 3, reason: 'Cliente reestructurado' },
@@ -330,14 +508,14 @@ test('createCreditsRouter delegates payment method edits and installment annulme
 
   assert.deepEqual(calls, [
     ['updatePaymentMethod', {
-      loanId: '41',
-      paymentId: '91',
+      loanId: 41,
+      paymentId: 91,
       paymentMethod: 'transfer',
       actor: { id: 2, role: 'admin' },
     }],
     ['annulInstallment', {
-      loanId: '41',
-      installmentNumber: '3',
+      loanId: 41,
+      installmentNumber: 3,
       actor: { id: 2, role: 'admin' },
       reason: 'Cliente reestructurado',
       idempotencyKey: 'annul-41-3',
@@ -345,10 +523,10 @@ test('createCreditsRouter delegates payment method edits and installment annulme
   ]);
 });
 
-test('createCreditsRouter lets customers process payments only after loan ownership validation', async () => {
+test('createCreditsRouter lets admins process payments without customer ownership branches', async () => {
   const calls = [];
   const router = createCreditsRouter({
-    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    authMiddleware: allowAuth({ id: 7, role: 'admin' }),
     attachmentUpload: noopAttachmentUpload,
     loanValidation: noopLoanValidation,
     useCases: createUseCases({}),
@@ -393,7 +571,7 @@ test('createCreditsRouter lets customers process payments only after loan owners
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Payment processed successfully',
+    message: 'Pago procesado correctamente',
     data: {
       transactionId: 9,
       status: 'APPLIED',
@@ -404,7 +582,6 @@ test('createCreditsRouter lets customers process payments only after loan owners
     },
   });
   assert.deepEqual(calls, [
-    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
     ['processPayment', {
       loanId: 55,
       paymentAmount: 250,
@@ -417,10 +594,48 @@ test('createCreditsRouter lets customers process payments only after loan owners
   ]);
 });
 
+test('createCreditsRouter rejects malformed installment numbers before processing payments', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 7, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({}),
+    paymentApplicationService: createPaymentApplicationServiceStub({
+      async processPayment(input) {
+        calls.push(['processPayment', input]);
+        throw new Error('processPayment should not be called');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payments/process',
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'process-55-2' },
+    body: {
+      loanId: 55,
+      paymentAmount: 250,
+      paymentDate: '2026-03-15T00:00:00.000Z',
+      installmentNumber: '2e2',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error.message, 'El número de cuota debe ser un entero positivo');
+  assert.deepEqual(calls, []);
+});
+
 test('createCreditsRouter requires idempotency key before processing financial mutations', async () => {
   const calls = [];
   const router = createCreditsRouter({
-    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    authMiddleware: allowAuth({ id: 7, role: 'admin' }),
     attachmentUpload: noopAttachmentUpload,
     loanValidation: noopLoanValidation,
     useCases: createUseCases({}),
@@ -456,23 +671,21 @@ test('createCreditsRouter requires idempotency key before processing financial m
   });
 
   assert.equal(response.statusCode, 400);
-  assert.match(response.body.error.message, /Idempotency-Key header is required/);
-  assert.deepEqual(calls, [
-    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
-  ]);
+  assert.match(response.body.error.message, /El encabezado Idempotency-Key es obligatorio/);
+  assert.deepEqual(calls, []);
 });
 
-test('createCreditsRouter blocks customer payment processing for loans outside their account', async () => {
+test('createCreditsRouter rejects partially numeric payment amounts before processing', async () => {
   const calls = [];
   const router = createCreditsRouter({
-    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    authMiddleware: allowAuth({ id: 7, role: 'admin' }),
     attachmentUpload: noopAttachmentUpload,
     loanValidation: noopLoanValidation,
     useCases: createUseCases({}),
     loanAccessPolicy: {
       async findAuthorizedLoan(input) {
         calls.push(['findAuthorizedLoan', input]);
-        throw new AuthorizationError('You can only access your own loans');
+        return { id: Number(input.loanId), customerId: 7 };
       },
     },
     paymentApplicationService: createPaymentApplicationServiceStub({
@@ -492,6 +705,30 @@ test('createCreditsRouter blocks customer payment processing for loans outside t
   const response = await requestJson(activeServer, {
     method: 'POST',
     path: '/payments/process',
+    headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'process-55-malformed' },
+    body: {
+      loanId: 55,
+      paymentAmount: '250abc',
+      paymentDate: '2026-03-15T00:00:00.000Z',
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /El monto del pago debe ser un número mayor que 0/);
+  assert.deepEqual(calls, []);
+});
+
+test('createCreditsRouter rejects customer payment processing at the administrative auth boundary', async () => {
+  const app = createRuntimeApp({
+    actor: { id: 7, role: 'customer' },
+    useCases: createUseCases({}),
+  });
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'POST',
+    path: '/payments/process',
     headers: { authorization: 'Bearer valid-token', 'idempotency-key': 'process-55-blocked' },
     body: {
       loanId: 55,
@@ -500,10 +737,8 @@ test('createCreditsRouter blocks customer payment processing for loans outside t
     },
   });
 
-  assert.equal(response.statusCode, 403);
-  assert.deepEqual(calls, [
-    ['findAuthorizedLoan', { actor: { id: 7, role: 'customer' }, loanId: 55 }],
-  ]);
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.error.message, 'This account cannot access the administrative platform');
 });
 
 test('createCreditsRouter keeps static routes above /:id to avoid shadowing', async () => {
@@ -577,6 +812,38 @@ test('createCreditsRouter keeps static routes above /:id to avoid shadowing', as
       pagination: { page: 1, pageSize: 25, limit: 25, offset: 0 },
     }],
   ]);
+});
+
+test('createCreditsRouter rejects malformed search amount filters before listing credits', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 2, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async searchLoans(input) {
+        calls.push(input);
+        throw new Error('searchLoans should not be called for invalid filters');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/search?minAmount=1e2&maxAmount=900',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /minAmount/i);
+  assert.deepEqual(calls, []);
 });
 
 test('createCreditsRouter protects admin-only portfolio analytics routes', async () => {
@@ -672,7 +939,7 @@ test('createCreditsRouter POST /calculations returns canonical credit calculatio
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Credit calculation generated successfully',
+    message: 'Cálculo de crédito generado correctamente',
     data: {
       calculation: {
         lateFeeMode: 'NONE',
@@ -843,7 +1110,7 @@ test('createCreditsRouter PATCH /:id/status lets an admin mutate loan status at 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Loan status updated to defaulted',
+    message: 'Estado del crédito actualizado correctamente',
     data: {
       loan: {
         id: 32,
@@ -854,6 +1121,53 @@ test('createCreditsRouter PATCH /:id/status lets an admin mutate loan status at 
       },
     },
   });
+});
+
+test('createCreditsRouter returns Spanish messages for recovery and late-fee updates', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 9, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async updateRecoveryStatus(input) {
+        calls.push(['updateRecoveryStatus', input]);
+        return { id: Number(input.loanId), recoveryStatus: input.recoveryStatus };
+      },
+      async updateLateFeeRate(input) {
+        calls.push(['updateLateFeeRate', input]);
+        return { id: Number(input.loanId), lateFeeRate: input.lateFeeRate };
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+
+  activeServer = await listen(app);
+
+  const recoveryResponse = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/32/recovery-status',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { recoveryStatus: 'in_progress' },
+  });
+  const lateFeeResponse = await requestJson(activeServer, {
+    method: 'PATCH',
+    path: '/32/late-fee-rate',
+    headers: { authorization: 'Bearer valid-token' },
+    body: { lateFeeRate: 4.5 },
+  });
+
+  assert.equal(recoveryResponse.statusCode, 200);
+  assert.equal(recoveryResponse.body.message, 'Estado de recuperación actualizado correctamente');
+  assert.equal(lateFeeResponse.statusCode, 200);
+  assert.equal(lateFeeResponse.body.message, 'Tasa de mora actualizada correctamente');
+  assert.deepEqual(calls, [
+    ['updateRecoveryStatus', { actor: { id: 9, role: 'admin' }, loanId: 32, recoveryStatus: 'in_progress' }],
+    ['updateLateFeeRate', { actor: { id: 9, role: 'admin' }, loanId: 32, lateFeeRate: 4.5 }],
+  ]);
 });
 
 test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardless of previous assignment', async () => {
@@ -889,7 +1203,7 @@ test('createCreditsRouter DELETE /:id lets admins delete rejected loans regardle
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
     success: true,
-    message: 'Loan deleted successfully',
+    message: 'Crédito eliminado correctamente',
   });
   assert.equal(destroyCalled, true);
 });
@@ -999,16 +1313,16 @@ test('createCreditsRouter serves attachment list and upload contract responses',
   assert.equal(createResponse.statusCode, 201);
   assert.deepEqual(createResponse.body, {
     success: true,
-    message: 'Attachment uploaded successfully',
+    message: 'Documento del crédito cargado correctamente',
     data: {
       attachment: createdAttachment,
     },
   });
   assert.deepEqual(calls, [
-    ['listLoanAttachments', { actor: { id: 1, role: 'admin' }, loanId: '55' }],
+    ['listLoanAttachments', { actor: { id: 1, role: 'admin' }, loanId: 55 }],
     ['createLoanAttachment', {
       actor: { id: 1, role: 'admin' },
-      loanId: '55',
+      loanId: 55,
       file: {
         path: '/tmp/attachment.pdf',
         filename: 'attachment.pdf',
@@ -1038,8 +1352,8 @@ test('createCreditsRouter downloads loan attachments through the use-case contra
         async downloadLoanAttachment(input) {
           assert.deepEqual(input, {
             actor: { id: 1, role: 'admin' },
-            loanId: '91',
-            attachmentId: '12',
+            loanId: 91,
+            attachmentId: 12,
           });
           return {
             attachment: { originalName: 'statement.txt' },
@@ -1178,10 +1492,14 @@ test('createCreditsRouter serves alert, calendar, and promise contracts', async 
   assert.equal(Array.isArray(calendarResponse.body.data.calendar.alerts), true);
   assert.equal(listPromisesResponse.statusCode, 200);
   assert.equal(createPromiseResponse.statusCode, 201);
+  assert.equal(createPromiseResponse.body.message, 'Promesa de pago creada correctamente');
   assert.equal(createPromiseResponse.body.data.promise.id, 3);
   assert.equal(followUpResponse.statusCode, 201);
+  assert.equal(followUpResponse.body.message, 'Recordatorio de seguimiento creado correctamente');
   assert.equal(resolveAlertResponse.statusCode, 200);
+  assert.equal(resolveAlertResponse.body.message, 'Alerta del crédito actualizada correctamente');
   assert.equal(updatePromiseResponse.statusCode, 200);
+  assert.equal(updatePromiseResponse.body.message, 'Promesa de pago actualizada correctamente');
 });
 
 test('createCreditsRouter serves aggregated calendar overview contracts', async () => {
@@ -1238,10 +1556,42 @@ test('createCreditsRouter serves aggregated calendar overview contracts', async 
   ]]);
 });
 
+test('createCreditsRouter rejects malformed calendar overview loan IDs before querying agenda', async () => {
+  const calls = [];
+  const router = createCreditsRouter({
+    authMiddleware: allowAuth({ id: 1, role: 'admin' }),
+    attachmentUpload: noopAttachmentUpload,
+    loanValidation: noopLoanValidation,
+    useCases: createUseCases({
+      async getPaymentCalendarOverview(input) {
+        calls.push(input);
+        throw new Error('getPaymentCalendarOverview should not be called for invalid loanIds');
+      },
+    }),
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use(globalErrorHandler);
+
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    method: 'GET',
+    path: '/calendar/overview?loanIds=55,1e2',
+    headers: { authorization: 'Bearer valid-token' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /loanIds/i);
+  assert.deepEqual(calls, []);
+});
+
 test('createCreditsRouter serves payoff quote and payoff execution contracts', async () => {
   const calls = [];
   const router = createCreditsRouter({
-    authMiddleware: allowAuth({ id: 7, role: 'customer' }),
+    authMiddleware: allowAuth({ id: 7, role: 'admin' }),
     attachmentUpload: noopAttachmentUpload,
     loanValidation: noopLoanValidation,
     useCases: createUseCases({
@@ -1308,7 +1658,7 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
   assert.equal(executeResponse.statusCode, 201);
   assert.deepEqual(executeResponse.body, {
     success: true,
-    message: 'Payoff executed successfully',
+    message: 'Pago total registrado correctamente',
     data: {
       payment: { id: 90, amount: 955.12, paymentType: 'payoff' },
       loan: { id: 55, status: 'closed', closureReason: 'payoff' },
@@ -1316,8 +1666,8 @@ test('createCreditsRouter serves payoff quote and payoff execution contracts', a
     },
   });
   assert.deepEqual(calls, [
-    ['getPayoffQuote', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15' }],
-    ['executePayoff', { actor: { id: 7, role: 'customer' }, loanId: '55', asOfDate: '2026-03-15', quotedTotal: 955.12, idempotencyKey: 'payoff-55-2026-03-15' }],
+    ['getPayoffQuote', { actor: { id: 7, role: 'admin' }, loanId: 55, asOfDate: '2026-03-15' }],
+    ['executePayoff', { actor: { id: 7, role: 'admin' }, loanId: 55, asOfDate: '2026-03-15', quotedTotal: 955.12, idempotencyKey: 'payoff-55-2026-03-15' }],
   ]);
 });
 
@@ -1352,13 +1702,13 @@ test('createCreditsRouter returns structured denial reasons for payoff denials',
     actor: { id: 7, role: 'employee' },
     useCases: createUseCases({
       async getPayoffQuote() {
-        const error = new Error('Total payoff is not allowed for this loan');
+        const error = new Error('El pago total no está permitido para este crédito');
         error.name = 'BusinessRuleViolationError';
         error.statusCode = 400;
         error.code = 'PAYOFF_NOT_ALLOWED';
         error.denialReasons = [{
           code: 'OVERDUE_UNPAID_INSTALLMENTS',
-          message: 'Loan has overdue unpaid installments',
+          message: 'El crédito tiene cuotas vencidas pendientes',
         }];
         throw error;
       },
@@ -1377,7 +1727,7 @@ test('createCreditsRouter returns structured denial reasons for payoff denials',
   assert.equal(response.body.error.code, 'PAYOFF_NOT_ALLOWED');
   assert.deepEqual(response.body.error.denialReasons, [{
     code: 'OVERDUE_UNPAID_INSTALLMENTS',
-    message: 'Loan has overdue unpaid installments',
+    message: 'El crédito tiene cuotas vencidas pendientes',
   }]);
 });
 
@@ -1386,13 +1736,13 @@ test('createCreditsRouter returns structured denial reasons for payoff execution
     actor: { id: 7, role: 'employee' },
     useCases: createUseCases({
       async executePayoff() {
-        const error = new Error('Total payoff is not allowed for this loan');
+        const error = new Error('El pago total no está permitido para este crédito');
         error.name = 'BusinessRuleViolationError';
         error.statusCode = 400;
         error.code = 'PAYOFF_NOT_ALLOWED';
         error.denialReasons = [{
           code: 'LOAN_ALREADY_PAID',
-          message: 'Loan is already fully paid',
+          message: 'El crédito ya está pagado en su totalidad',
         }];
         throw error;
       },
@@ -1412,7 +1762,7 @@ test('createCreditsRouter returns structured denial reasons for payoff execution
   assert.equal(response.body.error.code, 'PAYOFF_NOT_ALLOWED');
   assert.deepEqual(response.body.error.denialReasons, [{
     code: 'LOAN_ALREADY_PAID',
-    message: 'Loan is already fully paid',
+    message: 'El crédito ya está pagado en su totalidad',
   }]);
 });
 

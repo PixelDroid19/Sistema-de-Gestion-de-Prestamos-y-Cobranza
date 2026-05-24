@@ -33,7 +33,7 @@ Loan.belongsTo(FinancialProduct, { foreignKey: 'financialProductId', as: 'financ
 FinancialProduct.hasMany(Loan, { foreignKey: 'financialProductId', as: 'loans', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
 User.belongsTo(Associate, { foreignKey: 'associateId', as: 'associate', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
-Associate.hasMany(User, { foreignKey: 'associateId', as: 'portalUsers', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+Associate.hasMany(User, { foreignKey: 'associateId', as: 'users', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
 
 Payment.belongsTo(Loan, { foreignKey: 'loanId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 Loan.hasMany(Payment, { foreignKey: 'loanId', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });

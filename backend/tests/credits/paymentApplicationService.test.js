@@ -38,7 +38,7 @@ test('processPayment throws ValidationError for missing loanId', async () => {
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /loanId/i);
+      assert.equal(error.message, 'El crédito es obligatorio');
       return true;
     }
   );
@@ -53,7 +53,7 @@ test('processPayment throws ValidationError for invalid paymentAmount', async ()
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /paymentAmount/i);
+      assert.equal(error.message, 'El monto del pago debe ser un número válido mayor que 0');
       return true;
     }
   );
@@ -68,7 +68,7 @@ test('processPayment throws ValidationError for zero paymentAmount', async () =>
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /paymentAmount/i);
+      assert.equal(error.message, 'El monto del pago debe ser un número válido mayor que 0');
       return true;
     }
   );
@@ -82,7 +82,7 @@ test('processPayment throws ValidationError for missing paymentDate', async () =
     }),
     (error) => {
       assert.ok(error instanceof ValidationError);
-      assert.match(error.message, /paymentDate/i);
+      assert.equal(error.message, 'La fecha de pago es obligatoria');
       return true;
     }
   );

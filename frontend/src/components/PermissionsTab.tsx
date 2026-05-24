@@ -8,6 +8,7 @@ import {
 } from '../services/permissionsService';
 import { useUsers } from '../services/userService';
 import { toast } from '../lib/toast';
+import { useTranslation } from '../i18n';
 import {
   ActionButton,
   ClickableSurface,
@@ -46,6 +47,7 @@ const getModuleLabel = (module: string) => {
 };
 
 export default function PermissionsTab() {
+  const { t } = useTranslation();
   const { permissions, isLoading: isLoadingPermissions } = usePermissions();
   const { data: usersData, isLoading: isLoadingUsers } = useUsers({ page: 1, pageSize: 100 });
   const { grantBatchPermissions } = useGrantBatchPermissions();
@@ -261,7 +263,9 @@ export default function PermissionsTab() {
                       <div key={`${permission.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between gap-4">
                         <div>
                           <p className="font-medium text-sm">{permission.permission}</p>
-                          <p className="text-xs text-text-secondary">{permission.description || 'Sin descripción'}</p>
+                          <p className="text-xs text-text-secondary">
+                            {permission.description || t('settings.employees.modal.permissions.noDescription')}
+                          </p>
                         </div>
                         <span className="text-xs px-2 py-0.5 rounded bg-bg-base text-text-secondary">{getModuleLabel(permission.module)}</span>
                       </div>
@@ -387,7 +391,9 @@ export default function PermissionsTab() {
                           <div key={`permission-${group.module}-${permission.permission}`} className="px-4 py-3 flex items-center justify-between gap-4">
                             <div>
                               <p className="font-medium text-sm">{permission.permission}</p>
-                              <p className="text-xs text-text-secondary">{permission.description || 'Sin descripción'}</p>
+                              <p className="text-xs text-text-secondary">
+                                {permission.description || t('settings.employees.modal.permissions.noDescription')}
+                              </p>
                             </div>
                             <div className="flex items-center gap-2">
                               {grantedByRole && !grantedDirect && (

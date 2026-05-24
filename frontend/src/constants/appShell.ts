@@ -143,7 +143,7 @@ export const getShellDestinationsForUser = (user: AppUserLike): ShellDestination
   });
 };
 
-export const getRoleLabel = (role?: 'admin' | 'employee' | 'customer' | 'socio' | string) => {
+export const getRoleLabel = (role?: 'admin' | 'employee' | string) => {
   if (role === 'admin') {
     return 'Administrador';
   }
@@ -152,13 +152,5 @@ export const getRoleLabel = (role?: 'admin' | 'employee' | 'customer' | 'socio' 
     return 'Empleado';
   }
 
-  if (role === 'socio') {
-    return 'Socio';
-  }
-
-  if (role === 'customer') {
-    return 'Cliente';
-  }
-
-  return 'Usuario';
+  return 'Usuario no autorizado';
 };

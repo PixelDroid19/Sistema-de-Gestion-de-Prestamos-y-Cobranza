@@ -29,6 +29,25 @@ const ACTIVE_PROMISE_STATUSES = ['pending', 'broken'];
 const MANUAL_ALERT_RESOLUTION_SOURCES = new Set(['manual_follow_up']);
 const ACTIVE_LOAN_STATUSES = new Set(['approved', 'active', 'defaulted', 'overdue']);
 
+/**
+ * Format notification money values consistently for operator-facing messages.
+ * @param {unknown} amount
+ * @returns {string}
+ */
+const formatNotificationMoney = (amount) => `$${Number(amount || 0).toFixed(2)}`;
+
+/**
+ * Translate promise status keys into Spanish operational labels.
+ * @param {unknown} status
+ * @returns {string}
+ */
+const formatPromiseNotificationStatus = (status) => ({
+  pending: 'Pendiente',
+  kept: 'Cumplida',
+  broken: 'Incumplida',
+  cancelled: 'Cancelada',
+}[String(status || 'pending').trim().toLowerCase()] || 'Pendiente');
+
 const toPlainRecord = (record) => (typeof record?.toJSON === 'function' ? record.toJSON() : record);
 
 const getLoanOutstandingBalance = (loan) => {
@@ -145,14 +164,8 @@ const buildLoanSearchWhere = ({ actor, filters = {} }) => {
     }
   }
 
-  if (actorRole === 'customer') {
-    const customerId = Number(actor?.id);
-    andClauses.push(Number.isFinite(customerId) ? { customerId } : buildImpossibleWhereClause());
-  }
-
-  if (actorRole === 'socio') {
-    const associateId = Number(actor?.associateId);
-    andClauses.push(Number.isFinite(associateId) ? { associateId } : buildImpossibleWhereClause());
+  if (actor && actorRole !== 'admin' && actorRole !== 'employee') {
+    andClauses.push(buildImpossibleWhereClause());
   }
 
   if (normalizedSearch) {
@@ -587,7 +600,7 @@ const createCreditsInfrastructure = ({
       sendRecoveryAssignment(userId, payload) {
         return notifications.sendNotification(
           userId,
-          `You have been assigned to Loan #${payload.loanId} ($${payload.loanAmount}) for customer ${payload.customerName || 'Unknown'}. Please review and begin recovery process.`,
+          `Crédito #${payload.loanId} asignado para cobranza por ${formatNotificationMoney(payload.loanAmount)}. Cliente: ${payload.customerName || 'Sin nombre registrado'}. Revise el caso e inicie el seguimiento.`,
           'loan_assignment',
           payload,
           { dedupeKey: `loan-assignment:${payload.loanId}:${userId}` },
@@ -596,7 +609,7 @@ const createCreditsInfrastructure = ({
       sendLoanReminder(userId, payload) {
         return notifications.sendNotification(
           userId,
-          `Reminder for Loan #${payload.loanId}: installment #${payload.installmentNumber || 0} is due on ${payload.dueDate}.`,
+          `Recordatorio del crédito #${payload.loanId}: la cuota #${payload.installmentNumber || 0} vence el ${payload.dueDate}.`,
           'loan_reminder',
           payload,
           { dedupeKey: `loan-reminder:${payload.loanId}:${payload.alertId || payload.installmentNumber}:${userId}` },
@@ -623,7 +636,7 @@ const createCreditsInfrastructure = ({
       sendPromiseStatus(userId, payload) {
         return notifications.sendNotification(
           userId,
-          `Promise to pay for Loan #${payload.loanId} is now ${payload.status}.`,
+          `Promesa de pago del crédito #${payload.loanId}: ${formatPromiseNotificationStatus(payload.status)}.`,
           'promise_status',
           payload,
           { dedupeKey: `promise-status:${payload.promiseId}:${payload.status}:${userId}` },

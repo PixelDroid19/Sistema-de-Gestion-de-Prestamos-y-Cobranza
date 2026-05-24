@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, DollarSign, Download, TrendingUp, Users, Wallet } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatNumber as formatNumberValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
+import { parseReportYearInput } from '../../lib/reportYearInput';
 import {
   ActionButton,
   DataTableSurface,
@@ -32,6 +33,13 @@ export default function CashflowTab({
   onExportCashFlow,
   reportExportGuard,
 }: CashflowTabProps) {
+  const handleYearChange = (value: string) => {
+    const parsedYear = parseReportYearInput(value);
+    if (parsedYear !== null) {
+      onCashFlowYearChange(parsedYear);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <ToolbarSurface className="items-stretch lg:items-end">
@@ -48,7 +56,7 @@ export default function CashflowTab({
               value={cashFlowYear}
               min={2000}
               max={2100}
-              onChange={(event) => onCashFlowYearChange(Number(event.target.value) || new Date().getFullYear())}
+              onChange={(event) => handleYearChange(event.target.value)}
               className="sm:w-32"
             />
           </FormField>

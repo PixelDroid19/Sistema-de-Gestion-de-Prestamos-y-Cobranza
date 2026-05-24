@@ -22,6 +22,8 @@ const { createPayoutsRouter } = require('./presentation/router');
 
 /**
  * Compose the payouts module entrypoint from payment and loan public seams.
+ * @param {{ sharedRuntime?: object, auditService?: object }} [options]
+ * @returns {{ name: string, basePath: string, router: object }}
  */
 const createPayoutsModule = ({ sharedRuntime, auditService } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);

@@ -16,6 +16,11 @@ const { rolePermissionRepository } = require('./application/RolePermissionReposi
 const { userRepository } = require('@/modules/users/infrastructure/repositories');
 const { createPermissionsRouter } = require('./presentation/router');
 
+/**
+ * Compose the permissions module for catalog queries and employee permission grants.
+ * @param {{ sharedRuntime?: object }} [options]
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createPermissionsModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
 

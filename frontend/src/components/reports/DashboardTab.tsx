@@ -12,6 +12,7 @@ import {
   SelectInput,
 } from '../shared/Surfaces';
 import { HelpTooltip } from '../shared/HelpSupport';
+import { getLoanStatusLabel } from '../credits/creditsHelpers';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 const formatMoney = (value: unknown) => formatCurrencyValue(value);
@@ -46,6 +47,14 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
   const chartHasData = useMemo(
     () => filteredMonthlyData.some((item: any) => Number(item?.disbursed || 0) > 0 || Number(item?.recovered || 0) > 0),
     [filteredMonthlyData],
+  );
+
+  const labeledStatusData = useMemo(
+    () => statusData.map((item: any) => ({
+      ...item,
+      statusLabel: getLoanStatusLabel(item?.status),
+    })),
+    [statusData],
   );
 
   return (
@@ -165,16 +174,16 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
               {({ width, height }) => (
                 <PieChart width={width} height={height}>
                   <Pie
-                    data={statusData}
+                    data={labeledStatusData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
                     outerRadius={80}
                     paddingAngle={5}
                     dataKey="count"
-                    nameKey="status"
+                    nameKey="statusLabel"
                   >
-                    {statusData.map((entry: any, index: number) => (
+                    {labeledStatusData.map((entry: any, index: number) => (
                       <Cell key={`portfolio-cell-${entry.status ?? 'unknown'}-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -187,11 +196,11 @@ export default function DashboardTab({ metrics, monthlyData, statusData }: Dashb
             </MeasuredChart>
           </div>
           <div className="flex flex-col gap-3 mt-4">
-            {statusData.map((item: any, index: number) => (
+            {labeledStatusData.map((item: any, index: number) => (
               <div key={`portfolio-status-${item.status ?? 'unknown'}-${index}`} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <div className="size-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                  <span className="text-text-secondary capitalize">{item.status}</span>
+                  <span className="text-text-secondary">{item.statusLabel}</span>
                 </div>
                 <span className="font-medium">{item.count}</span>
               </div>

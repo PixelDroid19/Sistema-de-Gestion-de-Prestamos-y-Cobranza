@@ -16,7 +16,7 @@ const roleAwareAuth = (options = []) => (req, res, next) => {
   const role = req.headers['x-test-role'] || 'admin';
   const allowedRoles = Array.isArray(options)
     ? options
-    : (options?.permissions ? ['admin', 'employee', 'socio'] : []);
+    : (options?.permissions ? ['admin', 'employee'] : []);
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     res.status(403).json({ success: false, error: { message: 'Access denied', statusCode: 403 } });
     return;
@@ -107,12 +107,14 @@ test('Financial analytics routes require admin access', async () => {
     '/next-month-projection',
   ];
 
-  for (const path of routes) {
-    const response = await requestJson(activeServer, {
-      path,
-      headers: { authorization: 'Bearer valid-token', 'x-test-role': 'customer' },
-    });
-    assert.equal(response.statusCode, 403, `Route ${path} should require admin access`);
+  for (const role of ['customer', 'socio']) {
+    for (const path of routes) {
+      const response = await requestJson(activeServer, {
+        path,
+        headers: { authorization: 'Bearer valid-token', 'x-test-role': role },
+      });
+      assert.equal(response.statusCode, 403, `Route ${path} should reject ${role}`);
+    }
   }
 });
 
@@ -156,6 +158,32 @@ test('GET /interest-earnings accepts year parameter', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.equal(calls[0][2], 2025);
+});
+
+test('financial analytics routes reject malformed year filters before executing reports', async () => {
+  const calls = [];
+  const useCases = buildMockUseCases(calls);
+  const router = createReportsRouter({ authMiddleware: roleAwareAuth, useCases });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((error, _req, res, _next) => {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: { message: error.message },
+    });
+  });
+  activeServer = await listen(app);
+
+  const response = await requestJson(activeServer, {
+    path: '/interest-earnings?year=2026abc',
+    headers: { authorization: 'Bearer valid-token', 'x-test-role': 'admin' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error.message, /year/i);
+  assert.equal(calls.length, 0);
 });
 
 test('GET /monthly-earnings returns monthly earnings with trend analysis', async () => {

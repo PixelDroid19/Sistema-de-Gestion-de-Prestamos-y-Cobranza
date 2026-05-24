@@ -13,6 +13,7 @@ import { useTranslation } from '../i18n';
 import { tTerm } from '../i18n/terminology';
 import TableShell from './shared/TableShell';
 import { getChipClassName } from '../constants/uiChips';
+import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { CAPITAL_STRATEGIES, PAYMENT_METHODS as FALLBACK_PAYMENT_METHODS, type CapitalStrategy, type PaymentMethod } from '../services/loanService';
 import { useConfig } from '../services/configService';
 import {
@@ -326,15 +327,15 @@ export default function Payouts() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const loanId = parseInt(formData.loanId, 10);
-    const amount = parseFloat(formData.amount);
+    const loanId = parsePositiveIntegerInput(formData.loanId);
+    const amount = parsePositiveMoneyInput(formData.amount);
 
-    if (!Number.isInteger(loanId) || loanId <= 0) {
+    if (loanId === null) {
       toast.error({ title: tTerm('payouts.validation.loanId') });
       return;
     }
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (amount === null) {
       toast.error({ title: tTerm('payouts.validation.amount') });
       return;
     }
@@ -343,8 +344,8 @@ export default function Payouts() {
       toast.error({ title: tTerm('creditDetails.error.paymentDate') });
       return;
     }
-    const newTermMonths = Number(capitalNewTermMonths);
-    if (paymentType === 'capital' && capitalStrategy === 'reduce_payment' && (!Number.isInteger(newTermMonths) || newTermMonths <= 0)) {
+    const newTermMonths = parsePositiveIntegerInput(capitalNewTermMonths);
+    if (paymentType === 'capital' && capitalStrategy === 'reduce_payment' && newTermMonths === null) {
       toast.error({ title: tTerm('creditDetails.modal.capital.newTermValidation') });
       return;
     }
@@ -357,11 +358,12 @@ export default function Payouts() {
       paymentDate: `${formData.paymentDate}T00:00:00.000Z`,
       paymentMethod: formData.paymentMethod,
       ...(paymentType === 'capital' ? { strategy: capitalStrategy } : {}),
-      ...(paymentType === 'capital' && capitalStrategy === 'reduce_payment' ? { newTermMonths } : {}),
+      ...(paymentType === 'capital' && capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
     };
+    const guardedAction = paymentType === 'capital' ? 'capital.payment' : 'payout.register';
 
     const wasExecuted = await executeGuardedAction({
-      action: 'payout.register',
+      action: guardedAction,
       context: { role, permissions, payoutType: paymentType },
       run: async () => {
         if (paymentType === 'regular') {

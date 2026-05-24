@@ -42,27 +42,27 @@ const validatePasswordStrength = (password) => {
   const errors = [];
 
   if (!password || typeof password !== 'string') {
-    return { valid: false, errors: ['Password is required'] };
+    return { valid: false, errors: ['La contraseña es obligatoria'] };
   }
 
   if (password.length < PASSWORD_MIN_LENGTH) {
-    errors.push(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long`);
+    errors.push(`La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`);
   }
 
   if (PASSWORD_COMPLEXITY.requireUppercase && !/[A-Z]/.test(password)) {
-    errors.push('Password must contain at least one uppercase letter');
+    errors.push('La contraseña debe incluir al menos una mayúscula');
   }
 
   if (PASSWORD_COMPLEXITY.requireLowercase && !/[a-z]/.test(password)) {
-    errors.push('Password must contain at least one lowercase letter');
+    errors.push('La contraseña debe incluir al menos una minúscula');
   }
 
   if (PASSWORD_COMPLEXITY.requireNumbers && !/[0-9]/.test(password)) {
-    errors.push('Password must contain at least one number');
+    errors.push('La contraseña debe incluir al menos un número');
   }
 
   if (PASSWORD_COMPLEXITY.requireSpecialChars && !/[!@#$%^&*()_+\-={};'":\\|,.<>/?]/.test(password)) {
-    errors.push('Password must contain at least one special character');
+    errors.push('La contraseña debe incluir al menos un carácter especial');
   }
 
   if (errors.length > 0) {
@@ -87,11 +87,11 @@ const validatePasswordStrength = (password) => {
 };
 
 const buildPublicRegistrationDisabledError = () => {
-  const error = new ValidationError('Please correct the following errors');
+  const error = new ValidationError('Corrige los errores indicados');
   error.errors = [
     {
       field: 'role',
-      message: 'Public registration is disabled. An administrator must create employee accounts.',
+      message: 'El registro público está deshabilitado. Un administrador debe crear las cuentas de empleados.',
     },
   ];
 
@@ -147,11 +147,11 @@ const buildTokenPayload = (user) => {
 };
 
 const buildSupportedRolesError = () => {
-  const error = new ValidationError('Please correct the following errors');
+  const error = new ValidationError('Corrige los errores indicados');
   error.errors = [
     {
       field: 'role',
-      message: `Role must be one of: ${APPLICATION_ROLES.join(', ')}`,
+      message: `El rol debe ser uno de: ${APPLICATION_ROLES.join(', ')}`,
     },
   ];
 
@@ -159,11 +159,11 @@ const buildSupportedRolesError = () => {
 };
 
 const buildAdministrativeRoleValidationError = () => {
-  const error = new ValidationError('Please correct the following errors');
+  const error = new ValidationError('Corrige los errores indicados');
   error.errors = [
     {
       field: 'role',
-      message: 'Administrative users must be admin or employee',
+      message: 'Los usuarios administrativos deben ser admin o employee',
     },
   ];
 

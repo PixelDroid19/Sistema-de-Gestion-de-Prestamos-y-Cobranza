@@ -57,6 +57,7 @@ export const commonEs = {
 'common.status.active': 'Activo',
 'common.status.inactive': 'Inactivo',
 'common.status.blacklisted': 'Bloqueado',
+'common.status.unknown': 'Estado no clasificado',
 'common.interestType.monthly': 'Mensual',
 'common.interestType.annual': 'Anual',
 'common.month.1': 'Enero',

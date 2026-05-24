@@ -66,7 +66,7 @@ const createUpdateUser = ({ userRepository }) => async (userId, payload) => {
 
   if (payload.name !== undefined) {
     if (payload.name.trim().length < 2) {
-      throw new ValidationError('Name must be at least 2 characters long');
+      throw new ValidationError('El nombre debe tener al menos 2 caracteres');
     }
     updates.name = payload.name.trim();
   }
@@ -74,7 +74,7 @@ const createUpdateUser = ({ userRepository }) => async (userId, payload) => {
   if (payload.email !== undefined) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(payload.email)) {
-      throw new ValidationError('Please enter a valid email format');
+      throw new ValidationError('Ingresa un correo válido');
     }
     const existing = await userRepository.findByEmail(payload.email);
     if (existing && existing.id !== user.id) {

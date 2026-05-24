@@ -17,6 +17,11 @@ vi.mock('../../services/permissionsService', () => ({
         module: 'AUDITORÍA',
         description: 'Consultar auditoría',
       },
+      {
+        permission: 'READ_USERS',
+        name: 'READ_USERS',
+        module: 'USUARIOS',
+      },
     ],
     isLoading: false,
   }),
@@ -60,6 +65,14 @@ vi.mock('../../lib/toast', () => ({
   },
 }));
 
+vi.mock('../../i18n', () => ({
+  useTranslation: () => ({
+    locale: 'es',
+    setLocale: () => {},
+    t: (key: string) => key,
+  }),
+}));
+
 describe('PermissionsTab behavior', () => {
   it('renders backend module keys with operator-friendly labels', () => {
     render(<PermissionsTab />);
@@ -69,5 +82,15 @@ describe('PermissionsTab behavior', () => {
     expect(screen.getByRole('button', { name: /Créditos\s*1 permisos/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Auditoría\s*1 permisos/i })).toBeInTheDocument();
     expect(screen.queryByText('CREDITOS')).not.toBeInTheDocument();
+  });
+
+  it('uses the shared i18n fallback for permissions without descriptions', () => {
+    render(<PermissionsTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Catálogo de permisos/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Usuarios\s*1 permisos/i }));
+
+    expect(screen.queryByText('Sin descripción')).not.toBeInTheDocument();
+    expect(screen.getByText('settings.employees.modal.permissions.noDescription')).toBeInTheDocument();
   });
 });

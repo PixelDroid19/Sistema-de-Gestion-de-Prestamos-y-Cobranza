@@ -1,9 +1,30 @@
 const express = require('express');
-const { asyncHandler } = require('@/utils/errorHandler');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
+const { validateIntegerId } = require('@/modules/shared/validators');
 
+/**
+ * Composes admin-only user account routes from authorization middleware and
+ * user-management use cases.
+ * @param {{ authMiddleware: Function, useCases: object }} dependencies
+ * @returns {import('express').Router} Express router for administrative user management.
+ */
 const createUsersRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
+
+  /**
+   * Validates user route identifiers without accepting decimals, exponents or
+   * mixed text, while preserving the string contract used by user use cases.
+   * @param {string|number} value
+   * @returns {string}
+   */
+  const parseRequiredUserId = (value) => {
+    if (!validateIntegerId(value)) {
+      throw new ValidationError('userId must be a valid positive integer');
+    }
+
+    return String(value).trim();
+  };
 
   // All routes require admin authentication
   router.use(authMiddleware(['admin']));
@@ -21,42 +42,48 @@ const createUsersRouter = ({ authMiddleware, useCases }) => {
 
   // Get single user
   router.get('/:userId', asyncHandler(async (req, res) => {
-    const user = await useCases.getUserById(req.params.userId);
+    const userId = parseRequiredUserId(req.params.userId);
+    const user = await useCases.getUserById(userId);
     res.json({ success: true, data: user });
   }));
 
   // Update user (role, name, email)
   router.put('/:userId', asyncHandler(async (req, res) => {
-    const user = await useCases.updateUser(req.params.userId, req.body);
-    res.json({ success: true, message: 'User updated successfully', data: user });
+    const userId = parseRequiredUserId(req.params.userId);
+    const user = await useCases.updateUser(userId, req.body);
+    res.json({ success: true, message: 'Usuario actualizado correctamente', data: user });
   }));
 
   // Deactivate user
   router.post('/:userId/deactivate', asyncHandler(async (req, res) => {
+    const userId = parseRequiredUserId(req.params.userId);
+
     // Prevent self-deactivation
-    if (Number(req.params.userId) === req.user.id) {
+    if (Number(userId) === req.user.id) {
       return res.status(400).json({
         success: false,
         error: {
-          message: 'You cannot deactivate your own account',
+          message: 'No puede desactivar su propia cuenta',
           statusCode: 400,
         },
       });
     }
-    const user = await useCases.deactivateUser(req.params.userId);
-    res.json({ success: true, message: 'User deactivated successfully', data: user });
+    const user = await useCases.deactivateUser(userId);
+    res.json({ success: true, message: 'Usuario desactivado correctamente', data: user });
   }));
 
   // Reactivate user
   router.post('/:userId/reactivate', asyncHandler(async (req, res) => {
-    const user = await useCases.reactivateUser(req.params.userId);
-    res.json({ success: true, message: 'User reactivated successfully', data: user });
+    const userId = parseRequiredUserId(req.params.userId);
+    const user = await useCases.reactivateUser(userId);
+    res.json({ success: true, message: 'Usuario reactivado correctamente', data: user });
   }));
 
   // Unlock user account (admin only)
   router.post('/:userId/unlock', asyncHandler(async (req, res) => {
-    const user = await useCases.unlockUser(req.params.userId);
-    res.json({ success: true, message: 'User account unlocked successfully', data: user });
+    const userId = parseRequiredUserId(req.params.userId);
+    const user = await useCases.unlockUser(userId);
+    res.json({ success: true, message: 'Cuenta de usuario desbloqueada correctamente', data: user });
   }));
 
   return router;

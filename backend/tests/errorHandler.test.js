@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { ValidationError, BusinessRuleViolationError, formatErrorResponse } = require('@/utils/errorHandler');
 
 test('formatErrorResponse preserves validation field names from middleware output', () => {
-  const error = new ValidationError('Please correct the following errors');
+  const error = new ValidationError('Corrige los errores indicados');
   error.errors = [
     {
       field: 'lateFeeMode',
@@ -28,7 +28,7 @@ test('formatErrorResponse preserves validation field names from middleware outpu
 });
 
 test('formatErrorResponse exposes business-rule codes and denial reasons', () => {
-  const error = new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+  const error = new BusinessRuleViolationError('El abono a capital no está permitido para este crédito', {
     code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
     denialReasons: [{
       code: 'FINANCIAL_BLOCK',

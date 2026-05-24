@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Profile from '../Profile';
 
@@ -9,7 +9,7 @@ let currentUser = {
   id: 1,
   name: 'Administrador QA',
   email: 'admin@example.com',
-  role: 'admin' as 'admin' | 'customer' | 'socio',
+  role: 'admin' as 'admin' | 'employee',
 };
 let currentProfile = {
   name: currentUser.name,
@@ -51,7 +51,7 @@ describe('Profile behavior', () => {
     };
   });
 
-  it('shows operational guidance instead of a non-persisted phone field for admin users', () => {
+  it('shows only administrative account fields for admin users', () => {
     currentUser = {
       id: 1,
       name: 'Administrador QA',
@@ -67,15 +67,16 @@ describe('Profile behavior', () => {
     renderProfile();
 
     expect(screen.queryByLabelText('Teléfono')).not.toBeInTheDocument();
-    expect(screen.getByText('Este perfil usa solo nombre y correo. El teléfono aplica para clientes y socios.')).toBeInTheDocument();
+    expect(screen.getByText('Este perfil corresponde a un usuario administrativo interno.')).toBeInTheDocument();
+    expect(screen.queryByText(/clientes y socios/i)).not.toBeInTheDocument();
   });
 
-  it('keeps the phone field for customer profiles', () => {
+  it('does not send customer contact fields when an employee updates the profile', async () => {
     currentUser = {
       id: 2,
-      name: 'Cliente QA',
-      email: 'customer@example.com',
-      role: 'customer',
+      name: 'Empleado QA',
+      email: 'employee@example.com',
+      role: 'employee',
     };
     currentProfile = {
       name: currentUser.name,
@@ -85,6 +86,14 @@ describe('Profile behavior', () => {
 
     renderProfile();
 
-    expect(screen.getByLabelText('Teléfono')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Nombre completo'), { target: { value: 'Empleado Actualizado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        name: 'Empleado Actualizado',
+        email: currentUser.email,
+      });
+    });
   });
 });

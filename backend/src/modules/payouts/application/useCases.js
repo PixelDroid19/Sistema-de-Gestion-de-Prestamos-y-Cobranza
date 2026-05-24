@@ -134,9 +134,7 @@ const buildLoanPaymentContext = ({ actor, loan, loanViewService }) => {
     isPayable: PAYABLE_LOAN_STATUSES.has(loan.status),
     allowedPaymentTypes: ['admin', 'employee'].includes(actor?.role)
       ? ['installment', 'partial', 'capital']
-      : actor?.role === 'customer'
-        ? ['installment', 'payoff']
-        : [],
+      : [],
     snapshot,
     payoffEligibility,
     capitalEligibility,
@@ -189,7 +187,7 @@ const createListPayments = ({ paymentRepository }) => async ({ actor, pagination
 };
 
 /**
- * Create the use case that applies a customer payment against an authorized loan.
+ * Create the use case that applies an operator-recorded payment against an authorized loan.
  */
 const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
@@ -209,8 +207,8 @@ const createCreatePayment = ({ paymentApplicationService, loanAccessPolicy, cloc
 };
 
 /**
- * Create the use case that applies an admin-only partial payment (free amount within limits).
- * Customer self-service payments must use the installment or payoff flows.
+ * Create the use case that applies a backoffice-only partial payment
+ * for a free amount within operational limits.
  */
 const createCreatePartialPayment = ({ paymentApplicationService, loanAccessPolicy, clock = () => new Date() }) => async ({ actor, loanId, amount, paymentDate, paymentMethod, idempotencyKey }) => {
   if (!['admin', 'employee'].includes(actor?.role)) {
@@ -448,9 +446,6 @@ const createListPaymentDocuments = ({ paymentRepository, loanAccessPolicy }) => 
   await loanAccessPolicy.findAuthorizedLoan({ actor, loanId: payment.loanId });
 
   const documents = await paymentRepository.listDocuments(payment.id);
-  if (actor.role === 'customer') {
-    return documents.filter((document) => document.customerVisible);
-  }
 
   return documents;
 };
@@ -488,10 +483,6 @@ const createDownloadPaymentDocument = ({ paymentRepository, loanAccessPolicy, at
   const document = await paymentRepository.findDocument({ paymentId: payment.id, documentId });
 
   ensureDocumentExists(document, 'Document');
-
-  if (actor.role === 'customer' && !document.customerVisible) {
-    throw new AuthorizationError('You do not have access to this document');
-  }
 
   return {
     document,

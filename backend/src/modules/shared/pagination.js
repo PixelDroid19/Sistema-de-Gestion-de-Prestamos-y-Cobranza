@@ -17,7 +17,7 @@ const parsePositiveInteger = (value) => {
 };
 
 const buildPaginationValidationError = (errors) => {
-  const error = new ValidationError('Validation failed');
+  const error = new ValidationError('La validación falló');
   error.errors = errors;
   return error;
 };

@@ -1,10 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./database');
-const { APPLICATION_ROLES } = require('@/modules/shared/roles');
+const { ADMINISTRATIVE_LOGIN_ROLES } = require('@/modules/shared/roles');
 
 const RolePermission = sequelize.define('RolePermission', {
   role: {
-    type: DataTypes.ENUM(...APPLICATION_ROLES),
+    type: DataTypes.ENUM(...ADMINISTRATIVE_LOGIN_ROLES),
     allowNull: false,
   },
   permissionId: {

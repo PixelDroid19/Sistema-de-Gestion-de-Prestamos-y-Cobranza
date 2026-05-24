@@ -83,6 +83,9 @@ export interface CalendarOverviewResponse {
 export const getStatusColumnHelp = () => tTerm('credits.help.statusColumn');
 export const getRecoveryColumnHelp = () => tTerm('credits.help.recoveryColumn');
 
+/**
+ * Converts a loan status into a safe operator-facing explanatory sentence.
+ */
 export const getLoanStatusDescription = (status?: string) => {
   switch (String(status || '').toLowerCase()) {
     case 'pending':
@@ -104,7 +107,7 @@ export const getLoanStatusDescription = (status?: string) => {
     case 'rejected':
       return tTerm('credits.status.description.rejected');
     default:
-      return status ? tTerm('credits.status.description.default', { status }) : tTerm('credits.status.description.missing');
+      return status ? tTerm('common.status.unknown') : tTerm('credits.status.description.missing');
   }
 };
 
@@ -130,6 +133,9 @@ export const getRecoveryStatusDescription = (credit: any) => {
   return tTerm('credits.recovery.description.current');
 };
 
+/**
+ * Converts backend loan status values into operator-facing labels without leaking enum keys.
+ */
 export const getLoanStatusLabel = (status: string) => {
   const normalizedStatus = String(status || '').toLowerCase();
   if (normalizedStatus === 'active') return tTerm('common.status.active');
@@ -141,15 +147,18 @@ export const getLoanStatusLabel = (status: string) => {
   if (normalizedStatus === 'closed') return tTerm('common.status.closed');
   if (normalizedStatus === 'cancelled') return tTerm('credits.status.cancelled');
   if (normalizedStatus === 'rejected') return tTerm('credits.status.rejected');
-  return status;
+  return tTerm('common.status.unknown');
 };
 
+/**
+ * Converts recovery status values into operator-facing labels without leaking enum keys.
+ */
 export const getRecoveryStatusLabel = (credit: any) => {
   if (credit?.recoveryStatus === 'overdue' || credit?.status === 'defaulted') return tTerm('credits.recovery.overdue');
   if (credit?.recoveryStatus === 'pending') return tTerm('credits.recovery.pending');
   if (credit?.recoveryStatus === 'recovered') return tTerm('credits.recovery.recovered');
   if (credit?.recoveryStatus === 'active') return tTerm('credits.recovery.active');
-  if (credit?.recoveryStatus) return credit.recoveryStatus;
+  if (credit?.recoveryStatus) return tTerm('common.status.unknown');
   return tTerm('credits.recovery.current');
 };
 

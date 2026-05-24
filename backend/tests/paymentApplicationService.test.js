@@ -35,6 +35,21 @@ test('processPayment rejects malformed operational payment dates before mutation
   });
 });
 
+test('processPayment rejects partially numeric payment amounts before mutation', async () => {
+  const service = moduleOwnedPaymentApplicationService.createPaymentApplicationService({ loanViewService });
+
+  await assert.rejects(() => service.processPayment({
+    loanId: 1,
+    paymentAmount: '250abc',
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    actorId: 1,
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'El monto del pago debe ser un número válido mayor que 0');
+    return true;
+  });
+});
+
 test('applyPayment allocates payoff amounts and closes a recovered loan', async () => {
   const schedule = buildAmortizationSchedule({
     amount: 1000,
@@ -521,6 +536,126 @@ test('applyCapitalPayment reduce_payment requires an explicit new term', async (
   }), /newTermMonths must be an integer/);
 });
 
+test('applyCapitalPayment rejects amounts greater than the live principal before mutation', async () => {
+  const loan = {
+    id: 3314,
+    status: 'active',
+    recoveryStatus: 'pending',
+    principalOutstanding: 300,
+    financialSnapshot: {
+      outstandingPrincipal: 300,
+      outstandingInterest: 30,
+      outstandingBalance: 330,
+    },
+    emiSchedule: [
+      {
+        installmentNumber: 1,
+        dueDate: '2026-04-01T00:00:00.000Z',
+        remainingPrincipal: 0,
+        remainingInterest: 0,
+        paidPrincipal: 100,
+        paidInterest: 10,
+        paidTotal: 110,
+        status: 'paid',
+      },
+      {
+        installmentNumber: 2,
+        dueDate: '2026-06-01T00:00:00.000Z',
+        remainingPrincipal: 200,
+        remainingInterest: 20,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+      {
+        installmentNumber: 3,
+        dueDate: '2026-07-01T00:00:00.000Z',
+        remainingPrincipal: 100,
+        remainingInterest: 10,
+        paidPrincipal: 0,
+        paidInterest: 0,
+        paidTotal: 0,
+        status: 'pending',
+      },
+    ],
+    async save() {
+      throw new Error('loan.save should not be called');
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async () => {
+    throw new Error('Payment.create should not be called');
+  });
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 3314,
+    amount: 350,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_term',
+  }), (error) => {
+    assert.ok(error instanceof BusinessRuleViolationError);
+    assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
+    assert.deepEqual(error.denialReasons, [{
+      code: 'CAPITAL_PAYMENT_EXCEEDS_PRINCIPAL',
+      message: 'El abono a capital no puede exceder el capital vivo del crédito',
+      outstandingPrincipal: 300,
+      requestedAmount: 350,
+    }]);
+    return true;
+  });
+});
+
+test('applyCapitalPayment reduce_payment rejects exponent-like new term strings', async () => {
+  const schedule = buildAmortizationSchedule({
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    startDate: '2026-05-01T00:00:00.000Z',
+    calculationMethod: 'FRENCH',
+  });
+  schedule[0] = {
+    ...schedule[0],
+    paidPrincipal: schedule[0].principalComponent,
+    paidInterest: schedule[0].interestComponent,
+    paidTotal: schedule[0].scheduledPayment,
+    remainingPrincipal: 0,
+    remainingInterest: 0,
+    status: 'paid',
+  };
+  const startingSnapshot = summarizeSchedule(schedule);
+  const loan = {
+    id: 3313,
+    status: 'active',
+    recoveryStatus: 'pending',
+    amount: 1000,
+    interestRate: 12,
+    termMonths: 4,
+    calculationMethod: 'FRENCH',
+    installmentAmount: schedule[1].scheduledPayment,
+    principalOutstanding: startingSnapshot.outstandingPrincipal,
+    financialSnapshot: startingSnapshot,
+    emiSchedule: schedule,
+    async save() {
+      return this;
+    },
+  };
+
+  mock.method(models.sequelize, 'transaction', async (_options, handler) => handler({ id: '' }));
+  mock.method(models.Loan, 'findByPk', async () => loan);
+  mock.method(models.Payment, 'create', async (payload) => ({ id: 891, ...payload }));
+
+  await assert.rejects(() => createPaymentApplicationService({ loanViewService }).applyCapitalPayment({
+    loanId: 3313,
+    amount: 300,
+    paymentDate: '2026-05-15T00:00:00.000Z',
+    strategy: 'reduce_payment',
+    newTermMonths: '1e2',
+  }), /newTermMonths must be an integer/);
+});
+
 test('applyCapitalPayment rejects loans before the first installment is paid', async () => {
   const loan = {
     id: 332,
@@ -633,7 +768,7 @@ test('applyCapitalPayment rejects loans with overdue unpaid installments and exp
     assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     }]);
     return true;
   });
@@ -788,7 +923,7 @@ test('applyCapitalPayment rejects loans with no outstanding balance and exposes 
     assert.equal(error.code, 'CAPITAL_PAYMENT_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'NO_OUTSTANDING_BALANCE',
-      message: 'Loan has no outstanding balance for capital payment',
+      message: 'El crédito no tiene saldo pendiente para abono a capital',
     }]);
     return true;
   });
@@ -1017,7 +1152,7 @@ test('applyPayoff rejects overdue unpaid installments and exposes denial reasons
     assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'OVERDUE_UNPAID_INSTALLMENTS',
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     }]);
     return true;
   });
@@ -1103,7 +1238,7 @@ test('applyPayoff rejects loans with no outstanding balance and exposes denial r
     assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'LOAN_ALREADY_PAID',
-      message: 'Loan is already fully paid',
+      message: 'El crédito ya está pagado en su totalidad',
     }]);
     return true;
   });
@@ -1142,7 +1277,7 @@ test('applyPayoff rejects already closed loans', async () => {
     assert.equal(error.code, 'PAYOFF_NOT_ALLOWED');
     assert.deepEqual(error.denialReasons, [{
       code: 'LOAN_ALREADY_PAID',
-      message: 'Loan is already fully paid',
+      message: 'El crédito ya está pagado en su totalidad',
     }]);
     return true;
   });

@@ -27,11 +27,11 @@ const resolveCreditCalculationExecution = async ({ input, calculationService, po
 
 const resolvePolicyContext = async ({ input, policyResolver }) => {
   if (String(input?.rateSource || '').trim().toLowerCase() !== 'policy') {
-    throw new ValidationError('Credit creation must use a configured rate policy');
+    throw new ValidationError('La creación de créditos debe usar una política de tasa configurada');
   }
 
   if (String(input?.lateFeeSource || '').trim().toLowerCase() !== 'policy') {
-    throw new ValidationError('Credit creation must use a configured late fee policy');
+    throw new ValidationError('La creación de créditos debe usar una política de mora configurada');
   }
 
   if (!policyResolver || typeof policyResolver.resolve !== 'function') {
@@ -82,7 +82,7 @@ const resolveLoanStartDate = (value) => {
   try {
     return normalizeUtcDateOnly(normalizedValue, 'Loan start date');
   } catch (_error) {
-    throw new ValidationError('Loan start date must be a valid date');
+    throw new ValidationError('La fecha de inicio del crédito debe ser válida');
   }
 };
 
@@ -107,7 +107,7 @@ const createLoanFromCanonicalDataFactory = ({
   financialProductModel = FinancialProduct,
 } = {}) => async (input) => {
   if (input.associateId !== undefined && input.associateId !== null && input.associateId !== '') {
-    throw new ValidationError('Socios are managed as investors and cannot be assigned to new credits');
+    throw new ValidationError('Los socios se gestionan como inversionistas y no se asignan a créditos nuevos');
   }
 
   const customer = await customerModel.findByPk(input.customerId);

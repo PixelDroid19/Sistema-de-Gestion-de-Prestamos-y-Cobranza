@@ -5,6 +5,7 @@ import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useAssociateDetails } from '../services/associateService';
+import { parsePositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
@@ -73,10 +74,10 @@ export default function AssociateDetails() {
   const associateId = Number(id);
   const { user } = useSessionStore();
   const isAdmin = user?.role === 'admin';
-  const isSocio = user?.role === 'socio';
+  const isReadOnlyBackoffice = user?.role === 'employee';
 
-  const { portal, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
-  const associate = portal?.associate ?? null;
+  const { details, installments, contributions, calendar, isLoading, createContribution, createDistribution, createReinvestment, payInstallment } = useAssociateDetails(associateId);
+  const associate = details?.associate ?? null;
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showModal, setShowModal] = useState<'contribution' | 'distribution' | 'reinvestment' | null>(null);
@@ -95,7 +96,7 @@ export default function AssociateDetails() {
     );
   }
 
-  if (!associate && !portal) {
+  if (!associate && !details) {
     return (
       <PageShell className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionSurface>
@@ -113,16 +114,16 @@ export default function AssociateDetails() {
     ? associate.name.trim()
     : [associate?.firstName, associate?.lastName].filter(Boolean).join(' ').trim() || tTerm('associateDetails.fallback.name');
 
-  const portalSummary = portal?.summary;
-  const totalContributions = portalSummary?.totalContributed ?? portal?.totalContributions ?? 0;
-  const totalDistributions = portalSummary?.totalDistributed ?? portal?.totalDistributions ?? 0;
-  const totalInterestPaid = portalSummary?.totalInterestPaid ?? 0;
-  const interestDebt = portalSummary?.interestDebt ?? 0;
-  const nextInterestPaymentDate = portalSummary?.nextInterestPaymentDate ?? null;
-  const debtStatus = portalSummary?.debtStatus === 'pending'
+  const detailsSummary = details?.summary;
+  const totalContributions = detailsSummary?.totalContributed ?? details?.totalContributions ?? 0;
+  const totalDistributions = detailsSummary?.totalDistributed ?? details?.totalDistributions ?? 0;
+  const totalInterestPaid = detailsSummary?.totalInterestPaid ?? 0;
+  const interestDebt = detailsSummary?.interestDebt ?? 0;
+  const nextInterestPaymentDate = detailsSummary?.nextInterestPaymentDate ?? null;
+  const debtStatus = detailsSummary?.debtStatus === 'pending'
     ? tTerm('associateDetails.debtStatus.pending')
     : tTerm('associateDetails.debtStatus.current');
-  const paymentHistory = Array.isArray(portal?.paymentHistory) ? portal.paymentHistory : [];
+  const paymentHistory = Array.isArray(details?.paymentHistory) ? details.paymentHistory : [];
   const interestTypeLabel = tTerm(associate?.interestType === 'annual' ? 'common.interestType.annual' : 'common.interestType.monthly').toLowerCase();
   const interestRateLabel = tTerm('associateDetails.interestRateLabel', {
     rate: formatNumber(associate?.interestRate || 0, { maximumFractionDigits: 4 }),
@@ -134,11 +135,12 @@ export default function AssociateDetails() {
 
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) return;
+    const parsedAmount = parsePositiveMoneyInput(amount);
+    if (parsedAmount === null) return;
 
     setIsSubmitting(true);
     try {
-      const payload = { amount: parseFloat(amount), date: new Date().toISOString() };
+      const payload = { amount: parsedAmount, date: new Date().toISOString() };
       
       if (showModal === 'contribution') {
         await createContribution.mutateAsync({
@@ -520,7 +522,7 @@ export default function AssociateDetails() {
         </div>
       </ToolbarSurface>
 
-      {isSocio && (
+      {isReadOnlyBackoffice && (
         <SectionSurface className="py-4">
           <p className="text-sm leading-6 text-text-secondary">
           {tTerm('associateDetails.readOnlyNotice')}

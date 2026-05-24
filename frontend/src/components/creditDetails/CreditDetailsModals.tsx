@@ -1,5 +1,6 @@
 import { tTerm } from '../../i18n/terminology';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../../constants/loanStates';
+import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 import { CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../../services/loanService';
 import { ActionButton, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from '../shared/Surfaces';
 import type { CapitalPreview } from './creditDetailsHelpers';
@@ -106,6 +107,9 @@ export type CreditDetailsModalsProps = {
 // ---------------------------------------------------------------------------
 
 export function CreditDetailsModals(props: CreditDetailsModalsProps) {
+  const capitalAmountExceedsPrincipal = props.capitalPreview.amount > props.capitalPreview.currentPrincipal
+    && props.capitalPreview.currentPrincipal > 0;
+
   return (
     <>
       {/* Status */}
@@ -136,7 +140,7 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
             <ActionButton onClick={props.onClosePaymentModal} fullWidth>{tTerm('common.cta.cancel')}</ActionButton>
             <ActionButton
               onClick={props.onRecordPayment}
-              disabled={!props.paymentAmount || parseFloat(props.paymentAmount) <= 0 || Boolean(props.installmentQuote && !props.installmentQuote.canPay)}
+              disabled={parsePositiveMoneyInput(props.paymentAmount) === null || Boolean(props.installmentQuote && !props.installmentQuote.canPay)}
               variant="primary" fullWidth
             >{tTerm('creditDetails.modal.payment.submit')}</ActionButton>
           </>}
@@ -274,11 +278,13 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               onClick={props.onRecordCapital}
               disabled={
                 !props.capitalPaymentGuard.executable
-                || !props.capitalAmount
-                || parseFloat(props.capitalAmount) <= 0
-                || (props.capitalStrategy === 'reduce_payment' && (!props.capitalNewTermMonths || parseInt(props.capitalNewTermMonths, 10) <= 0))
+                || parsePositiveMoneyInput(props.capitalAmount) === null
+                || capitalAmountExceedsPrincipal
+                || (props.capitalStrategy === 'reduce_payment' && parsePositiveIntegerInput(props.capitalNewTermMonths) === null)
               }
-              title={props.capitalPaymentGuard.executable ? undefined : props.capitalPaymentGuard.reason}
+              title={capitalAmountExceedsPrincipal
+                ? tTerm('creditDetails.modal.capital.amountExceedsPrincipal')
+                : (props.capitalPaymentGuard.executable ? undefined : props.capitalPaymentGuard.reason)}
               variant="primary" fullWidth
             >{tTerm('creditDetails.modal.capital.submit')}</ActionButton>
           </>}
@@ -359,6 +365,11 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               {!props.capitalPaymentGuard.executable && (
                 <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
                   {props.capitalPaymentGuard.reason || props.capitalUnavailableDescription}
+                </p>
+              )}
+              {capitalAmountExceedsPrincipal && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100">
+                  {tTerm('creditDetails.modal.capital.amountExceedsPrincipal')}
                 </p>
               )}
             </div>

@@ -12,6 +12,7 @@ import { useTranslation } from '../../i18n';
 import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
 import { getCalculationValueLabel } from '../../lib/creditCalculationLabels';
+import { formatScheduleStatusLabel } from '../../lib/scheduleStatusLabels';
 import type { CreditCalculationInput, CreditCalculationResult } from '../../types/creditCalculation';
 import { OperationalInput, OperationalSelect } from './FormControls';
 import { ActionButton, DataTableSurface, FormField, InsightStrip } from './Surfaces';
@@ -99,15 +100,6 @@ const formatDate = (value: string) => {
     year: 'numeric',
     timeZone: 'UTC',
   }) || '-';
-};
-
-const formatScheduleStatus = (status?: string) => {
-  const normalizedStatus = String(status || '').toLowerCase();
-  if (normalizedStatus === 'pending') return tTerm('schedule.status.pending');
-  if (normalizedStatus === 'paid' || normalizedStatus === 'settled') return tTerm('credits.modal.status.paid');
-  if (normalizedStatus === 'overdue' || normalizedStatus === 'defaulted') return tTerm('credits.modal.status.overdue');
-  if (normalizedStatus === 'cancelled' || normalizedStatus === 'annulled') return tTerm('schedule.status.annulled');
-  return status || '-';
 };
 
 const formatCalculationMethod = (value?: CreditCalculationResult['method']) => (
@@ -440,9 +432,7 @@ export default function CreditSimulationWorkspace({
                 {freshResult && (
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1 text-xs font-medium text-text-secondary">
-                      {tTerm('simulator.schedule.ruleLabel', {
-                        rule: freshResult.calculationProfileVersionId != null ? `v${freshResult.calculationProfileVersionId}` : tTerm('simulator.schedule.rule.unversioned'),
-                      })}
+                      {tTerm('simulator.schedule.activeRule')}
                     </div>
                     {!compactChrome && (
                       <div className="rounded-full border border-border-subtle bg-bg-base px-3 py-1.5 text-xs font-medium text-text-secondary">
@@ -507,7 +497,7 @@ export default function CreditSimulationWorkspace({
                              <td className="text-right font-medium text-text-primary">{formatCurrency(row.remainingBalance)}</td>
                              <td className="text-center">
                                <span className="rounded-full border border-border-subtle bg-bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                                 {formatScheduleStatus(row.status)}
+                                 {formatScheduleStatusLabel(row.status)}
                                </span>
                              </td>
                            </tr>

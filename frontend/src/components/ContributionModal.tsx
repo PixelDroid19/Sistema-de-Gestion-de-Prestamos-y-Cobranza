@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
+import { parsePositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import { ActionButton, EmptyState, FormField, ModalShell, SectionSurface, TextInput } from './shared/Surfaces';
 
@@ -36,12 +37,13 @@ export default function ContributionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) return;
+    const parsedAmount = parsePositiveMoneyInput(amount);
+    if (parsedAmount === null) return;
 
     setIsSubmitting(true);
     try {
       await onAddContribution({
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         contributionDate: new Date().toISOString(),
       });
       setAmount('');

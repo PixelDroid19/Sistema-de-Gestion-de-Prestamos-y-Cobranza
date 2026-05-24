@@ -10,6 +10,11 @@ const {
 } = require('./application/useCases');
 const { userRepository } = require('./infrastructure/repositories');
 
+/**
+ * Compose the administrative users module and its user-management router.
+ * @param {{ sharedRuntime?: object }} [options]
+ * @returns {{ name: string, basePath: string, router: object }}
+ */
 const createUsersModule = ({ sharedRuntime } = {}) => {
   const { authMiddleware } = resolveAuthContext(sharedRuntime);
   const useCases = {

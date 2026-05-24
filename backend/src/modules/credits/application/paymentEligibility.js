@@ -36,7 +36,7 @@ const normalizeFinancialBlock = (loan = {}) => {
   return {
     isBlocked: source.isBlocked === true || source.active === true,
     code: source.code ? String(source.code) : null,
-    message: source.message ? String(source.message) : 'Loan has an active financial block',
+    message: source.message ? String(source.message) : 'El crédito tiene un bloqueo financiero activo',
     reason: source.reason ? String(source.reason) : null,
   };
 };
@@ -64,7 +64,7 @@ const resolveLoanStartDate = (loan = {}) => {
 
 const buildFinancialBlockReason = (financialBlock) => ({
   code: PAYMENT_DENIAL_CODES.FINANCIAL_BLOCK,
-  message: financialBlock.message || 'Loan has an active financial block',
+  message: financialBlock.message || 'El crédito tiene un bloqueo financiero activo',
   ...(financialBlock.code ? { blockCode: financialBlock.code } : {}),
   ...(financialBlock.reason ? { blockReason: financialBlock.reason } : {}),
 });
@@ -97,13 +97,13 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
   if (loan.status === 'closed' || loan.status === 'paid' || outstandingBalance <= 0.01) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.LOAN_ALREADY_PAID,
-      message: 'Loan is already fully paid',
+      message: 'El crédito ya está pagado en su totalidad',
     });
   }
   else if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.LOAN_NOT_PAYABLE_STATUS,
-      message: `Loan status ${loan.status} does not allow total payoff`,
+      message: 'El estado del crédito no permite pago total',
     });
   }
 
@@ -114,14 +114,14 @@ const evaluatePayoffEligibility = ({ loan, schedule = [], snapshot = {}, asOfDat
   ) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.PAYOFF_BEFORE_LOAN_START,
-      message: 'Payoff effective date must be on or after the loan start date',
+      message: 'La fecha efectiva del pago total debe ser igual o posterior al inicio del crédito',
     });
   }
 
   if (hasOverdueUnpaidInstallments({ schedule, asOfDate: normalizedAsOfDate })) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.OVERDUE_UNPAID_INSTALLMENTS,
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     });
   }
 
@@ -144,14 +144,14 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
   if (!PAYABLE_LOAN_STATUSES.has(loan.status)) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.LOAN_NOT_PAYABLE_STATUS,
-      message: `Loan status ${loan.status} does not allow capital payments`,
+      message: 'El estado del crédito no permite abonos a capital',
     });
   }
 
   if (outstandingBalance <= 0.01 || outstandingPrincipal <= 0.01) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.NO_OUTSTANDING_BALANCE,
-      message: 'Loan has no outstanding balance for capital payment',
+      message: 'El crédito no tiene saldo pendiente para abono a capital',
     });
   }
 
@@ -165,7 +165,7 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
   if (hasOverdueUnpaidInstallments({ schedule, asOfDate })) {
     denialReasons.push({
       code: PAYMENT_DENIAL_CODES.OVERDUE_UNPAID_INSTALLMENTS,
-      message: 'Loan has overdue unpaid installments',
+      message: 'El crédito tiene cuotas vencidas pendientes',
     });
   }
 
@@ -182,7 +182,7 @@ const evaluateCapitalPaymentEligibility = ({ loan, schedule = [], snapshot = {},
 const assertPayoffAllowed = (input) => {
   const eligibility = evaluatePayoffEligibility(input);
   if (!eligibility.allowed) {
-    throw new BusinessRuleViolationError('Total payoff is not allowed for this loan', {
+    throw new BusinessRuleViolationError('El pago total no está permitido para este crédito', {
       code: 'PAYOFF_NOT_ALLOWED',
       denialReasons: eligibility.denialReasons,
     });
@@ -192,7 +192,7 @@ const assertPayoffAllowed = (input) => {
 const assertCapitalPaymentAllowed = (input) => {
   const eligibility = evaluateCapitalPaymentEligibility(input);
   if (!eligibility.allowed) {
-    throw new BusinessRuleViolationError('Capital payment is not allowed for this loan', {
+    throw new BusinessRuleViolationError('El abono a capital no está permitido para este crédito', {
       code: 'CAPITAL_PAYMENT_NOT_ALLOWED',
       denialReasons: eligibility.denialReasons,
     });

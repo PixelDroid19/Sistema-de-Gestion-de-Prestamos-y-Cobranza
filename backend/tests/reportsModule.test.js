@@ -20,6 +20,7 @@ const {
   createGetCustomerProfitabilityReport,
   createExportCustomerProfitabilityReport,
   createGetLoanProfitabilityReport,
+  createExportPayoutsExcel,
 } = require('@/modules/reports/application/useCases');
 const { createReportsModule } = require('@/modules/reports');
 
@@ -291,12 +292,123 @@ test('customer report export use-cases return downloadable files', async () => {
   assert.equal(historyFile.fileName, 'customer-7-history.pdf');
   assert.equal(historyFile.contentType, 'application/pdf');
   assert.equal(historyFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
+  assert.match(historyFile.buffer.toString('utf8'), /Historial del cliente #7/);
+  assert.doesNotMatch(historyFile.buffer.toString('utf8'), /Customer History|Loans:|Payments:/);
   assert.equal(profileFile.fileName, 'customer-7-credit-profile.pdf');
   assert.equal(profileFile.contentType, 'application/pdf');
   assert.equal(profileFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
+  assert.match(profileFile.buffer.toString('utf8'), /Perfil crediticio del cliente #7/);
+  assert.doesNotMatch(profileFile.buffer.toString('utf8'), /Customer Credit Profile|Total loans|Complete profile/);
   assert.equal(loanFile.fileName, 'loan-22-credit-history.pdf');
   assert.equal(loanFile.contentType, 'application/pdf');
   assert.equal(loanFile.buffer.includes(Buffer.from('%PDF-1.4', 'utf8')), true);
+  assert.match(loanFile.buffer.toString('utf8'), /Historial del crédito #22/);
+  assert.doesNotMatch(loanFile.buffer.toString('utf8'), /Loan Credit History|Customer ID|Outstanding balance/);
+});
+
+test('customer report CSV exports use Spanish operational headers', async () => {
+  const reportRepository = {
+    async getCustomerHistory() {
+      return {
+        customer: { id: 7, name: 'Ana Cliente' },
+        loans: [{ id: 11, status: 'approved', createdAt: '2026-01-01T00:00:00.000Z' }],
+        payments: [{ id: 12, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z', createdAt: '2026-02-01T00:00:00.000Z' }],
+        documents: [],
+        alerts: [],
+        promises: [],
+        notifications: [],
+      };
+    },
+    async getCustomerCreditProfileDataset() {
+      return {
+        customer: { id: 7, name: 'Ana Cliente' },
+        loans: [{ id: 11, customerId: 7, status: 'active' }],
+        payments: [{ id: 12, loanId: 11, amount: 100, status: 'completed', paymentDate: '2026-02-01T00:00:00.000Z' }],
+        documents: [{ id: 18 }],
+        alerts: [],
+        promises: [],
+        notifications: [],
+      };
+    },
+  };
+  const exportCustomerHistory = createExportCustomerHistory({ reportRepository });
+  const exportCustomerCreditProfile = createExportCustomerCreditProfile({ reportRepository });
+  const exportCustomerCreditHistory = createExportCustomerCreditHistory({
+    paymentRepository: {
+      async listByLoan() {
+        return [{ id: 1, amount: 120, paymentType: 'installment', status: 'completed', paymentDate: '2026-02-15T00:00:00.000Z' }];
+      },
+    },
+    loanViewService: {
+      getSnapshot() {
+        return { outstandingBalance: 80, totalPaid: 120 };
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return { id: 22, customerId: 7, status: 'active', closedAt: null, closureReason: null };
+      },
+    },
+  });
+
+  const [historyCsv, profileCsv, loanCsv] = await Promise.all([
+    exportCustomerHistory({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'csv' }),
+    exportCustomerCreditProfile({ actor: { id: 1, role: 'admin' }, customerId: 7, format: 'csv' }),
+    exportCustomerCreditHistory({ actor: { id: 1, role: 'admin' }, loanId: 22, format: 'csv' }),
+  ]);
+
+  assert.match(historyCsv.buffer.toString('utf8'), /^Tipo de evento,Entidad,Fecha/);
+  assert.match(profileCsv.buffer.toString('utf8'), /^ID Cliente,Cliente,Créditos Totales,Créditos Activos/);
+  assert.match(loanCsv.buffer.toString('utf8'), /^ID Pago,Fecha de pago,Tipo de pago,Estado,Monto/);
+  assert.doesNotMatch(
+    `${historyCsv.buffer}\n${profileCsv.buffer}\n${loanCsv.buffer}`,
+    /eventType|entityType|customerId|customerName|paymentId|paymentType|missingSections/,
+  );
+});
+
+test('customer credit history exports use operational fallbacks instead of raw enum-like values', async () => {
+  const exportCustomerCreditHistory = createExportCustomerCreditHistory({
+    paymentRepository: {
+      async listByLoan() {
+        return [{
+          id: 1,
+          amount: 120,
+          paymentType: 'adjustment_fee',
+          status: 'manual_hold',
+          paymentDate: '2026-02-15T00:00:00.000Z',
+        }];
+      },
+    },
+    loanViewService: {
+      getSnapshot() {
+        return { outstandingBalance: 80, totalPaid: 120 };
+      },
+    },
+    loanAccessPolicy: {
+      async findAuthorizedLoan() {
+        return {
+          id: 22,
+          customerId: 7,
+          status: 'manual_hold',
+          closedAt: '2026-03-01T00:00:00.000Z',
+          closureReason: 'written_off',
+        };
+      },
+    },
+  });
+
+  const [csvFile, pdfFile] = await Promise.all([
+    exportCustomerCreditHistory({ actor: { id: 1, role: 'admin' }, loanId: 22, format: 'csv' }),
+    exportCustomerCreditHistory({ actor: { id: 1, role: 'admin' }, loanId: 22, format: 'pdf' }),
+  ]);
+  const csvText = csvFile.buffer.toString('utf8');
+  const pdfText = pdfFile.buffer.toString('utf8');
+
+  assert.match(csvText, /Tipo de pago no clasificado/);
+  assert.match(csvText, /Estado no clasificado/);
+  assert.match(pdfText, /Estado del crédito: Estado no clasificado/);
+  assert.match(pdfText, /Motivo de cierre: Estado no clasificado/);
+  assert.doesNotMatch(`${csvText}\n${pdfText}`, /manual_hold|adjustment_fee|written_off|manual hold|adjustment fee|written off/);
 });
 
 test('createGetDashboardSummary aggregates dashboard sections and degrades to empty sections on repository failure', async () => {
@@ -697,7 +809,8 @@ test('createExportRecoveryReport returns a valid PDF attachment contract', async
 
   assert.equal(exportFile.contentType, 'application/pdf');
   assert.equal(exportFile.buffer.subarray(0, 4).toString('utf8'), '%PDF');
-  assert.match(exportFile.buffer.toString('utf8'), /CrediCobranza Recovery Report/);
+  assert.match(exportFile.buffer.toString('utf8'), /Reporte de recuperación CrediCobranza/);
+  assert.doesNotMatch(exportFile.buffer.toString('utf8'), /Recovery Report|Total loans|Recovered loans|Outstanding loans/);
 });
 
 test('createExportRecoveryReport returns a valid XLSX attachment contract', async () => {
@@ -725,46 +838,82 @@ test('createExportRecoveryReport returns a valid XLSX attachment contract', asyn
   assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
 });
 
-test('createGetAssociateProfitabilityReport scopes socio requests to their linked associate', async () => {
-  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
-    associateRepository: {
-      async findById(id) {
-        return { id, name: 'Partner One', participationPercentage: '25.0000' };
-      },
-      async findByLinkedUser() {
-        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
-      },
-      async listContributionsByAssociate() {
-        return [{ id: 1, amount: 1000 }];
-      },
-      async listProfitDistributionsByAssociate() {
-        return [{ id: 2, amount: 150, basis: { type: 'proportional-participation', sourceAmount: '600.00', allocatedAmount: '150.00', participationPercentage: '25.0000' } }];
-      },
-      async listLoansByAssociate() {
-        return [{ id: 5, amount: 4000 }];
+test('createExportPayoutsExcel formats payout methods and states as operational report labels', async () => {
+  const exportPayoutsExcel = createExportPayoutsExcel({
+    paymentRepository: {
+      async listPayoutsReport() {
+        return {
+          items: [{
+            id: 7,
+            loanId: 4,
+            paymentDate: '2026-03-01T00:00:00.000Z',
+            amount: 300,
+            principalApplied: 250,
+            interestApplied: 40,
+            penaltyApplied: 10,
+            remainingBalanceAfterPayment: 700,
+            paymentType: 'installment',
+            paymentMethod: 'cash',
+            status: 'completed',
+            Loan: {
+              customerId: 10,
+              Customer: {
+                id: 10,
+                name: 'Ana',
+                email: 'ana@test.local',
+              },
+            },
+            paymentMetadata: {
+              reference: 'REC-7',
+            },
+            createdAt: '2026-03-01T10:00:00.000Z',
+          }],
+        };
       },
     },
   });
 
-  const report = await getAssociateProfitabilityReport({ actor: { id: 9, role: 'socio', associateId: 12 } });
+  const exportFile = await exportPayoutsExcel({ actor: { id: 1, role: 'admin' } });
+  const [row] = exportFile.data.rows;
 
-  assert.equal(report.associate.id, 12);
-  assert.equal(report.associate.participationPercentage, '25.0000');
-  assert.equal(report.summary.totalContributed, '1000.00');
-  assert.equal(report.summary.totalDistributed, '150.00');
-  assert.equal(report.summary.participationPercentage, '25.0000');
-  assert.equal(report.data.distributions[0].distributionType, 'proportional');
-  assert.equal(report.data.distributions[0].declaredProportionalTotal, '600.00');
+  assert.equal(row.paymentType, 'Cuota');
+  assert.equal(row.paymentMethod, 'Efectivo');
+  assert.equal(row.status, 'Completado');
+  assert.notEqual(row.paymentMethod, 'cash');
 });
 
-test('createGetAssociateProfitabilityReport rejects socio access to another associate by id', async () => {
+test('createGetAssociateProfitabilityReport rejects socio records as report users', async () => {
   const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
     associateRepository: {
       async findById(id) {
-        return { id, name: 'Other Partner', participationPercentage: '75.0000' };
+        throw new Error(`findById should not be called for socio records: ${id}`);
       },
-      async findByLinkedUser() {
-        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called');
+      },
+      async listLoansByAssociate() {
+        throw new Error('listLoansByAssociate should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => getAssociateProfitabilityReport({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+  }), (error) => {
+    assert.ok(error instanceof AuthorizationError);
+    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
+    return true;
+  });
+});
+
+test('createGetAssociateProfitabilityReport rejects socio records before associate lookup', async () => {
+  const getAssociateProfitabilityReport = createGetAssociateProfitabilityReport({
+    associateRepository: {
+      async findById(id) {
+        throw new Error(`findById should not be called for socio records: ${id}`);
       },
       async listContributionsByAssociate() {
         throw new Error('listContributionsByAssociate should not be called');
@@ -783,7 +932,7 @@ test('createGetAssociateProfitabilityReport rejects socio access to another asso
     associateId: 99,
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Socio users can only access their own profitability data');
+    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
     return true;
   });
 });
@@ -804,9 +953,6 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
       async findById(id) {
         return { id, name: 'Partner One', participationPercentage: '25.0000' };
       },
-      async findByLinkedUser() {
-        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
-      },
       async listContributionsByAssociate() {
         return [{ id: 1, amount: 1000 }];
       },
@@ -823,9 +969,15 @@ test('createExportAssociateProfitabilityReport returns xlsx workbook for associa
 
   assert.equal(exportFile.contentType, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   assert.equal(exportFile.buffer.subarray(0, 2).toString('utf8'), 'PK');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(exportFile.buffer);
+  const serializedWorkbookValues = JSON.stringify(workbook.worksheets.map((sheet) => sheet.getSheetValues()));
+  assert.match(serializedWorkbookValues, /Proporcional/);
+  assert.doesNotMatch(serializedWorkbookValues, /proportional|distributionType|proportional-participation/);
 });
 
-test('createExportAssociateProfitabilityReport rejects socio export requests for another associate id', async () => {
+test('createExportAssociateProfitabilityReport rejects socio export requests', async () => {
   const exportAssociateProfitabilityReport = createExportAssociateProfitabilityReport({
     reportRepository: {
       async getAssociateExportDataset() {
@@ -835,9 +987,6 @@ test('createExportAssociateProfitabilityReport rejects socio export requests for
     associateRepository: {
       async findById(id) {
         return { id, name: 'Other Partner', participationPercentage: '75.0000' };
-      },
-      async findByLinkedUser() {
-        return { id: 12, name: 'Partner One', participationPercentage: '25.0000' };
       },
       async listContributionsByAssociate() {
         throw new Error('listContributionsByAssociate should not be called');
@@ -857,7 +1006,7 @@ test('createExportAssociateProfitabilityReport rejects socio export requests for
     format: 'xlsx',
   }), (error) => {
     assert.ok(error instanceof AuthorizationError);
-    assert.equal(error.message, 'Socio users can only access their own profitability data');
+    assert.equal(error.message, 'Only authorized backoffice users can access profitability reports');
     return true;
   });
 });
@@ -893,8 +1042,12 @@ test('createExportAssociateProfitabilityReport includes proportional audit colum
   const exportFile = await exportAssociateProfitabilityReport({ actor: { id: 1, role: 'admin' }, associateId: 12, format: 'csv' });
 
   assert.equal(exportFile.contentType, 'text/csv; charset=utf-8');
-  assert.match(exportFile.buffer.toString('utf8'), /participationPercentage,distributionType,declaredProportionalTotal,allocatedAmount/);
-  assert.match(exportFile.buffer.toString('utf8'), /25.0000,proportional,600.00,150.00/);
+  assert.match(exportFile.buffer.toString('utf8'), /Participación %,Tipo Distribución,Total Proporcional,Monto Asignado/);
+  assert.match(exportFile.buffer.toString('utf8'), /25.0000,Proporcional,600.00,150.00/);
+  assert.doesNotMatch(
+    exportFile.buffer.toString('utf8'),
+    /participationPercentage|distributionType|declaredProportionalTotal|allocatedAmount|proportional-participation/,
+  );
 });
 
 test('createReportsModule consumes shared auth and credits ports from runtime', () => {

@@ -119,6 +119,28 @@ describe('ProtectedRoute behavior', () => {
     expect(screen.getByText('Inicio admin')).toBeInTheDocument();
   });
 
+  it('keeps the login view available for stale non-administrative sessions', () => {
+    sessionState.hasHydrated = true;
+    sessionState.accessToken = 'access-token';
+    sessionState.user = { id: 3, role: 'customer' };
+
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/login"
+          element={(
+            <GuestRoute>
+              <div>Acceso</div>
+            </GuestRoute>
+          )}
+        />
+      </Routes>,
+      ['/login'],
+    );
+
+    expect(screen.getByText('Acceso')).toBeInTheDocument();
+  });
+
   it('redirects employee users away from admin-only configuration routes', () => {
     sessionState.hasHydrated = true;
     sessionState.accessToken = 'access-token';

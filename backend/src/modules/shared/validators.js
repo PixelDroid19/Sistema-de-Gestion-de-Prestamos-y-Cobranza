@@ -40,12 +40,23 @@ const validateAmount = (amount) => {
 };
 
 /**
- * Validate percentage rates (0-100 inclusive).
- * @param {number} rate
+ * Validate percentage rates (0-100 inclusive) without accepting JavaScript
+ * exponent or partial-number coercions.
+ * @param {number|string} rate
  * @returns {boolean}
  */
 const validateInterestRate = (rate) => {
-  return typeof rate === 'number' && rate >= 0 && rate <= 100;
+  if (typeof rate !== 'number' && typeof rate !== 'string') {
+    return false;
+  }
+
+  const normalizedRate = typeof rate === 'string' ? rate.trim() : String(rate);
+  if (!/^\d+(\.\d+)?$/.test(normalizedRate)) {
+    return false;
+  }
+
+  const numericRate = Number(normalizedRate);
+  return Number.isFinite(numericRate) && numericRate >= 0 && numericRate <= 100;
 };
 
 /**
@@ -62,7 +73,15 @@ const validateTermMonths = (term) => {
  * @param {string|number} value
  * @returns {boolean}
  */
-const validateIntegerId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
+const validateIntegerId = (value) => {
+  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
+  if (!/^\d+$/.test(normalizedValue)) {
+    return false;
+  }
+
+  const numericValue = Number(normalizedValue);
+  return Number.isSafeInteger(numericValue) && numericValue > 0;
+};
 
 /**
  * Validate an optional date input (null/undefined/empty are valid).
@@ -99,7 +118,12 @@ const validateIntegerRange = (value, min, max) => {
   if (value === undefined || value === null || value === '') {
     return true;
   }
-  const numericValue = Number(value);
+  const normalizedValue = typeof value === 'string' ? value.trim() : String(value);
+  if (!/^\d+$/.test(normalizedValue)) {
+    return false;
+  }
+
+  const numericValue = Number(normalizedValue);
   return Number.isInteger(numericValue) && numericValue >= min && numericValue <= max;
 };
 

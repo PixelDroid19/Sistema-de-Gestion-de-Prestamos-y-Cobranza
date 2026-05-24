@@ -14,7 +14,7 @@ const {
   createListRoles,
 } = require('@/modules/config/application/useCases');
 const { createConfigModule } = require('@/modules/config');
-const { ConflictError, NotFoundError } = require('@/utils/errorHandler');
+const { ConflictError, NotFoundError, ValidationError } = require('@/utils/errorHandler');
 
 test('createCreatePaymentMethod normalizes keys and persists payment-method metadata', async () => {
   let createdPayload;
@@ -216,6 +216,54 @@ test('config policies reject active duplicates that would make resolution ambigu
       priority: 'medium',
     }),
     ConflictError,
+  );
+});
+
+test('config financial policies reject exponent notation in rates and amount ranges', async () => {
+  const buildRepository = () => ({
+    async findByCategoryAndKey() {
+      return null;
+    },
+    async listByCategory() {
+      return [];
+    },
+    async create() {
+      throw new Error('create should not be called for malformed financial policy input');
+    },
+  });
+
+  const createRatePolicy = createCreateRatePolicy({ configRepository: buildRepository() });
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Crédito exponencial',
+      minAmount: '1e6',
+      maxAmount: 2000000,
+      annualEffectiveRate: 36,
+      priority: 'medium',
+    }),
+    (error) => error instanceof ValidationError && /minAmount/.test(error.message),
+  );
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Tasa exponencial',
+      minAmount: 0,
+      maxAmount: 2000000,
+      annualEffectiveRate: '1e2',
+      priority: 'medium',
+    }),
+    (error) => error instanceof ValidationError && /annualEffectiveRate/.test(error.message),
+  );
+
+  const createLateFeePolicy = createCreateLateFeePolicy({ configRepository: buildRepository() });
+  await assert.rejects(
+    () => createLateFeePolicy({
+      label: 'Mora exponencial',
+      annualEffectiveRate: '1e2',
+      lateFeeMode: 'SIMPLE',
+      priority: 'medium',
+    }),
+    (error) => error instanceof ValidationError && /annualEffectiveRate/.test(error.message),
   );
 });
 

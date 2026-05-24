@@ -10,7 +10,7 @@ const {
   createGetAssociateById,
   createUpdateAssociate,
   createDeleteAssociate,
-  createListAssociatePortalSummary,
+  createListAssociateFinancialDetails,
   createCreateAssociateContribution,
   createCreateProfitDistribution,
   createCreateAssociateReinvestment,
@@ -319,6 +319,38 @@ test('createCreateAssociate rejects invalid associate interest terms', async () 
     assert.equal(error.message, 'interestStartDate must be a valid YYYY-MM-DD date');
     return true;
   });
+
+  await assert.rejects(() => createAssociate({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Bad Payment Day',
+      email: 'bad.payment.day@example.com',
+      phone: '+573001112248',
+      interestType: 'monthly',
+      interestRate: 2,
+      interestPaymentDay: '1e1',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'interestPaymentDay must be an integer between 1 and 28');
+    return true;
+  });
+
+  await assert.rejects(() => createAssociate({
+    actor: { id: 1, role: 'admin' },
+    payload: {
+      name: 'Bad Payment Month',
+      email: 'bad.payment.month@example.com',
+      phone: '+573001112249',
+      interestType: 'annual',
+      interestRate: 2,
+      interestPaymentMonth: '1e1',
+    },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.equal(error.message, 'interestPaymentMonth must be an integer between 1 and 12');
+    return true;
+  });
 });
 
 test('createCreateAssociate rejects duplicate contact details through the repository port', async () => {
@@ -350,8 +382,8 @@ test('createCreateAssociate rejects duplicate contact details through the reposi
   });
 });
 
-test('createListAssociatePortalSummary scopes socio access and aggregates profitability totals', async () => {
-  const listAssociatePortalSummary = createListAssociatePortalSummary({
+test('createListAssociateFinancialDetails aggregates financial details for authorized backoffice users', async () => {
+  const listAssociateFinancialDetails = createListAssociateFinancialDetails({
     associateRepository: {
       async findById(id) {
         return { id, name: 'Partner One', participationPercentage: '25.0000', interestType: 'monthly', interestRate: '2.0000' };
@@ -371,7 +403,7 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
     },
   });
 
-  const report = await listAssociatePortalSummary({ actor: { id: 9, role: 'socio', associateId: 12 } });
+  const report = await listAssociateFinancialDetails({ actor: { id: 1, role: 'admin' }, associateId: 12 });
 
   assert.equal(report.associate.id, 12);
   assert.equal(report.associate.participationPercentage, '25.0000');
@@ -384,6 +416,30 @@ test('createListAssociatePortalSummary scopes socio access and aggregates profit
   assert.equal(report.paymentHistory.length, 1);
   assert.equal(report.distributions[0].distributionType, 'proportional');
   assert.equal(Object.hasOwn(report, 'loans'), false);
+});
+
+test('createListAssociateFinancialDetails rejects socio records before associate lookup', async () => {
+  const listAssociateFinancialDetails = createListAssociateFinancialDetails({
+    associateRepository: {
+      async findById() {
+        throw new Error('findById should not be called for socio records');
+      },
+      async listContributionsByAssociate() {
+        throw new Error('listContributionsByAssociate should not be called');
+      },
+      async listProfitDistributionsByAssociate() {
+        throw new Error('listProfitDistributionsByAssociate should not be called');
+      },
+      async findInstallmentsByAssociateId() {
+        throw new Error('findInstallmentsByAssociateId should not be called');
+      },
+    },
+  });
+
+  await assert.rejects(() => listAssociateFinancialDetails({
+    actor: { id: 9, role: 'socio', associateId: 12 },
+    associateId: 12,
+  }), AuthorizationError);
 });
 
 test('createCreateAssociateContribution validates positive amounts', async () => {
@@ -421,6 +477,57 @@ test('createCreateAssociateContribution validates positive amounts', async () =>
   assert.equal(calls[1][0], 'createInstallment');
   assert.equal(calls[1][1].amount, 7.5);
   assert.equal(calls[1][1].capitalBase, 500);
+});
+
+test('associate money movement use cases reject ambiguous currency amounts', async () => {
+  const repository = {
+    async findById() {
+      return { id: 12, interestType: 'monthly', interestRate: '1.5000', interestPaymentDay: 10 };
+    },
+    async runInTransaction() {
+      throw new Error('runInTransaction should not be called');
+    },
+    async createContribution() {
+      throw new Error('createContribution should not be called');
+    },
+    async createProfitDistribution() {
+      throw new Error('createProfitDistribution should not be called');
+    },
+  };
+
+  const createAssociateContribution = createCreateAssociateContribution({ associateRepository: repository });
+  const createProfitDistribution = createCreateProfitDistribution({ associateRepository: repository });
+  const createAssociateReinvestment = createCreateAssociateReinvestment({ associateRepository: repository });
+
+  await assert.rejects(() => createAssociateContribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: '1e2' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /Contribution amount/);
+    return true;
+  });
+
+  await assert.rejects(() => createProfitDistribution({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: '50.999' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /Distribution amount/);
+    return true;
+  });
+
+  await assert.rejects(() => createAssociateReinvestment({
+    actor: { id: 1, role: 'admin' },
+    associateId: 12,
+    payload: { amount: '100abc' },
+  }), (error) => {
+    assert.ok(error instanceof ValidationError);
+    assert.match(error.message, /Reinvestment amount/);
+    return true;
+  });
 });
 
 test('associate money movement use cases reject malformed operational dates', async () => {
@@ -824,14 +931,14 @@ test('createGetAssociateInstallments returns installments with totals', async ()
   assert.equal(result.totals.totalPending, 200);
 });
 
-test('createGetAssociateInstallments rejects unauthorized socio accessing another associate', async () => {
+test('createGetAssociateInstallments rejects socio records before associate lookup', async () => {
   const getInstallments = createGetAssociateInstallments({
     associateRepository: {
       async findInstallmentsByAssociateId() {
         throw new Error('should not be called');
       },
       async findById() {
-        return { id: 5, name: 'Partner One' };
+        throw new Error('findById should not be called for socio records');
       },
     },
   });

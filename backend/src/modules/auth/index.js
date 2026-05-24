@@ -16,8 +16,6 @@ const { createListUsers } = require('@/modules/users/application/useCases');
 const { userRepository: usersRepository } = require('@/modules/users/infrastructure/repositories');
 const {
   userRepository,
-  customerProfileRepository,
-  associateProfileRepository,
   passwordHasher,
   refreshTokenRepository,
 } = require('./infrastructure/repositories');
@@ -38,8 +36,6 @@ const createAuthModule = ({ sharedRuntime, auditService } = {}) => {
   const useCases = {
     registerUser: createRegisterUser({
       userRepository,
-      customerProfileRepository,
-      associateProfileRepository,
       passwordHasher,
       tokenService,
       auditService,
@@ -48,8 +44,6 @@ const createAuthModule = ({ sharedRuntime, auditService } = {}) => {
     getProfile: createGetProfile({ userRepository }),
     updateProfile: createUpdateProfile({
       userRepository,
-      customerProfileRepository,
-      associateProfileRepository,
       auditService,
     }),
     changePassword: createChangePassword({ userRepository, passwordHasher, auditService }),
@@ -58,8 +52,6 @@ const createAuthModule = ({ sharedRuntime, auditService } = {}) => {
     revokeAllUserTokens: createRevokeAllUserTokens({ refreshTokenRepository, auditService }),
     registerWithPermissions: createRegisterWithPermissions({
       userRepository,
-      customerProfileRepository,
-      associateProfileRepository,
       passwordHasher,
       tokenService,
       userPermissionRepository,

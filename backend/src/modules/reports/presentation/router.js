@@ -1,16 +1,18 @@
 const express = require('express');
-const { asyncHandler } = require('@/utils/errorHandler');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
 const { attachPagination } = require('@/middleware/validation');
 const { sendBufferDownload } = require('@/modules/shared/http');
+const { validateIntegerId } = require('@/modules/shared/validators');
+const { formatOperationalStatus, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 const { buildWorkbookBuffer, STYLE_COLORS } = require('@/modules/reports/application/workbookBuilder');
 
 const moneyColumn = (header, key, width = 18) => ({ header, key, width, numFmt: '"$"#,##0.00' });
 const dateColumn = (header, key, width = 16) => ({ header, key, width, numFmt: 'dd/mm/yyyy' });
 
 const PAYOUT_COLUMNS = [
-  { header: 'ID Pago', key: 'paymentId', width: 12 },
-  { header: 'ID Crédito', key: 'loanId', width: 12 },
-  { header: 'ID Cliente', key: 'customerId', width: 12 },
+  { header: 'Pago', key: 'paymentId', width: 12 },
+  { header: 'Crédito', key: 'loanId', width: 12 },
+  { header: 'Referencia cliente', key: 'customerId', width: 18 },
   { header: 'Cliente', key: 'customerName', width: 28 },
   dateColumn('Fecha de Pago', 'paymentDate', 18),
   moneyColumn('Monto', 'amount'),
@@ -34,7 +36,7 @@ const DASHBOARD_EVOLUTION_COLUMNS = [
 ];
 
 const DASHBOARD_LOAN_COLUMNS = [
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customerName', width: 28 },
   moneyColumn('Monto', 'amount'),
   { header: 'Estado', key: 'status', width: 16 },
@@ -42,8 +44,8 @@ const DASHBOARD_LOAN_COLUMNS = [
 ];
 
 const DASHBOARD_PAYMENT_COLUMNS = [
-  { header: 'ID Pago', key: 'paymentId', width: 12 },
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Pago', key: 'paymentId', width: 12 },
+  { header: 'Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customerName', width: 28 },
   moneyColumn('Monto', 'amount'),
   { header: 'Tipo Pago', key: 'paymentType', width: 16 },
@@ -52,8 +54,8 @@ const DASHBOARD_PAYMENT_COLUMNS = [
 ];
 
 const DASHBOARD_ALERT_COLUMNS = [
-  { header: 'ID Alerta', key: 'alertId', width: 12 },
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Alerta', key: 'alertId', width: 12 },
+  { header: 'Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customerName', width: 28 },
   { header: 'Tipo', key: 'type', width: 18 },
   { header: 'Estado', key: 'status', width: 16 },
@@ -62,8 +64,8 @@ const DASHBOARD_ALERT_COLUMNS = [
 ];
 
 const DASHBOARD_PROMISE_COLUMNS = [
-  { header: 'ID Compromiso', key: 'promiseId', width: 16 },
-  { header: 'ID Crédito', key: 'creditId', width: 12 },
+  { header: 'Compromiso', key: 'promiseId', width: 16 },
+  { header: 'Crédito', key: 'creditId', width: 12 },
   { header: 'Cliente', key: 'customerName', width: 28 },
   moneyColumn('Monto Prometido', 'amount', 20),
   { header: 'Estado', key: 'status', width: 16 },
@@ -71,7 +73,7 @@ const DASHBOARD_PROMISE_COLUMNS = [
 ];
 
 const DASHBOARD_NOTIFICATION_COLUMNS = [
-  { header: 'ID Notificación', key: 'notificationId', width: 16 },
+  { header: 'Notificación', key: 'notificationId', width: 16 },
   { header: 'Título', key: 'title', width: 28 },
   { header: 'Tipo', key: 'type', width: 18 },
   { header: 'Estado Lectura', key: 'readStatus', width: 16 },
@@ -122,7 +124,7 @@ const normalizeDashboardLoanRow = (loan = {}) => ({
   creditId: loan.loanId || loan.creditId || loan.id || '',
   customerName: pickCustomerName(loan),
   amount: Number(loan.amount || loan.loanAmount || 0),
-  status: loan.status || loan.recoveryStatus || '',
+  status: formatOperationalStatus(loan.status || loan.recoveryStatus),
   date: formatExcelDate(loan.createdAt || loan.startDate || loan.disbursementDate),
 });
 
@@ -131,8 +133,8 @@ const normalizeDashboardPaymentRow = (payment = {}) => ({
   creditId: payment.loanId || payment.creditId || payment.Loan?.id || payment.loan?.id || '',
   customerName: pickCustomerName(payment),
   amount: Number(payment.amount || 0),
-  paymentType: payment.paymentType || payment.type || '',
-  status: payment.status || '',
+  paymentType: formatPaymentType(payment.paymentType || payment.type),
+  status: formatOperationalStatus(payment.status),
   date: formatExcelDate(payment.paymentDate || payment.createdAt),
 });
 
@@ -141,7 +143,7 @@ const normalizeDashboardAlertRow = (alert = {}) => ({
   creditId: alert.loanId || alert.creditId || alert.Loan?.id || '',
   customerName: pickCustomerName(alert),
   type: alert.type || alert.alertType || '',
-  status: alert.status || '',
+  status: formatOperationalStatus(alert.status),
   date: formatExcelDate(alert.dueDate || alert.createdAt),
   description: alert.description || alert.message || alert.title || '',
 });
@@ -151,7 +153,7 @@ const normalizeDashboardPromiseRow = (promise = {}) => ({
   creditId: promise.loanId || promise.creditId || promise.Loan?.id || '',
   customerName: pickCustomerName(promise),
   amount: Number(promise.amount || promise.promisedAmount || 0),
-  status: promise.status || '',
+  status: formatOperationalStatus(promise.status),
   date: formatExcelDate(promise.promiseDate || promise.dueDate || promise.createdAt),
 });
 
@@ -164,9 +166,51 @@ const normalizeDashboardNotificationRow = (notification = {}) => ({
   description: notification.message || notification.description || '',
 });
 
+/**
+ * Composes reporting, analytics and export routes from authorization middleware
+ * and reporting use cases.
+ * @param {{ authMiddleware: Function, useCases: object }} dependencies
+ * @returns {import('express').Router} Express router for administrative reports and operational exports.
+ */
 const createReportsRouter = ({ authMiddleware, useCases }) => {
   const router = express.Router();
   const requirePermission = (permission) => authMiddleware({ permissions: [permission] });
+  /**
+   * Parses optional report year filters without accepting partial-number
+   * coercions such as "2026abc" or exponent notation.
+   * @param {string|number|null|undefined} value
+   * @returns {number|undefined}
+   */
+  const parseOptionalReportYear = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    const normalizedValue = String(value).trim();
+    if (!/^\d{4}$/.test(normalizedValue)) {
+      throw new ValidationError('year must be a four-digit calendar year');
+    }
+
+    const year = Number(normalizedValue);
+    if (!Number.isSafeInteger(year) || year < 1900 || year > 9999) {
+      throw new ValidationError('year must be a valid calendar year');
+    }
+
+    return year;
+  };
+  /**
+   * Parses route identifiers without accepting partial numeric coercions.
+   * @param {string|number} value
+   * @param {string} fieldName
+   * @returns {number}
+   */
+  const parseRequiredRouteId = (value, fieldName) => {
+    if (!validateIntegerId(value)) {
+      throw new ValidationError(`${fieldName} must be a valid positive integer`);
+    }
+
+    return Number(String(value).trim());
+  };
   const buildCreditExportFilters = (query = {}) => ({
     customerId: query.customerId,
     loanId: query.loanId,
@@ -307,12 +351,12 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/cash-flow/monthly', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const year = parseOptionalReportYear(req.query.year);
     res.json(await useCases.getMonthlyCashFlow({ actor: req.user, year }));
   }));
 
   router.get('/cash-flow/monthly/excel', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const year = parseOptionalReportYear(req.query.year);
     const exportFile = await useCases.exportMonthlyCashFlowExcel({ actor: req.user, year });
     const buffer = await buildWorkbookBuffer(exportFile.sheets);
     sendBufferDownload(res, {
@@ -323,28 +367,32 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/cash-flow/monthly/pdf', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
+    const year = parseOptionalReportYear(req.query.year);
     const exportFile = await useCases.exportMonthlyCashFlowPdf({ actor: req.user, year });
     sendBufferDownload(res, exportFile);
   }));
 
   router.get('/customer-history/:customerId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getCustomerHistory({ actor: req.user, customerId: req.params.customerId }));
+    const customerId = parseRequiredRouteId(req.params.customerId, 'customerId');
+    res.json(await useCases.getCustomerHistory({ actor: req.user, customerId }));
   }));
 
   router.get('/customer-history/:customerId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const customerId = parseRequiredRouteId(req.params.customerId, 'customerId');
     const format = String(req.query.format || 'pdf').toLowerCase();
-    const exportFile = await useCases.exportCustomerHistory({ actor: req.user, customerId: req.params.customerId, format });
+    const exportFile = await useCases.exportCustomerHistory({ actor: req.user, customerId, format });
     sendBufferDownload(res, exportFile);
   }));
 
   router.get('/customer-credit-profile/:customerId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId }));
+    const customerId = parseRequiredRouteId(req.params.customerId, 'customerId');
+    res.json(await useCases.getCustomerCreditProfile({ actor: req.user, customerId }));
   }));
 
   router.get('/customer-credit-profile/:customerId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+    const customerId = parseRequiredRouteId(req.params.customerId, 'customerId');
     const format = String(req.query.format || 'pdf').toLowerCase();
-    const exportFile = await useCases.exportCustomerCreditProfile({ actor: req.user, customerId: req.params.customerId, format });
+    const exportFile = await useCases.exportCustomerCreditProfile({ actor: req.user, customerId, format });
     sendBufferDownload(res, exportFile);
   }));
 
@@ -379,13 +427,15 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/credit-history/loan/:loanId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const history = await useCases.getCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId });
+    const loanId = parseRequiredRouteId(req.params.loanId, 'loanId');
+    const history = await useCases.getCustomerCreditHistory({ actor: req.user, loanId });
     res.json({ success: true, data: { history } });
   }));
 
   router.get('/credit-history/loan/:loanId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'pdf').toLowerCase();
-    const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId: req.params.loanId, format });
+    const loanId = parseRequiredRouteId(req.params.loanId, 'loanId');
+    const exportFile = await useCases.exportCustomerCreditHistory({ actor: req.user, loanId, format });
     sendBufferDownload(res, exportFile);
   }));
 
@@ -417,7 +467,8 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/associates/profitability/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId: req.params.associateId });
+    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
+    const report = await useCases.getAssociateProfitabilityReport({ actor: req.user, associateId });
     res.json({ success: true, data: { report } });
   }));
 
@@ -428,9 +479,10 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/associates/:associateId/export', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
+    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
     const exportFile = await useCases.exportAssociateProfitabilityReport({
       actor: req.user,
-      associateId: req.params.associateId,
+      associateId,
       format,
     });
     sendBufferDownload(res, exportFile);
@@ -443,19 +495,19 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/interest-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getInterestEarnings({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getInterestEarnings({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/monthly-earnings', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getMonthlyEarnings({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getMonthlyEarnings({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/monthly-interest', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getMonthlyInterest({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getMonthlyInterest({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/performance-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getPerformanceAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getPerformanceAnalysis({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/executive-dashboard', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
@@ -463,29 +515,27 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/comprehensive-analytics', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getComprehensiveAnalytics({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getComprehensiveAnalytics({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/comparative-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.post('/comparative-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const requestedYear = req.body?.year;
-    const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
-    res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear }));
+    const parsedYear = parseOptionalReportYear(req.body?.year);
+    res.json(await useCases.getComparativeAnalysis({ actor: req.user, year: parsedYear }));
   }));
 
   router.post('/earnings-report', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    const requestedYear = req.body?.year;
-    const parsedYear = requestedYear !== undefined ? parseInt(requestedYear, 10) : undefined;
-    const earnings = await useCases.getMonthlyEarnings({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear });
-    const interest = await useCases.getInterestEarnings({ actor: req.user, year: Number.isNaN(parsedYear) ? undefined : parsedYear });
+    const parsedYear = parseOptionalReportYear(req.body?.year);
+    const earnings = await useCases.getMonthlyEarnings({ actor: req.user, year: parsedYear });
+    const interest = await useCases.getInterestEarnings({ actor: req.user, year: parsedYear });
 
     res.json({
       success: true,
       data: {
-        year: earnings?.data?.year || (Number.isNaN(parsedYear) ? new Date().getFullYear() : parsedYear),
+        year: earnings?.data?.year || parsedYear || new Date().getFullYear(),
         monthlyEarnings: earnings?.data?.months || [],
         interestEarnings: interest?.data?.byMonth || [],
         totalInterest: interest?.data?.totalInterest || '0.00',
@@ -494,7 +544,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   router.get('/forecast-analysis', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
-    res.json(await useCases.getForecastAnalysis({ actor: req.user, year: req.query.year ? parseInt(req.query.year, 10) : undefined }));
+    res.json(await useCases.getForecastAnalysis({ actor: req.user, year: parseOptionalReportYear(req.query.year) }));
   }));
 
   router.get('/next-month-projection', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
@@ -583,9 +633,10 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
 
   router.get('/partner-report/:associateId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
     const format = String(req.query.format || 'xlsx').toLowerCase();
+    const associateId = parseRequiredRouteId(req.params.associateId, 'associateId');
     const exportFile = await useCases.exportAssociateProfitabilityReport({
       actor: req.user,
-      associateId: req.params.associateId,
+      associateId,
       format,
     });
     sendBufferDownload(res, exportFile);
@@ -608,10 +659,10 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
   }));
 
   // GET /reports/payment-schedule/:loanId - Get amortization schedule for a specific loan
-  router.get('/payment-schedule/:loanId', requirePermission('REPORTS_VIEW_ALL'), asyncHandler(async (req, res) => {
+  router.get('/payment-schedule/:loanId', requirePermission('CREDITS_VIEW_ALL'), asyncHandler(async (req, res) => {
     res.json(await useCases.getPaymentSchedule({
       actor: req.user,
-      loanId: parseInt(req.params.loanId, 10),
+      loanId: parseRequiredRouteId(req.params.loanId, 'loanId'),
     }));
   }));
 

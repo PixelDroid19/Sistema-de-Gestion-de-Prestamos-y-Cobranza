@@ -4,6 +4,7 @@ const {
   parseDateRange,
   buildPaymentDateWhere,
 } = require('@/modules/reports/application/reportHelpers');
+const { formatOperationalStatus, formatPaymentMethod, formatPaymentType } = require('@/modules/reports/application/reportLabels');
 
 const formatIsoDate = (value) => {
   if (!value) {
@@ -79,9 +80,9 @@ const createExportPayoutsExcel = ({ paymentRepository }) => async ({ actor, filt
           interestApplied: formatMoney(payment.interestApplied),
           penaltyApplied: formatMoney(payment.penaltyApplied),
           remainingBalanceAfterPayment: formatMoney(payment.remainingBalanceAfterPayment),
-          paymentType: payment.paymentType || 'N/A',
-          paymentMethod: payment.paymentMethod || 'N/A',
-          status: payment.status || 'N/A',
+          paymentType: formatPaymentType(payment.paymentType),
+          paymentMethod: formatPaymentMethod(payment.paymentMethod),
+          status: formatOperationalStatus(payment.status),
           reference: payment.paymentMetadata?.reference || '',
           observation: payment.paymentMetadata?.observation || '',
           voucherNumber: payment.paymentMetadata?.voucherNumber || '',

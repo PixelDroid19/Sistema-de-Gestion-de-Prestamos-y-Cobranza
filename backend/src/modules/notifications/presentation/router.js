@@ -1,8 +1,27 @@
 const express = require('express');
-const { asyncHandler } = require('@/utils/errorHandler');
+const { asyncHandler, ValidationError } = require('@/utils/errorHandler');
+const { validateIntegerId } = require('@/modules/shared/validators');
 
+/**
+ * Composes authenticated notification routes from auth middleware, validation
+ * middleware and notification use cases.
+ * @param {{ authMiddleware: Function, notificationValidation: object, useCases: object }} dependencies
+ * @returns {import('express').Router} Express router for backoffice notifications.
+ */
 const createNotificationsRouter = ({ authMiddleware, notificationValidation, useCases }) => {
   const router = express.Router();
+  /**
+   * Parses notification route identifiers without accepting partial numeric coercion.
+   * @param {string|number} value
+   * @returns {number}
+   */
+  const parseNotificationId = (value) => {
+    if (!validateIntegerId(value)) {
+      throw new ValidationError('notificationId must be a valid positive integer');
+    }
+
+    return Number(String(value).trim());
+  };
 
   router.use(authMiddleware());
 
@@ -15,7 +34,8 @@ const createNotificationsRouter = ({ authMiddleware, notificationValidation, use
   }));
 
   router.put('/:notificationId/read', asyncHandler(async (req, res) => {
-    res.json(await useCases.markAsRead({ actor: req.user, notificationId: req.params.notificationId }));
+    const notificationId = parseNotificationId(req.params.notificationId);
+    res.json(await useCases.markAsRead({ actor: req.user, notificationId }));
   }));
 
   router.patch('/mark-all-read', asyncHandler(async (req, res) => {

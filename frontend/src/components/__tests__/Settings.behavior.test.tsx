@@ -327,6 +327,31 @@ describe('Settings operational configuration', () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
+  it('rejects exponent-like credit rate values before saving rate policies', async () => {
+    mockConfigState.ratePolicies = [];
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
+      target: { value: 'Crédito tasa ambigua' },
+    });
+    fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
+      target: { value: '0' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+      target: { value: '1e2' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        description: 'Tasa efectiva anual debe estar entre 0 y 100.',
+      }));
+    });
+    expect(mockCreateRatePolicy).not.toHaveBeenCalled();
+  });
+
   it('blocks duplicated active late-fee policy priorities', async () => {
     render(<Settings />);
 
@@ -349,6 +374,31 @@ describe('Settings operational configuration', () => {
           description: expect.stringContaining('política de mora activa con ese nivel'),
         }),
       );
+    });
+    expect(mockCreateLateFeePolicy).not.toHaveBeenCalled();
+  });
+
+  it('rejects exponent-like late-fee rate values before saving late-fee policies', async () => {
+    mockConfigState.lateFeePolicies = [];
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*0$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
+      target: { value: 'Mora tasa ambigua' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
+      target: { value: '1e2' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Prioridad' }), {
+      target: { value: 'high' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        description: 'Tasa de mora efectiva anual debe estar entre 0 y 100.',
+      }));
     });
     expect(mockCreateLateFeePolicy).not.toHaveBeenCalled();
   });

@@ -1,4 +1,4 @@
-import { useSessionStore } from '../store/sessionStore';
+import { isAdministrativeUser, useSessionStore } from '../store/sessionStore';
 
 const normalizeApiBaseUrl = (value?: string): string => {
   if (!value || value.trim().length === 0) {
@@ -63,11 +63,20 @@ const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 30_000;
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 
-const isSessionBootstrapRequest = (path: string) => (
-  path.includes('/auth/login')
-  || path.includes('/auth/register')
-  || path.includes('/auth/refresh')
-);
+const normalizeRequestPath = (path: string): string => {
+  const url = new URL(path.startsWith('http') ? path : `${window.location.origin}${path}`);
+  const apiBasePathname = new URL(API_BASE_URL, window.location.origin).pathname.replace(/\/$/, '');
+  if (apiBasePathname && url.pathname.startsWith(`${apiBasePathname}/`)) {
+    return url.pathname.slice(apiBasePathname.length) || '/';
+  }
+
+  return url.pathname;
+};
+
+const isSessionBootstrapRequest = (path: string) => {
+  const pathname = normalizeRequestPath(path);
+  return pathname === '/auth/login' || pathname === '/auth/refresh';
+};
 
 const decodeBase64Url = (value: string): string | null => {
   const normalizedValue = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -197,7 +206,12 @@ const parseResponseData = async <T>(response: Response, responseType: ApiRequest
 };
 
 const refreshAccessToken = async (): Promise<string> => {
-  const { refreshToken, updateAccessToken, logout } = useSessionStore.getState();
+  const { refreshToken, user, updateAccessToken, logout } = useSessionStore.getState();
+
+  if (!isAdministrativeUser(user)) {
+    logout();
+    throw { message: 'No administrative user available', statusCode: 401 };
+  }
 
   if (!refreshToken) {
     logout();
