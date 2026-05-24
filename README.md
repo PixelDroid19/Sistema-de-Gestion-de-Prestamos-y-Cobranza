@@ -1,77 +1,123 @@
 # CrediCobranza
 
-CrediCobranza es un Sistema de Gestion de Prestamos y Cobranza con frontend React/Vite y backend Node.js/Express. El producto actual cubre clientes, prestamos, pagos, socios inversionistas, empleados, notificaciones, reportes y operacion interna.
+CrediCobranza es una plataforma de backoffice para originar, administrar y cobrar créditos. El sistema combina un frontend React/Vite, una API Node.js/Express y PostgreSQL para controlar clientes, créditos, pagos, socios inversionistas, flujo de caja, reportes y permisos internos.
 
-## Panorama general
+## Producto
 
-- `frontend/`: SPA en React 19 con Vite, Sass, TanStack Query, Zustand e i18n en espanol/ingles.
-- `backend/`: API modular en Express 5 con Sequelize sobre PostgreSQL.
-- Dominios visibles: originacion, seguimiento de cartera, cobranza, pagos, reportes, socios, clientes y notificaciones.
-- Motor financiero: simulacion de prestamos, perfiles versionados de calculo, reglas de tasa/mora y aplicacion de pagos.
+El panel administrativo está diseñado para dos perfiles internos:
 
-## Funcionalidades actuales
+- `admin`: dueño o administrador con acceso total.
+- `employee`: operador interno con permisos asignados por módulo.
 
-- Autenticacion con JWT y carga de sesion por rol.
-- Backoffice segmentado para `admin` y `employee`, con permisos administrativos por modulo.
-- Dashboard con resumen de cartera, recuperacion y balances.
-- Gestion de clientes, empleados, socios inversionistas y usuarios administrativos.
-- Solicitud, simulacion, aprobacion, rechazo, asignacion y seguimiento de prestamos.
-- Registro de pagos, pagos parciales, pagos a capital, liquidaciones y anulacion de cuotas.
-- Seguimiento operativo con alertas, promesas de pago, adjuntos y documentos del cliente.
-- Reportes de recuperacion, historial crediticio, rentabilidad por cliente/prestamo y exportaciones.
-- Notificaciones con contador no leido y soporte de web push.
+`customer` y `socio` son registros financieros, no usuarios del panel administrativo. No deben tener rutas administrativas, dashboards propios ni permisos de backoffice dentro de esta aplicación.
+
+El producto actual cubre:
+
+- Clientes y documentación.
+- Créditos, simulación, creación, seguimiento y cierre.
+- Parametrización de tasas por rango de monto.
+- Políticas de mora separadas de la tasa del crédito.
+- Pagos de cuota, pagos parciales, pago total y abonos a capital.
+- Reestructuración por abono a capital con reducción de plazo o reducción de cuota.
+- Socios inversionistas, capital aportado, intereses, movimientos y estado de deuda.
+- Flujo de caja mensual, rentabilidad, cartera viva y reportes.
+- Exportaciones Excel/PDF con datos normalizados para operación y auditoría.
+- Calendario de pagos, alertas, compromisos de pago e historial operativo.
+- Usuarios, roles, permisos y auditoría.
+
+## Contratos financieros vigentes
+
+Estos comportamientos son parte del producto y deben preservarse cuando se hagan cambios.
+
+### Tasas de crédito
+
+- Las tasas se configuran desde `/settings` mediante rangos de monto.
+- Los rangos activos no pueden solaparse ni generar ambigüedad.
+- Puede haber huecos de configuración, pero un crédito que caiga en un hueco debe bloquearse hasta que exista una regla activa que lo cubra.
+- La tasa se asigna automáticamente al crear el crédito según el monto.
+- La tasa aplicada queda congelada en el crédito mediante snapshot financiero.
+- No se permite editar manualmente la tasa de un crédito ya creado.
+- La mora es una política independiente; no debe confundirse visual ni técnicamente con la tasa del crédito.
+
+### Abonos a capital
+
+- Un abono a capital solo se permite después de que exista al menos la primera cuota pagada.
+- El abono reduce capital vivo y reconstruye el plan futuro.
+- No debe marcar cuotas futuras como pagadas o parciales.
+- Si hay cuotas vencidas, intereses por pagar, cuotas parciales operativas, bloqueos financieros, crédito cerrado o saldo de capital cero, el abono debe bloquearse.
+- Estrategias soportadas:
+  - `reduce_term`: mantiene la cuota y reduce el plazo.
+  - `reduce_payment`: descuenta capital y vuelve a diferir el saldo restante con el nuevo número de cuotas elegido por el cliente.
+
+### Pagos y comprobantes
+
+- Las acciones críticas del detalle de crédito son `Registrar pago`, `Abono a capital` y `Pago total`.
+- El comprobante de pago debe estar disponible después de registrar una cuota.
+- Los comprobantes PDF deben mostrar fechas, valores, método de pago y componentes del pago de forma legible.
+- Los métodos de pago se muestran en lenguaje operativo en español, no como claves internas.
+
+### Reportes y exportaciones
+
+- Los reportes se derivan de datos canónicos del backend, no de cálculos duplicados del frontend.
+- Los Excel deben usar encabezados en español, dinero normalizado, fechas legibles y porcentajes entendibles.
+- El historial de créditos debe incluir cartera/capital vivo cuando aplica.
+- Los reportes principales de créditos deben conservar una estructura operativa con hojas como `Resumen General`, `Detalle de Créditos` y hojas por crédito cuando corresponda.
+- La rentabilidad por cliente exportada debe coincidir con los valores visibles en pantalla.
 
 ## Arquitectura
 
 ### Frontend
 
-La aplicacion cliente vive en `frontend/` y hoy funciona como una SPA sin un esquema de rutas complejo. La vista activa se resuelve desde estado persistido y el rol del usuario autenticado.
+El frontend vive en `frontend/`.
 
-Tecnologias principales:
+Tecnologías principales:
 
 - React 19
 - Vite 8
+- TypeScript
 - Sass
-- `@tanstack/react-query`
+- TanStack Query
 - Zustand
 - `react-i18next`
 - Vitest + Testing Library + MSW
 
-Areas principales del frontend:
+Puntos importantes:
 
-- `src/components/`: shell, layout y UI compartida.
-- `src/features/`: secciones por dominio cuando existan.
-- `src/pages/`: entradas principales cuando el modulo las use; la mayoria de vistas operativas viven en `src/components/`.
-- `src/store/`: estado global de sesion, UI y preferencias.
-- `tests/`: pruebas de interfaz y flujos principales.
+- Entradas: `frontend/src/main.tsx` y `frontend/src/App.tsx`.
+- Rutas y protección por rol/permisos: `frontend/src/App.tsx` y `frontend/src/components/ProtectedRoute.tsx`.
+- La mayoría de pantallas operativas viven en `frontend/src/components/`.
+- Servicios HTTP viven en `frontend/src/services/`.
+- El cliente API usa `/api` relativo y Vite lo proxya a `VITE_API_URL`.
+- Reusar `frontend/src/services/queryKeys.ts` para claves de TanStack Query.
+- Reusar componentes compartidos para inputs, botones, superficies, tablas y modales. No crear estilos aislados por pantalla si el patrón ya existe.
+- Todo texto visible debe pasar por i18n cuando se agregue o modifique UI.
 
 ### Backend
 
-La API vive en `backend/` y esta compuesta como un monolito modular.
+El backend vive en `backend/` y funciona como monolito modular.
 
-Tecnologias principales:
+Tecnologías principales:
 
 - Node.js
 - Express 5
 - Sequelize 6
 - PostgreSQL
-- `jsonwebtoken`
+- JWT
 - `bcryptjs`
 - `multer`
-- `web-push`
 - `xlsx`
 - Node test runner
 
-Comportamientos relevantes del backend:
+Flujo de arranque:
 
-- valida variables de entorno al iniciar
-- autentica la conexion de base de datos
-- sincroniza esquema y ejecuta seeds financieros
-- monta modulos bajo `/api/*`
-- inicia sincronizacion programada de alertas vencidas
-- levanta un worker de outbox para eventos diferidos
+```text
+backend/src/server.js
+-> backend/src/bootstrap/index.js
+-> backend/src/app.js
+-> backend/src/modules/index.js
+```
 
-Modulos expuestos actualmente:
+APIs montadas actualmente:
 
 - `/api/auth`
 - `/api/customers`
@@ -81,67 +127,88 @@ Modulos expuestos actualmente:
 - `/api/reports`
 - `/api/notifications`
 - `/api/users`
+- `/api/permissions`
+- `/api/audits`
 - `/api/config`
 
-## Dominio financiero
+Reglas de arquitectura backend:
 
-El dominio de prestamos es la parte mas rica del sistema y hoy incluye:
+- Mantener lógica dentro de `backend/src/modules/<domain>/`.
+- No crear carpetas globales nuevas de controllers/routes fuera del esquema modular.
+- Usar alias `@/` para imports que cruzan módulos o capas.
+- Mantener errores, validaciones y permisos en backend aunque exista validación frontend.
+- Las operaciones financieras deben ser trazables; no borrar físicamente movimientos o pagos como atajo.
 
-- simulacion de credito
-- ciclo de vida completo del prestamo
-- perfiles versionados de calculo para originacion real
-- pipeline de calculo basado en politicas de tasa, mora y snapshot financiero
-- aplicacion canonica de pagos y liquidaciones
-- alertas de mora, promesas de pago y seguimiento operativo
-- adjuntos del prestamo y documentos del cliente
+## Motor de cálculo de créditos
 
-## Roles disponibles
+El cálculo financiero vive en:
 
-- `admin`: acceso completo a operacion, reportes, usuarios, socios, prestamos, pagos y dashboard.
-- `employee`: operador interno con permisos asignados por modulo.
+```text
+backend/src/modules/credits/domain/calculation/
+```
 
-`customer` y `socio` son registros del dominio financiero, no usuarios del panel administrativo. Los agentes se conservan como roster operativo e historial de asignacion (`Agent`, `Loan.agentId`), pero ya no existen como rol autenticado de la aplicacion.
+El servicio público de cálculo es:
+
+```text
+backend/src/modules/credits/application/creditCalculationService.js
+```
+
+El endpoint `/api/loans/calculations` devuelve `data.calculation` con:
+
+- `calculationVersionId`
+- `calculationProfileVersionId`
+- `method`
+- `inputs`
+- `schedule`
+- `summary`
+- `policySnapshot`
+- `explanation`
+
+La creación de créditos debe recalcular con este servicio y persistir `calculationProfileVersionId` y `policySnapshot`.
 
 ## Estructura del repositorio
 
 ```text
 .
+|- backend/
+|  |- scripts/
+|  |- src/
+|  |  |- bootstrap/
+|  |  |- db/
+|  |  |- models/
+|  |  |- modules/
+|  |  `- workers/
+|  `- tests/
 |- frontend/
 |  |- src/
+|  |  |- api/
 |  |  |- components/
-|  |  |- features/
+|  |  |- constants/
 |  |  |- hooks/
+|  |  |- i18n/
 |  |  |- lib/
-|  |  |- pages/
 |  |  |- services/
 |  |  |- store/
 |  |  `- styles/
 |  `- tests/
-`- backend/
-   |- scripts/
-   |- src/
-   |  |- bootstrap/
-   |  |- core/
-   |  |- middleware/
-   |  |- models/
-   |  |- modules/
-   |  |- services/
-   |  |- utils/
-   |  `- workers/
-   `- tests/
+|- AGENTS.md
+|- agent.md
+|- README.md
+`- package.json
 ```
 
 ## Requisitos
 
-- Node.js 18+ recomendado
-- npm
-- PostgreSQL disponible localmente o por Docker
+- Node.js 18 o superior recomendado.
+- npm.
+- Docker para levantar PostgreSQL local.
+- PostgreSQL local/remoto si no se usa Docker.
 
 ## Variables de entorno
 
 ### Backend (`backend/.env`)
 
-Minimas requeridas por el bootstrap:
+Mínimas:
 
 ```env
 DB_NAME=loan_recovery_system
@@ -149,10 +216,10 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_HOST=localhost
 DB_PORT=5433
-JWT_SECRET=replace_me
+JWT_SECRET=replace_me_with_32_chars_minimum
 ```
 
-Valores opcionales comunes:
+Comunes:
 
 ```env
 PORT=5000
@@ -168,10 +235,9 @@ WEB_PUSH_VAPID_SUBJECT=
 
 Notas:
 
-- El backend usa variables `DB_*` individuales.
-- `ALLOWED_ORIGINS` debe configurarse explicitamente en produccion con la o las URLs del frontend separadas por comas.
-- `DB_RESET_ON_BOOT=true` solo debe usarse en escenarios locales de reinicio.
-- Las claves de web push son opcionales; si faltan, ese canal queda deshabilitado.
+- El backend lee variables `DB_*`; no depende de `DATABASE_URL`.
+- `ALLOWED_ORIGINS` debe configurarse en producción con las URLs reales del frontend.
+- `DB_SCHEMA_MODE=reset` y `DB_RESET_ON_BOOT=true` son destructivos. Usarlos solo en local o entornos explícitamente permitidos.
 
 ### Frontend (`frontend/.env`)
 
@@ -180,19 +246,20 @@ VITE_API_URL=http://localhost:5000
 PORT=3000
 ```
 
-El frontend se ejecuta en el puerto 3000 por defecto (configurable via variable PORT).
+`VITE_API_URL` debe ser el origen del backend, no una URL terminada en `/api`.
 
-## Instalacion rapida
+## Desarrollo local
 
-Ver `setup.md` para la guia completa con Docker y local.
-
-### Desarrollo local recomendado
-
-Este modo levanta Postgres local en Docker y ejecuta backend/frontend desde tu maquina con hot reload.
+Instalar dependencias:
 
 ```bash
 npm install
 npm run install:all
+```
+
+Levantar PostgreSQL local en Docker, backend y frontend:
+
+```bash
 npm run dev:local
 ```
 
@@ -200,108 +267,121 @@ Servicios:
 
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:5000`
-- Postgres local: `localhost:5433`
+- PostgreSQL local: `localhost:5433`
 
-El frontend usa `VITE_API_URL=http://localhost:5000`. El backend usa `DB_HOST=localhost`, `DB_PORT=5433` y `DB_SCHEMA_MODE=alter` para crear/ajustar tablas locales sin tocar datos remotos.
-
-Para reiniciar solo la base local de desarrollo:
+Reiniciar solo la base local:
 
 ```bash
 npm run db:reset-local
 ```
 
-Ese comando es destructivo para la base local `loan_recovery_system`.
-
-Para crear usuarios locales de prueba:
+Crear o actualizar usuarios locales de QA:
 
 ```bash
 npm run seed:local-users
 ```
 
-Credenciales creadas o actualizadas:
+Credenciales locales:
 
 - Admin: `qa.admin.20260427@test.local` / `Admin123!`
 - Empleado: `qa.employee.20260427@test.local` / `Admin123!`
 
-El empleado se crea sin permisos amplios por defecto; asignale permisos desde el panel administrativo si queres probar flujos limitados.
+El empleado se crea sin permisos amplios por defecto. Para probar permisos reales, entra como admin y asigna permisos desde el panel.
 
-### Local manual
+## Desarrollo manual
 
 ```bash
-# Terminal 1 - Postgres en Docker
+# Terminal 1
 npm run docker:db
 
-# Terminal 2 - backend
+# Terminal 2
 cd backend
 DB_HOST=localhost DB_PORT=5433 DB_SCHEMA_MODE=alter npm run dev
 
-# Terminal 3 - frontend
+# Terminal 3
 cd frontend
 VITE_API_URL=http://localhost:5000 npm run dev
 ```
 
-### Con Docker Compose completo
+## Docker Compose completo
 
 ```bash
 cd backend
 docker compose up --build
 ```
 
-En este modo el backend queda publicado en `http://localhost:5001` porque corre dentro de Docker. Para conectar el frontend local a ese backend:
+En este modo el backend suele quedar en `http://localhost:5001`. Para conectar el frontend local:
 
 ```bash
 cd frontend
 VITE_API_URL=http://localhost:5001 npm run dev
 ```
 
-## Primer usuario
+## Comandos útiles
 
-El sistema no trae usuarios pre-creados. Registrate via API:
+Desde la raíz:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Admin","email":"admin@test.com","password":"admin123","role":"admin"}'
+npm run dev:local
+npm run lint
+npm run test
+npm run docker:db
+npm run docker:stop
 ```
 
-## Comandos utiles
-
-### Backend
+Backend:
 
 ```bash
 cd backend
-npm run dev            # nodemon, recarga en cambios
-npm start              # node directo
+npm run dev
+npm run lint
 NODE_ENV=test node --require module-alias/register --test
-npm run lint           # eslint
-npm run lint:fix       # auto-fix eslint
-npm run db:reset-local # resetea esquema (destructivo)
+NODE_ENV=test node --require module-alias/register --test tests/schema.test.js
 ```
 
-### Frontend
+Frontend:
 
 ```bash
 cd frontend
-npm run dev         # Vite en localhost:3000
-npm run build       # build produccion
-npm run preview     # preview del build
-npm run lint        # tsc --noEmit
-npm test            # vitest run
-npm run test:watch  # vitest watch
+npm run dev
+npm run lint
+npm test -- --run
+npm run build
 ```
 
-## Validacion
+## Validación antes de entregar cambios
+
+Para cambios de producto o financieros, ejecutar según alcance:
 
 ```bash
+cd backend && npm run lint
 cd backend && NODE_ENV=test node --require module-alias/register --test
-cd frontend && npm test && npm run build
+cd frontend && npm run lint
+cd frontend && npm test -- --run
+cd frontend && npm run build
 ```
 
-## Notas para desarrollo
+Además, validar manualmente en navegador los flujos modificados. En este producto no basta con que compile: hay que comprobar la experiencia real, los cálculos, permisos y exportaciones.
 
-- Frontend siempre en puerto `3000` (fijo en `vite.config.ts`).
-- Backend en puerto `5000` (configurable via `PORT`).
-- Hay comandos root para desarrollo local (`npm run dev:local`), pero backend y frontend siguen instalando/verificando dependencias por separado.
-- El backend usa sincronizacion de esquema automatica en desarrollo local (`DB_SCHEMA_MODE=alter`).
-- `frontend/dist/` contiene artefactos generados.
-- El shell del frontend ya muestra la marca CrediCobranza.
+## Railway
+
+Servicios conocidos del entorno Railway:
+
+- Frontend: `https://frontend-production-3058.up.railway.app`
+- Backend: `https://backend-production-4d24.up.railway.app/api`
+
+Antes de asumir que producción refleja el código local:
+
+1. Confirmar que el último commit esté en `master`.
+2. Revisar estado de deployments en Railway.
+3. Validar login y al menos un flujo crítico desde el frontend desplegado.
+
+No resetear una base de datos remota como atajo. Solo hacerlo cuando se haya pedido explícitamente y se haya confirmado que el entorno es de QA/desarrollo.
+
+## Instrucciones para agentes
+
+`AGENTS.md` es la fuente canónica para Codex y otros agentes de desarrollo. `agent.md` existe como compatibilidad y apunta al mismo contrato.
+
+La guía oficial de OpenAI indica que Codex descubre instrucciones mediante archivos `AGENTS.md` por capas desde el alcance global hasta el directorio actual. Por eso las reglas específicas de este repo deben mantenerse en `AGENTS.md`.
+
+Referencia: https://developers.openai.com/codex/guides/agents-md
