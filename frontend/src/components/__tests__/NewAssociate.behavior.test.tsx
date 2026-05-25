@@ -54,7 +54,23 @@ describe('NewAssociate behavior', () => {
     });
   };
 
-  it('rejects malformed initial capital before submitting the associate', () => {
+  it('normalizes initial capital before submitting the associate', () => {
+    const { container } = render(<NewAssociate onBack={vi.fn()} />);
+
+    fillRequiredFields(container);
+    fireEvent.change(container.querySelector('#new-associate-initial-capital') as HTMLInputElement, {
+      target: { value: '2000000' },
+    });
+
+    expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('2.000.000');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
+
+    expect(runSubmitMock).toHaveBeenCalledWith(expect.objectContaining({ initialCapital: '2000000' }));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('does not share invalid money text with associate form state', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
@@ -62,13 +78,10 @@ describe('NewAssociate behavior', () => {
       target: { value: '100e2' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    expect(runSubmitMock).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith({ title: 'El capital inicial debe ser un monto positivo con máximo dos decimales.' });
+    expect(container.querySelector('#new-associate-initial-capital')).toHaveValue('');
   });
 
-  it('rejects malformed participation percentages before submitting the associate', () => {
+  it('does not accept malformed participation percentages into form state', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
@@ -76,40 +89,38 @@ describe('NewAssociate behavior', () => {
       target: { value: '1e2' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    expect(runSubmitMock).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith({ title: 'La participación debe estar entre 0% y 100%, con máximo 4 decimales.' });
+    expect(container.querySelector('#new-associate-participation')).toHaveValue('');
   });
 
-  it('rejects exponent-like interest rates before submitting the associate', () => {
+  it('normalizes decimal interest rates and rejects exponent-like values', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
+    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
+      target: { value: '2,5' },
+    });
+    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('2.5');
+
     fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
       target: { value: '1e2' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    expect(runSubmitMock).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith({ title: 'La tasa del socio debe estar entre 0% y 100%.' });
+    expect(container.querySelector('#new-associate-interest-rate')).toHaveValue('2.5');
   });
 
-  it('rejects exponent-like interest payment days before submitting the associate', () => {
+  it('normalizes bounded interest payment days and rejects exponent-like values', () => {
     const { container } = render(<NewAssociate onBack={vi.fn()} />);
 
     fillRequiredFields(container);
-    fireEvent.change(container.querySelector('#new-associate-interest-rate') as HTMLInputElement, {
-      target: { value: '2.5' },
+    fireEvent.change(container.querySelector('#new-associate-interest-day') as HTMLInputElement, {
+      target: { value: '08' },
     });
+    expect(container.querySelector('#new-associate-interest-day')).toHaveValue('8');
+
     fireEvent.change(container.querySelector('#new-associate-interest-day') as HTMLInputElement, {
       target: { value: '1e1' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Crear socio' }));
-
-    expect(runSubmitMock).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith({ title: 'El día de pago debe estar entre 1 y 28.' });
+    expect(container.querySelector('#new-associate-interest-day')).toHaveValue('8');
   });
 });

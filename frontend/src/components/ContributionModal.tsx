@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
-import { parsePositiveMoneyInput } from '../lib/moneyInput';
+import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
-import { ActionButton, EmptyState, FormField, ModalShell, SectionSurface, TextInput } from './shared/Surfaces';
+import { ActionButton, EmptyState, FormField, ModalShell, MoneyInput, SectionSurface } from './shared/Surfaces';
 
 interface Contribution {
   id: number;
@@ -56,7 +56,7 @@ export default function ContributionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parsePositiveMoneyInput(amount);
+    const parsedAmount = parseFormattedPositiveMoneyInput(amount);
     if (parsedAmount === null) return;
 
     setIsSubmitting(true);
@@ -111,15 +111,12 @@ export default function ContributionModal({
             htmlFor="new-contribution-amount"
             tooltip={tTerm('contributionModal.form.amountTooltip')}
           >
-            <TextInput
+            <MoneyInput
               id="new-contribution-amount"
-              type="number"
               required
-              min="1"
-              step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
+              onValueChange={setAmount}
+              placeholder="0"
             />
           </FormField>
           <div className="flex gap-2">

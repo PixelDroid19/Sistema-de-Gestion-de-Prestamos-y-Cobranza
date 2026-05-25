@@ -1,5 +1,14 @@
 import React from 'react';
 import type { GuideContext, GuideViewKey } from '../../lib/guidedTours';
+import {
+  formatDigitGroups,
+  formatWholeMoneyInput,
+  normalizeDecimalInput,
+  normalizeIntegerInput,
+  normalizePercentInput,
+  normalizeTextInput,
+  normalizeWholeMoneyInput,
+} from '../../lib/moneyInput';
 import { HelpTooltip, QuickGuideButton } from './HelpSupport';
 
 type PageShellProps = React.HTMLAttributes<HTMLDivElement> & {
@@ -96,6 +105,33 @@ type IconActionLinkProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, '
   label: string;
   icon: React.ReactNode;
   variant?: 'ghost' | 'secondary' | 'danger';
+};
+
+type MoneyInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'inputMode' | 'value' | 'onChange'> & {
+  value: string;
+  onValueChange: (value: string, event: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
+type NormalizedInputVariant = 'text' | 'money' | 'integer' | 'decimal' | 'percent';
+
+export type NormalizedInputChangeDetail = {
+  value: string;
+  displayValue: string;
+  variant: NormalizedInputVariant;
+  numericValue: number | null;
+};
+
+type NormalizedInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> & {
+  value: string;
+  variant?: NormalizedInputVariant;
+  allowZero?: boolean;
+  minValue?: number;
+  maxValue?: number;
+  maxDigits?: number;
+  maxDecimals?: number;
+  trimText?: boolean;
+  onValueChange: (value: string, event: React.ChangeEvent<HTMLInputElement>) => void;
+  onNormalizedChange?: (detail: NormalizedInputChangeDetail, event: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
 type FormFieldProps = Omit<React.LabelHTMLAttributes<HTMLLabelElement>, 'children'> & {
@@ -485,6 +521,129 @@ export function FormField({
 
 export function TextInput({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`form-control ${className}`} {...rest} />;
+}
+
+const getNormalizedInputMode = (variant: NormalizedInputVariant) => {
+  if (variant === 'money' || variant === 'integer') return 'numeric';
+  if (variant === 'decimal' || variant === 'percent') return 'decimal';
+  return undefined;
+};
+
+const getNormalizedDisplayValue = (variant: NormalizedInputVariant, value: string) => {
+  if (variant === 'money') return formatWholeMoneyInput(value);
+  if (variant === 'integer' && /^\d+$/.test(value)) return formatDigitGroups(value);
+  return value;
+};
+
+const normalizeByVariant = (
+  variant: NormalizedInputVariant,
+  value: string,
+  options: Pick<NormalizedInputProps, 'allowZero' | 'minValue' | 'maxValue' | 'maxDigits' | 'maxDecimals' | 'trimText' | 'maxLength'>,
+) => {
+  if (variant === 'money') return normalizeWholeMoneyInput(value);
+  if (variant === 'integer') {
+    return normalizeIntegerInput(value, {
+      allowZero: options.allowZero,
+      min: options.minValue,
+      max: options.maxValue,
+      maxDigits: options.maxDigits,
+    });
+  }
+  if (variant === 'decimal') {
+    return normalizeDecimalInput(value, {
+      allowZero: options.allowZero,
+      min: options.minValue,
+      max: options.maxValue,
+      maxDigits: options.maxDigits,
+      maxDecimals: options.maxDecimals,
+    });
+  }
+  if (variant === 'percent') {
+    return normalizePercentInput(value, {
+      allowZero: options.allowZero,
+      min: options.minValue,
+      max: options.maxValue,
+      maxDigits: options.maxDigits,
+      maxDecimals: options.maxDecimals,
+    });
+  }
+  return normalizeTextInput(value, {
+    trim: options.trimText,
+    maxLength: typeof options.maxLength === 'number' ? options.maxLength : undefined,
+  });
+};
+
+const getNormalizedNumericValue = (variant: NormalizedInputVariant, value: string): number | null => {
+  if (!value || variant === 'text') return null;
+
+  const numericValue = Number(value);
+  return Number.isSafeInteger(numericValue) || (variant !== 'money' && Number.isFinite(numericValue))
+    ? numericValue
+    : null;
+};
+
+const buildNormalizedChangeDetail = (
+  variant: NormalizedInputVariant,
+  value: string,
+): NormalizedInputChangeDetail => ({
+  value,
+  displayValue: getNormalizedDisplayValue(variant, value),
+  variant,
+  numericValue: getNormalizedNumericValue(variant, value),
+});
+
+export function NormalizedInput({
+  className = '',
+  value,
+  variant = 'text',
+  onValueChange,
+  allowZero,
+  minValue,
+  maxValue,
+  maxDigits,
+  maxDecimals,
+  trimText,
+  onNormalizedChange,
+  maxLength,
+  inputMode,
+  ...rest
+}: NormalizedInputProps) {
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const normalizedValue = normalizeByVariant(variant, event.target.value, {
+      allowZero,
+      minValue,
+      maxValue,
+      maxDigits,
+      maxDecimals,
+      trimText,
+      maxLength,
+    });
+    if (normalizedValue === null) {
+      return;
+    }
+
+    onValueChange(normalizedValue, event);
+    onNormalizedChange?.(buildNormalizedChangeDetail(variant, normalizedValue), event);
+  };
+
+  return (
+    <input
+      className={`form-control ${className}`}
+      type="text"
+      inputMode={inputMode ?? getNormalizedInputMode(variant)}
+      value={getNormalizedDisplayValue(variant, value)}
+      onChange={handleChange}
+      maxLength={maxLength}
+      {...rest}
+    />
+  );
+}
+
+export function MoneyInput({
+  placeholder = '0',
+  ...rest
+}: MoneyInputProps) {
+  return <NormalizedInput variant="money" placeholder={placeholder} {...rest} />;
 }
 
 export function CheckboxInput({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {

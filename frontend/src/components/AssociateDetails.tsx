@@ -5,7 +5,7 @@ import { useTranslation } from '../i18n';
 import { formatCurrency as formatLocaleCurrency, formatDate as formatLocaleDate, formatNumber } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useAssociateDetails } from '../services/associateService';
-import { parsePositiveMoneyInput } from '../lib/moneyInput';
+import { parseFormattedPositiveMoneyInput } from '../lib/moneyInput';
 import { toast } from '../lib/toast';
 import ContributionModal from './ContributionModal';
 import InstallmentsModal from './InstallmentsModal';
@@ -17,6 +17,7 @@ import {
   FormField,
   InsightStrip,
   ModalShell,
+  MoneyInput,
   PageHeader,
   PageShell,
   SectionSurface,
@@ -28,6 +29,7 @@ import {
 import TableShell from './shared/TableShell';
 
 type TabType = 'overview' | 'installments' | 'calendar';
+type AssociateMoneyActionType = 'contribution' | 'distribution' | 'reinvestment';
 
 const formatAssociateCurrency = (value: unknown) => formatLocaleCurrency(value);
 
@@ -103,7 +105,7 @@ export default function AssociateDetails() {
   const associate = details?.associate ?? null;
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [showModal, setShowModal] = useState<'contribution' | 'distribution' | 'reinvestment' | null>(null);
+  const [showModal, setShowModal] = useState<AssociateMoneyActionType | null>(null);
   const [showContributionsModal, setShowContributionsModal] = useState(false);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   const [payingInstallmentNumber, setPayingInstallmentNumber] = useState<number | null>(null);
@@ -112,7 +114,11 @@ export default function AssociateDetails() {
     paymentMethod: '',
     notes: '',
   });
-  const [amount, setAmount] = useState('');
+  const [actionAmounts, setActionAmounts] = useState<Record<AssociateMoneyActionType, string>>({
+    contribution: '',
+    distribution: '',
+    reinvestment: '',
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -194,7 +200,9 @@ export default function AssociateDetails() {
 
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parsePositiveMoneyInput(amount);
+    if (!showModal) return;
+
+    const parsedAmount = parseFormattedPositiveMoneyInput(actionAmounts[showModal]);
     if (parsedAmount === null) return;
 
     setIsSubmitting(true);
@@ -218,14 +226,23 @@ export default function AssociateDetails() {
         });
       }
       
+      const completedAction = showModal;
       setShowModal(null);
-      setAmount('');
+      setActionAmounts((current) => ({ ...current, [completedAction]: '' }));
       toast.success({ title: tTerm('associateDetails.toast.action.success') });
     } catch (error) {
       toast.apiErrorSafe(error, { domain: 'associates' });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const closeMoneyActionModal = () => {
+    if (showModal) {
+      const currentAction = showModal;
+      setActionAmounts((current) => ({ ...current, [currentAction]: '' }));
+    }
+    setShowModal(null);
   };
 
   const handleOpenPayInstallmentModal = (installmentNumber: number) => {
@@ -701,22 +718,20 @@ export default function AssociateDetails() {
               : tTerm('associateDetails.modal.title.reinvestment')}
         >
             <form onSubmit={handleAction} className="space-y-4">
-              <FormField label={tTerm('associateDetails.modal.field.amount')} htmlFor="associate-action-amount">
-                <TextInput
-                  id="associate-action-amount"
-                  type="number"
+              <FormField label={tTerm('associateDetails.modal.field.amount')} htmlFor={`associate-action-${showModal}-amount`}>
+                <MoneyInput
+                  key={showModal}
+                  id={`associate-action-${showModal}-amount`}
                   required
-                  min="1"
-                  step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  value={actionAmounts[showModal]}
+                  onValueChange={(value) => setActionAmounts((current) => ({ ...current, [showModal]: value }))}
                   placeholder={tTerm('associateDetails.modal.placeholder.amount')}
                 />
               </FormField>
               <div className="flex gap-3 pt-4">
                 <ActionButton
                   type="button"
-                  onClick={() => setShowModal(null)}
+                  onClick={closeMoneyActionModal}
                   fullWidth
                 >
                   {tTerm('common.cta.cancel')}

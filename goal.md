@@ -1595,6 +1595,50 @@ Validación ejecutada:
 - Railway frontend deployment `babbb031-bc8f-448a-a4d5-f538822d08f6` quedó en `SUCCESS`.
 - QA productivo en `https://frontend-production-3058.up.railway.app/associates/1` confirmó los mismos textos esperados y ausencia de textos antiguos/errores de navegador.
 
+# Inputs monetarios normalizados en socios - 2026-05-25
+
+Brecha cerrada:
+- Se agregó `MoneyInput` reutilizable en `frontend/src/components/shared/Surfaces.tsx`.
+- El input muestra montos normalizados con separadores de miles (`1.200.000`) y mantiene un valor canónico sin formato (`1200000`) para submit y validaciones.
+- El parser compartido ahora soporta normalización de dinero entero formateado y rechaza texto inválido como `100e2`, `-100` o `100abc`.
+- El módulo de socios usa el input reutilizable en:
+  - capital inicial del socio.
+  - nuevo aporte de capital.
+  - movimientos de capital/intereses del detalle del socio.
+- El detalle del socio ya no comparte un único estado `amount` entre aporte, retiro y reinversión; cada acción mantiene su propio valor y se limpia al cerrar o completar.
+
+Validación ejecutada:
+- `cd frontend && npm test -- --run src/lib/__tests__/moneyInput.test.ts src/components/__tests__/NewAssociate.behavior.test.tsx src/components/__tests__/ContributionModal.behavior.test.tsx src/components/__tests__/AssociateDetails.behavior.test.tsx src/components/__tests__/Associates.behavior.test.tsx` pasó `36/36`.
+- `cd frontend && npm run lint` pasó.
+- `cd frontend && npm run build` pasó.
+- QA local con navegador headless en `/associates/1` confirmó:
+  - `Registrar retiro de intereses` normaliza `1200000` como `1.200.000`.
+  - `100e2` no reemplaza el valor válido.
+  - `Reinvertir intereses` abre con monto vacío después de cancelar retiro.
+  - no hubo errores de navegador.
+- Railway frontend deployment `9a3ecb85-c269-49c6-bc79-0dc253821cee` quedó en `SUCCESS`.
+- QA productivo en `https://frontend-production-3058.up.railway.app/associates/1` confirmó la misma normalización, rechazo de valor inválido y separación de estado entre acciones.
+
+# Inputs normalizados reutilizables plataforma - 2026-05-25
+
+Brecha cerrada:
+- `MoneyInput` quedó respaldado por `NormalizedInput`, un input reutilizable para varios casos de la plataforma.
+- Variantes soportadas:
+  - `text`: texto con `trimText` y `maxLength`.
+  - `money`: dinero entero con separadores de miles y valor canónico sin formato.
+  - `integer`: enteros con rango, ceros iniciales normalizados y rechazo de valores inseguros.
+  - `decimal`: decimales con coma o punto, precisión configurable y rangos.
+  - `percent`: porcentajes con precisión configurable y rango seguro 0-100.
+- Los formateadores de dinero manejan valores muy grandes como string para no perder precisión visual.
+- Los parsers de submit siguen rechazando montos fuera de entero seguro cuando se necesita convertir a número para API.
+- En socios, el formulario ahora usa `NormalizedInput` para nombre, correo, teléfono, participación, tasa y día de pago, y `MoneyInput` para montos.
+
+Validación ejecutada:
+- `cd frontend && npm test -- --run src/lib/__tests__/moneyInput.test.ts src/components/__tests__/NormalizedInput.behavior.test.tsx src/components/__tests__/NewAssociate.behavior.test.tsx src/components/__tests__/ContributionModal.behavior.test.tsx src/components/__tests__/AssociateDetails.behavior.test.tsx src/components/__tests__/Associates.behavior.test.tsx` pasó `47/47`.
+- `cd frontend && npm run lint` pasó.
+- `cd frontend && npm run build` pasó.
+- Railway frontend deployment `960b72c5-91ce-4532-8f89-16f6b6a0c37b` quedó en `SUCCESS`.
+
 Despliegue y validación productiva:
 - Railway frontend deployment `b6034e0a-80bc-45e8-9d72-d8f6b79b8534` quedó en `SUCCESS`.
 - QA productivo en `https://frontend-production-3058.up.railway.app/associates`:

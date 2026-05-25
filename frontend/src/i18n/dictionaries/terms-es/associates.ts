@@ -60,7 +60,7 @@ export const associatesEs = {
 'newAssociate.placeholder.email': 'correo@ejemplo.com',
 'newAssociate.placeholder.phone': 'Número de teléfono',
 'newAssociate.placeholder.participation': 'Opcional. Ejemplo: 25',
-'newAssociate.placeholder.initialCapital': 'Ejemplo: 2000000',
+'newAssociate.placeholder.initialCapital': 'Ejemplo: 2.000.000',
 'newAssociate.placeholder.interestRate': 'Ejemplo: 2.5',
 // Associates
 'associates.module.title': 'Socios',
@@ -115,7 +115,7 @@ export const associatesEs = {
 'associateDetails.modal.title.distribution': 'Registrar retiro de intereses',
 'associateDetails.modal.title.reinvestment': 'Reinvertir intereses',
 'associateDetails.modal.field.amount': 'Monto',
-'associateDetails.modal.placeholder.amount': '0.00',
+'associateDetails.modal.placeholder.amount': '0',
 'associateDetails.modal.submit.pending': 'Procesando...',
 'associateDetails.overview.ariaLabel': 'Resumen operativo del socio',
 'associateDetails.overview.metric.capital': 'Capital aportado',

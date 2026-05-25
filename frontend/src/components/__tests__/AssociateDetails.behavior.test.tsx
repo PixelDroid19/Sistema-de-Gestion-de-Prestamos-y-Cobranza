@@ -337,4 +337,26 @@ describe('AssociateDetails behavior', () => {
 
     expect(detailsResponse.createReinvestment.mutateAsync).not.toHaveBeenCalled();
   });
+
+  it('keeps separate normalized amounts for each associate money action', () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
+
+    const { container } = render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar retiro de intereses' }));
+    fireEvent.change(container.querySelector('#associate-action-distribution-amount') as HTMLInputElement, {
+      target: { value: '1200000' },
+    });
+
+    expect(container.querySelector('#associate-action-distribution-amount')).toHaveValue('1.200.000');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
+
+    expect(container.querySelector('#associate-action-reinvestment-amount')).toHaveValue('');
+  });
 });
