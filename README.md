@@ -376,6 +376,75 @@ Antes de asumir que producción refleja el código local:
 2. Revisar estado de deployments en Railway.
 3. Validar login y al menos un flujo crítico desde el frontend desplegado.
 
+Variables mínimas esperadas en producción:
+
+Backend:
+
+```env
+NODE_ENV=production
+DB_HOST=<host-postgres>
+DB_PORT=<puerto-postgres>
+DB_NAME=<base-postgres>
+DB_USER=<usuario-postgres>
+DB_PASSWORD=<password-postgres>
+JWT_SECRET=<secreto-de-32-caracteres-o-mas>
+ALLOWED_ORIGINS=https://frontend-production-3058.up.railway.app
+DB_SCHEMA_MODE=verify
+```
+
+Frontend:
+
+```env
+VITE_API_URL=https://backend-production-4d24.up.railway.app
+```
+
+`VITE_API_URL` debe ser el origen del backend. El frontend agrega `/api` internamente para las llamadas HTTP. Si se necesita definir una ruta API completa por runtime, usar `VITE_API_BASE_URL`.
+El contenedor frontend rechaza `VITE_API_URL` terminado en `/api` para evitar dobles rutas o configuración ambigua en producción.
+
+Smoke no destructivo contra producción:
+
+```bash
+SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app \
+SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app \
+SMOKE_ADMIN_EMAIL=<admin> \
+SMOKE_ADMIN_PASSWORD=<password> \
+SMOKE_EMPLOYEE_EMAIL=<empleado> \
+SMOKE_EMPLOYEE_PASSWORD=<password> \
+npm run smoke:remote
+```
+
+Antes de ejecutar llamadas remotas, validar que las variables del smoke apuntan a los orígenes correctos:
+
+```bash
+SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app \
+SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app \
+SMOKE_ADMIN_EMAIL=<admin> \
+SMOKE_ADMIN_PASSWORD=<password> \
+SMOKE_EMPLOYEE_EMAIL=<empleado> \
+SMOKE_EMPLOYEE_PASSWORD=<password> \
+npm run smoke:remote:check
+```
+
+`SMOKE_ORIGIN` debe coincidir con una URL permitida en `ALLOWED_ORIGINS`; en producción el backend rechaza peticiones privadas sin `Origin`.
+Cuando `SMOKE_ORIGIN` está definido, el smoke valida que el backend responda `Access-Control-Allow-Origin` con ese mismo origen.
+El smoke usa un timeout HTTP de 15 segundos por petición; si el entorno remoto necesita otro valor, definir `SMOKE_TIMEOUT_MS=<milisegundos>`.
+
+Antes de desplegar, ejecutar la compuerta local de contratos de producción:
+
+```bash
+npm run verify:production
+```
+
+Esta verificación bloquea regresiones de configuración como volver a usar `DATABASE_URL`/`CORS_ORIGIN`, definir `VITE_API_URL` con `/api`, omitir `SMOKE_ORIGIN` del smoke remoto o quitar el modo seguro `DB_SCHEMA_MODE=verify`.
+
+Para una verificación local completa antes de publicar, ejecutar:
+
+```bash
+npm run verify:release
+```
+
+Este comando encadena contratos de producción, lint backend/frontend, tests backend/frontend y build frontend. Después de desplegar, sigue siendo obligatorio validar el entorno remoto con `npm run smoke:remote` y navegador real.
+
 No resetear una base de datos remota como atajo. Solo hacerlo cuando se haya pedido explícitamente y se haya confirmado que el entorno es de QA/desarrollo.
 
 ## Instrucciones para agentes

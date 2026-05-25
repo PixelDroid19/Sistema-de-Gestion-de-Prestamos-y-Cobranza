@@ -11,12 +11,22 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SCHEMA_MODE
+        value: verify
+      - key: ALLOWED_ORIGINS
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: CORS_ORIGIN
-        value: https://loan-recovery-frontend.onrender.com
     autoDeploy: true
     rootDir: .
 

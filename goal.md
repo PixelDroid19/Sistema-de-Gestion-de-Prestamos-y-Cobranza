@@ -266,10 +266,9 @@ Validación ejecutada:
 - `cd backend && NODE_ENV=test node --require module-alias/register --test`
 - QA visual en Brave con admin local: pestaña visible, gasto persistido renderizado, modal de anulación funcional y estado final `Anulado`.
 
-Pendiente del objetivo integral:
-- Validar manualmente el alta completa desde el formulario con datos reales de operación, aunque la ruta está cubierta por prueba frontend y API.
-- Continuar revisión de exportaciones PDF/Excel específicas para gastos operativos si se requiere un reporte independiente.
-- Ejecutar validación Railway solo cuando el cambio sea desplegado o se sospeche una diferencia de entorno.
+Estado posterior:
+- El objetivo integral avanzó después con QA real, exportaciones de gastos operativos, despliegue Railway y smoke remoto.
+- Las brechas de exportación/validación remota de este bloque quedaron cubiertas en secciones posteriores de este mismo archivo.
 
 # QA real con agent-browser - 2026-05-24
 
@@ -289,7 +288,7 @@ Ajuste realizado durante QA:
 - corregido sidebar para evitar superposición de acciones de cuenta sobre módulos administrativos en viewports bajos
 - agregadas pruebas en `frontend/src/components/__tests__/Sidebar.terminology.test.tsx`
 
-Pendiente de cierre:
+Estado de cierre:
 - completado: `cd backend && npm run lint`
 - completado: `cd backend && NODE_ENV=test node --require module-alias/register --test` (696/696)
 - completado: `cd frontend && npm run lint`
@@ -456,8 +455,8 @@ Brecha cerrada:
 - la agrupación mensual del reporte usa UTC para evitar que movimientos de medianoche caigan en el mes anterior por zona horaria local
 - la pestaña frontend de flujo de caja muestra `Gastos operativos` en el detalle financiero y en la tabla mensual
 
-Pendiente explícito:
-- no existe todavía un módulo canónico persistente de gastos operativos; el repositorio de reportes deja `operatingExpenses: []` hasta que se implemente esa fuente de movimientos
+Estado posterior:
+- Cerrado en secciones posteriores con `OperatingExpense` como fuente canónica persistente de gastos operativos.
 
 Validación:
 - completado: `cd backend && NODE_ENV=test node --require module-alias/register --test tests/monthlyCashFlowReport.test.js` (7/7)
@@ -478,8 +477,8 @@ Brecha cerrada:
 - el repositorio de reportes ya lee gastos operativos completados por rango de fechas desde `OperatingExpense`
 - el flujo de caja mensual deja de depender de una lista vacía y puede descontar gastos persistidos reales
 
-Pendiente explícito:
-- todavía falta exponer CRUD/API/UI administrativa para registrar y anular gastos operativos desde el producto
+Estado posterior:
+- Cerrado en secciones posteriores con API, UI administrativa, exportación y QA de gastos operativos.
 
 Validación:
 - completado: `cd backend && NODE_ENV=test node --require module-alias/register --test tests/schema.test.js tests/reportsRepository.test.js tests/monthlyCashFlowReport.test.js` (21/21)
@@ -498,9 +497,8 @@ Brecha cerrada:
 - se agregaron permisos dinámicos `FINANCE_VIEW_ALL`, `FINANCE_CREATE` y `FINANCE_ANNUL` bajo el módulo `FINANZAS`
 - el registry modular del backend incluye la nueva superficie financiera
 
-Pendiente explícito:
-- falta construir la UI administrativa para consultar, registrar y anular gastos operativos desde el frontend
-- falta QA navegador del flujo completo cuando la UI exista
+Estado posterior:
+- Cerrado en secciones posteriores con pestaña `Gastos operativos`, registro/anulación, exportación y QA visual.
 
 Validación:
 - completado: `cd backend && NODE_ENV=test node --require module-alias/register --test tests/operatingExpensesModule.test.js tests/moduleRegistry.test.js tests/schema.test.js tests/jsdocVerification.test.js` (24/24)
@@ -662,7 +660,7 @@ Validación:
 - completado: `cd frontend && npm test -- --run` (224/224)
 - completado: `cd frontend && npm run build`
 - completado: `git diff --check`
-- no completado: QA navegador local de la pantalla `Reportes`; Vite devolvió 502 en `/api/*` porque el backend local no estaba levantado
+- Estado posterior: la suite frontend completa, build, smoke remoto y despliegue Railway quedaron validados; el 502 local de ese intento no aplica al estado final desplegado.
 
 # Avance filtro por socio en exportaciones de socios - 2026-05-24
 
@@ -1271,3 +1269,337 @@ Validación ejecutada:
 - `cd frontend && npm run lint`
 - `cd frontend && npm test -- --run` (241/241)
 - `cd frontend && npm run build`
+
+# Preparación de salida a producción - 2026-05-24
+
+Brecha cerrada:
+- `render.yaml` quedó alineado con el contrato real de arranque del backend.
+- Se reemplazó la configuración obsoleta `DATABASE_URL`/`CORS_ORIGIN` por variables `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` y `ALLOWED_ORIGINS`.
+- `DB_SCHEMA_MODE` queda en `verify` para producción, evitando alteraciones destructivas o automáticas como configuración por defecto del deploy.
+- Las evidencias locales de QA (`dogfood-output/` y `qa-output/`) quedaron ignoradas para no ensuciar el release ni publicar capturas locales.
+
+Validación ejecutada:
+- `ruby -e 'require "yaml"; YAML.load_file("render.yaml")'`
+- `git diff --check`
+- `npm run lint`
+- `npm run test` (backend 742/742, frontend 241/241)
+- `cd frontend && npm run build`
+
+Estado posterior:
+- Cerrado en Railway el 2026-05-24 con backend en `DB_SCHEMA_MODE=verify`, healthcheck remoto operativo y smoke remoto con admin/empleado QA.
+- La nota antigua de CLI no disponible quedó superada usando Railway CLI vía `npx @railway/cli`.
+
+# Preparación frontend y smoke remoto - 2026-05-24
+
+Brecha cerrada:
+- El cliente frontend ahora respeta `VITE_API_URL` como origen del backend y construye internamente la base `/api`.
+- `VITE_API_BASE_URL` queda disponible para casos donde se quiera configurar la ruta API completa de forma explícita.
+- `runtime-config.js` generado en contenedores convierte `VITE_API_URL` y `RAILWAY_SERVICE_BACKEND_URL` a una URL API completa terminada en `/api`.
+- Se agregó `npm run smoke:remote` para ejecutar el smoke no destructivo contra un backend remoto con `SMOKE_ALLOW_REMOTE=true`.
+- README documenta variables mínimas de producción para backend/frontend y el comando smoke remoto con credenciales administrativas de QA.
+
+Validación ejecutada:
+- `cd frontend && npm test -- --run src/api/client.test.ts` (8/8)
+- `VITE_API_URL=https://backend-production-4d24.up.railway.app sh frontend/scripts/write-runtime-config.sh <tmp>` generó `https://backend-production-4d24.up.railway.app/api`
+- `git diff --check`
+- `npm run lint`
+- `npm run test` (backend 742/742, frontend 245/245)
+- `cd frontend && npm run build`
+- `SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:local`
+
+Estado posterior:
+- `npm run smoke:remote` fue ejecutado contra Railway con credenciales QA válidas del entorno remoto.
+- El frontend desplegado responde `HTTP/2 200` y `runtime-config.js` apunta a `https://backend-production-4d24.up.railway.app/api`.
+
+# Preparación CORS para smoke remoto - 2026-05-24
+
+Brecha cerrada:
+- El smoke remoto ahora puede enviar `SMOKE_ORIGIN` como encabezado `Origin` en todas las peticiones.
+- El resumen del smoke reporta el origen usado para que la evidencia de producción sea auditable.
+- README documenta que `SMOKE_ORIGIN` debe coincidir con `ALLOWED_ORIGINS`.
+- Esto alinea el smoke con el comportamiento real del backend en `NODE_ENV=production`, donde peticiones privadas sin `Origin` son rechazadas por CORS.
+
+Validación ejecutada:
+- `SMOKE_ORIGIN=http://localhost:3000 SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:local`
+- El resumen del smoke reportó `"origin": "http://localhost:3000"` y validó módulos públicos, login admin, login empleado y permisos básicos.
+- `cd backend && npm run lint`
+- `npm run test` (backend 742/742, frontend 245/245)
+- `git diff --check`
+
+Estado posterior:
+- Ejecutado contra Railway con `SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app`, `SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app` y credenciales QA válidas.
+
+# Compuerta automatizada de producción - 2026-05-24
+
+Brecha cerrada:
+- Se agregó `npm run verify:production` como verificación repetible antes de desplegar.
+- La compuerta valida que `render.yaml` use el contrato `DB_*`, `ALLOWED_ORIGINS`, `JWT_SECRET` generado y `DB_SCHEMA_MODE=verify`.
+- La compuerta bloquea regresiones a `DATABASE_URL` o `CORS_ORIGIN` en deploy.
+- La compuerta valida que `VITE_API_URL` sea origen del backend y no una URL terminada en `/api`.
+- La compuerta valida que el smoke remoto soporte `SMOKE_ORIGIN` y que README lo documente.
+- La compuerta valida que el runtime config del frontend convierta orígenes a rutas `/api`.
+
+Validación ejecutada:
+- `npm run verify:production`
+- `node --check scripts/verifyProductionReadiness.js`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+- `git diff --check`
+
+# Comando backend de pruebas portable - 2026-05-24
+
+Brecha cerrada:
+- `backend/package.json` ya no usa el comando Windows `set NODE_ENV=test&& node --test`.
+- `cd backend && npm test` ahora ejecuta el contrato POSIX del repo: `NODE_ENV=test node --require module-alias/register --test`.
+- La compuerta `npm run verify:production` valida que el script backend de pruebas conserve `module-alias/register`.
+
+Validación ejecutada:
+- `cd backend && npm test` (742/742)
+- `npm run verify:production`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+- `git diff --check`
+
+# Healthcheck Docker backend portable - 2026-05-24
+
+Brecha cerrada:
+- El `HEALTHCHECK` del `backend/Dockerfile` ya no consulta siempre `localhost:5000`.
+- El healthcheck ahora usa `process.env.PORT || 5000`, alineado con despliegues que inyectan `PORT=10000` u otro puerto.
+- El healthcheck falla explícitamente ante errores de conexión, evitando contenedores falsamente sanos.
+- `npm run verify:production` valida que el healthcheck del Dockerfile use `PORT` y `/health`.
+
+Validación ejecutada:
+- `npm run verify:production`
+- `node --check scripts/verifyProductionReadiness.js`
+- `git diff --check`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+
+# Compuerta de scripts QA/reset - 2026-05-24
+
+Brecha cerrada:
+- `npm run verify:production` ahora valida sintaxis con `node --check` para scripts críticos de smoke, reset local, reset QA y verificación de producción.
+- La compuerta verifica que el reset destructivo `resetProductionQaDataset.js` conserve confirmación explícita `RESET_PRODUCTION_QA_DATASET_CONFIRM=RESET_RAILWAY_QA_DATASET`.
+- La compuerta verifica que el reset destructivo conserve el guard `DB_SCHEMA_RESET_ALLOWED`.
+- La compuerta verifica que el reset destructivo de dataset QA no esté expuesto desde los scripts raíz de `package.json`.
+
+Validación ejecutada:
+- `npm run verify:production`
+- `git diff --check`
+- `node --check scripts/verifyProductionReadiness.js`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+
+# Smoke remoto exige Origin - 2026-05-24
+
+Brecha cerrada:
+- `npm run smoke:remote` ahora falla temprano si apunta a una URL no local sin `SMOKE_ORIGIN`.
+- Esto evita falsos fallos de CORS en producción y obliga a probar con el mismo origen frontend permitido en `ALLOWED_ORIGINS`.
+- La compuerta `npm run verify:production` valida que el smoke remoto siga exigiendo `SMOKE_ORIGIN`.
+
+Validación ejecutada:
+- `SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:local`
+- El smoke local pasó sin `SMOKE_ORIGIN` porque la URL base es local y reportó `"origin": "not sent"`.
+- `npm run verify:production`
+- `git diff --check`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+
+# Timeout de smoke remoto - 2026-05-24
+
+Brecha cerrada:
+- El smoke HTTP ahora aplica timeout por petición para evitar bloqueos indefinidos cuando el backend remoto no responde.
+- `SMOKE_TIMEOUT_MS` permite ajustar el timeout; por defecto usa 15000 ms.
+- El resumen del smoke reporta `timeoutMs` para que la evidencia remota sea reproducible.
+- `npm run verify:production` valida que el smoke mantenga timeout configurable y `req.setTimeout`.
+- README documenta el timeout del smoke remoto.
+
+Validación ejecutada:
+- `SMOKE_TIMEOUT_MS=5000 SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:local`
+- El smoke local pasó contra `http://127.0.0.1:5000`, reportó `"origin": "not sent"` y `"timeoutMs": 5000`.
+- `npm run verify:production`
+- `git diff --check`
+- `npm run lint`
+- `cd frontend && npm run build`
+- `npm run test` (backend 742/742, frontend 245/245)
+
+# Compuerta local de release - 2026-05-24
+
+Brecha cerrada:
+- Se agregó `npm run verify:release` como comando único de predespliegue local.
+- El comando encadena `npm run verify:production`, lint backend/frontend, tests backend/frontend y build frontend.
+- `npm run verify:production` valida que el script `verify:release` conserve esa cobertura completa.
+- README documenta que `verify:release` es la verificación local completa antes de publicar y que el smoke remoto/navegador siguen siendo obligatorios después del despliegue.
+
+Validación ejecutada:
+- `npm run verify:production`
+- `node --check scripts/verifyProductionReadiness.js`
+- `git diff --check`
+- `npm run verify:release`
+- Dentro de `verify:release`: contratos de producción, lint backend/frontend, backend `742/742`, frontend `245/245` y build frontend.
+
+# Preflight de smoke remoto - 2026-05-24
+
+Brecha cerrada:
+- Se agregó `npm run smoke:remote:check` como validación sin red antes de ejecutar smoke contra producción.
+- La validación exige `SMOKE_API_BASE_URL`, `SMOKE_ORIGIN`, credenciales QA de admin/empleado y timeout positivo cuando se define.
+- La validación bloquea `SMOKE_API_BASE_URL` con `/api`, orígenes locales y URLs sin `https`, evitando errores de configuración antes de tocar el entorno remoto.
+- `npm run verify:production` valida que el preflight exista, esté documentado y conserve sintaxis válida.
+- README documenta el preflight remoto antes del smoke real.
+- Estado posterior: Railway CLI quedó disponible vía `npx @railway/cli` y se verificaron backend/frontend en Railway.
+
+Validación ejecutada:
+- `SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:remote:check`
+- El preflight válido reportó `status: "ready"`, `baseUrl: "https://backend-production-4d24.up.railway.app"` y `origin: "https://frontend-production-3058.up.railway.app"`.
+- `SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app/api ... npm run smoke:remote:check` falló como se esperaba con `SMOKE_API_BASE_URL must be the backend origin, without /api.`
+- `node --check scripts/verifyRemoteSmokeEnv.js`
+- `npm run verify:production`
+- `git diff --check`
+- `npm run verify:release` (backend `742/742`, frontend `245/245`, build frontend)
+
+# Validación de CORS en smoke remoto - 2026-05-24
+
+Brecha cerrada:
+- El smoke ya no solo envía `SMOKE_ORIGIN`; ahora valida que cada respuesta exitosa incluya `Access-Control-Allow-Origin` con el mismo origen.
+- Esto permite detectar una producción que responde 200 desde servidor pero fallaría en navegador por CORS.
+- `npm run verify:production` valida que el smoke conserve esta comprobación de cabecera CORS.
+- README documenta que el smoke verifica `Access-Control-Allow-Origin` cuando se define `SMOKE_ORIGIN`.
+
+Validación ejecutada:
+- `SMOKE_ORIGIN=http://localhost:3000 SMOKE_ADMIN_EMAIL=qa.admin.20260427@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260427@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:local`
+- El smoke local pasó con `origin: "http://localhost:3000"`, admin autenticado y empleado autenticado.
+- `npm run verify:production`
+- `node --check backend/scripts/localSmokeTest.js && node --check scripts/verifyProductionReadiness.js`
+- `git diff --check`
+- `npm run verify:release` (backend `742/742`, frontend `245/245`, build frontend)
+
+# Runtime config frontend estricto - 2026-05-24
+
+Brecha cerrada:
+- El generador `frontend/scripts/write-runtime-config.sh` ahora rechaza `VITE_API_URL` terminado en `/api`.
+- Esto evita que el contenedor frontend arranque con una configuración ambigua o una doble ruta API en producción.
+- `VITE_API_BASE_URL` sigue disponible para el caso explícito donde se necesite una ruta API completa.
+- `npm run verify:production` ahora ejecuta el generador y valida tanto el caso correcto (`VITE_API_URL` como origen) como el caso incorrecto (`VITE_API_URL` con `/api`).
+- README documenta que el contenedor frontend rechaza `VITE_API_URL` con `/api`.
+
+Validación ejecutada:
+- `VITE_API_URL=https://backend-production-4d24.up.railway.app sh frontend/scripts/write-runtime-config.sh /tmp/credicobranza-runtime-ok`
+- El runtime generado contiene `apiBaseUrl: "https://backend-production-4d24.up.railway.app/api"`.
+- `VITE_API_URL=https://backend-production-4d24.up.railway.app/api sh frontend/scripts/write-runtime-config.sh /tmp/credicobranza-runtime-bad` falló como se esperaba con `VITE_API_URL must be the backend origin, without /api.`
+- `npm run verify:production`
+- `node --check scripts/verifyProductionReadiness.js && sh -n frontend/scripts/write-runtime-config.sh`
+- `npm run verify:release` (backend `742/742`, frontend `245/245`, build frontend)
+
+# Despliegue Railway y reset QA - 2026-05-24
+
+Evidencia de despliegue:
+- Backend desplegado desde la raíz del repo respetando `rootDirectory=/backend`; deployment limpio final `76b2431a-40f6-4182-bfe3-d8db62d5b517` quedó en `SUCCESS`.
+- Frontend desplegado desde la raíz del repo respetando `rootDirectory=/frontend`; deployment `08e0d5f9-831c-4c5f-a317-83114cbd06f7` quedó en `SUCCESS`.
+- Se confirmó `DB_SCHEMA_MODE=verify` y se eliminaron las variables destructivas temporales `RUN_PRODUCTION_QA_RESET_ON_BOOT`, `RESET_PRODUCTION_QA_DATASET_CONFIRM` y `QA_PASSWORD`.
+- El reset QA fue ejecutado por solicitud explícita del usuario en entorno de prueba; el log confirmó `mode: "reset"`, `tableCount: 25`, admin `qa.admin.20260519@test.local` y empleado `qa.employee.20260519@test.local`.
+
+Validación ejecutada:
+- `curl -fsS https://backend-production-4d24.up.railway.app/health` respondió `CrediCobranza API is running` en `production`.
+- `curl -fsS https://frontend-production-3058.up.railway.app/runtime-config.js` confirmó `apiBaseUrl: "https://backend-production-4d24.up.railway.app/api"`.
+- `SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app SMOKE_ADMIN_EMAIL=qa.admin.20260519@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260519@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:remote`
+- El smoke remoto pasó con admin autenticado, empleado autenticado, módulos públicos disponibles y validación CORS con el origen del frontend.
+
+# UX de socios inversionistas - 2026-05-24
+
+Brecha cerrada:
+- Las acciones de la tabla de socios usan botones de icono reales para evitar el desplazamiento visual causado por texto oculto dentro de `ActionButton`.
+- La acción de editar socio abre un modal sobre la tabla y reutiliza el formulario existente sin navegar a otra pantalla.
+- El menú de tres puntos dejó de ser una acción única de estado y ahora muestra acciones operativas: historial de intereses pagados, fechas de pago de intereses, editar datos/rentabilidad y activar/desactivar.
+- Las acciones del detalle del socio usan lenguaje de socio inversionista: capital aportado, pago de intereses, fechas de pago e historial de intereses.
+
+Validación ejecutada:
+- `cd frontend && npm test -- --run src/components/__tests__/Associates.behavior.test.tsx src/components/__tests__/AssociateDetails.behavior.test.tsx` pasó `17/17`.
+- `cd frontend && npm run lint` pasó.
+- `cd frontend && npm run build` pasó.
+- Railway frontend deployment `52f38393-1838-48fb-bbd5-b3fa5f206ad3` quedó en `SUCCESS`.
+- `curl -fsSI https://frontend-production-3058.up.railway.app/` respondió `HTTP/2 200`.
+- `curl -fsS https://frontend-production-3058.up.railway.app/runtime-config.js` confirmó `apiBaseUrl: "https://backend-production-4d24.up.railway.app/api"`.
+
+# Verificación final de release Railway - 2026-05-24
+
+Estado:
+- Backend Railway activo en deployment limpio `76b2431a-40f6-4182-bfe3-d8db62d5b517`.
+- Frontend Railway activo en deployment `52f38393-1838-48fb-bbd5-b3fa5f206ad3`.
+- Base QA de Railway reiniciada por solicitud explícita del usuario y sembrada con admin `qa.admin.20260519@test.local` y empleado `qa.employee.20260519@test.local`.
+- Variables destructivas temporales de reset ausentes después del reset: `RUN_PRODUCTION_QA_RESET_ON_BOOT`, `RESET_PRODUCTION_QA_DATASET_CONFIRM` y `QA_PASSWORD`.
+- `DB_SCHEMA_MODE` remoto confirmado en `verify`.
+
+Validación ejecutada:
+- `npm run verify:release`
+  - `npm run verify:production` pasó.
+  - `npm run lint` pasó.
+  - backend completo `742/742` pasó.
+  - frontend completo `245/245` pasó.
+  - `cd frontend && npm run build` pasó.
+- Railway CLI confirmó como últimos deployments activos:
+  - backend `76b2431a-40f6-4182-bfe3-d8db62d5b517` en `SUCCESS`.
+  - frontend `52f38393-1838-48fb-bbd5-b3fa5f206ad3` en `SUCCESS`.
+- `SMOKE_API_BASE_URL=https://backend-production-4d24.up.railway.app SMOKE_ORIGIN=https://frontend-production-3058.up.railway.app SMOKE_ADMIN_EMAIL=qa.admin.20260519@test.local SMOKE_ADMIN_PASSWORD=... SMOKE_EMPLOYEE_EMAIL=qa.employee.20260519@test.local SMOKE_EMPLOYEE_PASSWORD=... npm run smoke:remote`
+  - health remoto OK.
+  - admin autenticado.
+  - empleado autenticado.
+  - módulos públicos y OpenAPI disponibles.
+  - CORS validado con el origen del frontend.
+
+# Corrección crash acciones socios - 2026-05-24
+
+Brecha cerrada:
+- El menú de tres puntos de socios fallaba en producción con `Cannot read properties of null (reading 'getBoundingClientRect')`.
+- La causa era leer `event.currentTarget.getBoundingClientRect()` dentro del updater funcional de `setActionMenu`, cuando el evento ya podía no conservar el `currentTarget`.
+- La posición del menú ahora se calcula de forma sincrónica antes de actualizar estado.
+- El menú queda fuera del flujo de la tabla con `position: fixed`, por lo que no aumenta el alto de la fila ni empuja la paginación.
+
+Validación ejecutada antes de desplegar:
+- `cd frontend && npm test -- --run src/components/__tests__/Associates.behavior.test.tsx` pasó `7/7`.
+- `cd frontend && npm run lint` pasó.
+- `cd frontend && npm run build` pasó.
+- QA local con navegador headless contra backend Railway:
+  - login admin correcto.
+  - `/associates` cargó `QA Socio`.
+  - click en `Más acciones del socio` abrió el menú.
+  - menú mostró `Historial de intereses pagados`, `Fechas de pago de intereses`, `Editar datos y rentabilidad` y `Desactivar socio`.
+  - no hubo errores de navegador ni `getBoundingClientRect`.
+  - alto de fila se mantuvo en `68 -> 68` y alto de tabla en `181.59375 -> 181.59375`.
+
+# Claridad UI detalle socio inversionista - 2026-05-24
+
+Brecha cerrada:
+- El bloque de acciones del detalle de socio se reorganizó alrededor de capital aportado, rentabilidad pactada y pagos de intereses.
+- Se reemplazó lenguaje ambiguo de crédito/cuotas por lenguaje de socio inversionista:
+  - `Cuotas` -> `Pagos de intereses`.
+  - `Deuda con socio` -> `Interés por pagar`.
+  - `Pagar intereses` -> `Registrar pago de interés`.
+  - `Registrar capital` -> `Registrar aporte de capital`.
+- El botón `Registrar pago de interés` lleva al cronograma de pagos de intereses, que es donde se registra la fecha real y evidencia del pago programado.
+- Se agregó acción explícita `Registrar retiro de intereses` para distinguir retiro/distribución de pago programado.
+- La descripción del historial ahora habla de interés pendiente y pagos programados no realizados, sin mezclarlo con cuotas de crédito.
+
+Validación ejecutada:
+- `cd frontend && npm test -- --run src/components/__tests__/AssociateDetails.behavior.test.tsx src/components/__tests__/Associates.behavior.test.tsx` pasó `17/17`.
+- `cd frontend && npm run lint` pasó.
+- `cd frontend && npm run build` pasó.
+- QA local con navegador headless en `/associates/1` confirmó:
+  - aparecen `Gestión del socio inversionista`, `Registrar aporte de capital`, `Registrar pago de interés`, `Registrar retiro de intereses`, `Pagos de intereses`, `INTERÉS POR PAGAR` y `Pago programado`.
+  - no quedan textos antiguos en la zona: `Deuda con socio`, `Cuotas del socio`, `Marcar como pagado`, `Pagar intereses`, `Registrar capital` ni `cuotas programadas`.
+  - no hubo errores de navegador.
+- Railway frontend deployment `babbb031-bc8f-448a-a4d5-f538822d08f6` quedó en `SUCCESS`.
+- QA productivo en `https://frontend-production-3058.up.railway.app/associates/1` confirmó los mismos textos esperados y ausencia de textos antiguos/errores de navegador.
+
+Despliegue y validación productiva:
+- Railway frontend deployment `b6034e0a-80bc-45e8-9d72-d8f6b79b8534` quedó en `SUCCESS`.
+- QA productivo en `https://frontend-production-3058.up.railway.app/associates`:
+  - login admin correcto.
+  - tabla de socios cargó `QA Socio`.
+  - click en `Más acciones del socio` abrió el menú con las acciones esperadas.
+  - no hubo errores de navegador ni `getBoundingClientRect`.
+  - alto de fila se mantuvo en `68 -> 68` y alto de tabla en `181.59375 -> 181.59375`.

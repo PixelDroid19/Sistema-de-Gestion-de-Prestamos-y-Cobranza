@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet, RefreshCw, Download, Calendar, CheckCircle, Clock, AlertCircle, History } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -114,6 +114,16 @@ export default function AssociateDetails() {
   });
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!Number.isFinite(associateId)) return;
+    const storageKey = `associate-detail-initial-tab:${associateId}`;
+    const requestedTab = sessionStorage.getItem(storageKey) as TabType | null;
+    if (requestedTab === 'overview' || requestedTab === 'installments' || requestedTab === 'calendar') {
+      setActiveTab(requestedTab);
+      sessionStorage.removeItem(storageKey);
+    }
+  }, [associateId]);
 
   if (isLoading) {
     return (
@@ -619,32 +629,35 @@ export default function AssociateDetails() {
         )}
       />
 
-      <ToolbarSurface className="items-stretch gap-4 lg:items-center" data-tour="associate-details-actions">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-primary">{tTerm('associateDetails.toolbar.title')}</p>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">
+      <ToolbarSurface className="items-stretch gap-5 lg:items-center" data-tour="associate-details-actions">
+        <div className="min-w-0 lg:max-w-2xl">
+          <p className="text-base font-semibold text-text-primary">{tTerm('associateDetails.toolbar.title')}</p>
+          <p className="mt-2 text-sm leading-6 text-text-secondary">
             {tTerm('associateDetails.toolbar.description')}
           </p>
         </div>
-        <div className="grid gap-2 lg:min-w-[23rem]">
+        <div className="grid gap-2 lg:min-w-[30rem]">
           <div className="grid gap-2 sm:grid-cols-2">
             <ActionButton onClick={() => setShowContributionsModal(true)} icon={<History size={16} />} fullWidth>
-              {tTerm('associateDetails.cta.viewHistory')}
+              {tTerm('associateDetails.cta.viewInterestHistory')}
             </ActionButton>
             <ActionButton onClick={() => setShowInstallmentsModal(true)} icon={<Clock size={16} />} fullWidth>
-              {tTerm('associateDetails.cta.viewInstallments')}
+              {tTerm('associateDetails.cta.viewInterestSchedule')}
             </ActionButton>
           </div>
           {isAdmin && (
             <div className="grid gap-2 sm:grid-cols-2">
               <ActionButton onClick={() => setShowModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
-                {tTerm('associateDetails.cta.registerContribution')}
+                {tTerm('associateDetails.cta.registerCapitalContribution')}
               </ActionButton>
-              <ActionButton onClick={() => setShowModal('distribution')} icon={<Download size={16} />} variant="secondary" fullWidth>
-                {tTerm('associateDetails.cta.registerDistribution')}
+              <ActionButton onClick={() => setActiveTab('installments')} icon={<CheckCircle size={16} />} variant="secondary" fullWidth>
+                {tTerm('associateDetails.cta.registerInterestPayment')}
               </ActionButton>
-              <ActionButton onClick={() => setShowModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth className="sm:col-span-2">
-                {tTerm('associateDetails.cta.registerReinvestment')}
+              <ActionButton onClick={() => setShowModal('distribution')} icon={<Download size={16} />} fullWidth>
+                {tTerm('associateDetails.cta.registerInterestWithdrawal')}
+              </ActionButton>
+              <ActionButton onClick={() => setShowModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
+                {tTerm('associateDetails.cta.registerInterestReinvestment')}
               </ActionButton>
             </div>
           )}
@@ -667,7 +680,7 @@ export default function AssociateDetails() {
         onChange={(tabId) => setActiveTab(tabId as TabType)}
         tabs={[
           { id: 'overview', label: tTerm('associateDetails.tab.overview') },
-          { id: 'installments', label: tTerm('associateDetails.tab.installments'), icon: Wallet },
+          { id: 'installments', label: tTerm('associateDetails.tab.installments'), icon: CheckCircle },
           { id: 'calendar', label: tTerm('associateDetails.tab.calendar'), icon: Calendar },
         ]}
       />

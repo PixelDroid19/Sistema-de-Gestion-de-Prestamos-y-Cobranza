@@ -5,7 +5,16 @@ const normalizeApiBaseUrl = (value?: string): string => {
     return '/api';
   }
 
-  return value.endsWith('/') ? value.slice(0, -1) : value;
+  return value.trim().replace(/\/+$/, '');
+};
+
+const appendApiPath = (value?: string): string | undefined => {
+  const normalizedValue = normalizeApiBaseUrl(value);
+  if (normalizedValue === '/api') {
+    return normalizedValue;
+  }
+
+  return normalizedValue.endsWith('/api') ? normalizedValue : `${normalizedValue}/api`;
 };
 
 type RuntimeAppConfig = {
@@ -34,8 +43,14 @@ const resolveRuntimeApiBaseUrl = (): string | undefined => {
 const resolveEnvApiBaseUrl = (): string | undefined => {
   const explicitBaseUrl = import.meta.env.VITE_API_BASE_URL;
   if (typeof explicitBaseUrl === 'string' && explicitBaseUrl.trim().length > 0) {
-    return explicitBaseUrl;
+    return normalizeApiBaseUrl(explicitBaseUrl);
   }
+
+  const backendOrigin = import.meta.env.VITE_API_URL;
+  if (typeof backendOrigin === 'string' && backendOrigin.trim().length > 0) {
+    return appendApiPath(backendOrigin);
+  }
+
   return undefined;
 };
 

@@ -6,6 +6,8 @@ const https = require('node:https');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:5000';
 const baseUrl = String(process.env.SMOKE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 const allowRemote = process.env.SMOKE_ALLOW_REMOTE === 'true';
+const smokeOrigin = String(process.env.SMOKE_ORIGIN || '').trim();
+const requestTimeoutMs = Number.parseInt(process.env.SMOKE_TIMEOUT_MS || '15000', 10);
 
 const isLocalBaseUrl = (value) => {
   try {
@@ -34,6 +36,10 @@ const request = ({ method = 'GET', path, token, body, headers = {} }) => new Pro
     accept: 'application/json',
     ...headers,
   };
+
+  if (smokeOrigin) {
+    requestHeaders.origin = smokeOrigin;
+  }
 
   if (payload) {
     requestHeaders['content-type'] = 'application/json';
@@ -65,6 +71,9 @@ const request = ({ method = 'GET', path, token, body, headers = {} }) => new Pro
   });
 
   req.on('error', reject);
+  req.setTimeout(requestTimeoutMs, () => {
+    req.destroy(new Error(`${method} ${url.pathname} timed out after ${requestTimeoutMs}ms`));
+  });
 
   if (payload) {
     req.write(payload);
@@ -80,6 +89,14 @@ const expectStatus = async (label, requestOptions, expectedStatus = 200) => {
     `${label} expected HTTP ${expectedStatus} but received HTTP ${response.status}`,
     response.body,
   );
+  if (smokeOrigin) {
+    const corsOrigin = response.headers['access-control-allow-origin'];
+    assert(
+      corsOrigin === smokeOrigin,
+      `${label} did not echo SMOKE_ORIGIN in Access-Control-Allow-Origin`,
+      { expectedOrigin: smokeOrigin, receivedOrigin: corsOrigin || null },
+    );
+  }
   return response;
 };
 
@@ -225,9 +242,19 @@ const main = async () => {
     isLocalBaseUrl(baseUrl) || allowRemote,
     `Refusing to run smoke against non-local URL ${baseUrl}. Set SMOKE_ALLOW_REMOTE=true only for explicit non-mutating remote checks.`,
   );
+  assert(
+    isLocalBaseUrl(baseUrl) || smokeOrigin,
+    'SMOKE_ORIGIN is required for remote smoke checks so production CORS is exercised with an allowed frontend origin.',
+  );
+  assert(
+    Number.isInteger(requestTimeoutMs) && requestTimeoutMs > 0,
+    'SMOKE_TIMEOUT_MS must be a positive integer when provided.',
+  );
 
   const summary = {
     baseUrl,
+    origin: smokeOrigin || 'not sent',
+    timeoutMs: requestTimeoutMs,
     public: {},
   };
 

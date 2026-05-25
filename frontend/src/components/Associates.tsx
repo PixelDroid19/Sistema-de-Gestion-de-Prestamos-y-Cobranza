@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Plus, Search, MoreVertical, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Search, MoreVertical, Eye, Edit, Download, DollarSign, TrendingUp, Users, Percent, History, CalendarClock, Power, PowerOff } from 'lucide-react';
 import {
   formatCurrency as formatCurrencyValue,
   formatNumber as formatNumberValue,
@@ -14,12 +14,19 @@ import TableShell from './shared/TableShell';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
-import { ActionButton, FormField, InsightStrip, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
+import { ActionButton, FormField, IconActionButton, InsightStrip, ModalShell, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
+import NewAssociate from './NewAssociate';
 
 const formatCurrency = (amount: number) => formatCurrencyValue(amount);
 
 const formatPercent = (value: number) => formatPercentValue(value, { maximumFractionDigits: 2 });
+
+type AssociateActionMenuState = {
+  associate: any;
+  top: number;
+  right: number;
+} | null;
 
 export default function Associates({ setCurrentView }: { setCurrentView: (v: string) => void }) {
   const { user } = useSessionStore();
@@ -38,6 +45,21 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
     status: statusFilter === 'all' ? undefined : statusFilter,
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [editingAssociateId, setEditingAssociateId] = useState<number | null>(null);
+  const [actionMenu, setActionMenu] = useState<AssociateActionMenuState>(null);
+
+  useEffect(() => {
+    if (!actionMenu) return undefined;
+
+    const closeMenu = () => setActionMenu(null);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [actionMenu]);
 
   const handleExportAssociatesExcel = async () => {
     if (!canExportAssociates) {
@@ -124,6 +146,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
   };
 
   const handleToggleStatus = async (associate: any) => {
+    setActionMenu(null);
     if (!canUpdateAssociates) {
       toast.apiErrorSafe(new Error('No tiene permiso para cambiar el estado de socios.'), { domain: 'associates' });
       return;
@@ -159,6 +182,44 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
       console.error('[associates] updateAssociate status failed', error);
       toast.apiErrorSafe(error, { domain: 'associates' });
     }
+  };
+
+  const toggleActionMenu = (associate: any, event: React.MouseEvent<HTMLButtonElement>) => {
+    const associateId = Number(associate?.id);
+    if (!Number.isFinite(associateId)) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextPosition = {
+      top: Math.min(rect.bottom + 8, window.innerHeight - 280),
+      right: Math.max(16, window.innerWidth - rect.right),
+    };
+
+    setActionMenu((current) => {
+      if (Number(current?.associate?.id) === associateId) {
+        return null;
+      }
+
+      return {
+        associate,
+        ...nextPosition,
+      };
+    });
+  };
+
+  const openAssociateDetails = (associate: any, section?: 'history' | 'installments') => {
+    const associateId = Number(associate?.id);
+    if (!Number.isFinite(associateId)) return;
+    if (section) {
+      sessionStorage.setItem(`associate-detail-initial-tab:${associateId}`, section === 'installments' ? 'installments' : 'overview');
+    }
+    setActionMenu(null);
+    setCurrentView(`associates/${associateId}`);
+  };
+
+  const openEditModal = (associate: any) => {
+    const associateId = Number(associate?.id);
+    if (!Number.isFinite(associateId)) return;
+    setActionMenu(null);
+    setEditingAssociateId(associateId);
   };
 
   return (
@@ -302,7 +363,7 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                 <th className="pb-3 font-medium">
                   <HelpLabel label="Interés pactado" text="Tasa mensual o anual que se reconoce al socio sobre su capital aportado." />
                 </th>
-                <th className="pb-3 font-medium">Acciones</th>
+                <th className="pb-3 text-center font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -325,36 +386,28 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
                   </td>
                   <td className="py-4 text-text-secondary">{getInterestLabel(associate)}</td>
                   <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <ActionButton
-                        onClick={() => setCurrentView(`associates/${associate.id}`)}
+                    <div className="flex items-center justify-center gap-2">
+                      <IconActionButton
+                        onClick={() => openAssociateDetails(associate)}
                         icon={<Eye size={16} />}
+                        label={tTerm('associates.actions.view')}
                         variant="ghost"
-                        className="h-9 w-9 !min-h-0 !p-0"
-                        title="Ver detalles"
-                      >
-                        <span className="sr-only">Ver detalles</span>
-                      </ActionButton>
+                      />
                       {canUpdateAssociates && (
                         <>
-                          <ActionButton
-                            onClick={() => setCurrentView(`associates/${associate.id}/edit`)}
+                          <IconActionButton
+                            onClick={() => openEditModal(associate)}
                             icon={<Edit size={16} />}
+                            label={tTerm('associates.actions.edit')}
                             variant="ghost"
-                            className="h-9 w-9 !min-h-0 !p-0"
-                            title="Editar"
-                          >
-                            <span className="sr-only">Editar</span>
-                          </ActionButton>
-                          <ActionButton
-                            onClick={() => handleToggleStatus(associate)}
+                          />
+                          <IconActionButton
+                            onClick={(event) => toggleActionMenu(associate, event)}
                             icon={<MoreVertical size={16} />}
+                            label={tTerm('associates.actions.more')}
                             variant="ghost"
-                            className="h-9 w-9 !min-h-0 !p-0"
-                            title={associate.status === 'active' ? 'Desactivar' : 'Reactivar'}
-                          >
-                            <span className="sr-only">{associate.status === 'active' ? 'Desactivar' : 'Reactivar'}</span>
-                          </ActionButton>
+                            className={Number(actionMenu?.associate?.id) === Number(associate.id) ? 'bg-hover-bg' : ''}
+                          />
                         </>
                       )}
                     </div>
@@ -365,6 +418,61 @@ export default function Associates({ setCurrentView }: { setCurrentView: (v: str
           </table>
         </TableShell>
       </div>
+      {editingAssociateId !== null && (
+        <ModalShell
+          title={tTerm('associates.editModal.title')}
+          subtitle={tTerm('associates.editModal.subtitle')}
+          maxWidthClassName="max-w-3xl"
+          onClose={() => setEditingAssociateId(null)}
+        >
+          <NewAssociate
+            associateIdOverride={editingAssociateId}
+            embedded
+            onBack={() => setEditingAssociateId(null)}
+          />
+        </ModalShell>
+      )}
+      {canUpdateAssociates && actionMenu && (
+        <div
+          className="fixed z-50 w-72 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface text-left shadow-xl"
+          style={{ top: actionMenu.top, right: actionMenu.right }}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
+            onClick={() => openAssociateDetails(actionMenu.associate, 'history')}
+          >
+            <History size={16} className="text-text-secondary" />
+            <span>{tTerm('associates.actions.interestHistory')}</span>
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
+            onClick={() => openAssociateDetails(actionMenu.associate, 'installments')}
+          >
+            <CalendarClock size={16} className="text-text-secondary" />
+            <span>{tTerm('associates.actions.interestSchedule')}</span>
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
+            onClick={() => openEditModal(actionMenu.associate)}
+          >
+            <Edit size={16} className="text-text-secondary" />
+            <span>{tTerm('associates.actions.editTerms')}</span>
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 border-t border-border-subtle px-4 py-3 text-sm font-medium text-text-primary hover:bg-hover-bg"
+            onClick={() => handleToggleStatus(actionMenu.associate)}
+          >
+            {actionMenu.associate.status === 'active'
+              ? <PowerOff size={16} className="text-red-500" />
+              : <Power size={16} className="text-emerald-600" />}
+            <span>{actionMenu.associate.status === 'active' ? tTerm('associates.actions.deactivate') : tTerm('associates.actions.reactivate')}</span>
+          </button>
+        </div>
+      )}
     </PageShell>
   );
 }

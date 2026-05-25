@@ -136,9 +136,10 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.getByRole('button', { name: 'Volver a socios' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar aporte' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar retiro' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Registrar reinversión' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar aporte de capital' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar pago de interés' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar retiro de intereses' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reinvertir intereses' })).toBeInTheDocument();
   });
 
   it('presents associate records as administrative details, not a portal', () => {
@@ -159,14 +160,15 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    expect(screen.queryByRole('button', { name: 'Registrar aporte' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar retiro' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Registrar reinversión' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar aporte de capital' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar pago de interés' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar retiro de intereses' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reinvertir intereses' })).not.toBeInTheDocument();
     expect(screen.getByText(/los movimientos financieros se registran desde la mesa operativa/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
 
-    expect(screen.queryByRole('button', { name: /Marcar como pagado/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Registrar pago/i })).not.toBeInTheDocument();
   });
 
   it('does not present associates as linked to credit participation', () => {
@@ -203,7 +205,7 @@ describe('AssociateDetails behavior', () => {
     expect(screen.getByText(/Con intereses pendientes/i)).toBeInTheDocument();
     expect(screen.getByText('Capital aportado')).toBeInTheDocument();
     expect(screen.getByText('Interés pagado')).toBeInTheDocument();
-    expect(screen.getByText('Deuda con socio')).toBeInTheDocument();
+    expect(screen.getByText('Interés por pagar')).toBeInTheDocument();
     expect(screen.getByText('Próximo pago')).toBeInTheDocument();
     expect(screen.getByText('Historial de intereses pagados')).toBeInTheDocument();
     expect(screen.getAllByText(/\$\s*125[,.]000/).length).toBeGreaterThan(0);
@@ -218,8 +220,8 @@ describe('AssociateDetails behavior', () => {
     render(<AssociateDetails />);
 
     expect(screen.getByText('Alertas de pagos a socio')).toBeInTheDocument();
-    expect(screen.getByText('Cuota #1 vencida hace 2 días')).toBeInTheDocument();
-    expect(screen.getByText('Cuota #2 vence en 5 días')).toBeInTheDocument();
+    expect(screen.getByText('Pago #1 vencido hace 2 días')).toBeInTheDocument();
+    expect(screen.getByText('Pago #2 vence en 5 días')).toBeInTheDocument();
   });
 
   it('keeps associate calendar date filters within a valid range', () => {
@@ -267,10 +269,10 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
 
     expect(screen.getAllByText('Vencido').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Marcar como pagado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
   });
 
   it('requires the actual associate interest payment details before marking an installment as paid', async () => {
@@ -301,8 +303,8 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cuotas' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Marcar como pagado' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
 
     expect(screen.getByRole('heading', { name: 'Registrar pago de interés' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '2026-05-16' } });
@@ -329,7 +331,7 @@ describe('AssociateDetails behavior', () => {
 
     render(<AssociateDetails />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar reinversión' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reinvertir intereses' }));
     fireEvent.change(screen.getByLabelText('Monto'), { target: { value: '100e2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
 

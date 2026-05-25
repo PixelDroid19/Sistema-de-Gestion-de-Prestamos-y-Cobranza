@@ -25,10 +25,52 @@ vi.mock('../store/sessionStore', () => ({
   },
 }));
 
+describe('API base URL resolution', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    window.__APP_CONFIG__ = undefined;
+  });
+
+  it('uses /api when no build-time or runtime API base is configured', async () => {
+    const { API_BASE_URL } = await import('./client');
+
+    expect(API_BASE_URL).toBe('/api');
+  });
+
+  it('converts VITE_API_URL backend origins into the API base path', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend-production.example.test/');
+
+    const { API_BASE_URL } = await import('./client');
+
+    expect(API_BASE_URL).toBe('https://backend-production.example.test/api');
+  });
+
+  it('keeps explicit VITE_API_BASE_URL values as the full API base', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend-origin.example.test');
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.test/custom-api/');
+
+    const { API_BASE_URL } = await import('./client');
+
+    expect(API_BASE_URL).toBe('https://api.example.test/custom-api');
+  });
+
+  it('prefers runtime config over build-time env values', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend-origin.example.test');
+    window.__APP_CONFIG__ = { apiBaseUrl: 'https://runtime.example.test/api/' };
+
+    const { API_BASE_URL } = await import('./client');
+
+    expect(API_BASE_URL).toBe('https://runtime.example.test/api');
+  });
+});
+
 describe('apiClient refresh coordination', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
+    window.__APP_CONFIG__ = undefined;
     sessionState.accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.signature';
     sessionState.refreshToken = 'refresh-token-1';
     sessionState.user = { id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin' };

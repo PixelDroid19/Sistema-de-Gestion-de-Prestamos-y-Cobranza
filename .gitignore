@@ -8,3 +8,5 @@ backend/pnpm-lock.yaml
 openspec/
 node_modules/
 artifacts/
+dogfood-output/
+qa-output/

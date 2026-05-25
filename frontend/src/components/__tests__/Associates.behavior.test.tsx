@@ -48,6 +48,15 @@ vi.mock('../../services/reportService', () => ({
   exportAssociatesExcel: vi.fn(),
 }));
 
+vi.mock('../NewAssociate', () => ({
+  default: ({ onBack }: { onBack: () => void }) => (
+    <div>
+      <p>Formulario de edición de socio</p>
+      <button type="button" onClick={onBack}>Cerrar edición</button>
+    </div>
+  ),
+}));
+
 const buildAssociatesResponse = (associates: any[]) => ({
   data: {
     data: {
@@ -131,13 +140,15 @@ describe('Associates behavior', () => {
     });
   });
 
-  it('routes the edit action to the associate edit form', () => {
+  it('opens the edit action in a modal without leaving the associates table', () => {
     const setCurrentView = vi.fn();
     render(<Associates setCurrentView={setCurrentView} />);
 
-    fireEvent.click(screen.getByTitle('Editar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar socio' }));
 
-    expect(setCurrentView).toHaveBeenCalledWith('associates/2/edit');
+    expect(screen.getByRole('heading', { name: 'Editar socio' })).toBeInTheDocument();
+    expect(screen.getByText('Formulario de edición de socio')).toBeInTheDocument();
+    expect(setCurrentView).not.toHaveBeenCalledWith('associates/2/edit');
   });
 
   it('renders the shared financial insight strip for associates', () => {
@@ -153,7 +164,8 @@ describe('Associates behavior', () => {
   it('reactivates inactive associates through the active status patch flow', async () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
-    fireEvent.click(screen.getByTitle('Reactivar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones del socio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reactivar socio' }));
 
     await waitFor(() => {
       expect(restoreAssociateMutateAsync).toHaveBeenCalledWith(2);
@@ -163,7 +175,11 @@ describe('Associates behavior', () => {
   it('does not expose a physical delete action for associate history', () => {
     render(<Associates setCurrentView={vi.fn()} />);
 
-    expect(screen.getByTitle('Reactivar')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones del socio' }));
+
+    expect(screen.getByRole('button', { name: 'Reactivar socio' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial de intereses pagados' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fechas de pago de intereses' })).toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 
@@ -172,11 +188,11 @@ describe('Associates behavior', () => {
 
     render(<Associates setCurrentView={vi.fn()} />);
 
-    expect(screen.getByTitle('Ver detalles')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver detalle del socio' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /nuevo socio/i })).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Editar')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Reactivar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar socio' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Más acciones del socio' })).not.toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
 });

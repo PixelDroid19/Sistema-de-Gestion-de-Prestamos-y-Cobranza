@@ -34,6 +34,8 @@ interface AssociateFormData {
 
 interface NewAssociateProps {
   onBack: () => void;
+  associateIdOverride?: number;
+  embedded?: boolean;
 }
 
 const EMPTY_FORM: AssociateFormData = {
@@ -65,9 +67,9 @@ const MONTH_TERM_KEYS = [
   'common.month.12',
 ] as const;
 
-export default function NewAssociate({ onBack }: NewAssociateProps) {
+export default function NewAssociate({ onBack, associateIdOverride, embedded = false }: NewAssociateProps) {
   const { id } = useParams<{ id: string }>();
-  const associateId = Number(id);
+  const associateId = Number(associateIdOverride ?? id);
   const isEditing = Number.isFinite(associateId) && associateId > 0;
 
   const { createAssociate, updateAssociate } = useAssociates();
@@ -181,21 +183,8 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
     );
   }
 
-  return (
-    <PageShell className="mx-auto w-full max-w-3xl" data-tour="new-associate-page">
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        guideKey="new-associate"
-        tourId="new-associate-header"
-        actions={(
-          <ActionButton onClick={onBack} icon={<ArrowLeft size={16} />}>
-            {tTerm('newAssociate.actions.back')}
-          </ActionButton>
-        )}
-      />
-
-      <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form">
+  const form = (
+    <SectionSurface as="form" onSubmit={handleSubmit} data-tour="new-associate-form" className={embedded ? 'border-0 bg-transparent p-0 shadow-none' : ''}>
         <div className="space-y-4">
           <FormField label={tTerm('newAssociate.field.name')}>
             <TextInput
@@ -358,6 +347,27 @@ export default function NewAssociate({ onBack }: NewAssociateProps) {
           </div>
         </div>
       </SectionSurface>
+  );
+
+  if (embedded) {
+    return form;
+  }
+
+  return (
+    <PageShell className="mx-auto w-full max-w-3xl" data-tour="new-associate-page">
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        guideKey="new-associate"
+        tourId="new-associate-header"
+        actions={(
+          <ActionButton onClick={onBack} icon={<ArrowLeft size={16} />}>
+            {tTerm('newAssociate.actions.back')}
+          </ActionButton>
+        )}
+      />
+
+      {form}
     </PageShell>
   );
 }
