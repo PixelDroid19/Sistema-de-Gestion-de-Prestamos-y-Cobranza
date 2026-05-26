@@ -24,6 +24,7 @@ import { useLoans } from '../services/loanService';
 import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { tTerm } from '../i18n/terminology';
+import { getLocalDateInputValue } from '../lib/dateInput';
 import { useSessionStore } from '../store/sessionStore';
 import { useOperationalActions } from './hooks/useOperationalActions';
 import { useQueryClient } from '@tanstack/react-query';
@@ -135,7 +136,7 @@ export default function Reports() {
   const [analyticsYear, setAnalyticsYear] = useState<number>(new Date().getFullYear());
   const [cashFlowYear, setCashFlowYear] = useState<number>(new Date().getFullYear());
   const [cashFlowRange, setCashFlowRange] = useState<{ fromDate: string; toDate: string }>({ fromDate: '', toDate: '' });
-  const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [dailyCashFlowDate, setDailyCashFlowDate] = useState<string>(() => getLocalDateInputValue());
   const [creditHistoryFilters, setCreditHistoryFilters] = useState<{ startDate: string; endDate: string; status: string; customerId: string; loanId: string }>({
     startDate: '',
     endDate: '',

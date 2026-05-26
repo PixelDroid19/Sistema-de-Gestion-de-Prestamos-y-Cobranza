@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, Clock3, DollarSign, Loader2, RotateCcw, Save, ShieldCheck, User, Wallet } from 'lucide-react';
+import { ArrowLeft, Calculator, CalendarDays, CheckCircle2, Clock3, DollarSign, Loader2, RotateCcw, Save, User, Wallet } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n';
-import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, formatPercent, isValidOperationalDateOnly } from '../i18n/format';
+import { formatCurrency as formatCurrencyValue, formatDate as formatLocaleDate, isValidOperationalDateOnly } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { useLoans } from '../services/loanService';
 import { useCustomers } from '../services/customerService';
@@ -31,14 +31,6 @@ import { OperationalInput, OperationalSelect } from './shared/FormControls';
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
-const formatPolicyRate = (value: unknown) => `${formatPercent(value, { maximumFractionDigits: 2 })} EA`;
-const formatPolicyRange = (minAmount: unknown, maxAmount: unknown) => {
-  const hasMin = minAmount !== null && minAmount !== undefined && minAmount !== '';
-  const hasMax = maxAmount !== null && maxAmount !== undefined && maxAmount !== '';
-
-  if (!hasMin && !hasMax) return tTerm('newCredit.range.allAmounts');
-  return `${hasMin ? formatMoney(Number(minAmount)) : formatMoney(0)} - ${hasMax ? formatMoney(Number(maxAmount)) : tTerm('newCredit.range.noCap')}`;
-};
 const getRangeBoundary = (value: unknown, fallback: number) => {
   if (value === null || value === undefined || value === '') return fallback;
   return Number(value);
@@ -77,16 +69,6 @@ const formatDueDate = (value?: string) => {
   if (Number.isNaN(date.getTime())) return '-';
   return formatLocaleDate(date, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) || '-';
 };
-const lateFeeModeLabelKeys: Record<NonNullable<CreditCalculationInput['lateFeeMode']>, 'simulator.lateFee.mode.none' | 'simulator.lateFee.mode.simple' | 'simulator.lateFee.mode.compound' | 'simulator.lateFee.mode.flat' | 'simulator.lateFee.mode.tiered'> = {
-  NONE: 'simulator.lateFee.mode.none',
-  SIMPLE: 'simulator.lateFee.mode.simple',
-  COMPOUND: 'simulator.lateFee.mode.compound',
-  FLAT: 'simulator.lateFee.mode.flat',
-  TIERED: 'simulator.lateFee.mode.tiered',
-};
-
-const getLateFeeModeLabel = (value?: CreditCalculationInput['lateFeeMode']) => tTerm(lateFeeModeLabelKeys[value || 'SIMPLE']);
-
 const addMonthsAsIsoDate = (date: Date, months: number) => {
   const year = date.getFullYear();
   const month = date.getMonth() + months;
@@ -199,12 +181,9 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const calculationPolicySnapshot = result?.policySnapshot as Record<string, unknown> | null | undefined;
   const calculationRateSource = String(calculationPolicySnapshot?.rateSource || '');
   const calculationLateFeeSource = String(calculationPolicySnapshot?.lateFeeSource || '');
-  const calculationRatePolicyLabel = String(calculationPolicySnapshot?.ratePolicyLabel || '');
-  const calculationAppliedInterestRate = Number(calculationPolicySnapshot?.appliedInterestRate ?? result?.inputs?.interestRate ?? input.interestRate);
   const calculationAppliedLateFeeRate = Number(calculationPolicySnapshot?.appliedAnnualLateFeeRate ?? result?.inputs?.annualLateFeeRate ?? input.annualLateFeeRate ?? 0);
   const calculationAppliedLateFeeMode = String(calculationPolicySnapshot?.appliedLateFeeMode || result?.inputs?.lateFeeMode || input.lateFeeMode || 'SIMPLE') as CreditCalculationInput['lateFeeMode'];
   const hasPolicyBackedCalculation = Boolean(result && !isResultStale && calculationRateSource === 'policy');
-  const resolvedRateSource = 'policy';
   const isRatePolicyResolving = canReadFinancialConfig && isConfigLoading;
   const isLateFeePolicyResolving = canReadFinancialConfig && isConfigLoading;
   const resolvedLateFeeSource = 'policy';
@@ -219,60 +198,10 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ?? resolvedLateFeePolicy?.annualEffectiveRate
     ?? 0,
   );
-  const visibleRatePolicyLabel = canReadFinancialConfig
-    ? isRatePolicyResolving
-      ? tTerm('newCredit.badge.rate.loading')
-      : resolvedRatePolicy?.label || tTerm('newCredit.badge.rate.missing')
-    : calculationRatePolicyLabel || tTerm('newCredit.rate.appliedOnValidation');
-  const visibleRatePolicyRange = canReadFinancialConfig && resolvedRatePolicy
-    ? formatPolicyRange(resolvedRatePolicy.minAmount, resolvedRatePolicy.maxAmount)
-    : null;
-  const visibleRatePolicyExplanation = canReadFinancialConfig
-    ? isRatePolicyResolving
-      ? tTerm('newCredit.rate.explanation.loading')
-      : hasAmbiguousRatePolicy
-      ? tTerm('newCredit.rate.explanation.conflict', {
-        amount: formatMoney(Number(input.amount || 0)),
-        labels: ambiguousRatePolicyMatches.map((policy) => policy.label).join(' y '),
-      })
-      : resolvedRatePolicy
-      ? tTerm('newCredit.rate.explanation.resolved', {
-        amount: formatMoney(Number(input.amount || 0)),
-        label: resolvedRatePolicy.label,
-        range: visibleRatePolicyRange || '',
-      })
-      : tTerm('newCredit.rate.explanation.none', { amount: formatMoney(Number(input.amount || 0)) })
-    : hasPolicyBackedCalculation
-      ? tTerm('newCredit.rate.explanation.backendApplied', { label: visibleRatePolicyLabel })
-      : tTerm('newCredit.rate.explanation.validate');
-  const rateSummaryValue = canReadFinancialConfig && isRatePolicyReady
-    ? formatPolicyRate(resolvedRatePolicy?.annualEffectiveRate ?? input.interestRate ?? 0)
-    : hasPolicyBackedCalculation
-      ? formatPolicyRate(Number.isFinite(calculationAppliedInterestRate) ? calculationAppliedInterestRate : 0)
-      : isRatePolicyResolving ? tTerm('newCredit.badge.loading') : hasAmbiguousRatePolicy ? tTerm('newCredit.badge.conflict') : canReadFinancialConfig ? tTerm('newCredit.badge.noPolicy') : tTerm('newCredit.badge.pendingValidation');
-  const rateInsightHelper = hasAmbiguousRatePolicy
-    ? tTerm('newCredit.insight.rate.conflictHelper', { count: ambiguousRatePolicyMatches.length })
-    : visibleRatePolicyRange
-      ? tTerm('newCredit.insight.rate.helper', { rate: rateSummaryValue, range: visibleRatePolicyRange })
-      : rateSummaryValue;
-  const lateFeeModeLabel = getLateFeeModeLabel(resolvedLateFeePolicy?.lateFeeMode || input.lateFeeMode || 'SIMPLE');
-  const lateFeeSummaryDetail = isLateFeePolicyResolving
-    ? tTerm('newCredit.lateFee.summary.loading')
-    : resolvedLateFeeSource === 'policy' && resolvedLateFeePolicy
-    ? tTerm('newCredit.lateFee.summary.policy', { label: resolvedLateFeePolicy.label })
-    : tTerm('newCredit.lateFee.summary.missing');
-  const lateFeeSummaryValue = isLateFeePolicyResolving
-    ? tTerm('newCredit.lateFee.value.loading')
-    : resolvedLateFeePolicy
-      ? `${lateFeeModeLabel} · ${annualLateFeeRate}% EA`
-      : tTerm('newCredit.badge.noPolicy');
   const hasValidatedResult = Boolean(result) && !isResultStale;
   const canRegister = Boolean(borrower.customerId) && isRatePolicyReady && isLateFeePolicyReady && hasValidatedResult && !isSubmitting && !isSimulating;
   const isBorrowerReady = Boolean(borrower.customerId);
   const isRegistrationReady = isBorrowerReady && hasValidatedResult;
-  const calculationRuleLabel = result
-    ? tTerm('newCredit.summary.activeRule')
-    : tTerm('newCredit.summary.pendingRule');
   const summaryCards = useMemo(() => (result && !isResultStale ? [
     { id: 'new-credit-installment', label: tTerm('simulator.schedule.header.payment'), value: formatMoney(result.summary.installmentAmount), helper: tTerm('newCredit.summary.card.installmentHelper'), accent: 'teal' as const, icon: <Wallet size={18} /> },
     { id: 'new-credit-total', label: tTerm('simulator.summary.totalPayment.short'), value: formatMoney(result.summary.totalPayable), helper: tTerm('simulator.summary.card.helper.capitalInterest'), accent: 'blue' as const, icon: <Calculator size={18} /> },
@@ -300,37 +229,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       pendingCount: 0,
     });
   }, [result, isResultStale]);
-  const insightItems = [
-    {
-      id: 'rate',
-      label: tTerm('newCredit.insight.rate.label'),
-      value: hasAmbiguousRatePolicy
-        ? tTerm('newCredit.badge.rate.conflict')
-        : isRatePolicyReady
-          ? visibleRatePolicyLabel
-          : rateSummaryValue,
-      helper: rateInsightHelper,
-      icon: <Wallet size={16} />,
-      accent: hasAmbiguousRatePolicy ? 'rose' as const : 'blue' as const,
-    },
-    {
-      id: 'late-fee',
-      label: tTerm('newCredit.insight.lateFee.label'),
-      value: lateFeeSummaryValue,
-      helper: lateFeeSummaryDetail,
-      icon: <Clock3 size={16} />,
-      accent: 'amber' as const,
-    },
-    {
-      id: 'validation',
-      label: tTerm('newCredit.insight.validation.label'),
-      value: hasValidatedResult ? calculationRuleLabel : tTerm('newCredit.status.pending'),
-      helper: tTerm('newCredit.insight.validation.helper'),
-      icon: <ShieldCheck size={16} />,
-      accent: 'emerald' as const,
-    },
-  ];
-
   const handleBorrowerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = event.target;
     setBorrower((current) => ({ ...current, [name]: value }));
@@ -619,21 +517,6 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
                     onValueChange={(value) => handleCalculationInputChange({ startDate: String(value || '') || undefined })}
                   />
                 </FormField>
-              </div>
-
-              <div className="new-credit-config-summary" aria-label={tTerm('newCredit.section.preparation.aria')} data-tour="new-credit-policy-summary">
-                {insightItems.map((item) => (
-                  <div key={item.id} className={`new-credit-config-item new-credit-config-item--${item.accent ?? 'slate'}`}>
-                    <span className="new-credit-config-icon" aria-hidden="true">
-                      {item.icon}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="new-credit-config-label">{item.label}</span>
-                      <span className="new-credit-config-value">{item.value}</span>
-                      {item.helper ? <span className="new-credit-config-helper">{item.helper}</span> : null}
-                    </span>
-                  </div>
-                ))}
               </div>
 
           </div>

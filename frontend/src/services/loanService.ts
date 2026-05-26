@@ -8,6 +8,7 @@ import {
   invalidateAfterPayment,
   invalidateAfterPromiseOrFollowUp,
 } from './operationalInvalidation';
+import { getLocalDateInputValue } from '../lib/dateInput';
 
 // Payment method options
 export const PAYMENT_METHODS = [
@@ -99,7 +100,7 @@ type LoanDetailsQueryOptions = {
 
 export const useLoanDetails = (loanId: number, options: LoanDetailsQueryOptions = {}) => {
   const queryClient = useQueryClient();
-  const asOfDate = new Date().toISOString().slice(0, 10);
+  const asOfDate = getLocalDateInputValue();
 
   const getCalendar = useQuery({
     queryKey: queryKeys.loans.calendar(loanId),

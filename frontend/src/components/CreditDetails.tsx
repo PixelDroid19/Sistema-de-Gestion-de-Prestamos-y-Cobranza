@@ -23,6 +23,7 @@ import {
 } from '../i18n/format';
 import { confirmDanger } from '../lib/confirmModal';
 import { parsePercentageRateInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
+import { getLocalDateInputValue } from '../lib/dateInput';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
@@ -250,11 +251,11 @@ export default function CreditDetails() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(getLocalDateInputValue());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [selectedInstallmentNumber, setSelectedInstallmentNumber] = useState<number | null>(null);
   const [promiseAmount, setPromiseAmount] = useState('');
-  const [promiseDateInput, setPromiseDateInput] = useState(new Date().toISOString().slice(0, 10));
+  const [promiseDateInput, setPromiseDateInput] = useState(getLocalDateInputValue());
   const [promiseNotes, setPromiseNotes] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [showAnnulModal, setShowAnnulModal] = useState(false);
@@ -269,7 +270,7 @@ export default function CreditDetails() {
   const [capitalMethod, setCapitalMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [capitalStrategy, setCapitalStrategy] = useState<CapitalStrategy>('reduce_term');
   const [capitalNewTermMonths, setCapitalNewTermMonths] = useState('');
-  const [capitalPaymentDate, setCapitalPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [capitalPaymentDate, setCapitalPaymentDate] = useState(getLocalDateInputValue());
   const [showLateFeeModal, setShowLateFeeModal] = useState(false);
   const [lateFeeRate, setLateFeeRate] = useState('');
 
@@ -318,9 +319,13 @@ export default function CreditDetails() {
     return Number.isFinite(c) ? c : null;
   }, [calendarEntries]);
 
+  const currentFinancialSnapshot = useMemo(() => ({
+    ...(paymentSnapshot || {}),
+    ...(calendarSnapshot || {}),
+  }), [calendarSnapshot, paymentSnapshot]);
   const capitalPreview = useMemo(
-    () => computeCapitalPreview(capitalAmount, capitalStrategy, capitalNewTermMonths, loan, paymentSnapshot),
-    [capitalAmount, capitalStrategy, capitalNewTermMonths, loan, paymentSnapshot],
+    () => computeCapitalPreview(capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot),
+    [capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot],
   );
 
   const isRecordPaymentModalOpen = operationalModal.is('record-payment');
@@ -333,7 +338,12 @@ export default function CreditDetails() {
   const installmentQuote = installmentQuoteQuery.data?.data?.quote;
 
   const installmentRows = useMemo(() => {
-    const initial = Number(loan?.amount ?? 0);
+    const initial = Number(
+      currentFinancialSnapshot?.outstandingPrincipal
+      ?? loan?.principalOutstanding
+      ?? loan?.amount
+      ?? 0,
+    );
     return calendarEntries.reduce((rows: any[], inst: any, idx: number) => {
       const sp = inst.scheduledPayment ?? 0;
       const ic = inst.interestComponent ?? inst.remainingInterest ?? 0;
@@ -352,7 +362,7 @@ export default function CreditDetails() {
       });
       return rows;
     }, []);
-  }, [calendarEntries, loan?.amount]);
+  }, [calendarEntries, currentFinancialSnapshot?.outstandingPrincipal, loan?.amount, loan?.principalOutstanding]);
 
   const installmentColumnTotals = useMemo(() => {
     const totals = installmentRows.reduce((acc: any, row: any) => {
@@ -565,7 +575,7 @@ export default function CreditDetails() {
           ...(capitalStrategy === 'reduce_payment' ? { newTermMonths: newTermMonths as number } : {}),
         });
       },
-      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(new Date().toISOString().slice(0, 10)); },
+      onSuccess: async () => { await invalidateAfterPayment(queryClient, { loanId }); setShowCapitalModal(false); setCapitalAmount(''); setCapitalNewTermMonths(''); setCapitalPaymentDate(getLocalDateInputValue()); },
       successMessage: tTerm('creditDetails.toast.capitalSuccess'),
     });
   };
@@ -711,7 +721,7 @@ export default function CreditDetails() {
         customerLabel={customerLabel} calculationProfileSummary={calculationProfileSummary}
         registerPaymentLabel={tTerm('creditDetails.cta.recordPayment')}
         capitalContributionLabel={tTerm('creditDetails.cta.capitalContribution')}
-        canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={creditReportDownloadGuard.visible}
+        canAccessBackofficeActions={isBackofficeUser} canExportCreditExcel={user?.role === 'admin' || creditReportDownloadGuard.visible}
         isExportingCreditExcel={isExportingCreditExcel}
         installmentPaymentGuard={installmentPaymentGuard} capitalPaymentGuard={capitalPaymentGuard}
         payoffPaymentGuard={payoffPaymentGuard} lateFeeUpdateGuard={lateFeeUpdateGuard}
@@ -742,7 +752,8 @@ export default function CreditDetails() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" data-tour="credit-detail-calendar">
               <CalendarTab
                 installmentRows={installmentRows} installmentColumnTotals={installmentColumnTotals}
-                loanAmount={Number(loan.amount)} showInstallmentActionColumn={showInstallmentActionColumn}
+                loanAmount={Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan.principalOutstanding ?? loan.amount)}
+                showInstallmentActionColumn={showInstallmentActionColumn}
                 nextPayableInstallmentNumber={nextPayableInstallmentNumber}
                 calendarSnapshot={calendarSnapshot} formatCurrency={formatCurrency}
                 formatDate={formatDate}

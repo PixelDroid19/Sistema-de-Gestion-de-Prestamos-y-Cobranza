@@ -189,7 +189,7 @@ describe('NewCredit behavior', () => {
     });
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: true });
     expect(screen.getByText('Escenario precargado')).toBeInTheDocument();
-    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent).toContain('Tasa mayor a 1M');
+    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
     expect(screen.queryByRole('spinbutton', { name: 'Tasa configurada' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).toHaveClass('fixed');
     expect(container.querySelector('[data-tour="new-credit-action-dock"]')).not.toHaveClass('sticky');
@@ -276,13 +276,13 @@ describe('NewCredit behavior', () => {
   it('guides the operator through customer, validation and registration readiness', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
-    expect(screen.getByLabelText('Estado de preparación del crédito')).toBeInTheDocument();
-    expect(screen.getAllByText('Regla activa').length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText('Estado de preparación del crédito')).not.toBeInTheDocument();
+    expect(screen.queryByText('Regla activa')).not.toBeInTheDocument();
     expect(screen.queryByText('Regla v9')).not.toBeInTheDocument();
     expect(screen.queryByText('Selecciona el cliente que recibirá el crédito.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Acciones del nuevo crédito')).toBeInTheDocument();
-    expect(screen.getByText('Mora simple · 24% EA')).toBeInTheDocument();
-    expect(screen.getByText('Mora simple · solo si hay atraso')).toBeInTheDocument();
+    expect(screen.queryByText('Mora simple · 24% EA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mora simple · solo si hay atraso')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
 
@@ -301,9 +301,7 @@ describe('NewCredit behavior', () => {
 
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    const policySummary = container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent || '';
-    expect(policySummary).toContain('Cargando');
-    expect(policySummary).toContain('Leyendo la política de mora vigente.');
+    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin tasa configurada')).not.toBeInTheDocument();
     expect(screen.queryByText('Mora simple · 0% EA')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Validar crédito' })).toBeDisabled();
@@ -354,7 +352,7 @@ describe('NewCredit behavior', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     expect(screen.queryByRole('combobox', { name: 'Cálculo de mora' })).not.toBeInTheDocument();
-    expect(screen.getByText('Mora simple · 24% EA')).toBeInTheDocument();
+    expect(screen.queryByText('Mora simple · 24% EA')).not.toBeInTheDocument();
   });
 
   it('blocks validation when active rate policies overlap', async () => {
@@ -381,9 +379,7 @@ describe('NewCredit behavior', () => {
 
     const { container } = render(<NewCredit onBack={vi.fn()} />);
 
-    const policySummary = container.querySelector('[data-tour="new-credit-policy-summary"]')?.textContent || '';
-    expect(policySummary).toContain('Conflicto de tasas');
-    expect(policySummary).toContain('2 reglas activas se pisan');
+    expect(container.querySelector('[data-tour="new-credit-policy-summary"]')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
 
@@ -403,7 +399,7 @@ describe('NewCredit behavior', () => {
     render(<NewCredit onBack={vi.fn()} />);
 
     expect(mockUseConfig).toHaveBeenCalledWith({ enabled: false });
-    expect(screen.getAllByText('Tasa mayor a 1M').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Tasa mayor a 1M')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: '10' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Registrar crédito' }).closest('form') as HTMLFormElement);

@@ -20,6 +20,7 @@ import { useOperationalActions } from './hooks/useOperationalActions';
 import { invalidateAfterDelete, invalidateAfterReport } from '../services/operationalInvalidation';
 import { tTerm } from '../i18n/terminology';
 import { PERMISSION } from '../constants/permissionNames';
+import { getLocalDateInputValue } from '../lib/dateInput';
 import {
   ActionButton,
   PageHeader,
@@ -47,7 +48,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   const [activeTab, setActiveTab] = useState('list');
   const [selectedEvent, setSelectedEvent] = useState<InstallmentEvent | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const calendarAsOfDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const calendarAsOfDate = useMemo(() => getLocalDateInputValue(), []);
   const [calendarFilters, setCalendarFilters] = useState({
     search: '',
     status: '',

@@ -17,8 +17,6 @@ import {
   type LateFeePolicyDraft,
   buildLateFeePayload,
   getLateFeeModeLabel,
-  getPolicyPriorityLabel,
-  normalizePolicyPriority,
   validateLateFeePolicyDraft,
 } from './settingsHelpers';
 
@@ -129,20 +127,6 @@ export default function LateFeePoliciesTab({
             <option value="NONE">{tTerm('settings.lateFee.type.none')}</option>
           </SelectInput>
         </FormField>
-        <FormField
-          label={tTerm('settings.lateFee.field.priority')}
-          tooltip={tTerm('settings.lateFee.field.priorityTooltip')}
-        >
-          <SelectInput
-            aria-label={tTerm('settings.lateFee.field.priority')}
-            value={newLateFeePolicy.priority}
-            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, priority: normalizePolicyPriority(event.target.value) }))}
-          >
-            <option value="low">{tTerm('settings.priority.low')}</option>
-            <option value="medium">{tTerm('settings.priority.medium')}</option>
-            <option value="high">{tTerm('settings.priority.high')}</option>
-          </SelectInput>
-        </FormField>
       </div>
     </form>
   );
@@ -174,7 +158,6 @@ export default function LateFeePoliciesTab({
                 <th>{tTerm('settings.lateFee.table.policy')}</th>
                 <th>{tTerm('settings.lateFee.table.rate')}</th>
                 <th>{tTerm('settings.lateFee.table.calculation')}</th>
-                <th>{tTerm('settings.lateFee.table.priority')}</th>
                 <th>{tTerm('settings.lateFee.table.state')}</th>
                 <th className="text-right">{tTerm('settings.lateFee.table.actions')}</th>
               </tr>
@@ -185,7 +168,6 @@ export default function LateFeePoliciesTab({
                   <td className="font-semibold">{policy.label}</td>
                   <td className="font-semibold">{policy.annualEffectiveRate}%</td>
                   <td className="text-text-secondary">{getLateFeeModeLabel(policy.lateFeeMode)}</td>
-                  <td className="text-text-secondary">{getPolicyPriorityLabel(policy.priority)}</td>
                   <td><StatusBadge active={policy.isActive !== false} /></td>
                   <td>
                     <div className="flex justify-end gap-2">
@@ -223,7 +205,7 @@ export default function LateFeePoliciesTab({
               ))}
               {lateFeePolicies.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="table-empty-state">{tTerm('settings.lateFee.table.empty')}</td>
+                  <td colSpan={5} className="table-empty-state">{tTerm('settings.lateFee.table.empty')}</td>
                 </tr>
               )}
             </tbody>

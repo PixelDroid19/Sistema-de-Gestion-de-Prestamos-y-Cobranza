@@ -762,6 +762,14 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.queryByTitle('Registrar pago de cuota')).not.toBeInTheDocument();
   });
 
+  it('keeps the credit Excel action visible for administrators', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    renderCreditDetails();
+
+    expect(screen.getByRole('button', { name: 'Excel' })).toBeInTheDocument();
+  });
+
   it('allows employees with report permission to export the credit Excel', async () => {
     setSessionUser({
       id: 4,

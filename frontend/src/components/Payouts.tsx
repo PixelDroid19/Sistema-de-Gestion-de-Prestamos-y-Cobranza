@@ -29,6 +29,7 @@ import {
   ToolbarSurface,
 } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
+import { getLocalDateInputValue } from '../lib/dateInput';
 
 export default function Payouts() {
   const { locale } = useTranslation();
@@ -54,7 +55,7 @@ export default function Payouts() {
   const [formData, setFormData] = useState({
     loanId: '',
     amount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: getLocalDateInputValue(),
     paymentMethod: 'cash'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -376,7 +377,7 @@ export default function Payouts() {
       },
       onSuccess: () => {
         setShowPaymentModal(false);
-        setFormData({ loanId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultPaymentMethod });
+        setFormData({ loanId: '', amount: '', paymentDate: getLocalDateInputValue(), paymentMethod: defaultPaymentMethod });
         setCapitalNewTermMonths('');
       },
       successMessage: tTerm('payouts.toast.register.success'),

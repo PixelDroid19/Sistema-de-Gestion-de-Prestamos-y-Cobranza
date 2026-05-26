@@ -5,6 +5,7 @@ import CreditSimulationWorkspace from './shared/CreditSimulationWorkspace';
 import { DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT, useActiveCreditSimulation } from './hooks/useActiveCreditSimulation';
 import { tTerm } from '../i18n/terminology';
 import { ActionButton, PageHeader, PageShell } from './shared/Surfaces';
+import { getLocalDateInputValue } from '../lib/dateInput';
 
 /**
  * Standalone credit calculation route for admins.
@@ -24,7 +25,7 @@ export default function CreditSimulator() {
   } = useActiveCreditSimulation({
     initialInput: {
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: getLocalDateInputValue(),
     },
     autoRun: true,
   });

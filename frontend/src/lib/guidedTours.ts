@@ -138,7 +138,6 @@ const GUIDE_REGISTRY: Record<GuideViewKey, ViewGuideDefinition> = {
       { selector: '[data-tour="new-credit-header"]', title: 'Qué estás registrando', description: 'La validación aquí usa la regla de cálculo activa. Registrar crea un crédito real en cartera.' },
       { selector: '[data-tour="new-credit-customer-select"]', title: 'Cliente del crédito', description: 'Debes seleccionar al titular antes de validar y registrar.' },
       { selector: '[data-tour="new-credit-borrower"]', title: 'Titular del crédito', description: 'El crédito se registra únicamente al cliente seleccionado. Los socios inversionistas se gestionan en su propio módulo y no se asignan a créditos nuevos.' },
-      { selector: '[data-tour="new-credit-policy-summary"]', title: 'Políticas sugeridas', description: 'Muestra tasa y mora resueltas desde configuración antes de ajustar parámetros.' },
       { selector: '[data-tour="new-credit-late-fee-mode"]', title: 'Cálculo de mora', description: 'Define el método matemático de recargo. La tasa viene de la política activa si no se ajusta manualmente.' },
       { selector: '[data-tour="new-credit-simulation"]', title: 'Simulación y cronograma', description: 'Revisa cuota, intereses, total a pagar y tabla de amortización antes de registrar.' },
       { selector: '[data-tour="new-credit-action-dock"]', title: 'Acciones de registro', description: 'Restablece, valida o registra desde el cierre del formulario sin tapar la información revisada.' },

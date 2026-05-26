@@ -80,6 +80,7 @@ const injectRequestContext = winston.format((info) => {
 
 const logsDir = path.resolve(process.cwd(), 'logs');
 const shouldUseFileTransports = process.env.LOG_TO_FILES !== 'false';
+const shouldUseConsoleTransport = process.env.LOG_TO_CONSOLE !== 'false';
 const fileTransports = [];
 
 const canWriteLogFiles = () => {
@@ -161,11 +162,15 @@ const logger = winston.createLogger({
   transports: fileTransports,
 });
 
-if (process.env.NODE_ENV !== 'production') {
+if (shouldUseConsoleTransport) {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple(),
+      process.env.NODE_ENV === 'production'
+        ? winston.format.uncolorize()
+        : winston.format.colorize(),
+      process.env.NODE_ENV === 'production'
+        ? winston.format.json()
+        : winston.format.simple(),
     ),
   }));
 }

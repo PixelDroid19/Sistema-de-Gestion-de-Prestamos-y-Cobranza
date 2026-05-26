@@ -7,9 +7,12 @@ const {
   createDeletePaymentMethod,
   createListRatePolicies,
   createCreateRatePolicy,
+  createUpdateRatePolicy,
   createDeleteRatePolicy,
   createResolveRatePolicy,
   createCreateLateFeePolicy,
+  createDeleteLateFeePolicy,
+  createResolveLateFeePolicy,
   createUpsertSetting,
   createListAdminCatalogs,
   createListRoles,
@@ -220,6 +223,101 @@ test('config policies reject active duplicates that would make resolution ambigu
   );
 });
 
+test('rate policy creation rejects a catch-all range that overlaps an existing explicit range', async () => {
+  const createRatePolicy = createCreateRatePolicy({
+    configRepository: {
+      async findByCategoryAndKey() {
+        return null;
+      },
+      async listByCategory() {
+        return [
+          {
+            id: 31,
+            key: 'credito-medio',
+            label: 'Crédito medio',
+            isActive: true,
+            value: {
+              minAmount: 1000000,
+              maxAmount: 5000000,
+              annualEffectiveRate: 61,
+              priority: 'medium',
+            },
+          },
+        ];
+      },
+      async create() {
+        throw new Error('create should not be called for overlapping catch-all ranges');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => createRatePolicy({
+      label: 'Crédito global',
+      minAmount: 0,
+      maxAmount: null,
+      annualEffectiveRate: 50,
+      priority: 'medium',
+    }),
+    (error) => error instanceof ConflictError && error.message === 'Active rate policies cannot overlap',
+  );
+});
+
+test('rate policy update rejects changing an existing range into a catch-all overlap', async () => {
+  const existingEntry = {
+    id: 32,
+    key: 'credito-bajo',
+    label: 'Crédito bajo',
+    isActive: true,
+    value: {
+      minAmount: 0,
+      maxAmount: 999999,
+      annualEffectiveRate: 45,
+      priority: 'medium',
+    },
+  };
+  const overlappingEntry = {
+    id: 33,
+    key: 'credito-medio',
+    label: 'Crédito medio',
+    isActive: true,
+    value: {
+      minAmount: 1000000,
+      maxAmount: 5000000,
+      annualEffectiveRate: 61,
+      priority: 'medium',
+    },
+  };
+
+  const updateRatePolicy = createUpdateRatePolicy({
+    configRepository: {
+      async findByIdAndCategory() {
+        return existingEntry;
+      },
+      async findByCategoryAndKey() {
+        return existingEntry;
+      },
+      async listByCategory() {
+        return [existingEntry, overlappingEntry];
+      },
+      async update() {
+        throw new Error('update should not be called for overlapping catch-all ranges');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => updateRatePolicy(existingEntry.id, {
+      label: 'Crédito bajo',
+      minAmount: 0,
+      maxAmount: null,
+      annualEffectiveRate: 45,
+      priority: 'medium',
+    }),
+    (error) => error instanceof ConflictError && error.message === 'Active rate policies cannot overlap',
+  );
+});
+
 test('config financial policies reject exponent notation in rates and amount ranges', async () => {
   const buildRepository = () => ({
     async findByCategoryAndKey() {
@@ -361,6 +459,69 @@ test('late-fee policies reject modes that are not configurable from the operatio
       priority: 'medium',
     }),
     /lateFeeMode is invalid/,
+  );
+});
+
+test('late-fee policy resolution rejects active policies with the same priority instead of guessing', async () => {
+  const resolveLateFeePolicy = createResolveLateFeePolicy({
+    configRepository: {
+      async listActiveByCategory(category) {
+        assert.equal(category, 'late_fee_policy');
+        return [
+          {
+            id: 41,
+            key: 'mora-simple-a',
+            label: 'Mora simple A',
+            isActive: true,
+            value: {
+              annualEffectiveRate: 24,
+              lateFeeMode: 'SIMPLE',
+              priority: 'medium',
+            },
+          },
+          {
+            id: 42,
+            key: 'mora-simple-b',
+            label: 'Mora simple B',
+            isActive: true,
+            value: {
+              annualEffectiveRate: 30,
+              lateFeeMode: 'SIMPLE',
+              priority: 'medium',
+            },
+          },
+        ];
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => resolveLateFeePolicy(),
+    (error) => error instanceof ConflictError && error.message === 'Active late fee policies cannot share the same priority',
+  );
+});
+
+test('late-fee policy deletion rejects policies already used by existing loans', async () => {
+  const deleteLateFeePolicy = createDeleteLateFeePolicy({
+    configRepository: {
+      async findByIdAndCategory(id, category) {
+        assert.equal(id, 45);
+        assert.equal(category, 'late_fee_policy');
+        return { id: 45, key: 'mora-usada', label: 'Mora usada' };
+      },
+      async countLoansUsingLateFeePolicy(id) {
+        assert.equal(id, 45);
+        return 2;
+      },
+      async destroy() {
+        throw new Error('destroy should not be called for a late-fee policy used by loans');
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => deleteLateFeePolicy(45),
+    (error) => error instanceof ConflictError && error.message === 'Late fee policy is used by existing loans and cannot be deleted',
   );
 });
 

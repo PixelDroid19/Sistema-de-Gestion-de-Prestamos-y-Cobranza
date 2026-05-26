@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createCreditPolicyResolver } = require('@/modules/credits/application/creditPolicyResolver');
-const { ValidationError } = require('@/utils/errorHandler');
+const { ConflictError, ValidationError } = require('@/utils/errorHandler');
 
 const createConfigRepository = () => ({
   async listActiveByCategory(category) {
@@ -102,5 +102,63 @@ test('credit policy resolver fails clearly when a policy-driven credit has no ac
   await assert.rejects(
     () => resolver.resolve({ input: { amount: 2000000, termMonths: 12, rateSource: 'policy' } }),
     (error) => error instanceof ValidationError && error.message === 'No active rate policy is available for this credit amount',
+  );
+});
+
+test('credit policy resolver rejects ambiguous late-fee policies before calculating a credit', async () => {
+  const resolver = createCreditPolicyResolver({
+    configRepository: {
+      async listActiveByCategory(category) {
+        if (category === 'rate_policy') {
+          return [
+            {
+              id: 10,
+              key: 'standard',
+              label: 'Tasa estándar',
+              isActive: true,
+              value: {
+                minAmount: 0,
+                maxAmount: null,
+                annualEffectiveRate: 48,
+                priority: 'medium',
+              },
+            },
+          ];
+        }
+
+        if (category === 'late_fee_policy') {
+          return [
+            {
+              id: 20,
+              key: 'mora-a',
+              label: 'Mora A',
+              isActive: true,
+              value: { annualEffectiveRate: 24, lateFeeMode: 'SIMPLE', priority: 'medium' },
+            },
+            {
+              id: 21,
+              key: 'mora-b',
+              label: 'Mora B',
+              isActive: true,
+              value: { annualEffectiveRate: 30, lateFeeMode: 'COMPOUND', priority: 'medium' },
+            },
+          ];
+        }
+
+        return [];
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => resolver.resolve({
+      input: {
+        amount: 2000000,
+        termMonths: 12,
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      },
+    }),
+    (error) => error instanceof ConflictError && error.message === 'Active late fee policies cannot share the same priority',
   );
 });

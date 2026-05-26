@@ -352,7 +352,34 @@ describe('Settings operational configuration', () => {
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
   });
 
-  it('blocks duplicated active late-fee policy priorities', async () => {
+  it('rejects a catch-all credit rate range that would overlap existing ranges before saving', async () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de política de tasa' }), {
+      target: { value: 'Crédito global' },
+    });
+    fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
+      target: { value: '0' },
+    });
+    fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
+      target: { value: '' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+      target: { value: '50' },
+    });
+    fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        description: 'Ya existe una política activa que cruza este rango. Ajusta los límites para que cada monto tenga una sola tasa.',
+      }));
+    });
+    expect(mockCreateRatePolicy).not.toHaveBeenCalled();
+  });
+
+  it('keeps late-fee priority hidden while preserving backend default validation', async () => {
     render(<Settings />);
 
     fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
@@ -363,9 +390,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
       target: { value: '18' },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Prioridad' }), {
-      target: { value: 'medium' },
-    });
+    expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
 
     await waitFor(() => {
@@ -390,9 +415,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
       target: { value: '1e2' },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Prioridad' }), {
-      target: { value: 'high' },
-    });
+    expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de mora' }));
 
     await waitFor(() => {
@@ -428,6 +451,16 @@ describe('Settings operational configuration', () => {
     expect(screen.queryByRole('columnheader', { name: /Uso/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
     expect(document.querySelector('.data-table-surface')).toBeInTheDocument();
+  });
+
+  it('does not expose priority in late-fee policies', () => {
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*1$/i }));
+
+    expect(screen.queryByRole('columnheader', { name: /Prioridad/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
+    expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
   });
 
   it('explains existing active rate conflicts instead of silently choosing one rule', () => {

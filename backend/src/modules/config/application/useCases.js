@@ -351,14 +351,26 @@ const assertNoAmbiguousLateFeePolicy = async ({ configRepository, normalized, cu
   }
 };
 
-const pickHighestPriorityPolicy = (policies) => policies
-  .filter((policy) => policy.isActive)
-  .sort((left, right) => {
+const pickUniqueLateFeePolicy = (policies) => {
+  const activePolicies = policies.filter((policy) => policy.isActive);
+  if (activePolicies.length === 0) return null;
+
+  const orderedPolicies = activePolicies.sort((left, right) => {
     const priorityDelta = (POLICY_PRIORITY_ORDER[left.priority] ?? POLICY_PRIORITY_ORDER.medium)
       - (POLICY_PRIORITY_ORDER[right.priority] ?? POLICY_PRIORITY_ORDER.medium);
     if (priorityDelta !== 0) return priorityDelta;
     return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
-  })[0] || null;
+  });
+  const selected = orderedPolicies[0];
+  const selectedPriority = normalizePolicyPriority(selected.priority);
+  const samePriorityPolicies = orderedPolicies.filter((policy) => normalizePolicyPriority(policy.priority) === selectedPriority);
+
+  if (samePriorityPolicies.length > 1) {
+    throw new ConflictError('Active late fee policies cannot share the same priority');
+  }
+
+  return selected;
+};
 
 /**
  * Resolves the single operational rate policy for a loan amount.
@@ -639,13 +651,19 @@ const createUpdateLateFeePolicy = ({ configRepository }) => async (policyId, pay
 const createDeleteLateFeePolicy = ({ configRepository }) => async (policyId) => {
   const existing = await configRepository.findByIdAndCategory(policyId, LATE_FEE_POLICY_CATEGORY);
   if (!existing) throw new NotFoundError('Late fee policy');
+  const usedLoans = typeof configRepository.countLoansUsingLateFeePolicy === 'function'
+    ? await configRepository.countLoansUsingLateFeePolicy(existing.id)
+    : 0;
+  if (usedLoans > 0) {
+    throw new ConflictError('Late fee policy is used by existing loans and cannot be deleted');
+  }
   await configRepository.destroy(existing.id);
   return { id: Number(policyId) };
 };
 
 const createResolveLateFeePolicy = ({ configRepository }) => async () => {
   const policies = (await configRepository.listActiveByCategory(LATE_FEE_POLICY_CATEGORY)).map(buildLateFeePolicy);
-  return pickHighestPriorityPolicy(policies);
+  return pickUniqueLateFeePolicy(policies);
 };
 
 const createUpsertSetting = ({ configRepository }) => async (settingKey, { label, value, description } = {}) => {

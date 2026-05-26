@@ -92,6 +92,10 @@ const configRepository = {
   async countLoansUsingRatePolicy(id) {
     return Loan.count({ where: { ratePolicyId: id } });
   },
+
+  async countLoansUsingLateFeePolicy(id) {
+    return Loan.count({ where: { lateFeePolicyId: id } });
+  },
 };
 
 module.exports = {
