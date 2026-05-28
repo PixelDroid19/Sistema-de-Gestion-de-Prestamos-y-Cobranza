@@ -220,6 +220,32 @@ describe('Payouts behavioral parity scenarios', () => {
     expect(mockToastError).toHaveBeenCalledWith({ title: 'Indica cuántas cuotas tendrá el saldo restante.' });
   });
 
+  it('keeps the current loan id when the operator types exponent-like text', () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+
+    const loanIdInput = screen.getByPlaceholderText('Ej: 1') as HTMLInputElement;
+    fireEvent.change(loanIdInput, { target: { value: '100' } });
+    expect(loanIdInput.value).toBe('100');
+
+    fireEvent.change(loanIdInput, { target: { value: '1e2' } });
+    expect(loanIdInput.value).toBe('100');
+  });
+
+  it('keeps the current payout amount when the operator types exponent-like text', () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+
+    const amountInput = screen.getByPlaceholderText('0.00') as HTMLInputElement;
+    fireEvent.change(amountInput, { target: { value: '250000' } });
+    expect(amountInput.value).toBe('250000');
+
+    fireEvent.change(amountInput, { target: { value: '2e5' } });
+    expect(amountInput.value).toBe('250000');
+  });
+
   it('shows the specific capital-payment backend denial when a payout capital payment is rejected', async () => {
     mockCreateCapitalPayment.mockRejectedValueOnce({
       response: {
@@ -249,18 +275,15 @@ describe('Payouts behavioral parity scenarios', () => {
     });
   });
 
-  it('rejects exponent-like credit identifiers before registering payouts', async () => {
+  it('keeps exponent-like credit identifiers out of the payout form before submit', () => {
     renderPayouts();
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
-    fireEvent.change(screen.getByPlaceholderText('Ej: 1'), { target: { value: '1e2' } });
+    const loanIdInput = screen.getByPlaceholderText('Ej: 1') as HTMLInputElement;
+    fireEvent.change(loanIdInput, { target: { value: '1e2' } });
     fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '250000' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pago' }));
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith({ title: 'Ingrese un ID de crédito válido.' });
-    });
+    expect(loanIdInput.value).toBe('');
     expect(mockCreatePartialPayment).not.toHaveBeenCalled();
     expect(mockCreatePayment).not.toHaveBeenCalled();
     expect(mockCreateCapitalPayment).not.toHaveBeenCalled();

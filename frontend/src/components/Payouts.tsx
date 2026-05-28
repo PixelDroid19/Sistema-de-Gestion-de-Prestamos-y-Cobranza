@@ -22,6 +22,7 @@ import {
   FormField,
   IconActionButton,
   ModalShell,
+  NormalizedInput,
   PageHeader,
   PageShell,
   SelectInput,
@@ -620,26 +621,27 @@ export default function Payouts() {
               </FormField>
 
               <FormField label={tTerm('payouts.form.loanId')}>
-                <TextInput
+                <NormalizedInput
                   id="payout-loan-id"
-                  type="number"
+                  variant="integer"
                   required
                   value={formData.loanId}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, loanId: e.target.value }))}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, loanId: value }))}
                   placeholder={tTerm('payouts.form.loanIdPlaceholder')}
+                  minValue={1}
                 />
               </FormField>
 
               <FormField label={tTerm('payouts.form.amount')}>
-                <TextInput
+                <NormalizedInput
                   id="payout-amount"
-                  type="number"
+                  variant="decimal"
                   required
-                  min="1"
-                  step="0.01"
                   value={formData.amount}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, amount: value }))}
                   placeholder="0.00"
+                  minValue={0}
+                  maxDecimals={2}
                 />
               </FormField>
 
@@ -680,14 +682,13 @@ export default function Payouts() {
                   </FormField>
                   {capitalStrategy === 'reduce_payment' && (
                     <FormField label={tTerm('creditDetails.modal.capital.newTermMonths')}>
-                      <TextInput
+                      <NormalizedInput
                         id="payout-capital-new-term"
-                        type="number"
-                        min="1"
-                        step="1"
+                        variant="integer"
                         value={capitalNewTermMonths}
-                        onChange={(event) => setCapitalNewTermMonths(event.target.value)}
+                        onValueChange={setCapitalNewTermMonths}
                         placeholder="12"
+                        minValue={1}
                       />
                     </FormField>
                   )}
