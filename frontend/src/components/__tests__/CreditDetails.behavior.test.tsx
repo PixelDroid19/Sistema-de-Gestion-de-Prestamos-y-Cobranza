@@ -821,6 +821,18 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Excel' })).toBeInTheDocument();
   });
 
+  it('preserves valid customer names in the credit header without stripping fragments like dev', () => {
+    mockLoan = {
+      ...buildMockLoan(),
+      Customer: { name: 'Devora Alvarez' },
+    };
+
+    renderCreditDetails();
+
+    expect(screen.getByText('Devora Alvarez')).toBeInTheDocument();
+    expect(screen.queryByText('ora Alvarez')).not.toBeInTheDocument();
+  });
+
   it('allows employees with report permission to export the credit Excel', async () => {
     setSessionUser({
       id: 4,

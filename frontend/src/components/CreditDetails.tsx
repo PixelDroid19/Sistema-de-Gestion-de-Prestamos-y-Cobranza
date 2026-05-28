@@ -24,6 +24,7 @@ import {
 import { confirmDanger } from '../lib/confirmModal';
 import { parsePercentageRateInput, parsePositiveIntegerInput, parsePositiveMoneyInput } from '../lib/moneyInput';
 import { getLocalDateInputValue } from '../lib/dateInput';
+import { normalizeVisibleName } from '../lib/displayNames';
 import { resolveOperationalGuard } from '../services/operationalGuards';
 import { CreditDetailHeader } from './creditDetails/CreditDetailHeader';
 import { CreditSummaryMetrics } from './creditDetails/CreditSummaryMetrics';
@@ -199,8 +200,7 @@ export default function CreditDetails() {
     ].filter((e) => e.date).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [history, locale]);
 
-  let customerLabel = loan?.Customer?.name || loan?.customerName || '';
-  if (customerLabel) customerLabel = customerLabel.replace(/(qa|seed|test|dev|customer|socio|partner|admin|live|user|demo|example|sample)\s*/ig, '').trim();
+  let customerLabel = normalizeVisibleName(loan?.Customer?.name || loan?.customerName || '');
   customerLabel = customerLabel || (loan?.customerId ? tTerm('credits.label.customerFallback', { id: loan.customerId }) : tTerm('credits.label.customerMissing'));
 
   const calendarEntries = Array.isArray(calendar) ? calendar : [];
