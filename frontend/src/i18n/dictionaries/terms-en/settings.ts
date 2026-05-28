@@ -107,6 +107,7 @@ export const settingsEn = {
 'settings.coverage.gapRange': 'Missing coverage: {range}.',
 'settings.coverage.check.conflict': 'Conflict between {labels}.',
 'settings.coverage.check.covered': 'Uses {label}',
+'settings.coverage.check.coveredMultiple': 'Covered by multiple active rules.',
 'settings.coverage.check.missing': 'Create an active rule for this segment.',
 'settings.coverage.missingNote': 'Fix gaps or overlaps before creating loans.',
 'settings.coverage.field.amount': 'Amount to test rate',

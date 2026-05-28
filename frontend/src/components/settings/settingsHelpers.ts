@@ -238,23 +238,87 @@ export const getRatePolicyCoverageGaps = (policies: any[]) => {
   return gaps;
 };
 
-export const buildRateCoverageCheck = (label: string, amount: number, matches: any[]) => {
-  const conflicts = getRatePolicyConflictsForAmount(matches);
-  const hasConflict = conflicts.length > 1;
-  const policy = hasConflict ? null : sortRatePoliciesForApplication(matches)[0] || null;
+const getRatePolicyCoverageGapsForRange = (policies: any[], fromAmount: number, toAmount: number) => {
+  const normalizedFrom = Math.max(0, Number(fromAmount) || 0);
+  const normalizedTo = toAmount === Number.POSITIVE_INFINITY
+    ? Number.POSITIVE_INFINITY
+    : Math.max(normalizedFrom, Number(toAmount) || normalizedFrom);
+
+  const intersectingPolicies = [...policies]
+    .filter((policy) => policy?.isActive !== false)
+    .map((policy) => ({
+      ...policy,
+      min: Math.max(getRangeBoundary(policy?.minAmount, 0), normalizedFrom),
+      max: Math.min(getRangeBoundary(policy?.maxAmount, Number.POSITIVE_INFINITY), normalizedTo),
+    }))
+    .filter((policy) => policy.max >= normalizedFrom && policy.min <= normalizedTo)
+    .sort((left, right) => left.min - right.min || left.max - right.max);
+
+  if (intersectingPolicies.length === 0) {
+    return [{ from: normalizedFrom, to: normalizedTo }];
+  }
+
+  const gaps: Array<{ from: number; to: number }> = [];
+  let expectedStart = normalizedFrom;
+
+  intersectingPolicies.forEach((policy) => {
+    if (policy.min > expectedStart) {
+      gaps.push({ from: expectedStart, to: policy.min - 1 });
+    }
+
+    expectedStart = policy.max === Number.POSITIVE_INFINITY
+      ? Number.POSITIVE_INFINITY
+      : Math.max(expectedStart, policy.max + 1);
+  });
+
+  if (expectedStart !== Number.POSITIVE_INFINITY && expectedStart <= normalizedTo) {
+    gaps.push({ from: expectedStart, to: normalizedTo });
+  }
+
+  return gaps;
+};
+
+export const buildRateCoverageCheck = (label: string, fromAmount: number, toAmount: number, policies: any[]) => {
+  const segment = { minAmount: fromAmount, maxAmount: toAmount === Number.POSITIVE_INFINITY ? null : toAmount };
+  const matches = sortRatePoliciesForApplication(policies)
+    .filter((policy) => (
+      policy?.isActive !== false
+      && rangesOverlap(policy, segment)
+    ));
+  const conflictPairs = getRatePolicyConflictPairs(matches);
+  const conflicts = [...new Map(
+    conflictPairs
+      .flatMap(([left, right]) => [left, right])
+      .map((policy) => [String(policy?.id), policy]),
+  ).values()];
+  const hasConflict = conflictPairs.length > 0;
+  const coverageGaps = hasConflict ? [] : getRatePolicyCoverageGapsForRange(policies, fromAmount, toAmount);
+  const isCovered = !hasConflict && coverageGaps.length === 0;
+  const policy = isCovered
+    ? sortRatePoliciesForApplication(matches).find((match) => (
+      getRangeBoundary(match?.minAmount, 0) <= fromAmount
+      && getRangeBoundary(match?.maxAmount, Number.POSITIVE_INFINITY) >= toAmount
+    )) || null
+    : null;
 
   return {
     label,
-    amount,
+    fromAmount,
+    toAmount,
     policy,
     matches,
     conflicts,
+    conflictPairs,
     hasConflict,
+    coverageGaps,
+    isCovered,
     status: hasConflict
       ? tTerm('settings.coverage.status.conflict')
-      : policy
+      : isCovered && policy
         ? tTerm('settings.coverage.status.rule', { rate: formatRate(policy.annualEffectiveRate), label: policy.label })
-        : tTerm('settings.coverage.status.noRuleActive'),
+        : isCovered
+          ? tTerm('settings.coverage.status.covered')
+          : tTerm('settings.coverage.status.noRuleActive'),
   };
 };
 

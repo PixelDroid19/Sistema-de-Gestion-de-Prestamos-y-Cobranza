@@ -529,6 +529,26 @@ describe('Settings operational configuration', () => {
     expect(screen.getByText(/Falta cubrir:.*1\.000\.001.*5\.000\.000/)).toBeInTheDocument();
   });
 
+  it('does not mark a displayed amount segment as covered when that segment still has a real gap', () => {
+    mockConfigState.ratePolicies = [
+      {
+        id: 31,
+        label: 'Crédito operativo',
+        minAmount: 1000000,
+        maxAmount: 5000000,
+        annualEffectiveRate: 61,
+        priority: 'medium',
+        isActive: true,
+      },
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+
+    expect(screen.getAllByText('Crea una regla activa para este tramo.')).toHaveLength(2);
+    expect(screen.getByText(/Usa Crédito operativo/)).toBeInTheDocument();
+  });
+
   it('hides archived seeded catch-all replacements from the operational rate table', () => {
     mockConfigState.ratePolicies = [
       {

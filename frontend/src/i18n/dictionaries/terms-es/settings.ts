@@ -107,6 +107,7 @@ export const settingsEs = {
 'settings.coverage.gapRange': 'Falta cubrir: {range}.',
 'settings.coverage.check.conflict': 'Conflicto entre {labels}.',
 'settings.coverage.check.covered': 'Usa {label}',
+'settings.coverage.check.coveredMultiple': 'Cubierto por varias reglas activas.',
 'settings.coverage.check.missing': 'Crea una regla activa para este tramo.',
 'settings.coverage.missingNote': 'Corrige huecos o cruces antes de crear créditos.',
 'settings.coverage.field.amount': 'Monto para probar tasa',

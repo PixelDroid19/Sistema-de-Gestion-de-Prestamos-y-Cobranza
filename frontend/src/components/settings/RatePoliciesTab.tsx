@@ -95,21 +95,24 @@ export default function RatePoliciesTab({
   const rateCoverageChecks = useMemo(() => [
     buildRateCoverageCheck(
       tTerm('settings.coverage.bucket.low', { amount: formatCurrency(DEFAULT_LOW_AMOUNT_LIMIT) }),
+      0,
       DEFAULT_LOW_AMOUNT_LIMIT,
-      findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_LOW_AMOUNT_LIMIT)),
+      activeRatePolicies,
     ),
     buildRateCoverageCheck(
       tTerm('settings.coverage.bucket.middle', { from: formatCurrency(DEFAULT_HIGH_AMOUNT_START), to: formatCurrency(DEFAULT_MID_AMOUNT_LIMIT) }),
       DEFAULT_HIGH_AMOUNT_START,
-      findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_HIGH_AMOUNT_START)),
+      DEFAULT_MID_AMOUNT_LIMIT,
+      activeRatePolicies,
     ),
     buildRateCoverageCheck(
       tTerm('settings.coverage.bucket.high', { amount: formatCurrency(DEFAULT_TOP_AMOUNT_START) }),
       DEFAULT_TOP_AMOUNT_START,
-      findRatePolicyMatchesForAmount(activeRatePolicies, String(DEFAULT_TOP_AMOUNT_START)),
+      Number.POSITIVE_INFINITY,
+      activeRatePolicies,
     ),
   ], [activeRatePolicies, locale]);
-  const hasMissingStandardRateCoverage = hasRatePolicyCoverageGaps || rateCoverageChecks.some((check) => !check.policy || check.hasConflict);
+  const hasMissingStandardRateCoverage = hasRatePolicyCoverageGaps || rateCoverageChecks.some((check) => !check.isCovered);
   const previewAmountNumber = Number(ratePreviewAmount);
   const hasValidPreviewAmount = Number.isFinite(previewAmountNumber) && previewAmountNumber >= 0;
   const isEditingRatePolicy = Boolean(editingRatePolicyId);
@@ -403,10 +406,14 @@ export default function RatePoliciesTab({
                 <p className="truncate text-xs text-text-secondary">
                   {check.hasConflict
                     ? tTerm('settings.coverage.check.conflict', { labels: check.conflicts.map((policy) => policy.label).join(' y ') })
-                    : check.policy ? tTerm('settings.coverage.check.covered', { label: check.policy.label }) : tTerm('settings.coverage.check.missing')}
+                    : check.isCovered
+                      ? check.policy
+                        ? tTerm('settings.coverage.check.covered', { label: check.policy.label })
+                        : tTerm('settings.coverage.check.coveredMultiple')
+                      : tTerm('settings.coverage.check.missing')}
                 </p>
               </div>
-              <StatusChip tone={check.hasConflict ? 'danger' : check.policy ? 'success' : 'warning'} size="sm">
+              <StatusChip tone={check.hasConflict ? 'danger' : check.isCovered ? 'success' : 'warning'} size="sm">
                 {check.status}
               </StatusChip>
             </div>
