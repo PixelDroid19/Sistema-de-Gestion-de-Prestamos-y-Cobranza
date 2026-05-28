@@ -18,7 +18,6 @@ import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
-import { normalizeVisibleName } from '../lib/displayNames';
 import MeasuredChart from './shared/MeasuredChart';
 import { ActionButton, EmptyState, IconActionButton, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpTooltip } from './shared/HelpSupport';
@@ -137,27 +136,41 @@ const normalizeLayouts = (candidate: unknown): ResponsiveLayouts => {
   return next;
 };
 
-type DashboardLoanLike = {
-  id: number;
-  amount?: number | string;
-  totalPaid?: number | string;
-  Customer?: { name?: string };
-  customerName?: string;
+type DashboardMonthlyPerformanceLike = {
+  month?: string;
+  disbursed?: number | string;
+  recovered?: number | string;
 };
 
-export const buildDashboardChartData = (recentLoans: DashboardLoanLike[]) => {
-  const loanLabel = tTerm('dashboard.chart.customerFallbackPrefix');
+const formatDashboardMonth = (
+  monthKey: string,
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+) => {
+  const match = /^([0-9]{4})-([0-9]{2})$/.exec(monthKey);
+  if (!match) return monthKey;
 
-  return recentLoans.slice(0, 6).reverse().map((loan) => {
-    const rawName = loan.Customer?.name || loan.customerName || '';
-    const customerName = normalizeVisibleName(rawName);
-    const displayCustomerName = customerName || `${loanLabel} #${loan.id}`;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return monthKey;
+  }
 
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', ...options }).format(date).replace(/\./g, '');
+};
+
+export const buildDashboardMonthlyChartData = (
+  monthlyPerformance: DashboardMonthlyPerformanceLike[],
+  locale = 'es-CO',
+) => {
+  return monthlyPerformance.map((entry) => {
+    const monthKey = String(entry?.month || '').trim();
     return {
-      name: `${loanLabel} #${loan.id}`,
-      customerName: displayCustomerName,
-      disbursed: Number(loan.amount || 0),
-      recovered: Number(loan.totalPaid || 0),
+      name: formatDashboardMonth(monthKey, locale, { month: 'short', year: 'numeric' }),
+      fullLabel: formatDashboardMonth(monthKey, locale, { month: 'long', year: 'numeric' }),
+      disbursed: Number(entry?.disbursed || 0),
+      recovered: Number(entry?.recovered || 0),
     };
   });
 };
@@ -177,8 +190,8 @@ export default function Dashboard() {
 
   const summary = dashboardData?.summary || {};
   const collections = dashboardData?.collections || {};
-  const recentLoans = Array.isArray(dashboardData?.recentActivity?.loans) ? dashboardData.recentActivity.loans : [];
-  const chartData = useMemo(() => buildDashboardChartData(recentLoans), [recentLoans, locale]);
+  const monthlyPerformance = Array.isArray(dashboardData?.monthlyPerformance) ? dashboardData.monthlyPerformance : [];
+  const chartData = useMemo(() => buildDashboardMonthlyChartData(monthlyPerformance, locale), [monthlyPerformance, locale]);
 
   const hasKpiTotals = Number(summary.totalOutstandingAmount || 0) > 0 || Number(summary.totalRecoveredAmount || 0) > 0;
   const chartHasData = chartData.some((row) => Number(row.disbursed || 0) > 0 || Number(row.recovered || 0) > 0);
@@ -361,12 +374,12 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
                   {tTerm('dashboard.widget.disbursementEvolution.title')}
                   <HelpTooltip
-                    text="Compara el capital entregado en créditos contra el dinero recuperado por pagos registrados."
+                    text="Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados."
                     align="right"
                   />
                 </div>
               </div>
-              <div className="text-xs text-text-secondary">{recentLoans.length} {tTerm('dashboard.widget.disbursementEvolution.recordsRecent')}</div>
+              <div className="text-xs text-text-secondary">{chartData.length} {tTerm('dashboard.widget.disbursementEvolution.recordsRecent')}</div>
             </div>
             <p className="text-xs text-text-secondary mb-4">
               <span className="font-medium">{tTerm('dashboard.chart.scope.label')}:</span> {tTerm('dashboard.chart.scope.recent')} {tTerm('dashboard.chart.scope.currentRangePrefix')} {tTerm('dashboard.chart.range.last6')}.
@@ -390,10 +403,7 @@ export default function Dashboard() {
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
                     <Tooltip
                       formatter={(value) => value != null ? formatCurrency(Number(value)) : ''}
-                      labelFormatter={(label, payload) => {
-                        const customerName = payload?.[0]?.payload?.customerName;
-                        return customerName ? `${label} · ${customerName}` : label;
-                      }}
+                      labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullLabel || ''}
                     />
                     <Area
                       type="monotone"
@@ -442,7 +452,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-lg font-semibold text-text-primary">
                   {tTerm('dashboard.widget.recoveryPerformance.title')}
                   <HelpTooltip
-                    text="Muestra la recuperación registrada frente al dinero desembolsado para detectar diferencias de cartera."
+                    text="Compara por mes lo recuperado frente a lo desembolsado para detectar desbalances en la cartera."
                     align="right"
                   />
                 </div>
@@ -458,10 +468,7 @@ export default function Dashboard() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} width={72} tickFormatter={(value) => formatCurrency(Number(value))} />
                   <Tooltip
                     formatter={(value) => value != null ? formatCurrency(Number(value)) : ''}
-                    labelFormatter={(label, payload) => {
-                      const customerName = payload?.[0]?.payload?.customerName;
-                      return customerName ? `${label} · ${customerName}` : label;
-                    }}
+                    labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullLabel || ''}
                   />
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.recovered')} dataKey="recovered" fill="#10b981" radius={[6, 6, 0, 0]} />
                   <Bar name={tTerm('dashboard.chart.disbursementRecovery.legend.disbursed')} dataKey="disbursed" fill="#3b82f6" radius={[6, 6, 0, 0]} />

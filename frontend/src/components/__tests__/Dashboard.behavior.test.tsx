@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import Dashboard, { buildDashboardChartData } from '../Dashboard';
+import Dashboard, { buildDashboardMonthlyChartData } from '../Dashboard';
 
 let reportsState = {
   dashboardData: {
@@ -15,6 +15,13 @@ let reportsState = {
       overdueAlerts: 4,
       pendingPromises: 2,
     },
+    monthlyPerformance: [
+      {
+        month: '2026-05',
+        disbursed: 100000,
+        recovered: 45000,
+      },
+    ],
     recentActivity: {
       loans: [
         {
@@ -91,6 +98,13 @@ describe('Dashboard behavior', () => {
           overdueAlerts: 4,
           pendingPromises: 2,
         },
+        monthlyPerformance: [
+          {
+            month: '2026-05',
+            disbursed: 100000,
+            recovered: 45000,
+          },
+        ],
         recentActivity: {
           loans: [
             {
@@ -109,30 +123,37 @@ describe('Dashboard behavior', () => {
     };
   });
 
-  it('maps disbursed and recovered keys for dashboard charts', () => {
-    const rows = buildDashboardChartData([
-      { id: 1, amount: 250000, totalPaid: 100000, customerName: 'seed Carlos' },
+  it('maps monthly disbursed and recovered keys for dashboard charts', () => {
+    const rows = buildDashboardMonthlyChartData([
+      { month: '2026-05', disbursed: 250000, recovered: 100000 },
+      { month: '2026-06', disbursed: 0, recovered: 40000 },
     ] as any[]);
 
     expect(rows).toEqual([
       {
-        name: 'Crédito #1',
-        customerName: 'seed Carlos',
+        name: 'may de 2026',
+        fullLabel: 'mayo de 2026',
         disbursed: 250000,
         recovered: 100000,
+      },
+      {
+        name: 'jun de 2026',
+        fullLabel: 'junio de 2026',
+        disbursed: 0,
+        recovered: 40000,
       },
     ]);
   });
 
-  it('preserves legitimate customer names that contain dev-like syllables', () => {
-    const rows = buildDashboardChartData([
-      { id: 2, amount: 180000, totalPaid: 50000, customerName: 'Devora Alvarez' },
+  it('preserves the raw month key when monthly chart data is invalid', () => {
+    const rows = buildDashboardMonthlyChartData([
+      { month: 'bad-key', disbursed: 180000, recovered: 50000 },
     ] as any[]);
 
     expect(rows).toEqual([
       {
-        name: 'Crédito #2',
-        customerName: 'Devora Alvarez',
+        name: 'bad-key',
+        fullLabel: 'bad-key',
         disbursed: 180000,
         recovered: 50000,
       },
@@ -148,8 +169,9 @@ describe('Dashboard behavior', () => {
     expect(screen.getByRole('button', { name: 'Reordenar panel' })).toBeInTheDocument();
     expect(screen.getByText('Balance total')).toBeInTheDocument();
     expect(screen.getByText('Créditos activos')).toBeInTheDocument();
-    expect(screen.getByText('Recuperado vs desembolsado')).toBeInTheDocument();
-    expect(screen.getByLabelText('Compara el capital entregado en créditos contra el dinero recuperado por pagos registrados.')).toBeInTheDocument();
+    expect(screen.getAllByText('Recuperado vs desembolsado')).toHaveLength(2);
+    expect(screen.getByText('Desembolsado y recuperado por mes')).toBeInTheDocument();
+    expect(screen.getByLabelText('Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados.')).toBeInTheDocument();
 
     const areaSeries = screen.getAllByTestId('area-series').map((node) => node.textContent);
     const barSeries = screen.getAllByTestId('bar-series').map((node) => node.textContent);
