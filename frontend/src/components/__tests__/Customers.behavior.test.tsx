@@ -135,4 +135,21 @@ describe('Customers behavior', () => {
     expect(screen.queryByTitle('Reactivar')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Eliminar')).not.toBeInTheDocument();
   });
+
+  it('preserves legitimate customer names in the list instead of stripping dev-like syllables', () => {
+    useCustomersSpy.mockImplementation(() => buildCustomersResponse([
+      {
+        id: 9,
+        name: 'Devora Alvarez',
+        email: 'devora@example.com',
+        status: 'active',
+        createdAt: '2026-04-26T00:00:00.000Z',
+      },
+    ]));
+
+    render(<Customers setCurrentView={vi.fn()} />);
+
+    expect(screen.getByText('Devora Alvarez')).toBeInTheDocument();
+    expect(screen.queryByText('ora Alvarez')).not.toBeInTheDocument();
+  });
 });

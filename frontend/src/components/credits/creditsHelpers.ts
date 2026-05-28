@@ -1,4 +1,5 @@
 import { tTerm } from '../../i18n/terminology';
+import { normalizeVisibleName } from '../../lib/displayNames';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -198,10 +199,7 @@ export const eventStyleGetter = (event: InstallmentEvent) => {
 };
 
 export const getCreditLabel = (credit: any) => {
-  let name = credit?.Customer?.name || credit?.customerName || '';
-  if (name) {
-    name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
-  }
+  const name = normalizeVisibleName(credit?.Customer?.name || credit?.customerName || '');
   return name || (credit?.customerId ? tTerm('credits.label.customerFallback', { id: credit.customerId }) : tTerm('credits.label.customerMissing'));
 };
 

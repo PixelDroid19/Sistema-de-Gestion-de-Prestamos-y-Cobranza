@@ -21,6 +21,7 @@ import { invalidateAfterDelete, invalidateAfterReport } from '../services/operat
 import { tTerm } from '../i18n/terminology';
 import { PERMISSION } from '../constants/permissionNames';
 import { getLocalDateInputValue } from '../lib/dateInput';
+import { normalizeVisibleName } from '../lib/displayNames';
 import {
   ActionButton,
   PageHeader,
@@ -395,8 +396,7 @@ export default function Credits({ setCurrentView }: { setCurrentView?: (v: strin
   // ─── Inline helper (uses no closure over component state) ─────────────────
 
   const getCreditLabelInline = (credit: any) => {
-    let name = credit?.Customer?.name || credit?.customerName || '';
-    if (name) name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
+    const name = normalizeVisibleName(credit?.Customer?.name || credit?.customerName || '');
     return name || (credit?.customerId ? tTerm('credits.label.customerFallback', { id: credit.customerId }) : tTerm('credits.label.customerMissing'));
   };
 

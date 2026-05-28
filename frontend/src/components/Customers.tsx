@@ -8,6 +8,7 @@ import { tTerm } from '../i18n/terminology';
 import { confirmDanger } from '../lib/confirmModal';
 import { useSessionStore } from '../store/sessionStore';
 import { PERMISSION } from '../constants/permissionNames';
+import { normalizeVisibleName } from '../lib/displayNames';
 import TableShell from './shared/TableShell';
 import { ActionButton, FormField, IconActionButton, PageHeader, PageShell, SelectInput, TextInput, ToolbarSurface } from './shared/Surfaces';
 import { HelpLabel } from './shared/HelpSupport';
@@ -53,14 +54,11 @@ export default function Customers({ setCurrentView }: { setCurrentView?: (v: str
   };
 
   const getCustomerName = (customer: any) => {
-    let name = customer?.name || '';
+    let name = normalizeVisibleName(customer?.name);
     if (!name) {
-      name = [customer?.firstName, customer?.lastName].filter(Boolean).join(' ').trim();
+      name = normalizeVisibleName([customer?.firstName, customer?.lastName].filter(Boolean).join(' '));
     }
-    name = name || customer?.email || '';
-    if (name) {
-      name = name.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
-    }
+    name = name || normalizeVisibleName(customer?.email);
     return name || tTerm('credits.label.customerFallback', { id: customer?.id || 'N/A' });
   };
 

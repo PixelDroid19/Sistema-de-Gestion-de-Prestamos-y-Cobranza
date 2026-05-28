@@ -18,6 +18,7 @@ import { formatCurrency as formatCurrencyValue } from '../i18n/format';
 import { tTerm } from '../i18n/terminology';
 import { getSafeErrorText } from '../services/safeErrorMessages';
 import { safeLocalStorage } from '../lib/safeStorage';
+import { normalizeVisibleName } from '../lib/displayNames';
 import MeasuredChart from './shared/MeasuredChart';
 import { ActionButton, EmptyState, IconActionButton, MetricCard, PageHeader, PageShell, ToolbarSurface } from './shared/Surfaces';
 import { HelpTooltip } from './shared/HelpSupport';
@@ -144,14 +145,12 @@ type DashboardLoanLike = {
   customerName?: string;
 };
 
-const sanitizeCustomerName = (value: string): string => value.replace(/(qa|seed|test|dev)\s*/ig, '').trim();
-
 export const buildDashboardChartData = (recentLoans: DashboardLoanLike[]) => {
   const loanLabel = tTerm('dashboard.chart.customerFallbackPrefix');
 
   return recentLoans.slice(0, 6).reverse().map((loan) => {
     const rawName = loan.Customer?.name || loan.customerName || '';
-    const customerName = sanitizeCustomerName(rawName);
+    const customerName = normalizeVisibleName(rawName);
     const displayCustomerName = customerName || `${loanLabel} #${loan.id}`;
 
     return {

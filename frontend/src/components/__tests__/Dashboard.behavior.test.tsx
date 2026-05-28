@@ -117,9 +117,24 @@ describe('Dashboard behavior', () => {
     expect(rows).toEqual([
       {
         name: 'Crédito #1',
-        customerName: 'Carlos',
+        customerName: 'seed Carlos',
         disbursed: 250000,
         recovered: 100000,
+      },
+    ]);
+  });
+
+  it('preserves legitimate customer names that contain dev-like syllables', () => {
+    const rows = buildDashboardChartData([
+      { id: 2, amount: 180000, totalPaid: 50000, customerName: 'Devora Alvarez' },
+    ] as any[]);
+
+    expect(rows).toEqual([
+      {
+        name: 'Crédito #2',
+        customerName: 'Devora Alvarez',
+        disbursed: 180000,
+        recovered: 50000,
       },
     ]);
   });
