@@ -1054,6 +1054,37 @@ describe('Reports behavioral parity scenarios', () => {
     });
   });
 
+  it('keeps the current operating expense amount when the operator types exponent-like text', async () => {
+    currentUser = {
+      id: 8,
+      name: 'Empleado finanzas',
+      email: 'finance@test.com',
+      role: 'employee',
+      permissions: ['REPORTS_VIEW_ALL', 'FINANCE_VIEW_ALL', 'FINANCE_CREATE'],
+    };
+
+    renderReports();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gastos operativos' }));
+
+    const amountInput = screen.getByLabelText('Monto');
+    fireEvent.change(amountInput, { target: { value: '1250000' } });
+    fireEvent.change(amountInput, { target: { value: '1e5' } });
+
+    expect(amountInput).toHaveDisplayValue('1250000');
+
+    fireEvent.change(screen.getByLabelText('Fecha del gasto'), { target: { value: '2026-05-13' } });
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Servicios' } });
+    fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Internet oficina' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar gasto' }));
+
+    await waitFor(() => {
+      expect(mockCreateOperatingExpense).toHaveBeenCalledWith(expect.objectContaining({
+        amount: 1250000,
+      }));
+    });
+  });
+
   it('keeps operating expense date range unchanged when the operator enters an inverted range', async () => {
     currentUser = {
       id: 8,

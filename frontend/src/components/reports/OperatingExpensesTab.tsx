@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Ban, FileSpreadsheet, FileText, Plus, ReceiptText } from 'lucide-react';
 import { formatCurrency as formatCurrencyValue, formatDate as formatDateValue } from '../../i18n/format';
 import { tTerm } from '../../i18n/terminology';
+import { parsePositiveMoneyInput } from '../../lib/moneyInput';
 import type {
   OperatingExpense,
   OperatingExpenseExportFormat,
@@ -13,6 +14,7 @@ import {
   DataTableSurface,
   FormField,
   IconActionButton,
+  NormalizedInput,
   SelectInput,
   StatusChip,
   TextAreaInput,
@@ -102,9 +104,14 @@ export default function OperatingExpensesTab({
 
   const handleSubmit = async (event: FormEvent<HTMLElement>) => {
     event.preventDefault();
+    const amount = parsePositiveMoneyInput(form.amount);
+
+    if (amount === null) {
+      return;
+    }
 
     await onCreateExpense({
-      amount: Number(form.amount),
+      amount,
       expenseDate: form.expenseDate,
       category: form.category.trim(),
       description: form.description.trim(),
@@ -186,12 +193,12 @@ export default function OperatingExpensesTab({
         <ToolbarSurface as="form" className="settings-config-form" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-4">
             <FormField label={tTerm('reports.expenses.form.amount')}>
-              <TextInput
-                type="number"
-                min="0.01"
-                step="0.01"
+              <NormalizedInput
+                variant="decimal"
                 value={form.amount}
-                onChange={(event) => handleFormChange('amount', event.target.value)}
+                onValueChange={(value) => handleFormChange('amount', value)}
+                minValue={0.01}
+                maxDecimals={2}
                 required
               />
             </FormField>
