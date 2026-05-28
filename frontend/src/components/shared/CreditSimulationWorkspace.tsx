@@ -48,6 +48,7 @@ type CreditSimulationWorkspaceProps = {
     readOnly?: boolean;
     helper?: string;
     badge?: string;
+    displayValue?: number | undefined;
   };
   lateFeeControl?: {
     readOnly?: boolean;
@@ -153,6 +154,9 @@ export default function CreditSimulationWorkspace({
     startDate: tTerm('simulator.help.startDate'),
     lateFee: tTerm('simulator.help.lateFee'),
   };
+  const displayInterestRate = rateControl?.readOnly && Object.prototype.hasOwnProperty.call(rateControl, 'displayValue')
+    ? rateControl.displayValue
+    : input.interestRate;
 
   const summaryCards = useMemo(() => {
     if (!freshResult) {
@@ -285,7 +289,7 @@ export default function CreditSimulationWorkspace({
                       variant="percent"
                       min="0"
                       step="0.01"
-                      value={input.interestRate}
+                      value={displayInterestRate}
                       onValueChange={(value) => onInputChange({ interestRate: Number(value) || 0 })}
                       disabled={disabled || rateControl?.readOnly}
                       invalid={!!fieldErrors.interestRate}

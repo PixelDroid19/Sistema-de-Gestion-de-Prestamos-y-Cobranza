@@ -45,7 +45,7 @@ const baseCalculationResult = {
 let calculationState = {
   input: calculationInput,
   result: baseCalculationResult,
-  error: null,
+  error: null as string | null,
   fieldErrors: {},
   isSimulating: false,
   isResultStale: false,
@@ -257,5 +257,26 @@ describe('CreditSimulator behavior', () => {
     fireEvent.click(topCta);
 
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('does not keep showing a stale configured rate when the current amount no longer has a valid policy result', () => {
+    calculationState = {
+      ...calculationState,
+      input: {
+        ...calculationInput,
+        amount: 999999,
+      },
+      error: 'No active rate policy is available for this credit amount',
+      isResultStale: true,
+    };
+
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByDisplayValue('61')).not.toBeInTheDocument();
+    expect(screen.getByText(/No active rate policy is available for this credit amount/i)).toBeInTheDocument();
   });
 });

@@ -76,6 +76,16 @@ export default function CreditSimulator() {
     syncInputWithResult,
   ]);
 
+  const displayInterestRate = React.useMemo(() => {
+    const usesPolicyBackedRate = String(input.rateSource || '').toLowerCase() === 'policy';
+    const lastCalculatedAmount = Number(result?.inputs?.amount);
+    const currentAmount = Number(input.amount);
+    const shouldHideRateUntilRecalculated = usesPolicyBackedRate
+      && (!result || lastCalculatedAmount !== currentAmount);
+
+    return shouldHideRateUntilRecalculated ? undefined : input.interestRate;
+  }, [input.amount, input.interestRate, input.rateSource, result]);
+
   const navigateToCreditRegistration = React.useCallback(() => {
     if (!canContinueToRegistration) {
       return;
@@ -133,6 +143,7 @@ export default function CreditSimulator() {
           rateControl={{
             readOnly: true,
             helper: tTerm('creditCalculator.rate.helper'),
+            displayValue: displayInterestRate,
           }}
           lateFeeControl={{
             readOnly: true,
