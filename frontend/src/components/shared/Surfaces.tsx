@@ -592,6 +592,18 @@ const buildNormalizedChangeDetail = (
   numericValue: getNormalizedNumericValue(variant, value),
 });
 
+const NORMALIZED_INPUT_ROLLBACK_PATTERN = /[A-Za-z+\-]/;
+
+const isRollbackSensitiveVariant = (variant: NormalizedInputVariant) => variant !== 'text';
+
+const shouldRollbackNumericEdit = (variant: NormalizedInputVariant, insertedText: string | null | undefined) => {
+  if (!isRollbackSensitiveVariant(variant) || !insertedText) {
+    return false;
+  }
+
+  return NORMALIZED_INPUT_ROLLBACK_PATTERN.test(insertedText);
+};
+
 export function NormalizedInput({
   className = '',
   value,
@@ -606,9 +618,74 @@ export function NormalizedInput({
   onNormalizedChange,
   maxLength,
   inputMode,
+  onFocus,
+  onBlur,
+  onMouseDown,
+  onBeforeInput,
+  onKeyDown,
+  onPaste,
   ...rest
 }: NormalizedInputProps) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const focusStartValueRef = React.useRef(value);
+  const rollbackLockRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      focusStartValueRef.current = value;
+    }
+  }, [value]);
+
+  const emitValue = (nextValue: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    onValueChange(nextValue, event);
+    onNormalizedChange?.(buildNormalizedChangeDetail(variant, nextValue), event);
+  };
+
+  const buildSyntheticChangeEvent = (
+    event: Event | React.SyntheticEvent<HTMLInputElement>,
+  ): React.ChangeEvent<HTMLInputElement> | null => {
+    if (!inputRef.current) {
+      return null;
+    }
+
+    return {
+      target: inputRef.current,
+      currentTarget: inputRef.current,
+      nativeEvent: 'nativeEvent' in event ? event.nativeEvent : event,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      isDefaultPrevented: () => false,
+      isPropagationStopped: () => false,
+      persist: () => {},
+      timeStamp: Date.now(),
+      type: 'change',
+      bubbles: true,
+      cancelable: false,
+      defaultPrevented: false,
+      eventPhase: 0,
+      isTrusted: false,
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+  };
+
+  const restoreFocusedValue = (event: Event | React.SyntheticEvent<HTMLInputElement>) => {
+    rollbackLockRef.current = true;
+    const syntheticEvent = buildSyntheticChangeEvent(event);
+    if (!syntheticEvent) {
+      return;
+    }
+
+    emitValue(focusStartValueRef.current, syntheticEvent);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  };
+
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (rollbackLockRef.current) {
+      return;
+    }
+
     const normalizedValue = normalizeByVariant(variant, event.target.value, {
       allowZero,
       minValue,
@@ -622,17 +699,82 @@ export function NormalizedInput({
       return;
     }
 
-    onValueChange(normalizedValue, event);
-    onNormalizedChange?.(buildNormalizedChangeDetail(variant, normalizedValue), event);
+    emitValue(normalizedValue, event);
+  };
+
+  const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    rollbackLockRef.current = false;
+    focusStartValueRef.current = value;
+    onFocus?.(event);
+  };
+
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    rollbackLockRef.current = false;
+    onBlur?.(event);
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLInputElement>) => {
+    rollbackLockRef.current = false;
+    onMouseDown?.(event);
+  };
+
+  const handleBeforeInput = (event: React.FormEvent<HTMLInputElement>) => {
+    const nativeEvent = event.nativeEvent as InputEvent | undefined;
+    const insertedText = typeof nativeEvent?.data === 'string' ? nativeEvent.data : undefined;
+
+    if (rollbackLockRef.current && insertedText) {
+      event.preventDefault();
+      return;
+    }
+
+    if (shouldRollbackNumericEdit(variant, insertedText)) {
+      event.preventDefault();
+      restoreFocusedValue(event);
+      return;
+    }
+
+    (onBeforeInput as React.FormEventHandler<HTMLInputElement> | undefined)?.(event);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (rollbackLockRef.current && event.key.length === 1) {
+      event.preventDefault();
+      return;
+    }
+
+    if (shouldRollbackNumericEdit(variant, event.key)) {
+      event.preventDefault();
+      restoreFocusedValue(event);
+      return;
+    }
+
+    onKeyDown?.(event);
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    if (shouldRollbackNumericEdit(variant, event.clipboardData.getData('text'))) {
+      event.preventDefault();
+      restoreFocusedValue(event);
+      return;
+    }
+
+    onPaste?.(event);
   };
 
   return (
     <input
+      ref={inputRef}
       className={`form-control ${className}`}
       type="text"
       inputMode={inputMode ?? getNormalizedInputMode(variant)}
       value={getNormalizedDisplayValue(variant, value)}
       onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onMouseDown={handleMouseDown}
+      onBeforeInput={handleBeforeInput}
+      onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
       maxLength={maxLength}
       {...rest}
     />

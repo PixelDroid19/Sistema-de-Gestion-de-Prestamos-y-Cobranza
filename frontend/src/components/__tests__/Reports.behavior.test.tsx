@@ -1069,7 +1069,11 @@ describe('Reports behavioral parity scenarios', () => {
 
     const amountInput = screen.getByLabelText('Monto');
     fireEvent.change(amountInput, { target: { value: '1250000' } });
-    fireEvent.change(amountInput, { target: { value: '1e5' } });
+    (amountInput as HTMLInputElement).focus();
+    (amountInput as HTMLInputElement).setSelectionRange(0, (amountInput as HTMLInputElement).value.length);
+    fireEvent.change(amountInput, { target: { value: '1' } });
+    fireEvent.keyDown(amountInput, { key: 'e' });
+    fireEvent.change(amountInput, { target: { value: '5' } });
 
     expect(amountInput).toHaveDisplayValue('1250000');
 

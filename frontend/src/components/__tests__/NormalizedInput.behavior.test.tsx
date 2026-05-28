@@ -106,6 +106,37 @@ describe('NormalizedInput behavior', () => {
     expect(onPercentChange).toHaveBeenCalledTimes(1);
   });
 
+  it('restores the focused numeric value when exponent-like text is typed mid-edit', () => {
+    function DecimalHarness() {
+      const [value, setValue] = useState('1250000');
+
+      return (
+        <NormalizedInput
+          aria-label="Monto decimal"
+          variant="decimal"
+          value={value}
+          maxDecimals={2}
+          onValueChange={(nextValue) => setValue(nextValue)}
+        />
+      );
+    }
+
+    render(<DecimalHarness />);
+
+    const input = screen.getByLabelText('Monto decimal') as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(0, input.value.length);
+
+    fireEvent.change(input, { target: { value: '1' } });
+    expect(input).toHaveValue('1');
+
+    fireEvent.keyDown(input, { key: 'e' });
+    expect(input).toHaveValue('1250000');
+
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(input).toHaveValue('1250000');
+  });
+
   it('allows sequential typing for small decimal values that start with zero', () => {
     function DecimalHarness() {
       const [value, setValue] = useState('');
