@@ -108,7 +108,7 @@ describe('NormalizedInput behavior', () => {
 
   it('restores the focused numeric value when exponent-like text is typed mid-edit', () => {
     function DecimalHarness() {
-      const [value, setValue] = useState('1250000');
+      const [value, setValue] = useState('');
 
       return (
         <NormalizedInput
@@ -125,8 +125,12 @@ describe('NormalizedInput behavior', () => {
 
     const input = screen.getByLabelText('Monto decimal') as HTMLInputElement;
     input.focus();
-    input.setSelectionRange(0, input.value.length);
+    fireEvent.change(input, { target: { value: '1250000' } });
+    expect(input).toHaveValue('1250000');
 
+    fireEvent.keyDown(input, { key: 'a', metaKey: true });
+    input.setSelectionRange(0, input.value.length);
+    fireEvent.select(input);
     fireEvent.change(input, { target: { value: '1' } });
     expect(input).toHaveValue('1');
 

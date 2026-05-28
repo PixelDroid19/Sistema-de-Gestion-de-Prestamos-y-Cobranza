@@ -621,18 +621,19 @@ export function NormalizedInput({
   onFocus,
   onBlur,
   onMouseDown,
+  onSelect,
   onBeforeInput,
   onKeyDown,
   onPaste,
   ...rest
 }: NormalizedInputProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const focusStartValueRef = React.useRef(value);
+  const editBaselineValueRef = React.useRef(value);
   const rollbackLockRef = React.useRef(false);
 
   React.useEffect(() => {
     if (document.activeElement !== inputRef.current) {
-      focusStartValueRef.current = value;
+      editBaselineValueRef.current = value;
     }
   }, [value]);
 
@@ -674,7 +675,7 @@ export function NormalizedInput({
       return;
     }
 
-    emitValue(focusStartValueRef.current, syntheticEvent);
+    emitValue(editBaselineValueRef.current, syntheticEvent);
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -704,7 +705,7 @@ export function NormalizedInput({
 
   const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
     rollbackLockRef.current = false;
-    focusStartValueRef.current = value;
+    editBaselineValueRef.current = value;
     onFocus?.(event);
   };
 
@@ -716,6 +717,18 @@ export function NormalizedInput({
   const handleMouseDown = (event: React.MouseEvent<HTMLInputElement>) => {
     rollbackLockRef.current = false;
     onMouseDown?.(event);
+  };
+
+  const handleSelect = (event: React.SyntheticEvent<HTMLInputElement>) => {
+    const target = event.currentTarget;
+    if (
+      typeof target.selectionStart === 'number'
+      && typeof target.selectionEnd === 'number'
+      && target.selectionStart !== target.selectionEnd
+    ) {
+      editBaselineValueRef.current = value;
+    }
+    onSelect?.(event);
   };
 
   const handleBeforeInput = (event: React.FormEvent<HTMLInputElement>) => {
@@ -737,6 +750,12 @@ export function NormalizedInput({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+      editBaselineValueRef.current = value;
+      onKeyDown?.(event);
+      return;
+    }
+
     if (rollbackLockRef.current && event.key.length === 1) {
       event.preventDefault();
       return;
@@ -772,6 +791,7 @@ export function NormalizedInput({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onMouseDown={handleMouseDown}
+      onSelect={handleSelect}
       onBeforeInput={handleBeforeInput}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
