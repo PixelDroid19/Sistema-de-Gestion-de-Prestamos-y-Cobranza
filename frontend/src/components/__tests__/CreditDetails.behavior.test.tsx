@@ -344,6 +344,21 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('rejects exponent-like payment amounts at the field level and keeps the last valid amount', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByTitle('Registrar pago de cuota'));
+
+    const paymentAmountInput = container.querySelector('#credit-payment-amount') as HTMLInputElement;
+    expect(paymentAmountInput).toHaveValue('250000.00');
+
+    fireEvent.change(paymentAmountInput, { target: { value: '1e2' } });
+
+    expect(paymentAmountInput).toHaveValue('250000.00');
+  });
+
   it('triggers promise and follow-up mutations from installment row actions', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
     renderCreditDetails();
@@ -617,6 +632,21 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('normalizes capital new term input to plain integers in reduce-payment flow', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+
+    const newTermInput = container.querySelector('#credit-capital-new-term') as HTMLInputElement;
+    fireEvent.change(newTermInput, { target: { value: '08' } });
+
+    expect(newTermInput).toHaveValue('8');
+  });
+
   it('keeps capital prepayment submission disabled when the amount exceeds live principal', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
 
@@ -658,17 +688,35 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
   });
 
-  it('rejects exponent-like late fee rate values before updating the credit', () => {
+  it('keeps the current late fee rate when the operator types exponent-like text', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
 
     const { container } = renderCreditDetails();
 
     fireEvent.click(screen.getByRole('button', { name: 'Tasa de mora' }));
-    fireEvent.change(container.querySelector('#credit-late-fee-rate') as HTMLInputElement, { target: { value: '1e2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
 
+    const lateFeeInput = container.querySelector('#credit-late-fee-rate') as HTMLInputElement;
+    expect(lateFeeInput).toHaveValue('20');
+
+    fireEvent.change(lateFeeInput, { target: { value: '1e2' } });
+
+    expect(lateFeeInput).toHaveValue('20');
     expect(mockUpdateLateFeeRate).not.toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalledWith({ title: 'La tasa debe estar entre 0 y 100' });
+  });
+
+  it('rejects out-of-range late fee rate values at the field level', () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tasa de mora' }));
+
+    const lateFeeInput = container.querySelector('#credit-late-fee-rate') as HTMLInputElement;
+    expect(lateFeeInput).toHaveValue('20');
+
+    fireEvent.change(lateFeeInput, { target: { value: '101' } });
+
+    expect(lateFeeInput).toHaveValue('20');
   });
 
   it('shows a specific payoff denial reason when an active credit still has balance', async () => {

@@ -2,7 +2,7 @@ import { tTerm } from '../../i18n/terminology';
 import { BACKEND_SUPPORTED_LOAN_STATUSES, LOAN_STATUS_LABELS } from '../../constants/loanStates';
 import { parsePositiveIntegerInput, parsePositiveMoneyInput } from '../../lib/moneyInput';
 import { CAPITAL_STRATEGIES, type PaymentMethod, type CapitalStrategy } from '../../services/loanService';
-import { ActionButton, FormField, ModalShell, SelectInput, TextAreaInput, TextInput } from '../shared/Surfaces';
+import { ActionButton, FormField, ModalShell, NormalizedInput, SelectInput, TextAreaInput, TextInput } from '../shared/Surfaces';
 import type { CapitalPreview } from './creditDetailsHelpers';
 
 // ---------------------------------------------------------------------------
@@ -193,7 +193,15 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
             <FormField label={tTerm('creditDetails.modal.payment.amount')}>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                <TextInput id="credit-payment-amount" type="number" value={props.paymentAmount} onChange={(e) => props.onPaymentAmountChange(e.target.value)} className="pl-8" placeholder="0.00" min="0" step="0.01" />
+                <NormalizedInput
+                  id="credit-payment-amount"
+                  variant="decimal"
+                  value={props.paymentAmount}
+                  onValueChange={props.onPaymentAmountChange}
+                  className="pl-8"
+                  placeholder="0.00"
+                  maxDecimals={2}
+                />
               </div>
             </FormField>
             <div className="grid grid-cols-2 gap-4">
@@ -221,7 +229,14 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
         >
           <div className="space-y-4">
             <FormField label={tTerm('creditDetails.modal.promise.amount')}>
-              <TextInput id="credit-promise-amount" type="number" value={props.promiseAmount} onChange={(e) => props.onPromiseAmountChange(e.target.value)} />
+              <NormalizedInput
+                id="credit-promise-amount"
+                variant="decimal"
+                value={props.promiseAmount}
+                onValueChange={props.onPromiseAmountChange}
+                placeholder="0.00"
+                maxDecimals={2}
+              />
             </FormField>
             <FormField label={tTerm('creditDetails.modal.promise.date')}>
               <TextInput id="credit-promise-date" type="date" value={props.promiseDateInput} onChange={(e) => props.onPromiseDateChange(e.target.value)} />
@@ -294,7 +309,15 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
               <FormField label={tTerm('creditDetails.modal.capital.amount')}>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
-                  <TextInput id="credit-capital-amount" type="number" value={props.capitalAmount} onChange={(e) => props.onCapitalAmountChange(e.target.value)} className="pl-8" placeholder="0.00" min="0" step="0.01" />
+                  <NormalizedInput
+                    id="credit-capital-amount"
+                    variant="decimal"
+                    value={props.capitalAmount}
+                    onValueChange={props.onCapitalAmountChange}
+                    className="pl-8"
+                    placeholder="0.00"
+                    maxDecimals={2}
+                  />
                 </div>
               </FormField>
               <FormField label={tTerm('creditDetails.modal.capital.date')}>
@@ -318,14 +341,13 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
                 label={tTerm('creditDetails.modal.capital.newTermMonths')}
                 tooltip={tTerm('creditDetails.modal.capital.newTermMonthsTooltip')}
               >
-                <TextInput
+                <NormalizedInput
                   id="credit-capital-new-term"
-                  type="number"
+                  variant="integer"
                   value={props.capitalNewTermMonths}
-                  onChange={(e) => props.onCapitalNewTermMonthsChange(e.target.value)}
+                  onValueChange={props.onCapitalNewTermMonthsChange}
                   placeholder={String(props.capitalPreview.remainingInstallments || 1)}
-                  min="1"
-                  step="1"
+                  minValue={1}
                 />
               </FormField>
             )}
@@ -412,7 +434,15 @@ export function CreditDetailsModals(props: CreditDetailsModalsProps) {
         >
           <FormField label={tTerm('creditDetails.modal.lateFee.field')}>
             <div className="relative">
-              <TextInput id="credit-late-fee-rate" type="number" value={props.lateFeeRate} onChange={(e) => props.onLateFeeRateChange(e.target.value)} className="pr-8" placeholder="0.00" min="0" max="100" step="0.01" />
+              <NormalizedInput
+                id="credit-late-fee-rate"
+                variant="percent"
+                value={props.lateFeeRate}
+                onValueChange={props.onLateFeeRateChange}
+                className="pr-8"
+                placeholder="0.00"
+                maxDecimals={2}
+              />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
             </div>
           </FormField>
