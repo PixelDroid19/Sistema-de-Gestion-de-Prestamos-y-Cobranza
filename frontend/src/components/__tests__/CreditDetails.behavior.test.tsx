@@ -632,6 +632,31 @@ describe('CreditDetails behavioral parity scenarios', () => {
     });
   });
 
+  it('uses the remaining installments by default when switching a capital prepayment to reduce-payment', async () => {
+    setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 992 } } });
+
+    const { container } = renderCreditDetails();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
+    fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
+    fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
+
+    const newTermInput = container.querySelector('#credit-capital-new-term') as HTMLInputElement;
+    expect(newTermInput).toHaveValue('3');
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
+
+    await waitFor(() => {
+      expect(mockRecordCapitalPayment).toHaveBeenCalledWith(expect.objectContaining({
+        amount: 300000,
+        strategy: 'reduce_payment',
+        newTermMonths: 3,
+      }));
+    });
+  });
+
   it('normalizes capital new term input to plain integers in reduce-payment flow', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
 
@@ -660,22 +685,33 @@ describe('CreditDetails behavioral parity scenarios', () => {
     expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
   });
 
-  it('rejects exponent-like new term values before recording a capital prepayment', () => {
+  it('keeps the default remaining installments when exponent-like text is typed in reduce-payment mode', async () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
+    mockRecordCapitalPayment.mockResolvedValueOnce({ data: { payment: { id: 993 } } });
 
     const { container } = renderCreditDetails();
 
     fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
     fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
     fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
-    fireEvent.change(container.querySelector('#credit-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
+    const newTermInput = container.querySelector('#credit-capital-new-term') as HTMLInputElement;
+
+    fireEvent.change(newTermInput, { target: { value: '1e2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Registrar abono' }));
 
-    expect(mockRecordCapitalPayment).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
+    expect(newTermInput).toHaveValue('3');
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeEnabled();
+
+    await waitFor(() => {
+      expect(mockRecordCapitalPayment).toHaveBeenCalledWith(expect.objectContaining({
+        amount: 300000,
+        strategy: 'reduce_payment',
+        newTermMonths: 3,
+      }));
+    });
   });
 
-  it('keeps capital prepayment submission disabled for exponent-like new term values', () => {
+  it('keeps capital prepayment submission enabled when exponent-like text preserves the valid default term', () => {
     setSessionUser({ id: 1, name: 'Admin', email: 'admin@test.com', role: 'admin', permissions: ['*'] });
 
     const { container } = renderCreditDetails();
@@ -683,9 +719,12 @@ describe('CreditDetails behavioral parity scenarios', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abono a capital' }));
     fireEvent.change(container.querySelector('#credit-capital-amount') as HTMLInputElement, { target: { value: '300000' } });
     fireEvent.change(container.querySelector('#credit-capital-strategy') as HTMLSelectElement, { target: { value: 'reduce_payment' } });
-    fireEvent.change(container.querySelector('#credit-capital-new-term') as HTMLInputElement, { target: { value: '1e2' } });
+    const newTermInput = container.querySelector('#credit-capital-new-term') as HTMLInputElement;
 
-    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeDisabled();
+    fireEvent.change(newTermInput, { target: { value: '1e2' } });
+
+    expect(newTermInput).toHaveValue('3');
+    expect(screen.getByRole('button', { name: 'Registrar abono' })).toBeEnabled();
   });
 
   it('keeps the current late fee rate when the operator types exponent-like text', () => {

@@ -327,6 +327,10 @@ export default function CreditDetails() {
     () => computeCapitalPreview(capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot),
     [capitalAmount, capitalStrategy, capitalNewTermMonths, loan, currentFinancialSnapshot],
   );
+  const defaultCapitalNewTermMonths = useMemo(() => {
+    const remainingInstallments = Number(currentFinancialSnapshot?.outstandingInstallments ?? 0);
+    return Number.isFinite(remainingInstallments) && remainingInstallments > 0 ? String(remainingInstallments) : '';
+  }, [currentFinancialSnapshot?.outstandingInstallments]);
 
   const isRecordPaymentModalOpen = operationalModal.is('record-payment');
   const isPromiseModalOpen = operationalModal.is('create-promise');
@@ -644,6 +648,17 @@ export default function CreditDetails() {
 
   const openAnnulModal = (installmentNumber: number) => { setAnnulInstallmentNumber(installmentNumber); setShowAnnulModal(true); };
 
+  const handleCapitalStrategyChange = (nextStrategy: CapitalStrategy) => {
+    setCapitalStrategy(nextStrategy);
+    if (nextStrategy === 'reduce_payment') {
+      if (parsePositiveIntegerInput(capitalNewTermMonths) === null) {
+        setCapitalNewTermMonths(defaultCapitalNewTermMonths);
+      }
+      return;
+    }
+    setCapitalNewTermMonths('');
+  };
+
   const openEditPaymentMethodModal = (entry: any) => {
     const pid = Number(entry?.paymentId);
     if (!Number.isFinite(pid)) { toast.error({ title: tTerm('creditDetails.error.paymentId') }); return; }
@@ -846,7 +861,7 @@ export default function CreditDetails() {
         capitalStrategy={capitalStrategy} capitalNewTermMonths={capitalNewTermMonths} capitalPreview={capitalPreview}
         capitalPaymentGuard={capitalPaymentGuard} capitalUnavailableDescription={capitalUnavailableDescription}
         onCapitalAmountChange={setCapitalAmount} onCapitalDateChange={setCapitalPaymentDate}
-        onCapitalMethodChange={setCapitalMethod} onCapitalStrategyChange={setCapitalStrategy}
+        onCapitalMethodChange={setCapitalMethod} onCapitalStrategyChange={handleCapitalStrategyChange}
         onCapitalNewTermMonthsChange={setCapitalNewTermMonths}
         onRecordCapital={handleRecordCapital} onCloseCapitalModal={() => setShowCapitalModal(false)}
         showEditPaymentMethodModal={showEditPaymentMethodModal}
