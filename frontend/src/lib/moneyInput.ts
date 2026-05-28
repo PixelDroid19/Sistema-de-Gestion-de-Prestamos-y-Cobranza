@@ -21,6 +21,12 @@ const isWithinRange = (value: number, options: NumericRangeOptions = {}) => {
   return true;
 };
 
+const exceedsUpperBound = (value: number, options: NumericRangeOptions = {}) => (
+  Number.isFinite(value)
+  && options.max !== undefined
+  && value > options.max
+);
+
 export const formatDigitGroups = (digits: string): string => {
   if (!/^\d+$/.test(digits)) {
     return '';
@@ -47,7 +53,7 @@ export const normalizeIntegerInput = (value: unknown, options: NumericRangeOptio
 
   const numericValue = Number(digits);
   if (!Number.isSafeInteger(numericValue)) return null;
-  if (!isWithinRange(numericValue, options)) return null;
+  if (exceedsUpperBound(numericValue, options)) return null;
 
   return digits;
 };
@@ -71,7 +77,7 @@ export const normalizeDecimalInput = (value: unknown, options: DecimalOptions = 
     ? `${normalizedWhole}.${decimalPart}`
     : normalizedWhole;
   const numericValue = Number(normalizedValue);
-  if (!isWithinRange(numericValue, options)) return null;
+  if (exceedsUpperBound(numericValue, options)) return null;
 
   return normalizedValue;
 };

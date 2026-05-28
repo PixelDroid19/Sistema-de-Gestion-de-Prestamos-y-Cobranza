@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { NormalizedInput } from '../shared/Surfaces';
@@ -103,6 +104,35 @@ describe('NormalizedInput behavior', () => {
     expect(onDecimalChange).toHaveBeenCalledTimes(1);
     expect(onPercentChange).toHaveBeenCalledWith('2.5', expect.any(Object));
     expect(onPercentChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows sequential typing for small decimal values that start with zero', () => {
+    function DecimalHarness() {
+      const [value, setValue] = useState('');
+
+      return (
+        <NormalizedInput
+          aria-label="Tasa pequeña"
+          variant="decimal"
+          value={value}
+          maxDecimals={2}
+          onValueChange={(nextValue) => setValue(nextValue)}
+        />
+      );
+    }
+
+    render(<DecimalHarness />);
+
+    const input = screen.getByLabelText('Tasa pequeña');
+
+    fireEvent.change(input, { target: { value: '0' } });
+    expect(input).toHaveValue('0');
+
+    fireEvent.change(input, { target: { value: '0.' } });
+    expect(input).toHaveValue('0.');
+
+    fireEvent.change(input, { target: { value: '0.25' } });
+    expect(input).toHaveValue('0.25');
   });
 
   it('supports reusable text behavior with max length', () => {

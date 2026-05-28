@@ -55,6 +55,7 @@ describe('formatted whole money input', () => {
 
 describe('general normalized inputs', () => {
   it('normalizes bounded integers and rejects unsafe or out-of-range values', () => {
+    expect(normalizeIntegerInput('0', { min: 1, max: 28 })).toBe('0');
     expect(normalizeIntegerInput('0012', { min: 1, max: 28 })).toBe('12');
     expect(normalizeIntegerInput('0', { allowZero: true })).toBe('0');
     expect(normalizeIntegerInput('29', { min: 1, max: 28 })).toBeNull();
@@ -63,6 +64,7 @@ describe('general normalized inputs', () => {
   });
 
   it('normalizes decimals with precision limits for small rates', () => {
+    expect(normalizeDecimalInput('0.', { maxDecimals: 4 })).toBe('0.');
     expect(normalizeDecimalInput('0,25', { allowZero: true, maxDecimals: 4 })).toBe('0.25');
     expect(normalizeDecimalInput('.5', { allowZero: true, maxDecimals: 4 })).toBe('0.5');
     expect(normalizeDecimalInput('2.12345', { maxDecimals: 4 })).toBeNull();
