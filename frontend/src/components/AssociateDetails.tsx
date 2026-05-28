@@ -119,6 +119,14 @@ export default function AssociateDetails() {
     distribution: '',
     reinvestment: '',
   });
+  const [actionErrors, setActionErrors] = useState<Record<AssociateMoneyActionType, string>>({
+    contribution: '',
+    distribution: '',
+    reinvestment: '',
+  });
+  const [installmentPaymentErrors, setInstallmentPaymentErrors] = useState({
+    paymentDate: '',
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -202,8 +210,23 @@ export default function AssociateDetails() {
     e.preventDefault();
     if (!showModal) return;
 
+    const rawAmount = String(actionAmounts[showModal] || '').trim();
+    if (!rawAmount) {
+      setActionErrors((current) => ({
+        ...current,
+        [showModal]: tTerm('associateDetails.modal.validation.amountRequired'),
+      }));
+      return;
+    }
+
     const parsedAmount = parseFormattedPositiveMoneyInput(actionAmounts[showModal]);
-    if (parsedAmount === null) return;
+    if (parsedAmount === null) {
+      setActionErrors((current) => ({
+        ...current,
+        [showModal]: tTerm('associateDetails.modal.validation.amountInvalid'),
+      }));
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -241,12 +264,21 @@ export default function AssociateDetails() {
     if (showModal) {
       const currentAction = showModal;
       setActionAmounts((current) => ({ ...current, [currentAction]: '' }));
+      setActionErrors((current) => ({ ...current, [currentAction]: '' }));
     }
     setShowModal(null);
   };
 
+  const openMoneyActionModal = (action: AssociateMoneyActionType) => {
+    setActionErrors((current) => ({ ...current, [action]: '' }));
+    setShowModal(action);
+  };
+
   const handleOpenPayInstallmentModal = (installmentNumber: number) => {
     setPayingInstallmentNumber(installmentNumber);
+    setInstallmentPaymentErrors({
+      paymentDate: '',
+    });
     setInstallmentPaymentForm({
       paymentDate: getTodayDateInputValue(),
       paymentMethod: '',
@@ -256,6 +288,9 @@ export default function AssociateDetails() {
 
   const handleClosePayInstallmentModal = () => {
     setPayingInstallmentNumber(null);
+    setInstallmentPaymentErrors({
+      paymentDate: '',
+    });
     setInstallmentPaymentForm({
       paymentDate: getTodayDateInputValue(),
       paymentMethod: '',
@@ -270,7 +305,14 @@ export default function AssociateDetails() {
       return;
     }
 
-    if (payingInstallmentNumber === null || !installmentPaymentForm.paymentDate) {
+    if (!installmentPaymentForm.paymentDate) {
+      setInstallmentPaymentErrors({
+        paymentDate: tTerm('associateDetails.installmentPayment.validation.paymentDateRequired'),
+      });
+      return;
+    }
+
+    if (payingInstallmentNumber === null) {
       return;
     }
 
@@ -664,16 +706,16 @@ export default function AssociateDetails() {
           </div>
           {isAdmin && (
             <div className="grid gap-2 sm:grid-cols-2">
-              <ActionButton onClick={() => setShowModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
+              <ActionButton onClick={() => openMoneyActionModal('contribution')} icon={<Wallet size={16} />} variant="primary" fullWidth>
                 {tTerm('associateDetails.cta.registerCapitalContribution')}
               </ActionButton>
               <ActionButton onClick={() => setActiveTab('installments')} icon={<CheckCircle size={16} />} variant="secondary" fullWidth>
                 {tTerm('associateDetails.cta.registerInterestPayment')}
               </ActionButton>
-              <ActionButton onClick={() => setShowModal('distribution')} icon={<Download size={16} />} fullWidth>
+              <ActionButton onClick={() => openMoneyActionModal('distribution')} icon={<Download size={16} />} fullWidth>
                 {tTerm('associateDetails.cta.registerInterestWithdrawal')}
               </ActionButton>
-              <ActionButton onClick={() => setShowModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
+              <ActionButton onClick={() => openMoneyActionModal('reinvestment')} icon={<RefreshCw size={16} />} fullWidth>
                 {tTerm('associateDetails.cta.registerInterestReinvestment')}
               </ActionButton>
             </div>
@@ -717,14 +759,22 @@ export default function AssociateDetails() {
               ? tTerm('associateDetails.modal.title.distribution')
               : tTerm('associateDetails.modal.title.reinvestment')}
         >
-            <form onSubmit={handleAction} className="space-y-4">
-              <FormField label={tTerm('associateDetails.modal.field.amount')} htmlFor={`associate-action-${showModal}-amount`}>
+            <form noValidate onSubmit={handleAction} className="space-y-4">
+              <FormField
+                label={tTerm('associateDetails.modal.field.amount')}
+                htmlFor={`associate-action-${showModal}-amount`}
+                error={actionErrors[showModal]}
+              >
                 <MoneyInput
                   key={showModal}
                   id={`associate-action-${showModal}-amount`}
-                  required
                   value={actionAmounts[showModal]}
-                  onValueChange={(value) => setActionAmounts((current) => ({ ...current, [showModal]: value }))}
+                  onValueChange={(value) => {
+                    setActionAmounts((current) => ({ ...current, [showModal]: value }));
+                    if (actionErrors[showModal]) {
+                      setActionErrors((current) => ({ ...current, [showModal]: '' }));
+                    }
+                  }}
                   placeholder={tTerm('associateDetails.modal.placeholder.amount')}
                 />
               </FormField>
@@ -754,13 +804,20 @@ export default function AssociateDetails() {
           title={tTerm('associateDetails.installmentPayment.title')}
           subtitle={tTerm('associateDetails.installmentPayment.subtitle', { installmentNumber: payingInstallmentNumber })}
         >
-          <form onSubmit={handlePayInstallment} className="space-y-4">
-            <FormField label={tTerm('associateDetails.installmentPayment.field.paymentDate')}>
+          <form noValidate onSubmit={handlePayInstallment} className="space-y-4">
+            <FormField
+              label={tTerm('associateDetails.installmentPayment.field.paymentDate')}
+              error={installmentPaymentErrors.paymentDate}
+            >
               <TextInput
                 type="date"
-                required
                 value={installmentPaymentForm.paymentDate}
-                onChange={(event) => setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }))}
+                onChange={(event) => {
+                  setInstallmentPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }));
+                  if (installmentPaymentErrors.paymentDate) {
+                    setInstallmentPaymentErrors({ paymentDate: '' });
+                  }
+                }}
               />
             </FormField>
             <FormField label={tTerm('associateDetails.installmentPayment.field.paymentMethod')}>

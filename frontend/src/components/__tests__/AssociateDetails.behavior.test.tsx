@@ -338,6 +338,59 @@ describe('AssociateDetails behavior', () => {
     expect(detailsResponse.createReinvestment.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('shows a Spanish inline validation error when the associate amount is empty', async () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    useAssociateDetailsSpy.mockReturnValue(detailsResponse);
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar aporte de capital' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByText('El monto es obligatorio.')).toBeInTheDocument();
+    expect(detailsResponse.createContribution.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('shows a Spanish inline validation error when the interest payment date is empty', async () => {
+    mockUseSessionStore.mockReturnValue({
+      user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
+    });
+    const detailsResponse = buildDetailsResponse();
+    detailsResponse.payInstallment.mutateAsync = vi.fn().mockResolvedValue({});
+    useAssociateDetailsSpy.mockReturnValue({
+      ...detailsResponse,
+      installments: {
+        installments: [
+          {
+            id: 11,
+            installmentNumber: 1,
+            amount: 350000,
+            dueDate: '2000-05-10T00:00:00.000Z',
+            status: 'overdue',
+          },
+        ],
+        totals: {
+          totalPending: 0,
+          totalPaid: 0,
+          totalOverdue: 350000,
+        },
+      },
+    });
+
+    render(<AssociateDetails />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pagos de intereses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    fireEvent.change(screen.getByLabelText('Fecha real de pago'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }));
+
+    expect(await screen.findByText('La fecha real de pago es obligatoria.')).toBeInTheDocument();
+    expect(detailsResponse.payInstallment.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('keeps separate normalized amounts for each associate money action', () => {
     mockUseSessionStore.mockReturnValue({
       user: { id: 1, role: 'admin', name: 'Admin', email: 'admin@test.com', permissions: ['*'] },
