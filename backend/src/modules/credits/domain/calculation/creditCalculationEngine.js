@@ -11,15 +11,7 @@ const { buildPolicySnapshot } = require('./policySnapshotBuilder');
 const { assertActiveProfile } = require('./calculationProfiles');
 const { normalizeDateOnly } = require('@/modules/shared/dateUtils');
 
-const addOneMonthClamped = (date) => {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth)));
-};
-
-const resolveDefaultFirstPaymentDate = () => addOneMonthClamped(new Date()).toISOString();
+const resolveDefaultStartDate = () => normalizeDateOnly(new Date(), 'startDate').toISOString();
 
 const normalizeCreditCalculationInput = (input = {}) => {
   const amount = Number(input.amount);
@@ -39,7 +31,7 @@ const normalizeCreditCalculationInput = (input = {}) => {
   const rawStartDate = input.startDate;
   const startDate = rawStartDate
     ? normalizeDateOnly(rawStartDate, 'startDate').toISOString()
-    : resolveDefaultFirstPaymentDate();
+    : resolveDefaultStartDate();
 
   return {
     ...input,

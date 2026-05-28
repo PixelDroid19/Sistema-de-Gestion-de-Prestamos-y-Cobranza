@@ -53,6 +53,41 @@ test('calculateCredit rejects malformed start dates instead of falling back sile
   }), /startDate/);
 });
 
+test('calculateCredit defaults missing startDate to the disbursement day instead of shifting it one month ahead', () => {
+  const RealDate = Date;
+  const fixedNow = '2026-05-28T15:45:00.000Z';
+
+  global.Date = class FixedDate extends RealDate {
+    constructor(...args) {
+      super(...(args.length ? args : [fixedNow]));
+    }
+
+    static now() {
+      return new RealDate(fixedNow).getTime();
+    }
+
+    static parse(value) {
+      return RealDate.parse(value);
+    }
+
+    static UTC(...args) {
+      return RealDate.UTC(...args);
+    }
+  };
+
+  try {
+    const result = calculateCredit({
+      input: { ...baseInput, startDate: undefined },
+      profileVersion: activeProfile,
+    });
+
+    assert.equal(result.inputs.startDate, '2026-05-28T00:00:00.000Z');
+    assert.equal(result.schedule[0].dueDate, '2026-06-28T00:00:00.000Z');
+  } finally {
+    global.Date = RealDate;
+  }
+});
+
 test('calculateCredit supports FRENCH, SIMPLE, and COMPOUND methods with explicit totals', () => {
   const scenarios = [
     ['FRENCH', { installmentAmount: 106.62, totalInterest: 79.42, totalPayable: 1279.42 }],
