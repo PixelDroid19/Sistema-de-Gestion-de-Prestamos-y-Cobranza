@@ -1134,6 +1134,7 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
             summary: {
               totalLoans: 4,
               activeLoans: 3,
+              delinquentLoans: 2,
               defaultedLoans: 1,
               recoveredLoans: 2,
               totalPortfolioAmount: '400000.00',
@@ -1197,6 +1198,7 @@ test('GET /reports/dashboard/excel returns xlsx file for admin', async () => {
   assert.ok(headers.includes('Indicador'));
   assert.ok(headers.includes('Valor'));
   assert.equal(headers.includes('totalLoans'), false);
+  assert.equal(workbook.getWorksheet('Resumen General').getRow(5).getCell(2).value, 2);
 
   const loanHeaders = workbook.getWorksheet('Préstamos recientes').getRow(2).values;
   assert.ok(loanHeaders.includes('Crédito'));

@@ -276,7 +276,7 @@ const createReportsRouter = ({ authMiddleware, useCases }) => {
     const summaryRows = [
       { indicador: 'Créditos totales', valor: summary.totalLoans ?? 0 },
       { indicador: 'Créditos activos', valor: summary.activeLoans ?? 0 },
-      { indicador: 'Créditos en mora', valor: summary.defaultedLoans ?? 0 },
+      { indicador: 'Créditos en mora', valor: summary.delinquentLoans ?? summary.defaultedLoans ?? 0 },
       { indicador: 'Créditos recuperados', valor: summary.recoveredLoans ?? 0 },
       { indicador: 'Capital colocado', valor: summary.totalPortfolioAmount ?? '0.00' },
       { indicador: 'Interés generado', valor: summary.totalInterestGenerated ?? '0.00' },

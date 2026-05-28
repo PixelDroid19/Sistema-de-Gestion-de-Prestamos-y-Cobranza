@@ -192,6 +192,7 @@ export default function Dashboard() {
   const collections = dashboardData?.collections || {};
   const monthlyPerformance = Array.isArray(dashboardData?.monthlyPerformance) ? dashboardData.monthlyPerformance : [];
   const chartData = useMemo(() => buildDashboardMonthlyChartData(monthlyPerformance, locale), [monthlyPerformance, locale]);
+  const delinquentLoans = Number(summary.delinquentLoans ?? summary.defaultedLoans ?? 0);
 
   const hasKpiTotals = Number(summary.totalOutstandingAmount || 0) > 0 || Number(summary.totalRecoveredAmount || 0) > 0;
   const chartHasData = chartData.some((row) => Number(row.disbursed || 0) > 0 || Number(row.recovered || 0) > 0);
@@ -334,7 +335,7 @@ export default function Dashboard() {
           <MetricCard
             label={tTerm('dashboard.widget.activeLoans.title')}
             value={summary.activeLoans || 0}
-            helper={`${summary.defaultedLoans || 0} ${tTerm('dashboard.widget.activeLoans.subtitle')}`}
+            helper={`${delinquentLoans} ${tTerm('dashboard.widget.activeLoans.subtitle')}`}
             tooltip="Créditos que siguen abiertos y pueden requerir seguimiento, cobro o consulta operativa."
             icon={<Activity size={18} />}
             accent="emerald"
@@ -345,7 +346,7 @@ export default function Dashboard() {
         return (
           <MetricCard
             label={tTerm('dashboard.widget.delinquencyRate.title')}
-            value={summary.totalLoans ? `${Math.round(((summary.defaultedLoans || 0) / summary.totalLoans) * 100)}%` : '0%'}
+            value={summary.totalLoans ? `${Math.round((delinquentLoans / summary.totalLoans) * 100)}%` : '0%'}
             helper={`${collections.overdueAlerts || 0} ${tTerm('dashboard.widget.delinquencyRate.subtitle')}`}
             tooltip="Porcentaje de créditos con atraso frente al total de créditos. Ayuda a medir riesgo operativo de cobranza."
             icon={<AlertTriangle size={18} />}

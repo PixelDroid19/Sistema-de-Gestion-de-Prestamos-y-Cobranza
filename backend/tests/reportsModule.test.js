@@ -419,7 +419,7 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
         return {
           loans: [{ id: 1, status: 'active', amount: 1200, recoveryStatus: 'pending', disbursedAt: '2024-01-15T00:00:00.000Z' }],
           payments: [{ id: 2, amount: 100, status: 'completed', paymentDate: '2024-02-10T00:00:00.000Z' }],
-          alerts: [{ id: 3, status: 'active' }],
+          alerts: [{ id: 3, loanId: 1, status: 'active' }],
           promises: [{ id: 4, status: 'pending' }],
           notifications: [{ id: 5, isRead: false }],
         };
@@ -448,6 +448,8 @@ test('createGetDashboardSummary aggregates dashboard sections and degrades to em
   const summary = await getDashboardSummary({ actor: { id: 1, role: 'admin' } });
 
   assert.equal(summary.data.summary.totalLoans, 1);
+  assert.equal(summary.data.summary.delinquentLoans, 1);
+  assert.equal(summary.data.summary.defaultedLoans, 0);
   assert.equal(summary.data.summary.totalInterestGenerated, '180.00');
   assert.equal(summary.data.summary.totalInterestPaid, '35.00');
   assert.equal(summary.data.collections.overdueAlerts, 1);

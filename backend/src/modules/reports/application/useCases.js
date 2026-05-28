@@ -115,12 +115,13 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
 
   const emptyResponse = {
     success: true,
-    data: {
-      summary: {
-        totalLoans: 0,
-        activeLoans: 0,
-        defaultedLoans: 0,
-        recoveredLoans: 0,
+      data: {
+        summary: {
+          totalLoans: 0,
+          activeLoans: 0,
+          delinquentLoans: 0,
+          defaultedLoans: 0,
+          recoveredLoans: 0,
         totalPortfolioAmount: '0.00',
         totalRecoveredAmount: '0.00',
         totalOutstandingAmount: '0.00',
@@ -159,6 +160,12 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
     const totalOutstandingAmount = loansWithDetails.reduce((sum, loan) => sum + Number(loan.outstandingAmount || 0), 0);
     const totalInterestGenerated = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestGenerated || 0), 0);
     const totalInterestPaid = loansWithDetails.reduce((sum, loan) => sum + Number(loan.totalInterestPaid || 0), 0);
+    const delinquentLoanIds = new Set(
+      (dashboard.alerts || [])
+        .filter((alert) => alert?.status === 'active')
+        .map((alert) => Number(alert?.loanId))
+        .filter((loanId) => Number.isFinite(loanId) && loanId > 0),
+    );
 
     return {
       success: true,
@@ -166,6 +173,7 @@ const createGetDashboardSummary = ({ reportRepository, paymentRepository, loanVi
         summary: {
           totalLoans: loansWithDetails.length,
           activeLoans: loansWithDetails.filter((loan) => ['approved', 'active'].includes(loan.status)).length,
+          delinquentLoans: delinquentLoanIds.size,
           defaultedLoans: loansWithDetails.filter((loan) => loan.status === 'defaulted').length,
           recoveredLoans: loansWithDetails.filter((loan) => loan.recoveryBucket === 'recovered').length,
           totalPortfolioAmount: totalPortfolioAmount.toFixed(2),

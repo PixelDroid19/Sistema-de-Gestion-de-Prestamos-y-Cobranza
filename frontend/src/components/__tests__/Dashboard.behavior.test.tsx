@@ -8,7 +8,8 @@ let reportsState = {
       totalOutstandingAmount: 950000,
       totalLoans: 3,
       activeLoans: 2,
-      defaultedLoans: 1,
+      delinquentLoans: 1,
+      defaultedLoans: 0,
       totalRecoveredAmount: 240000,
     },
     collections: {
@@ -91,7 +92,8 @@ describe('Dashboard behavior', () => {
           totalOutstandingAmount: 950000,
           totalLoans: 3,
           activeLoans: 2,
-          defaultedLoans: 1,
+          delinquentLoans: 1,
+          defaultedLoans: 0,
           totalRecoveredAmount: 240000,
         },
         collections: {
@@ -172,6 +174,8 @@ describe('Dashboard behavior', () => {
     expect(screen.getAllByText('Recuperado vs desembolsado')).toHaveLength(2);
     expect(screen.getByText('Desembolsado y recuperado por mes')).toBeInTheDocument();
     expect(screen.getByLabelText('Resume por mes cuánto capital salió en desembolsos y cuánto dinero volvió por pagos registrados.')).toBeInTheDocument();
+    expect(screen.getByText('1 en mora')).toBeInTheDocument();
+    expect(screen.getByText('33%')).toBeInTheDocument();
 
     const areaSeries = screen.getAllByTestId('area-series').map((node) => node.textContent);
     const barSeries = screen.getAllByTestId('bar-series').map((node) => node.textContent);
