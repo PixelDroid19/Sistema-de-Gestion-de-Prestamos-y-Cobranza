@@ -138,6 +138,29 @@ export const useActiveCreditSimulation = ({
     });
   }, []);
 
+  const syncInputWithResult = useCallback((partialInput: Partial<CreditCalculationInput>) => {
+    setInput((currentInput) => ({
+      ...currentInput,
+      ...partialInput,
+    }));
+    setLastSimulatedInput((currentInput) => (
+      currentInput
+        ? {
+            ...currentInput,
+            ...partialInput,
+          }
+        : currentInput
+    ));
+    setError(null);
+    setFieldErrors((currentFieldErrors) => {
+      const nextFieldErrors = { ...currentFieldErrors };
+      for (const key of Object.keys(partialInput)) {
+        delete nextFieldErrors[key];
+      }
+      return nextFieldErrors;
+    });
+  }, []);
+
   const isResultStale = result !== null && !areCalculationInputsEqual(input, lastSimulatedInput);
 
   return {
@@ -148,6 +171,7 @@ export const useActiveCreditSimulation = ({
     isSimulating,
     isResultStale,
     setInput: updateInput,
+    syncInputWithResult,
     simulate,
   };
 };

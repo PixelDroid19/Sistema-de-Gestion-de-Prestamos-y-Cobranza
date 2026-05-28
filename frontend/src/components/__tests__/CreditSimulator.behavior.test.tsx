@@ -5,6 +5,7 @@ import type { CreditCalculationInput } from '../../types/creditCalculation';
 
 const mockNavigate = vi.fn();
 const mockSetInput = vi.fn();
+const mockSyncInputWithResult = vi.fn();
 const mockUseActiveCreditSimulation = vi.fn();
 
 const calculationInput: CreditCalculationInput = {
@@ -49,6 +50,7 @@ let calculationState = {
   isSimulating: false,
   isResultStale: false,
   setInput: mockSetInput,
+  syncInputWithResult: mockSyncInputWithResult,
   simulate: vi.fn(),
 };
 
@@ -81,6 +83,7 @@ describe('CreditSimulator behavior', () => {
       isSimulating: false,
       isResultStale: false,
       setInput: mockSetInput,
+      syncInputWithResult: mockSyncInputWithResult,
       simulate: vi.fn(),
     };
     mockUseActiveCreditSimulation.mockImplementation(() => calculationState);
@@ -168,7 +171,7 @@ describe('CreditSimulator behavior', () => {
     );
 
     await waitFor(() => {
-      expect(mockSetInput).toHaveBeenCalledWith({
+      expect(mockSyncInputWithResult).toHaveBeenCalledWith({
         interestRate: 61,
         annualLateFeeRate: 28.17,
         rateSource: 'policy',

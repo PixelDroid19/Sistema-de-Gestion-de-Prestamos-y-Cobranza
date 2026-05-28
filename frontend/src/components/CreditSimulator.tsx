@@ -21,6 +21,7 @@ export default function CreditSimulator() {
     isSimulating,
     isResultStale,
     setInput,
+    syncInputWithResult,
     simulate,
   } = useActiveCreditSimulation({
     initialInput: {
@@ -63,7 +64,7 @@ export default function CreditSimulator() {
     }
 
     if (Object.keys(nextInput).length > 0) {
-      setInput(nextInput);
+      syncInputWithResult(nextInput);
     }
   }, [
     input.annualLateFeeRate,
@@ -72,7 +73,7 @@ export default function CreditSimulator() {
     input.lateFeeSource,
     input.rateSource,
     result,
-    setInput,
+    syncInputWithResult,
   ]);
 
   const navigateToCreditRegistration = React.useCallback(() => {
