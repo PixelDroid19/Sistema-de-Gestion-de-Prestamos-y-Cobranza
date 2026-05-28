@@ -348,6 +348,39 @@ describe('NewCredit behavior', () => {
     expect(mockSimulate).not.toHaveBeenCalled();
   });
 
+  it('blocks validation when active late-fee policies share the same highest priority', async () => {
+    mockConfigState.lateFeePolicies = [
+      {
+        id: 2,
+        label: 'Mora simple A',
+        annualEffectiveRate: 24,
+        lateFeeMode: 'SIMPLE',
+        isActive: true,
+        priority: 'high',
+      },
+      {
+        id: 3,
+        label: 'Mora simple B',
+        annualEffectiveRate: 28,
+        lateFeeMode: 'COMPOUND',
+        isActive: true,
+        priority: 'high',
+      },
+    ];
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Validar crédito' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Conflicto de mora',
+      }));
+    });
+    expect(mockSimulate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Registrar crédito' })).toBeDisabled();
+  });
+
   it('does not expose a manual late-fee selector while creating a real credit', () => {
     render(<NewCredit onBack={vi.fn()} />);
 

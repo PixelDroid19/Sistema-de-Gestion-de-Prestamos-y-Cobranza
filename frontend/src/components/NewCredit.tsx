@@ -78,6 +78,24 @@ const addMonthsAsIsoDate = (date: Date, months: number) => {
 };
 
 const nextMonthAsIsoDate = () => addMonthsAsIsoDate(new Date(), 1);
+const sortLateFeePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => (
+  (lateFeePriorityOrder[normalizePolicyPriority(left?.priority)] ?? lateFeePriorityOrder.medium)
+  - (lateFeePriorityOrder[normalizePolicyPriority(right?.priority)] ?? lateFeePriorityOrder.medium)
+));
+const getLateFeePolicyConflicts = (policies: any[]) => {
+  const activePolicies = sortLateFeePoliciesForApplication(policies)
+    .filter((policy) => policy?.isActive !== false);
+
+  if (activePolicies.length === 0) {
+    return [];
+  }
+
+  const selectedPriority = normalizePolicyPriority(activePolicies[0]?.priority);
+  const samePriorityPolicies = activePolicies
+    .filter((policy) => normalizePolicyPriority(policy?.priority) === selectedPriority);
+
+  return samePriorityPolicies.length > 1 ? samePriorityPolicies : [];
+};
 
 type NewCreditLocationState = {
   calculationInput?: Partial<CreditCalculationInput>;
@@ -151,14 +169,19 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     hasAmbiguousRatePolicy ? null : sortRatePoliciesForApplication(resolvedRatePolicyMatches)[0] || null
   ), [hasAmbiguousRatePolicy, resolvedRatePolicyMatches]);
 
+  const ambiguousLateFeePolicies = useMemo<any[]>(
+    () => getLateFeePolicyConflicts(lateFeePolicies),
+    [lateFeePolicies],
+  );
+  const hasAmbiguousLateFeePolicy = canReadFinancialConfig && ambiguousLateFeePolicies.length > 1;
+  const activeLateFeePolicies = useMemo<any[]>(
+    () => sortLateFeePoliciesForApplication(lateFeePolicies).filter((policy) => policy?.isActive !== false),
+    [lateFeePolicies],
+  );
+  const hasAnyActiveLateFeePolicy = activeLateFeePolicies.length > 0;
   const resolvedLateFeePolicy = useMemo<any>(() => (
-    lateFeePolicies
-      .filter((policy: any) => policy.isActive)
-      .sort((left: any, right: any) => (
-        (lateFeePriorityOrder[normalizePolicyPriority(left.priority)] ?? lateFeePriorityOrder.medium)
-        - (lateFeePriorityOrder[normalizePolicyPriority(right.priority)] ?? lateFeePriorityOrder.medium)
-      ))[0] || null
-  ), [lateFeePolicies]);
+    hasAmbiguousLateFeePolicy ? null : activeLateFeePolicies[0] || null
+  ), [activeLateFeePolicies, hasAmbiguousLateFeePolicy]);
   useEffect(() => {
     const nextInput: Partial<CreditCalculationInput> = {};
 
@@ -188,10 +211,17 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
   const isLateFeePolicyResolving = canReadFinancialConfig && isConfigLoading;
   const resolvedLateFeeSource = 'policy';
   const canValidateWithCurrentPolicy = canReadFinancialConfig
-    ? !isRatePolicyResolving && !isLateFeePolicyResolving && Boolean(resolvedRatePolicy) && Boolean(resolvedLateFeePolicy) && !hasAmbiguousRatePolicy
+    ? !isRatePolicyResolving
+      && !isLateFeePolicyResolving
+      && Boolean(resolvedRatePolicy)
+      && Boolean(resolvedLateFeePolicy)
+      && !hasAmbiguousRatePolicy
+      && !hasAmbiguousLateFeePolicy
     : true;
   const isRatePolicyReady = canReadFinancialConfig ? !isRatePolicyResolving && Boolean(resolvedRatePolicy) && !hasAmbiguousRatePolicy : hasPolicyBackedCalculation;
-  const isLateFeePolicyReady = canReadFinancialConfig ? !isLateFeePolicyResolving && Boolean(resolvedLateFeePolicy) : calculationLateFeeSource === 'policy';
+  const isLateFeePolicyReady = canReadFinancialConfig
+    ? !isLateFeePolicyResolving && Boolean(resolvedLateFeePolicy) && !hasAmbiguousLateFeePolicy
+    : calculationLateFeeSource === 'policy';
   const annualLateFeeRate = Number(
     result?.inputs?.annualLateFeeRate
     ?? input.annualLateFeeRate
@@ -262,7 +292,15 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    if (canReadFinancialConfig && !isLateFeePolicyResolving && !resolvedLateFeePolicy) {
+    if (hasAmbiguousLateFeePolicy) {
+      toast.error({
+        title: tTerm('newCredit.toast.lateFeeConflict.title'),
+        description: tTerm('newCredit.toast.lateFeeConflict.validate'),
+      });
+      return;
+    }
+
+    if (canReadFinancialConfig && !isLateFeePolicyResolving && !hasAnyActiveLateFeePolicy) {
       toast.error({
         title: tTerm('newCredit.toast.lateFeePolicyMissing.title'),
         description: tTerm('newCredit.toast.lateFeePolicyMissing.validate'),
@@ -275,6 +313,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
         toast.error({
           title: tTerm('newCredit.toast.conflict.title'),
           description: tTerm('newCredit.toast.conflict.validate'),
+        });
+        return;
+      }
+
+      if (hasAmbiguousLateFeePolicy) {
+        toast.error({
+          title: tTerm('newCredit.toast.lateFeeConflict.title'),
+          description: tTerm('newCredit.toast.lateFeeConflict.validate'),
         });
         return;
       }
@@ -326,6 +372,14 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     }
 
     if (!isLateFeePolicyReady) {
+      if (hasAmbiguousLateFeePolicy) {
+        toast.error({
+          title: tTerm('newCredit.toast.lateFeeConflict.title'),
+          description: tTerm('newCredit.toast.lateFeeConflict.register'),
+        });
+        return;
+      }
+
       toast.error({
         title: tTerm('newCredit.toast.lateFeePolicyMissing.title'),
         description: tTerm('newCredit.toast.lateFeePolicyMissing.register'),
@@ -396,6 +450,8 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
           ? tTerm('newCredit.action.validate.title.ready')
           : hasAmbiguousRatePolicy
             ? tTerm('newCredit.action.validate.title.conflict')
+            : hasAmbiguousLateFeePolicy
+              ? tTerm('newCredit.action.validate.title.lateFeeConflict')
             : tTerm('newCredit.action.validate.title.missing')}
         icon={isSimulating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
         fullWidth
