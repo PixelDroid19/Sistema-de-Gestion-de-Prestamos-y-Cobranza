@@ -9,6 +9,7 @@ import {
   DataTableSurface,
   FormField,
   ModalShell,
+  NormalizedInput,
   SectionSurface,
   StatusChip,
   TextInput,
@@ -223,16 +224,14 @@ export default function RatePoliciesTab({
           label={tTerm('settings.rate.field.annualRate')}
           tooltip={tTerm('settings.rate.field.annualRateTooltip')}
         >
-          <TextInput
+          <NormalizedInput
             aria-label={tTerm('settings.rate.field.annualRate')}
             required
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
+            variant="percent"
             value={newRatePolicy.annualEffectiveRate}
-            onChange={(event) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
+            onValueChange={(value) => setNewRatePolicy((prev) => ({ ...prev, annualEffectiveRate: value }))}
             placeholder="60"
+            maxDecimals={2}
           />
         </FormField>
       </div>

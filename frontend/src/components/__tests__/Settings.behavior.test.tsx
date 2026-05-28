@@ -268,7 +268,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '2000000' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
       target: { value: '55' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -310,7 +310,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '1000000' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
       target: { value: '48' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -339,7 +339,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto mínimo de tasa'), {
       target: { value: '0' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
       target: { value: '1e2' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -350,6 +350,21 @@ describe('Settings operational configuration', () => {
       }));
     });
     expect(mockCreateRatePolicy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the last valid credit rate when exponent-like text is typed in configuration', () => {
+    mockConfigState.ratePolicies = [];
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tasas de crédito/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear rango de tasa' }));
+
+    const rateInput = getTextboxByAriaLabel('Tasa efectiva anual');
+    fireEvent.change(rateInput, { target: { value: '55' } });
+    expect(rateInput).toHaveDisplayValue('55');
+
+    fireEvent.change(rateInput, { target: { value: '1e1' } });
+    expect(rateInput).toHaveDisplayValue('55');
   });
 
   it('rejects a catch-all credit rate range that would overlap existing ranges before saving', async () => {
@@ -366,7 +381,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(getTextboxByAriaLabel('Monto máximo de tasa'), {
       target: { value: '' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
       target: { value: '50' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));
@@ -387,7 +402,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora QA alterna' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa de mora efectiva anual'), {
       target: { value: '18' },
     });
     expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
@@ -412,7 +427,7 @@ describe('Settings operational configuration', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Nombre de la política de mora' }), {
       target: { value: 'Mora tasa ambigua' },
     });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa de mora efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa de mora efectiva anual'), {
       target: { value: '1e2' },
     });
     expect(screen.queryByRole('combobox', { name: 'Prioridad' })).not.toBeInTheDocument();
@@ -424,6 +439,21 @@ describe('Settings operational configuration', () => {
       }));
     });
     expect(mockCreateLateFeePolicy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the last valid late-fee rate when exponent-like text is typed in configuration', () => {
+    mockConfigState.lateFeePolicies = [];
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Políticas de mora\s*0$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear política' }));
+
+    const lateFeeRateInput = getTextboxByAriaLabel('Tasa de mora efectiva anual');
+    fireEvent.change(lateFeeRateInput, { target: { value: '24' } });
+    expect(lateFeeRateInput).toHaveDisplayValue('24');
+
+    fireEvent.change(lateFeeRateInput, { target: { value: '1e1' } });
+    expect(lateFeeRateInput).toHaveDisplayValue('24');
   });
 
   it('uses the same table surface pattern for policy tabs', () => {
@@ -542,7 +572,7 @@ describe('Settings operational configuration', () => {
     expect(screen.getByRole('heading', { name: 'Editar rango de tasa' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Nombre de política de tasa' })).toHaveValue('Crédito básico');
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tasa efectiva anual' }), {
+    fireEvent.change(getTextboxByAriaLabel('Tasa efectiva anual'), {
       target: { value: '58' },
     });
     fireEvent.submit(screen.getByRole('form', { name: 'Crear política de tasa' }));

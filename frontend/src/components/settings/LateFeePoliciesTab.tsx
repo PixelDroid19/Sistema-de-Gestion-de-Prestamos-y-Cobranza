@@ -8,6 +8,7 @@ import {
   DataTableSurface,
   FormField,
   ModalShell,
+  NormalizedInput,
   SectionSurface,
   SelectInput,
   TextInput,
@@ -101,16 +102,14 @@ export default function LateFeePoliciesTab({
           label={tTerm('settings.lateFee.field.rate')}
           tooltip={tTerm('settings.lateFee.field.rateTooltip')}
         >
-          <TextInput
+          <NormalizedInput
             aria-label={tTerm('settings.lateFee.field.rate')}
             required
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
+            variant="percent"
             value={newLateFeePolicy.annualEffectiveRate}
-            onChange={(event) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: event.target.value }))}
+            onValueChange={(value) => setNewLateFeePolicy((prev) => ({ ...prev, annualEffectiveRate: value }))}
             placeholder={tTerm('settings.lateFee.field.ratePlaceholder')}
+            maxDecimals={2}
           />
         </FormField>
         <FormField
