@@ -28,8 +28,8 @@ import {
   StatusChip,
 } from './shared/Surfaces';
 import { OperationalInput, OperationalSelect } from './shared/FormControls';
+import { getLocalDateInputValue } from '../lib/dateInput';
 
-const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 const formatMoney = (value: number) => formatCurrencyValue(Number.isFinite(value) ? value : 0);
 const getRangeBoundary = (value: unknown, fallback: number) => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -69,15 +69,6 @@ const formatDueDate = (value?: string) => {
   if (Number.isNaN(date.getTime())) return '-';
   return formatLocaleDate(date, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) || '-';
 };
-const addMonthsAsIsoDate = (date: Date, months: number) => {
-  const year = date.getFullYear();
-  const month = date.getMonth() + months;
-  const day = date.getDate();
-  const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  return toIsoDate(new Date(Date.UTC(year, month, Math.min(day, lastDayOfTargetMonth))));
-};
-
-const nextMonthAsIsoDate = () => addMonthsAsIsoDate(new Date(), 1);
 const sortLateFeePoliciesForApplication = (policies: any[]) => [...policies].sort((left, right) => (
   (lateFeePriorityOrder[normalizePolicyPriority(left?.priority)] ?? lateFeePriorityOrder.medium)
   - (lateFeePriorityOrder[normalizePolicyPriority(right?.priority)] ?? lateFeePriorityOrder.medium)
@@ -139,7 +130,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
     ...routeState?.calculationInput,
     rateSource: 'policy',
     lateFeeSource: 'policy',
-    startDate: routeState?.calculationInput?.startDate || nextMonthAsIsoDate(),
+    startDate: routeState?.calculationInput?.startDate || getLocalDateInputValue(),
   }), [routeState?.calculationInput]);
 
   const {
@@ -282,7 +273,7 @@ export default function NewCredit({ onBack }: { onBack: () => void }) {
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
       rateSource: 'policy',
       lateFeeSource: 'policy',
-      startDate: nextMonthAsIsoDate(),
+      startDate: getLocalDateInputValue(),
     });
   };
 

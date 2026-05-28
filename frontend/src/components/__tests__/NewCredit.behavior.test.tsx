@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import NewCredit from '../NewCredit';
+import { getLocalDateInputValue } from '../../lib/dateInput';
 
 const mockNavigate = vi.fn();
 const mockCreateLoan = vi.fn();
@@ -30,9 +31,11 @@ const routeState = {
   source: 'credit-calculator' as const,
 };
 
+let currentLocationState: typeof routeState | null = routeState;
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ state: routeState }),
+  useLocation: () => ({ state: currentLocationState }),
 }));
 
 vi.mock('../../services/loanService', () => ({
@@ -96,6 +99,8 @@ vi.mock('../../services/apiErrors', () => ({
 describe('NewCredit behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
+    currentLocationState = routeState;
     mockConfigState.ratePolicies = [
       {
         id: 1,
@@ -212,6 +217,24 @@ describe('NewCredit behavior', () => {
       });
       expect(mockNavigate).toHaveBeenCalledWith('/credits/55');
     });
+  });
+
+  it('uses today as the default disbursement date when the screen opens without a preloaded scenario', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-27T15:00:00.000Z'));
+    currentLocationState = null;
+
+    render(<NewCredit onBack={vi.fn()} />);
+
+    expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
+      initialInput: expect.objectContaining({
+        startDate: getLocalDateInputValue(new Date('2026-05-27T15:00:00.000Z')),
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      }),
+      autoRun: false,
+    });
+    expect(screen.getByText('Fecha de desembolso')).toBeInTheDocument();
   });
 
   it('uses an operational fallback for unknown preview installment statuses', () => {
