@@ -196,7 +196,7 @@ export function CalendarTab({
               <td className="text-right font-bold text-text-secondary">{formatCurrency(installmentColumnTotals.interestComponent)}</td>
               <td className="text-right font-bold text-red-600 dark:text-red-400">{installmentColumnTotals.lateFeeDue > 0 ? formatCurrency(installmentColumnTotals.lateFeeDue) : '—'}</td>
               <td className="text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(installmentColumnTotals.principalComponent)}</td>
-              <td className="text-right font-bold text-brand-primary text-base">{formatCurrency(installmentColumnTotals.outstandingBalance)}</td>
+              <td className="text-right font-bold text-brand-primary text-base">{formatCurrency(installmentColumnTotals.closingBalance)}</td>
               <td className="text-center text-xs text-text-secondary">—</td>
               {showInstallmentActionColumn && <td></td>}
             </tr>

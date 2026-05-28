@@ -372,9 +372,11 @@ export default function CreditDetails() {
       acc.principalComponent += Number(row.principalComponent || 0);
       return acc;
     }, { scheduledPayment: 0, interestComponent: 0, lateFeeDue: 0, principalComponent: 0 });
-    const lastCB = installmentRows.length > 0 ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0) : Number(loan?.amount || 0);
-    return { ...totals, outstandingBalance: Number(calendarSnapshot?.outstandingBalance ?? lastCB) };
-  }, [calendarSnapshot?.outstandingBalance, installmentRows, loan?.amount]);
+    const lastClosingBalance = installmentRows.length > 0
+      ? Number(installmentRows[installmentRows.length - 1]?.closingBalance || 0)
+      : Number(currentFinancialSnapshot?.outstandingPrincipal ?? loan?.amount ?? 0);
+    return { ...totals, closingBalance: lastClosingBalance };
+  }, [currentFinancialSnapshot?.outstandingPrincipal, installmentRows, loan?.amount]);
 
   // -------------------------------------------------------------------------
   // Early returns

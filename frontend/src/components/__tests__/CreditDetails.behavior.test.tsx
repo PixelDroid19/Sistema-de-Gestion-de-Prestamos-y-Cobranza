@@ -312,12 +312,15 @@ describe('CreditDetails behavioral parity scenarios', () => {
 
     const { container } = renderCreditDetails();
     const renderedText = container.textContent?.replace(/\s+/g, ' ') || '';
+    const calendarTable = screen.getAllByRole('table')[0];
+    const calendarTableText = calendarTable.textContent?.replace(/\s+/g, ' ') || '';
 
     expect(screen.getByText('Total')).toBeInTheDocument();
     expect(renderedText).toMatch(/\$\s*550\.000/);
     expect(renderedText).toMatch(/\$\s*90\.000/);
     expect(renderedText).toMatch(/\$\s*460\.000/);
-    expect(renderedText).toMatch(/\$\s*750\.000/);
+    expect(calendarTableText).toMatch(/\$\s*390\.000/);
+    expect(calendarTableText).not.toMatch(/\$\s*750\.000/);
   });
 
   it('routes top-level payment CTA to the next payable installment', async () => {
