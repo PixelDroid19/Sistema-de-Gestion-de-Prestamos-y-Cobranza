@@ -49,6 +49,11 @@ type CreditSimulationWorkspaceProps = {
     helper?: string;
     badge?: string;
   };
+  lateFeeControl?: {
+    readOnly?: boolean;
+    helper?: React.ReactNode;
+    badge?: string;
+  };
 };
 
 const lateFeeModeOptions: Array<NonNullable<CreditCalculationInput['lateFeeMode']>> = ['NONE', 'SIMPLE', 'COMPOUND'];
@@ -131,6 +136,7 @@ export default function CreditSimulationWorkspace({
   emptyDescription,
   emptyScheduleDescription,
   rateControl,
+  lateFeeControl,
 }: CreditSimulationWorkspaceProps) {
   const { locale } = useTranslation();
   const instanceId = useId();
@@ -312,7 +318,7 @@ export default function CreditSimulationWorkspace({
                   <FormField
                     label={tTerm('simulator.form.lateFeeCalculation')}
                     tooltip={fieldHelp.lateFee}
-                    helper={(
+                    helper={lateFeeControl?.badge || lateFeeControl?.helper || (
                       <>
                         <span className="font-semibold text-text-primary">
                           {formatLateFeeModeLabel(input.lateFeeMode)}:
@@ -325,7 +331,7 @@ export default function CreditSimulationWorkspace({
                       aria-label={tTerm('simulator.form.lateFeeCalculation')}
                       value={input.lateFeeMode || 'SIMPLE'}
                       onChange={(event) => onInputChange({ lateFeeMode: event.target.value as NonNullable<CreditCalculationInput['lateFeeMode']> })}
-                      disabled={disabled}
+                      disabled={disabled || lateFeeControl?.readOnly}
                       data-tour="new-credit-late-fee-mode"
                     >
                       {lateFeeModeOptions.map((option) => (

@@ -1,21 +1,32 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CreditSimulator from '../CreditSimulator';
+import type { CreditCalculationInput } from '../../types/creditCalculation';
 
 const mockNavigate = vi.fn();
+const mockSetInput = vi.fn();
+const mockUseActiveCreditSimulation = vi.fn();
 
-const calculationInput = {
+const calculationInput: CreditCalculationInput = {
   amount: 2400000,
-  interestRate: 48,
+  interestRate: 61,
   termMonths: 18,
   lateFeeMode: 'SIMPLE' as const,
   startDate: '2026-04-26',
+  annualLateFeeRate: 28.17,
+  rateSource: 'policy' as const,
+  lateFeeSource: 'policy' as const,
 };
 
 const baseCalculationResult = {
   method: 'COMPOUND',
   calculationProfileVersionId: 8,
   lateFeeMode: 'SIMPLE' as const,
+  inputs: calculationInput,
+  policySnapshot: {
+    rateSource: 'policy',
+    lateFeeSource: 'policy',
+  },
   summary: {
     installmentAmount: 210000,
     totalPrincipal: 2400000,
@@ -37,7 +48,7 @@ let calculationState = {
   fieldErrors: {},
   isSimulating: false,
   isResultStale: false,
-  setInput: vi.fn(),
+  setInput: mockSetInput,
   simulate: vi.fn(),
 };
 
@@ -56,7 +67,7 @@ vi.mock('../hooks/useActiveCreditSimulation', () => ({
     termMonths: 12,
     lateFeeMode: 'SIMPLE',
   },
-  useActiveCreditSimulation: () => calculationState,
+  useActiveCreditSimulation: (...args: unknown[]) => mockUseActiveCreditSimulation(...args),
 }));
 
 describe('CreditSimulator behavior', () => {
@@ -69,9 +80,10 @@ describe('CreditSimulator behavior', () => {
       fieldErrors: {},
       isSimulating: false,
       isResultStale: false,
-      setInput: vi.fn(),
+      setInput: mockSetInput,
       simulate: vi.fn(),
     };
+    mockUseActiveCreditSimulation.mockImplementation(() => calculationState);
   });
 
   it('continues to the real registration route from the top CTA with the simulated scenario', async () => {
@@ -104,6 +116,65 @@ describe('CreditSimulator behavior', () => {
 
     expect(calculationState.simulate).toHaveBeenCalledTimes(1);
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('starts the simulator in policy-backed mode and keeps rate and late-fee controls read-only', () => {
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    expect(mockUseActiveCreditSimulation).toHaveBeenCalledWith({
+      initialInput: expect.objectContaining({
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      }),
+      autoRun: true,
+    });
+    expect(screen.getByDisplayValue('61')).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Cálculo de mora' })).toBeDisabled();
+    expect(screen.getByText(/La tasa se define con la regla vigente del negocio/i)).toBeInTheDocument();
+    expect(screen.getByText(/La mora se define con la política vigente/i)).toBeInTheDocument();
+  });
+
+  it('synchronizes the visible rule fields with the backend-applied policy result', async () => {
+    calculationState = {
+      ...calculationState,
+      input: {
+        amount: 2400000,
+        interestRate: 48,
+        termMonths: 18,
+        lateFeeMode: 'SIMPLE',
+        startDate: '2026-04-26',
+        annualLateFeeRate: 0,
+        rateSource: 'manual',
+        lateFeeSource: 'manual',
+      },
+      result: {
+        ...baseCalculationResult,
+        inputs: calculationInput,
+        policySnapshot: {
+          rateSource: 'policy',
+          lateFeeSource: 'policy',
+        },
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <CreditSimulator />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockSetInput).toHaveBeenCalledWith({
+        interestRate: 61,
+        annualLateFeeRate: 28.17,
+        rateSource: 'policy',
+        lateFeeSource: 'policy',
+      });
+    });
   });
 
   it('does not expose the internal calculation profile version in the simulation summary', () => {

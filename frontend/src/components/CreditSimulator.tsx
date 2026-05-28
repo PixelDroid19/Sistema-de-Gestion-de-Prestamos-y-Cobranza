@@ -26,10 +26,54 @@ export default function CreditSimulator() {
     initialInput: {
       ...DEFAULT_ACTIVE_CREDIT_CALCULATION_INPUT,
       startDate: getLocalDateInputValue(),
+      rateSource: 'policy',
+      lateFeeSource: 'policy',
     },
     autoRun: true,
   });
   const canContinueToRegistration = Boolean(result) && !isResultStale;
+
+  React.useEffect(() => {
+    const policySnapshot = (result?.policySnapshot || null) as Record<string, unknown> | null;
+    const nextInput: Partial<typeof input> = {};
+
+    if (String(policySnapshot?.rateSource || '').toLowerCase() === 'policy') {
+      const appliedRate = Number(result?.inputs?.interestRate);
+      if (Number.isFinite(appliedRate) && appliedRate !== input.interestRate) {
+        nextInput.interestRate = appliedRate;
+      }
+      if (input.rateSource !== 'policy') {
+        nextInput.rateSource = 'policy';
+      }
+    }
+
+    if (String(policySnapshot?.lateFeeSource || '').toLowerCase() === 'policy') {
+      const appliedLateFeeMode = result?.inputs?.lateFeeMode || result?.lateFeeMode || input.lateFeeMode || 'SIMPLE';
+      const appliedLateFeeRate = Number(result?.inputs?.annualLateFeeRate ?? input.annualLateFeeRate ?? 0);
+
+      if (appliedLateFeeMode !== input.lateFeeMode) {
+        nextInput.lateFeeMode = appliedLateFeeMode;
+      }
+      if (Number.isFinite(appliedLateFeeRate) && appliedLateFeeRate !== input.annualLateFeeRate) {
+        nextInput.annualLateFeeRate = appliedLateFeeRate;
+      }
+      if (input.lateFeeSource !== 'policy') {
+        nextInput.lateFeeSource = 'policy';
+      }
+    }
+
+    if (Object.keys(nextInput).length > 0) {
+      setInput(nextInput);
+    }
+  }, [
+    input.annualLateFeeRate,
+    input.interestRate,
+    input.lateFeeMode,
+    input.lateFeeSource,
+    input.rateSource,
+    result,
+    setInput,
+  ]);
 
   const navigateToCreditRegistration = React.useCallback(() => {
     if (!canContinueToRegistration) {
@@ -85,6 +129,14 @@ export default function CreditSimulator() {
           resultBadge={result ? tTerm('newCredit.summary.activeRule') : null}
           emptyTitle={tTerm('creditCalculator.empty.title')}
           emptyDescription={tTerm('creditCalculator.empty.description')}
+          rateControl={{
+            readOnly: true,
+            helper: tTerm('creditCalculator.rate.helper'),
+          }}
+          lateFeeControl={{
+            readOnly: true,
+            helper: tTerm('creditCalculator.lateFee.helper'),
+          }}
           compactChrome
         />
       </div>
