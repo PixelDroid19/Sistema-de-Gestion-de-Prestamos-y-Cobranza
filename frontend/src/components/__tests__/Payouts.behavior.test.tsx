@@ -7,6 +7,7 @@ const mockCreatePartialPayment = vi.fn().mockResolvedValue(undefined);
 const mockCreateCapitalPayment = vi.fn().mockResolvedValue(undefined);
 const mockUpdatePaymentMetadata = vi.fn().mockResolvedValue(undefined);
 const mockConfirmDanger = vi.fn().mockResolvedValue(true);
+const mockNavigate = vi.fn();
 
 let currentUser = {
   id: 1,
@@ -20,7 +21,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    useNavigate: () => vi.fn(),
+    useNavigate: () => mockNavigate,
   };
 });
 
@@ -343,5 +344,15 @@ describe('Payouts behavioral parity scenarios', () => {
 
     expect(screen.getByText('1 pago(s) seleccionado(s)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar comprobantes' })).toBeInTheDocument();
+  });
+
+  it('navigates to the credit details when the operator clicks the visible loan id', async () => {
+    renderPayouts();
+
+    fireEvent.click(screen.getByText('999'));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/credits/999');
+    });
   });
 });

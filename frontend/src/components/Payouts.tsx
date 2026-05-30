@@ -511,7 +511,13 @@ export default function Payouts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {payments.map((payment: any) => (
+              {payments.map((payment: any) => {
+                const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
+                const viewCreditTitle = viewGuard.executable
+                  ? tTerm('payouts.action.viewCredit')
+                  : (viewGuard.reason || tTerm('credits.action.unavailable'));
+
+                return (
                 <tr key={payment.id} className="hover:bg-hover-bg transition-colors">
                   <td className="py-4">
                     <CheckboxInput
@@ -521,7 +527,21 @@ export default function Payouts() {
                     />
                   </td>
                   <td className="py-4 text-text-secondary font-mono">{String(payment.id).substring(0, 8)}</td>
-                  <td className="cursor-pointer py-4 font-mono text-brand-primary hover:underline">{payment.loanId}</td>
+                  <td className="py-4 font-mono">
+                    {viewGuard.visible ? (
+                      <button
+                        type="button"
+                        className="text-brand-primary transition hover:underline disabled:cursor-not-allowed disabled:text-text-secondary disabled:no-underline"
+                        onClick={() => handleViewCredit(Number(payment.loanId))}
+                        disabled={!viewGuard.executable}
+                        title={viewCreditTitle}
+                      >
+                        {payment.loanId}
+                      </button>
+                    ) : (
+                      <span className="text-text-secondary">{payment.loanId}</span>
+                    )}
+                  </td>
                   <td className="py-4 text-text-secondary">{formatPaymentDate(payment)}</td>
                   <td className="py-4 font-medium">{formatCurrencyValue(payment.amount)}</td>
                   <td className="py-4 text-text-secondary capitalize">{formatPaymentMethod(payment)}</td>
@@ -544,7 +564,6 @@ export default function Payouts() {
                         icon={<FileText size={16} />}
                       />
                       {(() => {
-                        const viewGuard = resolveOperationalGuard('payout.credit.view', { role, permissions });
                         const editGuard = resolveOperationalGuard('payout.metadata.edit', {
                           role,
                           permissions,
@@ -593,7 +612,8 @@ export default function Payouts() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </TableShell>
